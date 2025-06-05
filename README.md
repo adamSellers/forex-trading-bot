@@ -241,27 +241,27 @@ if (correlationHigh) skipTrade();
 
 ## Clean Install Steps
 
-SSH to host: ssh {hostName}@{hostURL}
-Download script: curl -O https://raw.githubusercontent.com/yourusername/crypto-trading-bot/main/scripts/install-pi.sh
-Make executable: chmod +x install-pi.sh
-Update repo URL in script (line 13)
-Run install: ./install-pi.sh
-Add API keys: nano /opt/crypto-trading-bot/backend/.env
-Restart: pm2 restart img-backend
+-   SSH to host: ssh {hostName}@{hostURL}
+-   Download script: curl -O https://raw.githubusercontent.com/yourusername/crypto-trading-bot/main/scripts/install-pi.sh
+-   Make executable: chmod +x install-pi.sh
+-   Update repo URL in script (line 13)
+-   Run install: ./clean-install-pi.sh
+-   Add API keys: nano /opt/crypto-trading-bot/backend/.env
+-   Restart: pm2 restart img-backend
 
 ## Update Existing Installation
 
-SSH to host: ssh {hostName}@{hostURL}
-Go to project: cd /opt/crypto-trading-bot
-Pull changes: git pull origin main
-Check for issues: ./scripts/deploy-check.sh
-Update dependencies: npm run install:backend && npm run install:frontend
-Build frontend: npm run build:frontend
-Run migrations: npm run db:migrate
-Restart: pm2 restart img-backend
+-   SSH to host: ssh {hostName}@{hostURL}
+-   Go to project: cd /opt/crypto-trading-bot
+-   Pull changes: git pull origin main
+-   Check for issues: ./scripts/deploy-check.sh
+-   Update dependencies: npm run install:backend && npm run install:frontend
+-   Build frontend: npm run build:frontend
+-   Run migrations: npm run db:migrate
+-   Restart: pm2 restart img-backend
 
-🩺 Verify Both
+### 🩺 Verify Both
 
-Check status: ./scripts/status.sh
-View logs: ./scripts/logs.sh
-Test dashboard: Visit ths site and get started..
+-   Check status: ./scripts/status.sh
+-   View logs: ./scripts/logs.sh
+-   Test dashboard: Visit ths site and get started..
