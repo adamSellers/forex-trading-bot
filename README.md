@@ -239,7 +239,7 @@ if (positionSize > maxRisk) reducePosition();
 if (correlationHigh) skipTrade();
 ```
 
-## Clean Install Steps
+## 🚀 Clean Install Steps
 
 -   SSH to host: ssh {hostName}@{hostURL}
 -   Download script: curl -O https://raw.githubusercontent.com/yourusername/crypto-trading-bot/main/scripts/install-pi.sh
@@ -249,7 +249,7 @@ if (correlationHigh) skipTrade();
 -   Add API keys: nano /opt/crypto-trading-bot/backend/.env
 -   Restart: pm2 restart img-backend
 
-## Update Existing Installation
+## 🔄 Update Existing Installation
 
 -   SSH to host: ssh {hostName}@{hostURL}
 -   Go to project: cd /opt/crypto-trading-bot
