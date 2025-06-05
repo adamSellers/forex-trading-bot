@@ -139,6 +139,19 @@ module.exports = (tradingController) => {
             res.json({ success: true, message: "Trading engine reset" });
         })
     );
+    // GET Health Check endpoint
+    router.get("/health", (req, res) => {
+        res.json({
+            status: "OK",
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            trading: {
+                initialized: tradingController.isInitialized,
+                servicesReady: !!tradingController.services.trading,
+            },
+        });
+    });
 
     return router;
 };
