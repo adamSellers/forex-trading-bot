@@ -3,66 +3,161 @@ const express = require("express");
 const router = express.Router();
 
 module.exports = (tradingController) => {
-    // ================== BASIC ROUTES ==================
-
     // GET /api/trading/status - Get system status
-    router.get("/status", (req, res) => {
-        tradingController.getStatus(req, res);
+    router.get("/status", async (req, res) => {
+        try {
+            const status = await tradingController.getStatus();
+            res.json(status);
+        } catch (error) {
+            console.error("Status API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // GET /api/trading/portfolio - Get enhanced portfolio summary
-    router.get("/portfolio", (req, res) => {
-        tradingController.getPortfolio(req, res);
+    router.get("/portfolio", async (req, res) => {
+        try {
+            const portfolio = await tradingController.getPortfolio();
+            res.json(portfolio);
+        } catch (error) {
+            console.error("Portfolio API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // GET /api/trading/signals - Get trading signals
-    router.get("/signals", (req, res) => {
-        tradingController.getSignals(req, res);
+    router.get("/signals", async (req, res) => {
+        try {
+            const signals = await tradingController.getSignals(req.query);
+            res.json(signals);
+        } catch (error) {
+            console.error("Signals API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // GET /api/trading/trades - Get trade history
-    router.get("/trades", (req, res) => {
-        tradingController.getTrades(req, res);
+    router.get("/trades", async (req, res) => {
+        try {
+            const trades = await tradingController.getTrades(req.query);
+            res.json(trades);
+        } catch (error) {
+            console.error("Trades API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // GET /api/trading/prices - Get current prices
-    router.get("/prices", (req, res) => {
-        tradingController.getPrices(req, res);
+    router.get("/prices", async (req, res) => {
+        try {
+            const prices = await tradingController.getPrices();
+            res.json(prices);
+        } catch (error) {
+            console.error("Prices API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // GET /api/trading/candles/:symbol/:timeframe - Get candle data
-    router.get("/candles/:symbol/:timeframe", (req, res) => {
-        tradingController.getCandles(req, res);
+    router.get("/candles/:symbol/:timeframe", async (req, res) => {
+        try {
+            const { symbol, timeframe } = req.params;
+
+            if (!tradingController.services?.trading?.binanceData) {
+                return res
+                    .status(400)
+                    .json({ error: "Binance service not available" });
+            }
+
+            const candles =
+                tradingController.services.trading.binanceData.getCandles(
+                    symbol,
+                    timeframe
+                );
+            res.json({
+                symbol,
+                timeframe,
+                count: candles.length,
+                candles: candles.slice(-100), // Return last 100 candles
+            });
+        } catch (error) {
+            console.error("Candles API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // GET /api/trading/account - Get enhanced account info with paper context
-    router.get("/account", (req, res) => {
-        tradingController.getAccount(req, res);
+    router.get("/account", async (req, res) => {
+        try {
+            const account = await tradingController.getAccount();
+            res.json(account);
+        } catch (error) {
+            console.error("Account API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
-    // GET /api/trading/balances - Get crypto balances
-    router.get("/balances", (req, res) => {
-        tradingController.getBalances(req, res);
+    // GET /api/trading/balances - Get crypto balances (alias for account)
+    router.get("/balances", async (req, res) => {
+        try {
+            const account = await tradingController.getAccount();
+            res.json(account.balances || []);
+        } catch (error) {
+            console.error("Balances API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // ================== ENHANCED ROUTES ==================
 
-    // NEW: Get combined real + paper holdings
-    router.get("/holdings", (req, res) => {
-        tradingController.getCombinedHoldings(req, res);
+    // GET /api/trading/holdings - Get combined real + paper holdings
+    router.get("/holdings", async (req, res) => {
+        try {
+            const holdings = await tradingController.getCombinedHoldings();
+            res.json(holdings);
+        } catch (error) {
+            console.error("Holdings API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
-    // NEW: Get detailed paper trading statistics
-    router.get("/paper-stats", (req, res) => {
-        tradingController.getPaperTradingStats(req, res);
+    // GET /api/trading/paper-stats - Get detailed paper trading statistics
+    router.get("/paper-stats", async (req, res) => {
+        try {
+            if (!tradingController.services?.trading?.paperTrading) {
+                return res
+                    .status(400)
+                    .json({ error: "Paper trading not initialized" });
+            }
+
+            const paperPortfolio =
+                tradingController.services.trading.paperTrading.getPortfolioSummary();
+            const paperTrades =
+                tradingController.services.trading.paperTrading.getRecentTrades(
+                    50
+                );
+
+            const stats = {
+                portfolio: paperPortfolio,
+                recentTrades: paperTrades,
+                performance: paperPortfolio.performance,
+                riskStatus: paperPortfolio.riskStatus,
+                timestamp: Date.now(),
+            };
+
+            res.json(stats);
+        } catch (error) {
+            console.error("Paper stats API error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
-    // NEW: Real-time portfolio comparison
+    // GET /api/trading/comparison - Real-time portfolio comparison
     router.get("/comparison", async (req, res) => {
         try {
             const { period = "7d" } = req.query;
 
-            if (!tradingController.services.paperTrading) {
+            if (!tradingController.services?.trading?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Paper trading not initialized" });
@@ -70,15 +165,17 @@ module.exports = (tradingController) => {
 
             // Get paper trading performance
             const paperPortfolio =
-                tradingController.services.paperTrading.getPortfolioSummary();
+                tradingController.services.trading.paperTrading.getPortfolioSummary();
             const paperTrades =
-                tradingController.services.paperTrading.getRecentTrades(50);
+                tradingController.services.trading.paperTrading.getRecentTrades(
+                    50
+                );
 
             // Get real account value (calculated with current prices)
             const account =
-                await tradingController.services.binanceData.getAccountInfo();
+                await tradingController.services.trading.binanceData.getAccountInfo();
             const prices =
-                tradingController.services.binanceData.getAllPrices();
+                tradingController.services.trading.binanceData.getAllPrices();
 
             let realPortfolioValue = 0;
             const realAllocation = [];
@@ -115,19 +212,16 @@ module.exports = (tradingController) => {
             const comparison = {
                 period,
                 timestamp: Date.now(),
-
                 real: {
                     value: realPortfolioValue,
                     change: 0, // Would need historical data to calculate
                     allocation: realAllocation,
                     description: "Your actual Binance holdings",
                 },
-
                 paper: {
                     value: paperPortfolio.totalValue,
                     change: paperPortfolio.totalPnLPercent,
                     allocation: [
-                        // USDT Balance
                         {
                             asset: "USDT",
                             quantity: paperPortfolio.usdtBalance,
@@ -137,7 +231,6 @@ module.exports = (tradingController) => {
                                     paperPortfolio.totalValue) *
                                 100,
                         },
-                        // Crypto Positions
                         ...paperPortfolio.positions.map((pos) => ({
                             asset: pos.symbol.replace("USDT", ""),
                             quantity: pos.quantity,
@@ -153,9 +246,8 @@ module.exports = (tradingController) => {
                     performance: paperPortfolio.performance,
                     description: "Virtual paper trading results",
                 },
-
                 analysis: {
-                    paperOutperformance: paperPortfolio.totalPnLPercent, // vs 0% for real (no tracking)
+                    paperOutperformance: paperPortfolio.totalPnLPercent,
                     riskTaken: {
                         daily:
                             (paperPortfolio.riskStatus.dailyLossUsed /
@@ -179,98 +271,21 @@ module.exports = (tradingController) => {
         }
     });
 
-    // NEW: Historical performance tracking
-    router.get("/history/:type", async (req, res) => {
+    // GET /api/trading/risk-status - Risk management status
+    router.get("/risk-status", async (req, res) => {
         try {
-            const { type } = req.params; // 'portfolio', 'trades', 'signals', 'performance'
-            const { period = "30d", limit = 100 } = req.query;
-
-            const periodMs = parsePeriod(period);
-            const cutoffTime = Date.now() - periodMs;
-
-            let data = [];
-
-            switch (type) {
-                case "portfolio":
-                    // Get portfolio snapshots from database
-                    try {
-                        const db = require("../../config/database");
-                        data = await db("portfolio")
-                            .where("snapshot_time", ">=", new Date(cutoffTime))
-                            .orderBy("snapshot_time", "desc")
-                            .limit(limit);
-                    } catch (dbError) {
-                        console.warn(
-                            "Database not available for portfolio history"
-                        );
-                        data = [];
-                    }
-                    break;
-
-                case "trades":
-                    data = tradingController.services.paperTrading.tradeHistory
-                        .filter((trade) => trade.timestamp >= cutoffTime)
-                        .slice(-limit);
-                    break;
-
-                case "signals":
-                    data =
-                        tradingController.services.signalGenerator.signalHistory
-                            .filter((signal) => signal.timestamp >= cutoffTime)
-                            .slice(-limit);
-                    break;
-
-                case "performance":
-                    // Get performance metrics over time
-                    try {
-                        const db = require("../../config/database");
-                        data = await db("performance")
-                            .where("calculated_at", ">=", new Date(cutoffTime))
-                            .orderBy("calculated_at", "desc")
-                            .limit(limit);
-                    } catch (dbError) {
-                        console.warn(
-                            "Database not available for performance history"
-                        );
-                        data = [];
-                    }
-                    break;
-
-                default:
-                    return res
-                        .status(400)
-                        .json({ error: "Invalid history type" });
-            }
-
-            res.json({
-                type,
-                period,
-                count: data.length,
-                data: data.reverse(), // Return chronological order
-            });
-        } catch (error) {
-            console.error("History API error:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    // NEW: Risk management status
-    router.get("/risk-status", (req, res) => {
-        try {
-            if (!tradingController.services.paperTrading) {
+            if (!tradingController.services?.trading?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Paper trading not initialized" });
             }
 
             const portfolio =
-                tradingController.services.paperTrading.getPortfolioSummary();
+                tradingController.services.trading.paperTrading.getPortfolioSummary();
             const riskStatus = portfolio.riskStatus;
 
             const enhancedRiskStatus = {
                 ...riskStatus,
-
-                // Risk utilization metrics
                 utilization: {
                     daily: {
                         used: riskStatus.dailyLossUsed,
@@ -295,8 +310,6 @@ module.exports = (tradingController) => {
                             riskStatus.weeklyLossUsed,
                     },
                 },
-
-                // Portfolio risk metrics
                 portfolio: {
                     totalValue: portfolio.totalValue,
                     maxDrawdown: portfolio.performance.maxDrawdown,
@@ -304,11 +317,9 @@ module.exports = (tradingController) => {
                     exposurePercentage:
                         (portfolio.cryptoValue / portfolio.totalValue) * 100,
                 },
-
-                // Position risk
                 positions: portfolio.positions.map((pos) => ({
                     symbol: pos.symbol,
-                    riskAmount: (pos.entryCost || 0) * 0.01, // 1% of entry cost
+                    riskAmount: (pos.entryCost || 0) * 0.01,
                     currentRisk: Math.max(
                         0,
                         (pos.entryCost || 0) - (pos.currentValue || 0)
@@ -320,8 +331,6 @@ module.exports = (tradingController) => {
                               100
                             : 0,
                 })),
-
-                // Risk alerts
                 alerts: {
                     nearDailyLimit:
                         riskStatus.dailyLossUsed / riskStatus.dailyLossLimit >
@@ -332,7 +341,6 @@ module.exports = (tradingController) => {
                     highDrawdown: portfolio.performance.currentDrawdown > 15,
                     isHalted: riskStatus.isHalted,
                 },
-
                 timestamp: Date.now(),
             };
 
@@ -346,28 +354,89 @@ module.exports = (tradingController) => {
     // ================== CONFIGURATION ROUTES ==================
 
     // POST /api/trading/config - Update configuration
-    router.post("/config", (req, res) => {
-        tradingController.updateConfig(req, res);
+    router.post("/config", async (req, res) => {
+        try {
+            await tradingController.updateConfig(req.body);
+            res.json({ success: true, message: "Configuration updated" });
+        } catch (error) {
+            console.error("Config update error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // POST /api/trading/reset - Reset trading engine
-    router.post("/reset", (req, res) => {
-        tradingController.resetTrading(req, res);
+    router.post("/reset", async (req, res) => {
+        try {
+            await tradingController.resetTrading();
+            res.json({ success: true, message: "Trading engine reset" });
+        } catch (error) {
+            console.error("Reset error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // POST /api/trading/start - Start trading
-    router.post("/start", (req, res) => {
-        tradingController.startTrading(req, res);
+    router.post("/start", async (req, res) => {
+        try {
+            await tradingController.startTrading();
+            res.json({ success: true, message: "Trading started" });
+        } catch (error) {
+            console.error("Start trading error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // POST /api/trading/stop - Stop trading
-    router.post("/stop", (req, res) => {
-        tradingController.stopTrading(req, res);
+    router.post("/stop", async (req, res) => {
+        try {
+            await tradingController.stopTrading();
+            res.json({ success: true, message: "Trading stopped" });
+        } catch (error) {
+            console.error("Stop trading error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // POST /api/trading/test-signal - Generate test signal
-    router.post("/test-signal", (req, res) => {
-        tradingController.generateTestSignalAPI(req, res);
+    router.post("/test-signal", async (req, res) => {
+        try {
+            const {
+                symbol = "BTCUSDT",
+                signal = "BUY",
+                strength = 1.5,
+            } = req.body;
+
+            const testSignal = {
+                symbol,
+                signal,
+                strength,
+                strategy: "test",
+                timeframe: "1h",
+                currentPrice: 67000,
+                message: "Test signal generated via API",
+                timestamp: Date.now(),
+            };
+
+            // Process the test signal if paper trading is active
+            if (tradingController.services?.trading?.paperTrading) {
+                const result =
+                    await tradingController.services.trading.paperTrading.processSignal(
+                        testSignal,
+                        67000,
+                        500
+                    );
+                res.json({ success: true, signal: testSignal, result });
+            } else {
+                res.json({
+                    success: true,
+                    signal: testSignal,
+                    result: { message: "Paper trading not active" },
+                });
+            }
+        } catch (error) {
+            console.error("Test signal error:", error);
+            res.status(500).json({ error: error.message });
+        }
     });
 
     // ================== ANALYTICS ROUTES ==================
@@ -375,16 +444,18 @@ module.exports = (tradingController) => {
     // GET /api/trading/performance - Get detailed performance metrics
     router.get("/performance", async (req, res) => {
         try {
-            if (!tradingController.services.paperTrading) {
+            if (!tradingController.services?.trading?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Trading engine not initialized" });
             }
 
             const portfolio =
-                tradingController.services.paperTrading.getPortfolioSummary();
+                tradingController.services.trading.paperTrading.getPortfolioSummary();
             const trades =
-                tradingController.services.paperTrading.getRecentTrades(100);
+                tradingController.services.trading.paperTrading.getRecentTrades(
+                    100
+                );
 
             // Calculate additional metrics
             const dailyReturns = calculateDailyReturns(trades);
@@ -416,8 +487,8 @@ module.exports = (tradingController) => {
             const { period = "7d" } = req.query;
 
             if (
-                !tradingController.services.paperTrading ||
-                !tradingController.services.signalGenerator
+                !tradingController.services?.trading?.paperTrading ||
+                !tradingController.services?.trading?.signalGenerator
             ) {
                 return res
                     .status(400)
@@ -429,12 +500,12 @@ module.exports = (tradingController) => {
 
             // Get data for the specified period
             const trades =
-                tradingController.services.paperTrading.tradeHistory.filter(
+                tradingController.services.trading.paperTrading.tradeHistory.filter(
                     (trade) => trade.timestamp >= cutoffTime
                 );
 
             const signals =
-                tradingController.services.signalGenerator.signalHistory.filter(
+                tradingController.services.trading.signalGenerator.signalHistory.filter(
                     (signal) => signal.timestamp >= cutoffTime
                 );
 
@@ -472,65 +543,8 @@ module.exports = (tradingController) => {
         }
     });
 
-    // GET /api/trading/test-candles - Test candle data loading
-    router.get("/test-candles", async (req, res) => {
-        try {
-            if (!tradingController.services.binanceData) {
-                return res
-                    .status(400)
-                    .json({ error: "Binance service not initialized" });
-            }
-
-            const testResults = {};
-            const assets = ["BTCUSDT"];
-            const timeframes = ["1h"];
-
-            for (const asset of assets) {
-                for (const timeframe of timeframes) {
-                    try {
-                        console.log(`🧪 Testing ${asset} ${timeframe}...`);
-
-                        const candles =
-                            await tradingController.services.binanceData.getHistoricalCandles(
-                                asset,
-                                timeframe,
-                                10
-                            );
-
-                        testResults[`${asset}_${timeframe}`] = {
-                            success: true,
-                            candleCount: candles.length,
-                            firstCandle: candles[0],
-                            lastCandle: candles[candles.length - 1],
-                        };
-                    } catch (error) {
-                        testResults[`${asset}_${timeframe}`] = {
-                            success: false,
-                            error: error.message,
-                        };
-                    }
-                }
-            }
-
-            res.json({
-                message: "Candle loading test complete",
-                results: testResults,
-                cacheStatus: {
-                    totalCandleDatasets:
-                        tradingController.services.binanceData.candleCache.size,
-                    priceCache:
-                        tradingController.services.binanceData.priceCache.size,
-                },
-            });
-        } catch (error) {
-            console.error("Test candles API error:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
     // ================== HELPER FUNCTIONS ==================
 
-    // Helper function for parsing period
     function parsePeriod(period) {
         const periods = {
             "1h": 60 * 60 * 1000,
@@ -552,27 +566,23 @@ module.exports = (tradingController) => {
 
     function calculateSharpeRatio(returns) {
         if (returns.length < 2) return 0;
-
         const avgReturn =
             returns.reduce((sum, r) => sum + r, 0) / returns.length;
         const variance =
             returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
             (returns.length - 1);
         const stdDev = Math.sqrt(variance);
-
-        return stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(252); // Annualized
+        return stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(252);
     }
 
     function calculateVolatility(returns) {
         if (returns.length < 2) return 0;
-
         const avgReturn =
             returns.reduce((sum, r) => sum + r, 0) / returns.length;
         const variance =
             returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
             (returns.length - 1);
-
-        return Math.sqrt(variance) * Math.sqrt(252); // Annualized
+        return Math.sqrt(variance) * Math.sqrt(252);
     }
 
     function calculateAvgHoldingPeriod(trades) {
@@ -580,7 +590,6 @@ module.exports = (tradingController) => {
             (t) => t.side === "SELL" && t.holdingPeriod
         );
         if (sellTrades.length === 0) return 0;
-
         const totalTime = sellTrades.reduce(
             (sum, t) => sum + t.holdingPeriod,
             0
@@ -593,7 +602,6 @@ module.exports = (tradingController) => {
             (t) => t.side === "SELL" && t.pnl !== undefined
         );
         if (sellTrades.length === 0) return null;
-
         return sellTrades.reduce((best, trade) =>
             trade.pnl > (best?.pnl || -Infinity) ? trade : best
         );
@@ -604,7 +612,6 @@ module.exports = (tradingController) => {
             (t) => t.side === "SELL" && t.pnl !== undefined
         );
         if (sellTrades.length === 0) return null;
-
         return sellTrades.reduce((worst, trade) =>
             trade.pnl < (worst?.pnl || Infinity) ? trade : worst
         );
@@ -612,11 +619,9 @@ module.exports = (tradingController) => {
 
     function calculateTradingFrequency(trades) {
         if (trades.length < 2) return 0;
-
         const timeSpan =
             trades[trades.length - 1].timestamp - trades[0].timestamp;
         const days = timeSpan / (24 * 60 * 60 * 1000);
-
         return trades.length / (days || 1);
     }
 
@@ -717,7 +722,7 @@ module.exports = (tradingController) => {
         };
     }
 
-    // Helper middleware for error handling
+    // Error handling middleware
     router.use((error, req, res, next) => {
         console.error("Trading API Error:", error);
         res.status(500).json({
