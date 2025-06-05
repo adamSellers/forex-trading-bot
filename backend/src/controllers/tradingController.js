@@ -1,5 +1,5 @@
 // backend/src/controllers/tradingController.js - COMPLETE WITH ALL FIXES
-const BinanceDataService = require("../services/binanceDataService");
+const BinanceDataService = require("../services/binanceDataService_Testnet");
 const SignalGenerator = require("../services/signalGenerator");
 const PaperTradingEngine = require("../services/paperTradingEngine");
 const db = require("../../config/database");
