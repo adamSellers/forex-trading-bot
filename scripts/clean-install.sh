@@ -11,7 +11,7 @@ set -e  # Exit on any error
 PROJECT_DIR="/opt/crypto-trading-bot"
 PROJECT_USER="adam"
 BACKUP_DIR="/opt/crypto-trading-bot-backups"
-REPO_URL="git@github.com:adamSellers/crypto-trading-bot.git"  # UPDATE THIS
+REPO_URL="https://github.com/yourusername/crypto-trading-bot.git"  # UPDATE THIS
 BRANCH="main"
 
 # Colors for output
@@ -357,7 +357,7 @@ module.exports = {
     development: {
         client: "sqlite3",
         connection: {
-            filename: path.join(__dirname, "./data/trading_bot.db"),
+            filename: path.join(__dirname, "./data/trading.db"),
         },
         useNullAsDefault: true,
         migrations: {
@@ -379,16 +379,22 @@ module.exports = {
 EOF
     fi
     
-    # Run database migrations
-    log_substep "Running database migrations..."
-    npm run db:migrate
+    # Run database migrations with explicit production environment
+    log_substep "Running database migrations in production mode..."
+    cd backend
+    NODE_ENV=production npx knex migrate:latest
+    cd ..
+    
+    # Check what database files actually exist
+    log_substep "Checking created database files..."
+    ls -la backend/data/ || true
     
     # Verify database was created
-    if [[ ! -f "backend/data/trading.db" ]] && [[ ! -f "backend/data/trading_bot.db" ]]; then
-        log_error "Database setup failed - no database file found"
+    if [[ ! -f "backend/data/trading.db" ]]; then
+        log_error "Database setup failed - trading.db not found in backend/data/"
     fi
     
-    log_success "Database setup completed"
+    log_success "Database setup completed with trading.db"
 }
 
 # Generate SSL certificates
