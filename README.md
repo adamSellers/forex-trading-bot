@@ -239,4 +239,29 @@ if (positionSize > maxRisk) reducePosition();
 if (correlationHigh) skipTrade();
 ```
 
-The paper trading system provides a complete, risk-free environment to develop and test cryptocurrency trading strategies while maintaining full visibility into both virtual performance and real asset holdings.
+## Clean Install Steps
+
+SSH to host: ssh {hostName}@{hostURL}
+Download script: curl -O https://raw.githubusercontent.com/yourusername/crypto-trading-bot/main/scripts/install-pi.sh
+Make executable: chmod +x install-pi.sh
+Update repo URL in script (line 13)
+Run install: ./install-pi.sh
+Add API keys: nano /opt/crypto-trading-bot/backend/.env
+Restart: pm2 restart img-backend
+
+## Update Existing Installation
+
+SSH to host: ssh {hostName}@{hostURL}
+Go to project: cd /opt/crypto-trading-bot
+Pull changes: git pull origin main
+Check for issues: ./scripts/deploy-check.sh
+Update dependencies: npm run install:backend && npm run install:frontend
+Build frontend: npm run build:frontend
+Run migrations: npm run db:migrate
+Restart: pm2 restart img-backend
+
+🩺 Verify Both
+
+Check status: ./scripts/status.sh
+View logs: ./scripts/logs.sh
+Test dashboard: Visit ths site and get started..
