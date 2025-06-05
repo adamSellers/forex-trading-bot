@@ -53,10 +53,10 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/yourusername/crypto-trend-bot.git"
+        "url": "git@github.com:adamSellers/crypto-trading-bot.git"
     },
     "bugs": {
-        "url": "https://github.com/yourusername/crypto-trend-bot/issues"
+        "url": "https://github.com/adamSellers/crypto-trend-bot/issues"
     },
-    "homepage": "https://github.com/yourusername/crypto-trend-bot#readme"
+    "homepage": "https://github.com/adamSellers/crypto-trend-bot#readme"
 }
