@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - MINIMAL ENHANCED VERSION (Bug-Free)
+// frontend/src/components/TradingDashboard.jsx - FIXED API VERSION
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -26,8 +26,9 @@ import {
   Assessment
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
+import { API_BASE_URL, SOCKET_URL, API_ENDPOINTS, apiCall } from '../config/api';
 
-// Import our components (USING EXISTING COMPONENTS)
+// Import components
 import PortfolioOverview from './PortfolioOverview';
 import CurrentHoldings from './CurrentHoldings';
 import LivePrices from './LivePrices';
@@ -37,7 +38,7 @@ import LivePriceChart from './LivePriceChart';
 import SystemStatusBanner from './SystemStatusBanner';
 
 const TradingDashboard = () => {
-  // KEEP ORIGINAL STATE (no enhanced states that cause issues)
+  // State management
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
@@ -49,10 +50,11 @@ const TradingDashboard = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-  // FIXED: Socket connection with no dependency issues
+  // Socket connection with fixed URL
   useEffect(() => {
-    const socketUrl = import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin;
+    const socketUrl = SOCKET_URL || window.location.origin;
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       upgrade: true,
@@ -65,12 +67,14 @@ const TradingDashboard = () => {
     // Connection events
     socket.on('connect', () => {
       console.log('🔌 Connected to trading server');
+      setConnectionStatus('connected');
       setError(null);
       fetchInitialData();
     });
 
     socket.on('disconnect', (reason) => {
       console.log('🔌 Disconnected from trading server:', reason);
+      setConnectionStatus('disconnected');
       if (reason === 'io server disconnect') {
         socket.connect();
       }
@@ -78,10 +82,11 @@ const TradingDashboard = () => {
 
     socket.on('connect_error', (error) => {
       console.error('🔌 Connection error:', error);
+      setConnectionStatus('error');
       setError('Connection to trading server failed. Retrying...');
     });
 
-    // ORIGINAL data events (no enhanced complications)
+    // Data events
     socket.on('systemStatus', (status) => {
       console.log('📊 System status received');
       setSystemStatus(status);
@@ -105,7 +110,6 @@ const TradingDashboard = () => {
       setLastUpdate(Date.now());
     });
 
-    // Signal events
     socket.on('signalGenerated', (data) => {
       console.log('🚨 Signal received:', data?.symbol, data?.signal || data?.signal?.signal);
       
@@ -172,42 +176,64 @@ const TradingDashboard = () => {
       console.log('🔌 Closing socket connection');
       socket.disconnect();
     };
-  }, []); // FIXED: No dependencies to prevent infinite loops
+  }, []); // No dependencies to prevent infinite loops
 
-  // FIXED: API data fetching - ONLY EXISTING ENDPOINTS
+  // FIXED: API data fetching with proper endpoints
   const fetchInitialData = async () => {
     try {
       console.log('🔄 Fetching trading data...');
+      setLoading(true);
       
-      const endpoints = [
-        { name: 'status', url: '/api/trading/status' },
-        { name: 'portfolio', url: '/api/trading/portfolio' },
-        { name: 'trades', url: '/api/trading/trades?limit=25' },
-        { name: 'signals', url: '/api/trading/signals?limit=50' },
-        { name: 'prices', url: '/api/trading/prices' },
-        { name: 'account', url: '/api/trading/account' }
-        // REMOVED: New endpoints that don't exist yet
-      ];
-
       const results = {};
       const errors = [];
 
-      for (const endpoint of endpoints) {
-        try {
-          const response = await fetch(endpoint.url);
-          
-          if (!response.ok) {
-            throw new Error(`${endpoint.name}: ${response.status} ${response.statusText}`);
-          }
-          
-          const data = await response.json();
-          results[endpoint.name] = data;
-          console.log(`✅ ${endpoint.name} loaded`);
-          
-        } catch (err) {
-          console.error(`❌ Failed to fetch ${endpoint.name}:`, err.message);
-          errors.push(`${endpoint.name}: ${err.message}`);
-        }
+      // Fetch all endpoints using the API helper
+      try {
+        results.status = await apiCall(API_ENDPOINTS.trading.status);
+        console.log('✅ Status loaded');
+      } catch (err) {
+        console.error('❌ Failed to fetch status:', err.message);
+        errors.push(`Status: ${err.message}`);
+      }
+
+      try {
+        results.portfolio = await apiCall(API_ENDPOINTS.trading.portfolio);
+        console.log('✅ Portfolio loaded');
+      } catch (err) {
+        console.error('❌ Failed to fetch portfolio:', err.message);
+        errors.push(`Portfolio: ${err.message}`);
+      }
+
+      try {
+        results.trades = await apiCall(`${API_ENDPOINTS.trading.trades}?limit=25`);
+        console.log('✅ Trades loaded');
+      } catch (err) {
+        console.error('❌ Failed to fetch trades:', err.message);
+        errors.push(`Trades: ${err.message}`);
+      }
+
+      try {
+        results.signals = await apiCall(`${API_ENDPOINTS.trading.signals}?limit=50`);
+        console.log('✅ Signals loaded');
+      } catch (err) {
+        console.error('❌ Failed to fetch signals:', err.message);
+        errors.push(`Signals: ${err.message}`);
+      }
+
+      try {
+        results.prices = await apiCall(API_ENDPOINTS.trading.prices);
+        console.log('✅ Prices loaded');
+      } catch (err) {
+        console.error('❌ Failed to fetch prices:', err.message);
+        errors.push(`Prices: ${err.message}`);
+      }
+
+      try {
+        results.account = await apiCall(API_ENDPOINTS.trading.account);
+        console.log('✅ Account loaded');
+      } catch (err) {
+        console.error('❌ Failed to fetch account:', err.message);
+        errors.push(`Account: ${err.message}`);
       }
 
       // Update state with results
@@ -251,27 +277,17 @@ const TradingDashboard = () => {
     }
   };
 
-  // KEEP ORIGINAL TRADING CONTROLS (no changes)
+  // Trading controls with fixed API calls
   const handleToggleTrading = async () => {
     try {
-      const endpoint = tradingEnabled ? '/api/trading/stop' : '/api/trading/start';
+      const endpoint = tradingEnabled ? API_ENDPOINTS.trading.stop : API_ENDPOINTS.trading.start;
       const action = tradingEnabled ? 'Stopping' : 'Starting';
       
       console.log(`🔄 ${action} trading...`);
       
-      const response = await fetch(endpoint, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log(`✅ ${result.message}`);
-        setError(null);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || `Failed to ${tradingEnabled ? 'stop' : 'start'} trading`);
-      }
+      const result = await apiCall(endpoint, { method: 'POST' });
+      console.log(`✅ ${result.message}`);
+      setError(null);
     } catch (err) {
       console.error('❌ Toggle trading error:', err);
       setError(`Failed to ${tradingEnabled ? 'stop' : 'start'} trading: ${err.message}`);
@@ -282,19 +298,9 @@ const TradingDashboard = () => {
     try {
       console.log('🔄 Resetting trading engine...');
       
-      const response = await fetch('/api/trading/reset', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Trading reset:', result.message);
-        setError(null);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to reset trading');
-      }
+      const result = await apiCall(API_ENDPOINTS.trading.reset, { method: 'POST' });
+      console.log('✅ Trading reset:', result.message);
+      setError(null);
     } catch (err) {
       console.error('❌ Reset trading error:', err);
       setError(`Failed to reset trading: ${err.message}`);
@@ -308,19 +314,13 @@ const TradingDashboard = () => {
     try {
       console.log('🔄 Updating strategy to:', newStrategy);
       
-      const response = await fetch('/api/trading/config', {
+      const result = await apiCall(API_ENDPOINTS.trading.config, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ strategy: newStrategy })
       });
       
-      if (response.ok) {
-        console.log('✅ Strategy updated');
-        setError(null);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to update strategy');
-      }
+      console.log('✅ Strategy updated');
+      setError(null);
     } catch (err) {
       console.error('❌ Strategy update error:', err);
       setError(`Failed to update strategy: ${err.message}`);
@@ -334,7 +334,7 @@ const TradingDashboard = () => {
     fetchInitialData();
   };
 
-  // KEEP ORIGINAL SYSTEM HEALTH (no enhanced complications)
+  // System health calculation
   const getSystemHealth = () => {
     if (!systemStatus) return { status: 'unknown', color: 'default' };
     
@@ -389,7 +389,7 @@ const TradingDashboard = () => {
               Connecting to trading services and loading market data...
             </Typography>
             <Box sx={{ mt: 2 }}>
-              <Chip label="Please wait" color="primary" />
+              <Chip label={`Connection: ${connectionStatus}`} color="primary" />
             </Box>
           </Box>
         </Box>
@@ -413,6 +413,12 @@ const TradingDashboard = () => {
                 color={systemHealth.color}
                 size="small"
               />
+              <Chip
+                label={`Connection: ${connectionStatus}`}
+                color={connectionStatus === 'connected' ? 'success' : 'error'}
+                size="small"
+                variant="outlined"
+              />
               {lastUpdate && (
                 <Chip
                   label={`Updated ${new Date(lastUpdate).toLocaleTimeString()}`}
@@ -420,7 +426,6 @@ const TradingDashboard = () => {
                   variant="outlined"
                 />
               )}
-              {/* SIMPLE: Show portfolio P&L if available */}
               {portfolio?.totalPnLPercent !== undefined && (
                 <Chip
                   label={`${portfolio.totalPnLPercent >= 0 ? '+' : ''}${portfolio.totalPnLPercent.toFixed(1)}% return`}
@@ -550,7 +555,7 @@ const TradingDashboard = () => {
         </Paper>
       </Box>
 
-      {/* ORIGINAL Dashboard Grid - NO ENHANCED PROPS */}
+      {/* Dashboard Grid */}
       <Grid container spacing={3}>
         {/* Row 1: Portfolio Overview - Full Width */}
         <Grid item xs={12}>
@@ -566,6 +571,7 @@ const TradingDashboard = () => {
           <CurrentHoldings 
             account={account} 
             prices={prices} 
+            portfolio={portfolio}
           />
         </Grid>
 
@@ -610,6 +616,22 @@ const TradingDashboard = () => {
             </Grid>
             <Grid item xs={6} md={2}>
               <Typography variant="caption" display="block">
+                <strong>API:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {API_BASE_URL || 'Same Origin'}
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>Connection:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {connectionStatus}
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
                 <strong>Data:</strong>
               </Typography>
               <Typography variant="body2">
@@ -622,22 +644,6 @@ const TradingDashboard = () => {
               </Typography>
               <Typography variant="body2">
                 {signals.length} total
-              </Typography>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Typography variant="caption" display="block">
-                <strong>Trades:</strong>
-              </Typography>
-              <Typography variant="body2">
-                {trades.length} total
-              </Typography>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Typography variant="caption" display="block">
-                <strong>Prices:</strong>
-              </Typography>
-              <Typography variant="body2">
-                {Object.keys(prices).length} assets
               </Typography>
             </Grid>
             <Grid item xs={6} md={2}>
