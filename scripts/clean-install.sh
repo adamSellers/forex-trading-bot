@@ -11,7 +11,7 @@ set -e  # Exit on any error
 PROJECT_DIR="/opt/crypto-trading-bot"
 PROJECT_USER="adam"
 BACKUP_DIR="/opt/crypto-trading-bot-backups"
-REPO_URL="git@github.com:adamSellers/crypto-trading-bot.git"  # UPDATE THIS
+REPO_URL="https://github.com/yourusername/crypto-trading-bot.git"  # UPDATE THIS
 BRANCH="main"
 
 # Colors for output
@@ -916,3 +916,63 @@ print_summary() {
     echo "   ./scripts/backup.sh       - Create backup"
     echo "   ./scripts/monitor.sh      - System monitoring"
     echo
+}
+
+# Main execution
+main() {
+    echo "=============================================="
+    echo -e "${PURPLE}🚀 Crypto Trading Bot - Clean Install${NC}"
+    echo "=============================================="
+    echo
+    
+    log_info "Starting clean installation process..."
+    echo
+    
+    # Prompt for repository URL if not set
+    if [[ "$REPO_URL" == "https://github.com/yourusername/crypto-trading-bot.git" ]]; then
+        echo -n "Enter your Git repository URL: "
+        read -r REPO_URL
+        if [[ -z "$REPO_URL" ]]; then
+            log_error "Repository URL is required"
+        fi
+    fi
+    
+    # Confirmation prompt
+    echo -e "${YELLOW}This will completely remove the existing installation and perform a fresh install.${NC}"
+    echo -n "Continue? (y/N): "
+    read -r confirmation
+    
+    if [[ ! "$confirmation" =~ ^[Yy]$ ]]; then
+        log_info "Installation cancelled by user"
+        exit 0
+    fi
+    
+    echo
+    
+    # Run installation steps
+    check_root
+    check_user
+    check_system
+    install_system_deps
+    configure_npm
+    install_pm2
+    create_backup
+    stop_services
+    remove_existing
+    clone_repository
+    install_dependencies
+    build_frontend
+    setup_database
+    setup_ssl
+    setup_nginx
+    setup_environment
+    setup_logging
+    setup_firewall
+    create_missing_scripts
+    start_services
+    health_check
+    print_summary
+}
+
+# Run main function
+main "$@"
