@@ -1,3 +1,4 @@
+// backend/server.js - FIXED VERSION (Compatible with current structure)
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -5,7 +6,11 @@ import morgan from "morgan";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
-import db from "../config/database.js";
+import db from "./config/database.js";
+
+// FIXED: Import from correct current location
+import TradingController from "./src/controllers/tradingController.js";
+import tradingRoutes from "./src/routes/trading.js";
 
 dotenv.config();
 
@@ -29,7 +34,7 @@ db.raw("SELECT 1")
     .then(() => console.log("✅ Database connected"))
     .catch((err) => console.error("❌ Database connection failed:", err));
 
-// Basic routes
+// Basic health check
 app.get("/api/health", (req, res) => {
     res.json({
         status: "OK",
@@ -37,6 +42,12 @@ app.get("/api/health", (req, res) => {
         env: process.env.NODE_ENV,
     });
 });
+
+// Initialize trading controller
+const tradingController = new TradingController(io);
+
+// STEP 1: Use existing routes while we prepare migration
+app.use("/api/trading", tradingRoutes(tradingController));
 
 // Socket.io connection
 io.on("connection", (socket) => {
@@ -47,10 +58,43 @@ io.on("connection", (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📊 Dashboard: http://localhost:5173`);
-});
+// Initialize trading system
+async function startServer() {
+    try {
+        console.log("🚀 Initializing Trading System...");
+        await tradingController.initialize();
+
+        const PORT = process.env.PORT || 3001;
+        server.listen(PORT, () => {
+            console.log(`🚀 Server running on port ${PORT}`);
+            console.log(`📊 Dashboard: http://localhost:5173`);
+        });
+    } catch (error) {
+        console.error("❌ Failed to start server:", error);
+        process.exit(1);
+    }
+}
+
+// Graceful shutdown
+const gracefulShutdown = async (signal) => {
+    console.log(`🛑 Received ${signal}, shutting down gracefully...`);
+
+    try {
+        await tradingController.cleanup();
+        server.close(() => {
+            console.log("✅ Server closed successfully");
+            process.exit(0);
+        });
+    } catch (error) {
+        console.error("❌ Error during shutdown:", error);
+        process.exit(1);
+    }
+};
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// Start the server
+startServer();
 
 export { app, io };
