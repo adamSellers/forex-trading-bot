@@ -1,7 +1,7 @@
 module.exports = {
     apps: [
         {
-            name: "crypto-trading-bot",
+            name: "img-backend",
             script: "server.js",
             cwd: "/opt/crypto-trading-bot/backend",
             instances: 1,
