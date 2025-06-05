@@ -11,7 +11,7 @@ set -e  # Exit on any error
 PROJECT_DIR="/opt/crypto-trading-bot"
 PROJECT_USER="adam"
 BACKUP_DIR="/opt/crypto-trading-bot-backups"
-REPO_URL="https://github.com/yourusername/crypto-trading-bot.git"  # UPDATE THIS
+REPO_URL="git@github.com:adamSellers/crypto-trading-bot.git"  # UPDATE THIS
 BRANCH="main"
 
 # Colors for output
