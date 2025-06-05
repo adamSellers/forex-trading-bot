@@ -31,7 +31,17 @@
         "db:seed": "cd backend && npm run db:seed",
         "lint": "npm run lint:backend && npm run lint:frontend",
         "lint:backend": "cd backend && npm run lint",
-        "lint:frontend": "cd frontend && npm run lint"
+        "lint:frontend": "cd frontend && npm run lint",
+        "deploy": "./scripts/deploy.sh",
+        "deploy:check": "./scripts/deploy-check.sh",
+        "rollback": "./scripts/rollback.sh",
+        "update": "./scripts/update.sh",
+        "backup": "./scripts/backup.sh",
+        "monitor": "./scripts/monitor.sh",
+        "logs": "./scripts/logs.sh",
+        "dev-setup": "./scripts/dev-setup.sh",
+        "status": "./scripts/status.sh",
+        "setup:secrets": "./scripts/setup-secrets.sh"
     },
     "devDependencies": {
         "concurrently": "^8.2.2"
