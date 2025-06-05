@@ -23,12 +23,11 @@ class PaperTradingEngine extends EventEmitter {
             ...config,
         };
 
-        // Portfolio state
+        // Portfolio state - USDT-based accounting
         this.portfolio = {
-            balance: this.config.startingCapital,
-            totalValue: this.config.startingCapital,
-            allocatedCapital: 0,
-            positions: new Map(),
+            usdtBalance: this.config.startingCapital, // Available USDT
+            totalValue: this.config.startingCapital, // USDT + crypto values
+            positions: new Map(), // Active crypto positions
             dailyPnL: 0,
             weeklyPnL: 0,
             totalPnL: 0,
@@ -37,7 +36,6 @@ class PaperTradingEngine extends EventEmitter {
         };
 
         // Trading state
-        this.openOrders = new Map();
         this.tradeHistory = [];
         this.performanceMetrics = {
             totalTrades: 0,
@@ -64,8 +62,9 @@ class PaperTradingEngine extends EventEmitter {
 
         this.isActive = false;
         console.log(
-            "📊 Paper Trading Engine initialized with $" +
-                this.config.startingCapital
+            "📊 Paper Trading Engine initialized with " +
+                this.config.startingCapital +
+                " USDT"
         );
     }
 
@@ -146,7 +145,7 @@ class PaperTradingEngine extends EventEmitter {
     }
 
     /**
-     * Execute buy order
+     * Execute buy order - Convert USDT to Crypto
      */
     async executeBuyOrder(symbol, currentPrice, signal, atrValue) {
         try {
@@ -161,7 +160,7 @@ class PaperTradingEngine extends EventEmitter {
             }
 
             // Calculate position size based on risk management
-            const positionSize = this.calculatePositionSize(
+            const positionSize = this.calculateBuyPositionSize(
                 symbol,
                 currentPrice,
                 atrValue
@@ -175,13 +174,15 @@ class PaperTradingEngine extends EventEmitter {
                 };
             }
 
-            const { quantity, stopLoss, totalCost } = positionSize;
+            const { quantity, stopLoss, usdtCost } = positionSize;
 
-            // Check if we have enough balance
-            if (totalCost > this.portfolio.balance) {
+            // Check if we have enough USDT balance
+            if (usdtCost > this.portfolio.usdtBalance) {
                 return {
                     success: false,
-                    reason: "Insufficient balance for trade",
+                    reason: `Insufficient USDT balance. Need: ${usdtCost.toFixed(
+                        2
+                    )}, Have: ${this.portfolio.usdtBalance.toFixed(2)}`,
                     signal,
                 };
             }
@@ -194,15 +195,14 @@ class PaperTradingEngine extends EventEmitter {
                 quantity,
                 price: currentPrice,
                 stopLoss,
-                totalCost,
+                usdtCost,
                 timestamp: Date.now(),
                 signal: signal.signal,
                 signalStrength: signal.strength,
             };
 
-            // Update portfolio
-            this.portfolio.balance -= totalCost;
-            this.portfolio.allocatedCapital += totalCost;
+            // Update portfolio - Convert USDT to Crypto
+            this.portfolio.usdtBalance -= usdtCost;
 
             this.portfolio.positions.set(symbol, {
                 symbol,
@@ -210,8 +210,10 @@ class PaperTradingEngine extends EventEmitter {
                 avgPrice: currentPrice,
                 stopLoss,
                 unrealizedPnL: 0,
+                currentValue: quantity * currentPrice,
                 entryTime: trade.timestamp,
                 entrySignal: signal,
+                entryCost: usdtCost, // Track USDT spent
             });
 
             // Record trade
@@ -219,7 +221,11 @@ class PaperTradingEngine extends EventEmitter {
             this.emit("tradeExecuted", trade);
 
             console.log(
-                `📈 BUY executed: ${quantity} ${symbol} at $${currentPrice} (Stop: $${stopLoss})`
+                `📈 BUY executed: ${quantity.toFixed(
+                    8
+                )} ${symbol} at $${currentPrice} (Cost: ${usdtCost.toFixed(
+                    2
+                )} USDT)`
             );
 
             return {
@@ -235,14 +241,14 @@ class PaperTradingEngine extends EventEmitter {
     }
 
     /**
-     * Execute sell order
+     * Execute sell order - Convert Crypto to USDT
      */
     async executeSellOrder(symbol, currentPrice, signal, position) {
         try {
-            const { quantity, avgPrice } = position;
-            const totalValue = quantity * currentPrice;
-            const pnl = totalValue - quantity * avgPrice;
-            const pnlPercent = (pnl / (quantity * avgPrice)) * 100;
+            const { quantity, avgPrice, entryCost } = position;
+            const usdtReceived = quantity * currentPrice;
+            const pnl = usdtReceived - entryCost;
+            const pnlPercent = (pnl / entryCost) * 100;
 
             // Execute the trade
             const trade = {
@@ -251,18 +257,18 @@ class PaperTradingEngine extends EventEmitter {
                 side: "SELL",
                 quantity,
                 price: currentPrice,
-                totalValue,
+                usdtReceived,
                 pnl,
                 pnlPercent,
                 timestamp: Date.now(),
                 signal: signal.signal,
                 signalStrength: signal.strength,
                 holdingPeriod: Date.now() - position.entryTime,
+                entryCost,
             };
 
-            // Update portfolio
-            this.portfolio.balance += totalValue;
-            this.portfolio.allocatedCapital -= quantity * avgPrice;
+            // Update portfolio - Convert Crypto to USDT
+            this.portfolio.usdtBalance += usdtReceived;
             this.portfolio.totalPnL += pnl;
             this.portfolio.dailyPnL += pnl;
             this.portfolio.weeklyPnL += pnl;
@@ -276,9 +282,11 @@ class PaperTradingEngine extends EventEmitter {
             this.emit("tradeExecuted", trade);
 
             console.log(
-                `📉 SELL executed: ${quantity} ${symbol} at $${currentPrice} (P&L: ${
+                `📉 SELL executed: ${quantity.toFixed(
+                    8
+                )} ${symbol} at $${currentPrice} (P&L: ${
                     pnl >= 0 ? "+" : ""
-                }$${pnl.toFixed(2)})`
+                }${pnl.toFixed(2)} USDT)`
             );
 
             return {
@@ -297,17 +305,17 @@ class PaperTradingEngine extends EventEmitter {
     }
 
     /**
-     * Calculate position size based on risk management rules
+     * Calculate buy position size based on allocation and risk management
      */
-    calculatePositionSize(symbol, currentPrice, atrValue) {
+    calculateBuyPositionSize(symbol, currentPrice, atrValue) {
         try {
-            // Get allocation for this asset
+            // Get allocation for this asset (percentage of total portfolio)
             const allocationPercent = this.config.allocation[symbol] || 0.1;
-            const maxAllocation =
+            const maxAllocationUSDT =
                 this.config.startingCapital * allocationPercent;
 
             // Calculate risk-based position size
-            const riskAmount =
+            const riskAmountUSDT =
                 this.config.startingCapital * this.config.riskPerTrade; // $50 max
 
             // Calculate stop loss price
@@ -319,40 +327,54 @@ class PaperTradingEngine extends EventEmitter {
                 stopLoss = currentPrice * 0.98;
             }
 
-            const riskPerShare = currentPrice - stopLoss;
-            if (riskPerShare <= 0) {
-                return { error: "Invalid stop loss calculation" };
+            const riskPerUnit = currentPrice - stopLoss;
+            if (riskPerUnit <= 0) {
+                return {
+                    error: "Invalid stop loss calculation - stop loss above current price",
+                };
             }
 
             // Calculate quantity based on risk
-            const riskBasedQuantity = riskAmount / riskPerShare;
-            const riskBasedValue = riskBasedQuantity * currentPrice;
+            const riskBasedQuantity = riskAmountUSDT / riskPerUnit;
+            const riskBasedUSDT = riskBasedQuantity * currentPrice;
 
             // Use the smaller of risk-based or allocation-based sizing
-            const finalValue = Math.min(
-                riskBasedValue,
-                maxAllocation,
-                this.portfolio.balance
+            const finalUSDT = Math.min(
+                riskBasedUSDT,
+                maxAllocationUSDT,
+                this.portfolio.usdtBalance * 0.95 // Leave 5% USDT buffer
             );
-            const finalQuantity = finalValue / currentPrice;
+            const finalQuantity = finalUSDT / currentPrice;
 
             // Check minimum order size
-            if (finalValue < this.config.minOrderSize) {
+            if (finalUSDT < this.config.minOrderSize) {
                 return {
-                    error: `Order size $${finalValue.toFixed(
+                    error: `Order size ${finalUSDT.toFixed(
                         2
-                    )} below minimum $${this.config.minOrderSize}`,
+                    )} USDT below minimum ${this.config.minOrderSize} USDT`,
+                };
+            }
+
+            // Validate we have enough balance
+            if (finalUSDT > this.portfolio.usdtBalance) {
+                return {
+                    error: `Insufficient USDT balance: ${finalUSDT.toFixed(
+                        2
+                    )} required, ${this.portfolio.usdtBalance.toFixed(
+                        2
+                    )} available`,
                 };
             }
 
             return {
                 quantity: parseFloat(finalQuantity.toFixed(8)),
                 stopLoss: parseFloat(stopLoss.toFixed(8)),
-                totalCost: parseFloat(finalValue.toFixed(2)),
+                usdtCost: parseFloat(finalUSDT.toFixed(2)),
                 riskAmount: parseFloat(
-                    (finalQuantity * riskPerShare).toFixed(2)
+                    (finalQuantity * riskPerUnit).toFixed(2)
                 ),
                 allocation: allocationPercent,
+                maxAllocation: maxAllocationUSDT,
             };
         } catch (error) {
             return { error: error.message };
@@ -363,20 +385,19 @@ class PaperTradingEngine extends EventEmitter {
      * Update portfolio values with current market prices
      */
     updatePortfolioValue(priceData) {
-        let totalPositionValue = 0;
+        let totalCryptoValue = 0;
 
         this.portfolio.positions.forEach((position, symbol) => {
             const currentPrice = priceData[symbol]?.price;
             if (currentPrice) {
-                const positionValue = position.quantity * currentPrice;
-                const unrealizedPnL =
-                    positionValue - position.quantity * position.avgPrice;
+                const currentValue = position.quantity * currentPrice;
+                const unrealizedPnL = currentValue - position.entryCost;
 
                 position.unrealizedPnL = unrealizedPnL;
                 position.currentPrice = currentPrice;
-                position.currentValue = positionValue;
+                position.currentValue = currentValue;
 
-                totalPositionValue += positionValue;
+                totalCryptoValue += currentValue;
 
                 // Check stop loss
                 if (currentPrice <= position.stopLoss) {
@@ -392,8 +413,9 @@ class PaperTradingEngine extends EventEmitter {
             }
         });
 
-        // Update total portfolio value
-        this.portfolio.totalValue = this.portfolio.balance + totalPositionValue;
+        // Update total portfolio value (USDT + Crypto values)
+        this.portfolio.totalValue =
+            this.portfolio.usdtBalance + totalCryptoValue;
 
         // Calculate current drawdown
         const peak = Math.max(
@@ -422,11 +444,11 @@ class PaperTradingEngine extends EventEmitter {
 
         if (dailyLoss >= this.riskLimits.dailyLossLimit) {
             this.haltTrading(
-                `Daily loss limit exceeded: $${dailyLoss.toFixed(2)}`
+                `Daily loss limit exceeded: ${dailyLoss.toFixed(2)} USDT`
             );
         } else if (weeklyLoss >= this.riskLimits.weeklyLossLimit) {
             this.haltTrading(
-                `Weekly loss limit exceeded: $${weeklyLoss.toFixed(2)}`
+                `Weekly loss limit exceeded: ${weeklyLoss.toFixed(2)} USDT`
             );
         }
     }
@@ -550,19 +572,22 @@ class PaperTradingEngine extends EventEmitter {
     }
 
     /**
-     * Get portfolio summary
+     * Get portfolio summary with proper USDT accounting
      */
     getPortfolioSummary() {
+        const totalCryptoValue = Array.from(
+            this.portfolio.positions.values()
+        ).reduce((sum, pos) => sum + (pos.currentValue || 0), 0);
+
         const summary = {
-            balance: this.portfolio.balance,
+            usdtBalance: this.portfolio.usdtBalance,
             totalValue: this.portfolio.totalValue,
+            cryptoValue: totalCryptoValue,
             totalPnL: this.portfolio.totalPnL,
             totalPnLPercent:
                 (this.portfolio.totalPnL / this.config.startingCapital) * 100,
             dailyPnL: this.portfolio.dailyPnL,
             weeklyPnL: this.portfolio.weeklyPnL,
-            allocatedCapital: this.portfolio.allocatedCapital,
-            freeCapital: this.portfolio.balance,
             positions: Array.from(this.portfolio.positions.values()),
             positionCount: this.portfolio.positions.size,
             performance: this.performanceMetrics,
@@ -573,6 +598,12 @@ class PaperTradingEngine extends EventEmitter {
                 weeklyLossUsed: Math.abs(Math.min(0, this.portfolio.weeklyPnL)),
                 dailyLossLimit: this.riskLimits.dailyLossLimit,
                 weeklyLossLimit: this.riskLimits.weeklyLossLimit,
+            },
+            allocation: {
+                usdt:
+                    (this.portfolio.usdtBalance / this.portfolio.totalValue) *
+                    100,
+                crypto: (totalCryptoValue / this.portfolio.totalValue) * 100,
             },
         };
 
@@ -619,13 +650,12 @@ class PaperTradingEngine extends EventEmitter {
     }
 
     /**
-     * Reset the trading engine
+     * Reset the trading engine with proper USDT initialization
      */
     reset() {
         this.portfolio = {
-            balance: this.config.startingCapital,
+            usdtBalance: this.config.startingCapital,
             totalValue: this.config.startingCapital,
-            allocatedCapital: 0,
             positions: new Map(),
             dailyPnL: 0,
             weeklyPnL: 0,
@@ -651,7 +681,7 @@ class PaperTradingEngine extends EventEmitter {
         this.riskLimits.isHalted = false;
         this.riskLimits.haltReason = null;
 
-        console.log("🔄 Paper Trading Engine reset");
+        console.log("🔄 Paper Trading Engine reset with fresh USDT balance");
         this.emit("engineReset");
     }
 
@@ -679,6 +709,7 @@ class PaperTradingEngine extends EventEmitter {
             isActive: this.isActive,
             tradingEnabled: this.config.enableTrading,
             totalValue: this.portfolio.totalValue,
+            usdtBalance: this.portfolio.usdtBalance,
             totalPnL: this.portfolio.totalPnL,
             totalTrades: this.performanceMetrics.totalTrades,
             openPositions: this.portfolio.positions.size,

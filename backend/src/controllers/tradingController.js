@@ -1,4 +1,4 @@
-// backend/src/controllers/tradingController.js
+// backend/src/controllers/tradingController.js - COMPLETE WITH ALL FIXES
 const BinanceDataService = require("../services/binanceDataService");
 const SignalGenerator = require("../services/signalGenerator");
 const PaperTradingEngine = require("../services/paperTradingEngine");
@@ -29,12 +29,16 @@ class TradingController {
             minOrderSize: 10,
             assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"],
             timeframes: ["1h", "4h", "1d"],
-            useTestnet: true,
+            useTestnet: false, // LIVE: Use real Binance API
+            useRealData: true, // LIVE: Real market data
         };
 
         this.services = {};
         this.lastUpdate = null;
         this.updateInterval = null;
+        this.signalDebugMode = process.env.NODE_ENV === "development";
+
+        console.log("🚀 LIVE MODE: Real Binance data with Paper Trading");
     }
 
     /**
@@ -96,6 +100,13 @@ class TradingController {
 
             // Emit initial status
             this.emitSystemStatus();
+
+            // Generate initial test signal if in debug mode
+            if (this.signalDebugMode) {
+                setTimeout(() => {
+                    this.generateTestSignal();
+                }, 5000);
+            }
         } catch (error) {
             console.error("❌ Failed to initialize Trading Controller:", error);
             throw error;
@@ -121,8 +132,7 @@ class TradingController {
         });
 
         this.services.signalGenerator.on("allSignalsGenerated", (signals) => {
-            this.io.emit("allSignalsGenerated", signals);
-            this.saveSignalsToDatabase(signals);
+            this.handleAllSignalsGenerated(signals);
         });
 
         // Paper Trading Events
@@ -159,18 +169,35 @@ class TradingController {
     }
 
     /**
-     * Handle new trading signals
+     * ENHANCED: Handle new trading signals with comprehensive debugging
      */
     async handleNewSignal(signal) {
         try {
+            console.log("🚨 NEW SIGNAL RECEIVED:", {
+                symbol: signal.symbol,
+                signal: signal.signal,
+                strength: signal.strength,
+                timestamp: new Date(signal.timestamp).toISOString(),
+                strategy: signal.strategy,
+                message: signal.message,
+            });
+
             // Get current price and ATR for the asset
             const priceData = this.services.binanceData.getCurrentPrice(
                 signal.symbol
             );
 
             if (!priceData) {
-                console.warn(`No price data available for ${signal.symbol}`);
+                console.warn(`⚠️ No price data available for ${signal.symbol}`);
                 return;
+            }
+
+            if (this.signalDebugMode) {
+                console.log("💱 Current price data:", {
+                    symbol: signal.symbol,
+                    price: priceData.price,
+                    change: priceData.priceChange,
+                });
             }
 
             // Process signal through paper trading engine
@@ -180,23 +207,92 @@ class TradingController {
                 signal.atr
             );
 
-            // Emit signal and result to frontend
-            this.io.emit("signalGenerated", {
-                signal,
-                result,
-                timestamp: Date.now(),
+            if (this.signalDebugMode) {
+                console.log("⚙️ Signal processing result:", {
+                    success: result.success,
+                    action: result.action,
+                    reason: result.reason,
+                });
+            }
+
+            // Enhanced signal payload for frontend
+            const signalPayload = {
+                ...signal,
+                processingResult: result,
+                currentPrice: priceData.price,
+                priceChange: priceData.priceChange,
+            };
+
+            console.log("📡 EMITTING SIGNAL to frontend:", {
+                symbol: signalPayload.symbol,
+                signal: signalPayload.signal,
+                strength: signalPayload.strength,
+                socketConnections: this.io.engine.clientsCount,
             });
+
+            // Emit to frontend - Multiple formats for compatibility
+            this.io.emit("signalGenerated", signalPayload);
+            this.io.emit("signalGenerated", { signal: signalPayload });
 
             // Log significant signals
             if (result.success && result.action !== "HOLD") {
                 console.log(
-                    `📊 Signal processed: ${signal.symbol} ${result.action} - ${
-                        result.trade ? "EXECUTED" : "NO ACTION"
-                    }`
+                    `📊 ACTIONABLE SIGNAL: ${signal.symbol} ${
+                        result.action
+                    } - ${result.trade ? "EXECUTED" : "NO ACTION"}`
                 );
             }
         } catch (error) {
-            console.error("Error handling signal:", error);
+            console.error("❌ Error handling signal:", error);
+
+            // Emit error signal for debugging
+            const errorSignal = {
+                symbol: signal?.symbol || "UNKNOWN",
+                signal: "ERROR",
+                strength: 0,
+                message: error.message,
+                timestamp: Date.now(),
+                strategy: "error",
+            };
+
+            this.io.emit("signalGenerated", errorSignal);
+        }
+    }
+
+    /**
+     * ENHANCED: Handle batch signals generation
+     */
+    async handleAllSignalsGenerated(signals) {
+        try {
+            console.log(
+                `📊 BATCH SIGNALS GENERATED: ${signals.length} signals`
+            );
+
+            if (this.signalDebugMode) {
+                signals.forEach((signal, index) => {
+                    console.log(`Signal ${index + 1}:`, {
+                        symbol: signal.symbol,
+                        signal: signal.signal,
+                        strength: signal.strength,
+                        message: signal.message,
+                    });
+                });
+            }
+
+            // Emit batch signals to frontend
+            this.io.emit("allSignalsGenerated", signals);
+
+            // Also emit individual signals for immediate processing
+            signals.forEach((signal) => {
+                this.io.emit("signalGenerated", signal);
+            });
+
+            // Save to database
+            await this.saveSignalsToDatabase(signals);
+
+            console.log(`✅ Batch signals processed and emitted successfully`);
+        } catch (error) {
+            console.error("❌ Error handling batch signals:", error);
         }
     }
 
@@ -210,12 +306,19 @@ class TradingController {
         // Emit to frontend
         this.io.emit("tradeExecuted", trade);
 
-        // Log trade execution
+        // Log trade execution with USDT amounts
         const pnlText = trade.pnl
-            ? ` (P&L: ${trade.pnl >= 0 ? "+" : ""}$${trade.pnl.toFixed(2)})`
+            ? ` (P&L: ${trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)} USDT)`
             : "";
+        const amountText =
+            trade.side === "BUY"
+                ? `${trade.usdtCost.toFixed(2)} USDT`
+                : `${trade.usdtReceived.toFixed(2)} USDT`;
+
         console.log(
-            `💰 Trade executed: ${trade.side} ${trade.quantity} ${trade.symbol} at $${trade.price}${pnlText}`
+            `💰 Trade executed: ${trade.side} ${trade.quantity.toFixed(8)} ${
+                trade.symbol
+            } at ${trade.price} (${amountText})${pnlText}`
         );
     }
 
@@ -249,7 +352,7 @@ class TradingController {
             triggerPrice: currentPrice,
         });
 
-        console.warn(`🛑 STOP LOSS: ${symbol} sold at $${currentPrice}`);
+        console.warn(`🛑 STOP LOSS: ${symbol} sold at ${currentPrice}`);
     }
 
     /**
@@ -265,6 +368,13 @@ class TradingController {
                 const portfolio =
                     this.services.paperTrading.getPortfolioSummary();
                 this.io.emit("portfolioSummary", portfolio);
+
+                if (this.signalDebugMode) {
+                    console.log("📡 Real-time update sent:", {
+                        connections: this.io.engine.clientsCount,
+                        portfolioValue: portfolio.totalValue,
+                    });
+                }
             } catch (error) {
                 console.error("Error in real-time updates:", error);
             }
@@ -286,9 +396,70 @@ class TradingController {
                 paperTrading: this.services.paperTrading?.getStatus(),
             },
             config: this.config,
+            socketConnections: this.io.engine.clientsCount,
+            debugMode: this.signalDebugMode,
         };
 
         this.io.emit("systemStatus", status);
+    }
+
+    /**
+     * ADDED: Generate test signal for debugging
+     */
+    async generateTestSignal() {
+        if (!this.signalDebugMode) return;
+
+        console.log("🧪 GENERATING TEST SIGNAL");
+
+        const testSignals = [
+            {
+                symbol: "BTCUSDT",
+                signal: "TEST_BUY",
+                strength: 2.5,
+                strategy: "test",
+                timeframe: "1h",
+                currentPrice: 50000,
+                message: "Test BUY signal for debugging",
+                timestamp: Date.now(),
+                atr: 1500,
+            },
+            {
+                symbol: "ETHUSDT",
+                signal: "TEST_SELL",
+                strength: 1.8,
+                strategy: "test",
+                timeframe: "1h",
+                currentPrice: 3000,
+                message: "Test SELL signal for debugging",
+                timestamp: Date.now() + 1000,
+                atr: 150,
+            },
+            {
+                symbol: "BNBUSDT",
+                signal: "HOLD",
+                strength: 0.3,
+                strategy: "test",
+                timeframe: "1h",
+                currentPrice: 400,
+                message: "Test HOLD signal for debugging",
+                timestamp: Date.now() + 2000,
+                atr: 20,
+            },
+        ];
+
+        // Emit test signals one by one
+        for (const testSignal of testSignals) {
+            setTimeout(() => {
+                this.io.emit("signalGenerated", testSignal);
+                console.log(
+                    "📡 Test signal emitted:",
+                    testSignal.symbol,
+                    testSignal.signal
+                );
+            }, testSignals.indexOf(testSignal) * 2000);
+        }
+
+        return testSignals;
     }
 
     /**
@@ -307,6 +478,8 @@ class TradingController {
                     paperTrading: this.services.paperTrading?.getStatus(),
                 },
                 config: this.config,
+                socketConnections: this.io.engine.clientsCount,
+                debugMode: this.signalDebugMode,
             };
 
             res.json(status);
@@ -334,7 +507,7 @@ class TradingController {
     // GET /api/trading/signals
     getSignals(req, res) {
         try {
-            const { symbol, limit = 20 } = req.query;
+            const { symbol, limit = 50 } = req.query;
 
             if (!this.services.signalGenerator) {
                 return res
@@ -354,6 +527,7 @@ class TradingController {
                     .reverse();
             }
 
+            console.log(`📊 API: Returning ${signals.length} signals`);
             res.json(signals);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -467,9 +641,12 @@ class TradingController {
             res.status(500).json({ error: error.message });
         }
     }
+
+    // POST /api/trading/config - Update configuration
     updateConfig(req, res) {
         try {
             const newConfig = req.body;
+            console.log("⚙️ Updating configuration:", newConfig);
 
             // Update main config
             this.config = { ...this.config, ...newConfig };
@@ -496,6 +673,8 @@ class TradingController {
     // POST /api/trading/reset
     resetTrading(req, res) {
         try {
+            console.log("🔄 Resetting trading engine...");
+
             if (!this.services.paperTrading) {
                 return res
                     .status(400)
@@ -527,6 +706,7 @@ class TradingController {
                     .json({ error: "Trading controller not initialized" });
             }
 
+            console.log("▶️ Starting trading...");
             this.config.enableTrading = true;
             this.services.paperTrading.updateConfig({ enableTrading: true });
 
@@ -540,6 +720,7 @@ class TradingController {
     // POST /api/trading/stop
     stopTrading(req, res) {
         try {
+            console.log("⏹️ Stopping trading...");
             this.config.enableTrading = false;
 
             if (this.services.paperTrading) {
@@ -555,68 +736,141 @@ class TradingController {
         }
     }
 
+    // ADDED: POST /api/trading/test-signal - Generate test signal
+    generateTestSignalAPI(req, res) {
+        try {
+            if (!this.signalDebugMode) {
+                return res.status(400).json({
+                    error: "Test signals only available in development mode",
+                });
+            }
+
+            const testSignal = this.generateTestSignal();
+            res.json({
+                success: true,
+                message: "Test signals generated",
+                signals: testSignal,
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    }
+
     /**
-     * Database operations
+     * ENHANCED: Database operations with better error handling
      */
     async saveTradeToDatabase(trade) {
         try {
             // Check if db is properly initialized
             if (!db || typeof db !== "function") {
-                console.warn("Database not available, skipping trade save");
+                console.warn("⚠️ Database not available, skipping trade save");
                 return;
             }
 
+            console.log("💾 Saving trade to database:", {
+                id: trade.id,
+                symbol: trade.symbol,
+                side: trade.side,
+                price: trade.price,
+            });
+
+            // Updated to use USDT-based fields
             await db("trades").insert({
                 trade_id: trade.id,
                 symbol: trade.symbol,
                 side: trade.side,
                 quantity: trade.quantity,
                 price: trade.price,
-                total_value: trade.totalValue || trade.totalCost,
+                total_value: trade.usdtCost || trade.usdtReceived || 0,
                 pnl: trade.pnl || 0,
+                pnl_percent: trade.pnlPercent || 0,
                 signal: trade.signal,
                 signal_strength: trade.signalStrength,
+                stop_loss: trade.stopLoss || null,
+                entry_cost: trade.entryCost || null,
+                holding_period: trade.holdingPeriod || null,
                 timestamp: new Date(trade.timestamp),
                 created_at: new Date(),
             });
 
-            console.log(`💾 Trade saved to database: ${trade.id}`);
+            console.log(`✅ Trade saved to database: ${trade.id}`);
         } catch (error) {
-            console.error("Error saving trade to database:", error.message);
+            console.error("❌ Error saving trade to database:", error.message);
             // Don't throw error - continue operation without database
         }
     }
 
+    /**
+     * ENHANCED: Save signals to database with comprehensive error handling
+     */
     async saveSignalsToDatabase(signals) {
         try {
+            console.log("💾 Attempting to save signals to database:", {
+                signalsCount: signals.length,
+                firstSignal: signals[0]?.symbol || "none",
+            });
+
             // Check if db is properly initialized
             if (!db || typeof db !== "function") {
-                console.warn("Database not available, skipping signals save");
+                console.warn(
+                    "⚠️ Database not available, skipping signals save"
+                );
                 return;
             }
 
             const signalRecords = signals
-                .filter((signal) => signal && signal.symbol && signal.signal) // Filter valid signals
-                .map((signal) => ({
-                    symbol: signal.symbol,
-                    signal: signal.signal,
-                    strength: signal.strength || 0,
-                    strategy: signal.strategy || "unknown",
-                    timeframe: signal.timeframe || "1h",
-                    current_price: signal.currentPrice || null,
-                    message: signal.message || "",
-                    timestamp: new Date(signal.timestamp || Date.now()),
-                    created_at: new Date(),
-                }));
+                .filter((signal) => {
+                    const isValid = signal && signal.symbol && signal.signal;
+                    if (!isValid) {
+                        console.warn(
+                            "⚠️ Filtering out invalid signal:",
+                            signal
+                        );
+                    }
+                    return isValid;
+                })
+                .map((signal) => {
+                    const record = {
+                        symbol: signal.symbol,
+                        signal: signal.signal,
+                        strength: signal.strength || 0,
+                        strategy: signal.strategy || "unknown",
+                        timeframe: signal.timeframe || "1h",
+                        current_price: signal.currentPrice || null,
+                        message: signal.message || "",
+                        atr: signal.atr || null,
+                        trend_data: signal.trend
+                            ? JSON.stringify(signal.trend)
+                            : null,
+                        timestamp: new Date(signal.timestamp || Date.now()),
+                        created_at: new Date(),
+                    };
+
+                    if (this.signalDebugMode) {
+                        console.log("📝 Signal record prepared:", {
+                            symbol: record.symbol,
+                            signal: record.signal,
+                            strength: record.strength,
+                        });
+                    }
+
+                    return record;
+                });
 
             if (signalRecords.length > 0) {
                 await db("signals").insert(signalRecords);
                 console.log(
-                    `💾 ${signalRecords.length} signals saved to database`
+                    `✅ ${signalRecords.length} signals saved to database successfully`
                 );
+            } else {
+                console.warn("⚠️ No valid signal records to save");
             }
         } catch (error) {
-            console.error("Error saving signals to database:", error.message);
+            console.error(
+                "❌ Error saving signals to database:",
+                error.message
+            );
+            console.error("❌ Error stack:", error.stack);
             // Don't throw error - continue operation without database
         }
     }

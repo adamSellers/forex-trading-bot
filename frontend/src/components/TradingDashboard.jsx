@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx
+// frontend/src/components/TradingDashboard.jsx - Complete Rewrite with Enhanced Status
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -6,199 +6,300 @@ import {
   Grid,
   Paper,
   Typography,
-  Switch,
   Button,
   Alert,
   Chip,
-  Card,
-  CardContent,
-  IconButton,
-  Divider,
+  FormControl,
+  InputLabel,
   Select,
   MenuItem,
-  FormControl,
-  InputLabel
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import {
   PlayArrow,
   Stop,
   Refresh,
   Settings,
+  Timeline,
   TrendingUp,
-  TrendingDown,
-  AccountBalance,
-  ShowChart,
-  Timeline
+  Assessment
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import { io } from 'socket.io-client';
 
+// Import our components
+import PortfolioOverview from './PortfolioOverview';
+import CurrentHoldings from './CurrentHoldings';
+import LivePrices from './LivePrices';
+import TradingSignals from './TradingSignals';
+import RecentTrades from './RecentTrades';
+import LivePriceChart from './LivePriceChart';
+import SystemStatusBanner from './SystemStatusBanner';
+
 const TradingDashboard = () => {
-  const [socket, setSocket] = useState(null);
+  // State management
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
   const [signals, setSignals] = useState([]);
   const [trades, setTrades] = useState([]);
-  const [balances, setBalances] = useState({});
   const [account, setAccount] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState('balanced');
-  const [selectedTimeframe, setSelectedTimeframe] = useState('1h');
-  const [priceChartData, setPriceChartData] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
-  // Initialize socket connection
+  // Socket connection
   useEffect(() => {
-    // Use different URLs for development vs production
-    const socketUrl = import.meta.env.DEV ? 'http://localhost:3001' : '';
-    const newSocket = io(socketUrl);
-    setSocket(newSocket);
+    const socketUrl = import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin;
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      upgrade: true,
+      timeout: 20000,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
 
-    // Socket event listeners
-    newSocket.on('connect', () => {
-      console.log('Connected to trading server');
+    // Connection events
+    socket.on('connect', () => {
+      console.log('🔌 Connected to trading server');
+      setError(null);
       fetchInitialData();
     });
 
-    newSocket.on('systemStatus', (status) => {
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from trading server:', reason);
+      if (reason === 'io server disconnect') {
+        // Server initiated disconnect, try to reconnect
+        socket.connect();
+      }
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Connection error:', error);
+      setError('Connection to trading server failed. Retrying...');
+    });
+
+    // Data events
+    socket.on('systemStatus', (status) => {
+      console.log('📊 System status received');
       setSystemStatus(status);
       setTradingEnabled(status.config?.enableTrading || false);
+      setSelectedStrategy(status.config?.strategy || 'balanced');
       setLoading(false);
+      setLastUpdate(Date.now());
     });
 
-    newSocket.on('portfolioUpdated', (portfolioData) => {
+    socket.on('portfolioUpdated', (portfolioData) => {
+      console.log('💼 Portfolio updated');
       setPortfolio(portfolioData);
+      setLastUpdate(Date.now());
     });
 
-    newSocket.on('priceUpdate', (priceData) => {
+    socket.on('priceUpdate', (priceData) => {
       setPrices(prev => ({
         ...prev,
         [priceData.symbol]: priceData
       }));
+      setLastUpdate(Date.now());
+    });
+
+    // Signal events - Enhanced handling
+    socket.on('signalGenerated', (data) => {
+      console.log('🚨 Signal received:', data?.symbol, data?.signal || data?.signal?.signal);
       
-      // Update price chart data
-      setPriceChartData(prev => {
-        const newData = [...prev, {
-          time: new Date(priceData.timestamp).toLocaleTimeString(),
-          price: priceData.price,
-          symbol: priceData.symbol
-        }].slice(-50); // Keep last 50 data points
-        return newData;
-      });
+      const signal = data?.signal || data;
+      if (signal?.symbol) {
+        setSignals(prev => {
+          const newSignals = [signal, ...prev].slice(0, 100);
+          return newSignals;
+        });
+        setLastUpdate(Date.now());
+      }
     });
 
-    newSocket.on('signalGenerated', (data) => {
-      setSignals(prev => [data.signal, ...prev].slice(0, 100));
+    socket.on('allSignalsGenerated', (signalsArray) => {
+      console.log('🚨 Batch signals received:', signalsArray?.length);
+      
+      if (Array.isArray(signalsArray) && signalsArray.length > 0) {
+        setSignals(prev => {
+          const combined = [...signalsArray, ...prev];
+          const unique = combined.filter((signal, index, self) => 
+            index === self.findIndex(s => 
+              s.symbol === signal.symbol && 
+              s.timestamp === signal.timestamp &&
+              s.signal === signal.signal
+            )
+          );
+          return unique.slice(0, 100);
+        });
+        setLastUpdate(Date.now());
+      }
     });
 
-    newSocket.on('tradeExecuted', (trade) => {
+    socket.on('tradeExecuted', (trade) => {
+      console.log('💰 Trade executed:', trade.symbol, trade.side);
       setTrades(prev => [trade, ...prev].slice(0, 50));
+      setLastUpdate(Date.now());
     });
 
-    newSocket.on('tradingHalted', (data) => {
+    socket.on('tradingHalted', (data) => {
+      console.warn('🚨 Trading halted:', data.reason);
       setError(`Trading Halted: ${data.reason}`);
       setTradingEnabled(false);
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from trading server');
+    socket.on('tradingStarted', () => {
+      console.log('▶️ Trading started');
+      setTradingEnabled(true);
+      setError(null);
     });
 
-    return () => newSocket.close();
+    socket.on('tradingStopped', () => {
+      console.log('⏹️ Trading stopped');
+      setTradingEnabled(false);
+    });
+
+    socket.on('tradingReset', () => {
+      console.log('🔄 Trading reset');
+      setSignals([]);
+      setTrades([]);
+      fetchInitialData();
+    });
+
+    return () => {
+      console.log('🔌 Closing socket connection');
+      socket.disconnect();
+    };
   }, []);
 
+  // API data fetching
   const fetchInitialData = async () => {
     try {
-      console.log('Fetching initial data...');
+      console.log('🔄 Fetching initial data...');
       
-      // Fetch initial data with individual error handling
-      const requests = [
+      const endpoints = [
         { name: 'status', url: '/api/trading/status' },
         { name: 'portfolio', url: '/api/trading/portfolio' },
-        { name: 'trades', url: '/api/trading/trades?limit=20' },
-        { name: 'signals', url: '/api/trading/signals?limit=20' },
+        { name: 'trades', url: '/api/trading/trades?limit=25' },
+        { name: 'signals', url: '/api/trading/signals?limit=50' },
         { name: 'prices', url: '/api/trading/prices' },
-        { name: 'balances', url: '/api/trading/balances' },
         { name: 'account', url: '/api/trading/account' }
       ];
 
       const results = {};
-      let hasErrors = false;
+      const errors = [];
 
-      for (const request of requests) {
+      for (const endpoint of endpoints) {
         try {
-          console.log(`Fetching ${request.name}...`);
-          const response = await fetch(request.url);
+          const response = await fetch(endpoint.url);
           
           if (!response.ok) {
-            console.error(`${request.name} API error:`, response.status, response.statusText);
-            hasErrors = true;
-            continue;
+            throw new Error(`${endpoint.name}: ${response.status} ${response.statusText}`);
           }
           
           const data = await response.json();
-          results[request.name] = data;
-          console.log(`✅ ${request.name} loaded:`, data);
+          results[endpoint.name] = data;
+          console.log(`✅ ${endpoint.name} loaded`);
           
-        } catch (error) {
-          console.error(`Error fetching ${request.name}:`, error);
-          hasErrors = true;
+        } catch (err) {
+          console.error(`❌ Failed to fetch ${endpoint.name}:`, err.message);
+          errors.push(`${endpoint.name}: ${err.message}`);
         }
       }
 
       // Update state with successful results
-      if (results.status) setSystemStatus(results.status);
+      if (results.status) {
+        setSystemStatus(results.status);
+        setTradingEnabled(results.status.config?.enableTrading || false);
+        setSelectedStrategy(results.status.config?.strategy || 'balanced');
+      }
+      
       if (results.portfolio) setPortfolio(results.portfolio);
       if (results.trades) setTrades(results.trades);
-      if (results.signals) setSignals(results.signals);
       if (results.prices) setPrices(results.prices);
-      if (results.balances) setBalances(results.balances);
       if (results.account) setAccount(results.account);
-
-      // Clear error if we got some data
-      if (!hasErrors) {
-        setError(null);
-      } else {
-        setError('Some trading data failed to load, but system is operational');
+      
+      if (results.signals) {
+        if (Array.isArray(results.signals)) {
+          setSignals(results.signals);
+          console.log('✅ Signals loaded:', results.signals.length);
+        } else {
+          console.warn('⚠️ Invalid signals format');
+          setSignals([]);
+        }
       }
 
-    } catch (error) {
-      console.error('Error in fetchInitialData:', error);
-      setError('Failed to load trading data: ' + error.message);
+      // Handle errors
+      if (errors.length > 0) {
+        console.warn('⚠️ Some endpoints failed:', errors);
+        setError(`Some data failed to load: ${errors.slice(0, 2).join(', ')}`);
+      } else {
+        setError(null);
+        console.log('✅ All data loaded successfully');
+      }
+      
+      setLoading(false);
+      setLastUpdate(Date.now());
+
+    } catch (err) {
+      console.error('❌ Critical error in fetchInitialData:', err);
+      setError(`Failed to load trading data: ${err.message}`);
+      setLoading(false);
     }
   };
 
+  // Trading controls
   const handleToggleTrading = async () => {
     try {
       const endpoint = tradingEnabled ? '/api/trading/stop' : '/api/trading/start';
-      const response = await fetch(endpoint, { method: 'POST' });
+      const action = tradingEnabled ? 'Stopping' : 'Starting';
+      
+      console.log(`🔄 ${action} trading...`);
+      
+      const response = await fetch(endpoint, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
       
       if (response.ok) {
-        setTradingEnabled(!tradingEnabled);
+        const result = await response.json();
+        console.log(`✅ ${result.message}`);
         setError(null);
+        // State will be updated via socket events
       } else {
         const errorData = await response.json();
-        setError(errorData.error);
+        setError(errorData.error || `Failed to ${tradingEnabled ? 'stop' : 'start'} trading`);
       }
-    } catch (error) {
-      setError('Failed to toggle trading');
+    } catch (err) {
+      console.error('❌ Toggle trading error:', err);
+      setError(`Failed to ${tradingEnabled ? 'stop' : 'start'} trading: ${err.message}`);
     }
   };
 
   const handleResetTrading = async () => {
     try {
-      const response = await fetch('/api/trading/reset', { method: 'POST' });
+      console.log('🔄 Resetting trading engine...');
+      
+      const response = await fetch('/api/trading/reset', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
       if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Trading reset:', result.message);
         setError(null);
-        fetchInitialData();
+        // State will be updated via socket events and fetchInitialData
       } else {
         const errorData = await response.json();
-        setError(errorData.error);
+        setError(errorData.error || 'Failed to reset trading');
       }
-    } catch (error) {
-      setError('Failed to reset trading');
+    } catch (err) {
+      console.error('❌ Reset trading error:', err);
+      setError(`Failed to reset trading: ${err.message}`);
     }
   };
 
@@ -207,100 +308,168 @@ const TradingDashboard = () => {
     setSelectedStrategy(newStrategy);
     
     try {
+      console.log('🔄 Updating strategy to:', newStrategy);
+      
       const response = await fetch('/api/trading/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ strategy: newStrategy })
       });
       
-      if (!response.ok) {
+      if (response.ok) {
+        console.log('✅ Strategy updated');
+        setError(null);
+      } else {
         const errorData = await response.json();
-        setError(errorData.error);
+        setError(errorData.error || 'Failed to update strategy');
       }
-    } catch (error) {
-      setError('Failed to update strategy');
+    } catch (err) {
+      console.error('❌ Strategy update error:', err);
+      setError(`Failed to update strategy: ${err.message}`);
     }
   };
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value || 0);
+  const handleRefreshData = () => {
+    console.log('🔄 Manual refresh triggered');
+    setError(null);
+    setLoading(true);
+    fetchInitialData();
   };
 
-  const formatCrypto = (value, decimals = 6) => {
-    if (value === 0) return '0';
-    return parseFloat(value).toFixed(decimals);
-  };
-
-  const calculateBalanceValue = (balance, prices) => {
-    if (!balance || !prices) return 0;
+  // Calculate system health
+  const getSystemHealth = () => {
+    if (!systemStatus) return { status: 'unknown', color: 'default' };
     
-    // For USDT, value is 1:1
-    if (balance.asset === 'USDT') return balance.total;
+    const isOnline = systemStatus.isInitialized;
+    const hasRecentUpdate = lastUpdate && (Date.now() - lastUpdate) < 60000; // 1 minute
+    const hasData = signals.length > 0 || trades.length > 0;
     
-    // For other assets, multiply by current price
-    const symbol = `${balance.asset}USDT`;
-    const price = prices[symbol]?.price || 0;
-    return balance.total * price;
+    if (isOnline && hasRecentUpdate && hasData) {
+      return { status: 'healthy', color: 'success' };
+    } else if (isOnline && hasData) {
+      return { status: 'online', color: 'info' };
+    } else if (isOnline) {
+      return { status: 'initializing', color: 'warning' };
+    } else {
+      return { status: 'offline', color: 'error' };
+    }
   };
 
-  const getTotalBalanceValue = () => {
-    if (!account?.balances || !prices) return 0;
+  const systemHealth = getSystemHealth();
+
+  // Data building status
+  const getDataBuildingStatus = () => {
+    if (!systemStatus?.services?.binanceData) return null;
     
-    return account.balances.reduce((total, balance) => {
-      return total + calculateBalanceValue(balance, prices);
-    }, 0);
+    const binanceStatus = systemStatus.services.binanceData;
+    const totalCandles = binanceStatus.totalCandles || 0;
+    const assetsCount = systemStatus.config?.assets?.length || 4;
+    const timeframesCount = systemStatus.config?.timeframes?.length || 3;
+    const minRequired = assetsCount * timeframesCount * 25;
+    
+    return {
+      current: totalCandles,
+      required: minRequired,
+      progress: Math.min((totalCandles / minRequired) * 100, 100),
+      isBuilding: totalCandles < minRequired
+    };
   };
 
-  const formatPercent = (value) => {
-    return `${(value || 0).toFixed(2)}%`;
-  };
+  const dataStatus = getDataBuildingStatus();
 
-  const getSignalColor = (signal) => {
-    if (signal.includes('BUY')) return 'success';
-    if (signal.includes('SELL')) return 'error';
-    return 'default';
-  };
-
-  const getSignalIcon = (signal) => {
-    if (signal.includes('BUY')) return <TrendingUp />;
-    if (signal.includes('SELL')) return <TrendingDown />;
-    return <Timeline />;
-  };
-
+  // Loading state
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <Typography variant="h6">Loading Trading Dashboard...</Typography>
-      </Box>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <Box textAlign="center">
+            <Timeline sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
+            <Typography variant="h5" gutterBottom>
+              Initializing Trading Dashboard
+            </Typography>
+            <Typography variant="body1" color="textSecondary" paragraph>
+              Connecting to trading services and loading market data...
+            </Typography>
+            <Box sx={{ mt: 2 }}>
+              <Chip label="Please wait" color="primary" />
+            </Box>
+          </Box>
+        </Box>
+      </Container>
     );
   }
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Header */}
+      {/* Header Section */}
       <Box mb={3}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Crypto Trend Trading Bot
-        </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Crypto Trend Trading Bot
+            </Typography>
+            <Box display="flex" gap={1} alignItems="center">
+              <Chip
+                icon={systemHealth.status === 'healthy' ? <TrendingUp /> : <Timeline />}
+                label={`System ${systemHealth.status.charAt(0).toUpperCase() + systemHealth.status.slice(1)}`}
+                color={systemHealth.color}
+                size="small"
+              />
+              {lastUpdate && (
+                <Chip
+                  label={`Updated ${new Date(lastUpdate).toLocaleTimeString()}`}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+            </Box>
+          </Box>
+          
+          <Box display="flex" gap={1}>
+            <Tooltip title="System Analytics">
+              <IconButton color="primary">
+                <Assessment />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Trading Configuration">
+              <IconButton color="primary">
+                <Settings />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
         
+        {/* System Status Banner */}
+        <SystemStatusBanner systemStatus={systemStatus} signals={signals} />
+        
+        {/* Error Alert */}
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          <Alert 
+            severity="error" 
+            sx={{ mb: 2 }} 
+            onClose={() => setError(null)}
+            action={
+              <Button color="inherit" size="small" onClick={handleRefreshData}>
+                Retry
+              </Button>
+            }
+          >
             {error}
           </Alert>
         )}
 
-        {/* Controls */}
-        <Paper sx={{ p: 2, mb: 3 }}>
+        {/* Control Panel */}
+        <Paper sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
+            {/* Primary Controls */}
             <Grid item>
               <Button
                 variant={tradingEnabled ? "contained" : "outlined"}
                 color={tradingEnabled ? "error" : "success"}
                 startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
                 onClick={handleToggleTrading}
+                disabled={dataStatus?.isBuilding && !tradingEnabled}
+                size="large"
               >
                 {tradingEnabled ? 'Stop Trading' : 'Start Trading'}
               </Button>
@@ -310,17 +479,28 @@ const TradingDashboard = () => {
               <Button
                 variant="outlined"
                 startIcon={<Refresh />}
-                onClick={() => {
-                  setError(null);
-                  fetchInitialData();
-                }}
+                onClick={handleRefreshData}
+                disabled={loading}
               >
-                Refresh Data
+                Refresh
               </Button>
             </Grid>
 
             <Grid item>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Button
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={handleResetTrading}
+                color="warning"
+                size="small"
+              >
+                Reset
+              </Button>
+            </Grid>
+
+            {/* Strategy Selector */}
+            <Grid item>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
                 <InputLabel>Strategy</InputLabel>
                 <Select
                   value={selectedStrategy}
@@ -334,375 +514,136 @@ const TradingDashboard = () => {
               </FormControl>
             </Grid>
 
-            <Grid item>
-              <Chip
-                icon={systemStatus?.isInitialized ? <PlayArrow /> : <Stop />}
-                label={systemStatus?.isInitialized ? 'System Online' : 'System Offline'}
-                color={systemStatus?.isInitialized ? 'success' : 'error'}
-              />
+            {/* Status Indicators */}
+            <Grid item sx={{ ml: 'auto' }}>
+              <Box display="flex" gap={1} alignItems="center">
+                <Chip
+                  size="small"
+                  label={`${signals.length} signals`}
+                  color="info"
+                  variant="outlined"
+                />
+                <Chip
+                  size="small"
+                  label={`${trades.length} trades`}
+                  color="secondary"
+                  variant="outlined"
+                />
+                {dataStatus && (
+                  <Chip
+                    size="small"
+                    label={dataStatus.isBuilding ? 'Building Data' : 'Data Ready'}
+                    color={dataStatus.isBuilding ? 'warning' : 'success'}
+                    variant="outlined"
+                  />
+                )}
+              </Box>
             </Grid>
           </Grid>
         </Paper>
       </Box>
 
+      {/* Main Dashboard Grid */}
       <Grid container spacing={3}>
-        {/* Portfolio Overview */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Portfolio Overview
-            </Typography>
-            
-            <Grid container spacing={3}>
-              <Grid item xs={6} md={3}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Total Value
-                    </Typography>
-                    <Typography variant="h5">
-                      {formatCurrency(portfolio?.totalValue)}
-                    </Typography>
-                    <Typography variant="body2" color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}>
-                      {portfolio?.totalPnL >= 0 ? '+' : ''}{formatCurrency(portfolio?.totalPnL)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={6} md={3}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Total Return
-                    </Typography>
-                    <Typography variant="h5" color={portfolio?.totalPnLPercent >= 0 ? 'success.main' : 'error.main'}>
-                      {formatPercent(portfolio?.totalPnLPercent)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={6} md={3}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Active Positions
-                    </Typography>
-                    <Typography variant="h5">
-                      {portfolio?.positionCount || 0}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-
-              <Grid item xs={6} md={3}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Win Rate
-                    </Typography>
-                    <Typography variant="h5">
-                      {formatPercent(portfolio?.performance?.winRate)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-
-            {/* Positions */}
-            {portfolio?.positions && portfolio.positions.length > 0 && (
-              <Box mt={3}>
-                <Typography variant="h6" gutterBottom>
-                  Open Positions
-                </Typography>
-                {portfolio.positions.map((position) => (
-                  <Card key={position.symbol} variant="outlined" sx={{ mb: 1 }}>
-                    <CardContent sx={{ py: 1 }}>
-                      <Grid container alignItems="center" spacing={2}>
-                        <Grid item xs={2}>
-                          <Typography variant="subtitle1">
-                            {position.symbol.replace('USDT', '')}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2}>
-                          <Typography variant="body2">
-                            {position.quantity.toFixed(6)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2}>
-                          <Typography variant="body2">
-                            {formatCurrency(position.avgPrice)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2}>
-                          <Typography variant="body2">
-                            {formatCurrency(position.currentPrice)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2}>
-                          <Typography 
-                            variant="body2" 
-                            color={position.unrealizedPnL >= 0 ? 'success.main' : 'error.main'}
-                          >
-                            {formatCurrency(position.unrealizedPnL)}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={2}>
-                          <Typography variant="body2" color="textSecondary">
-                            SL: {formatCurrency(position.stopLoss)}
-                          </Typography>
-                        </Grid>
-                      </Grid>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
-            )}
-          </Paper>
-        </Grid>
-
-        {/* Crypto Balances */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Crypto Balances
-            </Typography>
-            
-            {account && account.balances && account.balances.length > 0 ? (
-              <>
-                {/* Total Balance Summary */}
-                <Card variant="outlined" sx={{ mb: 2, bgcolor: 'primary.dark' }}>
-                  <CardContent sx={{ py: 1 }}>
-                    <Typography variant="h6" color="primary.contrastText">
-                      Total Balance Value
-                    </Typography>
-                    <Typography variant="h5" color="primary.contrastText">
-                      {formatCurrency(getTotalBalanceValue())}
-                    </Typography>
-                  </CardContent>
-                </Card>
-
-                {/* Individual Balances */}
-                {account.balances
-                  .filter(balance => balance.total > 0)
-                  .map((balance) => {
-                    const usdValue = calculateBalanceValue(balance, prices);
-                    return (
-                      <Card key={balance.asset} variant="outlined" sx={{ mb: 1 }}>
-                        <CardContent sx={{ py: 1 }}>
-                          <Grid container alignItems="center" spacing={1}>
-                            <Grid item xs={12}>
-                              <Typography variant="subtitle1" fontWeight="bold">
-                                {balance.asset}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="body2">
-                                {formatCrypto(balance.total)} {balance.asset}
-                              </Typography>
-                              <Typography variant="caption" color="textSecondary">
-                                Total Balance
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={6}>
-                              <Typography variant="body2" color="success.main">
-                                {formatCurrency(usdValue)}
-                              </Typography>
-                              <Typography variant="caption" color="textSecondary">
-                                USD Value
-                              </Typography>
-                            </Grid>
-                            {balance.locked > 0 && (
-                              <Grid item xs={12}>
-                                <Typography variant="caption" color="warning.main">
-                                  Locked: {formatCrypto(balance.locked)} {balance.asset}
-                                </Typography>
-                              </Grid>
-                            )}
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    );
-                  })
-                }
-              </>
-            ) : (
-              <Typography variant="body2" color="textSecondary">
-                {account ? 'No balances found' : 'Loading balances...'}
-              </Typography>
-            )}
-
-            {account && (
-              <Box mt={2}>
-                <Typography variant="caption" color="textSecondary">
-                  Account Type: {account.accountType || 'SPOT'}
-                </Typography>
-                <br />
-                <Typography variant="caption" color="textSecondary">
-                  Trading: {account.canTrade ? '✅ Enabled' : '❌ Disabled'}
-                </Typography>
-              </Box>
-            )}
-          </Paper>
-        </Grid>
-
-        {/* Live Prices */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Live Prices
-            </Typography>
-            
-            {Object.entries(prices).map(([symbol, data]) => (
-              <Card key={symbol} variant="outlined" sx={{ mb: 1 }}>
-                <CardContent sx={{ py: 1 }}>
-                  <Grid container alignItems="center" justifyContent="space-between">
-                    <Grid item>
-                      <Typography variant="subtitle1">
-                        {symbol.replace('USDT', '')}
-                      </Typography>
-                    </Grid>
-                    <Grid item>
-                      <Typography variant="h6">
-                        {formatCurrency(data.price)}
-                      </Typography>
-                    </Grid>
-                    <Grid item>
-                      <Chip
-                        size="small"
-                        label={formatPercent(data.priceChange)}
-                        color={data.priceChange >= 0 ? 'success' : 'error'}
-                      />
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            ))}
-          </Paper>
-        </Grid>
-
-        {/* Trading Signals */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, height: 400, overflow: 'auto' }}>
-            <Typography variant="h6" gutterBottom>
-              Recent Signals
-            </Typography>
-            
-            {signals.slice(0, 10).map((signal, index) => (
-              <Card key={index} variant="outlined" sx={{ mb: 1 }}>
-                <CardContent sx={{ py: 1 }}>
-                  <Grid container alignItems="center" spacing={1}>
-                    <Grid item>
-                      {getSignalIcon(signal.signal)}
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2">
-                        {signal.symbol?.replace('USDT', '')}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={3}>
-                      <Chip
-                        size="small"
-                        label={signal.signal}
-                        color={getSignalColor(signal.signal)}
-                      />
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2">
-                        {signal.strength?.toFixed(1)}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Typography variant="body2" color="textSecondary">
-                        {new Date(signal.timestamp).toLocaleTimeString()}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            ))}
-          </Paper>
-        </Grid>
-
-        {/* Recent Trades */}
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 3, height: 400, overflow: 'auto' }}>
-            <Typography variant="h6" gutterBottom>
-              Recent Trades
-            </Typography>
-            
-            {trades.slice(0, 10).map((trade, index) => (
-              <Card key={index} variant="outlined" sx={{ mb: 1 }}>
-                <CardContent sx={{ py: 1 }}>
-                  <Grid container alignItems="center" spacing={1}>
-                    <Grid item>
-                      {trade.side === 'BUY' ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2">
-                        {trade.symbol?.replace('USDT', '')}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Chip
-                        size="small"
-                        label={trade.side}
-                        color={trade.side === 'BUY' ? 'success' : 'error'}
-                      />
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2">
-                        {formatCurrency(trade.price)}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={2}>
-                      {trade.pnl !== undefined && (
-                        <Typography 
-                          variant="body2" 
-                          color={trade.pnl >= 0 ? 'success.main' : 'error.main'}
-                        >
-                          {formatCurrency(trade.pnl)}
-                        </Typography>
-                      )}
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2" color="textSecondary">
-                        {new Date(trade.timestamp).toLocaleTimeString()}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
-            ))}
-          </Paper>
-        </Grid>
-
-        {/* Price Chart */}
+        {/* Row 1: Portfolio Overview - Full Width */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Live Price Chart
-            </Typography>
-            
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={priceChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="price" 
-                  stroke="#8884d8" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Paper>
+          <PortfolioOverview 
+            account={account} 
+            prices={prices} 
+            portfolio={portfolio} 
+          />
+        </Grid>
+
+        {/* Row 2: Holdings & Signals/Trades */}
+        <Grid item xs={12} lg={6}>
+          <CurrentHoldings 
+            account={account} 
+            prices={prices} 
+          />
+        </Grid>
+
+        <Grid item xs={12} lg={6}>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TradingSignals 
+                signals={signals} 
+                systemStatus={systemStatus}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <RecentTrades trades={trades} />
+            </Grid>
+          </Grid>
+        </Grid>
+
+        {/* Row 3: Live Prices & Chart */}
+        <Grid item xs={12} md={4}>
+          <LivePrices prices={prices} />
+        </Grid>
+
+        <Grid item xs={12} md={8}>
+          <LivePriceChart prices={prices} />
         </Grid>
       </Grid>
+      
+      {/* Development Debug Panel */}
+      {import.meta.env.DEV && (
+        <Paper sx={{ p: 2, mt: 3, backgroundColor: 'action.hover' }}>
+          <Typography variant="subtitle2" gutterBottom>
+            🔧 Development Debug Panel
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>System:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {systemStatus?.isInitialized ? '🟢 Online' : '🔴 Offline'}
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>Data:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {systemStatus?.services?.binanceData?.totalCandles || 0} candles
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>Signals:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {signals.length} total
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>Trades:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {trades.length} total
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>Prices:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {Object.keys(prices).length} assets
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>Progress:</strong>
+              </Typography>
+              <Typography variant="body2">
+                {dataStatus ? `${dataStatus.progress.toFixed(1)}%` : 'N/A'}
+              </Typography>
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
     </Container>
   );
 };

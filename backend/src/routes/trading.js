@@ -348,8 +348,69 @@ module.exports = (tradingController) => {
         };
     }
 
+    // POST /api/trading/test-signal
+    router.post("/test-signal", (req, res) => {
+        tradingController.generateTestSignalAPI(req, res);
+    });
+
     return router;
 };
+// Add this to your trading.js routes file
+
+// GET /api/trading/test-candles - Test candle data loading
+router.get("/test-candles", async (req, res) => {
+    try {
+        if (!tradingController.services.binanceData) {
+            return res
+                .status(400)
+                .json({ error: "Binance service not initialized" });
+        }
+
+        const testResults = {};
+        const assets = ["BTCUSDT"];
+        const timeframes = ["1h"];
+
+        for (const asset of assets) {
+            for (const timeframe of timeframes) {
+                try {
+                    console.log(`🧪 Testing ${asset} ${timeframe}...`);
+
+                    const candles =
+                        await tradingController.services.binanceData.getHistoricalCandles(
+                            asset,
+                            timeframe,
+                            10
+                        );
+
+                    testResults[`${asset}_${timeframe}`] = {
+                        success: true,
+                        candleCount: candles.length,
+                        firstCandle: candles[0],
+                        lastCandle: candles[candles.length - 1],
+                    };
+                } catch (error) {
+                    testResults[`${asset}_${timeframe}`] = {
+                        success: false,
+                        error: error.message,
+                    };
+                }
+            }
+        }
+
+        res.json({
+            message: "Candle loading test complete",
+            results: testResults,
+            cacheStatus: {
+                totalCandleDatasets:
+                    tradingController.services.binanceData.candleCache.size,
+                priceCache:
+                    tradingController.services.binanceData.priceCache.size,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Helper middleware for error handling
 router.use((error, req, res, next) => {
