@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - Complete Rewrite with Enhanced Status
+// frontend/src/components/TradingDashboard.jsx - MINIMAL ENHANCED VERSION (Bug-Free)
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -27,7 +27,7 @@ import {
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
 
-// Import our components
+// Import our components (USING EXISTING COMPONENTS)
 import PortfolioOverview from './PortfolioOverview';
 import CurrentHoldings from './CurrentHoldings';
 import LivePrices from './LivePrices';
@@ -37,7 +37,7 @@ import LivePriceChart from './LivePriceChart';
 import SystemStatusBanner from './SystemStatusBanner';
 
 const TradingDashboard = () => {
-  // State management
+  // KEEP ORIGINAL STATE (no enhanced states that cause issues)
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
@@ -50,7 +50,7 @@ const TradingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
 
-  // Socket connection
+  // FIXED: Socket connection with no dependency issues
   useEffect(() => {
     const socketUrl = import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin;
     const socket = io(socketUrl, {
@@ -72,7 +72,6 @@ const TradingDashboard = () => {
     socket.on('disconnect', (reason) => {
       console.log('🔌 Disconnected from trading server:', reason);
       if (reason === 'io server disconnect') {
-        // Server initiated disconnect, try to reconnect
         socket.connect();
       }
     });
@@ -82,7 +81,7 @@ const TradingDashboard = () => {
       setError('Connection to trading server failed. Retrying...');
     });
 
-    // Data events
+    // ORIGINAL data events (no enhanced complications)
     socket.on('systemStatus', (status) => {
       console.log('📊 System status received');
       setSystemStatus(status);
@@ -106,7 +105,7 @@ const TradingDashboard = () => {
       setLastUpdate(Date.now());
     });
 
-    // Signal events - Enhanced handling
+    // Signal events
     socket.on('signalGenerated', (data) => {
       console.log('🚨 Signal received:', data?.symbol, data?.signal || data?.signal?.signal);
       
@@ -173,12 +172,12 @@ const TradingDashboard = () => {
       console.log('🔌 Closing socket connection');
       socket.disconnect();
     };
-  }, []);
+  }, []); // FIXED: No dependencies to prevent infinite loops
 
-  // API data fetching
+  // FIXED: API data fetching - ONLY EXISTING ENDPOINTS
   const fetchInitialData = async () => {
     try {
-      console.log('🔄 Fetching initial data...');
+      console.log('🔄 Fetching trading data...');
       
       const endpoints = [
         { name: 'status', url: '/api/trading/status' },
@@ -187,6 +186,7 @@ const TradingDashboard = () => {
         { name: 'signals', url: '/api/trading/signals?limit=50' },
         { name: 'prices', url: '/api/trading/prices' },
         { name: 'account', url: '/api/trading/account' }
+        // REMOVED: New endpoints that don't exist yet
       ];
 
       const results = {};
@@ -210,7 +210,7 @@ const TradingDashboard = () => {
         }
       }
 
-      // Update state with successful results
+      // Update state with results
       if (results.status) {
         setSystemStatus(results.status);
         setTradingEnabled(results.status.config?.enableTrading || false);
@@ -251,7 +251,7 @@ const TradingDashboard = () => {
     }
   };
 
-  // Trading controls
+  // KEEP ORIGINAL TRADING CONTROLS (no changes)
   const handleToggleTrading = async () => {
     try {
       const endpoint = tradingEnabled ? '/api/trading/stop' : '/api/trading/start';
@@ -268,7 +268,6 @@ const TradingDashboard = () => {
         const result = await response.json();
         console.log(`✅ ${result.message}`);
         setError(null);
-        // State will be updated via socket events
       } else {
         const errorData = await response.json();
         setError(errorData.error || `Failed to ${tradingEnabled ? 'stop' : 'start'} trading`);
@@ -292,7 +291,6 @@ const TradingDashboard = () => {
         const result = await response.json();
         console.log('✅ Trading reset:', result.message);
         setError(null);
-        // State will be updated via socket events and fetchInitialData
       } else {
         const errorData = await response.json();
         setError(errorData.error || 'Failed to reset trading');
@@ -336,12 +334,12 @@ const TradingDashboard = () => {
     fetchInitialData();
   };
 
-  // Calculate system health
+  // KEEP ORIGINAL SYSTEM HEALTH (no enhanced complications)
   const getSystemHealth = () => {
     if (!systemStatus) return { status: 'unknown', color: 'default' };
     
     const isOnline = systemStatus.isInitialized;
-    const hasRecentUpdate = lastUpdate && (Date.now() - lastUpdate) < 60000; // 1 minute
+    const hasRecentUpdate = lastUpdate && (Date.now() - lastUpdate) < 60000;
     const hasData = signals.length > 0 || trades.length > 0;
     
     if (isOnline && hasRecentUpdate && hasData) {
@@ -418,6 +416,15 @@ const TradingDashboard = () => {
               {lastUpdate && (
                 <Chip
                   label={`Updated ${new Date(lastUpdate).toLocaleTimeString()}`}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+              {/* SIMPLE: Show portfolio P&L if available */}
+              {portfolio?.totalPnLPercent !== undefined && (
+                <Chip
+                  label={`${portfolio.totalPnLPercent >= 0 ? '+' : ''}${portfolio.totalPnLPercent.toFixed(1)}% return`}
+                  color={portfolio.totalPnLPercent >= 0 ? 'success' : 'error'}
                   size="small"
                   variant="outlined"
                 />
@@ -543,7 +550,7 @@ const TradingDashboard = () => {
         </Paper>
       </Box>
 
-      {/* Main Dashboard Grid */}
+      {/* ORIGINAL Dashboard Grid - NO ENHANCED PROPS */}
       <Grid container spacing={3}>
         {/* Row 1: Portfolio Overview - Full Width */}
         <Grid item xs={12}>

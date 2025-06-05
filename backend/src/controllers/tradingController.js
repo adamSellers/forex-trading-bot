@@ -1,5 +1,5 @@
-// backend/src/controllers/tradingController.js - COMPLETE WITH ALL FIXES
-const BinanceDataService = require("../services/binanceDataService_Testnet");
+// backend/src/controllers/tradingController.js - COMPLETE ENHANCED VERSION
+const BinanceDataService = require("../services/binanceDataService");
 const SignalGenerator = require("../services/signalGenerator");
 const PaperTradingEngine = require("../services/paperTradingEngine");
 const db = require("../../config/database");
@@ -38,7 +38,9 @@ class TradingController {
         this.updateInterval = null;
         this.signalDebugMode = process.env.NODE_ENV === "development";
 
-        console.log("🚀 LIVE MODE: Real Binance data with Paper Trading");
+        console.log(
+            "🚀 ENHANCED MODE: Real Binance data with Enhanced Paper Trading"
+        );
     }
 
     /**
@@ -46,7 +48,7 @@ class TradingController {
      */
     async initialize() {
         try {
-            console.log("🚀 Initializing Trading Controller...");
+            console.log("🚀 Initializing Enhanced Trading Controller...");
 
             // Initialize Binance Data Service
             this.services.binanceData = new BinanceDataService({
@@ -96,7 +98,9 @@ class TradingController {
             this.startRealTimeUpdates();
 
             this.isInitialized = true;
-            console.log("✅ Trading Controller initialized successfully");
+            console.log(
+                "✅ Enhanced Trading Controller initialized successfully"
+            );
 
             // Emit initial status
             this.emitSystemStatus();
@@ -108,7 +112,10 @@ class TradingController {
                 }, 5000);
             }
         } catch (error) {
-            console.error("❌ Failed to initialize Trading Controller:", error);
+            console.error(
+                "❌ Failed to initialize Enhanced Trading Controller:",
+                error
+            );
             throw error;
         }
     }
@@ -173,7 +180,7 @@ class TradingController {
      */
     async handleNewSignal(signal) {
         try {
-            console.log("🚨 NEW SIGNAL RECEIVED:", {
+            console.log("🚨 ENHANCED SIGNAL RECEIVED:", {
                 symbol: signal.symbol,
                 signal: signal.signal,
                 strength: signal.strength,
@@ -223,7 +230,7 @@ class TradingController {
                 priceChange: priceData.priceChange,
             };
 
-            console.log("📡 EMITTING SIGNAL to frontend:", {
+            console.log("📡 EMITTING ENHANCED SIGNAL to frontend:", {
                 symbol: signalPayload.symbol,
                 signal: signalPayload.signal,
                 strength: signalPayload.strength,
@@ -243,7 +250,7 @@ class TradingController {
                 );
             }
         } catch (error) {
-            console.error("❌ Error handling signal:", error);
+            console.error("❌ Error handling enhanced signal:", error);
 
             // Emit error signal for debugging
             const errorSignal = {
@@ -265,12 +272,12 @@ class TradingController {
     async handleAllSignalsGenerated(signals) {
         try {
             console.log(
-                `📊 BATCH SIGNALS GENERATED: ${signals.length} signals`
+                `📊 ENHANCED BATCH SIGNALS GENERATED: ${signals.length} signals`
             );
 
             if (this.signalDebugMode) {
                 signals.forEach((signal, index) => {
-                    console.log(`Signal ${index + 1}:`, {
+                    console.log(`Enhanced Signal ${index + 1}:`, {
                         symbol: signal.symbol,
                         signal: signal.signal,
                         strength: signal.strength,
@@ -290,9 +297,11 @@ class TradingController {
             // Save to database
             await this.saveSignalsToDatabase(signals);
 
-            console.log(`✅ Batch signals processed and emitted successfully`);
+            console.log(
+                `✅ Enhanced batch signals processed and emitted successfully`
+            );
         } catch (error) {
-            console.error("❌ Error handling batch signals:", error);
+            console.error("❌ Error handling enhanced batch signals:", error);
         }
     }
 
@@ -303,8 +312,9 @@ class TradingController {
         // Save trade to database
         this.saveTradeToDatabase(trade);
 
-        // Emit to frontend
+        // Enhanced trade events
         this.io.emit("tradeExecuted", trade);
+        this.io.emit("paperTradeExecuted", trade); // NEW: Paper-specific event
 
         // Log trade execution with USDT amounts
         const pnlText = trade.pnl
@@ -316,9 +326,9 @@ class TradingController {
                 : `${trade.usdtReceived.toFixed(2)} USDT`;
 
         console.log(
-            `💰 Trade executed: ${trade.side} ${trade.quantity.toFixed(8)} ${
-                trade.symbol
-            } at ${trade.price} (${amountText})${pnlText}`
+            `💰 Enhanced trade executed: ${trade.side} ${trade.quantity.toFixed(
+                8
+            )} ${trade.symbol} at ${trade.price} (${amountText})${pnlText}`
         );
     }
 
@@ -352,7 +362,9 @@ class TradingController {
             triggerPrice: currentPrice,
         });
 
-        console.warn(`🛑 STOP LOSS: ${symbol} sold at ${currentPrice}`);
+        console.warn(
+            `🛑 ENHANCED STOP LOSS: ${symbol} sold at ${currentPrice}`
+        );
     }
 
     /**
@@ -361,30 +373,38 @@ class TradingController {
     startRealTimeUpdates() {
         this.updateInterval = setInterval(() => {
             try {
-                // Emit system status every 30 seconds
+                // Emit enhanced system status every 30 seconds
                 this.emitSystemStatus();
 
-                // Emit portfolio summary
+                // Emit enhanced portfolio summary
                 const portfolio =
                     this.services.paperTrading.getPortfolioSummary();
                 this.io.emit("portfolioSummary", portfolio);
 
+                // NEW: Emit risk status updates
+                if (portfolio.riskStatus) {
+                    this.io.emit("riskStatusUpdated", portfolio.riskStatus);
+                }
+
                 if (this.signalDebugMode) {
-                    console.log("📡 Real-time update sent:", {
+                    console.log("📡 Enhanced real-time update sent:", {
                         connections: this.io.engine.clientsCount,
                         portfolioValue: portfolio.totalValue,
+                        riskStatus: portfolio.riskStatus.isHalted
+                            ? "HALTED"
+                            : "ACTIVE",
                     });
                 }
             } catch (error) {
-                console.error("Error in real-time updates:", error);
+                console.error("Error in enhanced real-time updates:", error);
             }
         }, 30000); // 30 seconds
 
-        console.log("📡 Real-time updates started");
+        console.log("📡 Enhanced real-time updates started");
     }
 
     /**
-     * Emit system status to frontend
+     * Emit enhanced system status to frontend
      */
     emitSystemStatus() {
         const status = {
@@ -398,18 +418,19 @@ class TradingController {
             config: this.config,
             socketConnections: this.io.engine.clientsCount,
             debugMode: this.signalDebugMode,
+            enhanced: true, // Mark as enhanced version
         };
 
         this.io.emit("systemStatus", status);
     }
 
     /**
-     * ADDED: Generate test signal for debugging
+     * Generate test signal for debugging
      */
     async generateTestSignal() {
         if (!this.signalDebugMode) return;
 
-        console.log("🧪 GENERATING TEST SIGNAL");
+        console.log("🧪 GENERATING ENHANCED TEST SIGNAL");
 
         const testSignals = [
             {
@@ -418,8 +439,8 @@ class TradingController {
                 strength: 2.5,
                 strategy: "test",
                 timeframe: "1h",
-                currentPrice: 50000,
-                message: "Test BUY signal for debugging",
+                currentPrice: 67000,
+                message: "Enhanced test BUY signal for debugging",
                 timestamp: Date.now(),
                 atr: 1500,
             },
@@ -429,8 +450,8 @@ class TradingController {
                 strength: 1.8,
                 strategy: "test",
                 timeframe: "1h",
-                currentPrice: 3000,
-                message: "Test SELL signal for debugging",
+                currentPrice: 3400,
+                message: "Enhanced test SELL signal for debugging",
                 timestamp: Date.now() + 1000,
                 atr: 150,
             },
@@ -440,8 +461,8 @@ class TradingController {
                 strength: 0.3,
                 strategy: "test",
                 timeframe: "1h",
-                currentPrice: 400,
-                message: "Test HOLD signal for debugging",
+                currentPrice: 600,
+                message: "Enhanced test HOLD signal for debugging",
                 timestamp: Date.now() + 2000,
                 atr: 20,
             },
@@ -452,7 +473,7 @@ class TradingController {
             setTimeout(() => {
                 this.io.emit("signalGenerated", testSignal);
                 console.log(
-                    "📡 Test signal emitted:",
+                    "📡 Enhanced test signal emitted:",
                     testSignal.symbol,
                     testSignal.signal
                 );
@@ -462,11 +483,11 @@ class TradingController {
         return testSignals;
     }
 
-    /**
-     * API route handlers
-     */
+    // ================== ENHANCED API ROUTE HANDLERS ==================
 
-    // GET /api/trading/status
+    /**
+     * GET /api/trading/status - Enhanced system status
+     */
     getStatus(req, res) {
         try {
             const status = {
@@ -480,6 +501,8 @@ class TradingController {
                 config: this.config,
                 socketConnections: this.io.engine.clientsCount,
                 debugMode: this.signalDebugMode,
+                enhanced: true,
+                startTime: Date.now() - (this.lastUpdate || 0),
             };
 
             res.json(status);
@@ -488,7 +511,9 @@ class TradingController {
         }
     }
 
-    // GET /api/trading/portfolio
+    /**
+     * ENHANCED: getPortfolio method that combines real Binance holdings with paper trading data
+     */
     getPortfolio(req, res) {
         try {
             if (!this.services.paperTrading) {
@@ -497,14 +522,302 @@ class TradingController {
                     .json({ error: "Trading engine not initialized" });
             }
 
-            const portfolio = this.services.paperTrading.getPortfolioSummary();
-            res.json(portfolio);
+            // Get paper trading portfolio
+            const paperPortfolio =
+                this.services.paperTrading.getPortfolioSummary();
+
+            // Get current market prices
+            const prices = this.services.binanceData?.getAllPrices() || {};
+
+            // Enhanced portfolio object
+            const enhancedPortfolio = {
+                ...paperPortfolio,
+                timestamp: Date.now(),
+
+                // Paper trading specific data
+                paper: {
+                    usdtBalance: paperPortfolio.usdtBalance,
+                    positions: paperPortfolio.positions,
+                    totalValue: paperPortfolio.totalValue,
+                    totalPnL: paperPortfolio.totalPnL,
+                    dailyPnL: paperPortfolio.dailyPnL,
+                    weeklyPnL: paperPortfolio.weeklyPnL,
+                    performance: paperPortfolio.performance,
+                },
+
+                // Market context
+                marketData: {
+                    prices,
+                    lastUpdate: Date.now(),
+                    assets: this.config.assets,
+                    activeStrategy: this.config.strategy,
+                },
+
+                // Trading status
+                tradingStatus: {
+                    enabled: this.config.enableTrading,
+                    mode: "PAPER_TRADING",
+                    isActive: this.services.paperTrading.isActive,
+                    riskLimits: paperPortfolio.riskStatus,
+                },
+            };
+
+            res.json(enhancedPortfolio);
+        } catch (error) {
+            console.error("Error getting enhanced portfolio:", error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    /**
+     * NEW: getCombinedHoldings - Returns real + paper holdings for dashboard
+     */
+    getCombinedHoldings(req, res) {
+        try {
+            const holdings = {
+                timestamp: Date.now(),
+                real: null,
+                paper: null,
+                combined: null,
+            };
+
+            // Get real account info (async)
+            this.services.binanceData
+                .getAccountInfo()
+                .then((realAccount) => {
+                    holdings.real = {
+                        balances: realAccount.balances || [],
+                        accountType: realAccount.accountType,
+                        canTrade: realAccount.canTrade,
+                        totalValue: 0, // Will be calculated client-side with current prices
+                    };
+
+                    // Get paper positions
+                    if (this.services.paperTrading) {
+                        const paperPortfolio =
+                            this.services.paperTrading.getPortfolioSummary();
+                        holdings.paper = {
+                            usdtBalance: paperPortfolio.usdtBalance,
+                            positions: paperPortfolio.positions,
+                            totalValue: paperPortfolio.totalValue,
+                            totalPnL: paperPortfolio.totalPnL,
+                        };
+                    }
+
+                    // Get current prices for calculations
+                    holdings.prices =
+                        this.services.binanceData?.getAllPrices() || {};
+
+                    res.json(holdings);
+                })
+                .catch((error) => {
+                    console.error("Error fetching real account info:", error);
+
+                    // Fallback: Return paper data only
+                    if (this.services.paperTrading) {
+                        const paperPortfolio =
+                            this.services.paperTrading.getPortfolioSummary();
+                        holdings.paper = {
+                            usdtBalance: paperPortfolio.usdtBalance,
+                            positions: paperPortfolio.positions,
+                            totalValue: paperPortfolio.totalValue,
+                            totalPnL: paperPortfolio.totalPnL,
+                        };
+                    }
+
+                    holdings.prices =
+                        this.services.binanceData?.getAllPrices() || {};
+                    holdings.error = "Could not fetch real account data";
+
+                    res.json(holdings);
+                });
+        } catch (error) {
+            console.error("Error in getCombinedHoldings:", error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    /**
+     * ENHANCED: getAccount method with paper trading context
+     */
+    getAccount(req, res) {
+        try {
+            if (!this.services.binanceData) {
+                return res
+                    .status(400)
+                    .json({ error: "Binance service not initialized" });
+            }
+
+            this.services.binanceData
+                .getAccountInfo()
+                .then((account) => {
+                    // Add paper trading context
+                    const enhancedAccount = {
+                        ...account,
+
+                        // Trading mode indicators
+                        tradingMode: "PAPER_ONLY",
+                        paperTradingActive:
+                            this.services.paperTrading?.isActive || false,
+
+                        // Paper trading summary
+                        paperSummary: this.services.paperTrading
+                            ? {
+                                  usdtBalance:
+                                      this.services.paperTrading.portfolio
+                                          .usdtBalance,
+                                  positionCount:
+                                      this.services.paperTrading.portfolio
+                                          .positions.size,
+                                  totalPnL:
+                                      this.services.paperTrading.portfolio
+                                          .totalPnL,
+                                  tradingEnabled: this.config.enableTrading,
+                              }
+                            : null,
+
+                        // Risk status
+                        riskManagement: this.services.paperTrading
+                            ? this.services.paperTrading.getPortfolioSummary()
+                                  .riskStatus
+                            : null,
+                    };
+
+                    res.json(enhancedAccount);
+                })
+                .catch((error) => {
+                    console.error("Error fetching account info:", error);
+                    res.status(500).json({ error: error.message });
+                });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
     }
 
-    // GET /api/trading/signals
+    /**
+     * NEW: getPaperTradingStats - Detailed paper trading analytics
+     */
+    getPaperTradingStats(req, res) {
+        try {
+            if (!this.services.paperTrading) {
+                return res
+                    .status(400)
+                    .json({ error: "Paper trading engine not initialized" });
+            }
+
+            const portfolio = this.services.paperTrading.getPortfolioSummary();
+            const recentTrades = this.services.paperTrading.getRecentTrades(50);
+            const prices = this.services.binanceData?.getAllPrices() || {};
+
+            // Calculate additional metrics
+            const stats = {
+                // Portfolio snapshot
+                portfolio: {
+                    startingCapital: this.config.startingCapital,
+                    currentValue: portfolio.totalValue,
+                    usdtBalance: portfolio.usdtBalance,
+                    cryptoValue: portfolio.cryptoValue,
+                    totalReturn: portfolio.totalPnLPercent,
+                    absoluteReturn: portfolio.totalPnL,
+                },
+
+                // Position analysis
+                positions: {
+                    active: portfolio.positions.length,
+                    totalPositionValue: portfolio.cryptoValue,
+                    largestPosition: portfolio.positions.reduce(
+                        (max, pos) =>
+                            (pos.currentValue || 0) > (max.currentValue || 0)
+                                ? pos
+                                : max,
+                        { currentValue: 0 }
+                    ),
+                    avgHoldingPeriod:
+                        this.calculateAvgHoldingPeriod(recentTrades),
+                },
+
+                // Performance metrics
+                performance: {
+                    ...portfolio.performance,
+                    profitableDays: this.calculateProfitableDays(recentTrades),
+                    longestWinStreak: this.calculateWinStreak(recentTrades),
+                    averageWin: portfolio.performance.avgWin,
+                    averageLoss: portfolio.performance.avgLoss,
+                    riskRewardRatio:
+                        portfolio.performance.avgWin /
+                        (portfolio.performance.avgLoss || 1),
+                },
+
+                // Risk analysis
+                risk: {
+                    ...portfolio.riskStatus,
+                    riskUtilization: {
+                        daily:
+                            (portfolio.riskStatus.dailyLossUsed /
+                                portfolio.riskStatus.dailyLossLimit) *
+                            100,
+                        weekly:
+                            (portfolio.riskStatus.weeklyLossUsed /
+                                portfolio.riskStatus.weeklyLossLimit) *
+                            100,
+                    },
+                    drawdownAnalysis: {
+                        current: portfolio.performance.currentDrawdown,
+                        maximum: portfolio.performance.maxDrawdown,
+                        recovery: this.calculateDrawdownRecovery(portfolio),
+                    },
+                },
+
+                // Trading activity
+                activity: {
+                    totalTrades: recentTrades.length,
+                    tradesThisWeek: recentTrades.filter(
+                        (t) =>
+                            Date.now() - t.timestamp < 7 * 24 * 60 * 60 * 1000
+                    ).length,
+                    tradesToday: recentTrades.filter(
+                        (t) =>
+                            new Date(t.timestamp).toDateString() ===
+                            new Date().toDateString()
+                    ).length,
+                    avgTradesPerDay:
+                        this.calculateAvgTradesPerDay(recentTrades),
+                    lastTradeTime:
+                        recentTrades.length > 0
+                            ? recentTrades[0].timestamp
+                            : null,
+                },
+
+                // Strategy performance
+                strategy: {
+                    name: this.config.strategy,
+                    timeframe: this.config.timeframe,
+                    signalsGenerated:
+                        this.services.signalGenerator?.signalHistory?.length ||
+                        0,
+                    signalToTradeRatio: this.calculateSignalToTradeRatio(),
+                    winRateByAsset: this.calculateWinRateByAsset(recentTrades),
+                },
+
+                // Market context
+                market: {
+                    prices,
+                    timestamp: Date.now(),
+                    portfolioCorrelation: this.calculatePortfolioCorrelation(
+                        portfolio.positions,
+                        prices
+                    ),
+                },
+            };
+
+            res.json(stats);
+        } catch (error) {
+            console.error("Error getting paper trading stats:", error);
+            res.status(500).json({ error: error.message });
+        }
+    }
+
+    // GET /api/trading/signals - Enhanced signals
     getSignals(req, res) {
         try {
             const { symbol, limit = 50 } = req.query;
@@ -527,14 +840,14 @@ class TradingController {
                     .reverse();
             }
 
-            console.log(`📊 API: Returning ${signals.length} signals`);
+            console.log(`📊 Enhanced API: Returning ${signals.length} signals`);
             res.json(signals);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
     }
 
-    // GET /api/trading/trades
+    // GET /api/trading/trades - Enhanced trades
     getTrades(req, res) {
         try {
             const { limit = 20 } = req.query;
@@ -554,7 +867,7 @@ class TradingController {
         }
     }
 
-    // GET /api/trading/prices
+    // GET /api/trading/prices - Enhanced prices
     getPrices(req, res) {
         try {
             if (!this.services.binanceData) {
@@ -594,28 +907,7 @@ class TradingController {
         }
     }
 
-    // GET /api/trading/account - Get account balances
-    getAccount(req, res) {
-        try {
-            if (!this.services.binanceData) {
-                return res
-                    .status(400)
-                    .json({ error: "Binance service not initialized" });
-            }
-
-            this.services.binanceData
-                .getAccountInfo()
-                .then((account) => res.json(account))
-                .catch((error) => {
-                    console.error("Error fetching account info:", error);
-                    res.status(500).json({ error: error.message });
-                });
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
-    }
-
-    // GET /api/trading/balances - Get crypto balances
+    // GET /api/trading/balances
     getBalances(req, res) {
         try {
             if (!this.services.binanceData) {
@@ -642,11 +934,11 @@ class TradingController {
         }
     }
 
-    // POST /api/trading/config - Update configuration
+    // POST /api/trading/config - Enhanced configuration update
     updateConfig(req, res) {
         try {
             const newConfig = req.body;
-            console.log("⚙️ Updating configuration:", newConfig);
+            console.log("⚙️ Updating enhanced configuration:", newConfig);
 
             // Update main config
             this.config = { ...this.config, ...newConfig };
@@ -673,7 +965,7 @@ class TradingController {
     // POST /api/trading/reset
     resetTrading(req, res) {
         try {
-            console.log("🔄 Resetting trading engine...");
+            console.log("🔄 Resetting enhanced trading engine...");
 
             if (!this.services.paperTrading) {
                 return res
@@ -690,7 +982,7 @@ class TradingController {
             this.io.emit("tradingReset");
             res.json({
                 success: true,
-                message: "Trading engine reset successfully",
+                message: "Enhanced trading engine reset successfully",
             });
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -706,12 +998,12 @@ class TradingController {
                     .json({ error: "Trading controller not initialized" });
             }
 
-            console.log("▶️ Starting trading...");
+            console.log("▶️ Starting enhanced trading...");
             this.config.enableTrading = true;
             this.services.paperTrading.updateConfig({ enableTrading: true });
 
             this.io.emit("tradingStarted");
-            res.json({ success: true, message: "Trading started" });
+            res.json({ success: true, message: "Enhanced trading started" });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -720,7 +1012,7 @@ class TradingController {
     // POST /api/trading/stop
     stopTrading(req, res) {
         try {
-            console.log("⏹️ Stopping trading...");
+            console.log("⏹️ Stopping enhanced trading...");
             this.config.enableTrading = false;
 
             if (this.services.paperTrading) {
@@ -730,13 +1022,13 @@ class TradingController {
             }
 
             this.io.emit("tradingStopped");
-            res.json({ success: true, message: "Trading stopped" });
+            res.json({ success: true, message: "Enhanced trading stopped" });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
     }
 
-    // ADDED: POST /api/trading/test-signal - Generate test signal
+    // POST /api/trading/test-signal - Generate enhanced test signal
     generateTestSignalAPI(req, res) {
         try {
             if (!this.signalDebugMode) {
@@ -748,12 +1040,194 @@ class TradingController {
             const testSignal = this.generateTestSignal();
             res.json({
                 success: true,
-                message: "Test signals generated",
+                message: "Enhanced test signals generated",
                 signals: testSignal,
             });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
+    }
+
+    // ================== ENHANCED HELPER METHODS ==================
+
+    /**
+     * Helper method: Calculate average holding period
+     */
+    calculateAvgHoldingPeriod(trades) {
+        const completedTrades = trades.filter(
+            (t) => t.side === "SELL" && t.holdingPeriod
+        );
+        if (completedTrades.length === 0) return 0;
+
+        const totalTime = completedTrades.reduce(
+            (sum, t) => sum + t.holdingPeriod,
+            0
+        );
+        return Math.round(
+            totalTime / completedTrades.length / (1000 * 60 * 60)
+        ); // Hours
+    }
+
+    /**
+     * Helper method: Calculate profitable days
+     */
+    calculateProfitableDays(trades) {
+        const dailyPnL = {};
+
+        trades
+            .filter((t) => t.side === "SELL")
+            .forEach((trade) => {
+                const date = new Date(trade.timestamp).toDateString();
+                dailyPnL[date] = (dailyPnL[date] || 0) + (trade.pnl || 0);
+            });
+
+        const totalDays = Object.keys(dailyPnL).length;
+        const profitableDays = Object.values(dailyPnL).filter(
+            (pnl) => pnl > 0
+        ).length;
+
+        return {
+            total: totalDays,
+            profitable: profitableDays,
+            percentage: totalDays > 0 ? (profitableDays / totalDays) * 100 : 0,
+        };
+    }
+
+    /**
+     * Helper method: Calculate win streak
+     */
+    calculateWinStreak(trades) {
+        const sellTrades = trades.filter((t) => t.side === "SELL").reverse(); // Chronological order
+
+        let currentStreak = 0;
+        let maxStreak = 0;
+
+        sellTrades.forEach((trade) => {
+            if (trade.pnl > 0) {
+                currentStreak++;
+                maxStreak = Math.max(maxStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+        });
+
+        return { current: currentStreak, maximum: maxStreak };
+    }
+
+    /**
+     * Helper method: Calculate drawdown recovery
+     */
+    calculateDrawdownRecovery(portfolio) {
+        const currentDrawdown = portfolio.performance.currentDrawdown;
+        const maxDrawdown = portfolio.performance.maxDrawdown;
+
+        return {
+            fromPeak: currentDrawdown,
+            fromMax: maxDrawdown - currentDrawdown,
+            recoveryProgress:
+                maxDrawdown > 0
+                    ? ((maxDrawdown - currentDrawdown) / maxDrawdown) * 100
+                    : 100,
+        };
+    }
+
+    /**
+     * Helper method: Calculate average trades per day
+     */
+    calculateAvgTradesPerDay(trades) {
+        if (trades.length === 0) return 0;
+
+        const firstTrade = trades[trades.length - 1].timestamp;
+        const lastTrade = trades[0].timestamp;
+        const daysDiff = (lastTrade - firstTrade) / (1000 * 60 * 60 * 24);
+
+        return daysDiff > 0 ? trades.length / daysDiff : 0;
+    }
+
+    /**
+     * Helper method: Calculate signal to trade ratio
+     */
+    calculateSignalToTradeRatio() {
+        const signalCount =
+            this.services.signalGenerator?.signalHistory?.length || 0;
+        const tradeCount =
+            this.services.paperTrading?.tradeHistory?.length || 0;
+
+        return {
+            signals: signalCount,
+            trades: tradeCount,
+            ratio: signalCount > 0 ? tradeCount / signalCount : 0,
+            efficiency:
+                signalCount > 0
+                    ? ((tradeCount / signalCount) * 100).toFixed(1) + "%"
+                    : "0%",
+        };
+    }
+
+    /**
+     * Helper method: Calculate win rate by asset
+     */
+    calculateWinRateByAsset(trades) {
+        const assetStats = {};
+
+        trades
+            .filter((t) => t.side === "SELL")
+            .forEach((trade) => {
+                const asset = trade.symbol;
+                if (!assetStats[asset]) {
+                    assetStats[asset] = { wins: 0, total: 0, totalPnL: 0 };
+                }
+
+                assetStats[asset].total++;
+                assetStats[asset].totalPnL += trade.pnl || 0;
+
+                if (trade.pnl > 0) {
+                    assetStats[asset].wins++;
+                }
+            });
+
+        // Calculate win rates
+        Object.keys(assetStats).forEach((asset) => {
+            const stats = assetStats[asset];
+            stats.winRate =
+                stats.total > 0 ? (stats.wins / stats.total) * 100 : 0;
+            stats.avgPnL = stats.total > 0 ? stats.totalPnL / stats.total : 0;
+        });
+
+        return assetStats;
+    }
+
+    /**
+     * Helper method: Calculate portfolio correlation
+     */
+    calculatePortfolioCorrelation(positions, prices) {
+        if (!positions || positions.length === 0)
+            return { correlation: 0, diversification: 100 };
+
+        const totalValue = positions.reduce(
+            (sum, pos) => sum + (pos.currentValue || 0),
+            0
+        );
+        const weights = positions.map(
+            (pos) => (pos.currentValue || 0) / totalValue
+        );
+
+        // Simple diversification score (Herfindahl-Hirschman Index)
+        const hhi = weights.reduce((sum, weight) => sum + weight * weight, 0);
+        const diversificationScore =
+            ((1 - hhi) / (1 - 1 / positions.length)) * 100;
+
+        return {
+            correlation: Math.round((1 - diversificationScore / 100) * 100),
+            diversification: Math.round(diversificationScore),
+            dominantAsset: positions.reduce(
+                (max, pos) =>
+                    (pos.currentValue || 0) > (max.currentValue || 0)
+                        ? pos
+                        : max,
+                { symbol: "NONE", currentValue: 0 }
+            ).symbol,
+        };
     }
 
     /**
@@ -767,7 +1241,7 @@ class TradingController {
                 return;
             }
 
-            console.log("💾 Saving trade to database:", {
+            console.log("💾 Saving enhanced trade to database:", {
                 id: trade.id,
                 symbol: trade.symbol,
                 side: trade.side,
@@ -793,9 +1267,12 @@ class TradingController {
                 created_at: new Date(),
             });
 
-            console.log(`✅ Trade saved to database: ${trade.id}`);
+            console.log(`✅ Enhanced trade saved to database: ${trade.id}`);
         } catch (error) {
-            console.error("❌ Error saving trade to database:", error.message);
+            console.error(
+                "❌ Error saving enhanced trade to database:",
+                error.message
+            );
             // Don't throw error - continue operation without database
         }
     }
@@ -805,7 +1282,7 @@ class TradingController {
      */
     async saveSignalsToDatabase(signals) {
         try {
-            console.log("💾 Attempting to save signals to database:", {
+            console.log("💾 Attempting to save enhanced signals to database:", {
                 signalsCount: signals.length,
                 firstSignal: signals[0]?.symbol || "none",
             });
@@ -813,7 +1290,7 @@ class TradingController {
             // Check if db is properly initialized
             if (!db || typeof db !== "function") {
                 console.warn(
-                    "⚠️ Database not available, skipping signals save"
+                    "⚠️ Database not available, skipping enhanced signals save"
                 );
                 return;
             }
@@ -823,7 +1300,7 @@ class TradingController {
                     const isValid = signal && signal.symbol && signal.signal;
                     if (!isValid) {
                         console.warn(
-                            "⚠️ Filtering out invalid signal:",
+                            "⚠️ Filtering out invalid enhanced signal:",
                             signal
                         );
                     }
@@ -847,7 +1324,7 @@ class TradingController {
                     };
 
                     if (this.signalDebugMode) {
-                        console.log("📝 Signal record prepared:", {
+                        console.log("📝 Enhanced signal record prepared:", {
                             symbol: record.symbol,
                             signal: record.signal,
                             strength: record.strength,
@@ -860,14 +1337,14 @@ class TradingController {
             if (signalRecords.length > 0) {
                 await db("signals").insert(signalRecords);
                 console.log(
-                    `✅ ${signalRecords.length} signals saved to database successfully`
+                    `✅ ${signalRecords.length} enhanced signals saved to database successfully`
                 );
             } else {
-                console.warn("⚠️ No valid signal records to save");
+                console.warn("⚠️ No valid enhanced signal records to save");
             }
         } catch (error) {
             console.error(
-                "❌ Error saving signals to database:",
+                "❌ Error saving enhanced signals to database:",
                 error.message
             );
             console.error("❌ Error stack:", error.stack);
@@ -876,10 +1353,10 @@ class TradingController {
     }
 
     /**
-     * Cleanup method
+     * Enhanced cleanup method
      */
     async cleanup() {
-        console.log("🧹 Cleaning up Trading Controller...");
+        console.log("🧹 Cleaning up Enhanced Trading Controller...");
 
         // Stop real-time updates
         if (this.updateInterval) {
@@ -901,7 +1378,7 @@ class TradingController {
         }
 
         this.isInitialized = false;
-        console.log("✅ Trading Controller cleaned up");
+        console.log("✅ Enhanced Trading Controller cleaned up");
     }
 }
 
