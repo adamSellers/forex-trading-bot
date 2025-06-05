@@ -1,4 +1,8 @@
-// backend/src/routes/tradingRoutes.js - COMPLETE VERSION
+// =====================================================
+// 5. backend/src/routes/tradingRoutes.js
+// CLEAN ROUTES WITH VALIDATION
+// =====================================================
+
 const express = require("express");
 const ErrorHandler = require("../middleware/errorHandler");
 const ValidationMiddleware = require("../middleware/validation");
@@ -11,7 +15,7 @@ module.exports = (tradingController) => {
 
     // ================== BASIC ROUTES ==================
 
-    // GET /api/trading/status - Get system status
+    // GET /api/trading/status
     router.get(
         "/status",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -20,7 +24,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // GET /api/trading/portfolio - Get portfolio summary
+    // GET /api/trading/portfolio
     router.get(
         "/portfolio",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -29,7 +33,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // GET /api/trading/signals - Get trading signals
+    // GET /api/trading/signals
     router.get(
         "/signals",
         ValidationMiddleware.validateQueryParams(["limit", "symbol"]),
@@ -39,7 +43,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // GET /api/trading/trades - Get trade history
+    // GET /api/trading/trades
     router.get(
         "/trades",
         ValidationMiddleware.validateQueryParams(["limit", "symbol"]),
@@ -49,7 +53,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // GET /api/trading/prices - Get current prices
+    // GET /api/trading/prices
     router.get(
         "/prices",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -58,7 +62,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // GET /api/trading/account - Get account info
+    // GET /api/trading/account
     router.get(
         "/account",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -69,7 +73,7 @@ module.exports = (tradingController) => {
 
     // ================== ENHANCED ROUTES ==================
 
-    // GET /api/trading/holdings - Get combined real + paper holdings
+    // GET /api/trading/holdings
     router.get(
         "/holdings",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -78,7 +82,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // GET /api/trading/analytics - Get performance analytics
+    // GET /api/trading/analytics
     router.get(
         "/analytics",
         ValidationMiddleware.validateQueryParams(["period"]),
@@ -88,7 +92,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // GET /api/trading/risk-status - Get risk management status
+    // GET /api/trading/risk-status
     router.get(
         "/risk-status",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -99,7 +103,7 @@ module.exports = (tradingController) => {
 
     // ================== CONFIGURATION ROUTES ==================
 
-    // POST /api/trading/config - Update configuration
+    // POST /api/trading/config
     router.post(
         "/config",
         ValidationMiddleware.validateTradingConfig,
@@ -109,7 +113,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // POST /api/trading/start - Start trading
+    // POST /api/trading/start
     router.post(
         "/start",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -118,7 +122,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // POST /api/trading/stop - Stop trading
+    // POST /api/trading/stop
     router.post(
         "/stop",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -127,7 +131,7 @@ module.exports = (tradingController) => {
         })
     );
 
-    // POST /api/trading/reset - Reset trading engine
+    // POST /api/trading/reset
     router.post(
         "/reset",
         ErrorHandler.asyncWrapper(async (req, res) => {
@@ -135,24 +139,6 @@ module.exports = (tradingController) => {
             res.json({ success: true, message: "Trading engine reset" });
         })
     );
-
-    // ================== ERROR HANDLING ==================
-
-    // Handle route-specific errors
-    router.use((error, req, res, next) => {
-        logger.error("Trading API Error:", {
-            error: error.message,
-            route: req.path,
-            method: req.method,
-            timestamp: new Date().toISOString(),
-        });
-
-        res.status(500).json({
-            error: "Trading service error",
-            message: error.message,
-            timestamp: new Date().toISOString(),
-        });
-    });
 
     return router;
 };

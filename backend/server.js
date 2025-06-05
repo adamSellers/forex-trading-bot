@@ -1,12 +1,16 @@
-// backend/src/server.js - UPDATED
+// backend/server.js - Clean Production Server
+// Load environment variables first
+require("dotenv").config();
+
+// Now import the rest
 const express = require("express");
 const cors = require("cors");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
-const TradingController = require("./controllers/tradingController");
-const tradingRoutes = require("./routes/tradingRoutes");
-const ErrorHandler = require("./middleware/errorHandler");
-const logger = require("./utils/logger");
+const TradingController = require("./src/controllers/tradingController");
+const tradingRoutes = require("./src/routes/tradingRoutes");
+const ErrorHandler = require("./src/middleware/errorHandler");
+const logger = require("./src/utils/logger");
 
 const app = express();
 const server = createServer(app);
@@ -47,7 +51,9 @@ async function startServer() {
 
         const PORT = process.env.PORT || 3001;
         server.listen(PORT, () => {
-            logger.info(`🚀 Server running on port ${PORT}`);
+            logger.success(
+                `🚀 Server running on port ${PORT} with clean architecture!`
+            );
         });
     } catch (error) {
         logger.error("Failed to start server:", error);
@@ -60,7 +66,7 @@ process.on("SIGTERM", async () => {
     logger.info("🛑 Received SIGTERM, shutting down gracefully...");
     await tradingController.cleanup();
     server.close(() => {
-        logger.info("✅ Server closed");
+        logger.success("✅ Server closed");
         process.exit(0);
     });
 });
@@ -69,7 +75,7 @@ process.on("SIGINT", async () => {
     logger.info("🛑 Received SIGINT, shutting down gracefully...");
     await tradingController.cleanup();
     server.close(() => {
-        logger.info("✅ Server closed");
+        logger.success("✅ Server closed");
         process.exit(0);
     });
 });

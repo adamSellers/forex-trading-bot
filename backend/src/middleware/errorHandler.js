@@ -1,5 +1,9 @@
-// backend/src/middleware/errorHandler.js - Centralized Error Handling
-import logger from "../utils/logger.js";
+// =====================================================
+// 3. backend/src/middleware/errorHandler.js
+// CENTRALIZED ERROR HANDLING
+// =====================================================
+
+const logger = require("../utils/logger");
 
 class ErrorHandler {
     static handle(error, req, res, next) {
@@ -83,4 +87,4 @@ class ErrorHandler {
     }
 }
 
-export default ErrorHandler;
+module.exports = ErrorHandler;

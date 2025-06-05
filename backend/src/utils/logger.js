@@ -1,10 +1,10 @@
-// backend/src/utils/logger.js - Enhanced Logging System
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+// =====================================================
+// 2. backend/src/utils/logger.js
+// ENHANCED LOGGING SYSTEM
+// =====================================================
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const fs = require("fs");
+const path = require("path");
 
 class Logger {
     constructor() {
@@ -36,7 +36,6 @@ class Logger {
                 new Date().toISOString().split("T")[0]
             }.log`;
             const filepath = path.join(this.logDir, filename);
-
             fs.appendFileSync(filepath, formattedMessage + "\n");
         } catch (error) {
             // Fail silently to avoid logging loops
@@ -87,4 +86,4 @@ class Logger {
     }
 }
 
-export default new Logger();
+module.exports = new Logger();

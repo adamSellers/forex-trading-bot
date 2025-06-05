@@ -1,4 +1,9 @@
-// backend/server.js - FIXED VERSION (Compatible with current structure)
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
+
+// Debug - add temporarily
+console.log("🔑 Debug - API Key exists:", !!process.env.BINANCE_API_KEY);
+console.log("🔑 Debug - Secret exists:", !!process.env.BINANCE_API_SECRET);
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";

@@ -1,3 +1,8 @@
+// =====================================================
+// 2. Updated backend/src/services/portfolioService.js
+// Fix the import to match existing structure
+// =====================================================
+
 const EventEmitter = require("events");
 const PortfolioRepository = require("../repositories/portfolioRepository");
 const logger = require("../utils/logger");
@@ -14,7 +19,7 @@ class PortfolioService extends EventEmitter {
 
         try {
             this.currentPortfolio = await this.portfolioRepo.getCurrent();
-            logger.info("✅ Portfolio Service initialized");
+            logger.success("✅ Portfolio Service initialized");
         } catch (error) {
             logger.error("❌ Portfolio Service initialization failed:", error);
             throw error;
@@ -92,7 +97,7 @@ class PortfolioService extends EventEmitter {
     async cleanup() {
         logger.info("🧹 Cleaning up Portfolio Service...");
         this.currentPortfolio = null;
-        logger.info("✅ Portfolio Service cleaned up");
+        logger.success("✅ Portfolio Service cleaned up");
     }
 }
 
