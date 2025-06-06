@@ -9,7 +9,9 @@ const { createServer } = require("http");
 const { Server } = require("socket.io");
 const TradingController = require("./src/controllers/tradingController");
 const tradingRoutes = require("./src/routes/trading");
+const managementRoutes = require("./src/routes/management");
 const ErrorHandler = require("./src/middleware/errorHandler");
+const ValidationMiddleware = require("./src/middleware/validation");
 const logger = require("./src/utils/logger");
 
 const app = express();

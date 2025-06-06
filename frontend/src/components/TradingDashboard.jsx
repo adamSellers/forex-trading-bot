@@ -26,7 +26,7 @@ import {
   Assessment
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
-import { SOCKET_URL, tradingAPI, managementAPI } from '../config/api';
+import { SOCKET_URL, tradingAPI } from '../config/api';
 
 // Import components
 import PortfolioOverview from './PortfolioOverview';

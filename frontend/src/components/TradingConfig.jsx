@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx
+// frontend/src/components/TradingConfig.jsx - FIXED WITH NEW API HELPERS
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -36,6 +36,7 @@ import {
   AccountBalance,
   Settings
 } from '@mui/icons-material';
+import { tradingAPI } from '../config/api'; // FIXED: Import new API helpers
 
 const TradingConfig = () => {
   const [config, setConfig] = useState({
@@ -89,51 +90,59 @@ const TradingConfig = () => {
     setHasChanges(changed);
   }, [config, originalConfig]);
 
+  // FIXED: Use new API helper instead of direct fetch
   const fetchCurrentConfig = async () => {
     try {
-      const response = await fetch('/api/trading/status');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.config) {
-          const fetchedConfig = {
-            startingCapital: data.config.startingCapital || 5000,
-            useTestnet: data.config.useTestnet || true,
-            enableTrading: data.config.enableTrading || false,
-            riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
-            maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
-            maxWeeklyLoss: (data.config.maxWeeklyLoss * 100) || 5.0,
-            stopLossATR: data.config.stopLossATR || 1.5,
-            maxPositionsPerAsset: data.config.maxPositionsPerAsset || 1,
-            minOrderSize: data.config.minOrderSize || 10,
-            strategy: data.config.strategy || 'balanced',
-            timeframe: data.config.timeframe || '1h',
-            signalCooldown: (data.config.signalCooldown / 1000) || 60,
-            minSignalStrength: data.config.minStrength || 0.5,
-            allocation: {
-              BTCUSDT: (data.config.allocation?.BTCUSDT * 100) || 35,
-              ETHUSDT: (data.config.allocation?.ETHUSDT * 100) || 35,
-              BNBUSDT: (data.config.allocation?.BNBUSDT * 100) || 20,
-              DOGEUSDT: (data.config.allocation?.DOGEUSDT * 100) || 10
-            },
-            assets: data.config.assets || ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'],
-            timeframes: data.config.timeframes || ['1h', '4h', '1d']
-          };
-          setConfig(fetchedConfig);
-          setOriginalConfig(fetchedConfig);
-        }
+      console.log('🔄 Fetching current trading configuration...');
+      setLoading(true);
+      
+      // Use the new API helper
+      const data = await tradingAPI.getStatus();
+      console.log('✅ Configuration loaded');
+      
+      if (data.config) {
+        const fetchedConfig = {
+          startingCapital: data.config.startingCapital || 5000,
+          useTestnet: data.config.useTestnet || true,
+          enableTrading: data.config.enableTrading || false,
+          riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
+          maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
+          maxWeeklyLoss: (data.config.maxWeeklyLoss * 100) || 5.0,
+          stopLossATR: data.config.stopLossATR || 1.5,
+          maxPositionsPerAsset: data.config.maxPositionsPerAsset || 1,
+          minOrderSize: data.config.minOrderSize || 10,
+          strategy: data.config.strategy || 'balanced',
+          timeframe: data.config.timeframe || '1h',
+          signalCooldown: (data.config.signalCooldown / 1000) || 60,
+          minSignalStrength: data.config.minStrength || 0.5,
+          allocation: {
+            BTCUSDT: (data.config.allocation?.BTCUSDT * 100) || 35,
+            ETHUSDT: (data.config.allocation?.ETHUSDT * 100) || 35,
+            BNBUSDT: (data.config.allocation?.BNBUSDT * 100) || 20,
+            DOGEUSDT: (data.config.allocation?.DOGEUSDT * 100) || 10
+          },
+          assets: data.config.assets || ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'],
+          timeframes: data.config.timeframes || ['1h', '4h', '1d']
+        };
+        setConfig(fetchedConfig);
+        setOriginalConfig(fetchedConfig);
       }
     } catch (err) {
+      console.error('❌ Failed to load configuration:', err.message);
       setError(`Failed to load configuration: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  // FIXED: Use new API helper for saving configuration
   const handleSaveConfig = async () => {
     setSaving(true);
     setError(null);
     
     try {
+      console.log('🔄 Saving trading configuration...');
+      
       // Convert percentages back to decimals
       const configToSave = {
         ...config,
@@ -150,21 +159,16 @@ const TradingConfig = () => {
         }
       };
 
-      const response = await fetch('/api/trading/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(configToSave)
-      });
-
-      if (response.ok) {
-        setOriginalConfig(config);
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || 'Failed to save configuration');
-      }
+      // Use the new API helper
+      await tradingAPI.updateConfig(configToSave);
+      
+      setOriginalConfig(config);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+      console.log('✅ Configuration saved successfully');
+      
     } catch (err) {
+      console.error('❌ Failed to save configuration:', err.message);
       setError(`Failed to save configuration: ${err.message}`);
     } finally {
       setSaving(false);
