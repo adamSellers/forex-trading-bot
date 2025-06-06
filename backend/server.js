@@ -8,7 +8,7 @@ const cors = require("cors");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const TradingController = require("./src/controllers/tradingController");
-const tradingRoutes = require("./src/routes/tradingRoutes");
+const tradingRoutes = require("./src/routes/trading");
 const ErrorHandler = require("./src/middleware/errorHandler");
 const logger = require("./src/utils/logger");
 
