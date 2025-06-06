@@ -1,4 +1,4 @@
-// frontend/src/config/api.js - NEW FILE
+// frontend/src/config/api.js - FIXED VERSION
 const API_CONFIG = {
     development: {
         baseURL: "http://localhost:3001",
@@ -15,6 +15,8 @@ const config = API_CONFIG[environment];
 
 export const API_BASE_URL = config.baseURL;
 export const SOCKET_URL = config.socketURL;
+
+// FIXED: All endpoints now have /api prefix
 export const API_ENDPOINTS = {
     trading: {
         status: "/api/trading/status",
@@ -27,6 +29,16 @@ export const API_ENDPOINTS = {
         start: "/api/trading/start",
         stop: "/api/trading/stop",
         reset: "/api/trading/reset",
+        holdings: "/api/trading/holdings",
+        comparison: "/api/trading/comparison",
+        riskStatus: "/api/trading/risk-status",
+        performance: "/api/trading/performance",
+        analytics: "/api/trading/analytics",
+    },
+    management: {
+        health: "/api/management/health",
+        system: "/api/management/system",
+        logs: "/api/management/logs",
     },
 };
 

@@ -1,3 +1,4 @@
+// backend/src/routes/management.js - System Management Routes
 const express = require("express");
 const router = express.Router();
 
@@ -31,11 +32,6 @@ module.exports = (tradingController) => {
                     paperTrading:
                         tradingController?.services?.trading?.paperTrading
                             ?.isActive || false,
-                },
-                endpoints: {
-                    health: "/api/management/health",
-                    status: "/api/trading/status",
-                    portfolio: "/api/trading/portfolio",
                 },
             });
         } catch (error) {
@@ -87,13 +83,12 @@ module.exports = (tradingController) => {
         }
     });
 
-    // GET /api/management/logs - Recent application logs (if logging to memory)
+    // GET /api/management/logs - Recent application logs
     router.get("/logs", (req, res) => {
         try {
             const { level = "info", limit = 50 } = req.query;
 
-            // This would integrate with your logger if it stores logs in memory
-            // For now, return a placeholder
+            // Placeholder for log integration
             const logs = [
                 {
                     timestamp: new Date().toISOString(),
@@ -111,24 +106,6 @@ module.exports = (tradingController) => {
             });
         } catch (error) {
             console.error("Logs error:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    // POST /api/management/restart - Restart services (if needed)
-    router.post("/restart", async (req, res) => {
-        try {
-            const { service = "all" } = req.body;
-
-            // This would restart specific services
-            // Implementation depends on your needs
-            res.json({
-                success: true,
-                message: `Restart initiated for: ${service}`,
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error) {
-            console.error("Restart error:", error);
             res.status(500).json({ error: error.message });
         }
     });

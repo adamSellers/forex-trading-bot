@@ -1,6 +1,4 @@
-# ===================================================
-# scripts/deploy-check.sh - Pre-deployment validation
-# ===================================================
+# scripts/deploy-check.sh - FIXED VERSION
 #!/bin/bash
 set -e
 
@@ -34,9 +32,9 @@ check "Frontend builds successfully" "cd frontend && npm run build > /dev/null 2
 check "Backend dependencies OK" "cd backend && npm ls > /dev/null 2>&1"
 
 # Test local API endpoints (if backend is running)
-if curl -f -s http://localhost:3001/api/health > /dev/null 2>&1; then
+if curl -f -s http://localhost:3001/api/management/health > /dev/null 2>&1; then
     endpoints=(
-        "http://localhost:3001/api/health"
+        "http://localhost:3001/api/management/health"
         "http://localhost:3001/api/trading/status"
         "http://localhost:3001/api/trading/prices"
     )
