@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - FIXED API VERSION
+// frontend/src/components/TradingDashboard.jsx - COMPLETE FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -26,7 +26,7 @@ import {
   Assessment
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
-import { API_BASE_URL, SOCKET_URL, API_ENDPOINTS, apiCall } from '../config/api';
+import { SOCKET_URL, tradingAPI, managementAPI } from '../config/api';
 
 // Import components
 import PortfolioOverview from './PortfolioOverview';
@@ -178,18 +178,18 @@ const TradingDashboard = () => {
     };
   }, []); // No dependencies to prevent infinite loops
 
-  // FIXED: API data fetching with proper endpoints
+  // FIXED: API data fetching using the new API helpers
   const fetchInitialData = async () => {
     try {
-      console.log('🔄 Fetching trading data...');
+      console.log('🔄 Fetching initial trading data...');
       setLoading(true);
       
       const results = {};
       const errors = [];
 
-      // Fetch all endpoints using the API helper
+      // Fetch all endpoints using the new API helpers
       try {
-        results.status = await apiCall(API_ENDPOINTS.trading.status);
+        results.status = await tradingAPI.getStatus();
         console.log('✅ Status loaded');
       } catch (err) {
         console.error('❌ Failed to fetch status:', err.message);
@@ -197,7 +197,7 @@ const TradingDashboard = () => {
       }
 
       try {
-        results.portfolio = await apiCall(API_ENDPOINTS.trading.portfolio);
+        results.portfolio = await tradingAPI.getPortfolio();
         console.log('✅ Portfolio loaded');
       } catch (err) {
         console.error('❌ Failed to fetch portfolio:', err.message);
@@ -205,7 +205,7 @@ const TradingDashboard = () => {
       }
 
       try {
-        results.trades = await apiCall(`${API_ENDPOINTS.trading.trades}?limit=25`);
+        results.trades = await tradingAPI.getTrades({ limit: 25 });
         console.log('✅ Trades loaded');
       } catch (err) {
         console.error('❌ Failed to fetch trades:', err.message);
@@ -213,7 +213,7 @@ const TradingDashboard = () => {
       }
 
       try {
-        results.signals = await apiCall(`${API_ENDPOINTS.trading.signals}?limit=50`);
+        results.signals = await tradingAPI.getSignals({ limit: 50 });
         console.log('✅ Signals loaded');
       } catch (err) {
         console.error('❌ Failed to fetch signals:', err.message);
@@ -221,7 +221,7 @@ const TradingDashboard = () => {
       }
 
       try {
-        results.prices = await apiCall(API_ENDPOINTS.trading.prices);
+        results.prices = await tradingAPI.getPrices();
         console.log('✅ Prices loaded');
       } catch (err) {
         console.error('❌ Failed to fetch prices:', err.message);
@@ -229,7 +229,7 @@ const TradingDashboard = () => {
       }
 
       try {
-        results.account = await apiCall(API_ENDPOINTS.trading.account);
+        results.account = await tradingAPI.getAccount();
         console.log('✅ Account loaded');
       } catch (err) {
         console.error('❌ Failed to fetch account:', err.message);
@@ -277,16 +277,19 @@ const TradingDashboard = () => {
     }
   };
 
-  // Trading controls with fixed API calls
+  // FIXED: Trading controls using new API helpers
   const handleToggleTrading = async () => {
     try {
-      const endpoint = tradingEnabled ? API_ENDPOINTS.trading.stop : API_ENDPOINTS.trading.start;
       const action = tradingEnabled ? 'Stopping' : 'Starting';
-      
       console.log(`🔄 ${action} trading...`);
       
-      const result = await apiCall(endpoint, { method: 'POST' });
-      console.log(`✅ ${result.message}`);
+      if (tradingEnabled) {
+        await tradingAPI.stopTrading();
+      } else {
+        await tradingAPI.startTrading();
+      }
+      
+      console.log(`✅ Trading ${tradingEnabled ? 'stopped' : 'started'}`);
       setError(null);
     } catch (err) {
       console.error('❌ Toggle trading error:', err);
@@ -297,9 +300,8 @@ const TradingDashboard = () => {
   const handleResetTrading = async () => {
     try {
       console.log('🔄 Resetting trading engine...');
-      
-      const result = await apiCall(API_ENDPOINTS.trading.reset, { method: 'POST' });
-      console.log('✅ Trading reset:', result.message);
+      await tradingAPI.resetTrading();
+      console.log('✅ Trading reset successfully');
       setError(null);
     } catch (err) {
       console.error('❌ Reset trading error:', err);
@@ -313,12 +315,7 @@ const TradingDashboard = () => {
     
     try {
       console.log('🔄 Updating strategy to:', newStrategy);
-      
-      const result = await apiCall(API_ENDPOINTS.trading.config, {
-        method: 'POST',
-        body: JSON.stringify({ strategy: newStrategy })
-      });
-      
+      await tradingAPI.updateConfig({ strategy: newStrategy });
       console.log('✅ Strategy updated');
       setError(null);
     } catch (err) {
@@ -616,14 +613,6 @@ const TradingDashboard = () => {
             </Grid>
             <Grid item xs={6} md={2}>
               <Typography variant="caption" display="block">
-                <strong>API:</strong>
-              </Typography>
-              <Typography variant="body2">
-                {API_BASE_URL || 'Same Origin'}
-              </Typography>
-            </Grid>
-            <Grid item xs={6} md={2}>
-              <Typography variant="caption" display="block">
                 <strong>Connection:</strong>
               </Typography>
               <Typography variant="body2">
@@ -652,6 +641,14 @@ const TradingDashboard = () => {
               </Typography>
               <Typography variant="body2">
                 {dataStatus ? `${dataStatus.progress.toFixed(1)}%` : 'N/A'}
+              </Typography>
+            </Grid>
+            <Grid item xs={6} md={2}>
+              <Typography variant="caption" display="block">
+                <strong>API Status:</strong>
+              </Typography>
+              <Typography variant="body2">
+                ✅ Using new helpers
               </Typography>
             </Grid>
           </Grid>
