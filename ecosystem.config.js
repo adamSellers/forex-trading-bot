@@ -1,7 +1,7 @@
 module.exports = {
     apps: [
         {
-            name: "img-backend",
+            name: "crypto-trend-bot", // Using a more descriptive name
             script: "server.js",
             cwd: "/opt/crypto-trading-bot/backend",
             instances: 1,
@@ -24,7 +24,7 @@ module.exports = {
 
                 // Security
                 CORS_ORIGIN:
-                    "http://localhost:3000,https://localhost:3000,http://192.168.1.100,https://192.168.1.100",
+                    "http://localhost:3000,https://localhost:3000,http://img.oakroad,https://img.oakroad",
                 RATE_LIMIT_WINDOW: "15",
                 RATE_LIMIT_MAX: "100",
 
