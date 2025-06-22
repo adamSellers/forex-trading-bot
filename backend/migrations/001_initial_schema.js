@@ -1,4 +1,5 @@
-export const up = async (knex) => {
+// Using CommonJS 'exports' syntax for compatibility with Knex CLI
+exports.up = async (knex) => {
     // Trades table
     await knex.schema.createTable("trades", (table) => {
         table.increments("id").primary();
@@ -50,7 +51,8 @@ export const up = async (knex) => {
     });
 };
 
-export const down = async (knex) => {
+// Using CommonJS 'exports' syntax for compatibility with Knex CLI
+exports.down = async (knex) => {
     await knex.schema.dropTableIfExists("signals");
     await knex.schema.dropTableIfExists("performance");
     await knex.schema.dropTableIfExists("portfolio");
