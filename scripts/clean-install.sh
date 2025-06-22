@@ -88,11 +88,16 @@ configure_npm_and_pm2() {
         export PATH=~/.npm-global/bin:$PATH
     fi
 
-    log_substep "Installing/updating PM2..."
+    log_substep "Performing a clean re-installation of PM2..."
+    # Uninstall to remove any old versions
+    npm uninstall -g pm2 || true
+    # Remove the PM2 home directory to clear any corrupted state
+    rm -rf ~/.pm2
+    # Reinstall PM2 cleanly
     npm install -g pm2
     log_substep "Configuring PM2 to start on boot..."
     pm2 startup systemd -u $PROJECT_USER --hp /home/$PROJECT_USER | grep -E '^sudo' | sh || true
-    log_success "Node.js environment and PM2 configured."
+    log_success "Node.js environment and PM2 cleanly re-installed."
 }
 
 backup_and_cleanup() {
