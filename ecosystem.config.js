@@ -2,8 +2,7 @@ module.exports = {
     apps: [
         {
             name: "crypto-trend-bot", // Using a more descriptive name
-            script: "server.js",
-            cwd: "/opt/crypto-trading-bot/backend", // PM2 will run this from the backend directory
+            script: "/opt/crypto-trading-bot/backend/server.js",
             instances: 1,
             exec_mode: "fork",
 
