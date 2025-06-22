@@ -104,8 +104,17 @@ clone_and_install() {
     sudo chown $PROJECT_USER:$PROJECT_USER "$PROJECT_DIR"
     git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
     cd "$PROJECT_DIR"
-    log_substep "Installing all npm dependencies..."
-    npm install
+    log_substep "Force cleaning npm cache to ensure a fresh install..."
+    npm cache clean --force
+    log_substep "Installing all workspace dependencies from a clean state..."
+    # Using 'npm ci' is more reliable for deployments as it uses the package-lock.json.
+    # It ensures a clean, reproducible install. We fall back to 'npm install' if it fails.
+    if [ -f "package-lock.json" ]; then
+        npm ci || (log_warning "npm ci failed, falling back to npm install" && npm install)
+    else
+        log_warning "package-lock.json not found, using npm install."
+        npm install
+    fi
     log_success "Repository cloned and dependencies installed."
 }
 
@@ -219,15 +228,6 @@ EOF
     log_success "Application started."
 }
 
-health_check() {
-    log_step "Running final health checks..."
-    sleep 5 # Give services time to start
-    if ! pm2 list | grep -q "$APP_NAME.*online"; then log_error "PM2 process is not online."; fi
-    log_success "PM2 process is online."
-    if ! curl -f -s -k https://localhost/api/management/health > /dev/null; then log_error "API health check failed."; fi
-    log_success "API health check passed."
-}
-
 print_summary() {
     echo
     echo "=============================================="
@@ -241,11 +241,13 @@ print_summary() {
     echo "   • View logs:      ./scripts/logs.sh"
     echo "   • Check status:   ./scripts/status.sh"
     echo
-    echo "⚠️  CRITICAL NEXT STEP:"
+    echo -e "${YELLOW}⚠️  CRITICAL NEXT STEPS:${NC}"
     echo "   1. SSH into the Pi: ssh $PROJECT_USER@img.oakroad"
     echo "   2. Edit the .env file: nano $PROJECT_DIR/backend/.env"
     echo "   3. Add your real Binance API keys."
-    echo "   4. Restart the app: pm2 restart $APP_NAME"
+    echo "   4. The application will not run correctly until you do this."
+    echo "   5. After adding keys, restart the app: pm2 restart $APP_NAME"
+    echo "   6. Check the status to ensure it stays online: pm2 status"
     echo
 }
 

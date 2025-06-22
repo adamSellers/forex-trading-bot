@@ -21,6 +21,9 @@ module.exports = {
 
                 // Binance API
                 USE_REAL_BINANCE_DATA: "true",
+                // IMPORTANT: Replace 'your_api_key_here' and 'your_api_secret_here' with your actual keys on the Pi.
+                BINANCE_API_KEY: "your_api_key_here",
+                BINANCE_API_SECRET: "your_api_secret_here",
 
                 // Security
                 CORS_ORIGIN:
