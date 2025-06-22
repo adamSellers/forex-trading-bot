@@ -145,7 +145,7 @@ map \$http_upgrade \$connection_upgrade {
     default upgrade;
     ''      close;
 }
-upstream backend { server 127.0.0.1:3001; keepalive: 32; }
+upstream backend { server 127.0.0.1:3001; keepalive 32; }
 server {
     listen 80;
     listen 443 ssl http2;
