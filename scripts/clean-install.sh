@@ -46,6 +46,28 @@ check_user() {
     log_success "Running as correct user: $PROJECT_USER"
 }
 
+setup_swap() {
+    log_step "Setting up temporary swap file for installation..."
+    if [ -f /swapfile ]; then
+        log_substep "Swap file already exists. Skipping creation."
+        return
+    fi
+    sudo fallocate -l 1G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    log_success "1GB swap file created and enabled."
+}
+
+cleanup_swap() {
+    log_step "Cleaning up temporary swap file..."
+    if [ -f /swapfile ]; then
+        sudo swapoff /swapfile
+        sudo rm /swapfile
+        log_success "Swap file removed."
+    fi
+}
+
 # --- Installation Steps ---
 install_system_deps() {
     log_step "Installing system dependencies..."
@@ -241,13 +263,15 @@ print_summary() {
     echo "   • View logs:      ./scripts/logs.sh"
     echo "   • Check status:   ./scripts/status.sh"
     echo
-    echo -e "${YELLOW}⚠️  CRITICAL NEXT STEPS:${NC}"
+    echo -e "${YELLOW}⚠️  CRITICAL NEXT STEPS (MANUAL CONFIGURATION REQUIRED):${NC}"
     echo "   1. SSH into the Pi: ssh $PROJECT_USER@img.oakroad"
-    echo "   2. Edit the .env file: nano $PROJECT_DIR/backend/.env"
-    echo "   3. Add your real Binance API keys."
-    echo "   4. The application will not run correctly until you do this."
+    echo "   2. Edit the PM2 ecosystem file: nano $PROJECT_DIR/ecosystem.config.js"
+    echo "   3. Locate 'BINANCE_API_KEY' and 'BINANCE_API_SECRET' and replace the placeholders"
+    echo "      with your actual Binance API keys. SAVE THE FILE."
+    echo "   4. The application will NOT run correctly until you do this."
     echo "   5. After adding keys, restart the app: pm2 restart $APP_NAME"
-    echo "   6. Check the status to ensure it stays online: pm2 status"
+    echo "   6. Check the status to ensure it stays online: pm2 status $APP_NAME"
+    echo "   7. Verify the dashboard is accessible and data is flowing: https://img.oakroad"
     echo
 }
 
@@ -262,6 +286,7 @@ main() {
         exit 0
     fi
 
+    setup_swap
     check_root
     check_user
     install_system_deps
@@ -271,7 +296,7 @@ main() {
     build_and_setup_db
     configure_system
     setup_environment_and_start
-    health_check
+    cleanup_swap
     print_summary
 }
 

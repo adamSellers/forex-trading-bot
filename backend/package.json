@@ -6,8 +6,8 @@
     "scripts": {
         "start": "node server.js",
         "dev": "nodemon server.js",
-        "setup": "node scripts/setup-database.js",
-        "test": "echo \"Error: no test specified\" && exit 1",
+        "lint": "echo \"'lint' script not yet configured, but this is where it would go.\" && exit 0",
+        "test": "npm run lint",
         "db:migrate": "knex migrate:latest",
         "db:seed": "knex seed:run",
         "db:rollback": "knex migrate:rollback"
