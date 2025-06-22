@@ -1,33 +1,59 @@
 #!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status.
 set -e
 
-PROJECT_DIR="/opt/crypto-trading-bot"
-echo "🚀 Starting deployment..."
+# --- Deployment Configuration ---
+# Your Raspberry Pi's user, IP address/hostname, and password.
+PI_USER="adam"
+PI_HOST="img.oakroad"
+PI_PASSWORD="1shanks1!" # <-- IMPORTANT: Add your password here
 
-cd $PROJECT_DIR
+# The destination directory on your Raspberry Pi.
+REMOTE_DIR="/opt/crypto-trading-bot"
+# --- End Configuration ---
 
-# Pull latest code
-echo "📥 Pulling latest code..."
-git pull origin main
+echo "🚀 Starting deployment to ${PI_HOST}..."
 
-# Install/update backend dependencies
-echo "📦 Installing backend dependencies..."
-cd backend
-npm ci --production
+# 1. Run pre-deployment checks to ensure a safe deployment
+echo "🩺 Running pre-deployment checks..."
+# Ensure we are in the project root before running scripts
+if [ -f "./scripts/deploy-check.sh" ]; then
+    ./scripts/deploy-check.sh
+else
+    echo "⚠️ Warning: deploy-check.sh not found. Skipping checks."
+fi
 
-# Build frontend
-echo "🏗️ Building frontend..."
-cd ../frontend
-npm ci
-npm run build
+# 2. Build the frontend for production
+echo "📦 Building React frontend..."
+npm run build:frontend
 
-# Database migrations
-echo "🗄️ Running database migrations..."
-cd ../backend
-npm run db:migrate
+# 3. Sync project files to the Raspberry Pi using rsync
+echo "Syncing files to ${PI_HOST}..."
+rsync -avz --delete -e "sshpass -p '${PI_PASSWORD}' ssh" \
+    --exclude '.git' \
+    --exclude 'node_modules' \
+    --exclude 'frontend/node_modules' \
+    --exclude 'frontend/src' \
+    --exclude 'frontend/public' \
+    --exclude 'backend/data' \
+    --exclude 'backend/node_modules' \
+    --exclude '.env' \
+    --exclude '*.log' \
+    ./ "${PI_USER}@${PI_HOST}:${REMOTE_DIR}"
 
-# Restart services
-echo "🔄 Restarting services..."
-pm2 restart crypto-trading-bot
+# 4. Execute remote commands on the Raspberry Pi via SSH
+echo "⚙️  Installing dependencies, migrating DB, and restarting server on Pi..."
+sshpass -p "${PI_PASSWORD}" ssh "${PI_USER}@${PI_HOST}" "
+    set -e
+    cd ${REMOTE_DIR}
+    echo 'Installing backend dependencies...'
+    npm install --prefix backend --production --omit=dev
+    echo '🗄️ Running database migrations...'
+    npm run db:migrate
+    echo 'Reloading application with PM2...'
+    pm2 reload ecosystem.config.js --env production
+    pm2 save
+"
 
-echo "✅ Deployment completed!"
+echo "🎉 Deployment complete! Your application is live."

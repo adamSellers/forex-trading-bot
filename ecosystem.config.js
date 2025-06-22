@@ -3,7 +3,7 @@ module.exports = {
         {
             name: "crypto-trend-bot", // Using a more descriptive name
             script: "server.js",
-            cwd: "/opt/crypto-trading-bot/backend",
+            cwd: "/opt/crypto-trading-bot/backend", // PM2 will run this from the backend directory
             instances: 1,
             exec_mode: "fork",
 
@@ -39,8 +39,8 @@ module.exports = {
 
             // Process Management
             autorestart: true,
-            watch: false,
-            max_memory_restart: "400M",
+            watch: false, // Set to true for development, false for production
+            max_memory_restart: "400M", // Adjust for your Raspberry Pi model
             restart_delay: 5000,
             max_restarts: 10,
             min_uptime: "10s",
