@@ -28,8 +28,8 @@ check "On main branch" "[[ \$(git branch --show-current) == 'main' ]]"
 check "Up to date with origin" "git fetch origin && git diff --quiet HEAD origin/main"
 
 # Test local build
-check "Frontend builds successfully" "cd frontend && npm run build > /dev/null 2>&1"
-check "Backend dependencies OK" "cd backend && npm ls > /dev/null 2>&1"
+check "Frontend builds successfully" "(cd frontend && npm run build > /dev/null 2>&1)"
+check "Backend dependencies OK" "(cd backend && npm ls > /dev/null 2>&1)"
 
 # Test local API endpoints (if backend is running)
 if curl -f -s http://localhost:3001/api/management/health > /dev/null 2>&1; then
