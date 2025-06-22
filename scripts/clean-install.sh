@@ -90,9 +90,11 @@ backup_and_cleanup() {
     pm2 delete all || true
     sudo systemctl stop nginx || true
 
-    log_substep "Removing old project directory and Nginx config..."
+    log_substep "Removing old project directory and Nginx configs..."
     sudo rm -rf "$PROJECT_DIR"
-    sudo rm -f /etc/nginx/sites-available/$APP_NAME /etc/nginx/sites-enabled/$APP_NAME
+    # More robust cleanup: remove the specific config file AND all enabled sites
+    sudo rm -f /etc/nginx/sites-available/$APP_NAME
+    sudo rm -f /etc/nginx/sites-enabled/*
     log_success "Cleanup complete."
 }
 
