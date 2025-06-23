@@ -150,3 +150,16 @@ This application is designed to be deployed to a Raspberry Pi using PM2.
 -   `GET /health`: Detailed system health check.
 -   `GET /system`: System information and metrics.
 -   `GET /logs`: Application logs.
+
+## Troubleshooting
+
+-   **API Key Errors (`Invalid API-key...`)**:
+
+    -   Ensure `BINANCE_API_KEY` and `BINANCE_API_SECRET` are correct in your `.env` (development) or `ecosystem.config.js` (production).
+    -   In your Binance API settings, make sure the key has "Enable Reading" permissions.
+    -   If you have IP restrictions enabled, ensure your server's IP is whitelisted.
+
+-   **WebSocket Connection Fails / No Live Price Updates**:
+    -   The application has a fallback to HTTP polling, so it may seem to work. Check the logs for WebSocket errors.
+    -   This is often caused by the `node-binance-api` library returning `BigNumber` objects that cannot be parsed. Ensure the client is initialized with a custom `json_parse` function to handle this.
+    -   Check for firewall or network issues blocking the WebSocket protocol (`wss://`).

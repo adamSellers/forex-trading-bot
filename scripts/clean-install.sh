@@ -227,22 +227,8 @@ EOF
 
 setup_environment_and_start() {
     log_step "Setting up environment and starting application..."
-    cd "$PROJECT_DIR"
-    if [[ ! -f "backend/.env" ]]; then
-        log_substep "Creating backend .env file..."
-        cat > backend/.env << EOF
-NODE_ENV=production
-PORT=3001
-DB_PATH=$PROJECT_DIR/backend/data/trading_bot.db
-DB_BACKUP_PATH=$PROJECT_DIR/backend/backups
-LOG_LEVEL=info
-LOG_PATH=$PROJECT_DIR/backend/logs
-BINANCE_API_KEY=your_api_key_here
-BINANCE_API_SECRET=your_api_secret_here
-USE_REAL_BINANCE_DATA=true
-CORS_ORIGIN=https://localhost,https://img.oakroad
-EOF
-    fi
+    cd "$PROJECT_DIR/backend"
+    log_substep "Creating log and backup directories..."
     mkdir -p backend/logs backend/backups
 
     log_substep "Starting application with PM2..."
@@ -268,13 +254,13 @@ print_summary() {
     echo "   • View logs:      ./scripts/logs.sh"
     echo "   • Check status:   ./scripts/status.sh"
     echo
-    echo -e "${YELLOW}⚠️  CRITICAL NEXT STEPS (MANUAL CONFIGURATION REQUIRED):${NC}"
+    echo -e "${YELLOW}⚠️  CRITICAL NEXT STEP: CONFIGURE API KEYS ON THE PI${NC}"
     echo "   1. SSH into the Pi: ssh $PROJECT_USER@img.oakroad"
-    echo "   2. Edit the PM2 ecosystem file: nano $PROJECT_DIR/ecosystem.config.js"
-    echo "   3. Locate 'BINANCE_API_KEY' and 'BINANCE_API_SECRET' and replace the placeholders"
-    echo "      with your actual Binance API keys. SAVE THE FILE."
-    echo "   4. The application will NOT run correctly until you do this."
-    echo "   5. After adding keys, restart the app: pm2 restart $APP_NAME"
+    echo "   2. Create the production environment file: nano $PROJECT_DIR/backend/.env.production"
+    echo "   3. Add your Binance API keys to this new file:"
+    echo -e "${CYAN}      BINANCE_API_KEY=YOUR_REAL_API_KEY\n      BINANCE_API_SECRET=YOUR_REAL_API_SECRET${NC}"
+    echo "   4. Save the file (Ctrl+X, Y, Enter)."
+    echo "   5. Restart the application for the keys to take effect: pm2 restart $APP_NAME"
     echo "   6. Check the status to ensure it stays online: pm2 status $APP_NAME"
     echo "   7. Verify the dashboard is accessible and data is flowing: https://img.oakroad"
     echo
