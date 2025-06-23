@@ -1,6 +1,6 @@
 // =====================================================
 // 2. backend/src/utils/logger.js
-// ENHANCED LOGGING SYSTEM
+// ENHANCED LOGGING SYSTEM - FIXED
 // =====================================================
 
 const fs = require("fs");
@@ -24,7 +24,6 @@ class Logger {
         // Set the current log level from environment variables, default to 'info'
         const envLogLevel = (process.env.LOG_LEVEL || "info").toLowerCase();
         this.currentLogLevel = this.levels[envLogLevel] ?? this.levels.info;
-        this.ensureLogDir();
     }
 
     ensureLogDir() {
@@ -59,8 +58,8 @@ class Logger {
     }
 
     // This is the core method that writes to the console, which PM2 captures.
-    _logToConsole(level, formattedMessage) {
-        const formattedMessage = this.formatMessage(level, message, data);
+    _logToConsole(level, formattedMsgFromCaller) {
+        // The message is already formatted by the calling method (error, warn, info, etc.)
 
         // Console output with colors
         const colors = {
@@ -73,10 +72,15 @@ class Logger {
         };
 
         const color = colors[level] || colors.info;
-        console.log(color + formattedMessage + colors.reset);
+        // PM2 captures stdout and stderr. Let's direct errors to stderr.
+        if (level === "error") {
+            console.error(color + formattedMsgFromCaller + colors.reset);
+        } else {
+            console.log(color + formattedMsgFromCaller + colors.reset);
+        }
 
         // File output (async to avoid blocking)
-        setImmediate(() => this.writeToFile(level, formattedMessage));
+        setImmediate(() => this.writeToFile(level, formattedMsgFromCaller));
     }
 
     error(message, data = null) {

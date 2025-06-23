@@ -137,10 +137,16 @@ class BinanceDataService extends EventEmitter {
             );
 
             // Ensure serverTime is a number before using it with Date
-            const serverTime =
-                typeof serverTimeResponse === "number"
-                    ? serverTimeResponse
-                    : null;
+            let serverTime = null;
+            if (typeof serverTimeResponse === "number") {
+                serverTime = serverTimeResponse;
+            } else if (
+                typeof serverTimeResponse === "object" &&
+                serverTimeResponse !== null &&
+                typeof serverTimeResponse.serverTime === "number"
+            ) {
+                serverTime = serverTimeResponse.serverTime;
+            }
 
             if (serverTime && serverTime > 0) {
                 // Check if it's a valid timestamp
