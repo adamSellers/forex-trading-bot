@@ -3,6 +3,7 @@ module.exports = {
         {
             name: "crypto-trend-bot", // Using a more descriptive name
             script: "/opt/crypto-trading-bot/backend/server.js",
+            cwd: "/opt/crypto-trading-bot/backend",
             instances: 1,
             exec_mode: "fork",
 
