@@ -2,7 +2,7 @@ module.exports = {
     apps: [
         {
             name: "crypto-trend-bot", // Using a more descriptive name
-            script: "/opt/crypto-trading-bot/backend/server.js",
+            script: "server.js", // Use a relative path now that cwd is set
             cwd: "/opt/crypto-trading-bot/backend",
             instances: 1,
             exec_mode: "fork",

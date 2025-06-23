@@ -1,8 +1,10 @@
 // backend/server.js - Rebuilt for Production Deployment
-// Load environment variables first
-require("dotenv").config();
 
-// Now import the rest
+// Load environment variables from .env file only in non-production environments.
+// In production, variables are injected by PM2 from the ecosystem file.
+if (process.env.NODE_ENV !== "production") {
+    require("dotenv").config();
+}
 const express = require("express");
 const cors = require("cors");
 const { createServer } = require("http");
