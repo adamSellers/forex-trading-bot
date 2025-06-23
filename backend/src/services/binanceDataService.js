@@ -1,13 +1,14 @@
 // backend/src/services/binanceDataService.js - SAFE LIVE VERSION
 const Binance = require("node-binance-api");
 const EventEmitter = require("events");
+const logger = require("../utils/logger"); // Assuming this path to your logger utility
 
 class BinanceDataService extends EventEmitter {
     constructor(config = {}) {
         super();
 
         this.config = {
-            useTestnet: false, // LIVE MODE
+            useTestnet: false, // Set to true for Binance Testnet
             useRealData: process.env.USE_REAL_BINANCE_DATA === "true",
             assets: config.assets || [
                 "BTCUSDT",
@@ -19,18 +20,18 @@ class BinanceDataService extends EventEmitter {
             ...config,
         };
 
-        // SAFE: Check for API credentials
+        // Check for API credentials
         if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
-            console.warn(
+            logger.warn(
                 "⚠️ No Binance API credentials found. Using fallback mode."
             );
             this.useFallback = true;
         } else {
-            console.log("🔑 Binance API credentials detected");
+            logger.info("🔑 Binance API credentials detected");
             this.useFallback = false;
         }
 
-        // SAFE: Binance API setup with error handling
+        // Binance API setup with error handling
         try {
             this.binance = new Binance().options({
                 APIKEY: process.env.BINANCE_API_KEY || "dummy-key",
@@ -41,9 +42,26 @@ class BinanceDataService extends EventEmitter {
                 recvWindow: 60000,
                 verbose: false,
                 family: 4,
+                // Custom JSON parser to handle BigNumber conversion explicitly
+                // This is crucial to prevent "Cannot convert object to primitive value" errors
+                json_parse: (json) => {
+                    return JSON.parse(json, (key, value) => {
+                        // Check if value is an object and has a .toNumber() method (characteristic of BigNumber.js objects)
+                        if (
+                            typeof value === "object" &&
+                            value !== null &&
+                            typeof value.toNumber === "function"
+                        ) {
+                            // Convert BigNumber to a standard JavaScript number
+                            // Use .toString() for full precision if needed, or .toNumber() for convenience
+                            return value.toNumber();
+                        }
+                        return value;
+                    });
+                },
             });
         } catch (setupError) {
-            console.error("❌ Binance setup error:", setupError.message);
+            logger.error("❌ Binance setup error:", setupError.message);
             this.useFallback = true;
         }
 
@@ -53,7 +71,7 @@ class BinanceDataService extends EventEmitter {
         this.isConnected = false;
         this.pollingInterval = null;
 
-        console.log(
+        logger.info(
             `🌐 ${
                 this.useFallback ? "FALLBACK" : "LIVE"
             } MODE: Binance Data Service`
@@ -63,13 +81,12 @@ class BinanceDataService extends EventEmitter {
 
     async initializeService() {
         try {
-            console.log("🚀 Initializing Binance Data Service...");
+            logger.info("🚀 Initializing Binance Data Service...");
 
-            // SAFE: Test connection with fallback
             const connectionResult = await this.testConnection();
 
             if (!connectionResult.success && !this.useFallback) {
-                console.log(
+                logger.warn(
                     "⚠️ Live connection failed, switching to fallback mode"
                 );
                 this.useFallback = true;
@@ -83,12 +100,19 @@ class BinanceDataService extends EventEmitter {
 
             this.isConnected = true;
             this.emit("serviceReady");
-            console.log("✅ Binance Data Service initialized successfully");
+            logger.success("✅ Binance Data Service initialized successfully");
         } catch (error) {
-            console.error("❌ Service initialization failed:", error.message);
+            logger.error("❌ Service initialization failed:", error.message);
+            logger.error("Full initialization error details:", {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                response: error.response || null, // For HTTP errors
+                code: error.code || null, // For specific error codes
+                originalError: error, // Keep the original error object for inspection
+            });
 
-            // SAFE: Always try fallback mode
-            console.log("🔄 Attempting fallback initialization...");
+            logger.info("🔄 Attempting fallback initialization...");
             this.useFallback = true;
             await this.initializeFallbackMode();
         }
@@ -96,19 +120,19 @@ class BinanceDataService extends EventEmitter {
 
     async testConnection() {
         if (this.useFallback) {
-            console.log("📡 Using fallback mode (no API test needed)");
+            logger.info("📡 Using fallback mode (no API test needed)");
             return { success: true, mode: "fallback" };
         }
 
         try {
-            console.log("📡 Testing LIVE Binance API connection...");
+            logger.info("📡 Testing LIVE Binance API connection...");
 
-            // SAFE: Minimal connection test
+            // Minimal connection test
             const serverTime = await this.binance.time();
 
             if (serverTime && serverTime > 0) {
-                console.log("✅ LIVE Binance API connection successful");
-                console.log(
+                logger.success("✅ LIVE Binance API connection successful");
+                logger.info(
                     `📊 Server time: ${new Date(serverTime).toISOString()}`
                 );
                 return { success: true, serverTime };
@@ -116,23 +140,39 @@ class BinanceDataService extends EventEmitter {
                 throw new Error("Invalid server time response");
             }
         } catch (error) {
-            console.error("❌ LIVE API test failed:", error.message);
+            logger.error(`❌ LIVE API test failed: ${error.message || error}`);
+            logger.error("Full API test error details:", {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                response: error.response || null, // For HTTP errors
+                code: error.code || null, // For specific error codes
+                originalError: error, // Keep the original error object for inspection
+            });
 
-            // SAFE: Provide helpful error messages
+            // Provide helpful error messages
             if (
                 error.message.includes("API key") ||
                 error.message.includes("signature")
             ) {
-                console.error(
-                    "🔑 API Error: Please check your BINANCE_API_KEY and BINANCE_API_SECRET"
+                logger.error(
+                    "🔑 API Error: Please check your BINANCE_API_KEY and BINANCE_API_SECRET. Ensure they are correct and have 'Enable Reading' permission."
                 );
             } else if (error.message.includes("IP")) {
-                console.error(
-                    "🌐 IP Error: Please whitelist your IP in Binance API settings"
+                logger.error(
+                    "🌐 IP Error: Please whitelist your IP in Binance API settings."
                 );
             } else if (error.message.includes("permission")) {
-                console.error(
-                    "🔒 Permission Error: Please enable 'Enable Reading' in API settings"
+                logger.error(
+                    "🔒 Permission Error: Please enable 'Enable Reading' in API settings."
+                );
+            } else if (error.message.includes("Network Error")) {
+                logger.error(
+                    "📡 Network Error: Could not reach Binance API. Check internet connection or Binance status."
+                );
+            } else if (error.message.includes("Timeout")) {
+                logger.error(
+                    "⏳ Timeout Error: Binance API request timed out. Network latency or API issues."
                 );
             }
 
@@ -141,7 +181,7 @@ class BinanceDataService extends EventEmitter {
     }
 
     async loadHistoricalData() {
-        console.log("📚 Loading historical data...");
+        logger.info("📚 Loading historical data...");
 
         if (this.useFallback) {
             return this.generateFallbackData();
@@ -160,7 +200,7 @@ class BinanceDataService extends EventEmitter {
             for (const timeframe of this.config.timeframes) {
                 try {
                     const limit = dataRequirements[timeframe];
-                    console.log(
+                    logger.info(
                         `📊 Loading ${limit} ${timeframe} candles for ${asset}...`
                     );
 
@@ -174,21 +214,33 @@ class BinanceDataService extends EventEmitter {
                         const cacheKey = `${asset}_${timeframe}`;
                         this.candleCache.set(cacheKey, candles);
                         totalLoaded += candles.length;
-                        console.log(
+                        logger.success(
                             `✅ Loaded ${candles.length} ${timeframe} candles for ${asset}`
+                        );
+                    } else {
+                        logger.warn(
+                            `⚠️ No candles returned for ${asset} ${timeframe}.`
                         );
                     }
 
-                    // SAFE: Rate limiting
+                    // Rate limiting
                     await new Promise((resolve) => setTimeout(resolve, 200));
                 } catch (error) {
-                    console.error(
+                    logger.error(
                         `❌ Failed to load ${asset} ${timeframe}:`,
                         error.message
                     );
+                    logger.error("Full historical data error details:", {
+                        name: error.name,
+                        message: error.message,
+                        stack: error.stack,
+                        response: error.response || null,
+                        code: error.code || null,
+                        originalError: error,
+                    });
 
-                    // SAFE: Generate fallback data for failed requests
-                    console.log(
+                    // Generate fallback data for failed requests
+                    logger.info(
                         `🔧 Generating fallback data for ${asset} ${timeframe}...`
                     );
                     const fallbackCandles = this.generateMockCandles(
@@ -205,7 +257,9 @@ class BinanceDataService extends EventEmitter {
             await new Promise((resolve) => setTimeout(resolve, 300));
         }
 
-        console.log(`✅ Historical data loaded: ${totalLoaded} total candles`);
+        logger.success(
+            `✅ Historical data loaded: ${totalLoaded} total candles`
+        );
     }
 
     async getHistoricalCandles(symbol, interval, limit = 500) {
@@ -223,14 +277,16 @@ class BinanceDataService extends EventEmitter {
                         symbol,
                         interval,
                         false,
-                        { limit: Math.min(limit, 500) } // Safer limit
+                        { limit: Math.min(limit, 1000) } // Max limit for Binance API is 1000
                     );
                     break;
                 } catch (error) {
                     retries--;
                     if (retries === 0) throw error;
 
-                    console.log(`⚠️ Retry for ${symbol} ${interval}...`);
+                    logger.warn(
+                        `⚠️ Retrying for ${symbol} ${interval} (attempts left: ${retries})...`
+                    );
                     await new Promise((resolve) => setTimeout(resolve, 1000));
                 }
             }
@@ -250,28 +306,29 @@ class BinanceDataService extends EventEmitter {
                 timestamp: new Date(candle[0]).toISOString(),
             }));
         } catch (error) {
-            console.error(
+            logger.error(
                 `❌ API error for ${symbol} ${interval}:`,
                 error.message
             );
+            logger.error("Full getHistoricalCandles error details:", {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                response: error.response || null,
+                code: error.code || null,
+                originalError: error,
+            });
             throw error;
         }
     }
 
     generateFallbackData() {
-        console.log("🔧 Generating comprehensive fallback data...");
+        logger.info("🔧 Generating comprehensive fallback data...");
 
         const counts = {
             "1h": 500,
             "4h": 250,
             "1d": 200,
-        };
-
-        const basePrices = {
-            BTCUSDT: 67000,
-            ETHUSDT: 3400,
-            BNBUSDT: 600,
-            DOGEUSDT: 0.15,
         };
 
         let totalGenerated = 0;
@@ -286,15 +343,17 @@ class BinanceDataService extends EventEmitter {
                 );
                 const cacheKey = `${asset}_${timeframe}`;
                 this.candleCache.set(cacheKey, candles);
-                totalGenerated += candles.length;
-                console.log(
+                totalGenerated += candles.length; // Accumulate totalGenerated
+                logger.success(
                     `✅ Generated ${candles.length} ${timeframe} candles for ${asset}`
                 );
             });
         });
 
-        console.log(
-            `🎯 Fallback data complete: ${totalGenerated} total candles`
+        logger.success(
+            `🎯 Fallback data complete: ${Array.from(
+                this.candleCache.values()
+            ).reduce((sum, arr) => sum + arr.length, 0)} total candles`
         );
     }
 
@@ -351,7 +410,7 @@ class BinanceDataService extends EventEmitter {
     }
 
     async initializePriceStreams() {
-        console.log("📊 Initializing price streams...");
+        logger.info("📊 Initializing price streams...");
 
         if (this.useFallback) {
             return this.initializeFallbackPricing();
@@ -365,6 +424,7 @@ class BinanceDataService extends EventEmitter {
                 try {
                     this.binance.websockets.ticker(asset, (ticker) => {
                         try {
+                            // Ensure explicit conversion for potential BigNumber values
                             const priceData = {
                                 symbol: ticker.symbol,
                                 price: parseFloat(
@@ -382,21 +442,36 @@ class BinanceDataService extends EventEmitter {
                             this.priceCache.set(ticker.symbol, priceData);
                             this.emit("priceUpdate", priceData);
                         } catch (error) {
-                            console.error(
+                            logger.error(
                                 `Price stream error for ${asset}:`,
                                 error.message
+                            );
+                            logger.error(
+                                "Full price stream processing error details:",
+                                {
+                                    name: error.name,
+                                    message: error.message,
+                                    stack: error.stack,
+                                    originalError: error,
+                                }
                             );
                         }
                     });
 
                     successCount++;
-                    console.log(`✅ Live stream active for ${asset}`);
+                    logger.success(`✅ Live stream active for ${asset}`);
                     await new Promise((resolve) => setTimeout(resolve, 100));
                 } catch (streamError) {
-                    console.error(
+                    logger.error(
                         `❌ Stream failed for ${asset}:`,
                         streamError.message
                     );
+                    logger.error("Full stream setup error details:", {
+                        name: streamError.name,
+                        message: streamError.message,
+                        stack: streamError.stack,
+                        originalError: streamError,
+                    });
                 }
             }
 
@@ -404,18 +479,27 @@ class BinanceDataService extends EventEmitter {
                 throw new Error("No live streams available");
             }
 
-            console.log(
+            logger.success(
                 `🚀 ${successCount}/${this.config.assets.length} live streams active`
             );
         } catch (error) {
-            console.error("❌ Live streams failed:", error.message);
-            console.log("🔄 Using fallback pricing...");
+            logger.error(
+                "❌ Live streams failed to initialize:",
+                error.message
+            );
+            logger.error("Full live stream initialization error details:", {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                originalError: error,
+            });
+            logger.info("🔄 Using fallback pricing...");
             this.initializeFallbackPricing();
         }
     }
 
     initializeFallbackPricing() {
-        console.log("📊 Starting fallback price simulation...");
+        logger.info("📊 Starting fallback price simulation...");
 
         const basePrices = {
             BTCUSDT: 67000,
@@ -463,19 +547,19 @@ class BinanceDataService extends EventEmitter {
             });
         }, 3000);
 
-        console.log("✅ Fallback pricing initialized");
+        logger.success("✅ Fallback pricing initialized");
     }
 
     async initializeFallbackMode() {
         try {
-            console.log("🔄 Initializing fallback mode...");
+            logger.info("🔄 Initializing fallback mode...");
             this.generateFallbackData();
             this.initializeFallbackPricing();
             this.isConnected = true;
             this.emit("serviceReady");
-            console.log("✅ Fallback mode ready");
+            logger.success("✅ Fallback mode ready");
         } catch (error) {
-            console.error("❌ Fallback mode failed:", error);
+            logger.error("❌ Fallback mode failed:", error);
             this.emit("serviceError", error);
         }
     }
@@ -541,14 +625,22 @@ class BinanceDataService extends EventEmitter {
                 permissions: account.permissions,
             };
         } catch (error) {
-            console.error("❌ Account info failed:", error.message);
+            logger.error("❌ Account info failed:", error.message);
+            logger.error("Full account info error details:", {
+                name: error.name,
+                message: error.message,
+                stack: error.stack,
+                response: error.response || null,
+                code: error.code || null,
+                originalError: error,
+            });
             // Return fallback account info
             return this.getAccountInfo.call({ useFallback: true });
         }
     }
 
     cleanup() {
-        console.log("🧹 Cleaning up Binance Data Service...");
+        logger.info("🧹 Cleaning up Binance Data Service...");
 
         if (this.pollingInterval) {
             clearInterval(this.pollingInterval);
@@ -560,15 +652,18 @@ class BinanceDataService extends EventEmitter {
                 this.config.assets.forEach((asset) => {
                     try {
                         this.binance.websockets.terminate(
-                            `${asset.toLowerCase()}@ticker`
+                            `${asset.toLowerCase()}@ticker` // Ensure correct websocket stream is terminated
                         );
                     } catch (error) {
                         // Silent cleanup
+                        logger.debug(
+                            `Error terminating websocket for ${asset}: ${error.message}`
+                        );
                     }
                 });
             }
         } catch (error) {
-            // Silent cleanup errors
+            logger.debug(`General websocket cleanup error: ${error.message}`);
         }
 
         this.websockets.clear();
@@ -576,8 +671,8 @@ class BinanceDataService extends EventEmitter {
         this.candleCache.clear();
         this.isConnected = false;
 
-        this.emit("serviceClosed");
-        console.log("✅ Binance Data Service cleaned up");
+        this.emit("serviceClosed"); // Emit event for external listeners
+        logger.info("✅ Binance Data Service cleaned up");
     }
 
     getServiceStatus() {
