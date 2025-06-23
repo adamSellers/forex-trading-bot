@@ -16,7 +16,7 @@ module.exports = {
                 DB_BACKUP_PATH: "/opt/crypto-trading-bot/backend/backups",
 
                 // Logging
-                LOG_LEVEL: "info",
+                LOG_LEVEL: "debug",
                 LOG_PATH: "/opt/crypto-trading-bot/backend/logs",
 
                 // Binance API

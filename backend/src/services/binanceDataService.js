@@ -128,9 +128,22 @@ class BinanceDataService extends EventEmitter {
             logger.info("📡 Testing LIVE Binance API connection...");
 
             // Minimal connection test
-            const serverTime = await this.binance.time();
+            const serverTimeResponse = await this.binance.time();
+            // Log the raw response for debugging
+            logger.debug(
+                `Raw serverTime response from Binance: ${JSON.stringify(
+                    serverTimeResponse
+                )}, type: ${typeof serverTimeResponse}`
+            );
+
+            // Ensure serverTime is a number before using it with Date
+            const serverTime =
+                typeof serverTimeResponse === "number"
+                    ? serverTimeResponse
+                    : null;
 
             if (serverTime && serverTime > 0) {
+                // Check if it's a valid timestamp
                 logger.success("✅ LIVE Binance API connection successful");
                 logger.info(
                     `📊 Server time: ${new Date(serverTime).toISOString()}`
