@@ -227,9 +227,9 @@ EOF
 
 setup_environment_and_start() {
     log_step "Setting up environment and starting application..."
-    cd "$PROJECT_DIR/backend"
+    cd "$PROJECT_DIR" # Change to the project root directory
     log_substep "Creating log and backup directories..."
-    mkdir -p backend/logs backend/backups
+    mkdir -p backend/logs backend/backups # Use relative path from project root
 
     log_substep "Starting application with PM2..."
     # Use the main ecosystem.config.js from the repo
