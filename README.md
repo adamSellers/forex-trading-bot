@@ -1,267 +1,152 @@
-# Paper Trading System - Complete Flow Documentation
+# Crypto Trend Trading Bot
 
-## Overview
+This is a full-stack cryptocurrency trading bot that operates in **Paper Trading Mode**. It executes virtual trades with a simulated $5,000 USDT balance while monitoring real-time Binance market data and displaying your actual Binance holdings for comparison.
 
-Your crypto trading bot operates in **Paper Trading Mode** - executing virtual trades with $5,000 USDT while monitoring real market prices and your actual Binance holdings.
+## Features
+
+-   **Real-Time Data**: Connects to Binance via REST API and WebSockets for live market data.
+-   **Automated Signal Generation**: Analyzes EMA/SMA crossovers to generate BUY/SELL/HOLD signals.
+-   **Sophisticated Paper Trading**: Simulates trades with a virtual portfolio, tracking P&L and performance metrics.
+-   **Advanced Risk Management**: Implements rules for position sizing, stop losses, and daily/weekly loss limits.
+-   **React Dashboard**: A comprehensive UI to monitor signals, trades, portfolio performance, and system health.
+-   **Production-Ready**: Configured for deployment on a Raspberry Pi using PM2.
+
+## Tech Stack
+
+-   **Backend**: Node.js, Express, Knex.js, SQLite3
+-   **Frontend**: React, Vite, Material-UI, Recharts
+-   **Real-Time**: Socket.IO
+-   **API**: Binance API (via `node-binance-api`)
+-   **Process Management**: PM2
+
+## Getting Started
+
+### Prerequisites
+
+Make sure you have the following installed:
+
+-   Node.js (v16.0.0 or higher)
+-   npm (v8.0.0 or higher)
+
+### Installation & Setup
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone https://github.com/adamSellers/crypto-trading-bot.git
+    cd crypto-trading-bot
+    ```
+
+2.  **Install dependencies for both workspaces:**
+
+    ```bash
+    npm install
+    ```
+
+3.  **Configure Environment Variables:**
+    The backend requires environment variables for configuration. For development, create a `.env` file in the `backend/` directory. For production, these are managed in `ecosystem.config.js`.
+
+    Create `backend/.env` and add the following:
+
+    ```env
+    # Server Configuration
+    NODE_ENV=development
+    PORT=3001
+
+    # Binance API (Read-only access is sufficient)
+    BINANCE_API_KEY=YOUR_BINANCE_API_KEY
+    BINANCE_API_SECRET=YOUR_BINANCE_API_SECRET
+    USE_REAL_BINANCE_DATA=true
+
+    # Database and Logging
+    DB_PATH=./data/trading_bot_dev.db
+    LOG_LEVEL=debug
+    ```
+
+4.  **Initialize the Database:**
+    Run the database migrations and seed initial data.
+    ```bash
+    npm run db:migrate
+    npm run db:seed
+    ```
+
+## Development Commands
+
+-   **Run full stack (backend & frontend) in dev mode:**
+    ```bash
+    npm run dev
+    ```
+-   **Run backend only:** `npm run dev:backend`
+-   **Run frontend only:** `npm run dev:frontend`
+-   **Build for production:** `npm run build`
+-   **Run production server locally:** `npm run serve`
+-   **Run linter:** `npm run lint`
 
 ## System Architecture
 
-### 1. **Data Flow Pipeline**
+## Database Schema
 
-```
-Live Binance Prices → Signal Generation → Paper Trade Execution → Database Storage → Dashboard Updates
-```
+The system is composed of several key services that work together to analyze data and simulate trades.
 
-### 2. **Core Components**
-
-#### **BinanceDataService**
-
--   Fetches real market data via Binance API
--   Provides live price streams via WebSocket
--   Supplies historical candles for analysis
--   **Read-only access** - no real orders placed
-
-#### **SignalGenerator**
-
--   Analyzes Moving Average crossovers on live data
--   Generates BUY/SELL/HOLD signals every minute
--   Strategies: Conservative (50/200 SMA), Balanced (20/50 EMA), Responsive (12/26 EMA)
--   Current: **24 signals generated** using responsive strategy
-
-#### **PaperTradingEngine**
-
--   Executes virtual trades based on signals
--   Manages $5,000 virtual USDT balance
--   Calculates position sizes using risk management
--   Tracks P&L, drawdown, performance metrics
+-   **BinanceDataService**: Fetches real market data via Binance API, provides live price streams via WebSocket, and supplies historical candles for analysis. It has **read-only access** and places no real orders.
+-   **SignalGenerator**: Analyzes technical indicators (EMA/SMA crossovers) on live data to generate BUY/SELL/HOLD signals every minute.
+-   **PaperTradingEngine**: Executes virtual trades based on signals, manages the virtual USDT balance, calculates position sizes, and tracks all performance metrics.
 
 ## Paper Trading Mechanics
 
-### **Trade Execution Flow**
+### Trade Execution Flow
 
-1. **Signal Generated**: BTC crosses above 20-day EMA
-2. **Risk Calculation**: Max risk $50 (1% of $5K), position size determined
-3. **Virtual Buy**: 0.00123 BTC purchased at $67,000 (cost: $82.41 USDT)
-4. **Balance Update**: USDT balance reduced to $4,917.59
-5. **Position Tracking**: BTC position added to portfolio with stop loss
-6. **Database Record**: Trade stored in SQLite with full details
+1.  **Signal Generated**: e.g., BTC 20-EMA crosses above 50-EMA.
+2.  **Risk Calculation**: Max risk is calculated (e.g., 1% of $5K = $50). Position size is determined based on this risk and the asset's volatility (ATR).
+3.  **Virtual Buy**: A virtual order is executed and recorded.
+4.  **Balance Update**: The virtual USDT balance is reduced by the cost of the trade.
+5.  **Position Tracking**: The new position is added to the virtual portfolio, with a calculated stop-loss price.
+6.  **Database Record**: The complete trade is stored in the SQLite database.
 
-### **Position Management**
+### Risk Management Rules
 
-```javascript
-// Example Paper Position
-{
-  symbol: "BTCUSDT",
-  quantity: 0.00123,
-  avgPrice: 67000,
-  stopLoss: 65500,
-  currentValue: 82.41,
-  unrealizedPnL: 0,
-  entryTime: 1699123456789,
-  entryCost: 82.41 // USDT spent
-}
-```
+-   **Position Size**: 1% risk rule = max $50 loss per trade.
+-   **Stop Loss**: 1.5x ATR below entry price for BUY orders.
+-   **Portfolio Allocation**: 35% BTC, 35% ETH, 20% BNB, 10% DOGE.
+-   **Daily Limit**: Stop trading after $100 daily loss (2%).
+-   **Weekly Limit**: Stop trading after $250 weekly loss (5%).
 
-### **Risk Management Rules**
+## Deployment
 
--   **Position Size**: 1% risk rule = max $50 loss per trade
--   **Stop Loss**: 1.5x ATR below entry price for BUY orders
--   **Portfolio Allocation**: 35% BTC, 35% ETH, 20% BNB, 10% DOGE
--   **Daily Limit**: Stop trading after $100 daily loss (2%)
--   **Weekly Limit**: Stop trading after $250 weekly loss (5%)
+This application is designed to be deployed to a Raspberry Pi using PM2.
 
-## Database Schema
+-   **Configuration**: Production environment variables are managed in `ecosystem.config.js`. **You must update the placeholder API keys in this file on the server.**
+-   **Deployment Script**: The `./scripts/deploy.sh` script automates the process of building the frontend, syncing files, installing dependencies, and reloading the application on the remote server.
 
-### **Trades Table**
+### Manual Update Steps
 
-```sql
-CREATE TABLE trades (
-  id INTEGER PRIMARY KEY,
-  trade_id TEXT UNIQUE,
-  symbol TEXT,
-  side TEXT, -- 'BUY' or 'SELL'
-  quantity DECIMAL(18,8),
-  price DECIMAL(18,8),
-  total_value DECIMAL(18,2), -- USDT cost/received
-  pnl DECIMAL(18,2), -- P&L in USDT
-  pnl_percent DECIMAL(8,2),
-  signal TEXT,
-  signal_strength DECIMAL(8,2),
-  stop_loss DECIMAL(18,8),
-  entry_cost DECIMAL(18,2), -- Original USDT spent
-  holding_period INTEGER, -- milliseconds
-  timestamp TIMESTAMP
-);
-```
+1.  SSH to the host: `ssh {user}@{host}`
+2.  Navigate to the project directory: `cd /opt/crypto-trading-bot`
+3.  Pull the latest changes: `git pull origin main`
+4.  Install dependencies: `npm install --prefix backend --production`
+5.  Build the frontend: `npm run build:frontend`
+6.  Run database migrations: `npm run db:migrate`
+7.  Reload the app with PM2: `pm2 reload ecosystem.config.js`
 
-### **Portfolio Table**
+### Verifying the Deployment
 
-```sql
-CREATE TABLE portfolio (
-  id INTEGER PRIMARY KEY,
-  total_value DECIMAL(18,2), -- Total portfolio value
-  usdt_balance DECIMAL(18,2), -- Available USDT
-  crypto_value DECIMAL(18,2), -- Value of crypto positions
-  total_pnl DECIMAL(18,2), -- Cumulative P&L
-  daily_pnl DECIMAL(18,2),
-  weekly_pnl DECIMAL(18,2),
-  positions JSON, -- Active positions data
-  position_count INTEGER,
-  snapshot_time TIMESTAMP
-);
-```
+-   Check PM2 status: `pm2 status` or `./scripts/status.sh`
+-   View live logs: `pm2 logs crypto-trend-bot` or `./scripts/logs.sh`
 
-## Current Portfolio State
+## API Endpoints
 
-### **Paper Trading Balance**
+### Trading (`/api/trading/`)
 
--   **Starting Capital**: $5,000 USDT
--   **Current USDT**: ~$5,000 (no active trades)
--   **Active Positions**: 0 crypto positions
--   **Total P&L**: $0.00 (just started)
+-   `GET /status`: System status and initialization state.
+-   `GET /portfolio`: Current portfolio balance and positions.
+-   `GET /signals`: Recent trading signals.
+-   `GET /trades`: Trade history.
+-   `GET /prices`: Current market prices.
+-   `POST /start`, `POST /stop`: Control the trading engine.
+-   `POST /config`: Update trading configuration.
 
-### **Real Binance Holdings** (Read-Only Display)
+### Management (`/api/management/`)
 
--   Shows your actual BTC, ETH, DOGE balances
--   Calculated USD values using live prices
--   **No trading performed** on real holdings
-
-## Dashboard Features
-
-### **Current Holdings Panel**
-
--   **Real Holdings**: Your actual Binance balances
--   **Paper Positions**: Virtual trading positions
--   **Combined Value**: Total portfolio worth
--   **P&L Tracking**: Unrealized gains/losses
-
-### **Trading Signals Panel**
-
--   Live signal generation every 60 seconds
--   Signal strength and confidence levels
--   Strategy breakdown (Conservative/Balanced/Responsive)
--   Historical signal performance
-
-### **Performance Tracking**
-
--   Win rate, profit factor, Sharpe ratio
--   Maximum drawdown monitoring
--   Trade frequency and holding periods
--   Risk utilization metrics
-
-## Signal-to-Trade Process
-
-### **Example: BTC Buy Signal**
-
-1. **15:30:45** - Signal Generated: BTC 20-EMA crosses above 50-EMA
-2. **15:30:46** - Risk Check: $50 max risk, current price $67,000
-3. **15:30:47** - Position Size: 0.00075 BTC calculated (risk-adjusted)
-4. **15:30:48** - Virtual Order: BUY 0.00075 BTC at $67,000
-5. **15:30:49** - Portfolio Update: USDT balance reduced by $50.25
-6. **15:30:50** - Database Record: Trade logged with stop loss at $65,500
-7. **15:30:51** - Dashboard Update: New position visible in holdings
-
-### **Example: BTC Sell Signal**
-
-1. **16:45:30** - Signal Generated: BTC 20-EMA crosses below 50-EMA
-2. **16:45:31** - Position Check: 0.00075 BTC position found
-3. **16:45:32** - Virtual Order: SELL 0.00075 BTC at $68,500
-4. **16:45:33** - P&L Calculation: $51.38 received - $50.25 cost = +$1.13 profit
-5. **16:45:34** - Portfolio Update: USDT balance increased to $5,001.13
-6. **16:45:35** - Performance Update: Win rate, total P&L updated
-7. **16:45:36** - Dashboard Update: Position closed, profit displayed
-
-## Key Advantages
-
-### **Risk-Free Learning**
-
--   Test strategies with real market data
--   No financial risk while learning
--   Full performance tracking and analysis
-
-### **Strategy Validation**
-
--   Compare paper performance vs real holdings
--   Optimize parameters before live trading
--   Build confidence in system reliability
-
-### **Complete Transparency**
-
--   Every trade logged with full details
--   Real-time P&L and risk monitoring
--   Performance benchmarking tools
-
-## Next Steps for Enhancement
-
-### **1. Enhanced Visualization**
-
--   Real vs Paper balance charts
--   Performance comparison graphs
--   Risk utilization heatmaps
-
-### **2. Advanced Analytics**
-
--   Correlation analysis (real vs paper)
--   Strategy performance breakdown
--   Monthly/yearly performance reports
-
-### **3. Alert System**
-
--   Email notifications for significant trades
--   SMS alerts for risk limit breaches
--   Telegram integration for mobile updates
-
-### **4. Backtesting Integration**
-
--   Historical strategy performance
--   Walk-forward optimization
--   Monte Carlo simulation
-
-## Technical Implementation Notes
-
-### **WebSocket Updates**
-
-```javascript
-// Real-time data flow
-socket.on("priceUpdate", updatePaperPositions);
-socket.on("signalGenerated", evaluateTradeOpportunity);
-socket.on("tradeExecuted", updateDashboard);
-socket.on("portfolioUpdated", refreshHoldings);
-```
-
-### **Risk Management Enforcement**
-
-```javascript
-// Before every trade
-if (dailyLoss >= maxDailyLoss) haltTrading();
-if (weeklyLoss >= maxWeeklyLoss) haltTrading();
-if (positionSize > maxRisk) reducePosition();
-if (correlationHigh) skipTrade();
-```
-
-## 🚀 Clean Install Steps
-
--   SSH to host: ssh {hostName}@{hostURL}
--   Download script: curl -O https://raw.githubusercontent.com/yourusername/crypto-trading-bot/main/scripts/install-pi.sh
--   Make executable: chmod +x install-pi.sh
--   Update repo URL in script (line 13)
--   Run install: ./clean-install-pi.sh
--   Add API keys: nano /opt/crypto-trading-bot/backend/.env
--   Restart: pm2 restart img-backend
-
-## 🔄 Update Existing Installation
-
--   SSH to host: ssh {hostName}@{hostURL}
--   Go to project: cd /opt/crypto-trading-bot
--   Pull changes: git pull origin main
--   Check for issues: ./scripts/deploy-check.sh
--   Update dependencies: npm run install:backend && npm run install:frontend
--   Build frontend: npm run build:frontend
--   Run migrations: npm run db:migrate
--   Restart: pm2 restart img-backend
-
-### 🩺 Verify Both
-
--   Check status: ./scripts/status.sh
--   View logs: ./scripts/logs.sh
--   Test dashboard: Visit ths site and get started..
+-   `GET /health`: Detailed system health check.
+-   `GET /system`: System information and metrics.
+-   `GET /logs`: Application logs.

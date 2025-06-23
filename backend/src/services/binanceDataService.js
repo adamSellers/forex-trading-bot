@@ -42,24 +42,35 @@ class BinanceDataService extends EventEmitter {
                 recvWindow: 60000,
                 verbose: false,
                 family: 4,
-                // Custom JSON parser to handle BigNumber conversion explicitly
-                // This is crucial to prevent "Cannot convert object to primitive value" errors
-                json_parse: (json) => {
-                    return JSON.parse(json, (key, value) => {
-                        // Check if value is an object and has a .toNumber() method (characteristic of BigNumber.js objects)
-                        if (
-                            typeof value === "object" &&
-                            value !== null &&
-                            typeof value.toNumber === "function"
-                        ) {
-                            // Convert BigNumber to a standard JavaScript number
-                            // Use .toString() for full precision if needed, or .toNumber() for convenience
-                            return value.toNumber();
-                        }
-                        return value;
-                    });
-                },
+                // // Custom JSON parser to handle BigNumber conversion explicitly (removed by gemini)
+                // // This is crucial to prevent "Cannot convert object to primitive value" errors
+                // json_parse: (json) => {
+                //     return JSON.parse(json, (key, value) => {
+                //         // Check if value is an object and has a .toNumber() method (characteristic of BigNumber.js objects)
+                //         if (
+                //             typeof value === "object" &&
+                //             value !== null &&
+                //             typeof value.toNumber === "function"
+                //         ) {
+                //             // Convert BigNumber to a standard JavaScript number
+                //             // Use .toString() for full precision if needed, or .toNumber() for convenience
+                //             return value.toNumber();
+                //         }
+                //         return value;
+                //     });
+                // },
             });
+            // ADDED: Debug log to inspect websockets property
+            logger.debug(
+                `Binance websockets property after init: ${typeof this.binance
+                    .websockets}`
+            );
+            if (this.binance.websockets) {
+                logger.debug(
+                    `Binance websockets.ticker property after init: ${typeof this
+                        .binance.websockets.ticker}`
+                );
+            }
         } catch (setupError) {
             logger.error("❌ Binance setup error:", setupError.message);
             this.useFallback = true;
@@ -436,6 +447,16 @@ class BinanceDataService extends EventEmitter {
         }
 
         try {
+            // ADDED: A defensive check to ensure the websockets object and its methods are available.
+            if (
+                !this.binance.websockets ||
+                typeof this.binance.websockets.ticker !== "function"
+            ) {
+                throw new Error(
+                    "WebSocket functionality (this.binance.websockets.ticker) is not available. " +
+                        "This might be due to a library initialization issue or version mismatch."
+                );
+            }
             // Try live streams with safety
             let successCount = 0;
 
