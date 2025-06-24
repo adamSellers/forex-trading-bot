@@ -190,13 +190,6 @@ build_and_setup_db() {
     log_substep "Setting up database..."
     mkdir -p backend/data
     
-    # Ensure correct database path
-    if [ -f "backend/knexfile.js" ]; then
-        log_substep "Verifying database configuration..."
-        # Update both development and production configs to use trading.db
-        sed -i 's/trading_bot\.db/trading.db/g' backend/knexfile.js || true  # Ensure consistent name
-    fi
-    
     # Run migration in production environment to ensure correct configuration is used
     NODE_ENV=production npm run db:migrate
     
