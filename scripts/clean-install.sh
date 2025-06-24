@@ -161,40 +161,29 @@ clone_and_install() {
     
     log_step "Installing dependencies (Node.js v22 optimized)..."
     
-    # Clean install for root package.json first
     log_substep "Installing workspace root dependencies..."
     rm -rf node_modules package-lock.json
     npm install
     
-    # Backend installation with Node 22 optimizations
     log_substep "Installing backend dependencies..."
-    cd backend
-    rm -rf node_modules package-lock.json
-    
-    # First, update package.json to mark native deps as optional
+    # We run from the root to maintain workspace context, but modify the backend's package.json first.
     if command -v jq &> /dev/null; then
-        log_substep "Updating package.json for optional dependencies..."
-        cp package.json package.json.bak
-        jq '.optionalDependencies = {"bufferutil": "^4.0.8", "utf-8-validate": "^6.0.3"}' package.json.bak > package.json
+        log_substep "Updating backend/package.json for optional dependencies..."
+        cp backend/package.json backend/package.json.bak
+        jq '.optionalDependencies = {"bufferutil": "^4.0.8", "utf-8-validate": "^6.0.3"}' backend/package.json.bak > backend/package.json
     fi
     
-    # Install with Node 22 flags
-    NODE_ENV=production npm ci --omit=dev 2>/dev/null || npm install --omit=dev
-    
-    # Try to install optional native modules separately
-    log_substep "Attempting native module installation..."
-    npm install bufferutil@^4.0.8 --save-optional || log_warning "bufferutil skipped (non-critical)"
-    npm install utf-8-validate@^6.0.3 --save-optional || log_warning "utf-8-validate skipped (non-critical)"
-    
-    cd ..
-    
-    # Frontend installation
+    # Install backend dependencies from the root, for production. The '--' passes the flag to the underlying npm command.
+    NODE_ENV=production npm run install:backend -- --omit=dev
+
+    # Try to install optional native modules separately, again from the root.
+    log_substep "Attempting native module installation for backend..."
+    npm install bufferutil@^4.0.8 --save-optional --prefix backend || log_warning "bufferutil skipped (non-critical)"
+    npm install utf-8-validate@^6.0.3 --save-optional --prefix backend || log_warning "utf-8-validate skipped (non-critical)"
+
     log_substep "Installing frontend dependencies..."
-    cd frontend
-    rm -rf node_modules package-lock.json
-    # We need devDependencies (like vite) to build the frontend, so we don't use --omit=dev here.
-    npm ci 2>/dev/null || npm install
-    cd ..
+    # Use the script from package.json, which runs from the root. This ensures devDependencies are installed for the build.
+    npm run install:frontend
     
     log_success "All dependencies installed successfully."
 }
@@ -204,37 +193,35 @@ build_and_setup_db() {
     cd "$PROJECT_DIR"
     
     log_substep "Building frontend for production..."
-    cd frontend
-    npm run build
-    if [ ! -d "dist" ]; then
+    npm run build:frontend
+    if [ ! -d "frontend/dist" ]; then
         log_error "Frontend build failed - dist directory not created"
     fi
-    cd ..
 
     log_substep "Setting up database..."
     mkdir -p backend/data
-    cd backend
     
     # Ensure correct database path
-    if [ -f "knexfile.js" ]; then
+    if [ -f "backend/knexfile.js" ]; then
         log_substep "Verifying database configuration..."
         # Update both development and production configs to use trading.db
-        sed -i 's/trading_bot\.db/trading.db/g' knexfile.js || true
+        sed -i 's/trading_bot\.db/trading.db/g' backend/knexfile.js || true
     fi
     
-    NODE_ENV=production npx knex migrate:latest
+    npm run db:migrate
     
     # Verify database was created
     if [[ -f "data/trading.db" ]]; then
         log_success "Database created successfully"
     elif [[ -f "data/trading_bot.db" ]]; then
         log_substep "Database created with alternate name, creating symlink..."
+        cd backend
         ln -s trading_bot.db data/trading.db
+        cd ..
     else
         log_error "Database creation failed"
     fi
     
-    cd ..
     log_success "Frontend built and database configured."
 }
 
