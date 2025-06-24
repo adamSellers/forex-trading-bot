@@ -2,7 +2,9 @@ module.exports = {
     apps: [
         {
             name: "crypto-trend-bot", // Using a more descriptive name
-            script: "server.js", // Use a relative path now that cwd is set
+            // Use an absolute path to the wrapper script that handles secret decryption
+            script: "/opt/crypto-trading-bot/scripts/start-wrapper.sh",
+            interpreter: "bash", // Specify bash as the interpreter for the wrapper script
             cwd: "/opt/crypto-trading-bot/backend",
             instances: 1,
             exec_mode: "fork",

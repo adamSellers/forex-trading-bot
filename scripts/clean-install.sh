@@ -211,9 +211,9 @@ build_and_setup_db() {
     npm run db:migrate
     
     # Verify database was created
-    if [[ -f "data/trading.db" ]]; then
+    if [[ -f "backend/data/trading.db" ]]; then
         log_success "Database created successfully"
-    elif [[ -f "data/trading_bot.db" ]]; then
+    elif [[ -f "backend/data/trading_bot.db" ]]; then
         log_substep "Database created with alternate name, creating symlink..."
         cd backend
         ln -s trading_bot.db data/trading.db
@@ -340,23 +340,18 @@ setup_environment_and_start() {
     
     log_substep "Creating required directories..."
     mkdir -p backend/logs backend/backups
-    
-    # Create production environment file template
-    if [[ ! -f "backend/.env.production" ]]; then
-        log_substep "Creating production environment template..."
-        cat > backend/.env.production << 'EOF'
-# Binance API Credentials (REQUIRED)
-BINANCE_API_KEY=your_binance_api_key_here
-BINANCE_API_SECRET=your_binance_api_secret_here
 
-# These are set by ecosystem.config.js but can be overridden here
-NODE_ENV=production
-PORT=3001
-USE_REAL_BINANCE_DATA=true
-EOF
-        log_warning "Remember to update backend/.env.production with your API keys!"
+    # Securely set up API keys by calling the encryption script
+    log_substep "Setting up encrypted API secrets..."
+    if [ -f "scripts/setup-secrets.sh" ]; then
+        # Make scripts executable
+        chmod +x scripts/setup-secrets.sh
+        chmod +x scripts/start-wrapper.sh
+        ./scripts/setup-secrets.sh
+    else
+        log_error "setup-secrets.sh not found. Cannot proceed."
     fi
-
+    
     log_substep "Starting application with PM2..."
     pm2 start ecosystem.config.js --env production
     pm2 save
@@ -447,20 +442,13 @@ print_summary() {
     echo "   • Restart app:   pm2 restart crypto-trend-bot"
     echo "   • Stop app:      pm2 stop crypto-trend-bot"
     echo
-    echo -e "${YELLOW}⚠️  IMPORTANT NEXT STEPS:${NC}"
+    echo -e "${GREEN}✅ API Keys are securely encrypted.${NC}"
     echo
-    echo "1. Add your Binance API credentials:"
-    echo "   nano $PROJECT_DIR/backend/.env.production"
+    echo "To update your API keys in the future, run this command on the server:"
+    echo "   cd $PROJECT_DIR && ./scripts/setup-secrets.sh"
     echo
-    echo "2. Add these lines with your actual keys:"
-    echo "   BINANCE_API_KEY=your_actual_api_key"
-    echo "   BINANCE_API_SECRET=your_actual_api_secret"
-    echo
-    echo "3. Restart the application:"
+    echo "Then restart the application:"
     echo "   pm2 restart crypto-trend-bot"
-    echo
-    echo "4. Monitor the logs to ensure connection:"
-    echo "   pm2 logs crypto-trend-bot --lines 50"
     echo
     
     if ! verify_installation; then
