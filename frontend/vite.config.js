@@ -23,4 +23,9 @@ export default defineConfig({
         outDir: "dist",
         sourcemap: true,
     },
+    // Help Vite resolve hoisted dependencies in the npm workspace.
+    // This forces Vite to find and pre-bundle the specified module.
+    optimizeDeps: {
+        include: ["socket.io-client"],
+    },
 });
