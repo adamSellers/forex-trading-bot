@@ -160,15 +160,15 @@ clone_and_install() {
     cd "$PROJECT_DIR"
     
     log_step "Installing dependencies (Node.js v22 optimized)..."
-    
+
     log_substep "Installing workspace root dependencies..."
     rm -rf node_modules package-lock.json
     npm install
     
     log_substep "Installing backend dependencies..."
     # Install backend dependencies from the root, for production. The '--' passes the flag to the underlying npm command.
-    # We add --no-optional to force the JS-only implementation of WebSockets on ARM, avoiding native build issues.
-    NODE_ENV=production npm run install:backend -- --omit=dev --no-optional
+    # Removing --no-optional to allow native WebSocket dependencies to install, which are crucial for performance and stability.
+    NODE_ENV=production npm run install:backend -- --omit=dev
 
     log_substep "Installing frontend dependencies..."
     # Use the script from package.json, which runs from the root. This ensures devDependencies are installed for the build.
