@@ -9,7 +9,7 @@
         "frontend"
     ],
     "scripts": {
-        "setup": "npm install --prefix backend && npm install --prefix frontend",
+        "setup": "npm install && npm run install:backend && npm run install:frontend",
         "install:backend": "npm install --prefix backend",
         "install:frontend": "npm install --prefix frontend",
         "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",

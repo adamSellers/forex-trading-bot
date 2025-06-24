@@ -35,10 +35,6 @@
     "devDependencies": {
         "nodemon": "^3.0.1"
     },
-    "optionalDependencies": {
-        "bufferutil": "^4.0.8",
-        "utf-8-validate": "^6.0.3"
-    },
     "engines": {
         "node": ">=16.0.0"
     }
