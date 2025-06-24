@@ -107,10 +107,6 @@ configure_npm_and_pm2() {
     npm config set fetch-retry-maxtimeout 60000
     npm config set maxsockets 10
     
-    # Use newer npm features for Node 22
-    npm config set install-strategy=hoisted
-    npm config set save-exact=false
-    
     log_substep "Setting npm global prefix..."
     mkdir -p ~/.npm-global
     npm config set prefix ~/.npm-global
