@@ -205,23 +205,17 @@ build_and_setup_db() {
     if [ -f "backend/knexfile.js" ]; then
         log_substep "Verifying database configuration..."
         # Update both development and production configs to use trading.db
-        sed -i 's/trading_bot\.db/trading.db/g' backend/knexfile.js || true
+        sed -i 's/trading_bot\.db/trading.db/g' backend/knexfile.js || true  # Ensure consistent name
     fi
     
     npm run db:migrate
     
     # Verify database was created
-    if [[ -f "backend/data/trading.db" ]]; then
+    if [[ -f "backend/data/trading.db" ]]; then  # Check for the consistent name
         log_success "Database created successfully"
-    elif [[ -f "backend/data/trading_bot.db" ]]; then
-        log_substep "Database created with alternate name, creating symlink..."
-        cd backend
-        ln -s trading_bot.db data/trading.db
-        cd ..
     else
         log_error "Database creation failed"
     fi
-    
     log_success "Frontend built and database configured."
 }
 
