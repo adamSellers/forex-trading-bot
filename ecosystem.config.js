@@ -14,7 +14,7 @@ module.exports = {
                 PORT: 3001,
 
                 // Database
-                DB_PATH: "/opt/crypto-trading-bot/backend/data/trading_bot.db",
+                DB_PATH: "/opt/crypto-trading-bot/backend/data/trading.db",
                 DB_BACKUP_PATH: "/opt/crypto-trading-bot/backend/backups",
 
                 // Logging
