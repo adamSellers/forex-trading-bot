@@ -10,7 +10,8 @@
         "test": "npm run lint",
         "db:migrate": "knex migrate:latest",
         "db:seed": "knex seed:run",
-        "db:rollback": "knex migrate:rollback"
+        "db:rollback": "knex migrate:rollback",
+        "postinstall": "echo 'Backend dependencies installed successfully'"
     },
     "keywords": [
         "cryptocurrency",
@@ -34,7 +35,15 @@
     "devDependencies": {
         "nodemon": "^3.0.1"
     },
+    "optionalDependencies": {
+        "bufferutil": "^4.0.8",
+        "utf-8-validate": "^6.0.3"
+    },
     "engines": {
         "node": ">=16.0.0"
+    },
+    "overrides": {
+        "bufferutil": "^4.0.8",
+        "utf-8-validate": "^6.0.3"
     }
 }

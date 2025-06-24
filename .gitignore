@@ -112,3 +112,7 @@ live_trading_logs/
 
 # PM2 logs (for production deployment)
 pm2-logs/
+
+# Vibe coders
+.claude
+CLAUDE.md
