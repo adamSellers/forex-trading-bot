@@ -159,21 +159,11 @@ clone_and_install() {
     git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
     cd "$PROJECT_DIR"
     
-    log_step "Installing dependencies (Node.js v22 optimized)..."
-
-    log_substep "Installing workspace root dependencies..."
+    log_step "Installing all workspace dependencies..."
     rm -rf node_modules package-lock.json
+    # This single command installs all dependencies for all workspaces, respecting the lockfile.
+    # This is the correct approach for npm workspaces to avoid dependency conflicts.
     npm install
-    
-    log_substep "Installing backend dependencies..."
-    # Install backend dependencies from the root, for production. The '--' passes the flag to the underlying npm command.
-    # Removing --no-optional to allow native WebSocket dependencies to install, which are crucial for performance and stability.
-    NODE_ENV=production npm run install:backend -- --omit=dev
-
-    log_substep "Installing frontend dependencies..."
-    # Use the script from package.json, which runs from the root. This ensures devDependencies are installed for the build.
-    npm run install:frontend
-    
     log_success "All dependencies installed successfully."
 }
 
@@ -186,6 +176,9 @@ build_and_setup_db() {
     if [ ! -d "frontend/dist" ]; then
         log_error "Frontend build failed - dist directory not created"
     fi
+
+    log_substep "Pruning development dependencies for a lean production environment..."
+    npm prune --omit=dev
 
     log_substep "Setting up database..."
     mkdir -p backend/data

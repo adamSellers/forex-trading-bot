@@ -36,8 +36,8 @@ fi
 
 # Encrypt and store credentials
 echo "🔒 Encrypting and storing API credentials..."
-echo "$BINANCE_API_KEY" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k $(cat $KEYS_DIR/encryption.key) > $SECRETS_DIR/binance_api_key.enc
-echo "$BINANCE_API_SECRET" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k $(cat $KEYS_DIR/encryption.key) > $SECRETS_DIR/binance_api_secret.enc
+echo -n "$BINANCE_API_KEY" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/binance_api_key.enc
+echo -n "$BINANCE_API_SECRET" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/binance_api_secret.enc
 
 # Set secure permissions
 chmod 600 $SECRETS_DIR/*
