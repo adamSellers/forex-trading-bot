@@ -160,11 +160,9 @@ clone_and_install() {
     git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
     cd "$PROJECT_DIR"
     
-    log_step "Installing dependencies from lockfile..."
-    # Using 'npm ci' is faster and creates more reliable, reproducible builds
-    # for automated environments like this. It requires a package-lock.json file
-    # to be committed to your repository. It automatically cleans node_modules.
-    npm ci
+    log_step "Installing all workspace dependencies..."
+    # Using 'npm install' as package-lock.json is not used in this project.
+    npm install
     log_success "All dependencies installed successfully."
 }
 
