@@ -11,7 +11,7 @@
         "db:migrate": "knex migrate:latest",
         "db:seed": "knex seed:run",
         "db:rollback": "knex migrate:rollback",
-        "postinstall": "echo 'Backend dependencies installed successfully'"
+        "postinstall": "npm rebuild"
     },
     "keywords": [
         "cryptocurrency",
@@ -28,7 +28,7 @@
         "dotenv": "^16.5.0",
         "express": "^4.18.2",
         "knex": "^2.5.1",
-        "node-binance-api": "^0.13.5",
+        "node-binance-api": "^0.13.1",
         "socket.io": "^4.7.2",
         "sqlite3": "^5.1.6"
     },

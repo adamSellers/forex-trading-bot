@@ -4,6 +4,10 @@
 # Optimized for modern Node.js and npm versions
 # =====================================================
 
+# Increase the open file limit for this session to prevent 'EMFILE' errors during build.
+# This is crucial for build tools like Vite that process many files simultaneously.
+ulimit -n 65536
+
 set -e  # Exit on any error
 
 # --- Configuration ---
@@ -81,6 +85,21 @@ cleanup_swap() {
         sudo swapoff /swapfile
         sudo rm /swapfile
         log_success "Swap file removed."
+    fi
+}
+
+configure_system_limits() {
+    log_step "Configuring system limits for high-performance builds..."
+    local limits_conf="/etc/security/limits.conf"
+    
+    # Check if the limits are already set to avoid duplicate entries
+    if ! grep -q "$PROJECT_USER soft nofile 65536" "$limits_conf"; then
+        log_substep "Setting permanent open file limit for user '$PROJECT_USER'..."
+        echo "$PROJECT_USER soft nofile 65536" | sudo tee -a "$limits_conf" > /dev/null
+        echo "$PROJECT_USER hard nofile 65536" | sudo tee -a "$limits_conf" > /dev/null
+        log_success "System limits configured. A reboot may be required for these to fully apply."
+    else
+        log_success "System limits for '$PROJECT_USER' are already configured."
     fi
 }
 
@@ -163,6 +182,7 @@ clone_and_install() {
     log_step "Installing all workspace dependencies..."
     # Using 'npm install' as package-lock.json is not used in this project.
     npm install
+
     log_success "All dependencies installed successfully."
 }
 
@@ -178,9 +198,6 @@ build_and_setup_db() {
     if [ ! -d "frontend/dist" ]; then
         log_error "Frontend build failed - dist directory not created"
     fi
-
-    log_substep "Pruning development dependencies for a lean production environment..."
-    npm prune --omit=dev
 
     log_substep "Setting up database..."
     mkdir -p backend/data
@@ -452,14 +469,11 @@ main() {
         exit 0
     fi
 
-    # Set higher limits for Node 22
-    ulimit -n 8192
-    export NODE_OPTIONS="--max-old-space-size=1024"
-    
     setup_swap
     check_root
     check_user
     check_node_version
+    configure_system_limits
     install_system_deps
     configure_npm_and_pm2
     backup_and_cleanup
