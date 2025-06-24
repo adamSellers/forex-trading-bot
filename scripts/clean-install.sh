@@ -196,7 +196,8 @@ clone_and_install() {
     log_substep "Installing frontend dependencies..."
     cd frontend
     rm -rf node_modules package-lock.json
-    NODE_ENV=production npm ci --omit=dev 2>/dev/null || npm install --omit=dev
+    # We need devDependencies (like vite) to build the frontend, so we don't use --omit=dev here.
+    npm ci 2>/dev/null || npm install
     cd ..
     
     log_success "All dependencies installed successfully."
