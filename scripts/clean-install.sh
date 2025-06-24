@@ -208,7 +208,8 @@ build_and_setup_db() {
         sed -i 's/trading_bot\.db/trading.db/g' backend/knexfile.js || true  # Ensure consistent name
     fi
     
-    npm run db:migrate
+    # Run migration in production environment to ensure correct configuration is used
+    NODE_ENV=production npm run db:migrate
     
     # Verify database was created
     if [[ -f "backend/data/trading.db" ]]; then  # Check for the consistent name
