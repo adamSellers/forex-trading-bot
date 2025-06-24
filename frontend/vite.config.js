@@ -28,4 +28,10 @@ export default defineConfig({
     optimizeDeps: {
         include: ["socket.io-client"],
     },
+    // This is crucial for monorepos (npm workspaces). It ensures that Vite
+    // correctly resolves modules from the hoisted node_modules directory
+    // at the project root by respecting the symlinked package structure.
+    resolve: {
+        preserveSymlinks: true,
+    },
 });
