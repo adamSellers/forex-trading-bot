@@ -62,7 +62,8 @@ setup_swap() {
     log_step "Setting up swap file for installation..."
     if [ -f /swapfile ]; then
         log_substep "Removing existing swap file..."
-        sudo swapoff /swapfile || true
+        # Attempt to turn off swap, ignore errors and output if it's not on.
+        sudo swapoff /swapfile >/dev/null 2>&1 || true
         sudo rm -f /swapfile
     fi
     
@@ -159,11 +160,11 @@ clone_and_install() {
     git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
     cd "$PROJECT_DIR"
     
-    log_step "Installing all workspace dependencies..."
-    rm -rf node_modules package-lock.json
-    # This single command installs all dependencies for all workspaces, respecting the lockfile.
-    # This is the correct approach for npm workspaces to avoid dependency conflicts.
-    npm install
+    log_step "Installing dependencies from lockfile..."
+    # Using 'npm ci' is faster and creates more reliable, reproducible builds
+    # for automated environments like this. It requires a package-lock.json file
+    # to be committed to your repository. It automatically cleans node_modules.
+    npm ci
     log_success "All dependencies installed successfully."
 }
 
@@ -172,7 +173,10 @@ build_and_setup_db() {
     cd "$PROJECT_DIR"
     
     log_substep "Building frontend for production..."
-    npm run build:frontend
+    # Run vite directly, specifying the frontend directory as the build root.
+    # This ensures the command's context is the project root, where node_modules is located,
+    # which can prevent module resolution issues within npm workspaces.
+    npx vite build frontend
     if [ ! -d "frontend/dist" ]; then
         log_error "Frontend build failed - dist directory not created"
     fi
@@ -184,7 +188,8 @@ build_and_setup_db() {
     mkdir -p backend/data
     
     # Run migration in production environment to ensure correct configuration is used
-    NODE_ENV=production npm run db:migrate
+    # Use the npm workspace command for consistency and robustness.
+    NODE_ENV=production npm run db:migrate --workspace=backend
     
     # Verify database was created
     if [[ -f "backend/data/trading.db" ]]; then  # Check for the consistent name
