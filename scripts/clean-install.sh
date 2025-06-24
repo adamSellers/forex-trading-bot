@@ -176,11 +176,6 @@ clone_and_install() {
     # Install backend dependencies from the root, for production. The '--' passes the flag to the underlying npm command.
     NODE_ENV=production npm run install:backend -- --omit=dev
 
-    # Try to install optional native modules separately, again from the root.
-    log_substep "Attempting native module installation for backend..."
-    npm install bufferutil@^4.0.8 --save-optional --prefix backend || log_warning "bufferutil skipped (non-critical)"
-    npm install utf-8-validate@^6.0.3 --save-optional --prefix backend || log_warning "utf-8-validate skipped (non-critical)"
-
     log_substep "Installing frontend dependencies..."
     # Use the script from package.json, which runs from the root. This ensures devDependencies are installed for the build.
     npm run install:frontend
@@ -342,7 +337,8 @@ setup_environment_and_start() {
         # Make scripts executable
         chmod +x scripts/setup-secrets.sh
         chmod +x scripts/start-wrapper.sh
-        ./scripts/setup-secrets.sh
+        # Redirect stdin from the terminal to ensure 'read' works correctly in a non-interactive script
+        ./scripts/setup-secrets.sh < /dev/tty
     else
         log_error "setup-secrets.sh not found. Cannot proceed."
     fi
