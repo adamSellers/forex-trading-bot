@@ -166,15 +166,9 @@ clone_and_install() {
     npm install
     
     log_substep "Installing backend dependencies..."
-    # We run from the root to maintain workspace context, but modify the backend's package.json first.
-    if command -v jq &> /dev/null; then
-        log_substep "Updating backend/package.json for optional dependencies..."
-        cp backend/package.json backend/package.json.bak
-        jq '.optionalDependencies = {"bufferutil": "^4.0.8", "utf-8-validate": "^6.0.3"}' backend/package.json.bak > backend/package.json
-    fi
-    
     # Install backend dependencies from the root, for production. The '--' passes the flag to the underlying npm command.
-    NODE_ENV=production npm run install:backend -- --omit=dev
+    # We add --no-optional to force the JS-only implementation of WebSockets on ARM, avoiding native build issues.
+    NODE_ENV=production npm run install:backend -- --omit=dev --no-optional
 
     log_substep "Installing frontend dependencies..."
     # Use the script from package.json, which runs from the root. This ensures devDependencies are installed for the build.
