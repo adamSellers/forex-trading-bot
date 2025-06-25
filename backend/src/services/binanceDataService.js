@@ -156,10 +156,11 @@ class BinanceDataService extends EventEmitter {
                 !this.binance.websockets ||
                 typeof this.binance.websockets.ticker !== "function"
             ) {
-                throw new Error(
-                    "WebSocket functionality (this.binance.websockets.ticker) is not available. " +
-                        "This might be due to a library initialization issue or version mismatch."
+                log_warning(
+                    "⚠️ WebSocket functionality not available, falling back to polling"
                 );
+                this.initializePricePolling();
+                return;
             }
 
             let successCount = 0;
