@@ -234,7 +234,7 @@ clone_and_install() {
     log_substep "Installing frontend dependencies using workspace scripts..."
 
     rm -rf frontend/node_modules frontend/package-lock.json
-    NODE_OPTIONS="--max-old-space-size=1536" npm run install:fronted -- --omit=dev --no-optional
+    NODE_OPTIONS="--max-old-space-size=1536" npm run install:frontend -- --omit=dev --no-optional
 
     log_success "All dependencies installed successfully with Node.js v22"
 }
@@ -244,6 +244,10 @@ build_and_setup_db() {
     cd "$PROJECT_DIR"
     
     log_substep "Building frontend for production with Node.js v22 optimizations..."
+    # Add the missing ARM64 rollup dependency first:
+    cd frontend
+    NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --save-optional
+    cd ..
     
     NODE_OPTIONS="--max-old-space-size=3072" npm run build:frontend
     
