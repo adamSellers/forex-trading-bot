@@ -10,8 +10,7 @@
         "test": "npm run lint",
         "db:migrate": "knex migrate:latest",
         "db:seed": "knex seed:run",
-        "db:rollback": "knex migrate:rollback",
-        "postinstall": "npm rebuild"
+        "db:rollback": "knex migrate:rollback"
     },
     "keywords": [
         "cryptocurrency",
