@@ -557,7 +557,7 @@ main() {
     fi
 
     # Set Node v22 optimized limits
-    ulimit -n 8192  # Node v22 can handle more file descriptors
+    ulimit -n 65536 # Node v22 can handle more file descriptors
     export NODE_OPTIONS="--max-old-space-size=2048"  # Node v22 is more memory efficient
     
     check_root
