@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - COMPLETE FIXED VERSION
+// frontend/src/components/TradingDashboard.jsx - ENHANCED with Clear Status Indicators
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -14,7 +14,8 @@ import {
   Select,
   MenuItem,
   IconButton,
-  Tooltip
+  Tooltip,
+  Divider
 } from '@mui/material';
 import {
   PlayArrow,
@@ -23,7 +24,13 @@ import {
   Settings,
   Timeline,
   TrendingUp,
-  Assessment
+  Assessment,
+  Psychology,
+  AccountBalance,
+  DataUsage,
+  Security,
+  CheckCircle,
+  Warning
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
 import { SOCKET_URL, tradingAPI } from '../config/api';
@@ -176,9 +183,9 @@ const TradingDashboard = () => {
       console.log('🔌 Closing socket connection');
       socket.disconnect();
     };
-  }, []); // No dependencies to prevent infinite loops
+  }, []);
 
-  // FIXED: API data fetching using the new API helpers
+  // API data fetching using the new API helpers
   const fetchInitialData = async () => {
     try {
       console.log('🔄 Fetching initial trading data...');
@@ -277,11 +284,11 @@ const TradingDashboard = () => {
     }
   };
 
-  // FIXED: Trading controls using new API helpers
+  // Trading controls using new API helpers
   const handleToggleTrading = async () => {
     try {
       const action = tradingEnabled ? 'Stopping' : 'Starting';
-      console.log(`🔄 ${action} trading...`);
+      console.log(`🔄 ${action} paper trading...`);
       
       if (tradingEnabled) {
         await tradingAPI.stopTrading();
@@ -289,23 +296,23 @@ const TradingDashboard = () => {
         await tradingAPI.startTrading();
       }
       
-      console.log(`✅ Trading ${tradingEnabled ? 'stopped' : 'started'}`);
+      console.log(`✅ Paper trading ${tradingEnabled ? 'stopped' : 'started'}`);
       setError(null);
     } catch (err) {
       console.error('❌ Toggle trading error:', err);
-      setError(`Failed to ${tradingEnabled ? 'stop' : 'start'} trading: ${err.message}`);
+      setError(`Failed to ${tradingEnabled ? 'stop' : 'start'} paper trading: ${err.message}`);
     }
   };
 
   const handleResetTrading = async () => {
     try {
-      console.log('🔄 Resetting trading engine...');
+      console.log('🔄 Resetting paper trading engine...');
       await tradingAPI.resetTrading();
-      console.log('✅ Trading reset successfully');
+      console.log('✅ Paper trading reset successfully');
       setError(null);
     } catch (err) {
       console.error('❌ Reset trading error:', err);
-      setError(`Failed to reset trading: ${err.message}`);
+      setError(`Failed to reset paper trading: ${err.message}`);
     }
   };
 
@@ -331,28 +338,29 @@ const TradingDashboard = () => {
     fetchInitialData();
   };
 
-  // System health calculation
+  // Enhanced system health calculation
   const getSystemHealth = () => {
-    if (!systemStatus) return { status: 'unknown', color: 'default' };
+    if (!systemStatus) return { status: 'unknown', color: 'default', icon: <Timeline /> };
     
     const isOnline = systemStatus.isInitialized;
     const hasRecentUpdate = lastUpdate && (Date.now() - lastUpdate) < 60000;
     const hasData = signals.length > 0 || trades.length > 0;
+    const accountConnected = account && !account.error;
     
-    if (isOnline && hasRecentUpdate && hasData) {
-      return { status: 'healthy', color: 'success' };
+    if (isOnline && hasRecentUpdate && hasData && accountConnected) {
+      return { status: 'optimal', color: 'success', icon: <CheckCircle /> };
     } else if (isOnline && hasData) {
-      return { status: 'online', color: 'info' };
+      return { status: 'operational', color: 'info', icon: <DataUsage /> };
     } else if (isOnline) {
-      return { status: 'initializing', color: 'warning' };
+      return { status: 'initializing', color: 'warning', icon: <Warning /> };
     } else {
-      return { status: 'offline', color: 'error' };
+      return { status: 'offline', color: 'error', icon: <Timeline /> };
     }
   };
 
   const systemHealth = getSystemHealth();
 
-  // Data building status
+  // Enhanced data building status
   const getDataBuildingStatus = () => {
     if (!systemStatus?.services?.binanceData) return null;
     
@@ -372,13 +380,28 @@ const TradingDashboard = () => {
 
   const dataStatus = getDataBuildingStatus();
 
+  // Enhanced system mode determination
+  const getSystemMode = () => {
+    const hasAccountData = account && !account.error;
+    const paperTradingActive = portfolio && !portfolio.riskStatus?.isHalted;
+    
+    return {
+      marketData: hasAccountData ? 'Live Binance API' : 'Fallback Data',
+      paperTrading: paperTradingActive ? 'Active' : 'Inactive',
+      realTrading: 'Safety Disabled',
+      accountAccess: hasAccountData ? 'Connected' : 'Limited'
+    };
+  };
+
+  const systemMode = getSystemMode();
+
   // Loading state
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
           <Box textAlign="center">
-            <Timeline sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
+            <DataUsage sx={{ fontSize: 64, color: 'primary.main', mb: 2 }} />
             <Typography variant="h5" gutterBottom>
               Initializing Trading Dashboard
             </Typography>
@@ -396,23 +419,38 @@ const TradingDashboard = () => {
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
-      {/* Header Section */}
+      {/* Enhanced Header Section */}
       <Box mb={3}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h4" component="h1" gutterBottom>
               Crypto Trend Trading Bot
             </Typography>
-            <Box display="flex" gap={1} alignItems="center">
+            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
               <Chip
-                icon={systemHealth.status === 'healthy' ? <TrendingUp /> : <Timeline />}
+                icon={systemHealth.icon}
                 label={`System ${systemHealth.status.charAt(0).toUpperCase() + systemHealth.status.slice(1)}`}
                 color={systemHealth.color}
                 size="small"
               />
               <Chip
-                label={`Connection: ${connectionStatus}`}
-                color={connectionStatus === 'connected' ? 'success' : 'error'}
+                icon={<DataUsage />}
+                label={systemMode.marketData}
+                color={systemMode.marketData.includes('Live') ? 'success' : 'warning'}
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                icon={<Psychology />}
+                label={`Paper Trading: ${systemMode.paperTrading}`}
+                color={systemMode.paperTrading === 'Active' ? 'warning' : 'default'}
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                icon={<Security />}
+                label={`Real Trading: ${systemMode.realTrading}`}
+                color="error"
                 size="small"
                 variant="outlined"
               />
@@ -425,7 +463,7 @@ const TradingDashboard = () => {
               )}
               {portfolio?.totalPnLPercent !== undefined && (
                 <Chip
-                  label={`${portfolio.totalPnLPercent >= 0 ? '+' : ''}${portfolio.totalPnLPercent.toFixed(1)}% return`}
+                  label={`${portfolio.totalPnLPercent >= 0 ? '+' : ''}${portfolio.totalPnLPercent.toFixed(1)}% Paper Return`}
                   color={portfolio.totalPnLPercent >= 0 ? 'success' : 'error'}
                   size="small"
                   variant="outlined"
@@ -467,20 +505,20 @@ const TradingDashboard = () => {
           </Alert>
         )}
 
-        {/* Control Panel */}
+        {/* Enhanced Control Panel */}
         <Paper sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
             {/* Primary Controls */}
             <Grid item>
               <Button
                 variant={tradingEnabled ? "contained" : "outlined"}
-                color={tradingEnabled ? "error" : "success"}
+                color={tradingEnabled ? "error" : "warning"}
                 startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
                 onClick={handleToggleTrading}
                 disabled={dataStatus?.isBuilding && !tradingEnabled}
                 size="large"
               >
-                {tradingEnabled ? 'Stop Trading' : 'Start Trading'}
+                {tradingEnabled ? 'Stop Paper Trading' : 'Start Paper Trading'}
               </Button>
             </Grid>
             
@@ -491,7 +529,7 @@ const TradingDashboard = () => {
                 onClick={handleRefreshData}
                 disabled={loading}
               >
-                Refresh
+                Refresh Data
               </Button>
             </Grid>
 
@@ -503,7 +541,7 @@ const TradingDashboard = () => {
                 color="warning"
                 size="small"
               >
-                Reset
+                Reset Engine
               </Button>
             </Grid>
 
@@ -516,32 +554,46 @@ const TradingDashboard = () => {
                   label="Strategy"
                   onChange={handleStrategyChange}
                 >
-                  <MenuItem value="conservative">Conservative</MenuItem>
-                  <MenuItem value="balanced">Balanced</MenuItem>
-                  <MenuItem value="responsive">Responsive</MenuItem>
+                  <MenuItem value="conservative">Conservative (50/200 SMA)</MenuItem>
+                  <MenuItem value="balanced">Balanced (20/50 EMA)</MenuItem>
+                  <MenuItem value="responsive">Responsive (12/26 EMA)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
 
-            {/* Status Indicators */}
+            <Grid item>
+              <Divider orientation="vertical" flexItem />
+            </Grid>
+
+            {/* Enhanced Status Indicators */}
             <Grid item sx={{ ml: 'auto' }}>
-              <Box display="flex" gap={1} alignItems="center">
+              <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
                 <Chip
                   size="small"
+                  icon={<TrendingUp />}
                   label={`${signals.length} signals`}
                   color="info"
                   variant="outlined"
                 />
                 <Chip
                   size="small"
-                  label={`${trades.length} trades`}
-                  color="secondary"
+                  icon={<Psychology />}
+                  label={`${trades.length} paper trades`}
+                  color="warning"
+                  variant="outlined"
+                />
+                <Chip
+                  size="small"
+                  icon={<AccountBalance />}
+                  label={systemMode.accountAccess}
+                  color={systemMode.accountAccess === 'Connected' ? 'success' : 'warning'}
                   variant="outlined"
                 />
                 {dataStatus && (
                   <Chip
                     size="small"
-                    label={dataStatus.isBuilding ? 'Building Data' : 'Data Ready'}
+                    icon={<DataUsage />}
+                    label={dataStatus.isBuilding ? `Building Data (${dataStatus.progress.toFixed(0)}%)` : 'Data Ready'}
                     color={dataStatus.isBuilding ? 'warning' : 'success'}
                     variant="outlined"
                   />
@@ -549,6 +601,17 @@ const TradingDashboard = () => {
               </Box>
             </Grid>
           </Grid>
+
+          {/* System Mode Summary */}
+          <Box mt={1} p={1} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
+            <Typography variant="caption" color="textSecondary">
+              🔧 <strong>System Mode:</strong> Paper Trading with {systemMode.marketData} • 
+              <strong>Account:</strong> {systemMode.accountAccess} • 
+              <strong>Real Trading:</strong> {systemMode.realTrading} for safety • 
+              <strong>Connection:</strong> {connectionStatus} • 
+              <strong>Strategy:</strong> {selectedStrategy}
+            </Typography>
+          </Box>
         </Paper>
       </Box>
 
@@ -637,18 +700,18 @@ const TradingDashboard = () => {
             </Grid>
             <Grid item xs={6} md={2}>
               <Typography variant="caption" display="block">
-                <strong>Progress:</strong>
+                <strong>Paper Trading:</strong>
               </Typography>
               <Typography variant="body2">
-                {dataStatus ? `${dataStatus.progress.toFixed(1)}%` : 'N/A'}
+                {tradingEnabled ? '🟢 Active' : '🔴 Inactive'}
               </Typography>
             </Grid>
             <Grid item xs={6} md={2}>
               <Typography variant="caption" display="block">
-                <strong>API Status:</strong>
+                <strong>Account API:</strong>
               </Typography>
               <Typography variant="body2">
-                ✅ Using new helpers
+                {account?.error ? '🟡 Fallback' : '🟢 Connected'}
               </Typography>
             </Grid>
           </Grid>

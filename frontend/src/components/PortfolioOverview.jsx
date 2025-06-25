@@ -1,4 +1,4 @@
-// frontend/src/components/PortfolioOverview.jsx - FIXED Grid Layout
+// frontend/src/components/PortfolioOverview.jsx - ENHANCED with Clear Status Indicators
 import React from 'react';
 import {
   Box,
@@ -7,8 +7,22 @@ import {
   Typography,
   Card,
   CardContent,
-  Chip
+  Chip,
+  Alert,
+  Divider
 } from '@mui/material';
+import {
+  Psychology,
+  AccountBalance,
+  TrendingUp,
+  Security,
+  PlayArrow,
+  Pause,
+  DataUsage,
+  CheckCircle,
+  Warning,
+  Info
+} from '@mui/icons-material';
 
 const PortfolioOverview = ({ account, prices, portfolio }) => {
   // Define our trading assets
@@ -75,8 +89,24 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
 
   const allocation = getAssetAllocation();
 
+  // Enhanced system status determination
+  const getSystemStatus = () => {
+    const hasAccountData = account && !account.error;
+    const hasPaperData = portfolio && portfolio.totalValue > 0;
+    const paperTradingActive = portfolio?.riskStatus && !portfolio.riskStatus.isHalted;
+    
+    return {
+      marketData: hasAccountData ? 'live' : 'fallback',
+      paperTrading: paperTradingActive ? 'active' : 'inactive',
+      realTrading: 'disabled', // Always disabled for safety
+      dataMode: hasAccountData ? 'Live Binance API' : 'Fallback Data'
+    };
+  };
+
+  const systemStatus = getSystemStatus();
+
   // Metric Card Component for consistent styling
-  const MetricCard = ({ title, value, subtitle, color = 'text.primary' }) => (
+  const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) => (
     <Card 
       variant="outlined" 
       sx={{ 
@@ -84,7 +114,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         display: 'flex', 
         alignItems: 'center',
         justifyContent: 'center',
-        minWidth: 0 // CRITICAL: Allow flexbox to shrink
+        minWidth: 0
       }}
     >
       <CardContent sx={{ 
@@ -94,6 +124,11 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         px: 1,
         '&:last-child': { pb: 1.5 }
       }}>
+        {icon && (
+          <Box display="flex" justifyContent="center" mb={0.5}>
+            {icon}
+          </Box>
+        )}
         <Typography 
           color="textSecondary" 
           gutterBottom 
@@ -114,7 +149,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
             mb: 0.25,
             fontSize: '1rem',
             lineHeight: 1.2,
-            wordBreak: 'break-word' // Handle long numbers
+            wordBreak: 'break-word'
           }}
         >
           {value}
@@ -139,23 +174,70 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
 
   return (
     <Paper sx={{ p: 3 }}>
-      <Box display="flex" alignItems="center" mb={3}>
+      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Typography variant="h6">
           Portfolio Overview
         </Typography>
-        <Chip size="small" label="Live Binance Testnet" color="primary" sx={{ ml: 2 }} />
+        
+        {/* Enhanced Status Indicators */}
+        <Box display="flex" gap={1} flexWrap="wrap">
+          <Chip 
+            size="small" 
+            icon={<DataUsage />}
+            label={systemStatus.dataMode}
+            color={systemStatus.marketData === 'live' ? 'success' : 'warning'}
+            variant="outlined"
+          />
+          <Chip 
+            size="small" 
+            icon={<Psychology />}
+            label={`Paper Trading: ${systemStatus.paperTrading === 'active' ? 'Active' : 'Inactive'}`}
+            color={systemStatus.paperTrading === 'active' ? 'warning' : 'default'}
+            variant="outlined"
+          />
+          <Chip 
+            size="small" 
+            icon={<Security />}
+            label="Live Trading: Disabled"
+            color="error"
+            variant="outlined"
+          />
+        </Box>
       </Box>
+
+      {/* System Status Alert */}
+      <Alert 
+        severity={systemStatus.marketData === 'live' ? 'success' : 'warning'} 
+        sx={{ mb: 2 }}
+        icon={systemStatus.marketData === 'live' ? <CheckCircle /> : <Warning />}
+      >
+        <Box>
+          <Typography variant="body2" fontWeight="bold">
+            System Status: {systemStatus.marketData === 'live' ? 'Fully Operational' : 'Operating with Fallback Data'}
+          </Typography>
+          <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+            • <strong>Market Data:</strong> {systemStatus.dataMode} • 
+            <strong> Paper Trading:</strong> {systemStatus.paperTrading === 'active' ? 'Simulating trades with virtual $5,000' : 'Inactive'} • 
+            <strong> Real Trading:</strong> Safely disabled - no real orders will be placed
+          </Typography>
+        </Box>
+      </Alert>
       
-      {/* FIXED: Grid Container with proper width control */}
+      {/* Portfolio Value Section */}
       <Box sx={{ width: '100%' }}>
-        {/* Row 1: Main Portfolio Metrics */}
-        <Grid container spacing={1} sx={{ mb: 1 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          <AccountBalance sx={{ mr: 1, verticalAlign: 'middle' }} />
+          Real Portfolio Value
+        </Typography>
+        
+        <Grid container spacing={1} sx={{ mb: 2 }}>
           <Grid item xs={3}>
             <MetricCard
-              title="Total Value"
+              title="Total Real Value"
               value={formatCurrency(getTotalPortfolioValue())}
-              subtitle={portfolio?.totalPnL >= 0 ? `+${formatUSDT(portfolio?.totalPnL || 0)}` : formatUSDT(portfolio?.totalPnL || 0)}
-              color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
+              subtitle="From Binance Account"
+              color="success.main"
+              icon={<AccountBalance fontSize="small" color="success" />}
             />
           </Grid>
           <Grid item xs={3}>
@@ -171,46 +253,94 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               title="Crypto Value"
               value={formatCurrency(getCryptoValue())}
               subtitle="Holdings Value"
+              color="info.main"
+            />
+          </Grid>
+          <Grid item xs={3}>
+            <MetricCard
+              title="Cash Allocation"
+              value={formatPercent(allocation.usdt)}
+              subtitle={`${formatPercent(allocation.crypto)} Crypto`}
+              color="text.primary"
+            />
+          </Grid>
+        </Grid>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Paper Trading Section */}
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          <Psychology sx={{ mr: 1, verticalAlign: 'middle' }} />
+          Paper Trading Performance
+        </Typography>
+        
+        <Grid container spacing={1} sx={{ mb: 2 }}>
+          <Grid item xs={3}>
+            <MetricCard
+              title="Virtual Portfolio"
+              value={formatCurrency(portfolio?.totalValue || 5000)}
+              subtitle="Simulated Trading"
+              color="warning.main"
+              icon={<Psychology fontSize="small" color="warning" />}
+            />
+          </Grid>
+          <Grid item xs={3}>
+            <MetricCard
+              title="Virtual P&L"
+              value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`}
+              subtitle={`${formatPercent(portfolio?.totalPnLPercent || 0)} Return`}
+              color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
+            />
+          </Grid>
+          <Grid item xs={3}>
+            <MetricCard
+              title="Virtual Positions"
+              value={portfolio?.positionCount || 0}
+              subtitle="Open Positions"
               color="warning.main"
             />
           </Grid>
           <Grid item xs={3}>
             <MetricCard
-              title="Total Return"
-              value={formatPercent(portfolio?.totalPnLPercent)}
-              subtitle="Since Start"
-              color={portfolio?.totalPnLPercent >= 0 ? 'success.main' : 'error.main'}
+              title="Paper Win Rate"
+              value={formatPercent(portfolio?.performance?.winRate || 0)}
+              subtitle="Successful Trades"
+              color={portfolio?.performance?.winRate > 50 ? 'success.main' : 'text.primary'}
             />
           </Grid>
         </Grid>
 
-        {/* Row 2: Risk Management */}
-        <Typography variant="h6" sx={{ mb: 1, mt: 2 }}>
+        <Divider sx={{ my: 2 }} />
+
+        {/* Risk Management Section */}
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          <Security sx={{ mr: 1, verticalAlign: 'middle' }} />
           Risk Management Status
         </Typography>
-        <Grid container spacing={1} sx={{ mb: 1 }}>
+        
+        <Grid container spacing={1} sx={{ mb: 2 }}>
           <Grid item xs={3}>
             <MetricCard
-              title="Daily Loss Used"
-              value={`${formatUSDT(portfolio?.riskStatus?.dailyLossUsed)}`}
-              subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.dailyLossLimit)}`}
-              color={portfolio?.riskStatus?.dailyLossUsed > portfolio?.riskStatus?.dailyLossLimit * 0.8 ? 'error.main' : 'success.main'}
+              title="Daily Risk Used"
+              value={`${formatUSDT(portfolio?.riskStatus?.dailyLossUsed || 0)}`}
+              subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.dailyLossLimit || 100)}`}
+              color={portfolio?.riskStatus?.dailyLossUsed > (portfolio?.riskStatus?.dailyLossLimit * 0.8) ? 'error.main' : 'success.main'}
             />
           </Grid>
           <Grid item xs={3}>
             <MetricCard
-              title="Weekly Loss Used"
-              value={`${formatUSDT(portfolio?.riskStatus?.weeklyLossUsed)}`}
-              subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.weeklyLossLimit)}`}
-              color={portfolio?.riskStatus?.weeklyLossUsed > portfolio?.riskStatus?.weeklyLossLimit * 0.8 ? 'error.main' : 'success.main'}
+              title="Weekly Risk Used"
+              value={`${formatUSDT(portfolio?.riskStatus?.weeklyLossUsed || 0)}`}
+              subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.weeklyLossLimit || 250)}`}
+              color={portfolio?.riskStatus?.weeklyLossUsed > (portfolio?.riskStatus?.weeklyLossLimit * 0.8) ? 'error.main' : 'success.main'}
             />
           </Grid>
           <Grid item xs={3}>
             <MetricCard
               title="Max Drawdown"
-              value={formatPercent(portfolio?.performance?.maxDrawdown)}
+              value={formatPercent(portfolio?.performance?.maxDrawdown || 0)}
               subtitle="Peak to Trough"
-              color={portfolio?.performance?.maxDrawdown > 15 ? 'error.main' : 'warning.main'}
+              color={portfolio?.performance?.maxDrawdown > 15 ? 'error.main' : 'success.main'}
             />
           </Grid>
           <Grid item xs={3}>
@@ -231,6 +361,12 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
                 px: 1,
                 '&:last-child': { pb: 1.5 }
               }}>
+                <Box display="flex" justifyContent="center" mb={0.5}>
+                  {portfolio?.riskStatus?.isHalted ? 
+                    <Pause fontSize="small" color="error" /> : 
+                    <PlayArrow fontSize="small" color="success" />
+                  }
+                </Box>
                 <Typography 
                   color="textSecondary" 
                   gutterBottom 
@@ -268,40 +404,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
           </Grid>
         </Grid>
 
-        {/* Row 3: Performance Metrics */}
-        <Grid container spacing={1} sx={{ mb: 1 }}>
-          <Grid item xs={3}>
-            <MetricCard
-              title="Active Positions"
-              value={portfolio?.positionCount || 0}
-              subtitle="Open Trades"
-            />
-          </Grid>
-          <Grid item xs={3}>
-            <MetricCard
-              title="Win Rate"
-              value={formatPercent(portfolio?.performance?.winRate)}
-              subtitle="Profitable Trades"
-            />
-          </Grid>
-          <Grid item xs={3}>
-            <MetricCard
-              title="Daily P&L"
-              value={`${portfolio?.dailyPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.dailyPnL || 0)}`}
-              subtitle="Today's Performance"
-              color={portfolio?.dailyPnL >= 0 ? 'success.main' : 'error.main'}
-            />
-          </Grid>
-          <Grid item xs={3}>
-            <MetricCard
-              title="Asset Allocation"
-              value={`${formatPercent(allocation.usdt)} USDT`}
-              subtitle={`${formatPercent(allocation.crypto)} Crypto`}
-            />
-          </Grid>
-        </Grid>
-
-        {/* Row 4: Additional Metrics */}
+        {/* Performance Metrics */}
         <Grid container spacing={1} sx={{ mb: 2 }}>
           <Grid item xs={3}>
             <MetricCard
@@ -335,14 +438,59 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
           </Grid>
         </Grid>
 
-        {/* Row 5: Account Status - Center Justified */}
+        {/* Enhanced Account Status */}
         <Box display="flex" justifyContent="center" mt={2}>
-          <Card variant="outlined" sx={{ px: 3, py: 1 }}>
-            <Typography variant="body2" color="textSecondary" textAlign="center">
-              Account: {account?.accountType || 'SPOT'} | 
-              Trading: {account?.canTrade ? ' ✅ Enabled' : ' ❌ Disabled'} |
-              Mode: Binance Testnet
-            </Typography>
+          <Card variant="outlined" sx={{ px: 3, py: 1.5, backgroundColor: 'action.hover' }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <AccountBalance color="success" />
+                  <Typography variant="body2" fontWeight="bold">
+                    Real Account: {account?.accountType || 'SPOT'}
+                  </Typography>
+                  <Chip 
+                    size="small" 
+                    label={account?.canTrade ? 'Trading Enabled' : 'Read-Only'} 
+                    color={account?.canTrade ? 'warning' : 'success'}
+                    variant="outlined"
+                  />
+                </Box>
+              </Grid>
+              <Grid item>
+                <Divider orientation="vertical" flexItem />
+              </Grid>
+              <Grid item>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Psychology color="warning" />
+                  <Typography variant="body2" fontWeight="bold">
+                    Paper Mode: Virtual Trading
+                  </Typography>
+                  <Chip 
+                    size="small" 
+                    label="No Real Money Risk" 
+                    color="success"
+                    variant="outlined"
+                  />
+                </Box>
+              </Grid>
+              <Grid item>
+                <Divider orientation="vertical" flexItem />
+              </Grid>
+              <Grid item>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <DataUsage color="info" />
+                  <Typography variant="body2" fontWeight="bold">
+                    Data: {systemStatus.dataMode}
+                  </Typography>
+                  <Chip 
+                    size="small" 
+                    label="Live Prices" 
+                    color="info"
+                    variant="outlined"
+                  />
+                </Box>
+              </Grid>
+            </Grid>
           </Card>
         </Box>
       </Box>
