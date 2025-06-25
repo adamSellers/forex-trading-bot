@@ -224,34 +224,18 @@ clone_and_install() {
     cd "$PROJECT_DIR"
     
     log_step "Installing dependencies with Node.js v22 optimizations..."
+    
+    log_substep "Installing backend dependencies using workspace scripts..."
 
-    log_substep "Installing workspace root dependencies..."
-    rm -rf node_modules package-lock.json
+    rm -rf backend/node_modules backend/package-lock.json
+
+    NODE_OPTIONS="--max-old-space-size=1536" npm run install:backend -- --omit=dev --no-optional    
     
-    # Node v22 can handle more aggressive installs
-    NODE_OPTIONS="--max-old-space-size=1536" npm install --no-optional
-    
-    log_substep "Installing backend dependencies with Node.js v22 optimizations..."
-    cd backend
-    
-    # Clean any existing installs
-    rm -rf node_modules package-lock.json
-    
-    # Node v22 has much better native module support for ARM64
-    log_substep "Installing all backend dependencies (Node v22 can handle batch install)..."
-    NODE_OPTIONS="--max-old-space-size=1536" npm install --omit=dev --no-optional
-    
-    cd ..
-    
-    log_substep "Installing frontend dependencies..."
-    cd frontend
-    rm -rf node_modules package-lock.json
-    
-    # Node v22 handles Vite builds much better on ARM64
-    NODE_OPTIONS="--max-old-space-size=2048" npm install
-    
-    cd ..
-    
+    log_substep "Installing frontend dependencies using workspace scripts..."
+
+    rm -rf frontend/node_modules frontend/package-lock.json
+    NODE_OPTIONS="--max-old-space-size=1536" npm run install:fronted -- --omit=dev --no-optional
+
     log_success "All dependencies installed successfully with Node.js v22"
 }
 
@@ -260,10 +244,8 @@ build_and_setup_db() {
     cd "$PROJECT_DIR"
     
     log_substep "Building frontend for production with Node.js v22 optimizations..."
-    cd frontend
-    # Node v22 has significantly improved Vite build performance on ARM64
-    NODE_OPTIONS="--max-old-space-size=3072" npm run build
-    cd ..
+    
+    NODE_OPTIONS="--max-old-space-size=3072" npm run build:frontend
     
     if [ ! -d "frontend/dist" ]; then
         log_error "Frontend build failed - dist directory not created"
