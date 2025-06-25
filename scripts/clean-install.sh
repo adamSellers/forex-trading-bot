@@ -91,12 +91,9 @@ setup_build_environment() {
     export STRIP=strip
     export OBJCOPY=objcopy
     export LINK=g++
-    
-    # Node v22 optimized settings for ARM64
-    npm config set target_arch arm64
-    npm config set target_platform linux
-    npm config set arch arm64
-    
+
+    log_substep "Node.js v22 automatically handles ARM64 architecture detection"
+
     # Node v22 can handle more parallel operations on Pi 5
     export UV_THREADPOOL_SIZE=4
     export NODE_OPTIONS="--max-old-space-size=2048"  # Increased for Node v22
