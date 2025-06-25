@@ -236,19 +236,26 @@ class TradingService extends EventEmitter {
         }
     }
 
+    // backend/src/services/tradingService.js - UPDATE getAccount method
+
     async getAccount() {
         try {
+            logger.debug("🔄 Getting account information...");
+
             if (!this.binanceData) {
                 throw new Error("Binance data service not available");
             }
+
+            // FIXED: Better error handling for account info
             const account = await this.binanceData.getAccountInfo();
 
-            // Add paper trading context
+            // Get paper trading context
             const paperPortfolio = this.paperTrading
                 ? this.paperTrading.getPortfolioSummary()
                 : null;
 
-            return {
+            // CRITICAL FIX: Enhanced response with error handling
+            const response = {
                 ...account,
                 paperTrading: paperPortfolio
                     ? {
@@ -258,10 +265,35 @@ class TradingService extends EventEmitter {
                           positions: paperPortfolio.positions,
                       }
                     : { enabled: false },
+
+                // Add system status context
+                systemStatus: {
+                    apiConnected: !account.error,
+                    lastUpdate: new Date().toISOString(),
+                    mode: account.error ? "FALLBACK" : "LIVE",
+                },
             };
+
+            // Log appropriate success/warning message
+            if (account.error) {
+                logger.warn(
+                    `⚠️ Account API using fallback: ${account.error.message}`
+                );
+            } else {
+                logger.success("✅ Account information retrieved successfully");
+            }
+
+            return response;
         } catch (error) {
-            logger.error("Error getting account:", error);
-            throw error;
+            // FIXED: Better error logging and context
+            logger.error("❌ Account service error:", {
+                error: error.message,
+                service: "tradingService.getAccount",
+                timestamp: new Date().toISOString(),
+            });
+
+            // Re-throw with better error context
+            throw new Error(`Account service unavailable: ${error.message}`);
         }
     }
 

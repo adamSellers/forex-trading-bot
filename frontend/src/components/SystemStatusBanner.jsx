@@ -1,4 +1,4 @@
-// frontend/src/components/SystemStatusBanner.jsx - Complete Fixed Version
+// frontend/src/components/SystemStatusBanner.jsx - COMPLETE FIXED VERSION
 import React from 'react';
 import {
   Alert,
@@ -165,8 +165,8 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
     return `${Math.ceil(hoursNeeded / 24)} days`;
   };
 
-  // Don't show banner if system is fully operational and no issues
-  if (phase === 'optimal' && insufficientSignals === 0 && totalCandles > expectedCandles.good) {
+  // CRITICAL FIX: Hide banner when system is optimal and working well
+  if (phase === 'optimal' && insufficientSignals === 0) {
     return null;
   }
 
