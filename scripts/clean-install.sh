@@ -169,8 +169,6 @@ configure_npm_and_pm2() {
     npm config set maxsockets 8  # Node v22 can handle more connections
     
     # ARM64 specific configurations for Node v22
-    npm config set target_arch arm64
-    npm config set target_platform linux
     npm config set cache-max 104857600  # 100MB cache for Node v22
     
     log_substep "Setting npm global prefix..."
