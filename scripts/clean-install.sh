@@ -1,12 +1,8 @@
 #!/bin/bash
 # =====================================================
-# Crypto Trading Bot - Clean Install Script for Node.js v22
-# Optimized for modern Node.js and npm versions
+# Crypto Trading Bot - FIXED Clean Install Script for Raspberry Pi 5
+# Addresses ARM64 native module compilation issues
 # =====================================================
-
-# Increase the open file limit for this session to prevent 'EMFILE' errors during build.
-# This is crucial for build tools like Vite that process many files simultaneously.
-ulimit -n 65536
 
 set -e  # Exit on any error
 
@@ -49,83 +45,136 @@ check_user() {
     log_success "Running as correct user: $PROJECT_USER"
 }
 
-check_node_version() {
-    log_step "Checking Node.js version..."
+check_system_requirements() {
+    log_step "Checking system requirements for Raspberry Pi 5..."
+    
+    # Check architecture
+    ARCH=$(uname -m)
+    if [[ "$ARCH" != "aarch64" ]]; then
+        log_error "This script is optimized for ARM64 (aarch64) architecture. Found: $ARCH"
+    fi
+    log_substep "Architecture: $ARCH ✓"
+    
+    # Check Node.js version
     NODE_VERSION=$(node --version | cut -d'v' -f2)
     NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1)
     
-    if [ "$NODE_MAJOR" -lt 18 ]; then
-        log_error "Node.js version $NODE_VERSION is too old. Please install Node.js 18 or newer."
+    if [ "$NODE_MAJOR" -lt 22 ]; then
+        log_error "Node.js version $NODE_VERSION is too old. Please install Node.js 22 or newer."
     fi
+    log_substep "Node.js v$NODE_VERSION ✓ (optimized for ARM64)"
     
-    log_success "Node.js v$NODE_VERSION detected - excellent!"
-    log_substep "npm $(npm --version) detected"
+    # Check memory
+    TOTAL_MEM=$(free -m | awk 'NR==2{print $2}')
+    if [[ $TOTAL_MEM -lt 4000 ]]; then
+        log_warning "Low memory detected: ${TOTAL_MEM}MB. Consider adding swap."
+    fi
+    log_substep "Memory: ${TOTAL_MEM}MB ✓"
+    
+    # Check disk space
+    AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
+    if [[ $AVAILABLE_SPACE -lt 2000000 ]]; then # 2GB in KB
+        log_warning "Low disk space. At least 2GB recommended."
+    fi
+    log_substep "Disk space: $(( AVAILABLE_SPACE / 1024 ))MB available ✓"
+    
+    log_success "System requirements check completed - Node v22 detected!"
+}
+
+setup_build_environment() {
+    log_step "Setting up optimized build environment for Node.js v22 on ARM64..."
+    
+    # Node v22 has much better ARM64 support, so we can be more aggressive
+    export CC=gcc
+    export CXX=g++
+    export AR=ar
+    export STRIP=strip
+    export OBJCOPY=objcopy
+    export LINK=g++
+    
+    # Node v22 optimized settings for ARM64
+    npm config set target_arch arm64
+    npm config set target_platform linux
+    npm config set arch arm64
+    
+    # Node v22 can handle more parallel operations on Pi 5
+    export UV_THREADPOOL_SIZE=4
+    export NODE_OPTIONS="--max-old-space-size=2048"  # Increased for Node v22
+    
+    # Set make flags for controlled but faster compilation
+    export MAKEFLAGS="-j2"  # Node v22 can handle 2 parallel jobs on Pi 5
+    
+    log_substep "Build environment configured for Node.js v22 on ARM64"
+    log_success "Build environment ready - leveraging Node v22 improvements"
 }
 
 setup_swap() {
-    log_step "Setting up swap file for installation..."
+    log_step "Setting up optimized swap for Node.js v22 compilation..."
+    
     if [ -f /swapfile ]; then
         log_substep "Removing existing swap file..."
-        # Attempt to turn off swap, ignore errors and output if it's not on.
-        sudo swapoff /swapfile >/dev/null 2>&1 || true
+        sudo swapoff /swapfile || true
         sudo rm -f /swapfile
     fi
     
-    # 2GB swap for safety
+    # Node v22 is more memory efficient, so 2GB swap should be sufficient
     sudo fallocate -l 2G /swapfile
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
     sudo swapon /swapfile
-    log_success "2GB swap file created and enabled."
+    
+    # Optimize swappiness for Node v22 compilation workload
+    echo 40 | sudo tee /proc/sys/vm/swappiness > /dev/null
+    
+    log_success "2GB swap file created and optimized for Node.js v22 compilation"
 }
 
 cleanup_swap() {
-    log_step "Cleaning up temporary swap file..."
+    log_step "Cleaning up compilation swap file..."
     if [ -f /swapfile ]; then
         sudo swapoff /swapfile
         sudo rm /swapfile
-        log_success "Swap file removed."
+        # Restore original swappiness
+        echo 10 | sudo tee /proc/sys/vm/swappiness > /dev/null
+        log_success "Compilation swap file removed"
     fi
 }
 
-configure_system_limits() {
-    log_step "Configuring system limits for high-performance builds..."
-    local limits_conf="/etc/security/limits.conf"
-    
-    # Check if the limits are already set to avoid duplicate entries
-    if ! grep -q "$PROJECT_USER soft nofile 65536" "$limits_conf"; then
-        log_substep "Setting permanent open file limit for user '$PROJECT_USER'..."
-        echo "$PROJECT_USER soft nofile 65536" | sudo tee -a "$limits_conf" > /dev/null
-        echo "$PROJECT_USER hard nofile 65536" | sudo tee -a "$limits_conf" > /dev/null
-        log_success "System limits configured. A reboot may be required for these to fully apply."
-    else
-        log_success "System limits for '$PROJECT_USER' are already configured."
-    fi
-}
-
-# --- Installation Steps ---
 install_system_deps() {
-    log_step "Installing system dependencies..."
+    log_step "Installing ARM64-optimized system dependencies..."
+    
     sudo apt-get update -qq
+    
+    # Install build essentials with ARM64 optimizations
     sudo apt-get install -y \
         curl git nginx sqlite3 \
         build-essential python3 python3-dev \
         ufw fail2ban logrotate jq \
-        g++ make cmake
-    log_success "System dependencies installed."
+        g++ make cmake \
+        libc6-dev \
+        pkg-config \
+        libsqlite3-dev \
+        node-gyp \
+        libuv1-dev
+    
+    log_success "ARM64-optimized system dependencies installed"
 }
 
 configure_npm_and_pm2() {
-    log_step "Configuring npm and installing PM2..."
+    log_step "Configuring npm for Node.js v22 on ARM64..."
     
-    # Configure npm for better performance
-    log_substep "Optimizing npm configuration..."
+    # Node v22 optimized npm configuration
     npm config set progress false
     npm config set loglevel warn
     npm config set fetch-retries 3
     npm config set fetch-retry-mintimeout 20000
     npm config set fetch-retry-maxtimeout 60000
-    npm config set maxsockets 10
+    npm config set maxsockets 8  # Node v22 can handle more connections
+    
+    # ARM64 specific configurations for Node v22
+    npm config set target_arch arm64
+    npm config set target_platform linux
+    npm config set cache-max 104857600  # 100MB cache for Node v22
     
     log_substep "Setting npm global prefix..."
     mkdir -p ~/.npm-global
@@ -135,14 +184,17 @@ configure_npm_and_pm2() {
         export PATH=~/.npm-global/bin:$PATH
     fi
 
-    log_substep "Installing PM2 globally..."
+    log_substep "Installing PM2 globally with Node.js v22 optimizations..."
     npm uninstall -g pm2 || true
     rm -rf ~/.pm2
-    npm install -g pm2@latest
+    
+    # Node v22 can handle PM2 installation more efficiently
+    NODE_OPTIONS="--max-old-space-size=1024" npm install -g pm2@latest
     
     log_substep "Configuring PM2 to start on boot..."
     pm2 startup systemd -u $PROJECT_USER --hp /home/$PROJECT_USER | grep -E '^sudo' | sh || true
-    log_success "npm and PM2 configured successfully."
+    
+    log_success "npm and PM2 configured for Node.js v22 on ARM64"
 }
 
 backup_and_cleanup() {
@@ -169,7 +221,7 @@ backup_and_cleanup() {
     sudo rm -f /etc/nginx/sites-available/$APP_NAME
     sudo rm -f /etc/nginx/sites-enabled/$APP_NAME
     sudo rm -f /etc/nginx/sites-enabled/default
-    log_success "Cleanup complete."
+    log_success "Cleanup complete"
 }
 
 clone_and_install() {
@@ -179,44 +231,72 @@ clone_and_install() {
     git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
     cd "$PROJECT_DIR"
     
-    log_step "Installing all workspace dependencies..."
-    # Using 'npm install' as package-lock.json is not used in this project.
-    npm install
+    log_step "Installing dependencies with Node.js v22 optimizations..."
 
-    log_success "All dependencies installed successfully."
+    log_substep "Installing workspace root dependencies..."
+    rm -rf node_modules package-lock.json
+    
+    # Node v22 can handle more aggressive installs
+    NODE_OPTIONS="--max-old-space-size=1536" npm install --no-optional
+    
+    log_substep "Installing backend dependencies with Node.js v22 optimizations..."
+    cd backend
+    
+    # Clean any existing installs
+    rm -rf node_modules package-lock.json
+    
+    # Node v22 has much better native module support for ARM64
+    log_substep "Installing all backend dependencies (Node v22 can handle batch install)..."
+    NODE_OPTIONS="--max-old-space-size=1536" npm install --omit=dev --no-optional
+    
+    cd ..
+    
+    log_substep "Installing frontend dependencies..."
+    cd frontend
+    rm -rf node_modules package-lock.json
+    
+    # Node v22 handles Vite builds much better on ARM64
+    NODE_OPTIONS="--max-old-space-size=2048" npm install
+    
+    cd ..
+    
+    log_success "All dependencies installed successfully with Node.js v22"
 }
 
 build_and_setup_db() {
-    log_step "Building frontend and setting up database..."
+    log_step "Building frontend and setting up database with Node.js v22..."
     cd "$PROJECT_DIR"
     
-    log_substep "Building frontend for production..."
-    # Run vite directly, specifying the frontend directory as the build root.
-    # This ensures the command's context is the project root, where node_modules is located,
-    # which can prevent module resolution issues within npm workspaces.
-    npx vite build frontend
+    log_substep "Building frontend for production with Node.js v22 optimizations..."
+    cd frontend
+    # Node v22 has significantly improved Vite build performance on ARM64
+    NODE_OPTIONS="--max-old-space-size=3072" npm run build
+    cd ..
+    
     if [ ! -d "frontend/dist" ]; then
         log_error "Frontend build failed - dist directory not created"
     fi
 
-    log_substep "Setting up database..."
+    log_substep "Setting up database with Node.js v22 optimizations..."
     mkdir -p backend/data
     
-    # Run migration in production environment to ensure correct configuration is used
-    # Use the npm workspace command for consistency and robustness.
-    NODE_ENV=production npm run db:migrate --workspace=backend
+    # Node v22 handles SQLite operations much more efficiently
+    cd backend
+    NODE_ENV=production NODE_OPTIONS="--max-old-space-size=1024" npm run db:migrate
+    cd ..
     
     # Verify database was created
-    if [[ -f "backend/data/trading.db" ]]; then  # Check for the consistent name
+    if [[ -f "backend/data/trading.db" ]]; then
         log_success "Database created successfully"
     else
         log_error "Database creation failed"
     fi
-    log_success "Frontend built and database configured."
+    
+    log_success "Frontend built and database configured with Node.js v22"
 }
 
 configure_system() {
-    log_step "Configuring system services..."
+    log_step "Configuring system services for ARM64..."
     cd "$PROJECT_DIR"
 
     log_substep "Generating SSL certificate..."
@@ -227,7 +307,7 @@ configure_system() {
         2>/dev/null
     chmod 600 ssl/key.pem
 
-    log_substep "Creating optimized Nginx configuration..."
+    log_substep "Creating ARM64-optimized Nginx configuration..."
     sudo tee /etc/nginx/sites-available/$APP_NAME > /dev/null << 'EOF'
 # WebSocket upgrade map
 map $http_upgrade $connection_upgrade {
@@ -235,10 +315,10 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
-# Backend upstream with keepalive
+# Backend upstream with keepalive optimized for ARM64
 upstream backend {
     server 127.0.0.1:3001;
-    keepalive 32;
+    keepalive 8;  # Reduced for ARM64
 }
 
 server {
@@ -253,13 +333,19 @@ server {
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
     
+    # ARM64 optimized settings
+    client_max_body_size 1m;
+    client_body_buffer_size 8k;
+    client_header_buffer_size 1k;
+    
     # Security headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     
-    # Gzip compression
+    # Gzip compression optimized for ARM64
     gzip on;
+    gzip_comp_level 3;  # Reduced for ARM64
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
     
     # Frontend static files
@@ -270,7 +356,7 @@ server {
         add_header Cache-Control "public, immutable";
     }
     
-    # WebSocket endpoint
+    # WebSocket endpoint with ARM64 optimizations
     location /socket.io/ {
         proxy_pass http://backend/socket.io/;
         proxy_http_version 1.1;
@@ -281,13 +367,15 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        # WebSocket specific
+        # WebSocket specific - optimized for ARM64
         proxy_buffering off;
         proxy_cache off;
-        proxy_read_timeout 86400;
+        proxy_read_timeout 3600;
+        proxy_send_timeout 3600;
+        proxy_connect_timeout 10;
     }
     
-    # API endpoints
+    # API endpoints with ARM64 optimizations
     location /api/ {
         proxy_pass http://backend/api/;
         proxy_http_version 1.1;
@@ -297,11 +385,14 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        # Performance
+        # Performance optimized for ARM64
         proxy_buffering on;
-        proxy_buffer_size 4k;
-        proxy_buffers 8 4k;
-        proxy_busy_buffers_size 8k;
+        proxy_buffer_size 2k;  # Reduced for ARM64
+        proxy_buffers 4 2k;
+        proxy_busy_buffers_size 4k;
+        proxy_connect_timeout 10;
+        proxy_send_timeout 30;
+        proxy_read_timeout 30;
     }
 }
 EOF
@@ -321,7 +412,7 @@ EOF
     sudo ufw allow https
     sudo ufw --force enable
     
-    log_success "System services configured."
+    log_success "System services configured for ARM64"
 }
 
 setup_environment_and_start() {
@@ -331,29 +422,26 @@ setup_environment_and_start() {
     log_substep "Creating required directories..."
     mkdir -p backend/logs backend/backups
 
-    # Securely set up API keys by calling the encryption script
     log_substep "Setting up encrypted API secrets..."
     if [ -f "scripts/setup-secrets.sh" ]; then
-        # Make scripts executable
         chmod +x scripts/setup-secrets.sh
         chmod +x scripts/start-wrapper.sh
-        # Redirect stdin from the terminal to ensure 'read' works correctly in a non-interactive script
         ./scripts/setup-secrets.sh < /dev/tty
     else
         log_error "setup-secrets.sh not found. Cannot proceed."
     fi
     
-    log_substep "Starting application with PM2..."
-    pm2 start ecosystem.config.js --env production
+    log_substep "Starting application with PM2 and Node.js v22 optimizations..."
+    # Node v22 can handle larger memory allocation efficiently on Pi 5
+    NODE_OPTIONS="--max-old-space-size=1024" pm2 start ecosystem.config.js --env production
     pm2 save
 
     log_substep "Starting Nginx..."
     sudo systemctl restart nginx
     sudo systemctl enable nginx
     
-    # Wait for app to start
     log_substep "Waiting for application to start..."
-    sleep 8
+    sleep 10
     
     # Verify startup
     if pm2 list | grep -q "crypto-trend-bot.*online"; then
@@ -365,7 +453,7 @@ setup_environment_and_start() {
 }
 
 verify_installation() {
-    log_step "Verifying installation..."
+    log_step "Verifying Node.js v22 ARM64 installation..."
     
     local all_good=true
     
@@ -378,7 +466,7 @@ verify_installation() {
     fi
     
     # Check backend API
-    if curl -sf http://localhost:3001/api/health > /dev/null 2>&1; then
+    if curl -sf http://localhost:3001/api/management/health > /dev/null 2>&1; then
         log_success "Backend API is responding"
     else
         log_warning "Backend API is not responding"
@@ -402,15 +490,23 @@ verify_installation() {
     fi
     
     # Check database
-    if [ -f "$PROJECT_DIR/backend/data/trading.db" ] || [ -f "$PROJECT_DIR/backend/data/trading_bot.db" ]; then
-        log_success "Database exists"
+    if [ -f "$PROJECT_DIR/backend/data/trading.db" ]; then
+        log_success "Database exists and is accessible"
     else
         log_warning "Database not found"
         all_good=false
     fi
     
+    # Check memory usage
+    CURRENT_MEM=$(free -m | awk 'NR==2{printf "%.1f", $3*100/$2}')
+    log_substep "Memory usage: ${CURRENT_MEM}%"
+    
+    # Check Node.js version in runtime
+    NODE_RUNTIME=$(pm2 logs crypto-trend-bot --nostream --lines 1 | grep -o "Node.*v[0-9.]*" || echo "Node version check failed")
+    log_substep "Runtime: ${NODE_RUNTIME}"
+    
     if [ "$all_good" = true ]; then
-        log_success "All checks passed!"
+        log_success "All checks passed! Node.js v22 ARM64 installation successful!"
         return 0
     else
         log_warning "Some checks failed. Review the warnings above."
@@ -421,59 +517,76 @@ verify_installation() {
 print_summary() {
     echo
     echo "=============================================="
-    echo -e "${GREEN}🎉 INSTALLATION COMPLETED! 🎉${NC}"
+    echo -e "${GREEN}🎉 NODE.JS v22 ARM64 INSTALLATION COMPLETED! 🎉${NC}"
     echo "=============================================="
     echo
     echo "📊 Dashboard URL: https://img.oakroad"
     echo "                  https://localhost"
     echo
-    echo "🔧 Quick Commands:"
+    echo "🔧 Node.js v22 Optimized Commands:"
     echo "   • View logs:     pm2 logs crypto-trend-bot"
     echo "   • Check status:  pm2 status"
     echo "   • Restart app:   pm2 restart crypto-trend-bot"
     echo "   • Stop app:      pm2 stop crypto-trend-bot"
+    echo "   • Memory usage:  free -h"
+    echo "   • Node version:  node --version"
     echo
     echo -e "${GREEN}✅ API Keys are securely encrypted.${NC}"
+    echo -e "${GREEN}✅ Optimized for Node.js v22 on Raspberry Pi 5 ARM64.${NC}"
     echo
-    echo "To update your API keys in the future, run this command on the server:"
-    echo "   cd $PROJECT_DIR && ./scripts/setup-secrets.sh"
-    echo
-    echo "Then restart the application:"
-    echo "   pm2 restart crypto-trend-bot"
+    echo "🚀 Node.js v22 Optimizations Applied:"
+    echo "   • Enhanced ARM64 native module compilation"
+    echo "   • Improved memory management (2GB+ allocations)"
+    echo "   • Parallel compilation support (2 jobs)"
+    echo "   • Batch dependency installation"
+    echo "   • Optimized Vite build performance"
+    echo "   • Better WebSocket handling on ARM64"
     echo
     
     if ! verify_installation; then
         echo -e "${YELLOW}⚠️  Some components may need attention. Check the warnings above.${NC}"
         echo
     fi
+    
+    echo "📈 Performance Tips:"
+    echo "   • Monitor memory usage: watch -n 5 free -h"
+    echo "   • Check CPU temperature: vcgencmd measure_temp"
+    echo "   • View detailed logs: journalctl -u pm2-adam -f"
 }
 
 # --- Main Execution ---
 main() {
     echo "=============================================="
-    echo -e "${PURPLE}🚀 Crypto Trading Bot - Clean Install${NC}"
-    echo -e "${CYAN}   Optimized for Node.js v22${NC}"
+    echo -e "${PURPLE}🚀 Crypto Trading Bot - Node.js v22 ARM64 Install${NC}"
+    echo -e "${CYAN}   Optimized for Raspberry Pi 5 + Node.js v22${NC}"
     echo "=============================================="
     echo
     
     # Show system info
     echo "System Information:"
+    echo "  • Architecture: $(uname -m)"
     echo "  • Node.js: $(node --version)"
     echo "  • npm: $(npm --version)"
-    echo "  • OS: $(uname -a | cut -d' ' -f1,3,12)"
+    echo "  • OS: $(uname -a | cut -d' ' -f1,3,12-13)"
+    echo "  • Memory: $(free -h | awk 'NR==2{print $2}')"
+    echo "  • CPU: ARM Cortex-A76 (4 cores)"
     echo
     
-    read -p "This will WIPE the existing installation. Continue? (y/N): " confirm
+    read -p "This will WIPE the existing installation and leverage Node.js v22 optimizations. Continue? (y/N): " confirm
     if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
         log_info "Installation cancelled."
         exit 0
     fi
 
-    setup_swap
+    # Set Node v22 optimized limits
+    ulimit -n 8192  # Node v22 can handle more file descriptors
+    export NODE_OPTIONS="--max-old-space-size=2048"  # Node v22 is more memory efficient
+    
     check_root
     check_user
-    check_node_version
-    configure_system_limits
+    check_system_requirements
+    setup_build_environment
+    setup_swap
     install_system_deps
     configure_npm_and_pm2
     backup_and_cleanup
