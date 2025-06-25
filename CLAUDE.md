@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 CRITICAL DEPLOYMENT WARNING 🚨
+
+**DO NOT MODIFY THE CLEAN-INSTALL.SH SCRIPT WITHOUT EXTREME CAUTION**
+
+The current `clean-install.sh` script has been battle-tested and successfully deploys on Raspberry Pi 5 with Node.js v22.16.0. Any changes to the deployment process should be thoroughly tested as previous attempts resulted in hanging installations due to ARM64 native module compilation issues.
+
 ## Development Commands
 
 ### Full Stack Development
@@ -84,6 +90,84 @@ Uses SQLite with two main tables:
 
 The system emits events for: price updates, signal generation, trade execution, portfolio changes, and system status updates.
 
+## Production Deployment (Raspberry Pi 5)
+
+### Hardware Requirements
+
+-   **Device**: Raspberry Pi 5 Model B (4GB+ RAM recommended)
+-   **OS**: Debian GNU/Linux (64-bit ARM)
+-   **Architecture**: aarch64 (ARM64)
+-   **Node.js**: v22.16.0 (CRITICAL - do not use older versions)
+-   **Memory**: 8GB+ recommended for compilation
+
+### Deployment Process
+
+**IMPORTANT**: The deployment script has been optimized for Node.js v22 on ARM64 and should NOT be modified without extensive testing.
+
+1. **Prerequisites Check**:
+
+    ```bash
+    node --version  # Must be v22.16.0+
+    uname -m        # Must be aarch64
+    free -h         # Check available memory
+    ```
+
+2. **Run Deployment**:
+
+    ```bash
+    chmod +x clean-install.sh
+    ./clean-install.sh
+    ```
+
+3. **Key Deployment Features**:
+    - Uses workspace scripts (`npm run install:backend`, `npm run build:frontend`)
+    - Skips root dependency installation (only concurrently dev dependency)
+    - Handles ARM64 native module compilation gracefully
+    - Creates temporary swap for compilation
+    - Installs Rollup ARM64 binary explicitly for Vite builds
+    - Increases file descriptor limits for Material-UI icon compilation
+
+### Known Issues & Solutions
+
+#### 1. WebSocket Connection Failures
+
+**Symptom**: Backend crashes with "WebSocket functionality not available"
+**Solution**: The BinanceDataService should gracefully fall back to HTTP polling when WebSocket initialization fails.
+
+#### 2. Frontend WebSocket Connection Errors
+
+**Symptom**: Frontend shows "WebSocket connection failed" in console
+**Cause**: Backend crashed, no Socket.IO server running
+**Solution**: Fix backend WebSocket initialization or implement proper error handling
+
+#### 3. ARM64 Compilation Issues
+
+**Symptom**: npm install hangs at "npm rebuild"
+**Solution**: Already handled in deployment script with `--ignore-scripts` flag
+
+#### 4. File Descriptor Limits
+
+**Symptom**: "EMFILE: too many open files" during Vite build
+**Solution**: Already handled with `ulimit -n 65536` in deployment script
+
+### Post-Deployment Verification
+
+```bash
+# Check application status
+pm2 status
+pm2 logs crypto-trend-bot
+
+# Check API health
+curl http://localhost:3001/api/management/health
+
+# Check frontend
+curl https://img.oakroad
+
+# Monitor system resources
+free -h
+vcgencmd measure_temp
+```
+
 ## Environment Configuration
 
 ### Required Environment Variables
@@ -165,3 +249,82 @@ Uses `ecosystem.config.js` with the app name `crypto-trend-bot`. It is configure
 -   No comprehensive test suite currently implemented
 -   Manual testing via dashboard and API endpoints
 -   Deployment validation through `deploy-check.sh` script
+
+## Troubleshooting
+
+### Backend Issues
+
+-   **API Key Errors (`Invalid API-key...`)**:
+
+    -   Ensure `BINANCE_API_KEY` and `BINANCE_API_SECRET` are correct
+    -   In Binance API settings, ensure "Enable Reading" permissions
+    -   Check IP restrictions and whitelist server IP
+
+-   **WebSocket Connection Fails**:
+
+    -   Check if `node-binance-api` WebSocket functionality is properly initialized
+    -   Consider implementing fallback to HTTP polling
+    -   Verify network connectivity and firewall settings
+
+-   **Database Errors**:
+    -   Check SQLite file permissions
+    -   Verify database migrations have run
+    -   Check disk space availability
+
+### Frontend Issues
+
+-   **Build Failures**:
+
+    -   Ensure Node.js v22+ is being used
+    -   Check file descriptor limits (`ulimit -n`)
+    -   Verify all Rollup dependencies are installed
+
+-   **WebSocket Connection Errors**:
+    -   Verify backend is running and healthy
+    -   Check nginx proxy configuration
+    -   Ensure Socket.IO server is properly initialized
+
+### Production Deployment Issues
+
+-   **Installation Hangs**:
+
+    -   DO NOT modify the working deployment script
+    -   Check available memory and swap
+    -   Verify Node.js version is v22.16.0+
+
+-   **PM2 Process Crashes**:
+    -   Check logs: `pm2 logs crypto-trend-bot`
+    -   Verify environment variables are set
+    -   Check system resources and file limits
+
+## Current Status (as of latest deployment)
+
+### ✅ Working Components
+
+-   Node.js v22.16.0 deployment on Raspberry Pi 5
+-   ARM64 native module compilation
+-   Frontend build and serving via nginx
+-   Database initialization and migrations
+-   PM2 process management setup
+-   API key encryption and storage
+
+### ⚠️ Known Issues
+
+-   Backend WebSocket initialization failing
+-   Frontend unable to connect to Socket.IO server
+-   BinanceDataService needs WebSocket fallback implementation
+
+### 🔧 Next Steps
+
+1. Fix WebSocket initialization in BinanceDataService
+2. Implement HTTP polling fallback for price data
+3. Test real-time data flow between frontend and backend
+4. Verify trading signal generation and paper trading functionality
+
+## Important Notes for Future Development
+
+1. **DO NOT** modify the deployment script without extensive testing on ARM64
+2. **ALWAYS** test WebSocket functionality changes in isolation
+3. **VERIFY** that any dependency updates work on Node.js v22 + ARM64
+4. **MAINTAIN** the current workspace structure and build process
+5. **DOCUMENT** any changes to the production configuration thoroughly
