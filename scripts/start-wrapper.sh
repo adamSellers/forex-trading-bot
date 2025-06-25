@@ -18,8 +18,8 @@ if [ -f "$ENCRYPTION_KEY_FILE" ] && [ -f "$API_KEY_FILE" ] && [ -f "$API_SECRET_
     ENCRYPTION_KEY=$(cat "$ENCRYPTION_KEY_FILE")
 
     # Decrypt the API key and secret and export them as environment variables
-    export BINANCE_API_KEY=$(openssl enc -d -aes-256-cbc -salt -k "$ENCRYPTION_KEY" -in "$API_KEY_FILE" 2>/dev/null)
-    export BINANCE_API_SECRET=$(openssl enc -d -aes-256-cbc -salt -k "$ENCRYPTION_KEY" -in "$API_SECRET_FILE" 2>/dev/null)
+    export BINANCE_API_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$API_KEY_FILE" 2>/dev/null)
+    export BINANCE_API_SECRET=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$API_SECRET_FILE" 2>/dev/null)
 
     echo "✅ Secrets decrypted and loaded into environment." >&2
 fi
