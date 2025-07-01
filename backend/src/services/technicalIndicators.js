@@ -1,4 +1,4 @@
-// backend/src/services/technicalIndicators.js
+// backend/src/services/technicalIndicators.js - FIXED VERSION
 
 class TechnicalIndicators {
     constructor() {
@@ -93,7 +93,7 @@ class TechnicalIndicators {
             return { error: "No candle data provided" };
         }
 
-        const closePrices = candles.map((c) => c.close);
+        const closePrices = candles.map((c) => parseFloat(c.close));
         const results = {
             timestamp: Date.now(),
             candleCount: candles.length,
@@ -125,6 +125,29 @@ class TechnicalIndicators {
             // Additional useful indicators
             results.indicators.sma10 = this.calculateSMA(closePrices, 10);
             results.indicators.ema9 = this.calculateEMA(closePrices, 9);
+
+            // DEBUG: Log calculated values for debugging
+            if (config.strategy === "balanced") {
+                const ema20 = results.indicators.ema20;
+                const ema50 = results.indicators.ema50;
+                if (ema20.length > 0 && ema50.length > 0) {
+                    console.log(
+                        `🔍 DEBUG EMA20 latest: ${ema20[
+                            ema20.length - 1
+                        ].toFixed(2)}`
+                    );
+                    console.log(
+                        `🔍 DEBUG EMA50 latest: ${ema50[
+                            ema50.length - 1
+                        ].toFixed(2)}`
+                    );
+                    console.log(
+                        `🔍 DEBUG Divergence: ${(
+                            ema20[ema20.length - 1] - ema50[ema50.length - 1]
+                        ).toFixed(2)}`
+                    );
+                }
+            }
         } catch (error) {
             console.error("Error calculating indicators:", error);
             results.error = error.message;
@@ -134,24 +157,7 @@ class TechnicalIndicators {
     }
 
     /**
-     * Get current indicator values (latest values from arrays)
-     * @param {Object} indicators - Indicators object from calculateAllIndicators
-     * @returns {Object} Current values of all indicators
-     */
-    getCurrentValues(indicators) {
-        const current = {};
-
-        for (const [key, values] of Object.entries(indicators)) {
-            if (Array.isArray(values) && values.length > 0) {
-                current[key] = values[values.length - 1];
-            }
-        }
-
-        return current;
-    }
-
-    /**
-     * Calculate Moving Average Crossover signals
+     * FIXED: Calculate Moving Average Crossover signals
      * @param {Array} fastMA - Fast moving average values
      * @param {Array} slowMA - Slow moving average values
      * @param {number} lookback - Number of periods to look back for confirmation
@@ -160,16 +166,16 @@ class TechnicalIndicators {
     calculateMACrossover(fastMA, slowMA, lookback = 1) {
         if (!fastMA || !slowMA || fastMA.length < 2 || slowMA.length < 2) {
             return {
-                signal: "NONE",
+                signal: "INSUFFICIENT_DATA",
                 strength: 0,
-                message: "Insufficient data",
+                message: "Insufficient MA data",
             };
         }
 
         const minLength = Math.min(fastMA.length, slowMA.length);
         if (minLength < lookback + 1) {
             return {
-                signal: "NONE",
+                signal: "INSUFFICIENT_DATA",
                 strength: 0,
                 message: "Insufficient lookback data",
             };
@@ -180,58 +186,113 @@ class TechnicalIndicators {
         const prevFast = fastMA[minLength - 2];
         const prevSlow = slowMA[minLength - 2];
 
+        // CRITICAL FIX: Ensure we have valid numbers
+        if (
+            isNaN(currentFast) ||
+            isNaN(currentSlow) ||
+            isNaN(prevFast) ||
+            isNaN(prevSlow)
+        ) {
+            console.error("❌ NaN values in MA crossover:", {
+                currentFast,
+                currentSlow,
+                prevFast,
+                prevSlow,
+            });
+            return {
+                signal: "ERROR",
+                strength: 0,
+                message: "Invalid MA values (NaN detected)",
+            };
+        }
+
         let signal = "HOLD";
         let strength = 0;
         let message = "";
 
+        // Calculate percentage divergence (FIXED calculation)
+        const currentDivergence = currentFast - currentSlow;
+        const divergencePercent =
+            Math.abs(currentDivergence / currentSlow) * 100;
+
+        // DEBUGGING: Log the actual values
+        console.log(
+            `🔍 MA Debug: Fast=${currentFast.toFixed(
+                2
+            )}, Slow=${currentSlow.toFixed(2)}, Div=${currentDivergence.toFixed(
+                2
+            )} (${divergencePercent.toFixed(3)}%)`
+        );
+
+        // IMPROVED: More sensitive crossover detection
+        const crossoverThreshold = 0.0001; // 0.01% threshold
+
         // Golden Cross: Fast MA crosses above Slow MA
-        if (prevFast <= prevSlow && currentFast > currentSlow) {
+        if (
+            prevFast <= prevSlow * (1 + crossoverThreshold) &&
+            currentFast > currentSlow * (1 + crossoverThreshold)
+        ) {
             signal = "BUY";
-            strength =
-                (Math.abs(currentFast - currentSlow) / currentSlow) * 100;
-            message = "Golden Cross detected - Fast MA crossed above Slow MA";
+            strength = Math.max(divergencePercent, 0.1); // Minimum 0.1 strength
+            message = "Golden Cross - Fast MA crossed above Slow MA";
+            console.log(
+                `🟢 GOLDEN CROSS DETECTED: ${strength.toFixed(2)} strength`
+            );
         }
         // Death Cross: Fast MA crosses below Slow MA
-        else if (prevFast >= prevSlow && currentFast < currentSlow) {
+        else if (
+            prevFast >= prevSlow * (1 - crossoverThreshold) &&
+            currentFast < currentSlow * (1 - crossoverThreshold)
+        ) {
             signal = "SELL";
-            strength =
-                (Math.abs(currentFast - currentSlow) / currentSlow) * 100;
-            message = "Death Cross detected - Fast MA crossed below Slow MA";
+            strength = Math.max(divergencePercent, 0.1); // Minimum 0.1 strength
+            message = "Death Cross - Fast MA crossed below Slow MA";
+            console.log(
+                `🔴 DEATH CROSS DETECTED: ${strength.toFixed(2)} strength`
+            );
         }
-        // Trending signals
+        // FIXED: More aggressive trend following with lower thresholds
         else if (currentFast > currentSlow) {
-            const divergence =
-                ((currentFast - currentSlow) / currentSlow) * 100;
-            if (divergence > 2) {
+            if (divergencePercent > 0.5) {
+                // Reduced from 2% to 0.5%
                 signal = "STRONG_BUY";
-                strength = divergence;
+                strength = Math.min(divergencePercent, 10);
                 message = "Strong uptrend - Fast MA well above Slow MA";
-            } else {
-                signal = "WEAK_BUY";
-                strength = divergence;
-                message = "Weak uptrend - Fast MA above Slow MA";
+            } else if (divergencePercent > 0.1) {
+                // Reduced from 0.2% to 0.1%
+                signal = "BUY";
+                strength = Math.max(divergencePercent * 2, 0.2); // Amplify weak signals
+                message = "Uptrend - Fast MA above Slow MA";
             }
         } else if (currentFast < currentSlow) {
-            const divergence =
-                ((currentSlow - currentFast) / currentSlow) * 100;
-            if (divergence > 2) {
+            if (divergencePercent > 0.5) {
+                // Reduced from 2% to 0.5%
                 signal = "STRONG_SELL";
-                strength = divergence;
+                strength = Math.min(divergencePercent, 10);
                 message = "Strong downtrend - Fast MA well below Slow MA";
-            } else {
-                signal = "WEAK_SELL";
-                strength = divergence;
-                message = "Weak downtrend - Fast MA below Slow MA";
+            } else if (divergencePercent > 0.1) {
+                // Reduced from 0.2% to 0.1%
+                signal = "SELL";
+                strength = Math.max(divergencePercent * 2, 0.2); // Amplify weak signals
+                message = "Downtrend - Fast MA below Slow MA";
             }
         }
 
+        // FINAL DEBUG LOG
+        console.log(
+            `📊 Signal Result: ${signal} (${strength.toFixed(
+                3
+            )} strength) - ${message}`
+        );
+
         return {
             signal,
-            strength: Math.round(strength * 100) / 100,
+            strength: Math.round(strength * 1000) / 1000, // 3 decimal places
             message,
             currentFast: Math.round(currentFast * 100) / 100,
             currentSlow: Math.round(currentSlow * 100) / 100,
-            divergence: Math.round((currentFast - currentSlow) * 100) / 100,
+            divergence: Math.round(currentDivergence * 100) / 100,
+            divergencePercent: Math.round(divergencePercent * 1000) / 1000,
         };
     }
 
@@ -261,7 +322,7 @@ class TechnicalIndicators {
     }
 
     /**
-     * Analyze trend strength and direction
+     * FIXED: Analyze trend strength and direction
      * @param {Object} indicators - Calculated indicators
      * @param {Array} prices - Recent price data
      * @returns {Object} Trend analysis
@@ -272,7 +333,7 @@ class TechnicalIndicators {
         }
 
         const current = this.getCurrentValues(indicators);
-        const recentPrices = prices.slice(-10);
+        const recentPrices = prices.slice(-20); // Increased from 10 to 20 for better trend analysis
         const priceChange =
             ((recentPrices[recentPrices.length - 1] - recentPrices[0]) /
                 recentPrices[0]) *
@@ -282,28 +343,32 @@ class TechnicalIndicators {
         let strength = 0;
         let confidence = 0;
 
-        // Analyze price momentum
-        if (priceChange > 2) {
+        // FIXED: More sensitive trend detection
+        if (priceChange > 0.5) {
+            // Reduced from 2% to 0.5%
             trend = "UPTREND";
-            strength = Math.min(priceChange, 10);
-        } else if (priceChange < -2) {
+            strength = Math.min(Math.abs(priceChange), 10);
+        } else if (priceChange < -0.5) {
+            // Reduced from -2% to -0.5%
             trend = "DOWNTREND";
             strength = Math.min(Math.abs(priceChange), 10);
         }
 
         // Analyze MA alignment for confirmation
         let maAlignment = 0;
-        if (current.ema12 && current.ema26 && current.ema50) {
-            if (
-                current.ema12 > current.ema26 &&
-                current.ema26 > current.ema50
-            ) {
+        if (current.ema20 && current.ema50) {
+            // Use available EMAs
+            if (current.ema20 > current.ema50) {
                 maAlignment = 1; // Bullish alignment
-            } else if (
-                current.ema12 < current.ema26 &&
-                current.ema26 < current.ema50
-            ) {
+            } else if (current.ema20 < current.ema50) {
                 maAlignment = -1; // Bearish alignment
+            }
+        } else if (current.sma50 && current.sma200) {
+            // Fallback to SMAs
+            if (current.sma50 > current.sma200) {
+                maAlignment = 1;
+            } else if (current.sma50 < current.sma200) {
+                maAlignment = -1;
             }
         }
 
@@ -331,6 +396,23 @@ class TechnicalIndicators {
                     ? "BEARISH"
                     : "NEUTRAL",
         };
+    }
+
+    /**
+     * Get current indicator values (latest values from arrays)
+     * @param {Object} indicators - Indicators object from calculateAllIndicators
+     * @returns {Object} Current values of all indicators
+     */
+    getCurrentValues(indicators) {
+        const current = {};
+
+        for (const [key, values] of Object.entries(indicators)) {
+            if (Array.isArray(values) && values.length > 0) {
+                current[key] = values[values.length - 1];
+            }
+        }
+
+        return current;
     }
 
     /**
