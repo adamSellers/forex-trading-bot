@@ -2,6 +2,9 @@
 const express = require("express");
 const router = express.Router();
 
+// CRYPTO TRADING CONSTANTS - FIXED FOR 365 DAYS
+const CRYPTO_TRADING_DAYS_PER_YEAR = 365; // Crypto trades 24/7/365
+
 module.exports = (tradingController) => {
     // GET /api/trading/status - Get system status
     router.get("/status", async (req, res) => {
@@ -472,6 +475,12 @@ module.exports = (tradingController) => {
                 bestTrade: getBestTrade(trades),
                 worstTrade: getWorstTrade(trades),
                 tradingFrequency: calculateTradingFrequency(trades),
+
+                // Metadata about the calculation
+                calculationNotes: {
+                    tradingDaysPerYear: CRYPTO_TRADING_DAYS_PER_YEAR,
+                    note: "Crypto markets trade 365 days/year, 24/7",
+                },
             };
 
             res.json(performance);
@@ -564,31 +573,31 @@ module.exports = (tradingController) => {
         return sellTrades.map((t) => t.pnlPercent || 0);
     }
 
+    // FIXED: Crypto Sharpe Ratio calculation (365 days)
     function calculateSharpeRatio(returns) {
         if (returns.length < 2) return 0;
-
         const avgReturn =
             returns.reduce((sum, r) => sum + r, 0) / returns.length;
         const variance =
             returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
             (returns.length - 1);
         const stdDev = Math.sqrt(variance);
-
-        // FIXED: Crypto markets trade 365 days/year, not 252 (stock markets)
-        return stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(365);
+        // FIXED: Use 365 days for crypto markets, not 252
+        return stdDev === 0
+            ? 0
+            : (avgReturn / stdDev) * Math.sqrt(CRYPTO_TRADING_DAYS_PER_YEAR);
     }
 
+    // FIXED: Crypto Volatility calculation (365 days)
     function calculateVolatility(returns) {
         if (returns.length < 2) return 0;
-
         const avgReturn =
             returns.reduce((sum, r) => sum + r, 0) / returns.length;
         const variance =
             returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
             (returns.length - 1);
-
-        // FIXED: Annualize using 365 days for crypto
-        return Math.sqrt(variance) * Math.sqrt(365);
+        // FIXED: Use 365 days for crypto markets, not 252
+        return Math.sqrt(variance) * Math.sqrt(CRYPTO_TRADING_DAYS_PER_YEAR);
     }
 
     function calculateAvgHoldingPeriod(trades) {

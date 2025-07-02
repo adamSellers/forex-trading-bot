@@ -24,6 +24,13 @@ else
     echo "⚠️ Warning: deploy-check.sh not found. Skipping checks."
 fi
 
+# 1.5. Create backup before deployment
+echo "📦 Creating backup before deployment..."
+sshpass -p "${PI_PASSWORD}" ssh "${PI_USER}@${PI_HOST}" "
+    cd ${REMOTE_DIR}
+    ./scripts/backup.sh
+"
+
 # 2. Build the frontend for production
 echo "📦 Building React frontend..."
 npm run build:frontend
