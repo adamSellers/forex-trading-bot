@@ -1,5 +1,7 @@
-// backend/src/services/paperTradingEngine.js
+// backend/src/services/paperTradingEngine.js - COMPLETE WITH PERSISTENCE
 const EventEmitter = require("events");
+const db = require("../../config/database");
+const logger = require("../utils/logger");
 
 class PaperTradingEngine extends EventEmitter {
     constructor(config = {}) {
@@ -61,11 +63,269 @@ class PaperTradingEngine extends EventEmitter {
         };
 
         this.isActive = false;
-        console.log(
-            "📊 Paper Trading Engine initialized with " +
+        this.lastStateSave = 0;
+
+        logger.info(
+            "📊 Paper Trading Engine initialized with persistence - $" +
                 this.config.startingCapital +
                 " USDT"
         );
+    }
+
+    /**
+     * Initialize engine and load state from database
+     */
+    async initialize() {
+        try {
+            logger.info(
+                "🔄 Initializing Paper Trading Engine with persistence..."
+            );
+
+            // Load previous state from database
+            await this.loadStateFromDatabase();
+
+            // Load trade history
+            await this.loadTradeHistory();
+
+            // Recalculate performance metrics from trade history
+            this.recalculatePerformanceMetrics();
+
+            logger.success(
+                `✅ Paper Trading Engine loaded: $${this.portfolio.totalValue.toFixed(
+                    2
+                )} portfolio value`
+            );
+        } catch (error) {
+            logger.error("❌ Failed to load previous state:", error);
+            logger.info("🔄 Starting with fresh state...");
+
+            // Save initial fresh state
+            await this.saveStateToDatabase();
+        }
+    }
+
+    /**
+     * Load portfolio state from database
+     */
+    async loadStateFromDatabase() {
+        try {
+            // Get the latest portfolio snapshot
+            const latestPortfolio = await db("portfolio")
+                .orderBy("snapshot_time", "desc")
+                .first();
+
+            if (latestPortfolio) {
+                // Restore portfolio values
+                this.portfolio.usdtBalance =
+                    latestPortfolio.usdt_balance || this.config.startingCapital;
+                this.portfolio.totalValue =
+                    latestPortfolio.total_value || this.config.startingCapital;
+                this.portfolio.dailyPnL = latestPortfolio.daily_pnl || 0;
+                this.portfolio.weeklyPnL = latestPortfolio.weekly_pnl || 0;
+                this.portfolio.totalPnL = latestPortfolio.total_pnl || 0;
+
+                // Restore positions from JSON
+                if (latestPortfolio.positions) {
+                    try {
+                        const savedPositions = JSON.parse(
+                            latestPortfolio.positions
+                        );
+                        this.portfolio.positions = new Map();
+
+                        // Convert array back to Map and restore position objects
+                        savedPositions.forEach((pos) => {
+                            this.portfolio.positions.set(pos.symbol, {
+                                ...pos,
+                                entryTime: pos.entryTime || Date.now(),
+                                unrealizedPnL: 0, // Will be recalculated with current prices
+                            });
+                        });
+
+                        logger.info(
+                            `📍 Restored ${savedPositions.length} positions from database`
+                        );
+                    } catch (parseError) {
+                        logger.warn(
+                            "⚠️ Failed to parse saved positions:",
+                            parseError.message
+                        );
+                        this.portfolio.positions = new Map();
+                    }
+                }
+
+                // Check if we need to reset daily/weekly counters
+                this.checkAndResetCounters();
+
+                logger.success("✅ Portfolio state restored from database");
+            } else {
+                logger.info(
+                    "ℹ️ No previous portfolio state found, starting fresh"
+                );
+            }
+        } catch (error) {
+            logger.error("Error loading state from database:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Load trade history from database
+     */
+    async loadTradeHistory() {
+        try {
+            const dbTrades = await db("trades")
+                .orderBy("timestamp", "desc")
+                .limit(1000); // Load last 1000 trades
+
+            this.tradeHistory = dbTrades.map((trade) => ({
+                id: trade.trade_id,
+                symbol: trade.symbol,
+                side: trade.side,
+                quantity: trade.quantity,
+                price: trade.price,
+                usdtCost: trade.side === "BUY" ? trade.total_value : undefined,
+                usdtReceived:
+                    trade.side === "SELL" ? trade.total_value : undefined,
+                pnl: trade.pnl,
+                pnlPercent: trade.pnl_percent,
+                timestamp: new Date(trade.timestamp).getTime(),
+                signal: trade.signal,
+                signalStrength: trade.signal_strength,
+                stopLoss: trade.stop_loss,
+                entryCost: trade.entry_cost,
+                holdingPeriod: trade.holding_period,
+            }));
+
+            logger.info(
+                `📚 Loaded ${this.tradeHistory.length} trades from database`
+            );
+        } catch (error) {
+            logger.error("Error loading trade history:", error);
+            this.tradeHistory = [];
+        }
+    }
+
+    /**
+     * Save current state to database
+     */
+    async saveStateToDatabase() {
+        try {
+            // Convert positions Map to array for JSON storage
+            const positionsArray = Array.from(
+                this.portfolio.positions.values()
+            );
+
+            const portfolioData = {
+                total_value: this.portfolio.totalValue,
+                usdt_balance: this.portfolio.usdtBalance,
+                crypto_value:
+                    this.portfolio.totalValue - this.portfolio.usdtBalance,
+                total_pnl: this.portfolio.totalPnL,
+                daily_pnl: this.portfolio.dailyPnL,
+                weekly_pnl: this.portfolio.weeklyPnL,
+                positions: JSON.stringify(positionsArray),
+                position_count: this.portfolio.positions.size,
+                allocation_usdt_percent:
+                    this.portfolio.totalValue > 0
+                        ? (this.portfolio.usdtBalance /
+                              this.portfolio.totalValue) *
+                          100
+                        : 100,
+                allocation_crypto_percent:
+                    this.portfolio.totalValue > 0
+                        ? ((this.portfolio.totalValue -
+                              this.portfolio.usdtBalance) /
+                              this.portfolio.totalValue) *
+                          100
+                        : 0,
+                snapshot_time: new Date(),
+            };
+
+            await db("portfolio").insert(portfolioData);
+
+            // Clean up old snapshots (keep last 100)
+            const countResult = await db("portfolio")
+                .count("id as total")
+                .first();
+            if (countResult.total > 100) {
+                const cutoffSnapshot = await db("portfolio")
+                    .orderBy("snapshot_time", "desc")
+                    .limit(1)
+                    .offset(99)
+                    .first();
+
+                if (cutoffSnapshot) {
+                    await db("portfolio")
+                        .where(
+                            "snapshot_time",
+                            "<",
+                            cutoffSnapshot.snapshot_time
+                        )
+                        .del();
+                }
+            }
+
+            logger.debug("💾 Portfolio state saved to database");
+        } catch (error) {
+            logger.error("Error saving state to database:", error);
+            // Don't throw - continue operation even if save fails
+        }
+    }
+
+    /**
+     * Recalculate performance metrics from trade history
+     */
+    recalculatePerformanceMetrics() {
+        const sellTrades = this.tradeHistory.filter(
+            (t) => t.side === "SELL" && t.pnl !== undefined
+        );
+
+        if (sellTrades.length === 0) {
+            return;
+        }
+
+        this.performanceMetrics.totalTrades = sellTrades.length;
+        this.performanceMetrics.winningTrades = sellTrades.filter(
+            (t) => t.pnl > 0
+        ).length;
+        this.performanceMetrics.losingTrades = sellTrades.filter(
+            (t) => t.pnl <= 0
+        ).length;
+
+        this.performanceMetrics.winRate =
+            this.performanceMetrics.totalTrades > 0
+                ? (this.performanceMetrics.winningTrades /
+                      this.performanceMetrics.totalTrades) *
+                  100
+                : 0;
+
+        // Calculate average win/loss
+        const winningTrades = sellTrades.filter((t) => t.pnl > 0);
+        const losingTrades = sellTrades.filter((t) => t.pnl <= 0);
+
+        this.performanceMetrics.avgWin =
+            winningTrades.length > 0
+                ? winningTrades.reduce((sum, t) => sum + t.pnl, 0) /
+                  winningTrades.length
+                : 0;
+
+        this.performanceMetrics.avgLoss =
+            losingTrades.length > 0
+                ? Math.abs(
+                      losingTrades.reduce((sum, t) => sum + t.pnl, 0) /
+                          losingTrades.length
+                  )
+                : 0;
+
+        // Calculate profit factor
+        const grossProfit = winningTrades.reduce((sum, t) => sum + t.pnl, 0);
+        const grossLoss = Math.abs(
+            losingTrades.reduce((sum, t) => sum + t.pnl, 0)
+        );
+        this.performanceMetrics.profitFactor =
+            grossLoss > 0 ? grossProfit / grossLoss : 0;
+
+        logger.debug("📊 Performance metrics recalculated from trade history");
     }
 
     /**
@@ -135,7 +395,7 @@ class PaperTradingEngine extends EventEmitter {
                 signal,
             };
         } catch (error) {
-            console.error("Error processing signal:", error);
+            logger.error("Error processing signal:", error);
             return {
                 success: false,
                 reason: error.message,
@@ -220,7 +480,10 @@ class PaperTradingEngine extends EventEmitter {
             this.tradeHistory.push(trade);
             this.emit("tradeExecuted", trade);
 
-            console.log(
+            // Save state immediately after trade
+            await this.saveStateToDatabase();
+
+            logger.info(
                 `📈 BUY executed: ${quantity.toFixed(
                     8
                 )} ${symbol} at $${currentPrice} (Cost: ${usdtCost.toFixed(
@@ -235,7 +498,7 @@ class PaperTradingEngine extends EventEmitter {
                 position: this.portfolio.positions.get(symbol),
             };
         } catch (error) {
-            console.error("Error executing buy order:", error);
+            logger.error("Error executing buy order:", error);
             throw error;
         }
     }
@@ -281,7 +544,10 @@ class PaperTradingEngine extends EventEmitter {
             this.updatePerformanceMetrics(trade);
             this.emit("tradeExecuted", trade);
 
-            console.log(
+            // Save state immediately after trade
+            await this.saveStateToDatabase();
+
+            logger.info(
                 `📉 SELL executed: ${quantity.toFixed(
                     8
                 )} ${symbol} at $${currentPrice} (P&L: ${
@@ -299,7 +565,7 @@ class PaperTradingEngine extends EventEmitter {
                 },
             };
         } catch (error) {
-            console.error("Error executing sell order:", error);
+            logger.error("Error executing sell order:", error);
             throw error;
         }
     }
@@ -401,7 +667,7 @@ class PaperTradingEngine extends EventEmitter {
 
                 // Check stop loss
                 if (currentPrice <= position.stopLoss) {
-                    console.log(
+                    logger.warn(
                         `🛑 Stop loss triggered for ${symbol} at $${currentPrice}`
                     );
                     this.emit("stopLossTriggered", {
@@ -433,6 +699,13 @@ class PaperTradingEngine extends EventEmitter {
         this.checkRiskLimits();
 
         this.emit("portfolioUpdated", this.getPortfolioSummary());
+
+        // Save state periodically (every 5 minutes)
+        const now = Date.now();
+        if (!this.lastStateSave || now - this.lastStateSave > 5 * 60 * 1000) {
+            this.saveStateToDatabase();
+            this.lastStateSave = now;
+        }
     }
 
     /**
@@ -461,7 +734,7 @@ class PaperTradingEngine extends EventEmitter {
         this.riskLimits.haltReason = reason;
         this.config.enableTrading = false;
 
-        console.warn(`🚨 TRADING HALTED: ${reason}`);
+        logger.warn(`🚨 TRADING HALTED: ${reason}`);
         this.emit("tradingHalted", {
             reason,
             portfolio: this.getPortfolioSummary(),
@@ -476,7 +749,7 @@ class PaperTradingEngine extends EventEmitter {
         this.riskLimits.haltReason = null;
         this.config.enableTrading = true;
 
-        console.log("✅ Trading resumed");
+        logger.info("✅ Trading resumed");
         this.emit("tradingResumed");
     }
 
@@ -601,9 +874,15 @@ class PaperTradingEngine extends EventEmitter {
             },
             allocation: {
                 usdt:
-                    (this.portfolio.usdtBalance / this.portfolio.totalValue) *
-                    100,
-                crypto: (totalCryptoValue / this.portfolio.totalValue) * 100,
+                    this.portfolio.totalValue > 0
+                        ? (this.portfolio.usdtBalance /
+                              this.portfolio.totalValue) *
+                          100
+                        : 100,
+                crypto:
+                    this.portfolio.totalValue > 0
+                        ? (totalCryptoValue / this.portfolio.totalValue) * 100
+                        : 0,
             },
         };
 
@@ -634,71 +913,100 @@ class PaperTradingEngine extends EventEmitter {
     /**
      * Start the trading engine
      */
-    start() {
+    async start() {
+        // Initialize if not already done
+        if (!this.lastStateSave) {
+            await this.initialize();
+        }
+
         this.isActive = true;
-        console.log("🚀 Paper Trading Engine started");
+        logger.info("🚀 Paper Trading Engine started");
         this.emit("engineStarted");
+
+        // Save state on start
+        await this.saveStateToDatabase();
     }
 
     /**
      * Stop the trading engine
      */
-    stop() {
+    async stop() {
         this.isActive = false;
-        console.log("📴 Paper Trading Engine stopped");
+
+        // Save final state before stopping
+        await this.saveStateToDatabase();
+
+        logger.info("📴 Paper Trading Engine stopped");
         this.emit("engineStopped");
     }
 
     /**
      * Reset the trading engine with proper USDT initialization
      */
-    reset() {
-        this.portfolio = {
-            usdtBalance: this.config.startingCapital,
-            totalValue: this.config.startingCapital,
-            positions: new Map(),
-            dailyPnL: 0,
-            weeklyPnL: 0,
-            totalPnL: 0,
-            lastResetDate: new Date().toDateString(),
-            lastWeeklyReset: this.getWeekStart(new Date()),
-        };
+    async reset() {
+        try {
+            logger.info("🔄 Resetting Paper Trading Engine...");
 
-        this.tradeHistory = [];
-        this.performanceMetrics = {
-            totalTrades: 0,
-            winningTrades: 0,
-            losingTrades: 0,
-            winRate: 0,
-            avgWin: 0,
-            avgLoss: 0,
-            profitFactor: 0,
-            sharpeRatio: 0,
-            maxDrawdown: 0,
-            currentDrawdown: 0,
-        };
+            this.portfolio = {
+                usdtBalance: this.config.startingCapital,
+                totalValue: this.config.startingCapital,
+                positions: new Map(),
+                dailyPnL: 0,
+                weeklyPnL: 0,
+                totalPnL: 0,
+                lastResetDate: new Date().toDateString(),
+                lastWeeklyReset: this.getWeekStart(new Date()),
+            };
 
-        this.riskLimits.isHalted = false;
-        this.riskLimits.haltReason = null;
+            this.tradeHistory = [];
+            this.performanceMetrics = {
+                totalTrades: 0,
+                winningTrades: 0,
+                losingTrades: 0,
+                winRate: 0,
+                avgWin: 0,
+                avgLoss: 0,
+                profitFactor: 0,
+                sharpeRatio: 0,
+                maxDrawdown: 0,
+                currentDrawdown: 0,
+            };
 
-        console.log("🔄 Paper Trading Engine reset with fresh USDT balance");
-        this.emit("engineReset");
+            this.riskLimits.isHalted = false;
+            this.riskLimits.haltReason = null;
+
+            // Save fresh state to database
+            await this.saveStateToDatabase();
+
+            logger.success(
+                "✅ Paper Trading Engine reset with fresh USDT balance"
+            );
+            this.emit("engineReset");
+        } catch (error) {
+            logger.error("Error resetting Paper Trading Engine:", error);
+            throw error;
+        }
     }
 
     /**
      * Update configuration
      */
-    updateConfig(newConfig) {
+    async updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
 
         // Update risk limits if capital changed
-        this.riskLimits.dailyLossLimit =
-            this.config.startingCapital * this.config.maxDailyLoss;
-        this.riskLimits.weeklyLossLimit =
-            this.config.startingCapital * this.config.maxWeeklyLoss;
+        if (newConfig.startingCapital) {
+            this.riskLimits.dailyLossLimit =
+                this.config.startingCapital * this.config.maxDailyLoss;
+            this.riskLimits.weeklyLossLimit =
+                this.config.startingCapital * this.config.maxWeeklyLoss;
+        }
+
+        // Save updated config state
+        await this.saveStateToDatabase();
 
         this.emit("configUpdated", this.config);
-        console.log("⚙️ Paper Trading Engine configuration updated");
+        logger.info("⚙️ Paper Trading Engine configuration updated");
     }
 
     /**
@@ -718,7 +1026,179 @@ class PaperTradingEngine extends EventEmitter {
                 this.tradeHistory.length > 0
                     ? this.tradeHistory[this.tradeHistory.length - 1].timestamp
                     : null,
+            lastStateSave: this.lastStateSave,
+            persistenceEnabled: true,
         };
+    }
+
+    /**
+     * Manual state save (for external triggers)
+     */
+    async forceSaveState() {
+        try {
+            await this.saveStateToDatabase();
+            logger.info("💾 Manual state save completed");
+            return true;
+        } catch (error) {
+            logger.error("Error in manual state save:", error);
+            return false;
+        }
+    }
+
+    /**
+     * Get detailed persistence status
+     */
+    async getPersistenceStatus() {
+        try {
+            // Check if we have recent snapshots
+            const recentSnapshots = await db("portfolio")
+                .orderBy("snapshot_time", "desc")
+                .limit(5);
+
+            // Check trade count in database
+            const tradeCount = await db("trades").count("id as total").first();
+
+            return {
+                enabled: true,
+                lastSave: this.lastStateSave,
+                lastSaveFormatted: this.lastStateSave
+                    ? new Date(this.lastStateSave).toLocaleString()
+                    : "Never",
+                recentSnapshots: recentSnapshots.length,
+                totalTradesInDB: tradeCount.total,
+                memoryTrades: this.tradeHistory.length,
+                memoryPositions: this.portfolio.positions.size,
+            };
+        } catch (error) {
+            logger.error("Error getting persistence status:", error);
+            return {
+                enabled: false,
+                error: error.message,
+            };
+        }
+    }
+
+    /**
+     * Validate data integrity between memory and database
+     */
+    async validateDataIntegrity() {
+        try {
+            // Compare memory vs database trade counts
+            const dbTradeCount = await db("trades")
+                .count("id as total")
+                .first();
+            const memoryTradeCount = this.tradeHistory.length;
+
+            // Get latest portfolio snapshot
+            const latestSnapshot = await db("portfolio")
+                .orderBy("snapshot_time", "desc")
+                .first();
+
+            const integrity = {
+                isValid: true,
+                issues: [],
+                memory: {
+                    trades: memoryTradeCount,
+                    positions: this.portfolio.positions.size,
+                    totalValue: this.portfolio.totalValue,
+                    totalPnL: this.portfolio.totalPnL,
+                },
+                database: {
+                    trades: dbTradeCount.total,
+                    latestSnapshot: latestSnapshot
+                        ? {
+                              totalValue: latestSnapshot.total_value,
+                              totalPnL: latestSnapshot.total_pnl,
+                              positions: latestSnapshot.position_count,
+                              timestamp: latestSnapshot.snapshot_time,
+                          }
+                        : null,
+                },
+            };
+
+            // Check for major discrepancies
+            if (Math.abs(memoryTradeCount - dbTradeCount.total) > 10) {
+                integrity.isValid = false;
+                integrity.issues.push(
+                    "Large trade count discrepancy between memory and database"
+                );
+            }
+
+            if (latestSnapshot) {
+                const valueDiff = Math.abs(
+                    this.portfolio.totalValue - latestSnapshot.total_value
+                );
+                if (valueDiff > 100) {
+                    // More than $100 difference
+                    integrity.isValid = false;
+                    integrity.issues.push(
+                        "Large total value discrepancy between memory and database"
+                    );
+                }
+            }
+
+            return integrity;
+        } catch (error) {
+            logger.error("Error validating data integrity:", error);
+            return {
+                isValid: false,
+                error: error.message,
+            };
+        }
+    }
+
+    /**
+     * Emergency backup current state
+     */
+    async emergencyBackup() {
+        try {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const backupData = {
+                timestamp,
+                portfolio: this.portfolio,
+                tradeHistory: this.tradeHistory,
+                performanceMetrics: this.performanceMetrics,
+                riskLimits: this.riskLimits,
+                config: this.config,
+            };
+
+            // Convert positions Map to array for JSON serialization
+            backupData.portfolio.positions = Array.from(
+                this.portfolio.positions.entries()
+            );
+
+            // Save as JSON file (if filesystem access available)
+            const backupPath = `./backend/backups/emergency_paper_trading_${timestamp}.json`;
+
+            try {
+                const fs = require("fs");
+                fs.writeFileSync(
+                    backupPath,
+                    JSON.stringify(backupData, null, 2)
+                );
+                logger.info(`💾 Emergency backup saved to ${backupPath}`);
+            } catch (fsError) {
+                logger.warn(
+                    "Could not save to filesystem, storing in database only"
+                );
+            }
+
+            // Also save to database with special marker
+            await this.saveStateToDatabase();
+
+            return {
+                success: true,
+                timestamp,
+                backupPath: backupPath,
+                portfolioValue: this.portfolio.totalValue,
+            };
+        } catch (error) {
+            logger.error("Error creating emergency backup:", error);
+            return {
+                success: false,
+                error: error.message,
+            };
+        }
     }
 }
 
