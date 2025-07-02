@@ -566,23 +566,29 @@ module.exports = (tradingController) => {
 
     function calculateSharpeRatio(returns) {
         if (returns.length < 2) return 0;
+
         const avgReturn =
             returns.reduce((sum, r) => sum + r, 0) / returns.length;
         const variance =
             returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
             (returns.length - 1);
         const stdDev = Math.sqrt(variance);
-        return stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(252);
+
+        // FIXED: Crypto markets trade 365 days/year, not 252 (stock markets)
+        return stdDev === 0 ? 0 : (avgReturn / stdDev) * Math.sqrt(365);
     }
 
     function calculateVolatility(returns) {
         if (returns.length < 2) return 0;
+
         const avgReturn =
             returns.reduce((sum, r) => sum + r, 0) / returns.length;
         const variance =
             returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
             (returns.length - 1);
-        return Math.sqrt(variance) * Math.sqrt(252);
+
+        // FIXED: Annualize using 365 days for crypto
+        return Math.sqrt(variance) * Math.sqrt(365);
     }
 
     function calculateAvgHoldingPeriod(trades) {
