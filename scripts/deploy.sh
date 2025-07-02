@@ -1,66 +1,144 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status.
+# ===================================================
+# scripts/local-deploy.sh - Direct deployment on Pi
+# Use this when deploying directly on the Raspberry Pi
+# ===================================================
+
 set -e
 
-# --- Deployment Configuration ---
-# Your Raspberry Pi's user, IP address/hostname, and password.
-PI_USER="adam"
-PI_HOST="img.oakroad"
-PI_PASSWORD="1shanks1!" # <-- IMPORTANT: Add your password here
+# --- Configuration ---
+PROJECT_DIR="/opt/crypto-trading-bot"
+BACKUP_DIR="${PROJECT_DIR}/backend/backups"
+APP_NAME="crypto-trend-bot"
 
-# The destination directory on your Raspberry Pi.
-REMOTE_DIR="/opt/crypto-trading-bot"
-# --- End Configuration ---
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
-echo "🚀 Starting deployment to ${PI_HOST}..."
+log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+log_success() { echo -e "${GREEN}✅ $1${NC}"; }
+log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_error() { echo -e "${RED}❌ $1${NC}"; }
 
-# 1. Run pre-deployment checks to ensure a safe deployment
-echo "🩺 Running pre-deployment checks..."
-# Ensure we are in the project root before running scripts
-if [ -f "./scripts/deploy-check.sh" ]; then
-    ./scripts/deploy-check.sh
-else
-    echo "⚠️ Warning: deploy-check.sh not found. Skipping checks."
+echo "🚀 Starting local deployment on Raspberry Pi..."
+
+# Check if we're in the right directory
+if [ ! -f "package.json" ]; then
+    log_error "Not in project root directory. Please run from /opt/crypto-trading-bot"
+    exit 1
 fi
 
-# 1.5. Create backup before deployment
-echo "📦 Creating backup before deployment..."
-sshpass -p "${PI_PASSWORD}" ssh "${PI_USER}@${PI_HOST}" "
-    cd ${REMOTE_DIR}
-    ./scripts/backup.sh
-"
+# Check if we're the right user
+if [ "$(whoami)" != "adam" ]; then
+    log_error "Please run as user 'adam'"
+    exit 1
+fi
 
-# 2. Build the frontend for production
-echo "📦 Building React frontend..."
+# 1. Pre-deployment checks
+log_info "Running pre-deployment checks..."
+
+# Check Node.js version
+NODE_VERSION=$(node --version | cut -d'v' -f2)
+NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1)
+if [ "$NODE_MAJOR" -lt 22 ]; then
+    log_warning "Node.js version $NODE_VERSION detected. Recommended: v22+"
+fi
+
+# Check if PM2 is running our app
+if ! pm2 list | grep -q "$APP_NAME"; then
+    log_warning "PM2 app '$APP_NAME' not found. Will start after deployment."
+fi
+
+# Check git status (if this is a git repo)
+if [ -d ".git" ]; then
+    if ! git diff --quiet; then
+        log_warning "Uncommitted changes detected in git"
+    fi
+fi
+
+# 2. Create backup
+log_info "Creating backup before deployment..."
+./scripts/backup.sh
+
+# 3. Update dependencies
+log_info "Updating backend dependencies..."
+cd backend
+npm install --production --omit=dev
+cd ..
+
+# 4. Build frontend
+log_info "Building frontend for production..."
 npm run build:frontend
 
-# 3. Sync project files to the Raspberry Pi using rsync
-echo "Syncing files to ${PI_HOST}..."
-rsync -avz --delete -e "sshpass -p '${PI_PASSWORD}' ssh" \
-    --exclude '.git' \
-    --exclude 'node_modules' \
-    --exclude 'frontend/node_modules' \
-    --exclude 'frontend/src' \
-    --exclude 'frontend/public' \
-    --exclude 'backend/data' \
-    --exclude 'backend/node_modules' \
-    --exclude '.env' \
-    --exclude '*.log' \
-    ./ "${PI_USER}@${PI_HOST}:${REMOTE_DIR}"
+if [ ! -d "frontend/dist" ]; then
+    log_error "Frontend build failed - dist directory not created"
+    exit 1
+fi
 
-# 4. Execute remote commands on the Raspberry Pi via SSH
-echo "⚙️  Installing dependencies, migrating DB, and restarting server on Pi..."
-sshpass -p "${PI_PASSWORD}" ssh "${PI_USER}@${PI_HOST}" "
-    set -e
-    cd ${REMOTE_DIR}
-    echo 'Installing backend dependencies...'
-    npm install --prefix backend --production --omit=dev
-    echo '🗄️ Running database migrations...'
-    npm run db:migrate
-    echo 'Reloading application with PM2...'
+# 5. Run database migrations
+log_info "Running database migrations..."
+npm run db:migrate
+
+# 6. Update PM2 process
+log_info "Updating PM2 process..."
+
+# Check if app is running
+if pm2 list | grep -q "$APP_NAME.*online"; then
+    log_info "Reloading existing PM2 process..."
     pm2 reload ecosystem.config.js --env production
-    pm2 save
-"
+else
+    log_info "Starting new PM2 process..."
+    pm2 start ecosystem.config.js --env production
+fi
 
-echo "🎉 Deployment complete! Your application is live."
+# Save PM2 configuration
+pm2 save
+
+# 7. Wait for service to stabilize
+log_info "Waiting for service to stabilize..."
+sleep 5
+
+# 8. Health check
+log_info "Performing health check..."
+if curl -f -s http://localhost:3001/api/management/health > /dev/null; then
+    log_success "Health check passed!"
+else
+    log_warning "Health check failed - checking PM2 status..."
+    pm2 status
+    pm2 logs $APP_NAME --lines 10
+fi
+
+# 9. Show status
+log_info "Deployment status:"
+pm2 status
+echo ""
+
+# 10. Check memory usage
+MEMORY_USAGE=$(free -m | awk 'NR==2{printf "%.1f%%", $3*100/$2}')
+log_info "Current memory usage: $MEMORY_USAGE"
+
+# 11. Show recent logs
+log_info "Recent application logs:"
+pm2 logs $APP_NAME --lines 5 --nostream
+
+echo ""
+log_success "🎉 Local deployment completed!"
+echo ""
+echo "📊 Dashboard URL: https://img.oakroad"
+echo "🔧 Commands:"
+echo "  • View logs:     pm2 logs $APP_NAME"
+echo "  • Check status:  pm2 status"
+echo "  • Restart app:   pm2 restart $APP_NAME"
+echo "  • Stop app:      pm2 stop $APP_NAME"
+echo ""
+
+# Check if app is responding
+if curl -f -s http://localhost:3001/api/management/health > /dev/null; then
+    log_success "✅ Application is responding correctly"
+else
+    log_warning "⚠️ Application may not be responding. Check logs above."
+fi
