@@ -83,7 +83,7 @@ class EnhancedTradingController extends EventEmitter {
                 enableVolatilityFilter: this.config.enableVolatilityFilter,
                 minVolatilityPercent: this.config.minVolatilityPercent,
             });
-            await this.signalGenerator.initialize();
+            //await this.signalGenerator.initialize();
 
             // 3. Initialize Enhanced Paper Trading Engine
             logger.info("💰 Setting up Enhanced Paper Trading Engine...");
