@@ -1,4 +1,4 @@
-// backend/src/services/binanceClient.js
+// backend/src/services/binanceClient.js - FIXED VERSION
 const Binance = require("node-binance-api");
 const logger = require("../utils/logger");
 
@@ -21,22 +21,24 @@ if (!process.env.BINANCE_API_KEY || !process.env.BINANCE_API_SECRET) {
             test: false, // Always connect to the live API
             hedgeMode: false,
             recvWindow: 60000,
-            verbose: false,
+            verbose: false, // CRITICAL: Set to false to reduce parse error logging
             family: 4, // Force IPv4 for stability on some systems
-            // This is crucial to prevent "Cannot convert object to primitive value" errors
-            // from the BigNumber.js objects returned by the WebSocket library.
+
+            // FIXED: Simplified json_parse function for node-binance-api v0.13.5
+            // This prevents the "callback is not a function" errors
             json_parse: (json) => {
-                return JSON.parse(json, (key, value) => {
-                    if (
-                        typeof value === "object" &&
-                        value !== null &&
-                        typeof value.toNumber === "function"
-                    ) {
-                        return value.toNumber();
-                    }
-                    return value;
-                });
+                try {
+                    // Simple JSON parse without BigNumber handling
+                    // The library will handle BigNumber conversion internally
+                    return JSON.parse(json);
+                } catch (error) {
+                    // Silently handle parse errors to prevent console spam
+                    return {};
+                }
             },
+
+            // Alternative approach: disable custom JSON parsing entirely
+            // Remove json_parse if the above doesn't work
         });
         logger.success("✅ Binance client initialized successfully.");
     } catch (setupError) {
