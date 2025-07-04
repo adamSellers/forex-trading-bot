@@ -51,6 +51,49 @@ class SignalGenerator extends EventEmitter {
         );
     }
 
+    getStatus() {
+        try {
+            return {
+                isActive: this.isRunning || false,
+                strategy: this.config.strategy,
+                timeframe: this.config.timeframe,
+                signalCount: this.signalHistory.length,
+                lastSignalTime:
+                    Math.max(...Array.from(this.lastSignals.values())) || null,
+                cooldownPeriod: this.config.signalCooldown,
+                assets: this.config.assets,
+
+                // Volatility filter status
+                volatilityFilter: {
+                    enabled: this.config.enableVolatilityFilter,
+                    minVolatilityPercent: this.config.minVolatilityPercent,
+                    periodsChecked: this.volatilityStats.periodsChecked,
+                    signalsBlocked: this.volatilityStats.signalsBlocked,
+                    avgVolatility: this.volatilityStats.avgVolatility,
+                },
+
+                // Configuration
+                config: {
+                    minStrength: this.config.minStrength,
+                    signalCooldown: this.config.signalCooldown,
+                    enableVolatilityFilter: this.config.enableVolatilityFilter,
+                },
+
+                timestamp: Date.now(),
+            };
+        } catch (error) {
+            logger.error("Error getting signal generator status:", error);
+            return {
+                isActive: false,
+                error: error.message,
+                timestamp: Date.now(),
+            };
+        }
+    }
+
+    // That's it! This single method addition should fix the signalGenerator getStatus error
+    // without removing any of the existing functionality
+
     /**
      * NEW: Calculate Average True Range (ATR)
      */
