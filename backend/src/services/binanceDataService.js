@@ -1,14 +1,16 @@
-// backend/src/services/binanceDataService.js - COMPLETE FIXED VERSION
+// backend/src/services/binanceDataService.js - ENHANCED WITH DYNAMIC ORDER MINIMUMS
+const Binance = require("node-binance-api");
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
-const binance = require("./binanceClient");
-const { getHistoricalCandles } = require("./dataUtils");
 
 class BinanceDataService extends EventEmitter {
     constructor(config = {}) {
         super();
 
         this.config = {
+            apiKey: config.apiKey || process.env.BINANCE_API_KEY,
+            apiSecret: config.apiSecret || process.env.BINANCE_API_SECRET,
+            useTestnet: config.useTestnet !== false, // Default to testnet for safety
             assets: config.assets || [
                 "BTCUSDT",
                 "ETHUSDT",
@@ -16,400 +18,655 @@ class BinanceDataService extends EventEmitter {
                 "DOGEUSDT",
             ],
             timeframes: config.timeframes || ["1h", "4h", "1d"],
-            historicalDataRequirements: config.historicalDataRequirements || {
-                "1h": 500,
-                "4h": 250,
-                "1d": 200,
-            },
-            fallbackToPolling: true,
-            pollingInterval: 5000, // 5 seconds
+            useFallback: config.useFallback || false,
+
+            // NEW: Enhanced features
+            autoFetchExchangeInfo: config.autoFetchExchangeInfo !== false, // Default true
+            cacheExchangeInfo: config.cacheExchangeInfo !== false, // Default true
+            exchangeInfoRefreshInterval:
+                config.exchangeInfoRefreshInterval || 24 * 60 * 60 * 1000, // 24 hours
+
             ...config,
         };
 
-        this.binance = binance;
-        this.priceCache = new Map();
+        // Data storage
+        this.priceData = new Map();
         this.candleCache = new Map();
+        this.webSocketConnections = new Map();
+
+        // NEW: Exchange info and symbol data
+        this.exchangeInfo = null;
+        this.symbolInfo = new Map();
+        this.lastExchangeInfoUpdate = 0;
+
+        // Connection state
         this.isConnected = false;
-        this.websocketActive = false;
-        this.pollingInterval = null;
-        this.websocketRetries = 0;
-        this.maxWebSocketRetries = 3;
+        this.connectionAttempts = 0;
+        this.maxRetries = 5;
 
-        // Fail-fast: If the client didn't initialize, throw an error
-        if (!this.binance) {
-            const errorMessage =
-                "Binance client failed to initialize. Please check API credentials and logs.";
-            logger.error(`❌ ${errorMessage}`);
-            throw new Error(errorMessage);
-        }
+        // Initialize Binance client
+        this.initializeBinanceClient();
 
-        this.initializeService();
+        logger.info(
+            `🌐 ENHANCED Binance Data Service initialized - Testnet: ${this.config.useTestnet}, Exchange Info: ${this.config.autoFetchExchangeInfo}`
+        );
     }
 
-    async initializeService() {
+    initializeBinanceClient() {
         try {
-            logger.info("🚀 Initializing Binance Data Service...");
+            if (!this.config.apiKey || !this.config.apiSecret) {
+                logger.warn(
+                    "⚠️ No Binance API credentials - Using fallback mode"
+                );
+                this.config.useFallback = true;
+                return;
+            }
 
+            this.binanceClient = Binance({
+                APIKEY: this.config.apiKey,
+                APISECRET: this.config.apiSecret,
+                test: this.config.useTestnet,
+                reconnect: true,
+                keepAlive: true,
+                verbose: false,
+            });
+
+            logger.info("✅ Binance client initialized successfully");
+        } catch (error) {
+            logger.error("❌ Failed to initialize Binance client:", error);
+            this.config.useFallback = true;
+        }
+    }
+
+    /**
+     * NEW: Fetch and cache exchange information
+     */
+    async fetchExchangeInfo() {
+        try {
+            if (!this.binanceClient) {
+                logger.warn("⚠️ No Binance client available for exchange info");
+                return this.createFallbackExchangeInfo();
+            }
+
+            logger.info("📊 Fetching exchange information from Binance...");
+
+            const exchangeInfo = await new Promise((resolve, reject) => {
+                this.binanceClient.exchangeInfo((error, data) => {
+                    if (error) reject(error);
+                    else resolve(data);
+                });
+            });
+
+            if (!exchangeInfo || !exchangeInfo.symbols) {
+                throw new Error("Invalid exchange info response");
+            }
+
+            this.exchangeInfo = exchangeInfo;
+            this.lastExchangeInfoUpdate = Date.now();
+
+            // Process symbol information for our assets
+            this.processSymbolInfo(exchangeInfo.symbols);
+
+            logger.success(
+                `✅ Exchange info loaded - ${exchangeInfo.symbols.length} symbols processed`
+            );
+            return exchangeInfo;
+        } catch (error) {
+            logger.error("❌ Failed to fetch exchange info:", error);
+
+            // Fallback to default values
+            const fallbackInfo = this.createFallbackExchangeInfo();
+            this.exchangeInfo = fallbackInfo;
+            this.processSymbolInfo(fallbackInfo.symbols);
+
+            return fallbackInfo;
+        }
+    }
+
+    /**
+     * NEW: Process symbol information and extract trading constraints
+     */
+    processSymbolInfo(symbols) {
+        logger.info("🔍 Processing symbol information...");
+
+        this.config.assets.forEach((asset) => {
+            const symbolData = symbols.find((s) => s.symbol === asset);
+
+            if (symbolData) {
+                const info = this.extractSymbolConstraints(symbolData);
+                this.symbolInfo.set(asset, info);
+
+                logger.debug(
+                    `📋 ${asset}: Min notional $${info.minNotional}, Min qty ${info.minQty}, Step size ${info.stepSize}`
+                );
+            } else {
+                // Fallback data for missing symbols
+                const fallbackInfo = this.createFallbackSymbolInfo(asset);
+                this.symbolInfo.set(asset, fallbackInfo);
+
+                logger.warn(`⚠️ ${asset}: Using fallback constraints`);
+            }
+        });
+
+        logger.success(
+            `✅ Symbol constraints processed for ${this.symbolInfo.size} assets`
+        );
+    }
+
+    /**
+     * NEW: Extract trading constraints from symbol data
+     */
+    extractSymbolConstraints(symbolData) {
+        const constraints = {
+            symbol: symbolData.symbol,
+            status: symbolData.status,
+            minQty: 0,
+            maxQty: 0,
+            stepSize: 0,
+            minNotional: 0,
+            minPrice: 0,
+            maxPrice: 0,
+            tickSize: 0,
+        };
+
+        // Extract from filters
+        symbolData.filters.forEach((filter) => {
+            switch (filter.filterType) {
+                case "LOT_SIZE":
+                    constraints.minQty = parseFloat(filter.minQty);
+                    constraints.maxQty = parseFloat(filter.maxQty);
+                    constraints.stepSize = parseFloat(filter.stepSize);
+                    break;
+
+                case "MIN_NOTIONAL":
+                    constraints.minNotional = parseFloat(
+                        filter.minNotional || filter.notional || 0
+                    );
+                    break;
+
+                case "NOTIONAL":
+                    if (!constraints.minNotional) {
+                        constraints.minNotional = parseFloat(
+                            filter.minNotional || 0
+                        );
+                    }
+                    break;
+
+                case "PRICE_FILTER":
+                    constraints.minPrice = parseFloat(filter.minPrice);
+                    constraints.maxPrice = parseFloat(filter.maxPrice);
+                    constraints.tickSize = parseFloat(filter.tickSize);
+                    break;
+            }
+        });
+
+        return constraints;
+    }
+
+    /**
+     * NEW: Create fallback exchange info when API is unavailable
+     */
+    createFallbackExchangeInfo() {
+        const symbols = this.config.assets.map((asset) => ({
+            symbol: asset,
+            status: "TRADING",
+            filters: [
+                {
+                    filterType: "LOT_SIZE",
+                    minQty: "0.00001000",
+                    maxQty: "9000.00000000",
+                    stepSize: "0.00001000",
+                },
+                {
+                    filterType: "MIN_NOTIONAL",
+                    minNotional: "10.00000000",
+                },
+                {
+                    filterType: "PRICE_FILTER",
+                    minPrice: "0.01000000",
+                    maxPrice: "1000000.00000000",
+                    tickSize: "0.01000000",
+                },
+            ],
+        }));
+
+        return {
+            timezone: "UTC",
+            serverTime: Date.now(),
+            symbols: symbols,
+            rateLimits: [],
+            exchangeFilters: [],
+        };
+    }
+
+    /**
+     * NEW: Create fallback symbol info
+     */
+    createFallbackSymbolInfo(asset) {
+        const baseDefaults = {
+            minQty: 0.00001,
+            maxQty: 9000,
+            stepSize: 0.00001,
+            minNotional: 10, // $10 minimum
+            minPrice: 0.01,
+            maxPrice: 1000000,
+            tickSize: 0.01,
+        };
+
+        // Asset-specific adjustments
+        const assetSpecific = {
+            BTCUSDT: { minNotional: 10, stepSize: 0.00001 },
+            ETHUSDT: { minNotional: 10, stepSize: 0.0001 },
+            BNBUSDT: { minNotional: 10, stepSize: 0.001 },
+            DOGEUSDT: { minNotional: 5, stepSize: 1 }, // DOGE has different precision
+        };
+
+        return {
+            symbol: asset,
+            status: "TRADING",
+            ...baseDefaults,
+            ...(assetSpecific[asset] || {}),
+        };
+    }
+
+    /**
+     * NEW: Get minimum order size for a specific symbol
+     */
+    getMinOrderSize(symbol) {
+        const symbolData = this.symbolInfo.get(symbol);
+
+        if (!symbolData) {
+            logger.warn(
+                `⚠️ No symbol data for ${symbol}, using default minimum`
+            );
+            return 10; // Default fallback
+        }
+
+        // Return the larger of minNotional or our global minimum
+        const exchangeMinimum = symbolData.minNotional || 10;
+        const globalMinimum = this.config.minOrderSize || 10;
+
+        return Math.max(exchangeMinimum, globalMinimum);
+    }
+
+    /**
+     * NEW: Get all symbol constraints for a symbol
+     */
+    getSymbolConstraints(symbol) {
+        const symbolData = this.symbolInfo.get(symbol);
+
+        if (!symbolData) {
+            logger.warn(`⚠️ No constraints data for ${symbol}`);
+            return this.createFallbackSymbolInfo(symbol);
+        }
+
+        return { ...symbolData };
+    }
+
+    /**
+     * NEW: Validate order parameters against exchange constraints
+     */
+    validateOrderParameters(symbol, quantity, price) {
+        const constraints = this.getSymbolConstraints(symbol);
+        const notionalValue = quantity * price;
+
+        const validation = {
+            valid: true,
+            errors: [],
+            adjustedQuantity: quantity,
+            adjustedPrice: price,
+        };
+
+        // Check minimum notional
+        if (notionalValue < constraints.minNotional) {
+            validation.valid = false;
+            validation.errors.push(
+                `Order value ${notionalValue.toFixed(2)} USDT below minimum ${
+                    constraints.minNotional
+                } USDT`
+            );
+        }
+
+        // Check quantity constraints
+        if (quantity < constraints.minQty) {
+            validation.valid = false;
+            validation.errors.push(
+                `Quantity ${quantity} below minimum ${constraints.minQty}`
+            );
+        }
+
+        if (quantity > constraints.maxQty) {
+            validation.valid = false;
+            validation.errors.push(
+                `Quantity ${quantity} above maximum ${constraints.maxQty}`
+            );
+        }
+
+        // Check quantity precision (step size)
+        if (constraints.stepSize > 0) {
+            const steps = Math.round(quantity / constraints.stepSize);
+            const adjustedQty = steps * constraints.stepSize;
+
+            if (Math.abs(quantity - adjustedQty) > constraints.stepSize * 0.1) {
+                validation.adjustedQuantity = adjustedQty;
+                validation.errors.push(
+                    `Quantity adjusted for step size: ${quantity} → ${adjustedQty}`
+                );
+            }
+        }
+
+        // Check price constraints
+        if (price < constraints.minPrice) {
+            validation.valid = false;
+            validation.errors.push(
+                `Price ${price} below minimum ${constraints.minPrice}`
+            );
+        }
+
+        if (price > constraints.maxPrice) {
+            validation.valid = false;
+            validation.errors.push(
+                `Price ${price} above maximum ${constraints.maxPrice}`
+            );
+        }
+
+        return validation;
+    }
+
+    /**
+     * Enhanced initialization with exchange info
+     */
+    async initialize() {
+        try {
+            logger.info("🚀 Initializing ENHANCED Binance Data Service...");
+
+            // Test connection first
             await this.testConnection();
+
+            // Fetch exchange information
+            if (this.config.autoFetchExchangeInfo) {
+                await this.fetchExchangeInfo();
+            }
+
+            // Load historical data
             await this.loadHistoricalData();
 
-            // Try WebSocket first, fallback to polling - DON'T crash if it fails
-            await this.initializePriceStreams();
+            // Start real-time data streams
+            await this.startRealTimeData();
 
             this.isConnected = true;
+            logger.success(
+                "✅ ENHANCED Binance Data Service initialized successfully"
+            );
             this.emit("serviceReady");
-            logger.success("✅ Binance Data Service initialized successfully");
         } catch (error) {
-            logger.error("❌ Service initialization failed:", error.message);
-
-            // CRITICAL FIX: Don't throw error - start with polling mode
-            if (this.config.fallbackToPolling) {
-                logger.info(
-                    "🔄 Starting in polling-only mode due to initialization issues"
-                );
-                this.startPollingMode();
-                this.isConnected = true;
-                this.emit("serviceReady");
-            } else {
-                throw error;
-            }
+            logger.error("❌ Failed to initialize enhanced service:", error);
+            this.emit("serviceError", error);
+            throw error;
         }
     }
 
     async testConnection() {
-        try {
-            logger.info("📡 Testing LIVE Binance API connection...");
+        if (this.config.useFallback) {
+            logger.info("📱 Using fallback mode - skipping connection test");
+            return;
+        }
 
-            const serverTimeResponse = await this.binance.time();
-            logger.debug(
-                `Binance server time response: ${JSON.stringify(
-                    serverTimeResponse
+        try {
+            logger.info("🔌 Testing Binance connection...");
+
+            const serverTime = await new Promise((resolve, reject) => {
+                this.binanceClient.time((error, data) => {
+                    if (error) reject(error);
+                    else resolve(data);
+                });
+            });
+
+            logger.success(
+                `✅ Binance connection successful - Server time: ${new Date(
+                    serverTime.serverTime
                 )}`
             );
-
-            if (serverTimeResponse && serverTimeResponse.serverTime > 0) {
-                logger.success("✅ LIVE Binance API connection successful");
-            } else {
-                throw new Error("Invalid server time response");
-            }
+            return serverTime;
         } catch (error) {
-            logger.error(`❌ LIVE API test failed: ${error.message || error}`);
-
-            // Provide specific error guidance
-            if (
-                error.message.includes("API key") ||
-                error.message.includes("signature")
-            ) {
-                logger.error(
-                    "🔑 API Error: Please check your BINANCE_API_KEY and BINANCE_API_SECRET"
-                );
-            } else if (error.message.includes("IP")) {
-                logger.error(
-                    "🌐 IP Error: Please whitelist your IP in Binance API settings"
-                );
-            } else if (error.message.includes("permission")) {
-                logger.error(
-                    "🔒 Permission Error: Please enable 'Enable Reading' in API settings"
-                );
-            }
-
-            throw error;
+            logger.error("❌ Binance connection failed:", error);
+            logger.info("⚠️ Switching to fallback mode...");
+            this.config.useFallback = true;
         }
     }
 
     async loadHistoricalData() {
-        logger.info("📚 Loading historical data...");
-        let totalLoaded = 0;
+        logger.info("📚 Loading historical candle data...");
+
+        const dataRequirements = {
+            "1h": 100,
+            "4h": 75,
+            "1d": 60,
+        };
 
         for (const asset of this.config.assets) {
             for (const timeframe of this.config.timeframes) {
-                const limit = this.config.historicalDataRequirements[timeframe];
-                logger.info(
-                    `📊 Loading ${limit} ${timeframe} candles for ${asset}...`
-                );
-
                 try {
-                    const candles = await getHistoricalCandles(
-                        this.binance,
+                    const limit = dataRequirements[timeframe] || 100;
+                    logger.debug(
+                        `📊 Loading ${limit} ${timeframe} candles for ${asset}...`
+                    );
+
+                    const candles = await this.getHistoricalCandles(
                         asset,
                         timeframe,
                         limit
                     );
-                    const cacheKey = `${asset}_${timeframe}`;
-                    this.candleCache.set(cacheKey, candles);
-                    totalLoaded += candles.length;
-                    logger.success(
-                        `✅ Loaded ${candles.length} ${timeframe} candles for ${asset}`
-                    );
+
+                    if (candles && candles.length > 0) {
+                        const cacheKey = `${asset}_${timeframe}`;
+                        this.candleCache.set(cacheKey, candles);
+                        logger.debug(
+                            `✅ Loaded ${candles.length} candles for ${asset} ${timeframe}`
+                        );
+                    } else {
+                        logger.warn(
+                            `⚠️ No candle data received for ${asset} ${timeframe}`
+                        );
+                    }
+
+                    await new Promise((resolve) => setTimeout(resolve, 200));
                 } catch (error) {
                     logger.error(
                         `❌ Failed to load ${asset} ${timeframe}:`,
-                        error.message
+                        error
                     );
-                    // Continue with other assets
                 }
-
-                // Rate limiting
-                await new Promise((resolve) => setTimeout(resolve, 250));
             }
+            await new Promise((resolve) => setTimeout(resolve, 300));
         }
-
-        logger.success(
-            `✅ Historical data loaded: ${totalLoaded} total candles`
-        );
     }
 
-    // CRITICAL FIX: New method to check WebSocket availability
-    isWebSocketAvailable() {
+    async getHistoricalCandles(symbol, interval, limit = 100) {
         try {
-            // Check if binance client exists
-            if (!this.binance) {
-                logger.debug("Binance client not available");
-                return false;
+            if (this.config.useFallback) {
+                return this.generateFallbackCandles(symbol, interval, limit);
             }
 
-            // Check if websockets object exists
-            if (!this.binance.websockets) {
-                logger.debug("Binance websockets object not available");
-                return false;
+            let candles;
+            let retries = 3;
+
+            while (retries > 0) {
+                try {
+                    candles = await new Promise((resolve, reject) => {
+                        this.binanceClient.candlesticks(
+                            symbol,
+                            interval,
+                            (error, ticks) => {
+                                if (error) reject(error);
+                                else resolve(ticks);
+                            },
+                            { limit }
+                        );
+                    });
+                    break;
+                } catch (error) {
+                    retries--;
+                    if (retries === 0) throw error;
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                }
             }
 
-            // Check if ticker method exists
-            if (typeof this.binance.websockets.ticker !== "function") {
-                logger.debug("Binance websockets.ticker method not available");
-                return false;
-            }
-
-            // Check if terminate method exists (indicates full initialization)
-            if (typeof this.binance.websockets.terminate !== "function") {
-                logger.debug(
-                    "Binance websockets.terminate method not available"
-                );
-                return false;
-            }
-
-            logger.debug("✅ WebSocket functionality appears to be available");
-            return true;
+            return this.formatCandles(candles);
         } catch (error) {
-            logger.debug(
-                `WebSocket availability check failed: ${error.message}`
-            );
-            return false;
+            logger.error(`Failed to fetch candles for ${symbol}:`, error);
+            return this.generateFallbackCandles(symbol, interval, limit);
         }
     }
 
-    // FIXED: Better WebSocket initialization with fallback
-    async initializePriceStreams() {
-        logger.info("📊 Initializing price streams...");
-
-        try {
-            // CRITICAL FIX: Check availability before using
-            if (!this.isWebSocketAvailable()) {
-                throw new Error(
-                    "WebSocket functionality not available - will use polling"
-                );
-            }
-
-            await this.startWebSocketStreams();
-        } catch (error) {
-            logger.warn(`⚠️ WebSocket streams failed: ${error.message}`);
-
-            // ALWAYS fallback to polling instead of crashing
-            logger.info("🔄 Falling back to HTTP polling...");
-            this.startPollingMode();
-        }
-    }
-
-    // NEW: Separate WebSocket stream initialization
-    async startWebSocketStreams() {
-        logger.info("🌐 Starting WebSocket streams...");
-
-        let successCount = 0;
+    async startRealTimeData() {
+        logger.info("📡 Starting real-time data streams...");
 
         for (const asset of this.config.assets) {
             try {
-                this.binance.websockets.ticker(asset, (ticker) => {
-                    try {
-                        const priceData = this.parseTickerData(ticker);
-                        this.priceCache.set(ticker.symbol, priceData);
-                        this.emit("priceUpdate", priceData);
-                    } catch (parseError) {
-                        logger.error(
-                            `Price parsing error for ${asset}:`,
-                            parseError.message
-                        );
-                    }
-                });
-
-                successCount++;
-                logger.success(`✅ WebSocket stream active for ${asset}`);
+                await this.startPriceStream(asset);
                 await new Promise((resolve) => setTimeout(resolve, 100));
-            } catch (streamError) {
+            } catch (error) {
                 logger.error(
-                    `❌ WebSocket stream failed for ${asset}:`,
-                    streamError.message
+                    `Failed to start price stream for ${asset}:`,
+                    error
                 );
             }
         }
-
-        if (successCount === 0) {
-            throw new Error("No WebSocket streams could be initialized");
-        }
-
-        this.websocketActive = true;
-        logger.success(
-            `🚀 ${successCount}/${this.config.assets.length} WebSocket streams active`
-        );
     }
 
-    // NEW: Robust ticker data parsing
-    parseTickerData(ticker) {
+    async startPriceStream(symbol) {
+        if (this.config.useFallback) {
+            this.startFallbackPriceData(symbol);
+            return;
+        }
+
         try {
-            return {
-                symbol: ticker.symbol,
-                price: this.parseFloat(ticker.curDayClose || ticker.c),
-                priceChange: this.parseFloat(
-                    ticker.priceChangePercent || ticker.P
-                ),
-                volume: this.parseFloat(ticker.volume || ticker.v),
-                high: this.parseFloat(ticker.high || ticker.h),
-                low: this.parseFloat(ticker.low || ticker.l),
-                timestamp: Date.now(),
-            };
-        } catch (error) {
-            logger.error("Error parsing ticker data:", error);
-            throw error;
-        }
-    }
-
-    // NEW: Helper to handle BigNumber and various number formats
-    parseFloat(value) {
-        if (value === null || value === undefined) return 0;
-
-        // If it's already a number
-        if (typeof value === "number") return value;
-
-        // If it has a toNumber method (BigNumber)
-        if (typeof value === "object" && typeof value.toNumber === "function") {
-            return value.toNumber();
-        }
-
-        // Parse as string
-        const parsed = parseFloat(value);
-        return isNaN(parsed) ? 0 : parsed;
-    }
-
-    // NEW: HTTP polling fallback mode
-    startPollingMode() {
-        logger.info("📊 Starting HTTP polling fallback...");
-
-        // Base prices for realistic simulation
-        const basePrices = {
-            BTCUSDT: 67000,
-            ETHUSDT: 3400,
-            BNBUSDT: 600,
-            DOGEUSDT: 0.15,
-        };
-
-        // Initialize with base prices
-        this.config.assets.forEach((asset) => {
-            const basePrice = basePrices[asset] || 100;
-            this.priceCache.set(asset, {
-                symbol: asset,
-                price: basePrice,
-                priceChange: 0,
-                volume: 1000000,
-                high: basePrice * 1.01,
-                low: basePrice * 0.99,
-                timestamp: Date.now(),
-            });
-        });
-
-        // Start polling
-        this.pollingInterval = setInterval(async () => {
-            try {
-                await this.pollPrices();
-            } catch (error) {
-                logger.debug("Polling error:", error.message);
-                // Continue polling even if individual requests fail
-            }
-        }, this.config.pollingInterval);
-
-        logger.success("✅ HTTP polling mode initialized");
-    }
-
-    // NEW: Polling method with real API calls
-    async pollPrices() {
-        const promises = this.config.assets.map(async (asset) => {
-            try {
-                // Try to get real price
-                const ticker = await this.binance.prices(asset);
-                const price = this.parseFloat(ticker[asset]);
-
-                if (price && price > 0) {
+            const stream = this.binanceClient.websockets.miniTicker(
+                [symbol],
+                (ticker) => {
                     const priceData = {
-                        symbol: asset,
-                        price: price,
-                        priceChange: (Math.random() - 0.5) * 4, // Mock change
-                        volume: 1000000 + Math.random() * 9000000,
-                        high: price * (1 + Math.random() * 0.02),
-                        low: price * (1 - Math.random() * 0.02),
+                        symbol: ticker.symbol,
+                        price: parseFloat(ticker.curDayClose),
+                        priceChange: parseFloat(ticker.priceChange),
+                        priceChangePercent: parseFloat(ticker.percentChange),
+                        volume: parseFloat(ticker.volume),
                         timestamp: Date.now(),
                     };
 
-                    this.priceCache.set(asset, priceData);
+                    this.priceData.set(symbol, priceData);
                     this.emit("priceUpdate", priceData);
-                } else {
-                    // Use mock price with realistic movement
-                    this.updateMockPrice(asset);
                 }
-            } catch (error) {
-                // Use mock price on API error
-                this.updateMockPrice(asset);
-            }
-        });
+            );
 
-        await Promise.allSettled(promises);
+            this.webSocketConnections.set(symbol, stream);
+            logger.debug(`📈 Price stream started for ${symbol}`);
+        } catch (error) {
+            logger.error(`Failed to start WebSocket for ${symbol}:`, error);
+            this.startFallbackPriceData(symbol);
+        }
     }
 
-    // NEW: Mock price updates when API fails
-    updateMockPrice(asset) {
-        const currentPrice =
-            this.priceCache.get(asset)?.price ||
-            this.getBasePriceForAsset(asset);
-        const variation = (Math.random() - 0.5) * currentPrice * 0.001; // 0.1% variation
-        const newPrice = Math.max(currentPrice + variation, currentPrice * 0.9);
+    startFallbackPriceData(symbol) {
+        const basePrice = this.getFallbackBasePrice(symbol);
 
-        const priceData = {
-            symbol: asset,
-            price: newPrice,
-            priceChange: (variation / currentPrice) * 100,
-            volume: Math.floor(1000000 + Math.random() * 9000000),
-            high: newPrice * 1.002,
-            low: newPrice * 0.998,
-            timestamp: Date.now(),
+        const updatePrice = () => {
+            const change = (Math.random() - 0.5) * 0.02; // ±1% random change
+            const currentPrice = this.priceData.get(symbol)?.price || basePrice;
+            const newPrice = currentPrice * (1 + change);
+
+            const priceData = {
+                symbol,
+                price: newPrice,
+                priceChange: newPrice - currentPrice,
+                priceChangePercent: change * 100,
+                volume: Math.random() * 1000000,
+                timestamp: Date.now(),
+                fallback: true,
+            };
+
+            this.priceData.set(symbol, priceData);
+            this.emit("priceUpdate", priceData);
         };
 
-        this.priceCache.set(asset, priceData);
-        this.emit("priceUpdate", priceData);
+        // Update every 5 seconds
+        setInterval(updatePrice, 5000);
+        updatePrice(); // Initial update
+
+        logger.debug(`📈 Fallback price stream started for ${symbol}`);
     }
 
-    getBasePriceForAsset(asset) {
+    getFallbackBasePrice(symbol) {
         const basePrices = {
-            BTCUSDT: 67000,
-            ETHUSDT: 3400,
-            BNBUSDT: 600,
-            DOGEUSDT: 0.15,
+            BTCUSDT: 45000,
+            ETHUSDT: 2500,
+            BNBUSDT: 350,
+            DOGEUSDT: 0.08,
         };
-        return basePrices[asset] || 100;
+        return basePrices[symbol] || 100;
     }
 
+    formatCandles(rawCandles) {
+        return rawCandles.map((candle) => ({
+            openTime: candle[0],
+            open: parseFloat(candle[1]),
+            high: parseFloat(candle[2]),
+            low: parseFloat(candle[3]),
+            close: parseFloat(candle[4]),
+            volume: parseFloat(candle[5]),
+            closeTime: candle[6],
+        }));
+    }
+
+    generateFallbackCandles(symbol, interval, limit) {
+        const basePrice = this.getFallbackBasePrice(symbol);
+        const candles = [];
+        const now = Date.now();
+        const intervals = { "1h": 3600000, "4h": 14400000, "1d": 86400000 };
+        const intervalMs = intervals[interval] || 3600000;
+
+        for (let i = limit - 1; i >= 0; i--) {
+            const timestamp = now - i * intervalMs;
+            const price = basePrice * (1 + (Math.random() - 0.5) * 0.1);
+
+            candles.push({
+                openTime: timestamp,
+                open: price,
+                high: price * 1.02,
+                low: price * 0.98,
+                close: price * (1 + (Math.random() - 0.5) * 0.02),
+                volume: Math.random() * 1000,
+                closeTime: timestamp + intervalMs - 1,
+            });
+        }
+
+        return candles;
+    }
+
+    /**
+     * NEW: Refresh exchange info if needed
+     */
+    async refreshExchangeInfoIfNeeded() {
+        const now = Date.now();
+        const timeSinceUpdate = now - this.lastExchangeInfoUpdate;
+
+        if (timeSinceUpdate > this.config.exchangeInfoRefreshInterval) {
+            logger.info("🔄 Refreshing exchange information...");
+            await this.fetchExchangeInfo();
+        }
+    }
+
+    // Public API methods
     getCurrentPrice(symbol) {
-        return this.priceCache.get(symbol);
+        return this.priceData.get(symbol) || null;
     }
 
     getAllPrices() {
-        return Object.fromEntries(this.priceCache);
+        const prices = {};
+        this.priceData.forEach((data, symbol) => {
+            prices[symbol] = data;
+        });
+        return prices;
     }
 
     getCandles(symbol, timeframe) {
@@ -417,206 +674,58 @@ class BinanceDataService extends EventEmitter {
         return this.candleCache.get(cacheKey) || [];
     }
 
-    async getAccountInfo() {
-        try {
-            logger.info("📋 Fetching account information...");
+    /**
+     * NEW: Get enhanced service status with exchange info
+     */
+    getServiceStatus() {
+        return {
+            connected: this.isConnected,
+            useFallback: this.config.useFallback,
+            exchangeInfoLoaded: this.exchangeInfo !== null,
+            symbolsConfigured: this.symbolInfo.size,
+            lastExchangeInfoUpdate: this.lastExchangeInfoUpdate,
+            activeStreams: this.webSocketConnections.size,
+            cachedCandles: this.candleCache.size,
+            currentPrices: this.priceData.size,
+            assets: this.config.assets,
+            timeframes: this.config.timeframes,
 
-            // CRITICAL FIX: Better error handling for account API calls
-            const account = await this.binance.account();
-
-            // Validate response
-            if (!account || !account.balances) {
-                throw new Error("Invalid account response structure");
-            }
-
-            logger.success(
-                `✅ Account info retrieved: ${account.balances.length} balances`
-            );
-
-            const relevantBalances = account.balances
-                .filter((balance) => {
-                    const total =
-                        parseFloat(balance.free) + parseFloat(balance.locked);
-                    return (
-                        total > 0 ||
-                        this.config.assets.some((asset) =>
-                            asset.startsWith(balance.asset)
-                        )
-                    );
+            // NEW: Symbol constraint summary
+            symbolConstraints: Array.from(this.symbolInfo.entries()).map(
+                ([symbol, info]) => ({
+                    symbol,
+                    minNotional: info.minNotional,
+                    minQty: info.minQty,
+                    status: info.status,
                 })
-                .map((balance) => ({
-                    asset: balance.asset,
-                    free: parseFloat(balance.free),
-                    locked: parseFloat(balance.locked),
-                    total:
-                        parseFloat(balance.free) + parseFloat(balance.locked),
-                }));
-
-            return {
-                balances: relevantBalances,
-                canTrade: account.canTrade,
-                canWithdraw: account.canWithdraw,
-                canDeposit: account.canDeposit,
-                accountType: account.accountType,
-                permissions: account.permissions,
-            };
-        } catch (error) {
-            logger.error("❌ Account info API failed:", error.message);
-
-            // CRITICAL FIX: Provide detailed error context
-            let errorContext = "Unknown error";
-
-            if (
-                error.message.includes(
-                    "Signature for this request is not valid"
-                )
-            ) {
-                errorContext =
-                    "Invalid API signature - check API keys and system time";
-                logger.error(
-                    "🔑 API Signature Error: Please verify your BINANCE_API_KEY and BINANCE_API_SECRET"
-                );
-                logger.error(
-                    "⏰ Time Sync: Ensure system time is synchronized (use NTP)"
-                );
-                logger.error(
-                    "🔒 API Permissions: Ensure 'Enable Reading' is checked in Binance API settings"
-                );
-            } else if (error.message.includes("Invalid API-key")) {
-                errorContext = "Invalid API key format or permissions";
-                logger.error(
-                    "🔑 API Key Error: Check BINANCE_API_KEY format and permissions"
-                );
-            } else if (error.message.includes("Timestamp for this request")) {
-                errorContext = "System time synchronization issue";
-                logger.error(
-                    "⏰ Time Sync Error: System time is not synchronized with Binance servers"
-                );
-                logger.error(
-                    "💡 Solution: Run 'sudo ntpdate -s time.nist.gov' to sync time"
-                );
-            } else if (error.message.includes("IP")) {
-                errorContext = "IP address not whitelisted";
-                logger.error(
-                    "🌐 IP Error: Your IP address may not be whitelisted in Binance API settings"
-                );
-            }
-
-            // CRITICAL FIX: Return fallback data instead of throwing error
-            logger.warn(
-                "🔄 Using fallback account data for paper trading mode"
-            );
-
-            const fallbackAccount = {
-                balances: [
-                    { asset: "USDT", free: 5000, locked: 0, total: 5000 },
-                    { asset: "BTC", free: 0, locked: 0, total: 0 },
-                    { asset: "ETH", free: 0, locked: 0, total: 0 },
-                    { asset: "BNB", free: 0, locked: 0, total: 0 },
-                    { asset: "DOGE", free: 0, locked: 0, total: 0 },
-                ],
-                canTrade: false, // Disable live trading due to API issues
-                canWithdraw: false,
-                canDeposit: false,
-                accountType: "SPOT",
-                permissions: ["SPOT"],
-
-                // Add error context for UI
-                error: {
-                    message: errorContext,
-                    originalError: error.message,
-                    timestamp: new Date().toISOString(),
-                    recommendation: this.getAccountErrorRecommendation(error),
-                },
-            };
-
-            logger.info(
-                "📊 Fallback account data provided - paper trading will continue"
-            );
-            return fallbackAccount;
-        }
+            ),
+        };
     }
 
-    // NEW: Helper method to provide specific error recommendations
-    getAccountErrorRecommendation(error) {
-        const errorMsg = error.message.toLowerCase();
-
-        if (errorMsg.includes("signature")) {
-            return "Check API keys in ecosystem.config.js and verify system time sync";
-        } else if (errorMsg.includes("timestamp")) {
-            return "Synchronize system time: sudo ntpdate -s time.nist.gov";
-        } else if (errorMsg.includes("api-key")) {
-            return "Verify BINANCE_API_KEY format and enable 'Enable Reading' permissions";
-        } else if (errorMsg.includes("ip")) {
-            return "Whitelist your server IP in Binance API settings";
-        } else if (errorMsg.includes("permission")) {
-            return "Enable 'Enable Reading' permission in Binance API settings";
-        }
-
-        return "Check Binance API credentials and permissions";
-    }
-
-    // IMPROVED: Cleanup with polling support
-    cleanup() {
-        logger.info("🧹 Cleaning up Binance Data Service...");
-
-        // Clear polling interval
-        if (this.pollingInterval) {
-            clearInterval(this.pollingInterval);
-            this.pollingInterval = null;
-        }
+    async stop() {
+        logger.info("🛑 Stopping Enhanced Binance Data Service...");
 
         // Close WebSocket connections
-        try {
-            if (this.binance && this.binance.websockets) {
-                this.config.assets.forEach((asset) => {
-                    try {
-                        this.binance.websockets.terminate(
-                            `${asset.toLowerCase()}@ticker`
-                        );
-                    } catch (error) {
-                        logger.debug(
-                            `Error terminating websocket for ${asset}: ${error.message}`
-                        );
-                    }
-                });
+        for (const [symbol, stream] of this.webSocketConnections) {
+            try {
+                if (
+                    this.binanceClient &&
+                    typeof this.binanceClient.websockets.terminate ===
+                        "function"
+                ) {
+                    this.binanceClient.websockets.terminate(stream);
+                }
+                logger.debug(`📡 Closed WebSocket for ${symbol}`);
+            } catch (error) {
+                logger.error(`Error closing WebSocket for ${symbol}:`, error);
             }
-        } catch (error) {
-            logger.debug(`General websocket cleanup error: ${error.message}`);
         }
 
-        this.priceCache.clear();
-        this.candleCache.clear();
+        this.webSocketConnections.clear();
         this.isConnected = false;
-        this.websocketActive = false;
 
-        this.emit("serviceClosed");
-        logger.info("✅ Binance Data Service cleaned up");
-    }
-
-    getServiceStatus() {
-        const totalCandles = Array.from(this.candleCache.values()).reduce(
-            (total, candles) => total + candles.length,
-            0
-        );
-
-        return {
-            isConnected: this.isConnected,
-            websocketActive: this.websocketActive,
-            pollingActive: !!this.pollingInterval,
-            priceStreams: this.priceCache.size,
-            candleDatasets: this.candleCache.size,
-            totalCandles: totalCandles,
-            lastUpdate: Math.max(
-                ...Array.from(this.priceCache.values()).map((p) => p.timestamp),
-                0
-            ),
-            config: {
-                assets: this.config.assets,
-                timeframes: this.config.timeframes,
-                fallbackToPolling: this.config.fallbackToPolling,
-            },
-        };
+        logger.info("✅ Enhanced Binance Data Service stopped");
+        this.emit("serviceStopped");
     }
 }
 

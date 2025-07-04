@@ -50,6 +50,7 @@ class TradingService extends EventEmitter {
 
             // Wait for services to be ready
             await this.waitForServices();
+            await this.paperTrading.initialize();
 
             // Start services
             this.paperTrading.start();
