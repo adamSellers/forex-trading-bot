@@ -17,6 +17,7 @@ import {
 } from '@mui/icons-material';
 import TradingDashboard from './components/TradingDashboard';
 import TradingConfig from './components/TradingConfig';
+import ErrorBoundary from './components/ErrorBoundary';
 import { tradingTheme } from './theme/tradingTheme';
 
 function TabPanel({ children, value, index, ...other }) {
@@ -78,11 +79,15 @@ function App() {
 
       {/* Main Content */}
       <TabPanel value={currentTab} index={0}>
-        <TradingDashboard />
+        <ErrorBoundary>
+          <TradingDashboard />
+        </ErrorBoundary>
       </TabPanel>
       
       <TabPanel value={currentTab} index={1}>
-        <TradingConfig />
+        <ErrorBoundary>
+          <TradingConfig />
+        </ErrorBoundary>
       </TabPanel>
     </ThemeProvider>
   );
