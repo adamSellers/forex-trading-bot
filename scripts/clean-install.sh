@@ -207,7 +207,7 @@ backup_and_cleanup() {
     
     # Stop PM2 processes gracefully first
     if pm2 list | grep -q "crypto-trend-bot"; then
-        log_substep "Sending SIGTERM to crypto-trend-bot process..."
+        log_substep "Stopping crypto-trend-bot process gracefully..."
         pm2 stop crypto-trend-bot --silent || true
         sleep 3  # Give time for graceful shutdown
     fi
@@ -219,27 +219,55 @@ backup_and_cleanup() {
     # Delete PM2 processes
     pm2 delete all --silent || true
     
-    # Force kill any remaining node processes on port 3001
-    log_substep "Ensuring port 3001 is fully released..."
-    sudo pkill -f "node.*3001" || true
-    sudo pkill -f "crypto-trend-bot" || true
+    # Find and gracefully terminate node processes on port 3001
+    log_substep "Gracefully terminating processes on port 3001..."
+    local pids
+    pids=$(lsof -ti :3001 2>/dev/null || true)
     
-    # Wait for port to be released
-    local attempts=0
-    while lsof -i :3001 >/dev/null 2>&1 && [ $attempts -lt 10 ]; do
-        log_substep "Waiting for port 3001 to be released... (attempt $((attempts+1))/10)"
-        sleep 2
-        attempts=$((attempts+1))
-    done
-    
-    if lsof -i :3001 >/dev/null 2>&1; then
-        log_warning "Port 3001 still in use. Force killing remaining processes..."
-        sudo pkill -9 -f "node.*3001" || true
-        sleep 2
+    if [ -n "$pids" ]; then
+        log_substep "Found processes using port 3001: $pids"
+        
+        # Send SIGTERM first (graceful)
+        for pid in $pids; do
+            if kill -0 "$pid" 2>/dev/null; then
+                log_substep "Sending SIGTERM to PID $pid..."
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
+        done
+        
+        # Wait for graceful shutdown
+        local attempts=0
+        while lsof -i :3001 >/dev/null 2>&1 && [ $attempts -lt 8 ]; do
+            log_substep "Waiting for graceful shutdown... (attempt $((attempts+1))/8)"
+            sleep 2
+            attempts=$((attempts+1))
+        done
+        
+        # If still running, escalate to SIGKILL (but more carefully)
+        if lsof -i :3001 >/dev/null 2>&1; then
+            log_warning "Some processes didn't exit gracefully. Using SIGKILL..."
+            pids=$(lsof -ti :3001 2>/dev/null || true)
+            
+            for pid in $pids; do
+                if kill -0 "$pid" 2>/dev/null; then
+                    # Check if this PID is our current shell or parent processes
+                    if [ "$pid" != "$$" ] && [ "$pid" != "$PPID" ]; then
+                        log_substep "Force killing PID $pid..."
+                        kill -KILL "$pid" 2>/dev/null || true
+                    else
+                        log_warning "Skipping PID $pid (current shell or parent)"
+                    fi
+                fi
+            done
+            
+            sleep 2
+        fi
+    else
+        log_substep "No processes found using port 3001"
     fi
     
     # Stop nginx
-    sudo systemctl stop nginx || true
+    sudo systemctl stop nginx 2>/dev/null || true
 
     log_substep "Removing old installation..."
     sudo rm -rf "$PROJECT_DIR"
@@ -247,7 +275,12 @@ backup_and_cleanup() {
     sudo rm -f /etc/nginx/sites-enabled/$APP_NAME
     sudo rm -f /etc/nginx/sites-enabled/default
     
-    log_success "Cleanup complete - port 3001 is now available"
+    # Final verification
+    if lsof -i :3001 >/dev/null 2>&1; then
+        log_error "Port 3001 is still in use after cleanup. Manual intervention required."
+    else
+        log_success "Cleanup complete - port 3001 is now available"
+    fi
 }
 
 clone_and_install() {
