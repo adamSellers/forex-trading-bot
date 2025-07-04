@@ -251,16 +251,27 @@ const TradingDashboard = () => {
       }
       
       if (results.portfolio) setPortfolio(results.portfolio);
-      if (results.trades) setTrades(results.trades);
       if (results.prices) setPrices(results.prices);
       if (results.account) setAccount(results.account);
       
-      if (results.signals) {
-        if (Array.isArray(results.signals)) {
-          setSignals(results.signals);
-          console.log('✅ Signals loaded:', results.signals.length);
+      // Handle trades data structure
+      if (results.trades) {
+        if (results.trades.trades && Array.isArray(results.trades.trades)) {
+          setTrades(results.trades.trades);
+        } else if (Array.isArray(results.trades)) {
+          setTrades(results.trades);
         } else {
-          console.warn('⚠️ Invalid signals format');
+          setTrades([]);
+        }
+      }
+
+      // Handle signals data structure  
+      if (results.signals) {
+        if (results.signals.signals && Array.isArray(results.signals.signals)) {
+          setSignals(results.signals.signals);
+        } else if (Array.isArray(results.signals)) {
+          setSignals(results.signals);
+        } else {
           setSignals([]);
         }
       }
