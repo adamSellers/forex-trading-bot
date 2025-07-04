@@ -143,6 +143,40 @@ class PaperTradingEngine extends EventEmitter {
         );
     }
 
+    getStatus() {
+        try {
+            return {
+                isActive: this.isActive,
+                totalValue: this.portfolio.totalValue,
+                totalPnL: this.portfolio.totalPnL,
+                totalPnLPercent:
+                    (this.portfolio.totalPnL / this.config.startingCapital) *
+                    100,
+                tradesCount: this.tradeHistory.length,
+                positionsCount: this.portfolio.positions.size,
+                riskStatus: this.riskLimits,
+                config: {
+                    enableTrading: this.config.enableTrading,
+                    enableTrailingStops: this.config.enableTrailingStops,
+                    startingCapital: this.config.startingCapital,
+                },
+                performance: {
+                    winRate: this.performanceMetrics.winRate,
+                    profitFactor: this.performanceMetrics.profitFactor,
+                    totalTrades: this.performanceMetrics.totalTrades,
+                },
+                uptime: Date.now() - (this.startTime || Date.now()),
+                timestamp: Date.now(),
+            };
+        } catch (error) {
+            logger.error("Error getting paper trading status:", error);
+            return {
+                isActive: false,
+                error: error.message,
+                timestamp: Date.now(),
+            };
+        }
+    }
     /**
      * ENHANCED: Calculate buy position size with dynamic minimum orders
      */
