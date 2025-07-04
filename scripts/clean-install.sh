@@ -203,9 +203,42 @@ backup_and_cleanup() {
         log_success "Backup created at $BACKUP_DIR/backup_$timestamp.tar.gz"
     fi
 
-    log_substep "Stopping services..."
-    pm2 stop all || true
-    pm2 delete all || true
+    log_substep "Gracefully stopping services..."
+    
+    # Stop PM2 processes gracefully first
+    if pm2 list | grep -q "crypto-trend-bot"; then
+        log_substep "Sending SIGTERM to crypto-trend-bot process..."
+        pm2 stop crypto-trend-bot --silent || true
+        sleep 3  # Give time for graceful shutdown
+    fi
+    
+    # Stop all PM2 processes
+    pm2 stop all --silent || true
+    sleep 2
+    
+    # Delete PM2 processes
+    pm2 delete all --silent || true
+    
+    # Force kill any remaining node processes on port 3001
+    log_substep "Ensuring port 3001 is fully released..."
+    sudo pkill -f "node.*3001" || true
+    sudo pkill -f "crypto-trend-bot" || true
+    
+    # Wait for port to be released
+    local attempts=0
+    while lsof -i :3001 >/dev/null 2>&1 && [ $attempts -lt 10 ]; do
+        log_substep "Waiting for port 3001 to be released... (attempt $((attempts+1))/10)"
+        sleep 2
+        attempts=$((attempts+1))
+    done
+    
+    if lsof -i :3001 >/dev/null 2>&1; then
+        log_warning "Port 3001 still in use. Force killing remaining processes..."
+        sudo pkill -9 -f "node.*3001" || true
+        sleep 2
+    fi
+    
+    # Stop nginx
     sudo systemctl stop nginx || true
 
     log_substep "Removing old installation..."
@@ -213,7 +246,8 @@ backup_and_cleanup() {
     sudo rm -f /etc/nginx/sites-available/$APP_NAME
     sudo rm -f /etc/nginx/sites-enabled/$APP_NAME
     sudo rm -f /etc/nginx/sites-enabled/default
-    log_success "Cleanup complete"
+    
+    log_success "Cleanup complete - port 3001 is now available"
 }
 
 clone_and_install() {
