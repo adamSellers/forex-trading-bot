@@ -27,7 +27,7 @@ const RecentTrades = ({ trades }) => {
         Recent Trades
       </Typography>
       
-      {trades.slice(0, 10).map((trade, index) => (
+      {(Array.isArray(trades) ? trades : []).slice(0, 10).map((trade, index) => (
         <Card key={index} variant="outlined" sx={{ mb: 1 }}>
           <CardContent sx={{ py: 1 }}>
             <Grid container alignItems="center" spacing={1}>
