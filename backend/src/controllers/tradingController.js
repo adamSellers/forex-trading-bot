@@ -133,9 +133,12 @@ class EnhancedTradingController extends EventEmitter {
     setupEnhancedEventListeners() {
         logger.info("🔗 Setting up enhanced event listeners...");
 
-        // Binance Data Service events
         this.binanceData.on("priceUpdate", async (priceData) => {
             try {
+                logger.debug(
+                    `📡 TradingController received priceUpdate for ${priceData.symbol}: ${priceData.price}`
+                );
+
                 // FIXED: Make this async and handle properly
                 await this.paperTrading.updatePortfolioValue(
                     this.binanceData.getAllPrices()
@@ -145,6 +148,9 @@ class EnhancedTradingController extends EventEmitter {
                 // FIXED: Forward priceUpdate to WebSocket clients
                 if (this.socketIO) {
                     this.socketIO.emit("priceUpdate", priceData);
+                    logger.debug(
+                        `🔌 Forwarded priceUpdate to WebSocket clients: ${priceData.symbol}`
+                    );
                 }
             } catch (error) {
                 // FIXED: Prevent the "callback is not a function" error
