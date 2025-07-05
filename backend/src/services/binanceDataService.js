@@ -542,8 +542,8 @@ class BinanceDataService extends EventEmitter {
         }
 
         try {
-            const stream = this.binanceClient.websockets.miniTicker(
-                [symbol],
+            const stream = this.binanceClient.websockets.ticker(
+                symbol,
                 (ticker) => {
                     const priceData = {
                         symbol: ticker.symbol,
