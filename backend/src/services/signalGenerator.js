@@ -6,6 +6,10 @@ class SignalGenerator extends EventEmitter {
     constructor(config = {}) {
         super();
 
+        this.isRunning = false;
+        this.signalInterval = null;
+        this.binanceDataService = null;
+
         this.config = {
             strategy: config.strategy || "balanced",
             timeframe: config.timeframe || "1h",
@@ -49,6 +53,99 @@ class SignalGenerator extends EventEmitter {
         logger.info(
             `🎯 ENHANCED Signal Generator initialized - Strategy: ${this.config.strategy}, Volatility Filter: ${this.config.enableVolatilityFilter}`
         );
+    }
+
+    /**
+     * Start the signal generator with periodic signal generation
+     */
+    start(binanceDataService, intervalMs = 60000) {
+        if (this.isRunning) {
+            logger.warn("⚠️ Signal Generator already running");
+            return;
+        }
+
+        logger.info(
+            `🎯 Starting Signal Generator - Strategy: ${this.config.strategy}, Interval: ${intervalMs}ms`
+        );
+
+        this.binanceDataService = binanceDataService;
+        this.isRunning = true;
+
+        // Generate initial signals
+        this.generateSignalCycle();
+
+        // Set up periodic signal generation
+        this.signalInterval = setInterval(() => {
+            if (this.isRunning) {
+                this.generateSignalCycle();
+            }
+        }, intervalMs);
+
+        logger.success("✅ Signal Generator started successfully");
+        this.emit("generatorStarted");
+    }
+
+    /**
+     * Stop the signal generator
+     */
+    stop() {
+        if (!this.isRunning) {
+            logger.warn("⚠️ Signal Generator not running");
+            return;
+        }
+
+        logger.info("🛑 Stopping Signal Generator...");
+
+        this.isRunning = false;
+
+        if (this.signalInterval) {
+            clearInterval(this.signalInterval);
+            this.signalInterval = null;
+        }
+
+        logger.success("✅ Signal Generator stopped");
+        this.emit("generatorStopped");
+    }
+
+    /**
+     * Generate signals for all assets in one cycle
+     */
+    async generateSignalCycle() {
+        try {
+            if (!this.binanceDataService) {
+                logger.error("❌ Binance data service not available");
+                return;
+            }
+
+            logger.debug("🔄 Starting signal generation cycle...");
+
+            const signals = await this.generateAllSignals(
+                this.binanceDataService
+            );
+
+            if (signals && signals.length > 0) {
+                // Emit individual signals
+                signals.forEach((signal) => {
+                    this.emit("signalGenerated", signal);
+                    this.signalHistory.push(signal);
+                });
+
+                // Emit batch of signals
+                this.emit("allSignalsGenerated", signals);
+
+                logger.info(`📡 Generated ${signals.length} signals`);
+            } else {
+                logger.debug("📊 No signals generated this cycle");
+            }
+
+            // Keep signal history manageable
+            if (this.signalHistory.length > 1000) {
+                this.signalHistory = this.signalHistory.slice(-500);
+            }
+        } catch (error) {
+            logger.error("❌ Error in signal generation cycle:", error);
+            this.emit("generationError", error);
+        }
     }
 
     getStatus() {
