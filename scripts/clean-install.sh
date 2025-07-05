@@ -210,12 +210,47 @@ backup_and_cleanup() {
 
     log_substep "Gracefully stopping services..."
     
-    # Stop PM2 processes gracefully first
-    if pm2 list | grep -q "crypto-trend-bot"; then
-        log_substep "Stopping crypto-trend-bot process gracefully..."
-        pm2 stop crypto-trend-bot --silent || true
-        sleep 3  # Give time for graceful shutdown
-    fi
+log_substep "Stopping all PM2 processes and cleaning up zombie daemons..."
+
+# Stop PM2 processes gracefully first
+if pm2 list | grep -q "crypto-trend-bot"; then
+    log_substep "Stopping crypto-trend-bot process gracefully..."
+    pm2 stop crypto-trend-bot --silent || true
+    sleep 3  # Give time for graceful shutdown
+fi
+
+# Stop all PM2 processes
+pm2 stop all --silent || true
+sleep 2
+
+# Delete PM2 processes
+pm2 delete all --silent || true
+
+# Kill the current PM2 daemon
+pm2 kill || true
+sleep 2
+
+# CRITICAL FIX: Kill any zombie PM2 daemons that pm2 kill missed
+log_substep "Cleaning up zombie PM2 daemons..."
+PM2_PIDS=$(ps aux | grep "PM2.*God Daemon" | grep -v grep | awk '{print $2}' || true)
+if [ -n "$PM2_PIDS" ]; then
+    log_substep "Found zombie PM2 daemons: $PM2_PIDS"
+    for pid in $PM2_PIDS; do
+        log_substep "Force killing PM2 daemon PID $pid..."
+        sudo kill -9 "$pid" 2>/dev/null || true
+    done
+    sleep 2
+else
+    log_substep "No zombie PM2 daemons found"
+fi
+
+# Verify all PM2 processes are gone
+REMAINING_PM2=$(ps aux | grep "PM2.*God Daemon" | grep -v grep | wc -l)
+if [ "$REMAINING_PM2" -gt 0 ]; then
+    log_warning "Some PM2 processes may still be running"
+else
+    log_substep "All PM2 daemons successfully cleaned up"
+fi
     
     # Stop all PM2 processes
     pm2 stop all --silent || true
@@ -486,7 +521,7 @@ setup_environment_and_start() {
     NODE_OPTIONS="--max-old-space-size=1024" pm2 start ecosystem.config.js --env production
     pm2 save
 
-        # Restart systemd service that we stopped earlier
+    # Restart systemd service that we stopped earlier
     if systemctl list-unit-files | grep -q pm2-adam; then
         sudo systemctl start pm2-adam
         log_substep "pm2-adam systemd service restarted"
