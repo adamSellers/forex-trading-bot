@@ -1,4 +1,4 @@
-// backend/src/services/binanceDataService.js - ENHANCED WITH DYNAMIC ORDER MINIMUMS
+// backend/src/services/binanceDataService.js - ENHANCED WITH TESTNET REMOVED
 const Binance = require("node-binance-api");
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
@@ -10,7 +10,6 @@ class BinanceDataService extends EventEmitter {
         this.config = {
             apiKey: config.apiKey || process.env.BINANCE_API_KEY,
             apiSecret: config.apiSecret || process.env.BINANCE_API_SECRET,
-            useTestnet: config.useTestnet !== false, // Default to testnet for safety
             assets: config.assets || [
                 "BTCUSDT",
                 "ETHUSDT",
@@ -48,7 +47,7 @@ class BinanceDataService extends EventEmitter {
         this.initializeBinanceClient();
 
         logger.info(
-            `🌐 ENHANCED Binance Data Service initialized - Testnet: ${this.config.useTestnet}, Exchange Info: ${this.config.autoFetchExchangeInfo}`
+            `🌐 ENHANCED Binance Data Service initialized - Production Mode, Exchange Info: ${this.config.autoFetchExchangeInfo}`
         );
     }
 
@@ -65,7 +64,7 @@ class BinanceDataService extends EventEmitter {
             this.binanceClient = Binance({
                 APIKEY: this.config.apiKey,
                 APISECRET: this.config.apiSecret,
-                test: this.config.useTestnet,
+                test: false, // Always use production endpoints
                 reconnect: true,
                 keepAlive: true,
                 verbose: false,
@@ -137,19 +136,17 @@ class BinanceDataService extends EventEmitter {
                 this.symbolInfo.set(asset, info);
 
                 logger.debug(
-                    `📋 ${asset}: Min notional $${info.minNotional}, Min qty ${info.minQty}, Step size ${info.stepSize}`
+                    `✅ ${asset}: min ${info.minNotional} USDT, min qty ${info.minQty}, status: ${info.status}`
                 );
             } else {
-                // Fallback data for missing symbols
-                const fallbackInfo = this.createFallbackSymbolInfo(asset);
-                this.symbolInfo.set(asset, fallbackInfo);
-
-                logger.warn(`⚠️ ${asset}: Using fallback constraints`);
+                logger.warn(`⚠️ Symbol ${asset} not found in exchange info`);
+                // Set fallback constraints
+                this.symbolInfo.set(asset, this.getFallbackConstraints(asset));
             }
         });
 
         logger.success(
-            `✅ Symbol constraints processed for ${this.symbolInfo.size} assets`
+            `✅ Processed ${this.symbolInfo.size} symbol constraints`
         );
     }
 
@@ -160,42 +157,30 @@ class BinanceDataService extends EventEmitter {
         const constraints = {
             symbol: symbolData.symbol,
             status: symbolData.status,
-            minQty: 0,
-            maxQty: 0,
-            stepSize: 0,
-            minNotional: 0,
-            minPrice: 0,
-            maxPrice: 0,
-            tickSize: 0,
+            baseAsset: symbolData.baseAsset,
+            quoteAsset: symbolData.quoteAsset,
+            minNotional: 10, // Default fallback
+            minQty: 0.001, // Default fallback
+            maxQty: 100000, // Default fallback
+            stepSize: 0.001, // Default fallback
+            tickSize: 0.01, // Default fallback
+            maxPrice: 1000000, // Default fallback
         };
 
-        // Extract from filters
-        symbolData.filters.forEach((filter) => {
+        // Extract filters
+        symbolData.filters?.forEach((filter) => {
             switch (filter.filterType) {
+                case "MIN_NOTIONAL":
+                    constraints.minNotional = parseFloat(filter.minNotional);
+                    break;
                 case "LOT_SIZE":
                     constraints.minQty = parseFloat(filter.minQty);
                     constraints.maxQty = parseFloat(filter.maxQty);
                     constraints.stepSize = parseFloat(filter.stepSize);
                     break;
-
-                case "MIN_NOTIONAL":
-                    constraints.minNotional = parseFloat(
-                        filter.minNotional || filter.notional || 0
-                    );
-                    break;
-
-                case "NOTIONAL":
-                    if (!constraints.minNotional) {
-                        constraints.minNotional = parseFloat(
-                            filter.minNotional || 0
-                        );
-                    }
-                    break;
-
                 case "PRICE_FILTER":
-                    constraints.minPrice = parseFloat(filter.minPrice);
-                    constraints.maxPrice = parseFloat(filter.maxPrice);
                     constraints.tickSize = parseFloat(filter.tickSize);
+                    constraints.maxPrice = parseFloat(filter.maxPrice);
                     break;
             }
         });
@@ -204,126 +189,78 @@ class BinanceDataService extends EventEmitter {
     }
 
     /**
-     * NEW: Create fallback exchange info when API is unavailable
+     * NEW: Get fallback constraints for symbols not in exchange info
+     */
+    getFallbackConstraints(symbol) {
+        const defaults = {
+            BTCUSDT: { minNotional: 5, minQty: 0.00001, stepSize: 0.00001 },
+            ETHUSDT: { minNotional: 5, minQty: 0.0001, stepSize: 0.0001 },
+            BNBUSDT: { minNotional: 5, minQty: 0.001, stepSize: 0.001 },
+            DOGEUSDT: { minNotional: 1, minQty: 1, stepSize: 1 },
+        };
+
+        return {
+            symbol,
+            status: "TRADING",
+            minNotional: defaults[symbol]?.minNotional || 10,
+            minQty: defaults[symbol]?.minQty || 0.001,
+            maxQty: 100000,
+            stepSize: defaults[symbol]?.stepSize || 0.001,
+            tickSize: 0.01,
+            maxPrice: 1000000,
+        };
+    }
+
+    /**
+     * NEW: Create fallback exchange info when API fails
      */
     createFallbackExchangeInfo() {
-        const symbols = this.config.assets.map((asset) => ({
-            symbol: asset,
-            status: "TRADING",
-            filters: [
-                {
-                    filterType: "LOT_SIZE",
-                    minQty: "0.00001000",
-                    maxQty: "9000.00000000",
-                    stepSize: "0.00001000",
-                },
-                {
-                    filterType: "MIN_NOTIONAL",
-                    minNotional: "10.00000000",
-                },
-                {
-                    filterType: "PRICE_FILTER",
-                    minPrice: "0.01000000",
-                    maxPrice: "1000000.00000000",
-                    tickSize: "0.01000000",
-                },
-            ],
-        }));
-
         return {
             timezone: "UTC",
             serverTime: Date.now(),
-            symbols: symbols,
-            rateLimits: [],
-            exchangeFilters: [],
+            symbols: this.config.assets.map((asset) => ({
+                symbol: asset,
+                status: "TRADING",
+                baseAsset: asset.replace("USDT", ""),
+                quoteAsset: "USDT",
+                filters: [
+                    {
+                        filterType: "MIN_NOTIONAL",
+                        minNotional: "10.00000000",
+                    },
+                    {
+                        filterType: "LOT_SIZE",
+                        minQty: "0.00100000",
+                        maxQty: "100000.00000000",
+                        stepSize: "0.00100000",
+                    },
+                ],
+            })),
         };
     }
 
     /**
-     * NEW: Create fallback symbol info
+     * NEW: Validate order parameters against symbol constraints
      */
-    createFallbackSymbolInfo(asset) {
-        const baseDefaults = {
-            minQty: 0.00001,
-            maxQty: 9000,
-            stepSize: 0.00001,
-            minNotional: 10, // $10 minimum
-            minPrice: 0.01,
-            maxPrice: 1000000,
-            tickSize: 0.01,
-        };
-
-        // Asset-specific adjustments
-        const assetSpecific = {
-            BTCUSDT: { minNotional: 10, stepSize: 0.00001 },
-            ETHUSDT: { minNotional: 10, stepSize: 0.0001 },
-            BNBUSDT: { minNotional: 10, stepSize: 0.001 },
-            DOGEUSDT: { minNotional: 5, stepSize: 1 }, // DOGE has different precision
-        };
-
-        return {
-            symbol: asset,
-            status: "TRADING",
-            ...baseDefaults,
-            ...(assetSpecific[asset] || {}),
-        };
-    }
-
-    /**
-     * NEW: Get minimum order size for a specific symbol
-     */
-    getMinOrderSize(symbol) {
-        const symbolData = this.symbolInfo.get(symbol);
-
-        if (!symbolData) {
-            logger.warn(
-                `⚠️ No symbol data for ${symbol}, using default minimum`
-            );
-            return 10; // Default fallback
+    validateOrderParams(symbol, quantity, price) {
+        const constraints = this.symbolInfo.get(symbol);
+        if (!constraints) {
+            return {
+                valid: false,
+                errors: [`No constraints found for symbol ${symbol}`],
+            };
         }
 
-        // Return the larger of minNotional or our global minimum
-        const exchangeMinimum = symbolData.minNotional || 10;
-        const globalMinimum = this.config.minOrderSize || 10;
-
-        return Math.max(exchangeMinimum, globalMinimum);
-    }
-
-    /**
-     * NEW: Get all symbol constraints for a symbol
-     */
-    getSymbolConstraints(symbol) {
-        const symbolData = this.symbolInfo.get(symbol);
-
-        if (!symbolData) {
-            logger.warn(`⚠️ No constraints data for ${symbol}`);
-            return this.createFallbackSymbolInfo(symbol);
-        }
-
-        return { ...symbolData };
-    }
-
-    /**
-     * NEW: Validate order parameters against exchange constraints
-     */
-    validateOrderParameters(symbol, quantity, price) {
-        const constraints = this.getSymbolConstraints(symbol);
-        const notionalValue = quantity * price;
-
-        const validation = {
-            valid: true,
-            errors: [],
-            adjustedQuantity: quantity,
-            adjustedPrice: price,
-        };
+        const validation = { valid: true, errors: [] };
+        const notional = quantity * price;
 
         // Check minimum notional
-        if (notionalValue < constraints.minNotional) {
+        if (notional < constraints.minNotional) {
             validation.valid = false;
             validation.errors.push(
-                `Order value ${notionalValue.toFixed(2)} USDT below minimum ${
+                `Notional ${notional.toFixed(2)} below minimum ${
                     constraints.minNotional
-                } USDT`
+                }`
             );
         }
 
@@ -342,27 +279,7 @@ class BinanceDataService extends EventEmitter {
             );
         }
 
-        // Check quantity precision (step size)
-        if (constraints.stepSize > 0) {
-            const steps = Math.round(quantity / constraints.stepSize);
-            const adjustedQty = steps * constraints.stepSize;
-
-            if (Math.abs(quantity - adjustedQty) > constraints.stepSize * 0.1) {
-                validation.adjustedQuantity = adjustedQty;
-                validation.errors.push(
-                    `Quantity adjusted for step size: ${quantity} → ${adjustedQty}`
-                );
-            }
-        }
-
         // Check price constraints
-        if (price < constraints.minPrice) {
-            validation.valid = false;
-            validation.errors.push(
-                `Price ${price} below minimum ${constraints.minPrice}`
-            );
-        }
-
         if (price > constraints.maxPrice) {
             validation.valid = false;
             validation.errors.push(
@@ -452,7 +369,7 @@ class BinanceDataService extends EventEmitter {
                         `📊 Loading ${limit} ${timeframe} candles for ${asset}...`
                     );
 
-                    const candles = await this.getHistoricalCandles(
+                    const candles = await this.fetchCandles(
                         asset,
                         timeframe,
                         limit
@@ -464,29 +381,31 @@ class BinanceDataService extends EventEmitter {
                         logger.debug(
                             `✅ Loaded ${candles.length} candles for ${asset} ${timeframe}`
                         );
-                    } else {
-                        logger.warn(
-                            `⚠️ No candle data received for ${asset} ${timeframe}`
-                        );
                     }
 
-                    await new Promise((resolve) => setTimeout(resolve, 200));
+                    // Small delay to avoid rate limits
+                    await new Promise((resolve) => setTimeout(resolve, 100));
                 } catch (error) {
                     logger.error(
-                        `❌ Failed to load ${asset} ${timeframe}:`,
-                        error
+                        `❌ Failed to load ${timeframe} data for ${asset}:`,
+                        error.message
                     );
                 }
             }
-            await new Promise((resolve) => setTimeout(resolve, 300));
         }
+
+        logger.success("✅ Historical data loading completed");
     }
 
-    async getHistoricalCandles(symbol, interval, limit = 100) {
+    async fetchCandles(symbol, interval, limit = 100) {
+        if (this.config.useFallback) {
+            return this.generateFallbackCandles(symbol, interval, limit);
+        }
+
         try {
-            if (this.config.useFallback) {
-                return this.generateFallbackCandles(symbol, interval, limit);
-            }
+            logger.debug(
+                `📈 Fetching ${limit} ${interval} candles for ${symbol}...`
+            );
 
             let candles;
             let retries = 3;
@@ -501,13 +420,17 @@ class BinanceDataService extends EventEmitter {
                                 if (error) reject(error);
                                 else resolve(ticks);
                             },
-                            { limit }
+                            { limit: Math.min(limit, 1000) }
                         );
                     });
                     break;
                 } catch (error) {
                     retries--;
                     if (retries === 0) throw error;
+
+                    logger.debug(
+                        `⚠️ Retry ${4 - retries}/3 for ${symbol} ${interval}...`
+                    );
                     await new Promise((resolve) => setTimeout(resolve, 1000));
                 }
             }
@@ -546,10 +469,8 @@ class BinanceDataService extends EventEmitter {
                 symbol,
                 (ticker) => {
                     // DEBUG: Log the raw data structure
-                    logger.debug(
-                        `Raw ticker data for ${symbol}:`,
-                        JSON.stringify(ticker, null, 2)
-                    );
+                    logger.debug(`Raw ticker data for ${symbol}:`, ticker);
+
                     // Add null check
                     if (!ticker || !ticker.s) {
                         logger.debug(`Received null ticker data for ${symbol}`);
