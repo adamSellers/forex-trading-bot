@@ -430,6 +430,9 @@ class EnhancedTradingController extends EventEmitter {
             // Start paper trading engine
             await this.paperTrading.start();
 
+            // Start signal generator with 60-second intervals
+            this.signalGenerator.start(this.binanceData, 60000);
+
             // Start enhanced trading loop
             await this.startEnhancedTradingLoop();
 

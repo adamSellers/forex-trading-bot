@@ -73,11 +73,12 @@ echo "" >> "$OUTPUT_FILE"
 # Database Status
 echo "🗄️ DATABASE STATUS" >> "$OUTPUT_FILE"
 echo "------------------" >> "$OUTPUT_FILE"
-if [ -f "/opt/crypto-trading-bot/data/trading.db" ]; then
-    echo "Database exists: /opt/crypto-trading-bot/data/trading.db" >> "$OUTPUT_FILE"
-    echo "Database size: $(du -h /opt/crypto-trading-bot/data/trading.db | cut -f1)" >> "$OUTPUT_FILE"
-    echo "Trade count: $(sqlite3 /opt/crypto-trading-bot/data/trading.db 'SELECT COUNT(*) FROM trades;' 2>/dev/null || echo 'Cannot query')" >> "$OUTPUT_FILE"
-    echo "Signal count: $(sqlite3 /opt/crypto-trading-bot/data/trading.db 'SELECT COUNT(*) FROM signals;' 2>/dev/null || echo 'Cannot query')" >> "$OUTPUT_FILE"
+DB_PATH="/opt/crypto-trading-bot/backend/data/trading.db"
+if [ -f "$DB_PATH" ]; then
+    echo "Database exists: $DB_PATH" >> "$OUTPUT_FILE"
+    echo "Database size: $(du -h "$DB_PATH" | cut -f1)" >> "$OUTPUT_FILE"
+    echo "Trade count: $(sqlite3 "$DB_PATH" 'SELECT COUNT(*) FROM trades;' 2>/dev/null || echo 'Cannot query')" >> "$OUTPUT_FILE"
+    echo "Signal count: $(sqlite3 "$DB_PATH" 'SELECT COUNT(*) FROM signals;' 2>/dev/null || echo 'Cannot query')" >> "$OUTPUT_FILE"
 else
     echo "Database not found" >> "$OUTPUT_FILE"
 fi
