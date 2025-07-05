@@ -48,6 +48,9 @@ class TradingService extends EventEmitter {
             this.signalGenerator = new SignalGenerator(this.config);
             this.paperTrading = new PaperTradingEngine(this.config);
 
+            // Start the data service initialization, which runs in the background
+            this.binanceData.initialize();
+
             // Wait for services to be ready
             await this.waitForServices();
             await this.paperTrading.initialize();
@@ -83,7 +86,12 @@ class TradingService extends EventEmitter {
 
             // Timeout after 30 seconds
             setTimeout(
-                () => reject(new Error("Service initialization timeout")),
+                () =>
+                    reject(
+                        new Error(
+                            "Service initialization timeout: BinanceDataService did not become ready in 30s."
+                        )
+                    ),
                 30000
             );
         });
