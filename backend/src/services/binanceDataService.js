@@ -545,6 +545,11 @@ class BinanceDataService extends EventEmitter {
             const stream = this.binanceClient.websockets.prevDay(
                 symbol,
                 (ticker) => {
+                    // DEBUG: Log the raw data structure
+                    logger.debug(
+                        `Raw ticker data for ${symbol}:`,
+                        JSON.stringify(ticker, null, 2)
+                    );
                     // Add null check
                     if (!ticker || !ticker.s) {
                         logger.debug(`Received null ticker data for ${symbol}`);
