@@ -546,11 +546,11 @@ class BinanceDataService extends EventEmitter {
                 symbol,
                 (ticker) => {
                     const priceData = {
-                        symbol: ticker.symbol,
-                        price: parseFloat(ticker.curDayClose),
-                        priceChange: parseFloat(ticker.priceChange),
-                        priceChangePercent: parseFloat(ticker.percentChange),
-                        volume: parseFloat(ticker.volume),
+                        symbol: ticker.s,
+                        price: parseFloat(ticker.c),
+                        priceChange: parseFloat(ticker.p),
+                        priceChangePercent: parseFloat(ticker.P),
+                        volume: parseFloat(ticker.v),
                         timestamp: Date.now(),
                     };
 
