@@ -442,46 +442,8 @@ class BinanceDataService extends EventEmitter {
         }
     }
 
-async startPriceStream(symbol) {
-    if (this.config.useFallback) {
-        this.startFallbackPriceData(symbol);
-        return;
-    }
-
-    try {
-        const stream = this.binanceClient.websockets.prevDay(
-            symbol,
-            (ticker) => {
-                // DEBUG: Log the raw data structure
-                logger.debug(`Raw ticker data for ${symbol}:`, ticker);
-
-                // Add null check with correct property
-                if (!ticker || !ticker.symbol) {
-                    logger.debug(`Received null ticker data for ${symbol}`);
-                    return;
-                }
-
-                const priceData = {
-                    symbol: ticker.symbol,                    // ✅ Changed from ticker.s
-                    price: parseFloat(ticker.close),          // ✅ Changed from ticker.c
-                    priceChange: parseFloat(ticker.priceChange),      // ✅ Changed from ticker.p
-                    priceChangePercent: parseFloat(ticker.percentChange), // ✅ Changed from ticker.P
-                    volume: parseFloat(ticker.volume),        // ✅ Changed from ticker.v
-                    timestamp: Date.now(),
-                };
-
-                this.priceData.set(symbol, priceData);
-                this.emit("priceUpdate", priceData);
-            }
-        );
-
-        this.webSocketConnections.set(symbol, stream);
-        logger.debug(`📈 Price stream started for ${symbol}`);
-    } catch (error) {
-        logger.error(`Failed to start WebSocket for ${symbol}:`, error);
-        this.startFallbackPriceData(symbol);
-    }
-}
+    async startRealTimeData() {
+        logger.info("📡 Starting real-time data streams...");
 
         for (const asset of this.config.assets) {
             try {
@@ -509,18 +471,18 @@ async startPriceStream(symbol) {
                     // DEBUG: Log the raw data structure
                     logger.debug(`Raw ticker data for ${symbol}:`, ticker);
 
-                    // Add null check
-                    if (!ticker || !ticker.s) {
+                    // Add null check with correct property
+                    if (!ticker || !ticker.symbol) {
                         logger.debug(`Received null ticker data for ${symbol}`);
                         return;
                     }
 
                     const priceData = {
-                        symbol: ticker.s,
-                        price: parseFloat(ticker.c),
-                        priceChange: parseFloat(ticker.p),
-                        priceChangePercent: parseFloat(ticker.P),
-                        volume: parseFloat(ticker.v),
+                        symbol: ticker.symbol, // ✅ Changed from ticker.s
+                        price: parseFloat(ticker.close), // ✅ Changed from ticker.c
+                        priceChange: parseFloat(ticker.priceChange), // ✅ Changed from ticker.p
+                        priceChangePercent: parseFloat(ticker.percentChange), // ✅ Changed from ticker.P
+                        volume: parseFloat(ticker.volume), // ✅ Changed from ticker.v
                         timestamp: Date.now(),
                     };
 
