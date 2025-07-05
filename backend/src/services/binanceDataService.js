@@ -465,11 +465,12 @@ class BinanceDataService extends EventEmitter {
         }
 
         try {
-            const stream = this.binanceClient.websockets.miniTicker(
+            const stream = this.binanceClient.websockets.prevDay(
                 symbol,
-                (ticker) => {
+                (error, ticker) => {
                     // DEBUG: Log the raw data structure
                     logger.debug(`Raw ticker data for ${symbol}:`, {
+                        error,
                         ticker,
                         type: typeof ticker,
                         isNull: ticker === null,
@@ -477,18 +478,34 @@ class BinanceDataService extends EventEmitter {
                         keys: ticker ? Object.keys(ticker) : "no keys",
                     });
 
-                    // Add null check with correct property
+                    // Handle errors
+                    if (error) {
+                        logger.error(`WebSocket error for ${symbol}:`, error);
+                        return;
+                    }
+
+                    // IGNORE CONFIRMATION MESSAGES - This is the key fix
+                    if (ticker === null || ticker === undefined) {
+                        logger.debug(
+                            `Ignoring confirmation/null message for ${symbol}`
+                        );
+                        return;
+                    }
+
+                    // Check if ticker has required properties
                     if (!ticker || !ticker.symbol) {
-                        logger.debug(`Received null ticker data for ${symbol}`);
+                        logger.debug(
+                            `Invalid ticker data structure for ${symbol}`
+                        );
                         return;
                     }
 
                     const priceData = {
-                        symbol: ticker.symbol, // ✅ Changed from ticker.s
-                        price: parseFloat(ticker.close), // ✅ Changed from ticker.c
-                        priceChange: parseFloat(ticker.priceChange), // ✅ Changed from ticker.p
-                        priceChangePercent: parseFloat(ticker.percentChange), // ✅ Changed from ticker.P
-                        volume: parseFloat(ticker.volume), // ✅ Changed from ticker.v
+                        symbol: ticker.symbol,
+                        price: parseFloat(ticker.close),
+                        priceChange: parseFloat(ticker.priceChange),
+                        priceChangePercent: parseFloat(ticker.percentChange),
+                        volume: parseFloat(ticker.volume),
                         timestamp: Date.now(),
                     };
 
