@@ -545,6 +545,12 @@ class BinanceDataService extends EventEmitter {
             const stream = this.binanceClient.websockets.prevDay(
                 symbol,
                 (ticker) => {
+                    // Add null check
+                    if (!ticker || !ticker.s) {
+                        logger.debug(`Received null ticker data for ${symbol}`);
+                        return;
+                    }
+
                     const priceData = {
                         symbol: ticker.s,
                         price: parseFloat(ticker.c),
