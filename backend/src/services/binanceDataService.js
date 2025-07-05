@@ -469,7 +469,13 @@ class BinanceDataService extends EventEmitter {
                 symbol,
                 (ticker) => {
                     // DEBUG: Log the raw data structure
-                    logger.debug(`Raw ticker data for ${symbol}:`, ticker);
+                    logger.debug(`Raw ticker data for ${symbol}:`, {
+                        ticker,
+                        type: typeof ticker,
+                        isNull: ticker === null,
+                        isUndefined: ticker === undefined,
+                        keys: ticker ? Object.keys(ticker) : "no keys",
+                    });
 
                     // Add null check with correct property
                     if (!ticker || !ticker.symbol) {
