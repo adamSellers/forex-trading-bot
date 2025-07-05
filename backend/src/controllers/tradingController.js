@@ -141,6 +141,11 @@ class EnhancedTradingController extends EventEmitter {
                     this.binanceData.getAllPrices()
                 );
                 this.emit("priceUpdate", priceData);
+
+                // FIXED: Forward priceUpdate to WebSocket clients
+                if (this.socketIO) {
+                    this.socketIO.emit("priceUpdate", priceData);
+                }
             } catch (error) {
                 // FIXED: Prevent the "callback is not a function" error
                 logger.warn("Price update error:", error.message);
