@@ -159,8 +159,15 @@ class EnhancedTradingController extends EventEmitter {
         });
 
         this.binanceData.on("serviceReady", () => {
-            logger.success("📡 Binance Data Service is ready");
+            logger.success(
+                "📡 Binance Data Service is ready. Starting signal generation."
+            );
             this.emit("binanceReady");
+            // Only start the generator if the controller is in a "running" state.
+            // This prevents it from starting if the system was stopped and then the connection re-established.
+            if (this.isRunning) {
+                this.signalGenerator.start(this.binanceData, 60000);
+            }
         });
 
         this.binanceData.on("serviceError", (error) => {
@@ -236,8 +243,20 @@ class EnhancedTradingController extends EventEmitter {
             this.logEvent("VOLATILITY_FILTERED", data);
         });
 
-        this.signalGenerator.on("allSignalsGenerated", (signals) => {
+        this.signalGenerator.on("allSignalsGenerated", async (signals) => {
             this.emit("signalsGenerated", signals);
+            if (!this.isRunning || !this.paperTrading?.isActive) {
+                return;
+            }
+            // Process signals here, driven by the generator's event
+            logger.debug(
+                `Processing ${signals.length} signals from event listener.`
+            );
+            for (const signal of signals) {
+                if (this.isRunning && this.paperTrading.isActive) {
+                    await this.paperTrading.processSignal(signal);
+                }
+            }
         });
 
         logger.success("✅ Enhanced event listeners configured");
@@ -360,26 +379,18 @@ class EnhancedTradingController extends EventEmitter {
                 await this.binanceData.refreshExchangeInfoIfNeeded();
             }
 
-            // 2. Generate signals with volatility filter
-            const signals = await this.signalGenerator.generateAllSignals(
-                this.binanceData
-            );
+            // 2. Signal generation is now handled by the signalGenerator's internal timer
+            //    and processing is handled by the 'allSignalsGenerated' event listener.
 
-            // 3. Process signals with enhanced paper trading
-            for (const signal of signals) {
-                if (this.isRunning && this.paperTrading.isActive) {
-                    await this.paperTrading.processSignal(signal);
-                }
-            }
-
-            // 4. Update portfolio with current prices (handles trailing stops automatically)
+            // 3. Update portfolio with current prices (handles trailing stops automatically)
             this.paperTrading.updatePortfolioValue(
                 this.binanceData.getAllPrices()
             );
 
-            // 5. Log cycle completion
+            // 4. Log cycle completion
             this.logEvent("TRADING_CYCLE_COMPLETED", {
-                signalsProcessed: signals.length,
+                // signalsProcessed is no longer available here, which is correct.
+                // This loop is for maintenance, not signal processing.
                 activePositions:
                     this.paperTrading.portfolio?.positions?.size || 0,
                 portfolioValue: this.paperTrading.portfolio?.totalValue || 0,
@@ -430,10 +441,8 @@ class EnhancedTradingController extends EventEmitter {
             // Start paper trading engine
             await this.paperTrading.start();
 
-            // Start signal generator with 60-second intervals
-            this.signalGenerator.start(this.binanceData, 60000);
-
-            // Start enhanced trading loop
+            // The signal generator will now be started by the 'serviceReady' event listener.
+            // The trading loop is for maintenance (portfolio updates, etc.)
             await this.startEnhancedTradingLoop();
 
             this.isRunning = true;

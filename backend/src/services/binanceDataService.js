@@ -38,6 +38,7 @@ class BinanceDataService extends EventEmitter {
         this.symbolInfo = new Map();
         this.lastExchangeInfoUpdate = 0;
 
+        this.isServiceReady = false;
         // Connection state
         this.isConnected = false;
         this.connectionAttempts = 0;
@@ -313,9 +314,8 @@ class BinanceDataService extends EventEmitter {
 
             this.isConnected = true;
             logger.success(
-                "✅ ENHANCED Binance Data Service initialized successfully"
+                "✅ ENHANCED Binance Data Service initialized, waiting for price streams..."
             );
-            this.emit("serviceReady");
         } catch (error) {
             logger.error("❌ Failed to initialize enhanced service:", error);
             this.emit("serviceError", error);
@@ -511,6 +511,18 @@ class BinanceDataService extends EventEmitter {
 
                     this.priceData.set(symbol, priceData);
                     this.emit("priceUpdate", priceData);
+
+                    // NEW: Check if all initial price streams are active
+                    if (
+                        !this.isServiceReady &&
+                        this.priceData.size === this.config.assets.length
+                    ) {
+                        this.isServiceReady = true;
+                        logger.success(
+                            "✅ All price streams active. Service is ready."
+                        );
+                        this.emit("serviceReady");
+                    }
                 }
             );
 
