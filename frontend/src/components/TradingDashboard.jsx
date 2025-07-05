@@ -49,7 +49,8 @@ const TradingDashboard = () => {
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
-  const [signals, setSignals] = useState([]);
+  // FIX: Use a Map to store only the latest signal for each symbol
+  const [latestSignals, setLatestSignals] = useState(new Map());
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(false);
@@ -61,6 +62,25 @@ const TradingDashboard = () => {
 
   // Socket connection with fixed URL
   useEffect(() => {
+    // Helper function to correctly update the signals map state
+    const updateSignalState = (signals) => {
+        if (!Array.isArray(signals)) return;
+
+        setLatestSignals(prevMap => {
+            const newMap = new Map(prevMap);
+            signals.forEach(signal => {
+                if (signal && signal.symbol) {
+                    // Only update if the new signal is more recent
+                    const existing = newMap.get(signal.symbol);
+                    if (!existing || new Date(signal.timestamp) >= new Date(existing.timestamp)) {
+                        newMap.set(signal.symbol, signal);
+                    }
+                }
+            });
+            return newMap;
+        });
+    };
+
     const socketUrl = SOCKET_URL || window.location.origin;
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
@@ -118,35 +138,15 @@ const TradingDashboard = () => {
     });
 
     socket.on('signalGenerated', (data) => {
-      console.log('🚨 Signal received:', data?.symbol, data?.signal || data?.signal?.signal);
-      
-      const signal = data?.signal || data;
-      if (signal?.symbol) {
-        setSignals(prev => {
-          const newSignals = [signal, ...prev].slice(0, 100);
-          return newSignals;
-        });
-        setLastUpdate(Date.now());
-      }
+      console.log('🚨 Single signal received:', data?.symbol, data?.signal);
+      updateSignalState([data]); // Process as an array of one
+      setLastUpdate(Date.now());
     });
 
     socket.on('allSignalsGenerated', (signalsArray) => {
       console.log('🚨 Batch signals received:', signalsArray?.length);
-      
-      if (Array.isArray(signalsArray) && signalsArray.length > 0) {
-        setSignals(prev => {
-          const combined = [...signalsArray, ...prev];
-          const unique = combined.filter((signal, index, self) => 
-            index === self.findIndex(s => 
-              s.symbol === signal.symbol && 
-              s.timestamp === signal.timestamp &&
-              s.signal === signal.signal
-            )
-          );
-          return unique.slice(0, 100);
-        });
-        setLastUpdate(Date.now());
-      }
+      updateSignalState(signalsArray);
+      setLastUpdate(Date.now());
     });
 
     socket.on('tradeExecuted', (trade) => {
@@ -174,7 +174,7 @@ const TradingDashboard = () => {
 
     socket.on('tradingReset', () => {
       console.log('🔄 Trading reset');
-      setSignals([]);
+      setLatestSignals(new Map());
       setTrades([]);
       fetchInitialData();
     });
@@ -187,6 +187,25 @@ const TradingDashboard = () => {
 
   // API data fetching using the new API helpers
   const fetchInitialData = async () => {
+    // Helper function to correctly update the signals map state from fetched data
+    const updateSignalState = (signals) => {
+        if (!Array.isArray(signals)) return;
+
+        setLatestSignals(prevMap => {
+            const newMap = new Map(prevMap);
+            signals.forEach(signal => {
+                if (signal && signal.symbol) {
+                    // Only update if the new signal is more recent
+                    const existing = newMap.get(signal.symbol);
+                    if (!existing || new Date(signal.timestamp) >= new Date(existing.timestamp)) {
+                        newMap.set(signal.symbol, signal);
+                    }
+                }
+            });
+            return newMap;
+        });
+    };
+
     try {
       console.log('🔄 Fetching initial trading data...');
       setLoading(true);
@@ -220,7 +239,7 @@ const TradingDashboard = () => {
       }
 
       try {
-        results.signals = await tradingAPI.getSignals({ limit: 50 });
+        results.signals = await tradingAPI.getSignals({ limit: 100 }); // Fetch more to find latest for each
         console.log('✅ Signals loaded');
       } catch (err) {
         console.error('❌ Failed to fetch signals:', err.message);
@@ -268,11 +287,7 @@ const TradingDashboard = () => {
       // Handle signals data structure  
       if (results.signals) {
         if (results.signals.signals && Array.isArray(results.signals.signals)) {
-          setSignals(results.signals.signals);
-        } else if (Array.isArray(results.signals)) {
-          setSignals(results.signals);
-        } else {
-          setSignals([]);
+          updateSignalState(results.signals.signals);
         }
       }
 
@@ -354,8 +369,8 @@ const TradingDashboard = () => {
     if (!systemStatus) return { status: 'unknown', color: 'default', icon: <Timeline /> };
     
     const isOnline = systemStatus.isInitialized;
-    const hasRecentUpdate = lastUpdate && (Date.now() - lastUpdate) < 60000;
-    const hasData = signals.length > 0 || trades.length > 0;
+    const hasRecentUpdate = lastUpdate && (Date.now() - lastUpdate) < 120000; // 2 minutes
+    const hasData = latestSignals.size > 0 || trades.length > 0;
     const accountConnected = account && !account.error;
     
     if (isOnline && hasRecentUpdate && hasData && accountConnected) {
@@ -368,6 +383,11 @@ const TradingDashboard = () => {
       return { status: 'offline', color: 'error', icon: <Timeline /> };
     }
   };
+
+  // Memoize the sorted array of signals to prevent re-sorting on every render
+  const signalsToRender = React.useMemo(() => {
+      return Array.from(latestSignals.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  }, [latestSignals]);
 
   const systemHealth = getSystemHealth();
 
@@ -582,7 +602,7 @@ const TradingDashboard = () => {
                 <Chip
                   size="small"
                   icon={<TrendingUp />}
-                  label={`${signals.length} signals`}
+                  label={`${signalsToRender.length} signals`}
                   color="info"
                   variant="outlined"
                 />
@@ -650,7 +670,7 @@ const TradingDashboard = () => {
           <Grid container spacing={2}>
             <Grid item xs={12}>
               <TradingSignals 
-                signals={signals} 
+                signals={signalsToRender} 
                 systemStatus={systemStatus}
               />
             </Grid>
@@ -706,7 +726,7 @@ const TradingDashboard = () => {
                 <strong>Signals:</strong>
               </Typography>
               <Typography variant="body2">
-                {signals.length} total
+                {signalsToRender.length} total
               </Typography>
             </Grid>
             <Grid item xs={6} md={2}>
