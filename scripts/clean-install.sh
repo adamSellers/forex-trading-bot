@@ -191,11 +191,6 @@ configure_npm_and_pm2() {
 
 backup_and_cleanup() {
     log_step "Backing up and cleaning up previous installation..."
-    # Stop systemd PM2 service first to prevent process restarts during backup
-    if systemctl is-active --quiet pm2-adam; then
-        sudo systemctl stop pm2-adam
-        log_substep "pm2-adam systemd service stopped"
-    fi
     if [[ -d "$PROJECT_DIR" ]]; then
         log_substep "Creating backup..."
         sudo mkdir -p "$BACKUP_DIR"
@@ -210,47 +205,12 @@ backup_and_cleanup() {
 
     log_substep "Gracefully stopping services..."
     
-log_substep "Stopping all PM2 processes and cleaning up zombie daemons..."
-
-# Stop PM2 processes gracefully first
-if pm2 list | grep -q "crypto-trend-bot"; then
-    log_substep "Stopping crypto-trend-bot process gracefully..."
-    pm2 stop crypto-trend-bot --silent || true
-    sleep 3  # Give time for graceful shutdown
-fi
-
-# Stop all PM2 processes
-pm2 stop all --silent || true
-sleep 2
-
-# Delete PM2 processes
-pm2 delete all --silent || true
-
-# Kill the current PM2 daemon
-pm2 kill || true
-sleep 2
-
-# CRITICAL FIX: Kill any zombie PM2 daemons that pm2 kill missed
-log_substep "Cleaning up zombie PM2 daemons..."
-PM2_PIDS=$(ps aux | grep "PM2.*God Daemon" | grep -v grep | awk '{print $2}' || true)
-if [ -n "$PM2_PIDS" ]; then
-    log_substep "Found zombie PM2 daemons: $PM2_PIDS"
-    for pid in $PM2_PIDS; do
-        log_substep "Force killing PM2 daemon PID $pid..."
-        sudo kill -9 "$pid" 2>/dev/null || true
-    done
-    sleep 2
-else
-    log_substep "No zombie PM2 daemons found"
-fi
-
-# Verify all PM2 processes are gone
-REMAINING_PM2=$(ps aux | grep "PM2.*God Daemon" | grep -v grep | wc -l)
-if [ "$REMAINING_PM2" -gt 0 ]; then
-    log_warning "Some PM2 processes may still be running"
-else
-    log_substep "All PM2 daemons successfully cleaned up"
-fi
+    # Stop PM2 processes gracefully first
+    if pm2 list | grep -q "$APP_NAME"; then
+        log_substep "Sending SIGTERM to $APP_NAME process..."
+        pm2 stop $APP_NAME --silent || true
+        sleep 3  # Give time for graceful shutdown
+    fi
     
     # Stop all PM2 processes
     pm2 stop all --silent || true
@@ -259,68 +219,34 @@ fi
     # Delete PM2 processes
     pm2 delete all --silent || true
     
-    # Find and gracefully terminate node processes on port 3001
-    log_substep "Gracefully terminating processes on port 3001..."
-    local pids
-    pids=$(lsof -ti :3001 2>/dev/null || true)
+    # Force kill any remaining node processes on port 3001
+    log_substep "Ensuring port 3001 is fully released..."
+    sudo pkill -f "node.*3001" || true
+    sudo pkill -f "$APP_NAME" || true
     
-    if [ -n "$pids" ]; then
-        log_substep "Found processes using port 3001: $pids"
-        
-        # Send SIGTERM first (graceful)
-        for pid in $pids; do
-            if kill -0 "$pid" 2>/dev/null; then
-                log_substep "Sending SIGTERM to PID $pid..."
-                kill -TERM "$pid" 2>/dev/null || true
-            fi
-        done
-        
-        # Wait for graceful shutdown
-        local attempts=0
-        while lsof -i :3001 >/dev/null 2>&1 && [ $attempts -lt 8 ]; do
-            log_substep "Waiting for graceful shutdown... (attempt $((attempts+1))/8)"
-            sleep 2
-            attempts=$((attempts+1))
-        done
-        
-        # If still running, escalate to SIGKILL (but more carefully)
-        if lsof -i :3001 >/dev/null 2>&1; then
-            log_warning "Some processes didn't exit gracefully. Using SIGKILL..."
-            pids=$(lsof -ti :3001 2>/dev/null || true)
-            
-            for pid in $pids; do
-                if kill -0 "$pid" 2>/dev/null; then
-                    # Check if this PID is our current shell or parent processes
-                    if [ "$pid" != "$$" ] && [ "$pid" != "$PPID" ]; then
-                        log_substep "Force killing PID $pid..."
-                        kill -KILL "$pid" 2>/dev/null || true
-                    else
-                        log_warning "Skipping PID $pid (current shell or parent)"
-                    fi
-                fi
-            done
-            
-            sleep 2
-        fi
-    else
-        log_substep "No processes found using port 3001"
+    # Wait for port to be released
+    local attempts=0
+    while lsof -i :3001 >/dev/null 2>&1 && [ $attempts -lt 10 ]; do
+        log_substep "Waiting for port 3001 to be released... (attempt $((attempts+1))/10)"
+        sleep 2
+        attempts=$((attempts+1))
+    done
+    
+    if lsof -i :3001 >/dev/null 2>&1; then
+        log_warning "Port 3001 still in use. Force killing remaining processes..."
+        sudo pkill -9 -f "node.*3001" || true
+        sleep 2
     fi
     
     # Stop nginx
-    sudo systemctl stop nginx 2>/dev/null || true
+    sudo systemctl stop nginx || true
 
     log_substep "Removing old installation..."
     sudo rm -rf "$PROJECT_DIR"
     sudo rm -f /etc/nginx/sites-available/$APP_NAME
-    sudo rm -f /etc/nginx/sites-enabled/$APP_NAME
-    sudo rm -f /etc/nginx/sites-enabled/default
-    
-    # Final verification
-    if lsof -i :3001 >/dev/null 2>&1; then
-        log_error "Port 3001 is still in use after cleanup. Manual intervention required."
-    else
-        log_success "Cleanup complete - port 3001 is now available"
-    fi
+    # Clean up the sites-enabled directory to prevent errors from old/bad links
+    sudo find /etc/nginx/sites-enabled/ -type l -exec rm -f {} +
+    log_success "Cleanup complete - port 3001 is now available"
 }
 
 clone_and_install() {
@@ -392,98 +318,14 @@ configure_system() {
         2>/dev/null
     chmod 600 ssl/key.pem
 
-    log_substep "Creating ARM64-optimized Nginx configuration..."
-    sudo tee /etc/nginx/sites-available/$APP_NAME > /dev/null << 'EOF'
-# WebSocket upgrade map
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ''      close;
-}
+    log_substep "Creating Nginx configuration from template..."
+    if [ -f "frontend/nginx.conf" ]; then
+        sudo cp "frontend/nginx.conf" "/etc/nginx/sites-available/$APP_NAME"
+    else
+        log_error "Nginx configuration file not found at frontend/nginx.conf"
+    fi
 
-# Backend upstream with keepalive optimized for ARM64
-upstream backend {
-    server 127.0.0.1:3001;
-    keepalive 8;  # Reduced for ARM64
-}
-
-server {
-    listen 80;
-    listen 443 ssl http2;
-    server_name localhost img img.oakroad;
-    
-    # SSL configuration
-    ssl_certificate /opt/crypto-trading-bot/ssl/cert.pem;
-    ssl_certificate_key /opt/crypto-trading-bot/ssl/key.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-    
-    # ARM64 optimized settings
-    client_max_body_size 1m;
-    client_body_buffer_size 8k;
-    client_header_buffer_size 1k;
-    
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    
-    # Gzip compression optimized for ARM64
-    gzip on;
-    gzip_comp_level 3;  # Reduced for ARM64
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-    
-    # Frontend static files
-    location / {
-        root /opt/crypto-trading-bot/frontend/dist;
-        try_files $uri $uri/ /index.html;
-        expires 1h;
-        add_header Cache-Control "public, immutable";
-    }
-    
-    # WebSocket endpoint with ARM64 optimizations
-    location /socket.io/ {
-        proxy_pass http://backend/socket.io/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket specific - optimized for ARM64
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 3600;
-        proxy_send_timeout 3600;
-        proxy_connect_timeout 10;
-    }
-    
-    # API endpoints with ARM64 optimizations
-    location /api/ {
-        proxy_pass http://backend/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # Performance optimized for ARM64
-        proxy_buffering on;
-        proxy_buffer_size 2k;  # Reduced for ARM64
-        proxy_buffers 4 2k;
-        proxy_busy_buffers_size 4k;
-        proxy_connect_timeout 10;
-        proxy_send_timeout 30;
-        proxy_read_timeout 30;
-    }
-}
-EOF
-
-    sudo ln -sf /etc/nginx/sites-available/$APP_NAME /etc/nginx/sites-enabled/
-    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo ln -sf "/etc/nginx/sites-available/$APP_NAME" "/etc/nginx/sites-enabled/$APP_NAME"
     
     log_substep "Testing Nginx configuration..."
     sudo nginx -t
@@ -515,17 +357,11 @@ setup_environment_and_start() {
     else
         log_error "setup-secrets.sh not found. Cannot proceed."
     fi
-
+    
     log_substep "Starting application with PM2 and Node.js v22 optimizations..."
     # Node v22 can handle larger memory allocation efficiently on Pi 5
     NODE_OPTIONS="--max-old-space-size=1024" pm2 start ecosystem.config.js --env production
     pm2 save
-
-    # Restart systemd service that we stopped earlier
-    if systemctl list-unit-files | grep -q pm2-adam; then
-        sudo systemctl start pm2-adam
-        log_substep "pm2-adam systemd service restarted"
-    fi
 
     log_substep "Starting Nginx..."
     sudo systemctl restart nginx
