@@ -191,6 +191,11 @@ configure_npm_and_pm2() {
 
 backup_and_cleanup() {
     log_step "Backing up and cleaning up previous installation..."
+    # Stop systemd PM2 service first to prevent process restarts during backup
+    if systemctl is-active --quiet pm2-adam; then
+        sudo systemctl stop pm2-adam
+        log_substep "pm2-adam systemd service stopped"
+    fi
     if [[ -d "$PROJECT_DIR" ]]; then
         log_substep "Creating backup..."
         sudo mkdir -p "$BACKUP_DIR"
@@ -475,7 +480,11 @@ setup_environment_and_start() {
     else
         log_error "setup-secrets.sh not found. Cannot proceed."
     fi
-    
+    # Restart systemd service that we stopped earlier
+    if systemctl list-unit-files | grep -q pm2-adam; then
+        sudo systemctl start pm2-adam
+        log_substep "pm2-adam systemd service restarted"
+    fi
     log_substep "Starting application with PM2 and Node.js v22 optimizations..."
     # Node v22 can handle larger memory allocation efficiently on Pi 5
     NODE_OPTIONS="--max-old-space-size=1024" pm2 start ecosystem.config.js --env production
