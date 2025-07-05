@@ -465,7 +465,7 @@ class BinanceDataService extends EventEmitter {
         }
 
         try {
-            const stream = this.binanceClient.websockets.prevDay(
+            const stream = this.binanceClient.websockets.miniTicker(
                 symbol,
                 (ticker) => {
                     // DEBUG: Log the raw data structure
