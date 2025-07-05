@@ -500,6 +500,9 @@ class BinanceDataService extends EventEmitter {
                         return;
                     }
 
+                    logger.debug(
+                        `Processing ticker for ${symbol}: close=${ticker.close}, priceChange=${ticker.priceChange}`
+                    );
                     const priceData = {
                         symbol: ticker.symbol,
                         price: parseFloat(ticker.close),
