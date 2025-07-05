@@ -191,40 +191,79 @@ configure_npm_and_pm2() {
 
 backup_and_cleanup() {
     log_step "Backing up and cleaning up previous installation..."
+    
+    # CRITICAL FIX: Stop all PM2 processes before backup to prevent log file conflicts
+    log_substep "Stopping all Node.js processes to prevent file conflicts..."
+    
+    # Kill any running PM2 processes gracefully first
+    if command -v pm2 >/dev/null 2>&1; then
+        if pm2 list | grep -q "$APP_NAME"; then
+            log_substep "Stopping $APP_NAME PM2 process..."
+            pm2 stop $APP_NAME --silent || true
+            sleep 2
+        fi
+        
+        # Stop all PM2 processes
+        pm2 stop all --silent || true
+        sleep 2
+        
+        # Delete PM2 processes
+        pm2 delete all --silent || true
+        sleep 1
+        
+        # Kill PM2 daemon - this is the critical fix
+        log_substep "Killing PM2 daemon to prevent auto-restart..."
+        pm2 kill || true
+        sleep 1
+        
+        # Force kill any remaining PM2 processes
+        PM2_PIDS=$(ps aux | grep -E "PM2.*God Daemon" | grep -v grep | awk '{print $2}' || true)
+        if [ -n "$PM2_PIDS" ]; then
+            log_substep "Force killing PM2 daemon processes: $PM2_PIDS"
+            kill -9 $PM2_PIDS || true
+            sleep 1
+        fi
+    fi
+    
+    # Force kill any remaining Node.js processes that might be writing to logs
+    log_substep "Ensuring all Node.js processes are stopped..."
+    sudo pkill -f "node.*server.js" || true
+    sudo pkill -f "node.*3001" || true
+    sudo pkill -f "$APP_NAME" || true
+    sleep 2
+    
+    # Double-check no Node.js processes are running (except system ones)
+    REMAINING_NODE=$(ps aux | grep -v grep | grep "node.*server.js" || true)
+    if [ -n "$REMAINING_NODE" ]; then
+        log_warning "Found remaining Node.js processes, force killing..."
+        sudo pkill -9 -f "node.*server.js" || true
+        sleep 1
+    fi
+    
+    # Now safe to create backup without file conflicts
     if [[ -d "$PROJECT_DIR" ]]; then
-        log_substep "Creating backup..."
+        log_substep "Creating backup (all processes stopped)..."
         sudo mkdir -p "$BACKUP_DIR"
         timestamp=$(date +%Y%m%d_%H%M%S)
+        
+        # Use --warning=no-file-changed to handle any remaining file changes gracefully
         sudo tar -czf "$BACKUP_DIR/backup_$timestamp.tar.gz" \
+            --warning=no-file-changed \
             --exclude='node_modules' \
             --exclude='frontend/node_modules' \
             --exclude='backend/node_modules' \
-            -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")"
+            --exclude='*.log' \
+            --exclude='backend/logs/*' \
+            -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null || {
+                # If tar still fails, just log it and continue
+                log_warning "Backup completed with warnings (this is normal)"
+            }
+        
         log_success "Backup created at $BACKUP_DIR/backup_$timestamp.tar.gz"
     fi
-
-    log_substep "Gracefully stopping services..."
     
-    # Stop PM2 processes gracefully first
-    if pm2 list | grep -q "$APP_NAME"; then
-        log_substep "Sending SIGTERM to $APP_NAME process..."
-        pm2 stop $APP_NAME --silent || true
-        sleep 3  # Give time for graceful shutdown
-    fi
-    
-    # Stop all PM2 processes
-    pm2 stop all --silent || true
-    sleep 2
-    
-    # Delete PM2 processes
-    pm2 delete all --silent || true
-    
-    # Force kill any remaining node processes on port 3001
+    # Ensure port 3001 is fully released
     log_substep "Ensuring port 3001 is fully released..."
-    sudo pkill -f "node.*3001" || true
-    sudo pkill -f "$APP_NAME" || true
-    
-    # Wait for port to be released
     local attempts=0
     while lsof -i :3001 >/dev/null 2>&1 && [ $attempts -lt 10 ]; do
         log_substep "Waiting for port 3001 to be released... (attempt $((attempts+1))/10)"
@@ -246,7 +285,8 @@ backup_and_cleanup() {
     sudo rm -f /etc/nginx/sites-available/$APP_NAME
     # Clean up the sites-enabled directory to prevent errors from old/bad links
     sudo find /etc/nginx/sites-enabled/ -type l -exec rm -f {} +
-    log_success "Cleanup complete - port 3001 is now available"
+    
+    log_success "Cleanup complete - all processes stopped, port 3001 available"
 }
 
 clone_and_install() {

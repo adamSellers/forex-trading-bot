@@ -10,7 +10,8 @@ const cors = require("cors");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
-const TradingController = require("./src/controllers/tradingController");
+const TradingService = require("./src/services/tradingService");
+const TradingController = require("./src/controllers/tradingController"); // This is now the bridge
 const tradingRoutes = require("./src/routes/trading");
 const managementRoutes = require("./src/routes/management");
 const ErrorHandler = require("./src/middleware/errorHandler");
@@ -44,8 +45,11 @@ const io = new Server(server, {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Initialize trading controller
-const tradingController = new TradingController(io);
+// =================================================================
+// CORRECT ARCHITECTURE: Instantiate Service, then pass to Controller
+// =================================================================
+const tradingService = new TradingService(io);
+const tradingController = new TradingController(tradingService, io); // Pass service to controller
 
 // API Routes - must be defined before the SPA catch-all
 app.use("/api/trading", tradingRoutes(tradingController));
@@ -84,10 +88,9 @@ io.on("connection", (socket) => {
 // Start the server
 async function startServer() {
     try {
-        await tradingController.initialize();
-
-        // CRITICAL FIX: Start the trading controller to begin signal generation
-        await tradingController.start();
+        // Initialize the CORE SERVICE, not the controller.
+        // The service will set up all underlying components (Binance, Signals, etc.).
+        await tradingService.initialize();
 
         const PORT = process.env.PORT || 3001;
         server.listen(PORT, () => {
@@ -97,6 +100,7 @@ async function startServer() {
                 } mode on port ${PORT}`
             );
         });
+        // Note: We do NOT call a `start()` method here. Trading is started/stopped via API calls.
     } catch (error) {
         logger.error("❌ Failed to start server:", error);
         process.exit(1);
@@ -106,7 +110,8 @@ async function startServer() {
 // Graceful shutdown handlers
 process.on("SIGTERM", async () => {
     logger.info("🛑 Received SIGTERM, shutting down gracefully...");
-    await tradingController.cleanup();
+    // Cleanup the SERVICE, which in turn cleans up its components.
+    await tradingService.cleanup();
     server.close(() => {
         logger.info("All connections closed. Exiting.");
         process.exit(0);

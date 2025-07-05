@@ -237,6 +237,19 @@ class TradingService extends EventEmitter {
         }
     }
 
+    async getPortfolio() {
+        try {
+            if (!this.paperTrading) {
+                throw new Error("Paper trading service not initialized");
+            }
+            // The paper trading engine is the source of truth for the portfolio
+            return this.paperTrading.getPortfolioSummary();
+        } catch (error) {
+            logger.error("Error getting portfolio from service:", error);
+            throw error;
+        }
+    }
+
     // backend/src/services/tradingService.js - UPDATE getAccount method
 
     async getAccount() {

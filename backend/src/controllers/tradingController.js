@@ -6,399 +6,100 @@ const logger = require("../utils/logger");
 const { EventEmitter } = require("events");
 
 class EnhancedTradingController extends EventEmitter {
-    constructor(socketIO = null) {
+    // FIXED: The controller should DEPEND on the service, not recreate it.
+    constructor(tradingService, io) {
         super();
 
-        // FIXED: Store socket.io safely without circular reference
-        this.socketIO = socketIO;
+        // The controller's job is to bridge the service to the outside world (API/Sockets)
+        this.tradingService = tradingService;
+        this.socketIO = io;
 
-        this.config = {
-            // Base configuration
-            startingCapital: 5000,
-            riskPerTrade: 0.01,
-            maxDailyLoss: 0.02,
-            maxWeeklyLoss: 0.05,
-            allocation: {
-                BTCUSDT: 0.35,
-                ETHUSDT: 0.35,
-                BNBUSDT: 0.2,
-                DOGEUSDT: 0.1,
-            },
-            assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"],
-            timeframes: ["1h", "4h", "1d"],
-            strategy: "balanced",
-            timeframe: "1h",
-            enableTrading: false,
+        // CRITICAL FIX: Remove service instances. The controller should not manage them.
+        // this.binanceData = null;
+        // this.signalGenerator = null;
+        // this.paperTrading = null;
 
-            // Enhanced features configuration
-            enableTrailingStops: true,
-            trailingStopPercent: 0.02,
-            takeProfitATRMultiplier: 2.5,
-            enableVolatilityFilter: true,
-            minVolatilityPercent: 2.0,
-            autoFetchExchangeInfo: true,
-        };
-
-        // Service instances
-        this.binanceData = null;
-        this.signalGenerator = null;
-        this.paperTrading = null;
-
-        // State management
+        // State management - The controller only needs to know if it's initialized.
+        // The service manages the running state.
         this.isInitialized = false;
-        this.isRunning = false;
-        this.tradingInterval = null;
-        this.performanceInterval = null;
 
-        // Enhanced tracking
+        // Event history can remain in the controller as it's for API/UI purposes.
         this.eventHistory = [];
-        this.performanceSnapshots = [];
-        this.lastPerformanceSnapshot = 0;
 
         logger.info(
-            "🚀 ENHANCED Trading Controller initialized with all improvements!"
+            "🚀 Trading Controller initialized. It will use the main TradingService."
         );
+        this.setupControllerEvents();
     }
 
     /**
-     * Initialize all services with enhanced features
+     * Initialize the controller. The service is initialized separately.
      */
     async initialize() {
         try {
-            logger.info("🔧 Initializing ENHANCED Trading Controller...");
-
-            // 1. Initialize Binance Data Service with exchange info
-            logger.info("📡 Setting up Enhanced Binance Data Service...");
-            this.binanceData = new BinanceDataService({
-                ...this.config,
-                autoFetchExchangeInfo: this.config.autoFetchExchangeInfo,
-                cacheExchangeInfo: true,
-            });
-            await this.binanceData.initialize();
-
-            // 2. Initialize Enhanced Signal Generator with volatility filter
-            logger.info("🎯 Setting up Enhanced Signal Generator...");
-            this.signalGenerator = new SignalGenerator({
-                ...this.config,
-                enableVolatilityFilter: this.config.enableVolatilityFilter,
-                minVolatilityPercent: this.config.minVolatilityPercent,
-            });
-            //await this.signalGenerator.initialize();
-
-            // 3. Initialize Enhanced Paper Trading Engine
-            logger.info("💰 Setting up Enhanced Paper Trading Engine...");
-            this.paperTrading = new PaperTradingEngine({
-                ...this.config,
-                enableTrailingStops: this.config.enableTrailingStops,
-                trailingStopPercent: this.config.trailingStopPercent,
-                takeProfitATRMultiplier: this.config.takeProfitATRMultiplier,
-                enableVolatilityFilter: this.config.enableVolatilityFilter,
-            });
-            await this.paperTrading.initialize();
-
-            // 4. Set up enhanced event listeners
-            this.setupEnhancedEventListeners();
-
-            // 5. Set up performance monitoring
-            this.setupPerformanceMonitoring();
-
+            logger.info("🔧 Initializing Trading Controller...");
+            // Initialization is now handled by the TradingService.
+            // The controller is ready once it's instantiated with a service.
             this.isInitialized = true;
             logger.success(
-                "✅ ENHANCED Trading Controller initialized successfully!"
+                "✅ Trading Controller is initialized and listening to TradingService."
             );
-
-            this.emit("controllerInitialized", {
-                timestamp: Date.now(),
-                features: [
-                    "Trailing Stops & Take Profit",
-                    "Volatility Filter",
-                    "Dynamic Order Minimums",
-                    "Enhanced Performance Metrics",
-                    "Risk Management",
-                ],
-            });
         } catch (error) {
-            logger.error(
-                "❌ Failed to initialize Enhanced Trading Controller:",
-                error
-            );
+            logger.error("❌ Failed to initialize Trading Controller:", error);
             this.emit("initializationError", error);
             throw error;
         }
     }
 
     /**
-     * Set up enhanced event listeners with comprehensive monitoring
+     * FIXED: This method now listens to the central TradingService for events
+     * and forwards them to the frontend via Socket.IO.
      */
-    setupEnhancedEventListeners() {
-        logger.info("🔗 Setting up enhanced event listeners...");
+    setupControllerEvents() {
+        logger.info(
+            "🔗 Setting up controller event listeners to bridge service to clients..."
+        );
 
-        this.binanceData.on("priceUpdate", async (priceData) => {
-            try {
-                logger.debug(
-                    `📡 TradingController received priceUpdate for ${priceData.symbol}: ${priceData.price}`
-                );
-
-                // FIXED: Make this async and handle properly
-                await this.paperTrading.updatePortfolioValue(
-                    this.binanceData.getAllPrices()
-                );
-                this.emit("priceUpdate", priceData);
-
-                // FIXED: Forward priceUpdate to WebSocket clients
-                if (this.socketIO) {
-                    this.socketIO.emit("priceUpdate", priceData);
-                    logger.debug(
-                        `🔌 Forwarded priceUpdate to WebSocket clients: ${priceData.symbol}`
-                    );
-                }
-            } catch (error) {
-                // FIXED: Prevent the "callback is not a function" error
-                logger.warn("Price update error:", error.message);
-            }
+        // The service handles the logic, the controller just passes it on.
+        this.tradingService.on("priceUpdate", (priceData) => {
+            this.socketIO.emit("priceUpdate", priceData);
         });
 
-        this.binanceData.on("serviceReady", () => {
-            logger.success(
-                "📡 Binance Data Service is ready. Starting signal generation."
-            );
-            this.emit("binanceReady");
-            // Only start the generator if the controller is in a "running" state.
-            // This prevents it from starting if the system was stopped and then the connection re-established.
-            if (this.isRunning) {
-                this.signalGenerator.start(this.binanceData, 60000);
-            }
-        });
-
-        this.binanceData.on("serviceError", (error) => {
-            logger.error("📡 Binance Data Service error:", error);
-            this.emit("binanceError", error);
-        });
-
-        // Enhanced Paper Trading events
-        this.paperTrading.on("tradeExecuted", (trade) => {
+        // THIS IS THE FIX: Listen for the signal from the service, which has already saved it.
+        this.tradingService.on("signalGenerated", (signal) => {
             logger.info(
-                `💼 Trade executed: ${trade.side} ${trade.symbol} - ${
-                    trade.exitReason || "Entry"
-                }`
+                `📡 Controller received signal for ${signal.symbol} to forward to client.`
+            );
+            this.logEvent("SIGNAL_FORWARDED", signal);
+            this.socketIO.emit("newSignal", signal);
+        });
+
+        this.tradingService.on("allSignalsGenerated", (signals) => {
+            this.socketIO.emit("allSignalsGenerated", signals);
+        });
+
+        this.tradingService.on("tradeExecuted", (trade) => {
+            logger.info(
+                `💼 Controller received executed trade for ${trade.symbol} to forward.`
             );
             this.logEvent("TRADE_EXECUTED", trade);
-            this.emit("tradeExecuted", trade);
-
-            // Emit to socket clients
-            if (this.socketIO) {
-                this.socketIO.emit("tradeExecuted", trade);
-            }
+            this.socketIO.emit("tradeExecuted", trade);
         });
 
-        // Enhanced exit trigger handling
-        this.paperTrading.on("takeProfitTriggered", (data) => {
-            logger.success(
-                `🎯 Take Profit triggered: ${data.symbol} at ${data.price}`
-            );
-            this.logEvent("TAKE_PROFIT_TRIGGERED", data);
-            this.emit("takeProfitTriggered", data);
+        this.tradingService.on("portfolioUpdated", (portfolio) => {
+            this.socketIO.emit("portfolioUpdated", portfolio);
+            // this.checkForSignificantEvents(portfolio); // This can be re-implemented if needed
         });
 
-        this.paperTrading.on("trailingStopTriggered", (data) => {
-            logger.info(
-                `📈 Trailing Stop triggered: ${data.symbol} at ${data.price}`
-            );
-            this.logEvent("TRAILING_STOP_TRIGGERED", data);
-            this.emit("trailingStopTriggered", data);
-        });
-
-        this.paperTrading.on("portfolioUpdated", (portfolio) => {
-            this.emit("portfolioUpdated", portfolio);
-            this.checkForSignificantEvents(portfolio);
-        });
-
-        this.paperTrading.on("riskLimitHit", (data) => {
-            logger.warn(`⚠️ Risk limit hit: ${data.type} - ${data.message}`);
+        this.tradingService.on("tradingHalted", (data) => {
+            logger.warn(`⚠️ Controller received trading halt: ${data.type}`);
             this.logEvent("RISK_LIMIT_HIT", data);
-            this.emit("riskLimitHit", data);
-
-            if (this.socketIO) {
-                this.socketIO.emit("tradingHalted", data);
-            }
+            this.socketIO.emit("tradingHalted", data);
         });
 
-        // Enhanced Signal Generator events
-        this.signalGenerator.on("signalGenerated", (signal) => {
-            logger.info(
-                `📡 Signal: ${signal.symbol} ${signal.signal} (${signal.strength})`
-            );
-            this.logEvent("SIGNAL_GENERATED", signal);
-            this.emit("signalGenerated", signal);
-
-            if (this.socketIO) {
-                this.socketIO.emit("newSignal", signal);
-            }
-        });
-
-        this.signalGenerator.on("volatilityFiltered", (data) => {
-            logger.debug(
-                `🌊 Signal filtered by volatility: ${data.symbol} (${data.volatility}%)`
-            );
-            this.logEvent("VOLATILITY_FILTERED", data);
-        });
-
-        this.signalGenerator.on("allSignalsGenerated", async (signals) => {
-            this.emit("signalsGenerated", signals);
-            if (!this.isRunning || !this.paperTrading?.isActive) {
-                return;
-            }
-            // Process signals here, driven by the generator's event
-            logger.debug(
-                `Processing ${signals.length} signals from event listener.`
-            );
-            for (const signal of signals) {
-                if (this.isRunning && this.paperTrading.isActive) {
-                    await this.paperTrading.processSignal(signal);
-                }
-            }
-        });
-
-        logger.success("✅ Enhanced event listeners configured");
-    }
-
-    /**
-     * Set up performance monitoring and snapshots
-     */
-    setupPerformanceMonitoring() {
-        logger.info("📊 Setting up performance monitoring...");
-
-        // Take performance snapshots every 5 minutes
-        this.performanceInterval = setInterval(() => {
-            this.takePerformanceSnapshot();
-        }, 5 * 60 * 1000);
-
-        // Monitor for significant events
-        this.paperTrading.on("portfolioUpdated", (portfolio) => {
-            this.checkForSignificantEvents(portfolio);
-        });
-
-        logger.success("✅ Performance monitoring active");
-    }
-
-    /**
-     * Take performance snapshot for trend analysis
-     */
-    takePerformanceSnapshot() {
-        if (!this.paperTrading) return;
-
-        const snapshot = {
-            timestamp: Date.now(),
-            portfolio: this.paperTrading.getPortfolioSummary(),
-            performance:
-                this.paperTrading.getEnhancedPerformanceSummary?.() || {},
-            volatility: this.signalGenerator?.getVolatilityAnalysis?.() || null,
-            signalStats:
-                this.signalGenerator?.getEnhancedSignalStats?.() || null,
-        };
-
-        this.performanceSnapshots.push(snapshot);
-
-        // Keep only last 100 snapshots
-        if (this.performanceSnapshots.length > 100) {
-            this.performanceSnapshots = this.performanceSnapshots.slice(-50);
-        }
-
-        this.lastPerformanceSnapshot = Date.now();
-        this.emit("performanceSnapshot", snapshot);
-    }
-
-    /**
-     * Check for significant events that need attention
-     */
-    checkForSignificantEvents(portfolio) {
-        const events = [];
-
-        // Check drawdown levels
-        if (portfolio.performance?.currentDrawdown > 15) {
-            events.push({
-                type: "HIGH_DRAWDOWN",
-                severity: "WARNING",
-                message: `Current drawdown: ${portfolio.performance.currentDrawdown.toFixed(
-                    2
-                )}%`,
-                timestamp: Date.now(),
-            });
-        }
-
-        // Check profit taking opportunities
-        const profitablePositions =
-            portfolio.positions?.filter?.(
-                (p) => p.unrealizedPnL > p.entryCost * 0.1
-            ) || [];
-        if (profitablePositions.length > 0) {
-            events.push({
-                type: "PROFIT_OPPORTUNITY",
-                severity: "INFO",
-                message: `${profitablePositions.length} positions with >10% profit`,
-                timestamp: Date.now(),
-            });
-        }
-
-        // Emit events
-        events.forEach((event) => {
-            this.logEvent(event.type, event);
-            this.emit("significantEvent", event);
-        });
-    }
-
-    /**
-     * Enhanced main trading loop with all improvements
-     */
-    async startEnhancedTradingLoop() {
-        logger.info("🔄 Starting ENHANCED trading loop...");
-
-        this.tradingInterval = setInterval(async () => {
-            try {
-                await this.executeEnhancedTradingCycle();
-            } catch (error) {
-                logger.error("❌ Error in enhanced trading cycle:", error);
-                this.logEvent("TRADING_CYCLE_ERROR", { error: error.message });
-            }
-        }, 60000); // Run every minute
-
-        logger.success("✅ Enhanced trading loop started");
-    }
-
-    /**
-     * Execute enhanced trading cycle with all new features
-     */
-    async executeEnhancedTradingCycle() {
-        if (!this.isRunning || !this.paperTrading?.isActive) {
-            return;
-        }
-
-        try {
-            // 1. Refresh exchange info if needed (for dynamic order minimums)
-            if (this.binanceData.refreshExchangeInfoIfNeeded) {
-                await this.binanceData.refreshExchangeInfoIfNeeded();
-            }
-
-            // 2. Signal generation is now handled by the signalGenerator's internal timer
-            //    and processing is handled by the 'allSignalsGenerated' event listener.
-
-            // 3. Update portfolio with current prices (handles trailing stops automatically)
-            this.paperTrading.updatePortfolioValue(
-                this.binanceData.getAllPrices()
-            );
-
-            // 4. Log cycle completion
-            this.logEvent("TRADING_CYCLE_COMPLETED", {
-                // signalsProcessed is no longer available here, which is correct.
-                // This loop is for maintenance, not signal processing.
-                activePositions:
-                    this.paperTrading.portfolio?.positions?.size || 0,
-                portfolioValue: this.paperTrading.portfolio?.totalValue || 0,
-            });
-        } catch (error) {
-            logger.error("❌ Enhanced trading cycle error:", error);
-            throw error;
-        }
+        logger.success(
+            "✅ Controller event listeners configured to use TradingService."
+        );
     }
 
     /**
@@ -423,91 +124,34 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * Start the enhanced trading system
+     * Start trading by calling the service.
      */
     async start() {
         try {
-            if (!this.isInitialized) {
-                throw new Error("Trading controller not initialized");
-            }
-
-            if (this.isRunning) {
-                logger.warn("⚠️ Trading controller already running");
-                return;
-            }
-
-            logger.info("🚀 Starting ENHANCED Trading Controller...");
-
-            // Start paper trading engine
-            await this.paperTrading.start();
-
-            // The signal generator will now be started by the 'serviceReady' event listener.
-            // The trading loop is for maintenance (portfolio updates, etc.)
-            await this.startEnhancedTradingLoop();
-
-            this.isRunning = true;
-            this.logEvent("SYSTEM_STARTED", {
-                features: [
-                    "Trailing Stops",
-                    "Take Profit Levels",
-                    "Volatility Filter",
-                    "Dynamic Order Minimums",
-                    "Enhanced Performance Metrics",
-                ],
-            });
-
-            logger.success(
-                "✅ ENHANCED Trading Controller started successfully!"
-            );
-
-            if (this.socketIO) {
-                this.socketIO.emit("tradingStarted", { timestamp: Date.now() });
-            }
-
-            return { success: true, message: "Enhanced trading started" };
+            logger.info("▶️ Controller received request to start trading...");
+            await this.tradingService.startTrading();
+            this.logEvent("TRADING_STARTED", { timestamp: Date.now() });
+            logger.success("✅ Trading enabled via controller.");
+            return { success: true, message: "Trading started" };
         } catch (error) {
-            logger.error(
-                "❌ Error starting Enhanced Trading Controller:",
-                error
-            );
+            logger.error("❌ Controller error starting trading:", error);
             this.emit("systemError", error);
             throw error;
         }
     }
 
     /**
-     * Stop the enhanced trading system
+     * Stop trading by calling the service.
      */
     async stop() {
         try {
-            logger.info("⏹️ Stopping ENHANCED Trading Controller...");
-
-            // Stop trading loop
-            if (this.tradingInterval) {
-                clearInterval(this.tradingInterval);
-                this.tradingInterval = null;
-            }
-
-            // Stop paper trading
-            if (this.paperTrading) {
-                await this.paperTrading.stop();
-            }
-
-            this.isRunning = false;
+            logger.info("⏹️ Controller received request to stop trading...");
+            await this.tradingService.stopTrading();
             this.logEvent("SYSTEM_STOPPED", { timestamp: Date.now() });
-
-            logger.success("✅ ENHANCED Trading Controller stopped");
-
-            if (this.socketIO) {
-                this.socketIO.emit("tradingStopped", { timestamp: Date.now() });
-            }
-
-            return { success: true, message: "Enhanced trading stopped" };
+            logger.success("✅ Trading disabled via controller.");
+            return { success: true, message: "Trading stopped" };
         } catch (error) {
-            logger.error(
-                "❌ Error stopping Enhanced Trading Controller:",
-                error
-            );
+            logger.error("❌ Controller error stopping trading:", error);
             this.emit("systemError", error);
             throw error;
         }
@@ -516,30 +160,12 @@ class EnhancedTradingController extends EventEmitter {
     // ============= API METHODS FOR ROUTES =============
 
     /**
-     * FIXED: Get system status without circular references
+     * Get system status by calling the service.
      */
     async getStatus() {
         try {
-            const binanceStatus = this.binanceData?.getServiceStatus() || null;
-            const paperStatus = this.paperTrading?.getStatus() || null;
-            const signalStatus = this.signalGenerator?.getStatus() || null;
-
-            // CRITICAL FIX: Return safe status without socket.io circular reference
-            return {
-                isInitialized: this.isInitialized,
-                isRunning: this.isRunning,
-                config: {
-                    ...this.config,
-                    // Remove any potential circular references
-                },
-                services: {
-                    binanceData: binanceStatus,
-                    paperTrading: paperStatus,
-                    signalGenerator: signalStatus,
-                },
-                uptime: process.uptime(),
-                timestamp: Date.now(),
-            };
+            // Delegate directly to the service
+            return await this.tradingService.getStatus();
         } catch (error) {
             logger.error("Error getting status:", error);
             throw error;
@@ -547,20 +173,14 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * FIXED: Get portfolio with calculateAvgHoldTime method
+     * Get portfolio by calling the service.
      */
     async getPortfolio() {
         try {
-            if (!this.paperTrading) {
-                throw new Error("Paper trading service not initialized");
-            }
-
-            const portfolio = this.paperTrading.getPortfolioSummary();
-            const avgHoldTime = this.calculateAvgHoldTime();
+            const portfolio = await this.tradingService.getPortfolio();
 
             return {
                 ...portfolio,
-                avgHoldTime,
                 timestamp: Date.now(),
             };
         } catch (error) {
@@ -570,17 +190,11 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * FIXED: Get trades with generateTradeAnalytics method
+     * Get trades by calling the service.
      */
     async getTrades(query = {}) {
         try {
-            const limit = parseInt(query.limit) || 25;
-
-            if (!this.paperTrading) {
-                throw new Error("Paper trading service not initialized");
-            }
-
-            const trades = this.paperTrading.getRecentTrades(limit);
+            const trades = await this.tradingService.getTrades(query);
             const analytics = this.generateTradeAnalytics(trades);
 
             return {
@@ -596,18 +210,11 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * Get trading signals
+     * Get trading signals by calling the service.
      */
     async getSignals(query = {}) {
         try {
-            const limit = parseInt(query.limit) || 50;
-
-            if (!this.signalGenerator) {
-                throw new Error("Signal generator not initialized");
-            }
-
-            const signals =
-                this.signalGenerator.getRecentSignals?.(limit) || [];
+            const signals = await this.tradingService.getSignals(query);
 
             return {
                 signals,
@@ -621,15 +228,11 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * Get current prices
+     * Get current prices by calling the service.
      */
     async getPrices() {
         try {
-            if (!this.binanceData) {
-                throw new Error("Binance data service not available");
-            }
-
-            const prices = this.binanceData.getAllPrices();
+            const prices = await this.tradingService.getPrices();
             return {
                 prices,
                 timestamp: Date.now(),
@@ -641,42 +244,12 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * FIXED: Get account info without HTML response
+     * Get account info by calling the service.
      */
     async getAccount() {
         try {
-            if (!this.binanceData) {
-                throw new Error("Binance data service not available");
-            }
-
-            // Get paper trading context
-            const paperPortfolio = this.paperTrading
-                ? this.paperTrading.getPortfolioSummary()
-                : null;
-
-            // CRITICAL FIX: Return JSON-safe account data
-            const account = {
-                accountType: "SPOT",
-                canTrade: true,
-                canWithdraw: false,
-                canDeposit: false,
-                updateTime: Date.now(),
-                balances: [
-                    {
-                        asset: "USDT",
-                        free: "5000.00000000",
-                        locked: "0.00000000",
-                    },
-                    { asset: "BTC", free: "0.00000000", locked: "0.00000000" },
-                    { asset: "ETH", free: "0.00000000", locked: "0.00000000" },
-                    { asset: "BNB", free: "0.00000000", locked: "0.00000000" },
-                    { asset: "DOGE", free: "0.00000000", locked: "0.00000000" },
-                ],
-                paperTrading: paperPortfolio,
-                timestamp: Date.now(),
-            };
-
-            return account;
+            // Delegate directly to the service
+            return await this.tradingService.getAccount();
         } catch (error) {
             logger.error("Error getting account:", error);
             throw error;
@@ -684,7 +257,7 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * Get combined holdings
+     * Get combined holdings (Example of controller-level composition)
      */
     async getCombinedHoldings() {
         try {
@@ -722,43 +295,6 @@ class EnhancedTradingController extends EventEmitter {
     // ============= MISSING IMPLEMENTATIONS =============
 
     /**
-     * IMPLEMENTATION: Missing calculateAvgHoldTime method
-     */
-    calculateAvgHoldTime() {
-        try {
-            if (!this.paperTrading) {
-                return { hours: 0, trades: 0 };
-            }
-
-            const trades = this.paperTrading.getRecentTrades?.(100) || [];
-            const closedTrades = trades.filter(
-                (trade) => trade.status === "FILLED" && trade.exitTime
-            );
-
-            if (closedTrades.length === 0) {
-                return { hours: 0, trades: 0 };
-            }
-
-            const totalHoldTime = closedTrades.reduce((sum, trade) => {
-                const holdTime =
-                    (trade.exitTime - trade.timestamp) / (1000 * 60 * 60); // hours
-                return sum + holdTime;
-            }, 0);
-
-            const avgHours = totalHoldTime / closedTrades.length;
-
-            return {
-                hours: Math.round(avgHours * 100) / 100,
-                trades: closedTrades.length,
-                totalSamples: trades.length,
-            };
-        } catch (error) {
-            logger.error("Error calculating average hold time:", error);
-            return { hours: 0, trades: 0, error: error.message };
-        }
-    }
-
-    /**
      * IMPLEMENTATION: Missing generateTradeAnalytics method
      */
     generateTradeAnalytics(trades) {
@@ -773,8 +309,12 @@ class EnhancedTradingController extends EventEmitter {
             }
 
             // Summary analytics
-            const profitable = trades.filter((t) => (t.pnl || 0) > 0);
-            const winRate = (profitable.length / trades.length) * 100;
+            const sellTrades = trades.filter((t) => t.side === "SELL");
+            if (sellTrades.length === 0) {
+                return { summary: { total: 0 } };
+            }
+            const profitable = sellTrades.filter((t) => (t.pnl || 0) > 0);
+            const winRate = (profitable.length / sellTrades.length) * 100;
 
             // By asset analytics
             const byAsset = {};
@@ -800,12 +340,15 @@ class EnhancedTradingController extends EventEmitter {
             });
 
             // Performance metrics
-            const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-            const avgPnL = totalPnL / trades.length;
+            const totalPnL = sellTrades.reduce(
+                (sum, t) => sum + (t.pnl || 0),
+                0
+            );
+            const avgPnL = totalPnL / sellTrades.length;
 
             return {
                 summary: {
-                    total: trades.length,
+                    total: sellTrades.length,
                     profitable: profitable.length,
                     winRate: Math.round(winRate * 100) / 100,
                     totalPnL: Math.round(totalPnL * 100) / 100,
@@ -816,7 +359,6 @@ class EnhancedTradingController extends EventEmitter {
                 performance: {
                     bestTrade: Math.max(...trades.map((t) => t.pnl || 0)),
                     worstTrade: Math.min(...trades.map((t) => t.pnl || 0)),
-                    avgHoldTime: this.calculateAvgHoldTime(),
                 },
             };
         } catch (error) {
@@ -853,29 +395,10 @@ class EnhancedTradingController extends EventEmitter {
     }
 
     /**
-     * Update configuration
+     * Update configuration by calling the service.
      */
     async updateConfig(newConfig) {
-        try {
-            this.config = { ...this.config, ...newConfig };
-
-            // Update services if they exist
-            if (this.paperTrading) {
-                await this.paperTrading.updateConfig(newConfig);
-            }
-
-            if (this.signalGenerator) {
-                await this.signalGenerator.updateConfig(newConfig);
-            }
-
-            this.logEvent("CONFIG_UPDATED", newConfig);
-            logger.info("✅ Configuration updated successfully");
-
-            return { success: true, message: "Configuration updated" };
-        } catch (error) {
-            logger.error("Error updating configuration:", error);
-            throw error;
-        }
+        return await this.tradingService.updateConfig(newConfig);
     }
 
     /**
@@ -883,22 +406,9 @@ class EnhancedTradingController extends EventEmitter {
      */
     async resetTrading() {
         try {
-            await this.stop();
-
-            if (this.paperTrading) {
-                await this.paperTrading.reset();
-            }
-
-            this.eventHistory = [];
-            this.performanceSnapshots = [];
-
+            await this.tradingService.resetTrading();
             this.logEvent("SYSTEM_RESET", { timestamp: Date.now() });
             logger.info("✅ Trading system reset successfully");
-
-            if (this.socketIO) {
-                this.socketIO.emit("tradingReset", { timestamp: Date.now() });
-            }
-
             return { success: true, message: "Trading system reset" };
         } catch (error) {
             logger.error("Error resetting trading system:", error);
@@ -911,23 +421,11 @@ class EnhancedTradingController extends EventEmitter {
      */
     async cleanup() {
         try {
-            logger.info("🧹 Cleaning up Enhanced Trading Controller...");
-
-            await this.stop();
-
-            // Clear all intervals
-            if (this.tradingInterval) clearInterval(this.tradingInterval);
-            if (this.performanceInterval)
-                clearInterval(this.performanceInterval);
-
-            // Remove all listeners
+            logger.info("🧹 Cleaning up Trading Controller...");
+            // The service handles its own cleanup. The controller just cleans itself up.
             this.removeAllListeners();
-
-            // Clear data
             this.eventHistory = [];
-            this.performanceSnapshots = [];
-
-            logger.success("✅ Enhanced Trading Controller cleanup completed");
+            logger.success("✅ Trading Controller cleanup completed");
         } catch (error) {
             logger.error("❌ Error during cleanup:", error);
             throw error;
