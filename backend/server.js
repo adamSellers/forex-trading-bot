@@ -85,6 +85,10 @@ io.on("connection", (socket) => {
 async function startServer() {
     try {
         await tradingController.initialize();
+
+        // CRITICAL FIX: Start the trading controller to begin signal generation
+        await tradingController.start();
+
         const PORT = process.env.PORT || 3001;
         server.listen(PORT, () => {
             logger.success(
