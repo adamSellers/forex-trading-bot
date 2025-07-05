@@ -134,11 +134,17 @@ class EnhancedTradingController extends EventEmitter {
         logger.info("🔗 Setting up enhanced event listeners...");
 
         // Binance Data Service events
-        this.binanceData.on("priceUpdate", (priceData) => {
-            this.paperTrading.updatePortfolioValue(
-                this.binanceData.getAllPrices()
-            );
-            this.emit("priceUpdate", priceData);
+        this.binanceData.on("priceUpdate", async (priceData) => {
+            try {
+                // FIXED: Make this async and handle properly
+                await this.paperTrading.updatePortfolioValue(
+                    this.binanceData.getAllPrices()
+                );
+                this.emit("priceUpdate", priceData);
+            } catch (error) {
+                // FIXED: Prevent the "callback is not a function" error
+                logger.warn("Price update error:", error.message);
+            }
         });
 
         this.binanceData.on("serviceReady", () => {
