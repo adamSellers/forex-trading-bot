@@ -114,12 +114,12 @@ main() {
 
     # 7. Run database migrations (always safe to run)
     log_step "Running database migrations..."
-    npm run db:migrate
+    NODE_ENV=production npm run db:migrate
     log_success "Database migrations completed."
 
     # 8. Restart the application gracefully
     log_step "Restarting application with PM2..."
-    pm2 reload "$APP_NAME" --env production
+    pm2 reload ecosystem.config.js --env production
     pm2 save
     log_success "Application reloaded gracefully."
 
