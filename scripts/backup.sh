@@ -1,6 +1,6 @@
 #!/bin/bash
 BACKUP_DIR="/opt/crypto-trading-bot/backend/backups"
-DB_PATH="/opt/crypto-trading-bot/data/trading.db"
+DB_PATH="/opt/crypto-trading-bot/backend/data/trading.db" # CORRECTED: The database is in the backend/data directory
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
 echo "📦 Creating backup..."
