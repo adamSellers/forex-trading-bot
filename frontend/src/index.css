@@ -1,36 +1,3 @@
-/* Material-UI Grid Reset */
-.MuiGrid-container {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  width: 100% !important;
-  margin: 0 !important;
-  box-sizing: border-box !important;
-}
-
-.MuiGrid-item {
-  display: block !important;
-  flex-grow: 0 !important;
-  flex-shrink: 0 !important;
-  box-sizing: border-box !important;
-}
-
-/* Ensure proper responsive behavior */
-.MuiGrid-item.MuiGrid-xs-12 {
-  flex-basis: 100% !important;
-  max-width: 100% !important;
-}
-
-.MuiGrid-item.MuiGrid-lg-6 {
-  flex-basis: 50% !important;
-  max-width: 50% !important;
-}
-
-@media (min-width: 1280px) {
-  .MuiGrid-item.MuiGrid-lg-6 {
-    flex-basis: 50% !important;
-    max-width: 50% !important;
-  }
-}
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
