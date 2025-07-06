@@ -134,12 +134,12 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
             Price: ${data.price?.toFixed(data.price > 1 ? 2 : 6)}
           </Typography>
           {data.fastMA && (
-            <Typography variant="caption" sx={{ color: '#ff9900' }}>
+            <Typography variant="caption" sx={{ color: '#8884d8' }}>
               Fast MA: ${data.fastMA.toFixed(data.price > 1 ? 2 : 6)}
             </Typography>
           )}
           {data.slowMA && (
-            <Typography variant="caption" sx={{ color: '#00e676', display: 'block' }}>
+            <Typography variant="caption" sx={{ color: '#82ca9d', display: 'block' }}>
               Slow MA: ${data.slowMA.toFixed(data.price > 1 ? 2 : 6)}
             </Typography>
           )}
@@ -260,10 +260,11 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
                 interval="preserveStartEnd"
               />
               <YAxis 
-                domain={['auto', 'auto']}
+                domain={['dataMin - (dataMax - dataMin) * 0.1', 'dataMax + (dataMax - dataMin) * 0.1']}
                 tick={{ fontSize: 12 }}
                 tickFormatter={formatYAxis}
-                allowDataOverflow={true}
+                allowDataOverflow={false}
+                width={80}
               />
               <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#888', strokeWidth: 1 }} />
               <Legend verticalAlign="top" height={36}/>
@@ -294,7 +295,7 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
                 type="monotone"
                 dataKey="fastMA"
                 name="Fast MA"
-                stroke="#ff9900"
+                stroke="#8884d8"
                 strokeWidth={1.5}
                 dot={false}
                 connectNulls={true}
@@ -304,7 +305,7 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
                 type="monotone"
                 dataKey="slowMA"
                 name="Slow MA"
-                stroke="#00e676"
+                stroke="#82ca9d"
                 strokeWidth={1.5}
                 dot={false}
                 connectNulls={true}
