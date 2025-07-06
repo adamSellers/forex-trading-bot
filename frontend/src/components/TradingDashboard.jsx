@@ -686,7 +686,12 @@ const TradingDashboard = () => {
 
         {/* Row 3: Live Prices & Chart */}
         <Grid item xs={12} md={4}>
-          <LivePrices prices={prices} />
+          <Typography variant="h6" gutterBottom>
+            Live Market Prices
+          </Typography>
+          <Grid container spacing={2}>
+            <LivePrices prices={prices} />
+          </Grid>
         </Grid>
 
         <Grid item xs={12} md={8}>

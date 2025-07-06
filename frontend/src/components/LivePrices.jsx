@@ -112,22 +112,17 @@ const LivePrices = ({ prices = {} }) => {
   }, [prices]);
 
   return (
-    <Box>
-      <Typography variant="h6" gutterBottom>
-        Live Market Prices
-      </Typography>
-      <Grid container spacing={2}>
-        {assets.map((asset) => (
-          <Grid item xs={6} md={6} key={asset}>
-            <PriceCard
-              asset={asset}
-              priceData={latestPrices.get(asset)}
-              history={history.get(asset)}
-            />
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
+    <>
+      {assets.map((asset) => (
+        <Grid item xs={6} key={asset}>
+          <PriceCard
+            asset={asset}
+            priceData={latestPrices.get(asset)}
+            history={history.get(asset)}
+          />
+        </Grid>
+      ))}
+    </>
   );
 };
 
