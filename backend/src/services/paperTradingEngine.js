@@ -990,6 +990,17 @@ class PaperTradingEngine extends EventEmitter {
         return new Date(d.setDate(diff)).toDateString();
     }
 
+    /**
+     * NEW: Update configuration dynamically
+     */
+    updateConfig(newConfig) {
+        this.config = { ...this.config, ...newConfig };
+        logger.info(
+            `⚙️ Paper Trading Engine config updated. Trading enabled: ${this.config.enableTrading}`
+        );
+        this.emit("configUpdated", this.config);
+    }
+
     async initialize() {
         try {
             logger.info("🔄 Initializing ENHANCED Paper Trading Engine...");
