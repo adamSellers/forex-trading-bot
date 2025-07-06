@@ -224,13 +224,17 @@ const AnalyticsDashboard = () => {
               <Box sx={{ height: 300 }}>
                 <BarChart
                   dataset={timeAnalysis.hourlyDistribution || []}
-                  yAxis={[{ scaleType: 'band', dataKey: 'label' }]}
+                  xAxis={[{ 
+                    scaleType: 'band', 
+                    dataKey: 'label', 
+                    tickLabelStyle: { angle: -45, textAnchor: 'end', fontSize: 10 } 
+                  }]}
                   series={[
                     { dataKey: 'trades', label: 'Trades', color: theme.palette.success.main },
                     { dataKey: 'signals', label: 'Signals', color: theme.palette.info.main }
                   ]}
-                  layout="vertical"
-                  grid={{ vertical: true }}
+                  // layout="vertical" // Switched to horizontal layout to fix crash
+                  grid={{ horizontal: true }}
                 />
               </Box>
             ) : (
