@@ -55,25 +55,6 @@ export const tradingTheme = createTheme({
     },
 
     components: {
-        // CRITICAL: Grid system fixes
-        MuiGrid: {
-            styleOverrides: {
-                container: {
-                    width: "100%",
-                    margin: 0,
-                    "& > .MuiGrid-item": {
-                        paddingLeft: 0,
-                        paddingTop: 0,
-                    },
-                },
-                item: {
-                    // Ensure grid items take full width
-                    maxWidth: "100%",
-                    flexBasis: "auto",
-                },
-            },
-        },
-
         // Container fixes
         MuiContainer: {
             styleOverrides: {
@@ -266,70 +247,5 @@ export const tradingTheme = createTheme({
         },
     },
 });
-
-// Custom CSS for grid layout fixes
-export const globalGridStyles = `
-  /* Ensure full width utilization */
-  .MuiContainer-root {
-    width: 100% !important;
-    max-width: none !important;
-    padding-left: 24px !important;
-    padding-right: 24px !important;
-  }
-  
-  /* Grid container fixes */
-  .MuiGrid-container {
-    width: 100% !important;
-    margin: 0 !important;
-  }
-  
-  /* Grid item fixes for equal width distribution */
-  .MuiGrid-grid-xs-3 {
-    flex-basis: 25% !important;
-    max-width: 25% !important;
-    width: 25% !important;
-  }
-  
-  /* Card container fixes */
-  .MuiCard-root {
-    width: 100% !important;
-    min-width: 0 !important;
-    box-sizing: border-box !important;
-  }
-  
-  /* Prevent text overflow in small cards */
-  .MuiCardContent-root {
-    min-width: 0 !important;
-    overflow: hidden !important;
-  }
-  
-  /* Typography responsive fixes */
-  .MuiTypography-root {
-    word-break: break-word;
-    overflow-wrap: break-word;
-  }
-  
-  /* Trading dashboard specific styles */
-  .trading-dashboard {
-    width: 100%;
-    min-height: 100vh;
-  }
-  
-  .portfolio-grid {
-    width: 100% !important;
-  }
-  
-  .metric-card {
-    height: 100px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-  
-  /* Debug grid overlay (remove in production) */
-  .debug-grid .MuiGrid-item {
-    border: 1px dashed rgba(255, 255, 255, 0.1) !important;
-  }
-`;
 
 export default tradingTheme;
