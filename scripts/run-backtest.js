@@ -29,6 +29,8 @@ async function run() {
             maxDailyLoss: 0.02, // 2%
             maxWeeklyLoss: 0.05, // 5%
             minSignalStrength: 0.5, // Require at least 0.5% MA divergence
+            enableVolatilityFilter: true, // Make sure it's on
+            minVolatilityPercent: 0.5, // Lower this from the default 2.0
             allocation: {
                 [asset]: 1.0, // Allocate 100% to the asset being tested
             },

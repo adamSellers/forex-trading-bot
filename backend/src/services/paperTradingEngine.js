@@ -821,7 +821,7 @@ class PaperTradingEngine extends EventEmitter {
             const { symbol } = signal;
             const currentPosition = this.portfolio.positions.get(symbol);
 
-            // --- REVISED TRADING LOGIC ---
+            // --- CORRECTED TREND-FOLLOWING LOGIC ---
             // A signal is considered "bullish" if it's a BUY or a bullish hold.
             // A signal is considered "bearish" if it's a SELL or a bearish hold.
             const isBullishSignal =
@@ -835,7 +835,7 @@ class PaperTradingEngine extends EventEmitter {
                 // --- ACTION: BUY ---
                 // We have a bullish signal and no open position for this asset.
                 logger.info(
-                    `[${symbol}] Bullish signal (${signal.signal}) received. Evaluating BUY.`
+                    `[${symbol}] Bullish signal (${signal.signal}) received. Evaluating new position.`
                 );
                 return await this.executeBuyOrder(
                     symbol,
@@ -848,21 +848,21 @@ class PaperTradingEngine extends EventEmitter {
                 // --- ACTION: SELL ---
                 // We have a bearish signal and an open position that needs to be closed.
                 logger.info(
-                    `[${symbol}] Bearish signal (${signal.signal}) received. Executing SELL.`
+                    `[${symbol}] Bearish signal (${signal.signal}) received. Executing SELL on open position.`
                 );
                 return await this.executeSellOrder(
                     symbol,
                     currentPrice,
                     signal,
                     currentPosition,
-                    "SIGNAL_SELL" // The reason for the exit is the signal itself.
+                    "SIGNAL_SELL"
                 );
             } else {
                 // --- ACTION: HOLD ---
                 // No action is needed. Examples:
-                // - Bullish signal, but we already have a position.
-                // - Bearish signal, but we have no position to sell.
-                // - Neutral "HOLD" signal.
+                // - A bullish signal, but we already have a position.
+                // - A bearish signal, but we have no position to sell.
+                // - A neutral "HOLD" signal.
                 return {
                     success: true,
                     action: "HOLD",

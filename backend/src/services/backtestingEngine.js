@@ -89,6 +89,30 @@ class BacktestingEngine {
             }
         }
 
+        // --- NEW: Finalize and liquidate any open positions at the end of the test ---
+        const finalPrice = this.historicalData[totalCandles - 1].close;
+        const openPositions = this.paperTrading.getPortfolioSummary().positions;
+
+        if (openPositions.length > 0) {
+            logger.info(
+                `📈 Liquidating ${openPositions.length} open position(s) at final price: $${finalPrice}`
+            );
+            for (const position of openPositions) {
+                await this.paperTrading.executeSellOrder(
+                    position.symbol,
+                    finalPrice,
+                    {
+                        signal: "END_OF_BACKTEST",
+                        strength: 1.0,
+                        // Pass the original entry signal for better reporting
+                        entrySignal: position.entrySignal,
+                    },
+                    position,
+                    "LIQUIDATION"
+                );
+            }
+        }
+
         logger.success("✅ Backtest run completed.");
         return this.generateReport();
     }
