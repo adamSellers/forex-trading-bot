@@ -691,20 +691,37 @@ class BinanceDataService extends EventEmitter {
      * NEW: Get account information from Binance or provide a fallback
      */
     async getAccountInfo() {
-        if (this.config.useFallback || !this.binanceClient) {
-            logger.warn("⚠️ Using fallback account information.");
+        // Helper to create a consistent fallback/error response
+        const createFallbackResponse = (errorMessage) => {
+            logger.warn(`⚠️ ${errorMessage}`);
+            const fallbackBalances = [
+                { asset: "USDT", free: 5000, locked: 0, total: 5000 },
+            ];
+            // Ensure all tracked assets are present, even with 0 balance
+            this.config.assets.forEach((assetSymbol) => {
+                const baseAsset = assetSymbol.replace("USDT", "");
+                if (!fallbackBalances.some((b) => b.asset === baseAsset)) {
+                    fallbackBalances.push({
+                        asset: baseAsset,
+                        free: 0,
+                        locked: 0,
+                        total: 0,
+                    });
+                }
+            });
+
             return {
                 accountType: "SPOT",
-                balances: [
-                    { asset: "USDT", free: "5000.00", locked: "0.00" },
-                    { asset: "BTC", free: "0.00", locked: "0.00" },
-                    { asset: "ETH", free: "0.00", locked: "0.00" },
-                ],
+                balances: fallbackBalances,
                 canTrade: true,
-                error: new Error(
-                    "Using fallback data, not connected to live API."
-                ),
+                error: new Error(errorMessage),
             };
+        };
+
+        if (this.config.useFallback || !this.binanceClient) {
+            return createFallbackResponse(
+                "Using fallback account information because client is not available or in fallback mode."
+            );
         }
 
         try {
@@ -719,19 +736,26 @@ class BinanceDataService extends EventEmitter {
                 });
             });
 
+            // CRITICAL FIX: Process balances to add 'total' and parse numbers
+            if (accountInfo && Array.isArray(accountInfo.balances)) {
+                accountInfo.balances = accountInfo.balances.map((balance) => ({
+                    asset: balance.asset,
+                    free: parseFloat(balance.free),
+                    locked: parseFloat(balance.locked),
+                    total:
+                        parseFloat(balance.free) + parseFloat(balance.locked),
+                }));
+            }
+
             return accountInfo;
         } catch (error) {
             logger.error(
                 "❌ Failed to fetch account info from Binance:",
                 error
             );
-            return {
-                error: {
-                    message: `Failed to fetch account info: ${error.message}`,
-                    service: "BinanceDataService",
-                },
-                balances: [],
-            };
+            return createFallbackResponse(
+                `Failed to fetch account info: ${error.message}`
+            );
         }
     }
 
