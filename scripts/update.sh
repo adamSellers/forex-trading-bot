@@ -34,22 +34,22 @@ main() {
     log_step "Starting lightweight update process..."
     cd "$PROJECT_DIR" || log_error "Project directory $PROJECT_DIR not found."
 
-    # 1. Check for local changes
-    log_substep "Checking for uncommitted changes..."
+    # 1. Stash local changes if they exist
+    local stashed=false
     if ! git diff --quiet HEAD; then
-        log_warning "You have uncommitted changes. Please commit or stash them first."
-        read -p "Do you want to proceed anyway? (y/N): " confirm
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-            log_info "Update cancelled."
-            exit 0
-        fi
+        log_warning "Uncommitted changes detected. Stashing them before update..."
+        git stash push -m "update-script-stash-$(date +%s)"
+        stashed=true
+        log_success "Local changes stashed."
+    else
+        log_substep "No local changes detected."
     fi
 
     # 2. Get the commit hash before pulling
     log_substep "Fetching latest changes from origin..."
     git fetch origin
     local before_hash=$(git rev-parse HEAD)
-    
+
     # 3. Pull latest code
     log_substep "Pulling latest code from branch '$BRANCH'..."
     git pull origin "$BRANCH"
@@ -57,6 +57,17 @@ main() {
 
     if [ "$before_hash" == "$after_hash" ]; then
         log_success "Already up-to-date. No new code to deploy."
+        # If nothing changed, pop the stash back
+        if [ "$stashed" = true ]; then
+            log_substep "Re-applying stashed changes..."
+            if ! git stash pop; then
+                log_warning "Could not automatically re-apply stashed changes."
+                log_warning "Run 'git status' and 'git diff' to resolve them."
+                log_warning "Your changes are saved in the latest stash. Run 'git stash list'."
+            else
+                log_success "Stashed changes re-applied."
+            fi
+        fi
         exit 0
     fi
 
@@ -65,7 +76,7 @@ main() {
     # 4. Check what changed to run tasks conditionally
     log_step "Analyzing changes..."
     local changed_files=$(git diff --name-only "$before_hash" "$after_hash")
-    
+
     local backend_changed=false
     local frontend_changed=false
     local deps_changed=false
@@ -111,6 +122,18 @@ main() {
     pm2 reload "$APP_NAME" --env production
     pm2 save
     log_success "Application reloaded gracefully."
+
+    # 9. Re-apply stashed changes
+    if [ "$stashed" = true ]; then
+        log_step "Re-applying stashed changes..."
+        if ! git stash pop; then
+            log_warning "Could not automatically re-apply stashed changes. You may have merge conflicts."
+            log_warning "Run 'git status' and 'git diff' to resolve them."
+            log_warning "Your changes are saved in the latest stash. Run 'git stash list' to see it."
+        else
+            log_success "Stashed changes re-applied successfully."
+        fi
+    fi
 
     # 9. Health check
     log_step "Performing health check..."
