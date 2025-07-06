@@ -1,5 +1,5 @@
 // frontend/src/components/TradingDashboard.jsx - ENHANCED with Clear Status Indicators
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Container,
   Grid,
@@ -14,7 +14,8 @@ import {
   MenuItem,
   IconButton,
   Tooltip,
-  Divider
+  Divider,
+  Stack
 } from '@mui/material';
 import {
   PlayArrow,
@@ -42,7 +43,7 @@ import TradingSignals from './TradingSignals';
 import RecentTrades from './RecentTrades';
 import LivePriceChart from './LivePriceChart';
 import SystemStatusBanner from './SystemStatusBanner';
-import { Box } from '@mui/system';
+import { Box } from '@mui/material';
 
 const TradingDashboard = () => {
   // State management
@@ -389,7 +390,7 @@ const TradingDashboard = () => {
   };
 
   // Memoize the sorted array of signals to prevent re-sorting on every render
-  const signalsToRender = React.useMemo(() => {
+  const signalsToRender = useMemo(() => {
       return Array.from(latestSignals.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [latestSignals]);
 
@@ -653,7 +654,7 @@ const TradingDashboard = () => {
       {/* Dashboard Grid */}
       <Grid container spacing={3}>
         {/* Row 1: Portfolio Overview - Full Width */}
-        <Grid xs={12}>
+        <Grid item xs={12}>
           <PortfolioOverview 
             account={account} 
             prices={prices} 
@@ -662,7 +663,7 @@ const TradingDashboard = () => {
         </Grid>
 
         {/* Row 2: Holdings & Signals/Trades */}
-        <Grid xs={12} lg={6}>
+        <Grid item xs={12} lg={6}>
           <CurrentHoldings 
             account={account} 
             prices={prices} 
@@ -670,29 +671,25 @@ const TradingDashboard = () => {
           />
         </Grid>
 
-        <Grid xs={12} lg={6}>
-          <Grid container spacing={2}>
-            <Grid xs={12}>
+        <Grid item xs={12} lg={6}>
+          <Stack spacing={3} sx={{ height: '100%' }}>
               <TradingSignals 
                 signals={signalsToRender} 
                 systemStatus={systemStatus}
               />
-            </Grid>
-            <Grid xs={12}>
               <RecentTrades trades={trades} />
-            </Grid>
-          </Grid>
+          </Stack>
         </Grid>
 
         {/* Row 3: Live Prices & Chart */}
-        <Grid xs={12} md={4}>
+        <Grid item xs={12} md={4}>
           <Typography variant="h6" gutterBottom>
             Live Market Prices
           </Typography>
           <LivePrices prices={prices} />
         </Grid>
 
-        <Grid xs={12} md={8}>
+        <Grid item xs={12} md={8}>
           <LivePriceChart prices={prices} />
         </Grid>
       </Grid>

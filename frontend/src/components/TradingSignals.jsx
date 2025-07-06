@@ -159,7 +159,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
   const hasInsufficientData = insufficientDataCount > 0;
 
   return (
-    <Paper sx={{ p: 3, height: 400, overflow: 'auto' }}>
+    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 400 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">
           Trading Signals
@@ -281,141 +281,143 @@ const TradingSignals = ({ signals, systemStatus }) => {
       )}
 
       {/* Signal List */}
-      {!signals || signals.length === 0 ? (
-        <Box display="flex" justifyContent="center" alignItems="center" height="200px">
-          <Box textAlign="center">
-            <DataUsage sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-            <Typography variant="body2" color="textSecondary">
-              {dataStatus?.isInitializing ? 'Building dataset...' : 'Waiting for signals...'}
-            </Typography>
-            <Typography variant="caption" color="textSecondary">
-              {dataStatus?.isInitializing ? 'Market data collection in progress' : 'Signal generation will begin shortly'}
-            </Typography>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', pr: 1 }}>
+        {!signals || signals.length === 0 ? (
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+            <Box textAlign="center">
+              <DataUsage sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+              <Typography variant="body2" color="textSecondary">
+                {dataStatus?.isInitializing ? 'Building dataset...' : 'Waiting for signals...'}
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                {dataStatus?.isInitializing ? 'Market data collection in progress' : 'Signal generation will begin shortly'}
+              </Typography>
+            </Box>
           </Box>
-        </Box>
-      ) : (
-        <Box>
-          {signals.slice(0, 20).map((signal, index) => {
-            const signalData = {
-              symbol: signal?.symbol || 'UNKNOWN',
-              signal: signal?.signal || 'UNKNOWN',
-              strength: signal?.strength ?? 0,
-              timestamp: signal?.timestamp || Date.now(),
-              message: signal?.message || '',
-              strategy: signal?.strategy || 'unknown',
-              currentPrice: signal?.currentPrice,
-              originalSignal: signal?.originalSignal,
-              candleCount: signal?.candleCount
-            };
+        ) : (
+          <Box>
+            {signals.slice(0, 20).map((signal, index) => {
+              const signalData = {
+                symbol: signal?.symbol || 'UNKNOWN',
+                signal: signal?.signal || 'UNKNOWN',
+                strength: signal?.strength ?? 0,
+                timestamp: signal?.timestamp || Date.now(),
+                message: signal?.message || '',
+                strategy: signal?.strategy || 'unknown',
+                currentPrice: signal?.currentPrice,
+                originalSignal: signal?.originalSignal,
+                candleCount: signal?.candleCount
+              };
 
-            const uniqueKey = `${signalData.symbol}-${signalData.timestamp}-${index}`;
-            const isInsufficient = signalData.signal === 'INSUFFICIENT_DATA';
+              const uniqueKey = `${signalData.symbol}-${signalData.timestamp}-${index}`;
+              const isInsufficient = signalData.signal === 'INSUFFICIENT_DATA';
 
-            return (
-              <Card 
-                key={uniqueKey} 
-                variant="outlined" 
-                sx={{ 
-                  mb: 1, 
-                  backgroundColor: isInsufficient ? 'action.hover' : 'background.paper',
-                  borderColor: isInsufficient ? 'info.main' : 'divider'
-                }}
-              >
-                <CardContent sx={{ py: 1.5, px: 2 }}>
-                  <Grid container alignItems="center" spacing={1}>
-                    {/* Icon */}
-                    <Grid xs={1}>
-                      <Box display="flex" justifyContent="center">
-                        {getSignalIcon(signalData.signal)}
+              return (
+                <Card 
+                  key={uniqueKey} 
+                  variant="outlined" 
+                  sx={{ 
+                    mb: 1, 
+                    backgroundColor: isInsufficient ? 'action.hover' : 'background.paper',
+                    borderColor: isInsufficient ? 'info.main' : 'divider'
+                  }}
+                >
+                  <CardContent sx={{ py: 1.5, px: 2 }}>
+                    <Grid container alignItems="center" spacing={1}>
+                      {/* Icon */}
+                      <Grid item xs={1}>
+                        <Box display="flex" justifyContent="center">
+                          {getSignalIcon(signalData.signal)}
+                        </Box>
                       </Box>
-                    </Grid>
-                    
-                    {/* Asset & Strategy */}
-                    <Grid xs={2}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {signalData.symbol.replace('USDT', '')}
-                      </Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        {signalData.strategy}
-                        {signalData.candleCount && (
-                          <span> • {signalData.candleCount}c</span>
-                        )}
-                      </Typography>
-                    </Grid>
-                    
-                    {/* Signal Type */}
-                    <Grid xs={3}>
-                      <Chip
-                        size="small"
-                        label={signalData.signal.replace('_', ' ')}
-                        color={getSignalColor(signalData.signal)}
-                        sx={{ fontSize: '0.7rem' }}
-                      />
-                      {signalData.originalSignal && (
-                        <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.25 }}>
-                          (was: {signalData.originalSignal})
+                      
+                      {/* Asset & Strategy */}
+                      <Grid item xs={2}>
+                        <Typography variant="body2" fontWeight="bold">
+                          {signalData.symbol.replace('USDT', '')}
                         </Typography>
-                      )}
-                    </Grid>
-                    
-                    {/* Strength */}
-                    <Grid xs={1.5}>
-                      <Typography variant="body2" textAlign="center">
-                        {formatSignalStrength(signalData.strength)}
-                      </Typography>
-                      <Typography variant="caption" color="textSecondary" textAlign="center" sx={{ display: 'block' }}>
-                        str
-                      </Typography>
-                    </Grid>
-                    
-                    {/* Price */}
-                    <Grid xs={2}>
-                      {signalData.currentPrice && (
-                        <>
-                          <Typography variant="body2" textAlign="center">
-                            ${signalData.currentPrice.toFixed(signalData.currentPrice > 1 ? 2 : 6)}
+                        <Typography variant="caption" color="textSecondary">
+                          {signalData.strategy}
+                          {signalData.candleCount && (
+                            <span> • {signalData.candleCount}c</span>
+                          )}
+                        </Typography>
+                      </Grid>
+                      
+                      {/* Signal Type */}
+                      <Grid item xs={3}>
+                        <Chip
+                          size="small"
+                          label={signalData.signal.replace('_', ' ')}
+                          color={getSignalColor(signalData.signal)}
+                          sx={{ fontSize: '0.7rem' }}
+                        />
+                        {signalData.originalSignal && (
+                          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.25 }}>
+                            (was: {signalData.originalSignal})
                           </Typography>
-                          <Typography variant="caption" color="textSecondary" textAlign="center" sx={{ display: 'block' }}>
-                            price
-                          </Typography>
-                        </>
-                      )}
-                    </Grid>
-                    
-                    {/* Time */}
-                    <Grid xs={2.5}>
-                      <Typography variant="body2" color="textSecondary" textAlign="right">
-                        {formatSignalTime(signalData.timestamp)}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                  
-                  {/* Enhanced Message for Insufficient Data */}
-                  {signalData.message && (
-                    <Box mt={1}>
-                      <Typography 
-                        variant="caption" 
-                        color={isInsufficient ? 'info.main' : 'textSecondary'}
-                        sx={{ 
-                          display: 'block',
-                          fontSize: '0.7rem',
-                          fontStyle: isInsufficient ? 'normal' : 'italic',
-                          fontWeight: isInsufficient ? 500 : 400
-                        }}
-                      >
-                        {isInsufficient ? '📊' : '💬'} {signalData.message}
-                        {isInsufficient && signalData.candleCount && (
-                          <span> • Currently have {signalData.candleCount} candles</span>
                         )}
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </Box>
-      )}
+                      </Grid>
+                      
+                      {/* Strength */}
+                      <Grid item xs={1.5}>
+                        <Typography variant="body2" textAlign="center">
+                          {formatSignalStrength(signalData.strength)}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary" textAlign="center" sx={{ display: 'block' }}>
+                          str
+                        </Typography>
+                      </Grid>
+                      
+                      {/* Price */}
+                      <Grid item xs={2}>
+                        {signalData.currentPrice && (
+                          <>
+                            <Typography variant="body2" textAlign="center">
+                              ${signalData.currentPrice.toFixed(signalData.currentPrice > 1 ? 2 : 6)}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" textAlign="center" sx={{ display: 'block' }}>
+                              price
+                            </Typography>
+                          </>
+                        )}
+                      </Grid>
+                      
+                      {/* Time */}
+                      <Grid item xs={2.5}>
+                        <Typography variant="body2" color="textSecondary" textAlign="right">
+                          {formatSignalTime(signalData.timestamp)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                    
+                    {/* Enhanced Message for Insufficient Data */}
+                    {signalData.message && (
+                      <Box mt={1}>
+                        <Typography 
+                          variant="caption" 
+                          color={isInsufficient ? 'info.main' : 'textSecondary'}
+                          sx={{ 
+                            display: 'block',
+                            fontSize: '0.7rem',
+                            fontStyle: isInsufficient ? 'normal' : 'italic',
+                            fontWeight: isInsufficient ? 500 : 400
+                          }}
+                        >
+                          {isInsufficient ? '📊' : '💬'} {signalData.message}
+                          {isInsufficient && signalData.candleCount && (
+                            <span> • Currently have {signalData.candleCount} candles</span>
+                          )}
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Box>
+        )}
+      </Box>
       
       {/* Status Summary */}
       <Box mt={2} p={1} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>

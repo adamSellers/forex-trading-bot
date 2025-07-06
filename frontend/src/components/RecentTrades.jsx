@@ -46,97 +46,99 @@ const RecentTrades = ({ trades }) => {
   }
 
   return (
-    <Paper sx={{ p: 3, height: 400, overflow: 'auto' }}>
+    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 400 }}>
       <Typography variant="h6" gutterBottom>
         Recent Trades
       </Typography>
       
-      {trades.length === 0 ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80%' }}>
-          <Typography variant="body2" color="text.secondary">
-            No recent trades to display.
-          </Typography>
-        </Box>
-      ) : (
-        trades.slice(0, 15).map((trade, index) => {
-          // Defensive data access for each trade object to prevent crashes from malformed data
-          if (!trade || typeof trade !== 'object') {
+      <Box sx={{ flexGrow: 1, overflow: 'auto', pr: 1 }}>
+        {trades.length === 0 ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <Typography variant="body2" color="text.secondary">
+              No recent trades to display.
+            </Typography>
+          </Box>
+        ) : (
+          trades.slice(0, 15).map((trade, index) => {
+            // Defensive data access for each trade object to prevent crashes from malformed data
+            if (!trade || typeof trade !== 'object') {
+              return (
+                <Card key={`error-${index}`} variant="outlined" sx={{ mb: 1, borderColor: 'error.main' }}>
+                  <CardContent sx={{ py: 1 }}>
+                    <Grid container alignItems="center" spacing={1}>
+                      <Grid item><ErrorOutline color="error" /></Grid>
+                      <Grid item><Typography variant="body2" color="error.main">Invalid trade data received</Typography></Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              );
+            }
+
+            const side = trade.side || 'UNKNOWN';
+            const symbol = String(trade.symbol || 'N/A');
+            const price = Number(trade.price || 0);
+            const usdtCost = trade.usdtCost;
+            const usdtReceived = trade.usdtReceived;
+            const pnl = trade.pnl; // Can be undefined, handled below
+            const timestamp = trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'Invalid Date';
+            // Use a more stable key if a unique ID is available from the backend
+            const uniqueKey = trade.id || `${symbol}-${trade.timestamp}-${index}`;
+
             return (
-              <Card key={`error-${index}`} variant="outlined" sx={{ mb: 1, borderColor: 'error.main' }}>
+              <Card key={uniqueKey} variant="outlined" sx={{ mb: 1 }}>
                 <CardContent sx={{ py: 1 }}>
                   <Grid container alignItems="center" spacing={1}>
-                    <Grid item><ErrorOutline color="error" /></Grid>
-                    <Grid item><Typography variant="body2" color="error.main">Invalid trade data received</Typography></Grid>
+                    <Grid item>
+                      {side === 'BUY' ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
+                    </Grid>
+                    <Grid item xs={2}>
+                      <Typography variant="body2" fontWeight="bold">
+                        {symbol.replace('USDT', '')}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={2}>
+                      <Chip
+                        size="small"
+                        label={side}
+                        color={side === 'BUY' ? 'success' : 'error'}
+                      />
+                    </Grid>
+                    <Grid item xs={2}>
+                      <Typography variant="body2">
+                        ${price.toFixed(price > 1 ? 2 : 6)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={2}>
+                      <Typography variant="body2" color="info.main">
+                        {side === 'BUY' 
+                          ? formatUSDT(usdtCost)
+                          : formatUSDT(usdtReceived)
+                        }
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={2}>
+                      {pnl !== undefined && (
+                        <Typography 
+                          variant="body2" 
+                          color={Number(pnl) >= 0 ? 'success.main' : 'error.main'}
+                          fontWeight="bold"
+                        >
+                          {Number(pnl) >= 0 ? '+' : ''}{formatUSDT(pnl)}
+                        </Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="textSecondary">
+                        {timestamp}
+                      </Typography>
+                    </Grid>
                   </Grid>
                 </CardContent>
               </Card>
             );
-          }
-
-          const side = trade.side || 'UNKNOWN';
-          const symbol = String(trade.symbol || 'N/A');
-          const price = Number(trade.price || 0);
-          const usdtCost = trade.usdtCost;
-          const usdtReceived = trade.usdtReceived;
-          const pnl = trade.pnl; // Can be undefined, handled below
-          const timestamp = trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'Invalid Date';
-          // Use a more stable key if a unique ID is available from the backend
-          const uniqueKey = trade.id || `${symbol}-${trade.timestamp}-${index}`;
-
-          return (
-            <Card key={uniqueKey} variant="outlined" sx={{ mb: 1 }}>
-              <CardContent sx={{ py: 1 }}>
-                <Grid container alignItems="center" spacing={1}>
-                  <Grid>
-                    {side === 'BUY' ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
-                  </Grid>
-                  <Grid xs={2}>
-                    <Typography variant="body2" fontWeight="bold">
-                      {symbol.replace('USDT', '')}
-                    </Typography>
-                  </Grid>
-                  <Grid xs={2}>
-                    <Chip
-                      size="small"
-                      label={side}
-                      color={side === 'BUY' ? 'success' : 'error'}
-                    />
-                  </Grid>
-                  <Grid xs={2}>
-                    <Typography variant="body2">
-                      ${price.toFixed(price > 1 ? 2 : 6)}
-                    </Typography>
-                  </Grid>
-                  <Grid xs={2}>
-                    <Typography variant="body2" color="info.main">
-                      {side === 'BUY' 
-                        ? formatUSDT(usdtCost)
-                        : formatUSDT(usdtReceived)
-                      }
-                    </Typography>
-                  </Grid>
-                  <Grid xs={2}>
-                    {pnl !== undefined && (
-                      <Typography 
-                        variant="body2" 
-                        color={Number(pnl) >= 0 ? 'success.main' : 'error.main'}
-                        fontWeight="bold"
-                      >
-                        {Number(pnl) >= 0 ? '+' : ''}{formatUSDT(pnl)}
-                      </Typography>
-                    )}
-                  </Grid>
-                  <Grid xs={12}>
-                    <Typography variant="caption" color="textSecondary">
-                      {timestamp}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
-          );
-        })
-      )}
+          })
+        )}
+      </Box>
     </Paper>
   );
 };
