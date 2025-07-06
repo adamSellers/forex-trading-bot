@@ -13,7 +13,8 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Divider,
-  Tooltip
+  Tooltip,
+  useTheme
 } from '@mui/material';
 import {
   BarChart,
@@ -58,6 +59,7 @@ const AnalyticsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [period, setPeriod] = useState('7d');
+  const theme = useTheme();
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -218,12 +220,15 @@ const AnalyticsDashboard = () => {
         <Grid item xs={12} lg={5}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Hour (UTC)</Typography>
-            {timeAnalysis.hourlyDistribution.some(h => h.count > 0) ? (
+            {timeAnalysis.hourlyDistribution.some(h => h.trades > 0 || h.signals > 0) ? (
               <Box sx={{ height: 300 }}>
                 <BarChart
                   dataset={timeAnalysis.hourlyDistribution || []}
-                  xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
-                  series={[{ dataKey: 'count', label: 'Trades & Signals' }]}
+                  yAxis={[{ scaleType: 'band', dataKey: 'label' }]}
+                  series={[
+                    { dataKey: 'trades', label: 'Trades', color: theme.palette.success.main },
+                    { dataKey: 'signals', label: 'Signals', color: theme.palette.info.main }
+                  ]}
                   layout="vertical"
                   grid={{ vertical: true }}
                 />
@@ -240,12 +245,15 @@ const AnalyticsDashboard = () => {
         <Grid item xs={12} lg={7}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Day of Week</Typography>
-            {timeAnalysis.dailyDistribution.some(d => d.count > 0) ? (
+            {timeAnalysis.dailyDistribution.some(d => d.trades > 0 || d.signals > 0) ? (
               <Box sx={{ height: 250 }}>
                 <BarChart
                   dataset={timeAnalysis.dailyDistribution || []}
                   xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
-                  series={[{ dataKey: 'count', label: 'Trades & Signals' }]}
+                  series={[
+                    { dataKey: 'trades', label: 'Trades', color: theme.palette.success.main },
+                    { dataKey: 'signals', label: 'Signals', color: theme.palette.info.main }
+                  ]}
                   grid={{ horizontal: true }}
                 />
               </Box>

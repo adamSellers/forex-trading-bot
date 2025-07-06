@@ -706,33 +706,60 @@ module.exports = (tradingController) => {
     }
 
     function analyzeByTime(trades, signals) {
-        const hourlyDistribution = new Array(24).fill(0);
-        const dailyDistribution = new Array(7).fill(0);
+        // Initialize separate counters
+        const hourlyTrades = new Array(24).fill(0);
+        const hourlySignals = new Array(24).fill(0);
+        const dailyTrades = new Array(7).fill(0);
+        const dailySignals = new Array(7).fill(0);
 
-        [...trades, ...signals].forEach((item) => {
+        trades.forEach((item) => {
             const date = new Date(item.timestamp);
-            const hour = date.getHours();
-            const day = date.getDay();
-
-            hourlyDistribution[hour]++;
-            dailyDistribution[day]++;
+            const hour = date.getUTCHours(); // Use UTC for consistency
+            const day = date.getUTCDay();
+            hourlyTrades[hour]++;
+            dailyTrades[day]++;
         });
 
+        signals.forEach((item) => {
+            const date = new Date(item.timestamp);
+            const hour = date.getUTCHours(); // Use UTC for consistency
+            const day = date.getUTCDay();
+            hourlySignals[hour]++;
+            dailySignals[day]++;
+        });
+
+        // Combine into a single structure for the frontend
+        const hourlyDistribution = hourlyTrades.map((tradeCount, hour) => ({
+            hour,
+            label: `${hour}:00`,
+            trades: tradeCount,
+            signals: hourlySignals[hour],
+        }));
+
+        const dailyDistribution = dailyTrades.map((tradeCount, day) => ({
+            day,
+            label: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day],
+            trades: tradeCount,
+            signals: dailySignals[day],
+        }));
+
         return {
-            hourlyDistribution: hourlyDistribution.map((count, hour) => ({
-                hour,
-                count,
-                label: `${hour}:00`,
-            })),
-            dailyDistribution: dailyDistribution.map((count, day) => ({
-                day,
-                count,
-                label: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day],
-            })),
-            peakHour: hourlyDistribution.indexOf(
-                Math.max(...hourlyDistribution)
-            ),
-            peakDay: dailyDistribution.indexOf(Math.max(...dailyDistribution)),
+            hourlyDistribution,
+            dailyDistribution,
+            peakHour: hourlyDistribution
+                .map((h) => h.trades + h.signals)
+                .indexOf(
+                    Math.max(
+                        ...hourlyDistribution.map((h) => h.trades + h.signals)
+                    )
+                ),
+            peakDay: dailyDistribution
+                .map((d) => d.trades + d.signals)
+                .indexOf(
+                    Math.max(
+                        ...dailyDistribution.map((d) => d.trades + d.signals)
+                    )
+                ),
         };
     }
 
