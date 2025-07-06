@@ -329,7 +329,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                         <Box display="flex" justifyContent="center">
                           {getSignalIcon(signalData.signal)}
                         </Box>
-                      </Box>
+                      </Grid>
                       
                       {/* Asset & Strategy */}
                       <Grid item xs={2}>
