@@ -236,7 +236,10 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
 
   // Real Holdings Asset Card
   const RealAssetCard = ({ balance }) => {
-    if (!balance || balance.total === 0) return null;
+    // Always show the USDT card, but only show other assets if they have a balance.
+    if (!balance || (balance.asset !== 'USDT' && balance.total === 0)) {
+      return null;
+    }
 
     const assetValue = calculateAssetValue(balance, prices);
     const totalPortfolioValue = getRealPortfolioValue();
@@ -454,8 +457,9 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
 
         <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
           {account?.balances?.filter(balance => 
-            TRADING_ASSETS.includes(balance.asset) && balance.total > 0
-          ).map(balance => (
+            TRADING_ASSETS.includes(balance.asset) && (balance.total > 0 || balance.asset === 'USDT')
+          ).sort((a, b) => a.asset === 'USDT' ? -1 : b.asset === 'USDT' ? 1 : a.asset.localeCompare(b.asset)) // Keep USDT at the top
+          .map(balance => (
             <RealAssetCard key={balance.asset} balance={balance} />
           ))}
 

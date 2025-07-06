@@ -747,6 +747,30 @@ class BinanceDataService extends EventEmitter {
                 }));
             }
 
+            // NEW: Ensure all tracked assets are present in the response, even if balance is 0.
+            // This makes the data structure consistent with the fallback response.
+            if (accountInfo && Array.isArray(accountInfo.balances)) {
+                const trackedAssets = this.config.assets.map((a) =>
+                    a.replace("USDT", "")
+                );
+                trackedAssets.push("USDT"); // Make sure USDT is always tracked
+                const uniqueTrackedAssets = [...new Set(trackedAssets)];
+
+                uniqueTrackedAssets.forEach((assetSymbol) => {
+                    const found = accountInfo.balances.some(
+                        (b) => b.asset === assetSymbol
+                    );
+                    if (!found) {
+                        accountInfo.balances.push({
+                            asset: assetSymbol,
+                            free: 0,
+                            locked: 0,
+                            total: 0,
+                        });
+                    }
+                });
+            }
+
             return accountInfo;
         } catch (error) {
             logger.error(
