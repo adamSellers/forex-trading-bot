@@ -38,9 +38,12 @@ if [ "$(whoami)" != "adam" ]; then
     exit 1
 fi
 
-# 0. Pull latest changes from git
-log_info "Pulling latest changes from git..."
-git pull origin main
+# 0. Update code from git
+log_info "Fetching latest changes from git..."
+git fetch origin main
+
+log_info "Resetting local branch to match remote (discards local changes)..."
+git reset --hard origin/main
 log_success "Code is up to date."
 
 # 1. Pre-deployment checks
