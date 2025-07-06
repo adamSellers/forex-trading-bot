@@ -63,14 +63,19 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
     systemConfig: systemStatus.config
   });
   
-  const assetsCount = systemStatus.config?.assets?.length || 4;
-  const timeframesCount = systemStatus.config?.timeframes?.length || 3;
+  const assetsCount = systemStatus.config?.assets?.length || 0;
+  const timeframesCount = systemStatus.config?.timeframes?.length || 0;
+  const numberOfDatasets = assetsCount * timeframesCount;
+
+  // Get the per-dataset requirement from the backend. Fallback to 50 if not provided.
+  const requiredCandlesPerDataset = systemStatus.requirements?.minCandles || 50;
   
   // Calculate expected candles for different analysis levels
   const expectedCandles = {
-    minimal: assetsCount * timeframesCount * 25,   // 300 candles for basic analysis
-    good: assetsCount * timeframesCount * 100,     // 1200 candles for good analysis
-    optimal: assetsCount * timeframesCount * 250   // 3000 candles for optimal analysis
+    // CRITICAL FIX: Use the requirement from the backend for the 'minimal' target
+    minimal: requiredCandlesPerDataset * numberOfDatasets, // Target for basic signals on all datasets
+    good: 100 * numberOfDatasets,     // Target for good analysis
+    optimal: 250 * numberOfDatasets   // Target for optimal analysis
   };
   
   // Calculate progress percentages

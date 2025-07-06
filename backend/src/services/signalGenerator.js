@@ -188,6 +188,15 @@ class SignalGenerator extends EventEmitter {
         }
     }
 
+    /**
+     * NEW: Get the minimum number of candles required for the current strategy
+     */
+    getRequiredCandleCount() {
+        const strategy = this.strategyConfig[this.config.strategy];
+        if (!strategy) return 50; // Fallback
+        return Math.max(strategy.fast, strategy.slow) + 1;
+    }
+
     // That's it! This single method addition should fix the signalGenerator getStatus error
     // without removing any of the existing functionality
 
@@ -300,14 +309,15 @@ class SignalGenerator extends EventEmitter {
      */
     async generateSignal(symbol, candles, currentPrice) {
         try {
-            if (!candles || candles.length < 50) {
+            const requiredCandles = this.getRequiredCandleCount();
+            if (!candles || candles.length < requiredCandles) {
                 return {
                     symbol,
                     signal: "INSUFFICIENT_DATA",
                     strength: 0,
                     message: `Insufficient candle data: ${
                         candles?.length || 0
-                    }/50 required`,
+                    }/${requiredCandles} required`,
                     timestamp: Date.now(),
                 };
             }

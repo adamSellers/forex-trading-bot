@@ -193,6 +193,10 @@ class TradingService extends EventEmitter {
                     paperTrading: paperStatus,
                     signalGenerator: signalStatus,
                 },
+                requirements: {
+                    minCandles:
+                        this.signalGenerator?.getRequiredCandleCount() || 50,
+                },
                 timestamp: Date.now(),
             };
         } catch (error) {

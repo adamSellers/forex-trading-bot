@@ -645,6 +645,11 @@ class BinanceDataService extends EventEmitter {
      * NEW: Get enhanced service status with exchange info
      */
     getServiceStatus() {
+        const totalCandles = Array.from(this.candleCache.values()).reduce(
+            (total, candles) => total + (candles?.length || 0),
+            0
+        );
+
         return {
             connected: this.isConnected,
             useFallback: this.config.useFallback,
@@ -654,6 +659,7 @@ class BinanceDataService extends EventEmitter {
             activeStreams: this.webSocketConnections.size,
             cachedCandles: this.candleCache.size,
             currentPrices: this.priceData.size,
+            totalCandles: totalCandles,
             assets: this.config.assets,
             timeframes: this.config.timeframes,
 
