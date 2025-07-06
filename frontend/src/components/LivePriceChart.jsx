@@ -11,7 +11,6 @@ import {
   Select,
   MenuItem,
   Grid,
-  Legend,
 } from '@mui/material';
 import { 
   LineChart, 
@@ -21,7 +20,8 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  ReferenceLine 
+  ReferenceLine,
+  Legend
 } from 'recharts';
 import { assetColors } from '../theme/tradingTheme';
 
