@@ -41,6 +41,7 @@ class BinanceDataService extends EventEmitter {
         this.isServiceReady = false;
         // Connection state
         this.isConnected = false;
+        this.candleUpdateInterval = null;
         this.connectionAttempts = 0;
         this.maxRetries = 5;
         this.readyTimeout = null; // NEW: Timeout for service readiness
@@ -312,6 +313,9 @@ class BinanceDataService extends EventEmitter {
 
             // Start real-time data streams
             await this.startRealTimeData();
+
+            // NEW: Start the continuous candle updater
+            this.startCandleUpdater();
 
             this.isConnected = true;
             logger.success(
@@ -623,6 +627,83 @@ class BinanceDataService extends EventEmitter {
     }
 
     /**
+     * NEW: Starts a periodic job to update candle data for all assets.
+     */
+    startCandleUpdater(intervalMs = 60 * 1000) {
+        // Default to 1 minute
+        logger.info(
+            `🕯️  Starting continuous candle updater with a ${
+                intervalMs / 1000
+            }s interval...`
+        );
+        this.candleUpdateInterval = setInterval(async () => {
+            if (!this.isConnected) return; // Don't run if not connected
+
+            logger.debug("🔄 Running periodic candle update cycle...");
+            for (const asset of this.config.assets) {
+                for (const timeframe of this.config.timeframes) {
+                    try {
+                        await this.updateCandleCacheForSymbol(asset, timeframe);
+                    } catch (error) {
+                        logger.warn(
+                            `Failed to update candles for ${asset} ${timeframe}: ${error.message}`
+                        );
+                    }
+                }
+            }
+        }, intervalMs);
+    }
+
+    /**
+     * NEW: Fetches the latest candles for a symbol and updates the cache.
+     */
+    async updateCandleCacheForSymbol(symbol, interval) {
+        const cacheKey = `${symbol}_${interval}`;
+        const existingCandles = this.candleCache.get(cacheKey) || [];
+        if (existingCandles.length === 0) return; // Should not happen after init
+
+        // Fetch the last 2 candles to check for new closed candles or updates
+        const newCandlesData = await this.fetchCandles(symbol, interval, 2);
+        if (!newCandlesData || newCandlesData.length === 0) return;
+
+        const lastCachedCandle = existingCandles[existingCandles.length - 1];
+
+        newCandlesData.forEach((newCandle) => {
+            if (newCandle.openTime > lastCachedCandle.openTime) {
+                // This is a new, closed candle. Append it.
+                existingCandles.push(newCandle);
+                logger.debug(
+                    `➕ Appended new ${interval} candle for ${symbol} at ${new Date(
+                        newCandle.openTime
+                    ).toISOString()}`
+                );
+                this.emit("candleUpdated", {
+                    symbol,
+                    interval,
+                    candle: newCandle,
+                });
+            } else if (newCandle.openTime === lastCachedCandle.openTime) {
+                // This is an update to the current, unclosed candle. Replace it.
+                existingCandles[existingCandles.length - 1] = newCandle;
+                logger.debug(
+                    `🔄 Updated current ${interval} candle for ${symbol}`
+                );
+            }
+        });
+
+        // Trim the cache to a max size to prevent memory bloat over long runtimes
+        const maxCacheSize = 500;
+        if (existingCandles.length > maxCacheSize) {
+            this.candleCache.set(
+                cacheKey,
+                existingCandles.slice(-maxCacheSize)
+            );
+        } else {
+            this.candleCache.set(cacheKey, existingCandles);
+        }
+    }
+
+    /**
      * NEW: Refresh exchange info if needed
      */
     async refreshExchangeInfoIfNeeded() {
@@ -787,6 +868,13 @@ class BinanceDataService extends EventEmitter {
         logger.info("🛑 Stopping Enhanced Binance Data Service...");
 
         clearTimeout(this.readyTimeout); // NEW: Clear the readiness timeout
+
+        // NEW: Stop the candle updater
+        if (this.candleUpdateInterval) {
+            clearInterval(this.candleUpdateInterval);
+            this.candleUpdateInterval = null;
+            logger.info("🕯️  Candle updater stopped.");
+        }
 
         // Close WebSocket connections
         for (const [symbol, stream] of this.webSocketConnections) {
