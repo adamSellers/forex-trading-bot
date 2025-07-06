@@ -164,6 +164,12 @@ export const tradingAPI = {
         const query = new URLSearchParams({ period }).toString();
         return apiCall(`${API_ENDPOINTS.trading.analytics}?${query}`);
     },
+
+    // Get historical candle data
+    getCandles: (symbol, timeframe) => {
+        const endpoint = `${API_ENDPOINTS.trading.candles}/${symbol}/${timeframe}`;
+        return apiCall(endpoint);
+    },
 };
 
 export const managementAPI = {

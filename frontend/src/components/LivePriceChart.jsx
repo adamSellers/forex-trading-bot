@@ -1,4 +1,4 @@
-// frontend/src/components/LivePriceChart.jsx
+// frontend/src/components/LivePriceChart.jsx - REBUILT FOR HISTORICAL ANALYSIS
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Paper,
@@ -11,6 +11,8 @@ import {
   Select,
   MenuItem,
   Grid,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import { 
   LineChart, 
@@ -24,90 +26,84 @@ import {
   Legend
 } from 'recharts';
 import { assetColors } from '../theme/tradingTheme';
+import { tradingAPI } from '../config/api';
+import { calculateEMA } from '../utils/indicators';
 
-const LivePriceChart = ({ prices = {}, signals = [] }) => {
+const LivePriceChart = ({ prices = {} }) => {
   const [selectedAsset, setSelectedAsset] = useState('BTCUSDT');
-  const [timeRange, setTimeRange] = useState('30min'); // 5min, 15min, 30min, 1hour
-  const [priceHistory, setPriceHistory] = useState(new Map());
+  const [timeframe, setTimeframe] = useState('1h');
+  const [chartData, setChartData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'];
-  
-  const timeRangeConfig = {
-    '5min': { minutes: 5, maxPoints: 60, label: '5 Minutes' },
-    '15min': { minutes: 15, maxPoints: 90, label: '15 Minutes' },
-    '30min': { minutes: 30, maxPoints: 120, label: '30 Minutes' },
-    '1hour': { minutes: 60, maxPoints: 120, label: '1 Hour' }
+  const timeframes = {
+    '1h': '1 Hour',
+    '4h': '4 Hours',
+    '1d': '1 Day'
   };
 
-  // Process incoming price updates
+  // Fetch historical candle data
   useEffect(() => {
-    if (!prices || Object.keys(prices).length === 0) return;
+    const fetchCandleData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await tradingAPI.getCandles(selectedAsset, timeframe);
+        
+        if (data && data.candles && data.candles.length > 0) {
+          const closePrices = data.candles.map(c => c.close);
+          const fastMAValues = calculateEMA(closePrices, 20);
+          const slowMAValues = calculateEMA(closePrices, 50);
 
-    const now = Date.now();
-    
-    // Update price history for each asset
-    assets.forEach(asset => {
-      if (prices[asset]) {
-        setPriceHistory(prev => {
-          const newHistory = new Map(prev);
-          const assetHistory = newHistory.get(asset) || [];
-          
-          // Find the latest signal for THIS asset to get MA values
-          const signal = signals.find(s => s.symbol === asset);
-          const fastMA = signal?.data ? parseFloat(signal.data.fastMA) : null;
-          const slowMA = signal?.data ? parseFloat(signal.data.slowMA) : null;
-          
-          // Add new price point
-          const newPoint = {
-            timestamp: now,
-            time: new Date(now).toLocaleTimeString('en-US', { 
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit'
-            }),
-            price: prices[asset].price,
-            change: prices[asset].priceChange || 0,
-            // Add MAs, carrying forward the last known value if current signal is null
-            fastMA: fastMA ?? (assetHistory.length > 0 ? assetHistory[assetHistory.length - 1].fastMA : null),
-            slowMA: slowMA ?? (assetHistory.length > 0 ? assetHistory[assetHistory.length - 1].slowMA : null),
-          };
-          
-          // Add to history and limit points based on time range
-          const updatedHistory = [...assetHistory, newPoint];
-          const config = timeRangeConfig[timeRange];
-          const cutoffTime = now - (config.minutes * 60 * 1000);
-          
-          // Filter to time range and limit points
-          const filteredHistory = updatedHistory
-            .filter(point => point.timestamp > cutoffTime)
-            .slice(-config.maxPoints);
-          
-          newHistory.set(asset, filteredHistory);
-          return newHistory;
-        });
+          const processedData = data.candles.map((candle, index) => ({
+            ...candle,
+            time: new Date(candle.openTime).toLocaleDateString(),
+            fastMA: fastMAValues[index],
+            slowMA: slowMAValues[index],
+          }));
+          setChartData(processedData);
+        } else {
+          setChartData([]);
+        }
+      } catch (err) {
+        setError(`Failed to load chart data: ${err.message}`);
+        setChartData([]);
+      } finally {
+        setLoading(false);
       }
-    });
-  }, [prices, signals, timeRange]);
+    };
 
-  // Get chart data for selected asset
-  const chartData = useMemo(() => {
-    const assetHistory = priceHistory.get(selectedAsset) || [];
-    return assetHistory.map(point => ({
-      ...point,
-      formattedPrice: point.price.toFixed(point.price > 1 ? 2 : 6)
-    }));
-  }, [priceHistory, selectedAsset]);
+    fetchCandleData();
+  }, [selectedAsset, timeframe]);
+
+  // Handle live price updates to animate the last candle
+  useEffect(() => {
+    const livePrice = prices[selectedAsset]?.price;
+    if (livePrice && chartData.length > 0) {
+      setChartData(prevData => {
+        const newData = [...prevData];
+        const lastCandle = { ...newData[newData.length - 1] };
+        
+        lastCandle.close = livePrice;
+        lastCandle.high = Math.max(lastCandle.high, livePrice);
+        lastCandle.low = Math.min(lastCandle.low, livePrice);
+        
+        newData[newData.length - 1] = lastCandle;
+        return newData;
+      });
+    }
+  }, [prices, selectedAsset]);
 
   // Calculate price statistics
   const priceStats = useMemo(() => {
     if (chartData.length === 0) return null;
     
-    const prices = chartData.map(d => d.price);
-    const currentPrice = prices[prices.length - 1];
-    const firstPrice = prices[0];
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
+    const closePrices = chartData.map(d => d.close);
+    const currentPrice = closePrices[closePrices.length - 1];
+    const firstPrice = closePrices[0];
+    const minPrice = Math.min(...chartData.map(c => c.low));
+    const maxPrice = Math.max(...chartData.map(c => c.high));
     const priceChange = currentPrice - firstPrice;
     const priceChangePercent = ((priceChange / firstPrice) * 100);
     
@@ -117,7 +113,6 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
       changePercent: priceChangePercent,
       min: minPrice,
       max: maxPrice,
-      range: maxPrice - minPrice
     };
   }, [chartData]);
 
@@ -127,20 +122,24 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
       const data = payload[0].payload;
       return (
         <Paper sx={{ p: 1.5, border: 1, borderColor: 'divider', backgroundColor: 'rgba(30, 30, 30, 0.9)' }}>
-          <Typography variant="caption" color="textSecondary">
-            {data.time}
+          <Typography variant="caption" color="textSecondary" gutterBottom>
+            {label}
           </Typography>
-          <Typography variant="body2" fontWeight="bold" sx={{ color: assetColors[selectedAsset] }}>
-            Price: ${data.price?.toFixed(data.price > 1 ? 2 : 6)}
+          <Typography variant="body2" fontWeight="bold" sx={{ color: assetColors[selectedAsset], display: 'block' }}>
+            Close: ${data.close?.toFixed(data.close > 1 ? 2 : 6)}
           </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            O: {data.open?.toFixed(2)} H: {data.high?.toFixed(2)} L: {data.low?.toFixed(2)}
+          </Typography>
+          <hr style={{ border: 'none', borderTop: '1px solid #444', margin: '4px 0' }} />
           {data.fastMA && (
             <Typography variant="caption" sx={{ color: '#8884d8' }}>
-              Fast MA: ${data.fastMA.toFixed(data.price > 1 ? 2 : 6)}
+              Fast EMA (20): ${data.fastMA.toFixed(data.close > 1 ? 2 : 6)}
             </Typography>
           )}
           {data.slowMA && (
             <Typography variant="caption" sx={{ color: '#82ca9d', display: 'block' }}>
-              Slow MA: ${data.slowMA.toFixed(data.price > 1 ? 2 : 6)}
+              Slow EMA (50): ${data.slowMA.toFixed(data.close > 1 ? 2 : 6)}
             </Typography>
           )}
         </Paper>
@@ -161,12 +160,12 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
     <Paper sx={{ p: 3 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">
-          Live Price Chart
+          Historical Analysis Chart
         </Typography>
         
         <Box display="flex" gap={2} alignItems="center">
           {/* Asset Selector */}
-          <FormControl size="small" sx={{ minWidth: 120 }}>
+          <FormControl size="small" sx={{ minWidth: 120 }} disabled={loading}>
             <InputLabel>Asset</InputLabel>
             <Select
               value={selectedAsset}
@@ -183,14 +182,15 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
 
           {/* Time Range Selector */}
           <ToggleButtonGroup
-            value={timeRange}
+            value={timeframe}
             exclusive
-            onChange={(e, newRange) => newRange && setTimeRange(newRange)}
+            onChange={(e, newTimeframe) => newTimeframe && setTimeframe(newTimeframe)}
             size="small"
+            disabled={loading}
           >
-            {Object.entries(timeRangeConfig).map(([key, config]) => (
+            {Object.entries(timeframes).map(([key, label]) => (
               <ToggleButton key={key} value={key}>
-                {config.label}
+                {label}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>
@@ -250,13 +250,21 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
 
       {/* Chart */}
       <Box sx={{ height: 350 }}>
-        {chartData.length > 0 ? (
+        {loading ? (
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+            <CircularProgress />
+            <Typography sx={{ ml: 2 }}>Loading Chart Data...</Typography>
+          </Box>
+        ) : error ? (
+          <Alert severity="error">{error}</Alert>
+        ) : chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
               <XAxis 
                 dataKey="time" 
                 tick={{ fontSize: 12 }}
+                tickFormatter={(timeStr) => new Date(timeStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 interval="preserveStartEnd"
               />
               <YAxis 
@@ -271,18 +279,13 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
               
               {/* Reference line for starting price */}
               {chartData.length > 1 && (
-                <ReferenceLine 
-                  y={chartData[0].price} 
-                  stroke="#666" 
-                  strokeDasharray="2 2"
-                  label={{ value: "Start", position: "right" }}
-                />
+                <ReferenceLine y={chartData[0].close} stroke="#666" strokeDasharray="2 2" />
               )}
               
               <Line
                 type="monotone"
-                dataKey="price"
-                name="Price"
+                dataKey="close"
+                name="Close Price"
                 stroke={assetColors[selectedAsset]}
                 strokeWidth={2}
                 dot={false}
@@ -294,7 +297,7 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
               <Line
                 type="monotone"
                 dataKey="fastMA"
-                name="Fast MA"
+                name="Fast EMA (20)"
                 stroke="#8884d8"
                 strokeWidth={1.5}
                 dot={false}
@@ -304,7 +307,7 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
               <Line
                 type="monotone"
                 dataKey="slowMA"
-                name="Slow MA"
+                name="Slow EMA (50)"
                 stroke="#82ca9d"
                 strokeWidth={1.5}
                 dot={false}
@@ -321,17 +324,12 @@ const LivePriceChart = ({ prices = {}, signals = [] }) => {
             color="text.secondary"
           >
             <Typography variant="body1">
-              Collecting price data for {selectedAsset.replace('USDT', '')}...
+              No historical data available for {selectedAsset.replace('USDT', '')} on this timeframe.
             </Typography>
           </Box>
         )}
       </Box>
 
-      <Box mt={1}>
-        <Typography variant="caption" color="textSecondary">
-          Live updates every 5 seconds • {chartData.length} data points • {timeRangeConfig[timeRange].label} range
-        </Typography>
-      </Box>
     </Paper>
   );
 };

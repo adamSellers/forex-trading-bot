@@ -695,7 +695,7 @@ const TradingDashboard = () => {
         </Grid>
 
         <Grid item xs={12} md={8}>
-          <LivePriceChart prices={prices} signals={signalsToRender} />
+          <LivePriceChart prices={prices} />
         </Grid>
       </Grid>
       

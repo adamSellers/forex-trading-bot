@@ -81,7 +81,7 @@ module.exports = (tradingController) => {
                 symbol,
                 timeframe,
                 count: candles.length,
-                candles: candles.slice(-100), // Return last 100 candles
+                candles: candles.slice(-300), // Return last 300 candles for better analysis
             });
         } catch (error) {
             console.error("Candles API error:", error);

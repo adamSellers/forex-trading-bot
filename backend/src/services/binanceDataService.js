@@ -371,9 +371,9 @@ class BinanceDataService extends EventEmitter {
         logger.info("📚 Loading historical candle data...");
 
         const dataRequirements = {
-            "1h": 100,
-            "4h": 75,
-            "1d": 60,
+            "1h": 300, // Increased for better MA calculation on charts
+            "4h": 300,
+            "1d": 300,
         };
 
         for (const asset of this.config.assets) {
