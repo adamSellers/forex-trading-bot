@@ -24,6 +24,60 @@ import {
   Info
 } from '@mui/icons-material';
 
+// Moved MetricCard outside the component for performance and clarity
+const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) => (
+  <Card 
+    variant="outlined" 
+    sx={{ 
+      height: 100,
+      minWidth: 0 // Allow card to shrink
+    }}
+  >
+    {/* The theme's MuiCardContent override handles the flex centering */}
+    <CardContent>
+      {icon && (
+        <Box display="flex" justifyContent="center" mb={0.5}>
+          {icon}
+        </Box>
+      )}
+      <Typography 
+        color="textSecondary" 
+        gutterBottom 
+        variant="body2" 
+        sx={{ 
+          fontWeight: 500,
+          fontSize: '0.75rem',
+          mb: 0.5
+        }}
+      >
+        {title}
+      </Typography>
+      <Typography 
+        variant="h6" 
+        sx={{ 
+          color, 
+          fontWeight: 600, 
+          mb: 0.25,
+          fontSize: '1rem',
+          lineHeight: 1.2,
+          wordBreak: 'break-word'
+        }}
+      >
+        {value}
+      </Typography>
+      {subtitle && (
+        <Typography 
+          variant="caption" 
+          color="textSecondary"
+          sx={{ fontSize: '0.7rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}
+        >
+          {subtitle}
+        </Typography>
+      )}
+    </CardContent>
+  </Card>
+);
+
 const PortfolioOverview = ({ account, prices, portfolio }) => {
   // Define our trading assets
   const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE'];
@@ -104,73 +158,6 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
   };
 
   const systemStatus = getSystemStatus();
-
-  // Metric Card Component for consistent styling
-  const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) => (
-    <Card 
-      variant="outlined" 
-      sx={{ 
-        height: 100,
-        display: 'flex', 
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 0
-      }}
-    >
-      <CardContent sx={{ 
-        width: '100%', 
-        textAlign: 'center', 
-        py: 1.5,
-        px: 1,
-        '&:last-child': { pb: 1.5 }
-      }}>
-        {icon && (
-          <Box display="flex" justifyContent="center" mb={0.5}>
-            {icon}
-          </Box>
-        )}
-        <Typography 
-          color="textSecondary" 
-          gutterBottom 
-          variant="body2" 
-          sx={{ 
-            fontWeight: 500,
-            fontSize: '0.75rem',
-            mb: 0.5
-          }}
-        >
-          {title}
-        </Typography>
-        <Typography 
-          variant="h6" 
-          sx={{ 
-            color, 
-            fontWeight: 600, 
-            mb: 0.25,
-            fontSize: '1rem',
-            lineHeight: 1.2,
-            wordBreak: 'break-word'
-          }}
-        >
-          {value}
-        </Typography>
-        {subtitle && (
-          <Typography 
-            variant="caption" 
-            color="textSecondary"
-            sx={{ 
-              fontSize: '0.7rem',
-              display: 'block',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}
-          >
-            {subtitle}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
 
   return (
     <Paper sx={{ p: 3 }}>
