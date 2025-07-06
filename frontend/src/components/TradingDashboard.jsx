@@ -270,7 +270,11 @@ const TradingDashboard = () => {
       }
       
       if (results.portfolio) setPortfolio(results.portfolio);
-      if (results.prices) setPrices(results.prices);
+      // The API returns { prices: { BTCUSDT: ... }, timestamp: ... }
+      // We only need the nested prices object for the state.
+      if (results.prices && results.prices.prices) {
+        setPrices(results.prices.prices);
+      }
       if (results.account) setAccount(results.account);
       
       // Handle trades data structure
