@@ -51,6 +51,16 @@ class TradeRepository {
         }
     }
 
+    async getAllTrades() {
+        try {
+            // Returns all trades, ordered by time, for full recalculation
+            return await db("trades").orderBy("timestamp", "asc");
+        } catch (error) {
+            logger.error("Error getting all trades for recalculation:", error);
+            throw error;
+        }
+    }
+
     async getPerformanceMetrics(period = "30d") {
         try {
             const periodMs = this.parsePeriod(period);

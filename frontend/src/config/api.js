@@ -121,9 +121,15 @@ export const tradingAPI = {
     // Get trade history
     getTrades: (params = {}) => {
         const query = new URLSearchParams(params).toString();
-        return apiCall(
-            `${API_ENDPOINTS.trading.trades}${query ? `?${query}` : ""}`
-        );
+        const endpoint = `${API_ENDPOINTS.trading.trades}${
+            query ? `?${query}` : ""
+        }`;
+        return apiCall(endpoint).then((data) => {
+            // Standardize the response to always be an array
+            if (data && Array.isArray(data.trades)) return data.trades;
+            if (data && Array.isArray(data)) return data;
+            return [];
+        });
     },
 
     // Get current prices

@@ -17,7 +17,8 @@ import {
 } from '@mui/material';
 import {
   BarChart,
-  PieChart,
+  pieArcLabelClasses,
+  PieChart as MuiPieChart, // Renamed to avoid conflict
   LineChart
 } from '@mui/x-charts';
 import {
@@ -27,7 +28,8 @@ import {
   Insights,
   QueryStats,
   CalendarToday
-} from '@mui/icons-material';
+} from '@mui/icons-material'; 
+import { PieChart } from 'recharts'; // Using recharts for more flexible pie charts
 import { tradingAPI } from '../config/api';
 
 const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) => (
@@ -51,6 +53,8 @@ const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) =>
 
 const AnalyticsDashboard = () => {
   const [analytics, setAnalytics] = useState(null);
+  const [portfolio, setPortfolio] = useState(null);
+  const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [period, setPeriod] = useState('7d');
@@ -60,8 +64,15 @@ const AnalyticsDashboard = () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await tradingAPI.getAnalytics(period);
-        setAnalytics(data);
+        // Fetch all data in parallel
+        const [analyticsData, portfolioData, tradesData] = await Promise.all([
+          tradingAPI.getAnalytics(period),
+          tradingAPI.getPortfolio(),
+          tradingAPI.getTrades({ limit: 1000 }) // Fetch enough for P&L chart
+        ]);
+        setAnalytics(analyticsData);
+        setPortfolio(portfolioData);
+        setTrades(tradesData);
       } catch (err) {
         setError(`Failed to load analytics: ${err.message}`);
       } finally {
@@ -89,8 +100,31 @@ const AnalyticsDashboard = () => {
     return <Alert severity="info" sx={{ m: 3 }}>No analytics data available for the selected period.</Alert>;
   }
 
-  const { overview, assetAnalysis, timeAnalysis } = analytics;
+  const { overview, assetAnalysis, timeAnalysis, strategyAnalysis } = analytics;
   const winRate = (overview.profitableTrades / (overview.totalTrades || 1)) * 100;
+
+  // Prepare data for P&L over time chart
+  const pnlChartData = trades
+    .filter(t => t.side === 'SELL' && t.pnl !== null)
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .reduce((acc, trade) => {
+      const cumulativePnl = (acc.length > 0 ? acc[acc.length - 1].pnl : 0) + trade.pnl;
+      acc.push({
+        time: new Date(trade.timestamp).toLocaleDateString(),
+        pnl: cumulativePnl,
+      });
+      return acc;
+    }, []);
+
+  // Prepare data for Exit Reason chart
+  const exitReasonStats = portfolio?.enhancedPerformance?.detailed?.exitReasonStats || {};
+  const exitReasonData = Object.entries(exitReasonStats)
+    .filter(([_, data]) => data.count > 0)
+    .map(([reason, data]) => ({
+      name: reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      value: data.count,
+      pnl: data.avgPnL
+    }));
 
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
@@ -187,7 +221,7 @@ const AnalyticsDashboard = () => {
             {timeAnalysis.hourlyDistribution.some(h => h.count > 0) ? (
               <Box sx={{ height: 300 }}>
                 <BarChart
-                  dataset={timeAnalysis.hourlyDistribution}
+                  dataset={timeAnalysis.hourlyDistribution || []}
                   xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
                   series={[{ dataKey: 'count', label: 'Trades & Signals' }]}
                   layout="vertical"
@@ -203,13 +237,13 @@ const AnalyticsDashboard = () => {
         </Grid>
 
         {/* Trading Activity by Day */}
-        <Grid item xs={12}>
+        <Grid item xs={12} lg={7}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Day of Week</Typography>
             {timeAnalysis.dailyDistribution.some(d => d.count > 0) ? (
               <Box sx={{ height: 250 }}>
                 <BarChart
-                  dataset={timeAnalysis.dailyDistribution}
+                  dataset={timeAnalysis.dailyDistribution || []}
                   xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
                   series={[{ dataKey: 'count', label: 'Trades & Signals' }]}
                   grid={{ horizontal: true }}
@@ -218,6 +252,62 @@ const AnalyticsDashboard = () => {
             ) : (
               <Box display="flex" justifyContent="center" alignItems="center" height={250}>
                 <Typography color="text.secondary">No activity in this period.</Typography>
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* P&L Over Time */}
+        <Grid item xs={12} lg={5}>
+          <Paper sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" gutterBottom>Cumulative P&L Over Time</Typography>
+            {pnlChartData.length > 1 ? (
+              <Box sx={{ height: 250 }}>
+                <LineChart
+                  dataset={pnlChartData}
+                  xAxis={[{ scaleType: 'point', dataKey: 'time' }]}
+                  series={[{ dataKey: 'pnl', label: 'Cumulative P&L', area: true, showMark: false }]}
+                  grid={{ horizontal: true }}
+                  sx={{
+                    '& .MuiLineElement-root': {
+                      stroke: '#8884d8',
+                      strokeWidth: 2,
+                    },
+                    '& .MuiAreaElement-root': {
+                      fill: 'url(#pnlGradient)',
+                    },
+                  }}
+                >
+                  <defs>
+                    <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                </LineChart>
+              </Box>
+            ) : (
+              <Box display="flex" justifyContent="center" alignItems="center" height={250}>
+                <Typography color="text.secondary">Not enough trade data for P&L chart.</Typography>
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Exit Reason Analysis */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Exit Reason Analysis</Typography>
+            {exitReasonData.length > 0 ? (
+              <Box sx={{ height: 300 }}>
+                 <MuiPieChart
+                    series={[{ data: exitReasonData, arcLabel: (item) => `${item.name} (${item.value})` }]}
+                    sx={{ [`& .${pieArcLabelClasses.root}`]: { fill: 'white', fontSize: 12 } }}
+                 />
+              </Box>
+            ) : (
+              <Box display="flex" justifyContent="center" alignItems="center" height={300}>
+                <Typography color="text.secondary">No exit data to analyze.</Typography>
               </Box>
             )}
           </Paper>

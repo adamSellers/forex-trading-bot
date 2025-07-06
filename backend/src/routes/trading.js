@@ -42,8 +42,8 @@ module.exports = (tradingController) => {
     // GET /api/trading/trades - Get trade history
     router.get("/trades", async (req, res) => {
         try {
-            const trades = await tradingController.getTrades(req.query);
-            res.json(trades);
+            const trades = await tradingController.getTrades(req.query); // This returns an array
+            res.json(trades); // Directly send the array
         } catch (error) {
             console.error("Trades API error:", error);
             res.status(500).json({ error: error.message });

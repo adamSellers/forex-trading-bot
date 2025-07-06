@@ -2,6 +2,7 @@
 const EventEmitter = require("events");
 const db = require("../../config/database");
 const logger = require("../utils/logger");
+const TradeRepository = require("../repositories/tradeRepository");
 
 class PaperTradingEngine extends EventEmitter {
     constructor(config = {}) {
@@ -32,6 +33,9 @@ class PaperTradingEngine extends EventEmitter {
 
             ...config,
         };
+
+        // Repository for loading historical data
+        this.tradeRepo = new TradeRepository();
 
         // Portfolio state - USDT-based accounting
         this.portfolio = {
@@ -1004,11 +1008,15 @@ class PaperTradingEngine extends EventEmitter {
     async initialize() {
         try {
             logger.info("🔄 Initializing ENHANCED Paper Trading Engine...");
-            await this.loadStateFromDatabase();
+            // Load all historical trades from the database
             await this.loadTradeHistory();
+            // Recalculate all performance metrics from the loaded history
             this.recalculateEnhancedPerformanceMetrics();
+
             logger.success(
-                `✅ ENHANCED Engine loaded: ${this.portfolio.totalValue.toFixed(
+                `✅ ENHANCED Engine loaded with ${
+                    this.tradeHistory.length
+                } historical trades. Portfolio value: ${this.portfolio.totalValue.toFixed(
                     2
                 )} portfolio value`
             );
@@ -1256,13 +1264,13 @@ class PaperTradingEngine extends EventEmitter {
 
     async loadTradeHistory() {
         try {
-            // Use your existing database load method
-            // const trades = await db('trades').orderBy('timestamp', 'asc');
-            // this.tradeHistory = trades || [];
-
+            // Load all trades from the repository to rebuild performance metrics
+            const trades = await this.tradeRepo.getAllTrades();
+            this.tradeHistory = trades || [];
             logger.debug("📈 Enhanced trade history loaded from database");
         } catch (error) {
             logger.error("Failed to load enhanced trade history:", error);
+            this.tradeHistory = []; // Ensure it's an empty array on error
         }
     }
 }
