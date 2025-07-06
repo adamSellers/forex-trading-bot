@@ -38,7 +38,7 @@ module.exports = (tradingController) => {
                 services: {
                     tradingController: tradingStatus,
                     database: true, // SQLite is embedded
-                    binanceData: binanceStatus?.isConnected || false,
+                    binanceData: binanceStatus?.connected || false,
                     paperTrading: paperTradingStatus?.isActive || false,
                     signalGenerator: signalGeneratorStatus?.isActive || false,
                 },
