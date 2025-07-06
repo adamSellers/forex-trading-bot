@@ -46,6 +46,11 @@ log_info "Resetting local branch to match remote (discards local changes)..."
 git reset --hard origin/main
 log_success "Code is up to date."
 
+# 0.5 Set executable permissions on all scripts
+log_info "Ensuring all scripts are executable..."
+chmod +x scripts/*.sh
+log_success "Script permissions set."
+
 # 1. Pre-deployment checks
 log_info "Running pre-deployment checks..."
 
