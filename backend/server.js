@@ -91,6 +91,7 @@ async function startServer() {
         // Initialize the CORE SERVICE, not the controller.
         // The service will set up all underlying components (Binance, Signals, etc.).
         await tradingService.initialize();
+        await tradingController.initialize(); // Initialize the controller after the service
 
         const PORT = process.env.PORT || 3001;
         server.listen(PORT, () => {

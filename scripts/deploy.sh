@@ -108,12 +108,15 @@ pm2 save
 log_info "Waiting for service to become healthy..."
 max_attempts=12 # 12 attempts * 5 seconds = 60 seconds timeout
 attempt=0
-until curl -f -s http://localhost:3001/api/management/health > /dev/null; do
+until curl -f -s http://localhost:3001/api/management/health | jq -e '.services.tradingController == true and .services.binanceData == true' > /dev/null 2>&1; do
     attempt=$((attempt+1))
     if [ $attempt -ge $max_attempts ]; then
         log_error "Health check failed after $max_attempts attempts."
         pm2 status
         pm2 logs $APP_NAME --lines 20
+        # Add detailed health check output for debugging
+        echo "Last health check response:"
+        curl -s http://localhost:3001/api/management/health | jq .
         exit 1
     fi
     echo -n "." # Progress indicator
