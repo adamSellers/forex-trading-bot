@@ -38,6 +38,11 @@ if [ "$(whoami)" != "adam" ]; then
     exit 1
 fi
 
+# 0. Pull latest changes from git
+log_info "Pulling latest changes from git..."
+git pull origin main
+log_success "Code is up to date."
+
 # 1. Pre-deployment checks
 log_info "Running pre-deployment checks..."
 
@@ -65,10 +70,11 @@ log_info "Creating backup before deployment..."
 ./scripts/backup.sh
 
 # 3. Update dependencies
+log_info "Updating dependencies using workspace scripts..."
 log_info "Updating backend dependencies..."
-cd backend
-npm install --production --omit=dev
-cd ..
+npm run install:backend -- --omit=dev --no-optional
+log_info "Updating frontend dependencies..."
+npm run install:frontend -- --omit=dev --no-optional
 
 # 4. Build frontend
 log_info "Building frontend for production..."
