@@ -96,8 +96,9 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
       return (
         <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: 'rgba(255, 193, 7, 0.05)' }}>
           <CardContent sx={{ py: 1.5 }}>
-            <Grid container alignItems="center" spacing={1}>
-              <Grid xs={3}>
+            <Box display="flex" alignItems="center" gap={2}>
+              {/* Column 1: Asset Name */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Box display="flex" alignItems="center" gap={1}>
                   <Psychology color="warning" fontSize="small" />
                   <Typography variant="subtitle1" fontWeight="bold">
@@ -105,32 +106,35 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
                   </Typography>
                   <Chip size="small" label="Virtual Cash" color="warning" variant="outlined" />
                 </Box>
-              </Grid>
-              <Grid xs={3}>
+              </Box>
+              {/* Column 2: Balance */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="h6" color="warning.main" fontWeight="bold">
                   {formatCrypto(usdtBalance, 2)}
                 </Typography>
                 <Typography variant="caption" color="textSecondary">
                   Available for Trading
                 </Typography>
-              </Grid>
-              <Grid xs={3}>
+              </Box>
+              {/* Column 3: USD Value */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="body2" color="warning.main">
                   {formatCurrency(usdtBalance)}
                 </Typography>
                 <Typography variant="caption" color="textSecondary">
                   USD Value
                 </Typography>
-              </Grid>
-              <Grid xs={3}>
+              </Box>
+              {/* Column 4: Allocation */}
+              <Box sx={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
                 <Typography variant="body2" color="primary.main">
                   {((usdtBalance / getPaperPortfolioValue()) * 100).toFixed(1)}%
                 </Typography>
                 <Typography variant="caption" color="textSecondary">
                   Portfolio Allocation
                 </Typography>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </CardContent>
         </Card>
       );
@@ -144,8 +148,9 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
     return (
       <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: 'rgba(255, 193, 7, 0.05)' }}>
         <CardContent sx={{ py: 1.5 }}>
-          <Grid container alignItems="center" spacing={1}>
-            <Grid xs={3}>
+          <Box display="flex" alignItems="center" gap={1}>
+            {/* Column 1: Asset Name */}
+            <Box sx={{ flexBasis: '25%', minWidth: 0 }}>
               <Box display="flex" alignItems="center" gap={1}>
                 <Psychology color="warning" fontSize="small" />
                 <Typography variant="subtitle1" fontWeight="bold">
@@ -153,24 +158,27 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
                 </Typography>
                 <Chip size="small" label="Virtual Position" color="warning" variant="outlined" />
               </Box>
-            </Grid>
-            <Grid xs={2}>
+            </Box>
+            {/* Column 2: Quantity */}
+            <Box sx={{ flexBasis: '16.67%', minWidth: 0 }}>
               <Typography variant="body2" fontWeight="500">
                 {formatCrypto(position.quantity, asset === 'USDT' ? 2 : 6)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Quantity
               </Typography>
-            </Grid>
-            <Grid xs={2}>
+            </Box>
+            {/* Column 3: Current Value */}
+            <Box sx={{ flexBasis: '16.67%', minWidth: 0 }}>
               <Typography variant="body2" color="warning.main">
                 {formatCurrency(position.currentValue || 0)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Current Value
               </Typography>
-            </Grid>
-            <Grid xs={2}>
+            </Box>
+            {/* Column 4: P&L */}
+            <Box sx={{ flexBasis: '16.67%', minWidth: 0 }}>
               <Typography variant="body2" color={pnlColor} fontWeight="bold">
                 {(position.unrealizedPnL || 0) >= 0 ? '+' : ''}
                 {formatCurrency(position.unrealizedPnL || 0)}
@@ -178,35 +186,36 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
               <Typography variant="caption" color="textSecondary">
                 Unrealized P&L
               </Typography>
-            </Grid>
-            <Grid xs={1.5}>
+            </Box>
+            {/* Column 5: Entry */}
+            <Box sx={{ flexBasis: '12.5%', minWidth: 0 }}>
               <Typography variant="body2">
                 ${position.avgPrice?.toFixed(2) || 'N/A'}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Entry
               </Typography>
-            </Grid>
-            <Grid xs={1.5}>
+            </Box>
+            {/* Column 6: Current */}
+            <Box sx={{ flexBasis: '12.5%', minWidth: 0, textAlign: 'right' }}>
               <Typography variant="body2">
                 ${currentPrice.toFixed(2)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Current
               </Typography>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
           
           {/* Position Details */}
-          <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(255, 193, 7, 0.1)', borderRadius: 1 }}>
-            <Grid container spacing={1}>
-              <Grid xs={3}>
+          <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(255, 193, 7, 0.1)', borderRadius: 1, display: 'flex', gap: 2 }}>
+            <Box sx={{ flex: 1 }}>
                 <Typography variant="caption" color="textSecondary">Stop Loss:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   ${position.stopLoss?.toFixed(2) || 'N/A'}
                 </Typography>
-              </Grid>
-              <Grid xs={3}>
+            </Box>
+            <Box sx={{ flex: 1 }}>
                 <Typography variant="caption" color="textSecondary">Duration:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   {position.entryTime ? 
@@ -214,20 +223,19 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
                     'N/A'
                   }
                 </Typography>
-              </Grid>
-              <Grid xs={3}>
+            </Box>
+            <Box sx={{ flex: 1 }}>
                 <Typography variant="caption" color="textSecondary">Entry Cost:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   {formatCurrency(position.entryCost || 0)}
                 </Typography>
-              </Grid>
-              <Grid xs={3}>
+            </Box>
+            <Box sx={{ flex: 1, textAlign: 'right' }}>
                 <Typography variant="caption" color="textSecondary">Allocation:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   {((position.currentValue || 0) / getPaperPortfolioValue() * 100).toFixed(1)}%
                 </Typography>
-              </Grid>
-            </Grid>
+            </Box>
           </Box>
         </CardContent>
       </Card>
@@ -248,8 +256,9 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
     return (
       <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: 'rgba(76, 175, 80, 0.05)' }}>
         <CardContent sx={{ py: 1.5 }}>
-          <Grid container alignItems="center" spacing={1}>
-            <Grid xs={3}>
+          <Box display="flex" alignItems="center" gap={2}>
+            {/* Column 1: Asset Name */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
               <Box display="flex" alignItems="center" gap={1}>
                 <AccountBalance color="success" fontSize="small" />
                 <Typography variant="subtitle1" fontWeight="bold">
@@ -257,55 +266,56 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
                 </Typography>
                 <Chip size="small" label="Real Holdings" color="success" variant="outlined" />
               </Box>
-            </Grid>
-            <Grid xs={3}>
+            </Box>
+            {/* Column 2: Balance */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="h6" color="success.main" fontWeight="bold">
                 {formatCrypto(balance.total, balance.asset === 'USDT' ? 2 : 6)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Total Balance
               </Typography>
-            </Grid>
-            <Grid xs={3}>
+            </Box>
+            {/* Column 3: USD Value */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="body2" color="success.main">
                 {formatCurrency(assetValue)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 USD Value
               </Typography>
-            </Grid>
-            <Grid xs={3}>
+            </Box>
+            {/* Column 4: Allocation */}
+            <Box sx={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
               <Typography variant="body2" color="primary.main">
                 {formatPercent(allocation)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Portfolio %
               </Typography>
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
           
           {balance.asset !== 'USDT' && (
-            <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1 }}>
-              <Grid container spacing={1}>
-                <Grid xs={4}>
+            <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1, display: 'flex', gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
                   <Typography variant="caption" color="textSecondary">Available:</Typography>
                   <Typography variant="caption" sx={{ ml: 0.5 }}>
                     {formatCrypto(balance.free, balance.asset === 'USDT' ? 2 : 6)}
                   </Typography>
-                </Grid>
-                <Grid xs={4}>
+              </Box>
+              <Box sx={{ flex: 1 }}>
                   <Typography variant="caption" color="textSecondary">Locked:</Typography>
                   <Typography variant="caption" sx={{ ml: 0.5 }}>
                     {formatCrypto(balance.locked, balance.asset === 'USDT' ? 2 : 6)}
                   </Typography>
-                </Grid>
-                <Grid xs={4}>
+              </Box>
+              <Box sx={{ flex: 1, textAlign: 'right' }}>
                   <Typography variant="caption" color="textSecondary">Current Price:</Typography>
                   <Typography variant="caption" sx={{ ml: 0.5 }}>
                     ${prices[`${balance.asset}USDT`]?.price?.toFixed(2) || 'N/A'}
                   </Typography>
-                </Grid>
-              </Grid>
+              </Box>
             </Box>
           )}
         </CardContent>
