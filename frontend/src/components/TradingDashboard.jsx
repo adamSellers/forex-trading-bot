@@ -518,7 +518,7 @@ const TradingDashboard = () => {
         </Box>
         
         {/* System Status Banner */}
-        <SystemStatusBanner systemStatus={systemStatus} signals={signals} />
+        <SystemStatusBanner systemStatus={systemStatus} signals={signalsToRender} />
         
         {/* Error Alert */}
         {error && (

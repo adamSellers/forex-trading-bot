@@ -669,6 +669,54 @@ class BinanceDataService extends EventEmitter {
         };
     }
 
+    /**
+     * NEW: Get account information from Binance or provide a fallback
+     */
+    async getAccountInfo() {
+        if (this.config.useFallback || !this.binanceClient) {
+            logger.warn("⚠️ Using fallback account information.");
+            return {
+                accountType: "SPOT",
+                balances: [
+                    { asset: "USDT", free: "5000.00", locked: "0.00" },
+                    { asset: "BTC", free: "0.00", locked: "0.00" },
+                    { asset: "ETH", free: "0.00", locked: "0.00" },
+                ],
+                canTrade: true,
+                error: new Error(
+                    "Using fallback data, not connected to live API."
+                ),
+            };
+        }
+
+        try {
+            const accountInfo = await new Promise((resolve, reject) => {
+                this.binanceClient.account((error, data) => {
+                    if (error) {
+                        return reject(
+                            new Error(error.body || "Unknown Binance API error")
+                        );
+                    }
+                    resolve(data);
+                });
+            });
+
+            return accountInfo;
+        } catch (error) {
+            logger.error(
+                "❌ Failed to fetch account info from Binance:",
+                error
+            );
+            return {
+                error: {
+                    message: `Failed to fetch account info: ${error.message}`,
+                    service: "BinanceDataService",
+                },
+                balances: [],
+            };
+        }
+    }
+
     async stop() {
         logger.info("🛑 Stopping Enhanced Binance Data Service...");
 
