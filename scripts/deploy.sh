@@ -104,19 +104,23 @@ fi
 # Save PM2 configuration
 pm2 save
 
-# 7. Wait for service to stabilize
-log_info "Waiting for service to stabilize..."
-sleep 5
-
-# 8. Health check
-log_info "Performing health check..."
-if curl -f -s http://localhost:3001/api/management/health > /dev/null; then
-    log_success "Health check passed!"
-else
-    log_warning "Health check failed - checking PM2 status..."
-    pm2 status
-    pm2 logs $APP_NAME --lines 10
-fi
+# 7. Wait for service to become healthy (with retries)
+log_info "Waiting for service to become healthy..."
+max_attempts=12 # 12 attempts * 5 seconds = 60 seconds timeout
+attempt=0
+until curl -f -s http://localhost:3001/api/management/health > /dev/null; do
+    attempt=$((attempt+1))
+    if [ $attempt -ge $max_attempts ]; then
+        log_error "Health check failed after $max_attempts attempts."
+        pm2 status
+        pm2 logs $APP_NAME --lines 20
+        exit 1
+    fi
+    echo -n "." # Progress indicator
+    sleep 5
+done
+echo "" # Newline after progress dots
+log_success "Health check passed!"
 
 # 9. Show status
 log_info "Deployment status:"
