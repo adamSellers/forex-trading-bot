@@ -392,32 +392,22 @@ class SignalGenerator extends EventEmitter {
                     // Golden cross - bullish
                     signal = "BUY";
                     crossoverType = "GOLDEN_CROSS";
-                    strength = Math.min(
-                        0.9,
-                        Math.abs(fastMA - slowMA) / slowMA
-                    );
+                    // FIXED: Calculate strength as a percentage
+                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
                 } else if (!currentCross && previousCross) {
                     // Death cross - bearish
                     signal = "SELL";
                     crossoverType = "DEATH_CROSS";
-                    strength = Math.min(
-                        0.9,
-                        Math.abs(fastMA - slowMA) / slowMA
-                    );
+                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
                 } else if (currentCross) {
                     // Above but no cross
                     signal = "HOLD_BULLISH";
-                    strength = Math.min(
-                        0.7,
-                        Math.abs(fastMA - slowMA) / slowMA
-                    );
+                    // Strength is still relevant for trend-following indicators
+                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
                 } else {
                     // Below but no cross
                     signal = "HOLD_BEARISH";
-                    strength = Math.min(
-                        0.7,
-                        Math.abs(fastMA - slowMA) / slowMA
-                    );
+                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
                 }
             }
 
@@ -445,7 +435,8 @@ class SignalGenerator extends EventEmitter {
                 strength *= 0.8;
             }
 
-            strength = Math.min(1.0, Math.max(0.1, strength));
+            // Cap strength at a reasonable max, but allow it to be higher than 1.0
+            strength = Math.min(10.0, Math.max(0.0, strength));
 
             const signalData = {
                 symbol,

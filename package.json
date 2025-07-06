@@ -41,10 +41,14 @@
         "logs": "./scripts/logs.sh",
         "dev-setup": "./scripts/dev-setup.sh",
         "status": "./scripts/status.sh",
-        "setup:secrets": "./scripts/setup-secrets.sh"
+        "setup:secrets": "./scripts/setup-secrets.sh",
+        "backtest:fetch": "node scripts/fetch-historical-data.js",
+        "backtest:run": "node scripts/run-backtest.js"
     },
     "devDependencies": {
-        "concurrently": "^8.2.2"
+        "concurrently": "^8.2.2",
+        "dotenv": "^16.4.5",
+        "node-binance-api": "^0.13.1"
     },
     "engines": {
         "node": ">=16.0.0",

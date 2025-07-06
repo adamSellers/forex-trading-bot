@@ -10,7 +10,9 @@
         "test": "npm run lint",
         "db:migrate": "knex migrate:latest",
         "db:seed": "knex seed:run",
-        "db:rollback": "knex migrate:rollback"
+        "db:rollback": "knex migrate:rollback",
+        "backtest:fetch": "node scripts/fetch-historical-data.js",
+        "backtest:run": "node scripts/run-backtest.js"
     },
     "keywords": [
         "cryptocurrency",

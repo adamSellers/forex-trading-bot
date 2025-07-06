@@ -28,6 +28,7 @@ class PaperTradingEngine extends EventEmitter {
             enableTrailingStops: config.enableTrailingStops !== false, // Default true
             trailingStopPercent: config.trailingStopPercent || 0.02, // 2%
             takeProfitATRMultiplier: config.takeProfitATRMultiplier || 2.5,
+            minSignalStrength: config.minSignalStrength || 0.5, // NEW: Make this configurable
             enableVolatilityFilter: config.enableVolatilityFilter !== false, // Default true
             minVolatilityPercent: config.minVolatilityPercent || 2.0, // 2% ATR minimum
 
@@ -556,8 +557,11 @@ class PaperTradingEngine extends EventEmitter {
             return false;
         if (signal.signal === "COOLDOWN" || signal.signal === "WEAK_SIGNAL")
             return false;
-        if (signal.signal === "LOW_VOLATILITY") return false; // NEW: Block low volatility
-        if (signal.strength < 0.5) return false;
+        if (signal.signal === "LOW_VOLATILITY") return false;
+
+        // FIX: Use the configurable minimum signal strength instead of a hardcoded value.
+        // This allows the setting from the config page to be respected.
+        if (signal.strength < this.config.minSignalStrength) return false;
 
         // NEW: Additional volatility check if data available
         if (
@@ -1020,6 +1024,10 @@ class PaperTradingEngine extends EventEmitter {
                     2
                 )} portfolio value`
             );
+
+            // FIX for double-init bug: Set a value for lastStateSave after initializing
+            // so the start() method doesn't re-initialize.
+            this.lastStateSave = Date.now();
         } catch (error) {
             logger.error("❌ Failed to load enhanced state:", error);
             logger.info("🆕 Starting with fresh enhanced state");
@@ -1213,6 +1221,18 @@ class PaperTradingEngine extends EventEmitter {
         await this.saveStateToDatabase();
         logger.info("🔄 ENHANCED Paper Trading Engine reset to initial state");
         this.emit("engineReset");
+    }
+
+    /**
+     * NEW: Update configuration dynamically. This is called by the TradingService
+     * when the user saves new settings from the UI.
+     */
+    updateConfig(newConfig) {
+        this.config = { ...this.config, ...newConfig };
+        logger.info(
+            `⚙️ Paper Trading Engine config updated. Min Signal Strength: ${this.config.minSignalStrength}`
+        );
+        this.emit("configUpdated", this.config);
     }
 
     // Database methods (implement based on your existing database setup)
