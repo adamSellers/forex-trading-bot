@@ -51,6 +51,17 @@ class TradeRepository {
         }
     }
 
+    async getTradesSince(cutoffTime) {
+        try {
+            return await db("trades")
+                .where("timestamp", ">=", cutoffTime)
+                .orderBy("timestamp", "desc");
+        } catch (error) {
+            logger.error("Error getting trades since cutoff:", error);
+            throw error;
+        }
+    }
+
     async getAllTrades() {
         try {
             // Returns all trades, ordered by time, for full recalculation

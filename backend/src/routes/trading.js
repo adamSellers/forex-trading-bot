@@ -507,15 +507,14 @@ module.exports = (tradingController) => {
             const periodMs = parsePeriod(period);
             const cutoffTime = Date.now() - periodMs;
 
-            // Get data for the specified period
+            // FIXED: Fetch data directly from the database repositories to ensure persistence
             const trades =
-                tradingController.tradingService.paperTrading.tradeHistory.filter(
-                    (trade) => trade.timestamp >= cutoffTime
+                await tradingController.tradingService.tradeRepo.getTradesSince(
+                    cutoffTime
                 );
-
             const signals =
-                tradingController.tradingService.signalGenerator.signalHistory.filter(
-                    (signal) => signal.timestamp >= cutoffTime
+                await tradingController.tradingService.signalRepo.getSignalsSince(
+                    cutoffTime
                 );
 
             // Analyze by asset

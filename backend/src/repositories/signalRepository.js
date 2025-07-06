@@ -91,6 +91,17 @@ class SignalRepository {
         }
     }
 
+    async getSignalsSince(cutoffTime) {
+        try {
+            return await db("signals")
+                .where("timestamp", ">=", cutoffTime)
+                .orderBy("timestamp", "desc");
+        } catch (error) {
+            logger.error("Error getting signals since cutoff:", error);
+            throw error;
+        }
+    }
+
     async getSignalStats(period = "24h") {
         try {
             const periodMs = this.parsePeriod(period);
