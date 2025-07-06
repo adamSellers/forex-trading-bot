@@ -66,14 +66,14 @@ module.exports = (tradingController) => {
         try {
             const { symbol, timeframe } = req.params;
 
-            if (!tradingController.services?.trading?.binanceData) {
+            if (!tradingController.tradingService?.binanceData) {
                 return res
                     .status(400)
                     .json({ error: "Binance service not available" });
             }
 
             const candles =
-                tradingController.services.trading.binanceData.getCandles(
+                tradingController.tradingService.binanceData.getCandles(
                     symbol,
                     timeframe
                 );
@@ -127,16 +127,16 @@ module.exports = (tradingController) => {
     // GET /api/trading/paper-stats - Get detailed paper trading statistics
     router.get("/paper-stats", async (req, res) => {
         try {
-            if (!tradingController.services?.trading?.paperTrading) {
+            if (!tradingController.tradingService?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Paper trading not initialized" });
             }
 
             const paperPortfolio =
-                tradingController.services.trading.paperTrading.getPortfolioSummary();
+                tradingController.tradingService.paperTrading.getPortfolioSummary();
             const paperTrades =
-                tradingController.services.trading.paperTrading.getRecentTrades(
+                tradingController.tradingService.paperTrading.getRecentTrades(
                     50
                 );
 
@@ -160,7 +160,7 @@ module.exports = (tradingController) => {
         try {
             const { period = "7d" } = req.query;
 
-            if (!tradingController.services?.trading?.paperTrading) {
+            if (!tradingController.tradingService?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Paper trading not initialized" });
@@ -168,17 +168,17 @@ module.exports = (tradingController) => {
 
             // Get paper trading performance
             const paperPortfolio =
-                tradingController.services.trading.paperTrading.getPortfolioSummary();
+                tradingController.tradingService.paperTrading.getPortfolioSummary();
             const paperTrades =
-                tradingController.services.trading.paperTrading.getRecentTrades(
+                tradingController.tradingService.paperTrading.getRecentTrades(
                     50
                 );
 
             // Get real account value (calculated with current prices)
             const account =
-                await tradingController.services.trading.binanceData.getAccountInfo();
+                await tradingController.tradingService.binanceData.getAccountInfo();
             const prices =
-                tradingController.services.trading.binanceData.getAllPrices();
+                tradingController.tradingService.binanceData.getAllPrices();
 
             let realPortfolioValue = 0;
             const realAllocation = [];
@@ -277,14 +277,14 @@ module.exports = (tradingController) => {
     // GET /api/trading/risk-status - Risk management status
     router.get("/risk-status", async (req, res) => {
         try {
-            if (!tradingController.services?.trading?.paperTrading) {
+            if (!tradingController.tradingService?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Paper trading not initialized" });
             }
 
             const portfolio =
-                tradingController.services.trading.paperTrading.getPortfolioSummary();
+                tradingController.tradingService.paperTrading.getPortfolioSummary();
             const riskStatus = portfolio.riskStatus;
 
             const enhancedRiskStatus = {
@@ -421,9 +421,9 @@ module.exports = (tradingController) => {
             };
 
             // Process the test signal if paper trading is active
-            if (tradingController.services?.trading?.paperTrading) {
+            if (tradingController.tradingService?.paperTrading) {
                 const result =
-                    await tradingController.services.trading.paperTrading.processSignal(
+                    await tradingController.tradingService.paperTrading.processSignal(
                         testSignal,
                         67000,
                         500
@@ -447,16 +447,16 @@ module.exports = (tradingController) => {
     // GET /api/trading/performance - Get detailed performance metrics
     router.get("/performance", async (req, res) => {
         try {
-            if (!tradingController.services?.trading?.paperTrading) {
+            if (!tradingController.tradingService?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Trading engine not initialized" });
             }
 
             const portfolio =
-                tradingController.services.trading.paperTrading.getPortfolioSummary();
+                tradingController.tradingService.paperTrading.getPortfolioSummary();
             const trades =
-                tradingController.services.trading.paperTrading.getRecentTrades(
+                tradingController.tradingService.paperTrading.getRecentTrades(
                     100
                 );
 
@@ -496,8 +496,8 @@ module.exports = (tradingController) => {
             const { period = "7d" } = req.query;
 
             if (
-                !tradingController.services?.trading?.paperTrading ||
-                !tradingController.services?.trading?.signalGenerator
+                !tradingController.tradingService?.paperTrading ||
+                !tradingController.tradingService?.signalGenerator
             ) {
                 return res
                     .status(400)
@@ -509,12 +509,12 @@ module.exports = (tradingController) => {
 
             // Get data for the specified period
             const trades =
-                tradingController.services.trading.paperTrading.tradeHistory.filter(
+                tradingController.tradingService.paperTrading.tradeHistory.filter(
                     (trade) => trade.timestamp >= cutoffTime
                 );
 
             const signals =
-                tradingController.services.trading.signalGenerator.signalHistory.filter(
+                tradingController.tradingService.signalGenerator.signalHistory.filter(
                     (signal) => signal.timestamp >= cutoffTime
                 );
 

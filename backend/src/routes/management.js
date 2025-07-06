@@ -14,9 +14,11 @@ module.exports = (tradingController) => {
             // Get trading system status
             const tradingStatus = tradingController?.isInitialized || false;
             const binanceStatus =
-                tradingController?.services?.trading?.binanceData?.getServiceStatus();
+                tradingController.tradingService?.binanceData?.getServiceStatus();
             const paperTradingStatus =
-                tradingController?.services?.trading?.paperTrading?.getStatus();
+                tradingController.tradingService?.paperTrading?.getStatus();
+            const signalGeneratorStatus =
+                tradingController.tradingService?.signalGenerator?.getStatus();
 
             res.json({
                 status: "OK",
@@ -38,9 +40,7 @@ module.exports = (tradingController) => {
                     database: true, // SQLite is embedded
                     binanceData: binanceStatus?.isConnected || false,
                     paperTrading: paperTradingStatus?.isActive || false,
-                    signalGenerator:
-                        tradingController?.services?.trading?.signalGenerator
-                            ?.isActive || false,
+                    signalGenerator: signalGeneratorStatus?.isActive || false,
                 },
                 api: {
                     endpoints: [
@@ -111,27 +111,19 @@ module.exports = (tradingController) => {
                 tradingSystem: tradingController
                     ? {
                           initialized: tradingController.isInitialized,
-                          services: {
-                              trading: !!tradingController.services?.trading,
-                              portfolio:
-                                  !!tradingController.services?.portfolio,
-                              risk: !!tradingController.services?.risk,
-                              analytics:
-                                  !!tradingController.services?.analytics,
-                          },
                           status: tradingController.isInitialized
-                              ? tradingController.services?.trading?.getStatus?.() ||
+                              ? tradingController.tradingService?.getStatus?.() ||
                                 "Running"
                               : "Not Initialized",
                       }
                     : {
                           initialized: false,
-                          error: "Trading controller not available",
+                          error: "Trading service not available",
                       },
-                binanceData: tradingController?.services?.trading?.binanceData
+                binanceData: tradingController?.tradingService?.binanceData
                     ? {
-                          ...tradingController.services.trading.binanceData.getServiceStatus(),
-                          mode: tradingController.services.trading.binanceData
+                          ...tradingController.tradingService.binanceData.getServiceStatus(),
+                          mode: tradingController.tradingService.binanceData
                               .useFallback
                               ? "FALLBACK"
                               : "LIVE",
@@ -293,13 +285,13 @@ module.exports = (tradingController) => {
                 trading: {
                     isActive: tradingController?.isInitialized || false,
                     dataCollectionRate:
-                        tradingController?.services?.trading?.binanceData?.getServiceStatus()
+                        tradingController?.tradingService?.binanceData?.getServiceStatus()
                             ?.totalCandles || 0,
                     signalsGenerated:
-                        tradingController?.services?.trading?.signalGenerator
+                        tradingController?.tradingService?.signalGenerator
                             ?.signalHistory?.length || 0,
                     tradesExecuted:
-                        tradingController?.services?.trading?.paperTrading
+                        tradingController?.tradingService?.paperTrading
                             ?.tradeHistory?.length || 0,
                 },
                 network: {
@@ -377,29 +369,29 @@ module.exports = (tradingController) => {
                     port: process.env.PORT || 3001,
                     nodeEnv: process.env.NODE_ENV || "production",
                 },
-                trading: tradingController?.services?.trading
+                trading: tradingController?.tradingService
                     ? {
                           strategy:
-                              tradingController.services.trading.config
+                              tradingController.tradingService.config
                                   ?.strategy || "balanced",
                           enableTrading:
-                              tradingController.services.trading.config
+                              tradingController.tradingService.config
                                   ?.enableTrading || false,
                           assets:
-                              tradingController.services.trading.config
-                                  ?.assets || [],
+                              tradingController.tradingService.config?.assets ||
+                              [],
                           timeframes:
-                              tradingController.services.trading.config
+                              tradingController.tradingService.config
                                   ?.timeframes || [],
                           riskManagement: {
                               riskPerTrade:
-                                  tradingController.services.trading.config
+                                  tradingController.tradingService.config
                                       ?.riskPerTrade || 0.01,
                               maxDailyLoss:
-                                  tradingController.services.trading.config
+                                  tradingController.tradingService.config
                                       ?.maxDailyLoss || 0.02,
                               maxWeeklyLoss:
-                                  tradingController.services.trading.config
+                                  tradingController.tradingService.config
                                       ?.maxWeeklyLoss || 0.05,
                           },
                       }
@@ -410,10 +402,10 @@ module.exports = (tradingController) => {
                         process.env.BINANCE_API_SECRET
                     ),
                     useTestnet:
-                        tradingController?.services?.trading?.binanceData
-                            ?.config?.useTestnet !== false,
+                        tradingController?.tradingService?.binanceData?.config
+                            ?.useTestnet !== false,
                     useFallback:
-                        tradingController?.services?.trading?.binanceData
+                        tradingController?.tradingService?.binanceData
                             ?.useFallback || false,
                 },
             };
