@@ -653,7 +653,7 @@ const TradingDashboard = () => {
       {/* Dashboard Grid */}
       <Grid container spacing={3}>
         {/* Row 1: Portfolio Overview - Full Width */}
-        <Grid item xs={12}>
+        <Grid xs={12}>
           <PortfolioOverview 
             account={account} 
             prices={prices} 
@@ -662,7 +662,7 @@ const TradingDashboard = () => {
         </Grid>
 
         {/* Row 2: Holdings & Signals/Trades */}
-        <Grid item xs={12} lg={6}>
+        <Grid xs={12} lg={6}>
           <CurrentHoldings 
             account={account} 
             prices={prices} 
@@ -670,29 +670,29 @@ const TradingDashboard = () => {
           />
         </Grid>
 
-        <Grid item xs={12} lg={6}>
+        <Grid xs={12} lg={6}>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <TradingSignals 
                 signals={signalsToRender} 
                 systemStatus={systemStatus}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <RecentTrades trades={trades} />
             </Grid>
           </Grid>
         </Grid>
 
         {/* Row 3: Live Prices & Chart */}
-        <Grid item xs={12} md={4}>
+        <Grid xs={12} md={4}>
           <Typography variant="h6" gutterBottom>
             Live Market Prices
           </Typography>
           <LivePrices prices={prices} />
         </Grid>
 
-        <Grid item xs={12} md={8}>
+        <Grid xs={12} md={8}>
           <LivePriceChart prices={prices} />
         </Grid>
       </Grid>
@@ -704,7 +704,7 @@ const TradingDashboard = () => {
             🔧 Development Debug Panel
           </Typography>
           <Grid container spacing={2}>
-            <Grid item xs={6} md={2}>
+            <Grid xs={6} md={2}>
               <Typography variant="caption" display="block">
                 <strong>System:</strong>
               </Typography>
@@ -712,7 +712,7 @@ const TradingDashboard = () => {
                 {systemStatus?.isInitialized ? '🟢 Online' : '🔴 Offline'}
               </Typography>
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid xs={6} md={2}>
               <Typography variant="caption" display="block">
                 <strong>Connection:</strong>
               </Typography>
@@ -720,7 +720,7 @@ const TradingDashboard = () => {
                 {connectionStatus}
               </Typography>
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid xs={6} md={2}>
               <Typography variant="caption" display="block">
                 <strong>Data:</strong>
               </Typography>
@@ -728,7 +728,7 @@ const TradingDashboard = () => {
                 {systemStatus?.services?.binanceData?.totalCandles || 0} candles
               </Typography>
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid xs={6} md={2}>
               <Typography variant="caption" display="block">
                 <strong>Signals:</strong>
               </Typography>
@@ -736,7 +736,7 @@ const TradingDashboard = () => {
                 {signalsToRender.length} total
               </Typography>
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid xs={6} md={2}>
               <Typography variant="caption" display="block">
                 <strong>Paper Trading:</strong>
               </Typography>
@@ -744,7 +744,7 @@ const TradingDashboard = () => {
                 {tradingEnabled ? '🟢 Active' : '🔴 Inactive'}
               </Typography>
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid xs={6} md={2}>
               <Typography variant="caption" display="block">
                 <strong>Account API:</strong>
               </Typography>

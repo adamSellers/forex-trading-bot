@@ -231,7 +231,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         </Typography>
         
         <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Total Real Value"
               value={formatCurrency(getTotalPortfolioValue())}
@@ -240,7 +240,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               icon={<AccountBalance fontSize="small" color="success" />}
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="USDT Balance"
               value={formatUSDT(getUSDTBalance())}
@@ -248,7 +248,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="primary.main"
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Crypto Value"
               value={formatCurrency(getCryptoValue())}
@@ -256,7 +256,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="info.main"
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Cash Allocation"
               value={formatPercent(allocation.usdt)}
@@ -275,7 +275,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         </Typography>
         
         <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Virtual Portfolio"
               value={formatCurrency(portfolio?.totalValue || 5000)}
@@ -284,7 +284,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               icon={<Psychology fontSize="small" color="warning" />}
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Virtual P&L"
               value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`}
@@ -292,7 +292,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Virtual Positions"
               value={portfolio?.positionCount || 0}
@@ -300,7 +300,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="warning.main"
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Paper Win Rate"
               value={formatPercent(portfolio?.performance?.winRate || 0)}
@@ -319,7 +319,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         </Typography>
         
         <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Daily Risk Used"
               value={`${formatUSDT(portfolio?.riskStatus?.dailyLossUsed || 0)}`}
@@ -327,7 +327,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color={portfolio?.riskStatus?.dailyLossUsed > (portfolio?.riskStatus?.dailyLossLimit * 0.8) ? 'error.main' : 'success.main'}
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Weekly Risk Used"
               value={`${formatUSDT(portfolio?.riskStatus?.weeklyLossUsed || 0)}`}
@@ -335,7 +335,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color={portfolio?.riskStatus?.weeklyLossUsed > (portfolio?.riskStatus?.weeklyLossLimit * 0.8) ? 'error.main' : 'success.main'}
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Max Drawdown"
               value={formatPercent(portfolio?.performance?.maxDrawdown || 0)}
@@ -343,7 +343,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color={portfolio?.performance?.maxDrawdown > 15 ? 'error.main' : 'success.main'}
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <Card 
               variant="outlined" 
               sx={{ 
@@ -406,21 +406,21 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
 
         {/* Performance Metrics */}
         <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Profit Factor"
               value={portfolio?.performance?.profitFactor?.toFixed(2) || '0.00'}
               subtitle="Gross Profit/Loss"
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Sharpe Ratio"
               value={portfolio?.performance?.sharpeRatio?.toFixed(2) || '0.00'}
               subtitle="Risk-Adj Return"
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Avg Win"
               value={formatUSDT(portfolio?.performance?.avgWin || 0)}
@@ -428,7 +428,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="success.main"
             />
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <MetricCard
               title="Avg Loss"
               value={formatUSDT(portfolio?.performance?.avgLoss || 0)}
@@ -442,7 +442,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         <Box display="flex" justifyContent="center" mt={2}>
           <Card variant="outlined" sx={{ px: 3, py: 1.5, backgroundColor: 'action.hover' }}>
             <Grid container spacing={2} alignItems="center">
-              <Grid item>
+              <Grid>
                 <Box display="flex" alignItems="center" gap={1}>
                   <AccountBalance color="success" />
                   <Typography variant="body2" fontWeight="bold">
@@ -456,10 +456,10 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
                   />
                 </Box>
               </Grid>
-              <Grid item>
+              <Grid>
                 <Divider orientation="vertical" flexItem />
               </Grid>
-              <Grid item>
+              <Grid>
                 <Box display="flex" alignItems="center" gap={1}>
                   <Psychology color="warning" />
                   <Typography variant="body2" fontWeight="bold">
@@ -473,10 +473,10 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
                   />
                 </Box>
               </Grid>
-              <Grid item>
+              <Grid>
                 <Divider orientation="vertical" flexItem />
               </Grid>
-              <Grid item>
+              <Grid>
                 <Box display="flex" alignItems="center" gap={1}>
                   <DataUsage color="info" />
                   <Typography variant="body2" fontWeight="bold">

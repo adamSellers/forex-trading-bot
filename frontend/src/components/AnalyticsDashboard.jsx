@@ -146,7 +146,7 @@ const AnalyticsDashboard = () => {
 
       {/* KPI Overview */}
       <Grid container spacing={3} mb={2}>
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <MetricCard
             title="Total P&L"
             value={`${overview.totalPnL >= 0 ? '+' : ''}${overview.totalPnL.toFixed(2)} USDT`}
@@ -155,7 +155,7 @@ const AnalyticsDashboard = () => {
             icon={<ShowChart color={overview.totalPnL >= 0 ? 'success' : 'error'} />}
           />
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <MetricCard
             title="Win Rate"
             value={`${winRate.toFixed(1)}%`}
@@ -164,7 +164,7 @@ const AnalyticsDashboard = () => {
             icon={<Insights color={winRate >= 50 ? 'success' : 'warning'} />}
           />
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <MetricCard
             title="Total Trades"
             value={overview.totalTrades}
@@ -172,7 +172,7 @@ const AnalyticsDashboard = () => {
             icon={<QueryStats color="primary" />}
           />
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid xs={12} md={3}>
           <MetricCard
             title="Signal Conversion"
             value={`${(overview.signalToTradeRatio * 100).toFixed(1)}%`}
@@ -184,12 +184,12 @@ const AnalyticsDashboard = () => {
 
       <Grid container spacing={3}>
         {/* Asset Performance */}
-        <Grid item xs={12} lg={7}>
+        <Grid xs={12} lg={7}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Asset Performance</Typography>
             <Grid container spacing={2}>
               {Object.entries(assetAnalysis).map(([asset, data]) => (
-                <Grid item xs={12} md={6} key={asset}>
+                <Grid xs={12} md={6} key={asset}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="subtitle1" fontWeight="bold">{asset.replace('USDT', '')}</Typography>
@@ -217,7 +217,7 @@ const AnalyticsDashboard = () => {
         </Grid>
 
         {/* Trading Activity by Hour */}
-        <Grid item xs={12} lg={5}>
+        <Grid xs={12} lg={5}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Hour (UTC)</Typography>
             {timeAnalysis.hourlyDistribution.some(h => h.trades > 0 || h.signals > 0) ? (
@@ -246,7 +246,7 @@ const AnalyticsDashboard = () => {
         </Grid>
 
         {/* Trading Activity by Day */}
-        <Grid item xs={12} lg={7}>
+        <Grid xs={12} lg={7}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Day of Week</Typography>
             {timeAnalysis.dailyDistribution.some(d => d.trades > 0 || d.signals > 0) ? (
@@ -270,7 +270,7 @@ const AnalyticsDashboard = () => {
         </Grid>
 
         {/* P&L Over Time */}
-        <Grid item xs={12} lg={5}>
+        <Grid xs={12} lg={5}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Cumulative P&L Over Time</Typography>
             {pnlChartData.length > 1 ? (
@@ -307,7 +307,7 @@ const AnalyticsDashboard = () => {
         </Grid>
 
         {/* Exit Reason Analysis */}
-        <Grid item xs={12}>
+        <Grid xs={12}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>Exit Reason Analysis</Typography>
             {exitReasonData.length > 0 ? (

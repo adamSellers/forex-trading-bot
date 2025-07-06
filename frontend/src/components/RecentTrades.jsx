@@ -87,27 +87,27 @@ const RecentTrades = ({ trades }) => {
             <Card key={uniqueKey} variant="outlined" sx={{ mb: 1 }}>
               <CardContent sx={{ py: 1 }}>
                 <Grid container alignItems="center" spacing={1}>
-                  <Grid item>
+                  <Grid>
                     {side === 'BUY' ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid xs={2}>
                     <Typography variant="body2" fontWeight="bold">
                       {symbol.replace('USDT', '')}
                     </Typography>
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid xs={2}>
                     <Chip
                       size="small"
                       label={side}
                       color={side === 'BUY' ? 'success' : 'error'}
                     />
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid xs={2}>
                     <Typography variant="body2">
                       ${price.toFixed(price > 1 ? 2 : 6)}
                     </Typography>
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid xs={2}>
                     <Typography variant="body2" color="info.main">
                       {side === 'BUY' 
                         ? formatUSDT(usdtCost)
@@ -115,7 +115,7 @@ const RecentTrades = ({ trades }) => {
                       }
                     </Typography>
                   </Grid>
-                  <Grid item xs={2}>
+                  <Grid xs={2}>
                     {pnl !== undefined && (
                       <Typography 
                         variant="body2" 
@@ -126,7 +126,7 @@ const RecentTrades = ({ trades }) => {
                       </Typography>
                     )}
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid xs={12}>
                     <Typography variant="caption" color="textSecondary">
                       {timestamp}
                     </Typography>

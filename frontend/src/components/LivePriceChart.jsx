@@ -200,7 +200,7 @@ const LivePriceChart = ({ prices = {} }) => {
       {/* Price Statistics */}
       {priceStats && (
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <Box textAlign="center">
               <Typography variant="caption" color="textSecondary">
                 Current
@@ -210,7 +210,7 @@ const LivePriceChart = ({ prices = {} }) => {
               </Typography>
             </Box>
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <Box textAlign="center">
               <Typography variant="caption" color="textSecondary">
                 Change
@@ -225,7 +225,7 @@ const LivePriceChart = ({ prices = {} }) => {
               </Typography>
             </Box>
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <Box textAlign="center">
               <Typography variant="caption" color="textSecondary">
                 High
@@ -235,7 +235,7 @@ const LivePriceChart = ({ prices = {} }) => {
               </Typography>
             </Box>
           </Grid>
-          <Grid item xs={3}>
+          <Grid xs={3}>
             <Box textAlign="center">
               <Typography variant="caption" color="textSecondary">
                 Low

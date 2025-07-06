@@ -155,12 +155,12 @@ const SystemHealth = () => {
 
       <Grid container spacing={3}>
         {/* Service Status */}
-        <Grid item xs={12} md={5}>
+        <Grid xs={12} md={5}>
           <Paper sx={{ p: 2, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Service Status</Typography>
             <Grid container spacing={1.5}>
               {Object.entries(health.services).map(([name, status]) => (
-                <Grid item xs={12} key={name}>
+                <Grid xs={12} key={name}>
                   <ServiceStatusCard name={name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} status={status} />
                 </Grid>
               ))}
@@ -169,29 +169,29 @@ const SystemHealth = () => {
         </Grid>
 
         {/* System & Memory Info */}
-        <Grid item xs={12} md={7}>
+        <Grid xs={12} md={7}>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>System Information</Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="Uptime" value={health.uptimeFormatted} icon={<Speed color="primary" />} />
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="Node.js" value={systemInfo.server.nodeVersion} icon={<Dns color="primary" />} />
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="Environment" value={health.environment} icon={<SettingsEthernet color="primary" />} />
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="Platform" value={systemInfo.server.platform} icon={<Dns color="primary" />} />
                   </Grid>
                 </Grid>
               </Paper>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid xs={12}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="h6" gutterBottom>Memory Usage</Typography>
                 <Box sx={{ mb: 2 }}>
@@ -202,16 +202,16 @@ const SystemHealth = () => {
                   <LinearProgress variant="determinate" value={memPercent} sx={{ height: 8, borderRadius: 4 }} />
                 </Box>
                 <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="Heap Used" value={memoryUsage.heapUsed} icon={<Memory color="secondary" />} />
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="Heap Total" value={memoryUsage.heapTotal} icon={<Memory color="secondary" />} />
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="RSS" value={memoryUsage.rss} subtitle="Total process memory" icon={<Memory color="secondary" />} />
                   </Grid>
-                  <Grid item xs={6} sm={3}>
+                  <Grid xs={6} sm={3}>
                     <MetricCard title="External" value={memoryUsage.external} subtitle="C++ objects" icon={<Memory color="secondary" />} />
                   </Grid>
                 </Grid>
@@ -221,11 +221,11 @@ const SystemHealth = () => {
         </Grid>
 
         {/* Trading System Details */}
-        <Grid item xs={12}>
+        <Grid xs={12}>
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>Trading System Details</Typography>
             <Grid container spacing={2}>
-              <Grid item xs={6} sm={3}>
+              <Grid xs={6} sm={3}>
                 <MetricCard 
                   title="Binance Data" 
                   value={systemInfo.binanceData?.mode || 'N/A'}
@@ -233,7 +233,7 @@ const SystemHealth = () => {
                   icon={<Timeline color="info" />} 
                 />
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid xs={6} sm={3}>
                 <MetricCard 
                   title="Paper Trading" 
                   value={systemInfo.tradingSystem?.status?.services?.paperTrading?.isActive ? 'Active' : 'Inactive'}
@@ -241,7 +241,7 @@ const SystemHealth = () => {
                   icon={<Psychology color="warning" />} 
                 />
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid xs={6} sm={3}>
                 <MetricCard 
                   title="Signal Generator" 
                   value={systemInfo.tradingSystem?.status?.services?.signalGenerator?.isActive ? 'Active' : 'Inactive'}
@@ -249,7 +249,7 @@ const SystemHealth = () => {
                   icon={<Timeline color="info" />} 
                 />
               </Grid>
-              <Grid item xs={6} sm={3}>
+              <Grid xs={6} sm={3}>
                 <MetricCard 
                   title="API Keys" 
                   value={systemInfo.environment?.hasApiKeys ? 'Loaded' : 'Missing'}

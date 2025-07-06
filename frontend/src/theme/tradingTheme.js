@@ -88,7 +88,6 @@ export const tradingTheme = createTheme({
                     fontSize: "1rem",
                     fontWeight: 600,
                     lineHeight: 1.2,
-                    textAlign: "center",
                 },
                 body2: {
                     fontSize: "0.875rem",

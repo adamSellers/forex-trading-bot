@@ -228,7 +228,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
-              <Grid item xs={4}>
+              <Grid xs={4}>
                 <Typography variant="caption" color="textSecondary">
                   Basic Analysis
                 </Typography>
@@ -242,7 +242,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                   {dataStatus.minimal.toFixed(0)}%
                 </Typography>
               </Grid>
-              <Grid item xs={4}>
+              <Grid xs={4}>
                 <Typography variant="caption" color="textSecondary">
                   Advanced Analysis
                 </Typography>
@@ -256,7 +256,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                   {dataStatus.good.toFixed(0)}%
                 </Typography>
               </Grid>
-              <Grid item xs={4}>
+              <Grid xs={4}>
                 <Typography variant="caption" color="textSecondary">
                   Optimal Analysis
                 </Typography>
@@ -270,7 +270,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                   {dataStatus.optimal.toFixed(0)}%
                 </Typography>
               </Grid>
-              <Grid item xs={12}>
+              <Grid xs={12}>
                 <Typography variant="caption" color="textSecondary">
                   Current dataset: {dataStatus.current} candles across {systemStatus?.config?.assets?.length || 4} assets
                 </Typography>
@@ -324,14 +324,14 @@ const TradingSignals = ({ signals, systemStatus }) => {
                 <CardContent sx={{ py: 1.5, px: 2 }}>
                   <Grid container alignItems="center" spacing={1}>
                     {/* Icon */}
-                    <Grid item xs={1}>
+                    <Grid xs={1}>
                       <Box display="flex" justifyContent="center">
                         {getSignalIcon(signalData.signal)}
                       </Box>
                     </Grid>
                     
                     {/* Asset & Strategy */}
-                    <Grid item xs={2}>
+                    <Grid xs={2}>
                       <Typography variant="body2" fontWeight="bold">
                         {signalData.symbol.replace('USDT', '')}
                       </Typography>
@@ -344,7 +344,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                     </Grid>
                     
                     {/* Signal Type */}
-                    <Grid item xs={3}>
+                    <Grid xs={3}>
                       <Chip
                         size="small"
                         label={signalData.signal.replace('_', ' ')}
@@ -359,7 +359,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                     </Grid>
                     
                     {/* Strength */}
-                    <Grid item xs={1.5}>
+                    <Grid xs={1.5}>
                       <Typography variant="body2" textAlign="center">
                         {formatSignalStrength(signalData.strength)}
                       </Typography>
@@ -369,7 +369,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                     </Grid>
                     
                     {/* Price */}
-                    <Grid item xs={2}>
+                    <Grid xs={2}>
                       {signalData.currentPrice && (
                         <>
                           <Typography variant="body2" textAlign="center">
@@ -383,7 +383,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
                     </Grid>
                     
                     {/* Time */}
-                    <Grid item xs={2.5}>
+                    <Grid xs={2.5}>
                       <Typography variant="body2" color="textSecondary" textAlign="right">
                         {formatSignalTime(signalData.timestamp)}
                       </Typography>
