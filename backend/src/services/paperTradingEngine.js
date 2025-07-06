@@ -563,21 +563,25 @@ class PaperTradingEngine extends EventEmitter {
         // This allows the setting from the config page to be respected.
         if (signal.strength < this.config.minSignalStrength) return false;
 
-        // NEW: Additional volatility check if data available
+        // NEW: Enhanced volatility check for ENTRY signals only.
+        // This prevents exiting a position due to low volatility, but stops entering new trades.
         if (
             this.config.enableVolatilityFilter &&
             signal.atrPercent !== undefined
         ) {
+            const isEntrySignal =
+                signal.signal.includes("BUY") ||
+                signal.signal.includes("BULLISH");
             if (
-                signal.atrPercent < this.config.minVolatilityPercent &&
-                signal.signal !== "HOLD"
+                isEntrySignal &&
+                signal.atrPercent < this.config.minVolatilityPercent
             ) {
                 logger.debug(
-                    `🔇 Blocking ${
+                    `🔇 Blocking ENTRY signal for ${
                         signal.symbol
-                    } signal due to low volatility: ${signal.atrPercent?.toFixed(
+                    } due to low volatility: ${signal.atrPercent?.toFixed(
                         2
-                    )}%`
+                    )}% < ${this.config.minVolatilityPercent}%`
                 );
                 this.performanceMetrics.volatilityStats.tradesBlocked++;
                 return false;
@@ -805,11 +809,11 @@ class PaperTradingEngine extends EventEmitter {
 
             this.checkAndResetCounters();
 
-            // Enhanced signal validation
+            // Validate the signal (checks strength, cooldown, volatility, etc.)
             if (!this.isValidSignal(signal)) {
                 return {
                     success: false,
-                    reason: "Invalid or filtered signal",
+                    reason: "Signal failed validation (strength, cooldown, or volatility filter)",
                     signal,
                 };
             }
@@ -817,7 +821,22 @@ class PaperTradingEngine extends EventEmitter {
             const { symbol } = signal;
             const currentPosition = this.portfolio.positions.get(symbol);
 
-            if (signal.signal.includes("BUY") && !currentPosition) {
+            // --- REVISED TRADING LOGIC ---
+            // A signal is considered "bullish" if it's a BUY or a bullish hold.
+            // A signal is considered "bearish" if it's a SELL or a bearish hold.
+            const isBullishSignal =
+                signal.signal.includes("BUY") ||
+                signal.signal.includes("BULLISH");
+            const isBearishSignal =
+                signal.signal.includes("SELL") ||
+                signal.signal.includes("BEARISH");
+
+            if (isBullishSignal && !currentPosition) {
+                // --- ACTION: BUY ---
+                // We have a bullish signal and no open position for this asset.
+                logger.info(
+                    `[${symbol}] Bullish signal (${signal.signal}) received. Evaluating BUY.`
+                );
                 return await this.executeBuyOrder(
                     symbol,
                     currentPrice,
@@ -825,28 +844,32 @@ class PaperTradingEngine extends EventEmitter {
                     atrValue,
                     binanceDataService
                 );
-            } else if (signal.signal.includes("SELL") && currentPosition) {
+            } else if (isBearishSignal && currentPosition) {
+                // --- ACTION: SELL ---
+                // We have a bearish signal and an open position that needs to be closed.
+                logger.info(
+                    `[${symbol}] Bearish signal (${signal.signal}) received. Executing SELL.`
+                );
                 return await this.executeSellOrder(
                     symbol,
                     currentPrice,
                     signal,
                     currentPosition,
-                    "SIGNAL_SELL"
+                    "SIGNAL_SELL" // The reason for the exit is the signal itself.
                 );
-            } else if (signal.signal === "HOLD") {
+            } else {
+                // --- ACTION: HOLD ---
+                // No action is needed. Examples:
+                // - Bullish signal, but we already have a position.
+                // - Bearish signal, but we have no position to sell.
+                // - Neutral "HOLD" signal.
                 return {
                     success: true,
                     action: "HOLD",
-                    reason: "Signal indicates hold position",
+                    reason: `Signal is ${signal.signal}, no trade action needed for current state.`,
                     signal,
                 };
             }
-
-            return {
-                success: false,
-                reason: "No action taken - signal does not match current position state",
-                signal,
-            };
         } catch (error) {
             logger.error("Error processing enhanced signal:", error);
             return { success: false, reason: error.message, signal };

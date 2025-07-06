@@ -28,6 +28,7 @@ async function run() {
             riskPerTrade: 0.01, // 1%
             maxDailyLoss: 0.02, // 2%
             maxWeeklyLoss: 0.05, // 5%
+            minSignalStrength: 0.5, // Require at least 0.5% MA divergence
             allocation: {
                 [asset]: 1.0, // Allocate 100% to the asset being tested
             },
