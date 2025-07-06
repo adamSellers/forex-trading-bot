@@ -33,10 +33,23 @@ const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) =>
       minWidth: 0 // Allow card to shrink
     }}
   >
-    {/* The theme's MuiCardContent override handles the flex centering */}
-    <CardContent>
+    <CardContent sx={{
+      textAlign: 'center',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100%',
+      p: '12px !important',
+      '&:last-child': {
+        pb: '12px !important'
+      }
+    }}>
       {icon && (
-        <Box display="flex" justifyContent="center" mb={0.5}>
+        <Box display="flex"
+          justifyContent="center"
+          mb={0.5}
+        >
           {icon}
         </Box>
       )}

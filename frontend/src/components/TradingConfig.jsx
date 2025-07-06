@@ -206,17 +206,17 @@ const TradingConfig = () => {
   const riskAmounts = calculateRiskAmounts();
 
   if (loading) {
-    return (
-      <Container maxWidth="lg" sx={{ py: 3 }}>
+    return ( // No container needed, App.jsx handles it
+      <Box>
         <Typography variant="h6">Loading configuration...</Typography>
-      </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
+    <Box>
       {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4" component="h1">
           Trading Configuration
         </Typography>
@@ -612,7 +612,7 @@ const TradingConfig = () => {
           </Paper>
         </Grid>
       </Grid>
-    </Container>
+    </Box>
   );
 };
 

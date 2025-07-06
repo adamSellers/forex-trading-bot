@@ -10,7 +10,8 @@ import {
   Tabs,
   Tab,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Container
 } from '@mui/material';
 import {
   Dashboard,
@@ -101,30 +102,32 @@ function App() {
         </Box>
 
         {/* Main Content Area */}
-        <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default' }}>
-          <TabPanel value={currentTab} index={0}>
-            <ErrorBoundary>
-              <TradingDashboard />
-            </ErrorBoundary>
-          </TabPanel>
-          
-          <TabPanel value={currentTab} index={1}>
-            <ErrorBoundary>
-              <AnalyticsDashboard />
-            </ErrorBoundary>
-          </TabPanel>
+        <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default', py: 3 }}>
+          <Container maxWidth="xl">
+            <TabPanel value={currentTab} index={0}>
+              <ErrorBoundary>
+                <TradingDashboard />
+              </ErrorBoundary>
+            </TabPanel>
+            
+            <TabPanel value={currentTab} index={1}>
+              <ErrorBoundary>
+                <AnalyticsDashboard />
+              </ErrorBoundary>
+            </TabPanel>
 
-          <TabPanel value={currentTab} index={2}>
-            <ErrorBoundary>
-              <TradingConfig />
-            </ErrorBoundary>
-          </TabPanel>
+            <TabPanel value={currentTab} index={2}>
+              <ErrorBoundary>
+                <TradingConfig />
+              </ErrorBoundary>
+            </TabPanel>
 
-          <TabPanel value={currentTab} index={3}>
-            <ErrorBoundary>
-              <SystemHealth />
-            </ErrorBoundary>
-          </TabPanel>
+            <TabPanel value={currentTab} index={3}>
+              <ErrorBoundary>
+                <SystemHealth />
+              </ErrorBoundary>
+            </TabPanel>
+          </Container>
         </Box>
       </Box>
     </ThemeProvider>

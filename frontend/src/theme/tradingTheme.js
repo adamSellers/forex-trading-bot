@@ -81,24 +81,6 @@ export const tradingTheme = createTheme({
             },
         },
 
-        // Card content spacing
-        MuiCardContent: {
-            styleOverrides: {
-                root: {
-                    padding: "12px !important",
-                    textAlign: "center",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    height: "100%",
-                    "&:last-child": {
-                        paddingBottom: "12px !important",
-                    },
-                },
-            },
-        },
-
         // Typography responsive sizing
         MuiTypography: {
             styleOverrides: {

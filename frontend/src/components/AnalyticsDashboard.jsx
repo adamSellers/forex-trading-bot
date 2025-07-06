@@ -129,8 +129,8 @@ const AnalyticsDashboard = () => {
     }));
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">Performance Analytics</Typography>
         <ToggleButtonGroup
           value={period}
@@ -145,7 +145,7 @@ const AnalyticsDashboard = () => {
       </Box>
 
       {/* KPI Overview */}
-      <Grid container spacing={3} mb={3}>
+      <Grid container spacing={3} mb={2}>
         <Grid item xs={12} md={3}>
           <MetricCard
             title="Total P&L"
@@ -325,7 +325,7 @@ const AnalyticsDashboard = () => {
           </Paper>
         </Grid>
       </Grid>
-    </Container>
+    </Box>
   );
 };
 

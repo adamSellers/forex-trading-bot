@@ -126,8 +126,8 @@ const SystemHealth = () => {
   const memPercent = (systemInfo.memory.heapUsed / systemInfo.memory.heapTotal) * 100;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 3 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">System Health</Typography>
         <Button
           variant="outlined"
@@ -139,7 +139,7 @@ const SystemHealth = () => {
         </Button>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3, borderTop: 4, borderColor: overallStatus ? 'success.main' : 'error.main' }}>
+      <Paper sx={{ p: 3, mb: 2, borderTop: 4, borderColor: overallStatus ? 'success.main' : 'error.main' }}>
         <Box display="flex" alignItems="center" gap={2}>
           {overallStatus ? <CheckCircle color="success" sx={{ fontSize: 40 }} /> : <Error color="error" sx={{ fontSize: 40 }} />}
           <Box>
@@ -261,7 +261,7 @@ const SystemHealth = () => {
           </Paper>
         </Grid>
       </Grid>
-    </Container>
+    </Box>
   );
 };
 

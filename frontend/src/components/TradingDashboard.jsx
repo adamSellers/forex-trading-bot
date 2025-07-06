@@ -1,7 +1,6 @@
 // frontend/src/components/TradingDashboard.jsx - ENHANCED with Clear Status Indicators
 import React, { useState, useEffect } from 'react';
 import {
-  Box,
   Container,
   Grid,
   Paper,
@@ -43,6 +42,7 @@ import TradingSignals from './TradingSignals';
 import RecentTrades from './RecentTrades';
 import LivePriceChart from './LivePriceChart';
 import SystemStatusBanner from './SystemStatusBanner';
+import { Box } from '@mui/system';
 
 const TradingDashboard = () => {
   // State management
@@ -453,9 +453,9 @@ const TradingDashboard = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3 }}>
+    <Box>
       {/* Enhanced Header Section */}
-      <Box mb={3}>
+      <Box>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography variant="h4" component="h1" gutterBottom>
@@ -755,7 +755,7 @@ const TradingDashboard = () => {
           </Grid>
         </Paper>
       )}
-    </Container>
+    </Box>
   );
 };
 
