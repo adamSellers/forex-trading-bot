@@ -569,9 +569,9 @@ class PaperTradingEngine extends EventEmitter {
             this.config.enableVolatilityFilter &&
             signal.atrPercent !== undefined
         ) {
-            const isEntrySignal =
-                signal.signal.includes("BUY") ||
-                signal.signal.includes("BULLISH");
+            // The volatility filter should only apply to the initial crossover event (`BUY`),
+            // not to subsequent 'HOLD_BULLISH' trend-following signals.
+            const isEntrySignal = signal.signal === "BUY";
             if (
                 isEntrySignal &&
                 signal.atrPercent < this.config.minVolatilityPercent
