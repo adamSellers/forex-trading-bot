@@ -112,9 +112,9 @@ const LivePrices = ({ prices = {} }) => {
   }, [prices]);
 
   return (
-    <Grid container spacing={2}>
+    <Grid container spacing={2} sx={{ maxWidth: '100%' }}>
       {assets.map((asset) => (
-        <Grid item xs={6} key={asset}>
+        <Grid item xs={6} sm={6} md={6} lg={6} key={asset}>
           <PriceCard
             asset={asset}
             priceData={latestPrices.get(asset)}

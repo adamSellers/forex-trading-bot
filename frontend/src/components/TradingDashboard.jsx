@@ -652,7 +652,18 @@ const TradingDashboard = () => {
       </Box>
 
       {/* Dashboard Grid */}
-      <Grid container spacing={3}>
+      <Grid 
+        container 
+        spacing={3} 
+        sx={{ 
+          width: '100%',
+          m: 0,
+          '& .MuiGrid-item': {
+            paddingLeft: '24px',
+            paddingTop: '24px'
+          }
+        }}
+      >
         {/* Row 1: Portfolio Overview - Full Width */}
         <Grid item xs={12}>
           <PortfolioOverview 

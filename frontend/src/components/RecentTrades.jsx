@@ -46,7 +46,7 @@ const RecentTrades = ({ trades }) => {
   }
 
   return (
-    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 400 }}>
+    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 400, width: '100%', boxSizing: 'border-box' }}>
       <Typography variant="h6" gutterBottom>
         Recent Trades
       </Typography>

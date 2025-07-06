@@ -159,7 +159,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
   const hasInsufficientData = insufficientDataCount > 0;
 
   return (
-    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 400 }}>
+    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 400, width: '100%', boxSizing: 'border-box' }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">
           Trading Signals

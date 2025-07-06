@@ -157,7 +157,7 @@ const LivePriceChart = ({ prices = {} }) => {
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
+    <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h6">
           Historical Analysis Chart

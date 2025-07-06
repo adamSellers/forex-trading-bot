@@ -185,7 +185,7 @@ const AnalyticsDashboard = () => {
       <Grid container spacing={3}>
         {/* Asset Performance */}
         <Grid xs={12} lg={7}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+          <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Asset Performance</Typography>
             <Grid container spacing={2}>
               {Object.entries(assetAnalysis).map(([asset, data]) => (
@@ -218,7 +218,7 @@ const AnalyticsDashboard = () => {
 
         {/* Trading Activity by Hour */}
         <Grid xs={12} lg={5}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+          <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Hour (UTC)</Typography>
             {timeAnalysis.hourlyDistribution.some(h => h.trades > 0 || h.signals > 0) ? (
               <Box sx={{ height: 300 }}>
@@ -247,7 +247,7 @@ const AnalyticsDashboard = () => {
 
         {/* Trading Activity by Day */}
         <Grid xs={12} lg={7}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Day of Week</Typography>
             {timeAnalysis.dailyDistribution.some(d => d.trades > 0 || d.signals > 0) ? (
               <Box sx={{ height: 250 }}>
@@ -271,7 +271,7 @@ const AnalyticsDashboard = () => {
 
         {/* P&L Over Time */}
         <Grid xs={12} lg={5}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+          <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Cumulative P&L Over Time</Typography>
             {pnlChartData.length > 1 ? (
               <Box sx={{ height: 250 }}>
@@ -308,7 +308,7 @@ const AnalyticsDashboard = () => {
 
         {/* Exit Reason Analysis */}
         <Grid xs={12}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Exit Reason Analysis</Typography>
             {exitReasonData.length > 0 ? (
               <Box sx={{ height: 300 }}>
