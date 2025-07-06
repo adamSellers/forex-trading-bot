@@ -15,12 +15,14 @@ import {
 import {
   Dashboard,
   Settings,
-  TrendingUp,
-  Assessment
+  TrendingUp, // This is the logo icon
+  Assessment,
+  MonitorHeart // New icon for health
 } from '@mui/icons-material';
 import TradingDashboard from './components/TradingDashboard';
 import TradingConfig from './components/TradingConfig';
-import AnalyticsDashboard from './components/AnalyticsDashboard'; // Import new component
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import SystemHealth from './components/SystemHealth'; // New import
 import ErrorBoundary from './components/ErrorBoundary';
 import { tradingTheme } from './theme/tradingTheme';
 
@@ -89,6 +91,12 @@ function App() {
               id="trading-tab-2"
               aria-controls="trading-tabpanel-2"
             />
+            <Tab
+              icon={<MonitorHeart />}
+              label="System Health"
+              id="trading-tab-3"
+              aria-controls="trading-tabpanel-3"
+            />
           </Tabs>
         </Box>
 
@@ -109,6 +117,12 @@ function App() {
           <TabPanel value={currentTab} index={2}>
             <ErrorBoundary>
               <TradingConfig />
+            </ErrorBoundary>
+          </TabPanel>
+
+          <TabPanel value={currentTab} index={3}>
+            <ErrorBoundary>
+              <SystemHealth />
             </ErrorBoundary>
           </TabPanel>
         </Box>
