@@ -1,5 +1,11 @@
 /* Base styles - Grid overrides are now handled in the MUI theme */
 :root {
+  /*
+    DEBUGGING STEP: This is a sanity check to see if CSS changes are being deployed.
+    If the background is not red after deployment, the build/deploy pipeline is broken.
+  */
+  background-color: red !important;
+
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
