@@ -448,6 +448,8 @@ class PaperTradingEngine extends EventEmitter {
      */
     updatePortfolioValue(priceData) {
         let totalCryptoValue = 0;
+        // FIX: Collect positions to close to avoid modifying the map while iterating
+        const positionsToClose = [];
 
         this.portfolio.positions.forEach((position, symbol) => {
             const currentPrice = priceData[symbol]?.price;
@@ -486,6 +488,7 @@ class PaperTradingEngine extends EventEmitter {
 
                 // NEW: Enhanced exit condition checking
                 let exitReason = null;
+                let exitSignal = { signal: "EXIT", strength: 5.0 }; // Synthetic signal for exit
 
                 // 1. Take-profit check (highest priority)
                 if (
@@ -493,6 +496,7 @@ class PaperTradingEngine extends EventEmitter {
                     currentPrice >= position.takeProfit
                 ) {
                     exitReason = "TAKE_PROFIT";
+                    exitSignal.signal = "SELL_TAKE_PROFIT";
                 }
                 // 2. Trailing stop check
                 else if (
@@ -501,25 +505,46 @@ class PaperTradingEngine extends EventEmitter {
                     currentPrice <= position.trailingStop
                 ) {
                     exitReason = "TRAILING_STOP";
+                    exitSignal.signal = "SELL_TRAILING_STOP";
                 }
                 // 3. Original stop loss (backup/fallback)
                 else if (currentPrice <= position.stopLoss) {
                     exitReason = "STOP_LOSS";
+                    exitSignal.signal = "SELL_STOP_LOSS";
                 }
 
                 if (exitReason) {
                     logger.warn(
                         `🎯 ${exitReason} triggered for ${symbol} at $${currentPrice}`
                     );
-                    this.emit("exitTriggered", {
+                    // FIX: Add to a list to be closed after the loop finishes,
+                    // preventing modification of the map during iteration.
+                    positionsToClose.push({
                         symbol,
                         position,
                         currentPrice,
-                        reason: exitReason,
+                        exitSignal,
+                        exitReason,
                     });
                 }
             }
         });
+
+        // FIX: Execute sell orders for all triggered positions outside the loop
+        if (positionsToClose.length > 0) {
+            // Use Promise.all to handle multiple exits concurrently without blocking the main thread
+            Promise.all(
+                positionsToClose.map((p) =>
+                    this.executeSellOrder(
+                        p.symbol,
+                        p.currentPrice,
+                        p.exitSignal,
+                        p.position,
+                        p.exitReason
+                    )
+                )
+            );
+        }
 
         // Update total portfolio value
         this.portfolio.totalValue =
