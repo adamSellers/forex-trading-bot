@@ -10,7 +10,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid
+  Grid,
+  Legend,
 } from '@mui/material';
 import { 
   LineChart, 
@@ -24,15 +25,13 @@ import {
 } from 'recharts';
 import { assetColors } from '../theme/tradingTheme';
 
-const LivePriceChart = ({ prices = {} }) => {
+const LivePriceChart = ({ prices = {}, signals = [] }) => {
   const [selectedAsset, setSelectedAsset] = useState('BTCUSDT');
   const [timeRange, setTimeRange] = useState('30min'); // 5min, 15min, 30min, 1hour
   const [priceHistory, setPriceHistory] = useState(new Map());
 
   const assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'];
   
-  // Use theme colors for assets
-
   const timeRangeConfig = {
     '5min': { minutes: 5, maxPoints: 60, label: '5 Minutes' },
     '15min': { minutes: 15, maxPoints: 90, label: '15 Minutes' },
@@ -53,6 +52,11 @@ const LivePriceChart = ({ prices = {} }) => {
           const newHistory = new Map(prev);
           const assetHistory = newHistory.get(asset) || [];
           
+          // Find the latest signal for THIS asset to get MA values
+          const signal = signals.find(s => s.symbol === asset);
+          const fastMA = signal?.data ? parseFloat(signal.data.fastMA) : null;
+          const slowMA = signal?.data ? parseFloat(signal.data.slowMA) : null;
+          
           // Add new price point
           const newPoint = {
             timestamp: now,
@@ -63,7 +67,10 @@ const LivePriceChart = ({ prices = {} }) => {
               second: '2-digit'
             }),
             price: prices[asset].price,
-            change: prices[asset].priceChange || 0
+            change: prices[asset].priceChange || 0,
+            // Add MAs, carrying forward the last known value if current signal is null
+            fastMA: fastMA ?? (assetHistory.length > 0 ? assetHistory[assetHistory.length - 1].fastMA : null),
+            slowMA: slowMA ?? (assetHistory.length > 0 ? assetHistory[assetHistory.length - 1].slowMA : null),
           };
           
           // Add to history and limit points based on time range
@@ -81,7 +88,7 @@ const LivePriceChart = ({ prices = {} }) => {
         });
       }
     });
-  }, [prices, timeRange]);
+  }, [prices, signals, timeRange]);
 
   // Get chart data for selected asset
   const chartData = useMemo(() => {
@@ -117,21 +124,25 @@ const LivePriceChart = ({ prices = {} }) => {
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
-      const data = payload[0];
+      const data = payload[0].payload;
       return (
-        <Paper sx={{ p: 1, border: 1, borderColor: 'divider' }}>
+        <Paper sx={{ p: 1.5, border: 1, borderColor: 'divider', backgroundColor: 'rgba(30, 30, 30, 0.9)' }}>
           <Typography variant="caption" color="textSecondary">
-            {label}
+            {data.time}
           </Typography>
-          <Typography variant="body2" fontWeight="bold">
-            ${data.value?.toFixed(data.value > 1 ? 2 : 6)}
+          <Typography variant="body2" fontWeight="bold" sx={{ color: assetColors[selectedAsset] }}>
+            Price: ${data.price?.toFixed(data.price > 1 ? 2 : 6)}
           </Typography>
-          <Typography 
-            variant="caption" 
-            color={data.payload.change >= 0 ? 'success.main' : 'error.main'}
-          >
-            {data.payload.change >= 0 ? '+' : ''}{data.payload.change?.toFixed(2)}%
-          </Typography>
+          {data.fastMA && (
+            <Typography variant="caption" sx={{ color: '#ff9900' }}>
+              Fast MA: ${data.fastMA.toFixed(data.price > 1 ? 2 : 6)}
+            </Typography>
+          )}
+          {data.slowMA && (
+            <Typography variant="caption" sx={{ color: '#00e676', display: 'block' }}>
+              Slow MA: ${data.slowMA.toFixed(data.price > 1 ? 2 : 6)}
+            </Typography>
+          )}
         </Paper>
       );
     }
@@ -249,11 +260,13 @@ const LivePriceChart = ({ prices = {} }) => {
                 interval="preserveStartEnd"
               />
               <YAxis 
-                domain={['dataMin - 10', 'dataMax + 10']}
+                domain={['auto', 'auto']}
                 tick={{ fontSize: 12 }}
                 tickFormatter={formatYAxis}
+                allowDataOverflow={true}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#888', strokeWidth: 1 }} />
+              <Legend verticalAlign="top" height={36}/>
               
               {/* Reference line for starting price */}
               {chartData.length > 1 && (
@@ -268,11 +281,33 @@ const LivePriceChart = ({ prices = {} }) => {
               <Line
                 type="monotone"
                 dataKey="price"
+                name="Price"
                 stroke={assetColors[selectedAsset]}
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, stroke: assetColors[selectedAsset], strokeWidth: 2 }}
                 connectNulls={false}
+              />
+
+              {/* Fast Moving Average Line */}
+              <Line
+                type="monotone"
+                dataKey="fastMA"
+                name="Fast MA"
+                stroke="#ff9900"
+                strokeWidth={1.5}
+                dot={false}
+                connectNulls={true}
+              />
+              {/* Slow Moving Average Line */}
+              <Line
+                type="monotone"
+                dataKey="slowMA"
+                name="Slow MA"
+                stroke="#00e676"
+                strokeWidth={1.5}
+                dot={false}
+                connectNulls={true}
               />
             </LineChart>
           </ResponsiveContainer>
