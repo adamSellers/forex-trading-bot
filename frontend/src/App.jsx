@@ -45,7 +45,9 @@ const AppContent = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-      <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {/* Top Navigation */}
         <AppBar position="sticky" elevation={1} color="default">
           <Toolbar>
@@ -121,7 +123,8 @@ const AppContent = () => {
             </TabPanel>
           </Container>
         </Box>
-      </Box>
+    </Box>
+  );
 };
 
 function App() {
