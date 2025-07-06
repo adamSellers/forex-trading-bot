@@ -1,0 +1,7 @@
+# .gitattributes
+# Enforce Unix-style line endings for all text files to prevent
+# issues between Windows (WSL) and Linux (Raspberry Pi).
+
+* text=auto eol=lf
+
+-*.sh text eol=lf

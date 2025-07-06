@@ -152,6 +152,12 @@ export const tradingAPI = {
             method: "POST",
             body: JSON.stringify(signalData),
         }),
+
+    // Get analytics data
+    getAnalytics: (period = "7d") => {
+        const query = new URLSearchParams({ period }).toString();
+        return apiCall(`${API_ENDPOINTS.trading.analytics}?${query}`);
+    },
 };
 
 export const managementAPI = {

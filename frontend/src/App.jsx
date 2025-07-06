@@ -1,4 +1,4 @@
-// frontend/src/App.jsx - Updated with custom theme
+// frontend/src/App.jsx - Updated with custom theme and Analytics tab
 import React, { useState } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import {
@@ -13,10 +13,12 @@ import {
 import {
   Dashboard,
   Settings,
-  TrendingUp
+  TrendingUp,
+  Assessment // Import Analytics icon
 } from '@mui/icons-material';
 import TradingDashboard from './components/TradingDashboard';
 import TradingConfig from './components/TradingConfig';
+import AnalyticsDashboard from './components/AnalyticsDashboard'; // Import new component
 import ErrorBoundary from './components/ErrorBoundary';
 import { tradingTheme } from './theme/tradingTheme';
 
@@ -72,6 +74,12 @@ function App() {
                 id="trading-tab-1"
                 aria-controls="trading-tabpanel-1"
               />
+              <Tab 
+                icon={<Assessment />} 
+                label="Analytics" 
+                id="trading-tab-2"
+                aria-controls="trading-tabpanel-2"
+              />
             </Tabs>
           </Box>
         </Toolbar>
@@ -87,6 +95,12 @@ function App() {
       <TabPanel value={currentTab} index={1}>
         <ErrorBoundary>
           <TradingConfig />
+        </ErrorBoundary>
+      </TabPanel>
+
+      <TabPanel value={currentTab} index={2}>
+        <ErrorBoundary>
+          <AnalyticsDashboard />
         </ErrorBoundary>
       </TabPanel>
     </ThemeProvider>

@@ -53,7 +53,7 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
   // FIXED: Correct candle calculation with debugging
   const totalCandles = binanceStatus.totalCandles || 0;
   const candleDatasets = binanceStatus.candleDatasets || 0;
-  const priceStreams = binanceStatus.priceStreams || 0;
+  const priceStreams = binanceStatus.currentPrices || 0; // FIX: Use 'currentPrices' from backend
   
   console.log('🔍 SystemStatusBanner Debug:', {
     totalCandles,
@@ -391,8 +391,8 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
               {/* Additional Info */}
               <Box mt={2} p={1} sx={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 1 }}>
                 <Typography variant="caption" color="textSecondary">
-                  💡 <strong>System Status:</strong> {systemStatus.isInitialized ? '🟢 Online' : '🔴 Offline'} • 
-                  <strong> Data Collection:</strong> {binanceStatus.pollingActive ? '🟢 Active' : '🔴 Inactive'} • 
+                  💡 <strong>System Status:</strong> {systemStatus.isInitialized ? '🟢 Online' : '🔴 Offline'} •
+                  <strong> Data Collection:</strong> {binanceStatus.connected ? '🟢 Active' : '🔴 Inactive'} • 
                   <strong> Assets Building:</strong> {insufficientSignals} • 
                   <strong> Last Update:</strong> {binanceStatus.lastUpdate ? new Date(binanceStatus.lastUpdate).toLocaleTimeString() : 'Never'}
                 </Typography>

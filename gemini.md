@@ -19,12 +19,15 @@ This file provides guidance to Gemini Code Assist when working with code in this
 
 -   `backend/src/services/binanceDataService.js`: Core service for Binance API interactions (REST and WebSockets).
 -   `ecosystem.config.js`: PM2 configuration for production deployment, including environment variables.
--   `scripts/deploy.sh`: Main deployment script.
+-   `scripts/update.sh`: **Primary script for small, data-safe updates.**
+-   `scripts/deploy.sh`: Secondary script for major updates.
+-   `scripts/clean-install.sh`: Script for a full, destructive reinstall.
 
 ### Common Tasks
 
 -   **Debugging Connectivity:** If the bot fails to connect to Binance, first check `ecosystem.config.js` for correct API keys and ensure the server's IP is whitelisted on Binance.
 -   **WebSocket Issues:** If WebSockets fail but REST API works, consider `node_modules` corruption or library version mismatches. A clean `npm install` is often the first step.
+-   **Deploying Updates:** For most changes, the workflow is to commit, push, then run `./scripts/update.sh` on the Pi. This is much faster and safer than a full reinstall.
 
 ## Your Preferences (for Gemini)
 

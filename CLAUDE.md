@@ -32,8 +32,11 @@ When working on issues, follow this methodology:
 1. **Single Command Execution**: Issue one command at a time, wait for results
 2. **Incremental Changes**: Make one modification per iteration, then test
 3. **Preserve Functionality**: Never remove working features unless actively fixing them
-4. **Use Project Knowledge**: Reference the loaded codebase for context
-5. **Clean Deployments**: Update locally → commit → push → clean install on Pi
+4. **Use Project Knowledge**: Reference the loaded codebase for context and existing patterns.
+5. **Tiered Deployments**: Use the correct deployment script for the job:
+    - `scripts/update.sh`: For most small, daily updates. Fast and data-safe.
+    - `scripts/deploy.sh`: For major updates requiring a full dependency reinstall.
+    - `scripts/clean-install.sh`: For initial setup or a complete system reset.
 
 ### **Project Knowledge Usage**
 
@@ -249,16 +252,13 @@ npm run dev  # Runs both backend and frontend
 ### **Production Deployment**
 
 ```bash
-# On Raspberry Pi
-git clone <repository> /opt/crypto-trading-bot
-cd /opt/crypto-trading-bot
-./scripts/clean-install.sh
+# On Raspberry Pi (from /opt/crypto-trading-bot)
 
-# For updates
-git pull origin main
-npm install --prefix backend --production
-npm run build:frontend
-pm2 reload ecosystem.config.js --env production
+# For most updates (fast, data-safe)
+./scripts/update.sh
+
+# For a full, clean installation (wipes data)
+./scripts/clean-install.sh
 ```
 
 ## Future Development Notes
