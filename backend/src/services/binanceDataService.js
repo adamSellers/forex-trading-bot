@@ -43,6 +43,7 @@ class BinanceDataService extends EventEmitter {
         this.isConnected = false;
         this.connectionAttempts = 0;
         this.maxRetries = 5;
+        this.readyTimeout = null; // NEW: Timeout for service readiness
 
         // Initialize Binance client
         this.initializeBinanceClient();
@@ -316,6 +317,16 @@ class BinanceDataService extends EventEmitter {
             logger.success(
                 "✅ ENHANCED Binance Data Service initialized, waiting for price streams..."
             );
+
+            // NEW: Set a timeout to ensure serviceReady is always emitted
+            this.readyTimeout = setTimeout(() => {
+                if (!this.isServiceReady) {
+                    logger.warn(
+                        "⚠️ Service ready timeout reached. Emitting serviceReady with partial data."
+                    );
+                    this.emit("serviceReady"); // This will unblock the TradingService
+                }
+            }, 15000); // 15 second timeout
         } catch (error) {
             logger.error("❌ Failed to initialize enhanced service:", error);
             this.emit("serviceError", error);
@@ -518,6 +529,7 @@ class BinanceDataService extends EventEmitter {
                         this.priceData.size === this.config.assets.length
                     ) {
                         this.isServiceReady = true;
+                        clearTimeout(this.readyTimeout); // Clear the timeout if all streams connect
                         logger.success(
                             "✅ All price streams active. Service is ready."
                         );
@@ -725,6 +737,8 @@ class BinanceDataService extends EventEmitter {
 
     async stop() {
         logger.info("🛑 Stopping Enhanced Binance Data Service...");
+
+        clearTimeout(this.readyTimeout); // NEW: Clear the readiness timeout
 
         // Close WebSocket connections
         for (const [symbol, stream] of this.webSocketConnections) {
