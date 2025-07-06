@@ -689,9 +689,7 @@ const TradingDashboard = () => {
           <Typography variant="h6" gutterBottom>
             Live Market Prices
           </Typography>
-          <Grid container spacing={2}>
-            <LivePrices prices={prices} />
-          </Grid>
+          <LivePrices prices={prices} />
         </Grid>
 
         <Grid item xs={12} md={8}>

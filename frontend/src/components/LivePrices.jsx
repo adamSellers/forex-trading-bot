@@ -112,9 +112,9 @@ const LivePrices = ({ prices = {} }) => {
   }, [prices]);
 
   return (
-    <>
+    <Grid container spacing={2}>
       {assets.map((asset) => (
-        <Grid item xs={6} key={asset}>
+        <Grid item xs={12} sm={6} key={asset}>
           <PriceCard
             asset={asset}
             priceData={latestPrices.get(asset)}
@@ -122,7 +122,7 @@ const LivePrices = ({ prices = {} }) => {
           />
         </Grid>
       ))}
-    </>
+    </Grid>
   );
 };
 
