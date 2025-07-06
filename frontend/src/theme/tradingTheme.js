@@ -55,18 +55,6 @@ export const tradingTheme = createTheme({
     },
 
     components: {
-        // Container fixes
-        MuiContainer: {
-            styleOverrides: {
-                root: {
-                    paddingLeft: "24px !important",
-                    paddingRight: "24px !important",
-                    maxWidth: "none !important",
-                    width: "100%",
-                },
-            },
-        },
-
         // Card styling for metrics
         MuiCard: {
             styleOverrides: {
@@ -78,8 +66,6 @@ export const tradingTheme = createTheme({
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
-                    // CRITICAL: Ensure cards fill container
-                    width: "100%",
                     minWidth: 0, // Allow shrinking
                     boxSizing: "border-box",
                 },
@@ -93,8 +79,6 @@ export const tradingTheme = createTheme({
                     backgroundColor: "#1e1e1e",
                     borderRadius: 12,
                     border: "1px solid #333",
-                    // Ensure full width utilization
-                    width: "100%",
                     boxSizing: "border-box",
                 },
             },
