@@ -1111,6 +1111,7 @@ class PaperTradingEngine extends EventEmitter {
             await this.initialize();
         }
         this.isActive = true;
+        this.config.enableTrading = true;
         logger.info(
             "🚀 ENHANCED Paper Trading Engine started with all improvements!"
         );
@@ -1120,6 +1121,7 @@ class PaperTradingEngine extends EventEmitter {
 
     async stop() {
         this.isActive = false;
+        this.config.enableTrading = false;
         await this.saveStateToDatabase();
         logger.info("📴 ENHANCED Paper Trading Engine stopped");
         this.emit("engineStopped");

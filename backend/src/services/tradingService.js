@@ -173,7 +173,7 @@ class TradingService extends EventEmitter {
 
     // =================== API METHODS ===================
 
-    async getStatus() {
+    getStatus() {
         try {
             const binanceStatus = this.binanceData
                 ? this.binanceData.getServiceStatus()
@@ -347,11 +347,9 @@ class TradingService extends EventEmitter {
     async startTrading() {
         try {
             this.config.enableTrading = true;
-
             if (this.paperTrading) {
-                this.paperTrading.updateConfig({ enableTrading: true });
+                await this.paperTrading.start();
             }
-
             logger.info("▶️ Trading started");
             this.emit("tradingStarted");
             this.io.emit("tradingStarted");
@@ -360,15 +358,12 @@ class TradingService extends EventEmitter {
             throw error;
         }
     }
-
     async stopTrading() {
         try {
             this.config.enableTrading = false;
-
             if (this.paperTrading) {
-                this.paperTrading.updateConfig({ enableTrading: false });
+                await this.paperTrading.stop();
             }
-
             logger.info("⏹️ Trading stopped");
             this.emit("tradingStopped");
             this.io.emit("tradingStopped");
