@@ -34,40 +34,21 @@ main() {
     log_step "Starting lightweight update process..."
     cd "$PROJECT_DIR" || log_error "Project directory $PROJECT_DIR not found."
 
-    # 1. Stash local changes if they exist
-    local stashed=false
-    if ! git diff --quiet HEAD; then
-        log_warning "Uncommitted changes detected. Stashing them before update..."
-        git stash push -m "update-script-stash-$(date +%s)"
-        stashed=true
-        log_success "Local changes stashed."
-    else
-        log_substep "No local changes detected."
-    fi
-
-    # 2. Get the commit hash before pulling
+    # 1. Fetch the latest changes from the remote
     log_substep "Fetching latest changes from origin..."
     git fetch origin
-    local before_hash=$(git rev-parse HEAD)
 
-    # 3. Pull latest code
-    log_substep "Pulling latest code from branch '$BRANCH'..."
-    git pull origin "$BRANCH"
-    local after_hash=$(git rev-parse HEAD)
+    # 2. Get current and remote commit hashes
+    local before_hash=$(git rev-parse HEAD)
+    local after_hash=$(git rev-parse "origin/$BRANCH")
+
+    # 3. Forcefully reset the local branch to match the remote, discarding local changes
+    log_warning "Resetting local branch to match remote 'origin/$BRANCH'..."
+    git reset --hard "origin/$BRANCH"
+    log_success "Local branch reset. New commit: ${after_hash:0:7}"
 
     if [ "$before_hash" == "$after_hash" ]; then
         log_success "Already up-to-date. No new code to deploy."
-        # If nothing changed, pop the stash back
-        if [ "$stashed" = true ]; then
-            log_substep "Re-applying stashed changes..."
-            if ! git stash pop; then
-                log_warning "Could not automatically re-apply stashed changes."
-                log_warning "Run 'git status' and 'git diff' to resolve them."
-                log_warning "Your changes are saved in the latest stash. Run 'git stash list'."
-            else
-                log_success "Stashed changes re-applied."
-            fi
-        fi
         exit 0
     fi
 
@@ -123,19 +104,7 @@ main() {
     pm2 save
     log_success "Application reloaded gracefully."
 
-    # 9. Re-apply stashed changes
-    if [ "$stashed" = true ]; then
-        log_step "Re-applying stashed changes..."
-        if ! git stash pop; then
-            log_warning "Could not automatically re-apply stashed changes. You may have merge conflicts."
-            log_warning "Run 'git status' and 'git diff' to resolve them."
-            log_warning "Your changes are saved in the latest stash. Run 'git stash list' to see it."
-        else
-            log_success "Stashed changes re-applied successfully."
-        fi
-    fi
-
-    # 9. Health check
+    # 10. Health check
     log_step "Performing health check..."
     sleep 5 # Give the server a moment to start
     if curl -sf http://localhost:3001/api/management/health > /dev/null 2>&1; then

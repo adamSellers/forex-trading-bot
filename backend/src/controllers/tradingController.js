@@ -71,7 +71,7 @@ class EnhancedTradingController extends EventEmitter {
                 `📡 Controller received signal for ${signal.symbol} to forward to client.`
             );
             this.logEvent("SIGNAL_FORWARDED", signal);
-            this.socketIO.emit("newSignal", signal);
+            this.socketIO.emit("signalGenerated", signal);
         });
 
         this.tradingService.on("allSignalsGenerated", (signals) => {
