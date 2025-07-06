@@ -55,6 +55,26 @@ export const tradingTheme = createTheme({
     },
 
     components: {
+        // --- GRID FIX: First Principles Fix ---
+        // This is the correct, idiomatic way to override MUI component styles.
+        // It ensures the grid behaves like a flex container, fixing the layout.
+        MuiGrid: {
+            styleOverrides: {
+                container: {
+                    // By default, a Grid container is already display: flex, but user-agent
+                    // stylesheets can interfere. This ensures it's always flex.
+                    display: "flex",
+                    flexWrap: "wrap",
+                },
+                item: {
+                    // This ensures items don't shrink unexpectedly.
+                    flexGrow: 0,
+                    flexShrink: 0,
+                },
+            },
+        },
+        // --- End Grid Fix ---
+
         // Card styling for metrics
         MuiCard: {
             styleOverrides: {

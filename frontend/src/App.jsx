@@ -41,18 +41,10 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-function App() {
+const AppContent = () => {
   const [currentTab, setCurrentTab] = useState(0);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-
-  const handleTabChange = (event, newValue) => {
-    setCurrentTab(newValue);
-  };
-
-  return (
-    <ThemeProvider theme={tradingTheme}>
-      <CssBaseline />
       <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {/* Top Navigation */}
         <AppBar position="sticky" elevation={1} color="default">
@@ -68,7 +60,7 @@ function App() {
         <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
           <Tabs
             value={currentTab}
-            onChange={handleTabChange}
+            onChange={(event, newValue) => setCurrentTab(newValue)}
             variant={isMobile ? 'scrollable' : 'standard'}
             scrollButtons="auto"
             centered={!isMobile}
@@ -130,8 +122,16 @@ function App() {
           </Container>
         </Box>
       </Box>
+};
+
+function App() {
+  return (
+    <ThemeProvider theme={tradingTheme}>
+      <CssBaseline />
+      <AppContent />
     </ThemeProvider>
   );
 }
+
 
 export default App;

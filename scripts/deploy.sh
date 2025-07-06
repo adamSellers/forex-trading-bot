@@ -85,6 +85,10 @@ if [ ! -d "frontend/dist" ]; then
     exit 1
 fi
 
+# 5. Reload Nginx to serve the new frontend
+log_info "Reloading Nginx to serve new frontend build..."
+sudo systemctl reload nginx
+
 # 5. Run database migrations
 log_info "Running database migrations..."
 npm run db:migrate
