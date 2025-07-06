@@ -63,9 +63,6 @@ export const tradingTheme = createTheme({
                     borderColor: "#333",
                     borderRadius: 8,
                     minHeight: "100px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
                     minWidth: 0, // Allow shrinking
                     boxSizing: "border-box",
                 },
