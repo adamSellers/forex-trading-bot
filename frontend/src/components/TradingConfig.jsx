@@ -42,7 +42,6 @@ const TradingConfig = () => {
   const [config, setConfig] = useState({
     // Account Settings
     startingCapital: 5000,
-    useTestnet: true,
     enableTrading: false,
     
     // Risk Management
@@ -78,6 +77,7 @@ const TradingConfig = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isUnsavedWarningDismissed, setIsUnsavedWarningDismissed] = useState(false);
 
   // Load current configuration
   useEffect(() => {
@@ -88,6 +88,10 @@ const TradingConfig = () => {
   useEffect(() => {
     const changed = JSON.stringify(config) !== JSON.stringify(originalConfig);
     setHasChanges(changed);
+    // If changes are detected, reset the dismissed state so the warning reappears.
+    if (changed) {
+      setIsUnsavedWarningDismissed(false);
+    }
   }, [config, originalConfig]);
 
   // FIXED: Use new API helper instead of direct fetch
@@ -103,7 +107,6 @@ const TradingConfig = () => {
       if (data.config) {
         const fetchedConfig = {
           startingCapital: data.config.startingCapital || 5000,
-          useTestnet: data.config.useTestnet || true,
           enableTrading: data.config.enableTrading || false,
           riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
           maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
@@ -259,14 +262,14 @@ const TradingConfig = () => {
       )}
       
       {success && (
-        <Alert severity="success" sx={{ mb: 2 }}>
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(false)}>
           Configuration saved successfully!
         </Alert>
       )}
 
-      {hasChanges && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          You have unsaved changes. Click "Save Config" to apply them.
+      {hasChanges && !isUnsavedWarningDismissed && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setIsUnsavedWarningDismissed(true)}>
+          You have unsaved changes. Click &quot;Save Config&quot; to apply them.
         </Alert>
       )}
 
@@ -280,7 +283,7 @@ const TradingConfig = () => {
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={2}>
-                <Grid item xs={12}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     label="Starting Capital"
@@ -294,17 +297,7 @@ const TradingConfig = () => {
                   />
                 </Grid>
                 
-                <Grid item xs={6}>
-                  <FormControl fullWidth>
-                    <Typography gutterBottom>Use Testnet</Typography>
-                    <Switch
-                      checked={config.useTestnet}
-                      onChange={(e) => updateConfig('useTestnet', e.target.checked)}
-                    />
-                  </FormControl>
-                </Grid>
-                
-                <Grid item xs={6}>
+                <Grid item xs={12} sm={6}>
                   <FormControl fullWidth>
                     <Typography gutterBottom>Enable Trading</Typography>
                     <Switch
@@ -551,7 +544,7 @@ const TradingConfig = () => {
             </Typography>
             
             <Grid container spacing={2}>
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={4}>
                 <Card variant="outlined">
                   <CardContent>
                     <Typography color="textSecondary" gutterBottom>
@@ -565,7 +558,7 @@ const TradingConfig = () => {
                 </Card>
               </Grid>
               
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={4}>
                 <Card variant="outlined">
                   <CardContent>
                     <Typography color="textSecondary" gutterBottom>
@@ -581,7 +574,7 @@ const TradingConfig = () => {
                 </Card>
               </Grid>
               
-              <Grid item xs={12} md={3}>
+              <Grid item xs={12} md={4}>
                 <Card variant="outlined">
                   <CardContent>
                     <Typography color="textSecondary" gutterBottom>
@@ -590,20 +583,6 @@ const TradingConfig = () => {
                     <Chip 
                       label={config.enableTrading ? "ENABLED" : "DISABLED"}
                       color={config.enableTrading ? "error" : "default"}
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} md={3}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Typography color="textSecondary" gutterBottom>
-                      Environment
-                    </Typography>
-                    <Chip 
-                      label={config.useTestnet ? "TESTNET" : "LIVE"}
-                      color={config.useTestnet ? "success" : "error"}
                     />
                   </CardContent>
                 </Card>

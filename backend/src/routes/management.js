@@ -401,9 +401,6 @@ module.exports = (tradingController) => {
                         process.env.BINANCE_API_KEY &&
                         process.env.BINANCE_API_SECRET
                     ),
-                    useTestnet:
-                        tradingController?.tradingService?.binanceData?.config
-                            ?.useTestnet !== false,
                     useFallback:
                         tradingController?.tradingService?.binanceData
                             ?.useFallback || false,
