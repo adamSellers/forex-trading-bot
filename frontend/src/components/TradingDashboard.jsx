@@ -152,7 +152,15 @@ const TradingDashboard = () => {
 
     socket.on('tradeExecuted', (trade) => {
       console.log('💰 Trade executed:', trade.symbol, trade.side);
-      setTrades(prev => [trade, ...prev].slice(0, 50));
+      // FIX: Prevent duplicate trades from being added to the list.
+      // This handles race conditions between the initial API fetch and WebSocket updates.
+      setTrades(prevTrades => {
+        const tradeExists = prevTrades.some(t => t.id === trade.id);
+        if (tradeExists) {
+          return prevTrades; // Do not add the duplicate
+        }
+        return [trade, ...prevTrades].slice(0, 50);
+      });
       setLastUpdate(Date.now());
     });
 

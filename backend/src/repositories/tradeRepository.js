@@ -3,6 +3,34 @@ const db = require("../../config/database");
 const logger = require("../utils/logger");
 
 class TradeRepository {
+    // Private helper to map DB records to consistent trade objects
+    _mapToTradeObject(record) {
+        if (!record) return null;
+        const trade = {
+            id: record.trade_id,
+            symbol: record.symbol,
+            side: record.side,
+            quantity: record.quantity,
+            price: record.price,
+            pnl: record.pnl,
+            pnlPercent: record.pnl_percent,
+            signal: record.signal,
+            signalStrength: record.signal_strength,
+            stopLoss: record.stop_loss,
+            entryCost: record.entry_cost,
+            holdingPeriod: record.holding_period,
+            timestamp: record.timestamp,
+        };
+
+        // Correctly assign cost/received based on trade side
+        if (trade.side === "BUY") {
+            trade.usdtCost = record.total_value;
+        } else {
+            trade.usdtReceived = record.total_value;
+        }
+        return trade;
+    }
+
     async save(trade) {
         try {
             await db("trades").insert({
@@ -32,7 +60,10 @@ class TradeRepository {
 
     async getRecent(limit = 20) {
         try {
-            return await db("trades").orderBy("timestamp", "desc").limit(limit);
+            const records = await db("trades")
+                .orderBy("timestamp", "desc")
+                .limit(limit);
+            return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting recent trades:", error);
             throw error;
@@ -41,10 +72,11 @@ class TradeRepository {
 
     async getBySymbol(symbol, limit = 50) {
         try {
-            return await db("trades")
+            const records = await db("trades")
                 .where("symbol", symbol)
                 .orderBy("timestamp", "desc")
                 .limit(limit);
+            return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting trades by symbol:", error);
             throw error;
@@ -53,9 +85,10 @@ class TradeRepository {
 
     async getTradesSince(cutoffTime) {
         try {
-            return await db("trades")
+            const records = await db("trades")
                 .where("timestamp", ">=", cutoffTime)
                 .orderBy("timestamp", "desc");
+            return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting trades since cutoff:", error);
             throw error;
@@ -65,7 +98,8 @@ class TradeRepository {
     async getAllTrades() {
         try {
             // Returns all trades, ordered by time, for full recalculation
-            return await db("trades").orderBy("timestamp", "asc");
+            const records = await db("trades").orderBy("timestamp", "asc");
+            return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting all trades for recalculation:", error);
             throw error;
