@@ -84,18 +84,23 @@ if [ -d ".git" ]; then
     fi
 fi
 
-# 2. Create backup
+# 2. Stop the service for a clean update
+log_info "Stopping PM2 service '$APP_NAME' for a clean update..."
+pm2 stop "$APP_NAME" --silent || true # Use silent to avoid errors if not running
+sleep 2 # Give it a moment to stop
+
+# 3. Create backup (service is already stopped, so backup script won't manage PM2)
 log_info "Creating backup before deployment..."
 ./scripts/backup.sh
 
-# 3. Update dependencies
+# 4. Update dependencies
 log_info "Updating dependencies using workspace scripts..."
 log_info "Updating backend dependencies..."
 npm run install:backend -- --omit=dev --no-optional
 log_info "Updating frontend dependencies..."
 npm run install:frontend -- --omit=dev --no-optional
 
-# 4. Build frontend
+# 5. Build frontend
 log_info "Building frontend for production..."
 npm run build:frontend
 
@@ -104,30 +109,20 @@ if [ ! -d "frontend/dist" ]; then
     exit 1
 fi
 
-# 5. Reload Nginx to serve the new frontend
+# 6. Reload Nginx to serve the new frontend
 log_info "Reloading Nginx to serve new frontend build..."
 sudo systemctl reload nginx
 
-# 5. Run database migrations
+# 7. Run database migrations
 log_info "Running database migrations..."
 npm run db:migrate
 
-# 6. Update PM2 process
-log_info "Updating PM2 process..."
-
-# Check if app is running
-if pm2 list | grep -q "$APP_NAME.*online"; then
-    log_info "Reloading existing PM2 process..."
-    pm2 reload ecosystem.config.js --env production
-else
-    log_info "Starting new PM2 process..."
-    pm2 start ecosystem.config.js --env production
-fi
-
-# Save PM2 configuration
+# 8. Restart the application using the more robust 'restart' command
+log_info "Restarting PM2 process '$APP_NAME'..."
+pm2 restart ecosystem.config.js --env production
 pm2 save
 
-# 7. Wait for service to become healthy (with retries)
+# 9. Wait for service to become healthy (with retries)
 log_info "Waiting for service to become healthy..."
 max_attempts=12 # 12 attempts * 5 seconds = 60 seconds timeout
 attempt=0
@@ -148,16 +143,16 @@ done
 echo "" # Newline after progress dots
 log_success "Health check passed!"
 
-# 9. Show status
+# 10. Show status
 log_info "Deployment status:"
 pm2 status
 echo ""
 
-# 10. Check memory usage
+# 11. Check memory usage
 MEMORY_USAGE=$(free -m | awk 'NR==2{printf "%.1f%%", $3*100/$2}')
 log_info "Current memory usage: $MEMORY_USAGE"
 
-# 11. Show recent logs
+# 12. Show recent logs
 log_info "Recent application logs:"
 pm2 logs $APP_NAME --lines 5 --nostream
 

@@ -356,7 +356,7 @@ class PaperTradingEngine extends EventEmitter {
 
             this.tradeHistory.push(trade);
             this.emit("tradeExecuted", trade);
-            await this.saveStateToDatabase();
+            await this.saveStateToFile();
 
             logger.info(
                 `🚀 ENHANCED BUY: ${quantity.toFixed(
@@ -428,7 +428,7 @@ class PaperTradingEngine extends EventEmitter {
             this.tradeHistory.push(trade);
             this.updateEnhancedPerformanceMetrics(trade);
             this.emit("tradeExecuted", trade);
-            await this.saveStateToDatabase();
+            await this.saveStateToFile();
 
             logger.info(
                 `💰 ENHANCED SELL: ${quantity.toFixed(
