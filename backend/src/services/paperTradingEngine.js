@@ -1,8 +1,16 @@
 // backend/src/services/paperTradingEngine.js - ENHANCED WITH ALL IMPROVEMENTS (COMPLETE)
 const EventEmitter = require("events");
+const fs = require("fs");
+const path = require("path");
 const db = require("../../config/database");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
+
+// Define a persistent file path for the portfolio state
+const STATE_FILE_PATH = path.join(
+    __dirname,
+    "../../data/paper_portfolio_state.json"
+);
 
 class PaperTradingEngine extends EventEmitter {
     constructor(config = {}) {
@@ -567,8 +575,9 @@ class PaperTradingEngine extends EventEmitter {
 
         // Save state periodically
         const now = Date.now();
-        if (!this.lastStateSave || now - this.lastStateSave > 5 * 60 * 1000) {
-            this.saveStateToDatabase();
+        if (!this.lastStateSave || now - this.lastStateSave > 2 * 60 * 1000) {
+            // Save every 2 mins
+            this.saveStateToFile();
             this.lastStateSave = now;
         }
     }
@@ -1060,25 +1069,28 @@ class PaperTradingEngine extends EventEmitter {
     async initialize() {
         try {
             logger.info("🔄 Initializing ENHANCED Paper Trading Engine...");
-            // Load all historical trades from the database
+            // Load the last known portfolio state from the file
+            await this.loadStateFromFile();
+
+            // Load all historical trades from the database for performance metrics
             await this.loadTradeHistory();
             // Recalculate all performance metrics from the loaded history
             this.recalculateEnhancedPerformanceMetrics();
 
             logger.success(
-                `✅ ENHANCED Engine loaded with ${
-                    this.tradeHistory.length
-                } historical trades. Portfolio value: ${this.portfolio.totalValue.toFixed(
+                `✅ ENHANCED Engine loaded. Portfolio value: ${this.portfolio.totalValue.toFixed(
                     2
-                )} portfolio value`
+                )} USDT with ${this.portfolio.positions.size} open positions.`
             );
 
             // FIX for double-init bug: Set a value for lastStateSave after initializing
             // so the start() method doesn't re-initialize.
             this.lastStateSave = Date.now();
         } catch (error) {
-            logger.error("❌ Failed to load enhanced state:", error);
-            logger.info("🆕 Starting with fresh enhanced state");
+            logger.error("❌ Failed to load state:", error);
+            logger.info("🆕 Starting with fresh state");
+            // If loading fails for any reason, reset to a known good state
+            await this.reset();
         }
     }
 
@@ -1163,22 +1175,18 @@ class PaperTradingEngine extends EventEmitter {
     }
 
     async start() {
-        if (!this.lastStateSave) {
-            await this.initialize();
-        }
         this.isActive = true;
         this.config.enableTrading = true;
         logger.info(
             "🚀 ENHANCED Paper Trading Engine started with all improvements!"
         );
         this.emit("engineStarted");
-        await this.saveStateToDatabase();
     }
 
     async stop() {
         this.isActive = false;
         this.config.enableTrading = false;
-        await this.saveStateToDatabase();
+        await this.saveStateToFile();
         logger.info("📴 ENHANCED Paper Trading Engine stopped");
         this.emit("engineStopped");
     }
@@ -1266,36 +1274,26 @@ class PaperTradingEngine extends EventEmitter {
         this.riskLimits.isHalted = false;
         this.riskLimits.haltReason = null;
 
-        await this.saveStateToDatabase();
+        // NEW: Delete the state file on reset to ensure a clean start
+        if (fs.existsSync(STATE_FILE_PATH)) {
+            fs.unlinkSync(STATE_FILE_PATH);
+            logger.info("🗑️ Deleted portfolio state file.");
+        }
+
+        await this.saveStateToFile();
         logger.info("🔄 ENHANCED Paper Trading Engine reset to initial state");
         this.emit("engineReset");
     }
 
-    /**
-     * NEW: Update configuration dynamically. This is called by the TradingService
-     * when the user saves new settings from the UI.
-     */
-    updateConfig(newConfig) {
-        this.config = { ...this.config, ...newConfig };
-        logger.info(
-            `⚙️ Paper Trading Engine config updated. Min Signal Strength: ${this.config.minSignalStrength}`
-        );
-        this.emit("configUpdated", this.config);
-    }
+    // --- State Persistence Methods ---
 
-    // Database methods (implement based on your existing database setup)
-    async saveStateToDatabase() {
+    async saveStateToFile() {
         try {
-            // Convert Map to Object for JSON storage
-            const positionsObj = {};
-            this.portfolio.positions.forEach((position, symbol) => {
-                positionsObj[symbol] = position;
-            });
-
             const state = {
                 portfolio: {
                     ...this.portfolio,
-                    positions: positionsObj,
+                    // Convert Map to array for JSON serialization
+                    positions: Array.from(this.portfolio.positions.entries()),
                 },
                 performanceMetrics: this.performanceMetrics,
                 riskLimits: this.riskLimits,
@@ -1303,32 +1301,48 @@ class PaperTradingEngine extends EventEmitter {
                 lastUpdate: Date.now(),
             };
 
-            // Use your existing database save method
-            // await db('paper_trading_state').insert(state).onConflict('id').merge();
-
-            logger.debug("💾 Enhanced engine state saved to database");
+            fs.writeFileSync(STATE_FILE_PATH, JSON.stringify(state, null, 2));
+            logger.debug(
+                `💾 Portfolio state saved to ${path.basename(STATE_FILE_PATH)}`
+            );
+            this.lastStateSave = Date.now();
         } catch (error) {
-            logger.error("Failed to save enhanced state:", error);
+            logger.error("❌ Failed to save portfolio state to file:", error);
         }
     }
 
-    async loadStateFromDatabase() {
-        try {
-            // Use your existing database load method
-            // const state = await db('paper_trading_state').first();
+    async loadStateFromFile() {
+        if (fs.existsSync(STATE_FILE_PATH)) {
+            try {
+                const stateJSON = fs.readFileSync(STATE_FILE_PATH, "utf8");
+                const state = JSON.parse(stateJSON);
 
-            // if (state) {
-            //     this.portfolio = {
-            //         ...state.portfolio,
-            //         positions: new Map(Object.entries(state.portfolio.positions || {}))
-            //     };
-            //     this.performanceMetrics = state.performanceMetrics || this.performanceMetrics;
-            //     this.riskLimits = state.riskLimits || this.riskLimits;
-            // }
+                this.portfolio = {
+                    ...state.portfolio,
+                    // Convert array back to Map on load
+                    positions: new Map(state.portfolio.positions || []),
+                };
+                this.performanceMetrics =
+                    state.performanceMetrics || this.performanceMetrics;
+                this.riskLimits = state.riskLimits || this.riskLimits;
 
-            logger.debug("📖 Enhanced engine state loaded from database");
-        } catch (error) {
-            logger.error("Failed to load enhanced state:", error);
+                logger.info(
+                    `📖 Portfolio state loaded from ${path.basename(
+                        STATE_FILE_PATH
+                    )}`
+                );
+            } catch (error) {
+                logger.error(
+                    `❌ Error loading state file, starting fresh:`,
+                    error
+                );
+                // If file is corrupt, start fresh by calling reset
+                await this.reset();
+            }
+        } else {
+            logger.info(
+                "📄 No state file found, starting with a fresh portfolio."
+            );
         }
     }
 

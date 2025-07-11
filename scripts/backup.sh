@@ -1,20 +1,29 @@
 #!/bin/bash
 
 # --- Configuration ---
-PROJECT_DIR="/opt/crypto-trading-bot"
-BACKUP_DIR="${PROJECT_DIR}/backend/backups"
-DB_PATH="${PROJECT_DIR}/backend/data/trading.db"
+# CONSISTENT & EXTERNAL BACKUP PATH
+BACKUP_DIR="/opt/crypto-trading-bot-backups"
+PROJECT_DIR="/opt/crypto-trading-bot" # Keep for source path
+APP_NAME="crypto-trend-bot"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="backup_${TIMESTAMP}.tar.gz"
+BACKUP_FILE="daily_backup_${TIMESTAMP}.tar.gz" # Differentiate daily from deploy backups
 
 echo "📦 Creating backup..."
 
 mkdir -p $BACKUP_DIR
 
+# --- Graceful Stop/Start for Standalone Execution (Cron Job) ---
+was_running=false
+if pm2 list | grep -q "$APP_NAME.*online"; then
+    was_running=true
+fi
+
 # Stop the service to ensure a consistent state for backup
-echo "   └─ Stopping PM2 service for consistent backup..."
-pm2 stop crypto-trend-bot --silent || true
-sleep 2 # Give it a moment to stop
+if [ "$was_running" = true ]; then
+    echo "   └─ Stopping PM2 service '$APP_NAME' for consistent backup..."
+    pm2 stop "$APP_NAME" --silent
+    sleep 2 # Give it a moment to stop
+fi
 
 echo "   └─ Creating full project archive..."
 
@@ -35,6 +44,12 @@ echo "✅ Backup created: $BACKUP_DIR/$BACKUP_FILE"
 
 # Clean old backups (keep last 7)
 echo "   └─ Cleaning old backups (keeping last 7)..."
-ls -tp "$BACKUP_DIR" | grep -v '/$' | tail -n +8 | xargs -I {} rm -- "$BACKUP_DIR/{}"
+ls -tp "$BACKUP_DIR" | grep -v '/$' | tail -n +8 | xargs -I {} rm -f -- "$BACKUP_DIR/{}"
+
+# --- Restart the service if it was running before ---
+if [ "$was_running" = true ]; then
+    echo "   └─ Restarting PM2 service '$APP_NAME'..."
+    pm2 start "$APP_NAME" --env production
+fi
 
 echo "$(date): Backup completed" >> "$BACKUP_DIR/backup.log"

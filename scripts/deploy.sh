@@ -46,6 +46,17 @@ log_info "Resetting local branch to match remote (discards local changes)..."
 git reset --hard origin/main
 log_success "Code is up to date."
 
+# --- CRITICAL FIX: Restore persistent data from the backup ---
+log_info "Restoring persistent data (database and portfolio state)..."
+latest_backup=$(ls -t "$BACKUP_DIR"/*.tar.gz 2>/dev/null | head -1)
+if [ -n "$latest_backup" ]; then
+    # Restore only the data directory into the project directory, overwriting what's there.
+    # The -C /opt ensures extraction happens relative to the root of the backup.
+    # The tar command will overwrite the empty 'data' directory from git with the one from the backup.
+    tar -xvf "$latest_backup" -C /opt crypto-trading-bot/backend/data
+    log_success "Persistent data restored from backup."
+fi
+
 # 0.5 Set executable permissions on all scripts
 log_info "Ensuring all scripts are executable..."
 chmod +x scripts/*.sh
