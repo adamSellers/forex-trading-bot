@@ -112,17 +112,20 @@ const LivePrices = ({ prices = {} }) => {
   }, [prices]);
 
   return (
-    <Grid container spacing={2} sx={{ maxWidth: '100%' }}>
+    <Box
+      display="grid"
+      gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)' }}
+      gap={2}
+    >
       {assets.map((asset) => (
-        <Grid item xs={6} sm={6} md={6} lg={6} key={asset}>
-          <PriceCard
-            asset={asset}
-            priceData={latestPrices.get(asset)}
-            history={history.get(asset)}
-          />
-        </Grid>
+        <PriceCard
+          key={asset}
+          asset={asset}
+          priceData={latestPrices.get(asset)}
+          history={history.get(asset)}
+        />
       ))}
-    </Grid>
+    </Box>
   );
 };
 
