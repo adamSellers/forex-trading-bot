@@ -208,14 +208,20 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
           </Box>
           
           {/* Position Details */}
-          <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(255, 193, 7, 0.1)', borderRadius: 1, display: 'flex', gap: 2 }}>
-            <Box sx={{ flex: 1 }}>
+          <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(255, 193, 7, 0.1)', borderRadius: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{ flex: '1 1 20%' }}>
                 <Typography variant="caption" color="textSecondary">Stop Loss:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   ${position.stopLoss?.toFixed(2) || 'N/A'}
                 </Typography>
             </Box>
-            <Box sx={{ flex: 1 }}>
+            <Box sx={{ flex: '1 1 20%' }}>
+                <Typography variant="caption" color="textSecondary">Trailing Stop:</Typography>
+                <Typography variant="caption" sx={{ ml: 0.5, color: 'info.main', fontWeight: 'bold' }}>
+                  ${position.trailingStop?.toFixed(2) || 'N/A'}
+                </Typography>
+            </Box>
+            <Box sx={{ flex: '1 1 20%' }}>
                 <Typography variant="caption" color="textSecondary">Duration:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   {position.entryTime ? 
@@ -224,13 +230,13 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
                   }
                 </Typography>
             </Box>
-            <Box sx={{ flex: 1 }}>
+            <Box sx={{ flex: '1 1 20%' }}>
                 <Typography variant="caption" color="textSecondary">Entry Cost:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   {formatCurrency(position.entryCost || 0)}
                 </Typography>
             </Box>
-            <Box sx={{ flex: 1, textAlign: 'right' }}>
+            <Box sx={{ flex: '1 1 10%', textAlign: 'right' }}>
                 <Typography variant="caption" color="textSecondary">Allocation:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>
                   {((position.currentValue || 0) / getPaperPortfolioValue() * 100).toFixed(1)}%
