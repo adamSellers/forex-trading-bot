@@ -674,26 +674,24 @@ const TradingDashboard = () => {
           />
         </Box>
 
-        <Grid item xs={12} lg={6}>
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 6' } }}>
           <CurrentHoldings
             account={account}
             prices={prices}
             portfolio={portfolio}
           />
-        </Grid>
-
-        {/* Row 2: Live Prices & Chart - 2 columns - Spanning the full width */}
-        <Box sx={{ gridColumn: 'span 12' }}>
-          <Box>
-            <Typography variant="h6" gutterBottom>
-              Live Market Prices
-            </Typography>
-            <LivePrices prices={prices} />
-          </Box>
         </Box>
 
-        <Box sx={{ gridColumn: 'span 12' }}>
-           <LivePriceChart prices={prices} />
+        {/* Row 2: Live Prices & Chart - 2 columns */}
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 4' } }}>
+          <Typography variant="h6" gutterBottom>
+            Live Market Prices
+          </Typography>
+          <LivePrices prices={prices} />
+        </Box>
+
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 8' } }}>
+          <LivePriceChart prices={prices} />
         </Box>
 
         {/* Row 3: Trading Signals & Recent Trades - 2 columns with matching heights */}
@@ -706,11 +704,11 @@ const TradingDashboard = () => {
           </Box>
         </Box>
 
-        <Grid item xs={12} lg={6}>
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 6' } }}>
           <Box sx={{ height: '600px', display: 'flex' }}>
             <RecentTrades trades={trades} />
           </Box>
-        </Grid>
+        </Box>
       </Box>
 
       {/* Development Debug Panel */}
