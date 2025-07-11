@@ -13,7 +13,7 @@ PROJECT_DIR="/opt/crypto-trading-bot"
 PROJECT_USER="adam" # This should match the user running the app
 # This script is for disaster recovery, so it should ONLY look in the safe, external directory.
 # This prevents accidentally restoring from an old, internal backup.
-BACKUP_DIR="/opt/crypto-trading-bot-backups"
+BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
 
 
 # --- Colors for output ---

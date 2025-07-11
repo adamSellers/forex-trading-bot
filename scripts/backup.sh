@@ -2,8 +2,8 @@
 
 # --- Configuration ---
 # CONSISTENT & EXTERNAL BACKUP PATH
-BACKUP_DIR="/opt/crypto-trading-bot-backups"
-PROJECT_DIR="/opt/crypto-trading-bot" # Keep for source path
+BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
+PROJECT_DIR="/opt/crypto-trading-bot"         # Keep for source path
 APP_NAME="crypto-trend-bot"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="daily_backup_${TIMESTAMP}.tar.gz" # Differentiate daily from deploy backups

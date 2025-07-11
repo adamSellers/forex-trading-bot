@@ -10,7 +10,7 @@ set -e  # Exit on any error
 APP_NAME="crypto-trend-bot"
 PROJECT_DIR="/opt/crypto-trading-bot"
 PROJECT_USER="adam"
-BACKUP_DIR="/opt/crypto-trading-bot-backups"
+BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
 REPO_URL="git@github.com:adamSellers/crypto-trading-bot.git"
 BRANCH="main"
 

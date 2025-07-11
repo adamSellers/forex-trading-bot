@@ -9,7 +9,7 @@ set -e
 
 # --- Configuration ---
 PROJECT_DIR="/opt/crypto-trading-bot"
-BACKUP_DIR="${PROJECT_DIR}/backend/backups"
+BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
 APP_NAME="crypto-trend-bot"
 
 # Colors for output
