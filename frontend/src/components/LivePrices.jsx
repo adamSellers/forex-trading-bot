@@ -27,7 +27,7 @@ const PriceCard = ({ asset, priceData, history }) => {
   const color = isPositive ? 'success.main' : 'error.main';
 
   return (
-    <Card variant="outlined" sx={{ height: '100%', borderLeft: `4px solid ${assetColors[asset] || '#fff'}` }}>
+    <Card variant="outlined" sx={{ height: '100%', width: '100%', minWidth: 0, borderLeft: `4px solid ${assetColors[asset] || '#fff'}` }}>
       <CardContent sx={{ p: 2, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
         <Box display="flex" alignItems="center" justifyContent="space-between">
           <Typography variant="subtitle1" fontWeight="bold">
@@ -47,7 +47,7 @@ const PriceCard = ({ asset, priceData, history }) => {
         </Box>
 
         {history && history.length > 1 && (
-          <Box sx={{ height: 40, mx: -2 }}>
+          <Box sx={{ height: 40, mx: 0 }}>
             <SparkLineChart
               data={history}
               height={40}
