@@ -280,7 +280,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         </Typography>
         
         <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
+          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Virtual Portfolio"
               value={formatCurrency(portfolio?.totalValue || 5000)}
@@ -289,7 +289,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               icon={<Psychology fontSize="small" color="warning" />}
             />
           </Grid>
-          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
+          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Virtual P&L"
               value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`}
@@ -297,7 +297,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
             />
           </Grid>
-          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
+          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Unrealized P&L"
               value={`${totalUnrealizedPnL >= 0 ? '+' : ''}${formatUSDT(totalUnrealizedPnL || 0)}`}
@@ -305,7 +305,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color={totalUnrealizedPnL >= 0 ? 'success.main' : 'error.main'}
             />
           </Grid>
-          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
+          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Virtual Positions"
               value={portfolio?.positionCount || 0}
@@ -313,7 +313,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="warning.main"
             />
           </Grid>
-          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
+          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Paper Win Rate"
               value={formatPercent(portfolio?.performance?.winRate || 0)}
