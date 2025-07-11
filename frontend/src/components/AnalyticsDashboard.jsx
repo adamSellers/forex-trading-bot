@@ -27,10 +27,8 @@ import {
   TrendingDown,
   ShowChart,
   Insights,
-  QueryStats,
-  CalendarToday
+  QueryStats
 } from '@mui/icons-material'; 
-import { PieChart } from 'recharts'; // Using recharts for more flexible pie charts
 import { tradingAPI } from '../config/api';
 
 const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) => (
@@ -123,7 +121,7 @@ const AnalyticsDashboard = () => {
   const exitReasonData = Object.entries(exitReasonStats)
     .filter(([_, data]) => data.count > 0)
     .map(([reason, data]) => ({
-      name: reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      label: reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
       value: data.count,
       pnl: data.avgPnL
     }));
@@ -246,6 +244,7 @@ const AnalyticsDashboard = () => {
                     { dataKey: 'trades', label: 'Trades', yAxisKey: 'tradesAxis', color: theme.palette.success.main },
                     { dataKey: 'signals', label: 'Signals', yAxisKey: 'signalsAxis', color: theme.palette.info.main }
                   ]}
+                  leftAxis="signalsAxis"
                   rightAxis="tradesAxis"
                   grid={{ horizontal: true }}
                 />
@@ -275,6 +274,7 @@ const AnalyticsDashboard = () => {
                     { dataKey: 'trades', label: 'Trades', yAxisKey: 'tradesAxis', color: theme.palette.success.main },
                     { dataKey: 'signals', label: 'Signals', yAxisKey: 'signalsAxis', color: theme.palette.info.main }
                   ]}
+                  leftAxis="signalsAxis"
                   rightAxis="tradesAxis"
                   grid={{ horizontal: true }}
                 />
@@ -364,7 +364,7 @@ const AnalyticsDashboard = () => {
             {exitReasonData.length > 0 ? (
               <Box sx={{ height: 300 }}>
                  <MuiPieChart
-                    series={[{ data: exitReasonData, arcLabel: (item) => `${item.name} (${item.value})` }]}
+                    series={[{ data: exitReasonData, arcLabel: (item) => `${item.label} (${item.value})` }]}
                     sx={{ [`& .${pieArcLabelClasses.root}`]: { fill: 'white', fontSize: 12 } }}
                  />
               </Box>
