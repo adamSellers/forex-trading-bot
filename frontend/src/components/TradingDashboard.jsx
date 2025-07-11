@@ -663,14 +663,6 @@ const TradingDashboard = () => {
       <Grid
         container
         spacing={3}
-        sx={{
-          width: '100%',
-          m: 0,
-          '& .MuiGrid-item': {
-            paddingLeft: '24px',
-            paddingTop: '24px'
-          }
-        }}
       >
         {/* Row 1: Portfolio Overview & Holdings - 2 columns */}
         <Grid item xs={12} lg={6}>
