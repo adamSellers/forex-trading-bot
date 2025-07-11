@@ -165,7 +165,6 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
   // Enhanced system status determination
   const getSystemStatus = () => {
     const hasAccountData = account && !account.error;
-    const hasPaperData = portfolio && portfolio.totalValue > 0;
     const paperTradingActive = portfolio?.riskStatus && !portfolio.riskStatus.isHalted;
     
     return {

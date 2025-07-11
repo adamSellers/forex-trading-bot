@@ -180,11 +180,12 @@ pm2 start ecosystem.config.js --env production
 
 ### **When Suggesting Code Changes**
 
-1. **Search Project Knowledge First**: Understand existing patterns
-2. **Maintain Code Style**: Follow established conventions
-3. **Preserve Working Features**: Don't break unrelated functionality
-4. **Add Comprehensive Logging**: Include debug statements for future troubleshooting
-5. **Document Breaking Changes**: Explain impact on existing workflows
+1.  **Strict Adherence to Instructions**: Do not make any changes that aren't explicitly requested. Any changes outside of specified instructions ARE NOT ALLOWED. You can suggest improvements, but you must NOT change any code without a direct request.
+2.  **Search Project Knowledge First**: Understand existing patterns
+3.  **Maintain Code Style**: Follow established conventions
+4.  **Preserve Working Features**: Don't break unrelated functionality
+5.  **Add Comprehensive Logging**: Include debug statements for future troubleshooting
+6.  **Document Breaking Changes**: Explain impact on existing workflows
 
 ### **When Deploying Changes**
 

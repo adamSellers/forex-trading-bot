@@ -1059,10 +1059,40 @@ class PaperTradingEngine extends EventEmitter {
      * NEW: Update configuration dynamically
      */
     updateConfig(newConfig) {
+        const oldCapital = this.config.startingCapital;
+        const oldDailyLimit = this.riskLimits.dailyLossLimit;
+        const oldWeeklyLimit = this.riskLimits.weeklyLossLimit;
+
         this.config = { ...this.config, ...newConfig };
+
+        // Recalculate risk limits based on the new startingCapital.
+        // This allows for manual compounding by adjusting the capital base.
+        this.riskLimits.dailyLossLimit =
+            this.config.startingCapital * this.config.maxDailyLoss;
+        this.riskLimits.weeklyLossLimit =
+            this.config.startingCapital * this.config.maxWeeklyLoss;
+
         logger.info(
             `⚙️ Paper Trading Engine config updated. Trading enabled: ${this.config.enableTrading}`
         );
+
+        // Log if the capital base was changed, triggering the risk recalculation
+        if (oldCapital !== this.config.startingCapital) {
+            logger.info(
+                `💰 Capital base updated from $${oldCapital} to $${this.config.startingCapital}. Risk limits recalculated.`
+            );
+            logger.debug(
+                `   - Daily Loss Limit: $${oldDailyLimit.toFixed(
+                    2
+                )} -> $${this.riskLimits.dailyLossLimit.toFixed(2)}`
+            );
+            logger.debug(
+                `   - Weekly Loss Limit: $${oldWeeklyLimit.toFixed(
+                    2
+                )} -> $${this.riskLimits.weeklyLossLimit.toFixed(2)}`
+            );
+        }
+
         this.emit("configUpdated", this.config);
     }
 
