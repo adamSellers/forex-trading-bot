@@ -155,6 +155,11 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
     };
   };
 
+  const totalUnrealizedPnL = portfolio?.positions?.reduce(
+    (sum, pos) => sum + (pos.unrealizedPnL || 0),
+    0
+  );
+
   const allocation = getAssetAllocation();
 
   // Enhanced system status determination
@@ -276,7 +281,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         </Typography>
         
         <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
+          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
             <MetricCard
               title="Virtual Portfolio"
               value={formatCurrency(portfolio?.totalValue || 5000)}
@@ -285,7 +290,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               icon={<Psychology fontSize="small" color="warning" />}
             />
           </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
+          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
             <MetricCard
               title="Virtual P&L"
               value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`}
@@ -293,7 +298,15 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
             />
           </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
+          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
+            <MetricCard
+              title="Unrealized P&L"
+              value={`${totalUnrealizedPnL >= 0 ? '+' : ''}${formatUSDT(totalUnrealizedPnL || 0)}`}
+              subtitle="From open positions"
+              color={totalUnrealizedPnL >= 0 ? 'success.main' : 'error.main'}
+            />
+          </Grid>
+          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
             <MetricCard
               title="Virtual Positions"
               value={portfolio?.positionCount || 0}
@@ -301,7 +314,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="warning.main"
             />
           </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
+          <Grid item xs={6} sm={4} md={2.4} lg={2.4}>
             <MetricCard
               title="Paper Win Rate"
               value={formatPercent(portfolio?.performance?.winRate || 0)}
