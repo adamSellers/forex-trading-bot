@@ -232,17 +232,21 @@ const AnalyticsDashboard = () => {
             {timeAnalysis.hourlyDistribution.some(h => h.trades > 0 || h.signals > 0) ? (
               <Box sx={{ height: 300 }}>
                 <BarChart
-                  dataset={timeAnalysis.hourlyDistribution || []}
-                  xAxis={[{ 
-                    scaleType: 'band', 
-                    dataKey: 'label', 
-                    tickLabelStyle: { angle: -45, textAnchor: 'end', fontSize: 10 } 
+                  dataset={timeAnalysis.hourlyDistribution}
+                  xAxis={[{
+                    scaleType: 'band',
+                    dataKey: 'label',
+                    tickLabelStyle: { angle: -45, textAnchor: 'end', fontSize: 10 }
                   }]}
-                  series={[
-                    { dataKey: 'trades', label: 'Trades', color: theme.palette.success.main },
-                    { dataKey: 'signals', label: 'Signals', color: theme.palette.info.main }
+                  yAxis={[
+                    { id: 'signalsAxis', scaleType: 'linear' },
+                    { id: 'tradesAxis', scaleType: 'linear' },
                   ]}
-                  // layout="vertical" // Switched to horizontal layout to fix crash
+                  series={[
+                    { dataKey: 'trades', label: 'Trades', yAxisKey: 'tradesAxis', color: theme.palette.success.main },
+                    { dataKey: 'signals', label: 'Signals', yAxisKey: 'signalsAxis', color: theme.palette.info.main }
+                  ]}
+                  rightAxis="tradesAxis"
                   grid={{ horizontal: true }}
                 />
               </Box>
@@ -261,12 +265,17 @@ const AnalyticsDashboard = () => {
             {timeAnalysis.dailyDistribution.some(d => d.trades > 0 || d.signals > 0) ? (
               <Box sx={{ height: 250 }}>
                 <BarChart
-                  dataset={timeAnalysis.dailyDistribution || []}
+                  dataset={timeAnalysis.dailyDistribution}
                   xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
-                  series={[
-                    { dataKey: 'trades', label: 'Trades', color: theme.palette.success.main },
-                    { dataKey: 'signals', label: 'Signals', color: theme.palette.info.main }
+                  yAxis={[
+                    { id: 'signalsAxis', scaleType: 'linear' },
+                    { id: 'tradesAxis', scaleType: 'linear' },
                   ]}
+                  series={[
+                    { dataKey: 'trades', label: 'Trades', yAxisKey: 'tradesAxis', color: theme.palette.success.main },
+                    { dataKey: 'signals', label: 'Signals', yAxisKey: 'signalsAxis', color: theme.palette.info.main }
+                  ]}
+                  rightAxis="tradesAxis"
                   grid={{ horizontal: true }}
                 />
               </Box>
