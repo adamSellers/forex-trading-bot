@@ -145,8 +145,13 @@ const AnalyticsDashboard = () => {
       </Box>
 
       {/* KPI Overview */}
-      <Grid container spacing={3} mb={2}>
-        <Grid xs={12} md={3}>
+      <Box
+        display="grid"
+        gridTemplateColumns="repeat(12, 1fr)"
+        gap={3}
+        mb={2}
+      >
+        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
           <MetricCard
             title="Total P&L"
             value={`${overview.totalPnL >= 0 ? '+' : ''}${overview.totalPnL.toFixed(2)} USDT`}
@@ -154,8 +159,8 @@ const AnalyticsDashboard = () => {
             color={overview.totalPnL >= 0 ? 'success.main' : 'error.main'}
             icon={<ShowChart color={overview.totalPnL >= 0 ? 'success' : 'error'} />}
           />
-        </Grid>
-        <Grid xs={12} md={3}>
+        </Box>
+        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
           <MetricCard
             title="Win Rate"
             value={`${winRate.toFixed(1)}%`}
@@ -163,28 +168,32 @@ const AnalyticsDashboard = () => {
             color={winRate >= 50 ? 'success.main' : 'warning.main'}
             icon={<Insights color={winRate >= 50 ? 'success' : 'warning'} />}
           />
-        </Grid>
-        <Grid xs={12} md={3}>
+        </Box>
+        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
           <MetricCard
             title="Total Trades"
             value={overview.totalTrades}
             subtitle="Completed sell orders"
             icon={<QueryStats color="primary" />}
           />
-        </Grid>
-        <Grid xs={12} md={3}>
+        </Box>
+        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
           <MetricCard
             title="Signal Conversion"
             value={`${(overview.signalToTradeRatio * 100).toFixed(1)}%`}
             subtitle={`${overview.totalSignals} signals generated`}
             icon={<TrendingUp color="secondary" />}
           />
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
 
-      <Grid container spacing={3}>
+      <Box
+        display="grid"
+        gridTemplateColumns="repeat(12, 1fr)"
+        gap={3}
+      >
         {/* Asset Performance */}
-        <Grid xs={12} lg={7}>
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 7' } }}>
           <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Asset Performance</Typography>
             <Grid container spacing={2}>
@@ -214,10 +223,10 @@ const AnalyticsDashboard = () => {
               ))}
             </Grid>
           </Paper>
-        </Grid>
+        </Box>
 
         {/* Trading Activity by Hour */}
-        <Grid xs={12} lg={5}>
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 5' } }}>
           <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Hour (UTC)</Typography>
             {timeAnalysis.hourlyDistribution.some(h => h.trades > 0 || h.signals > 0) ? (
@@ -243,10 +252,10 @@ const AnalyticsDashboard = () => {
               </Box>
             )}
           </Paper>
-        </Grid>
+        </Box>
 
         {/* Trading Activity by Day */}
-        <Grid xs={12} lg={7}>
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 7' } }}>
           <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Trading Activity by Day of Week</Typography>
             {timeAnalysis.dailyDistribution.some(d => d.trades > 0 || d.signals > 0) ? (
@@ -267,10 +276,10 @@ const AnalyticsDashboard = () => {
               </Box>
             )}
           </Paper>
-        </Grid>
+        </Box>
 
         {/* P&L Over Time */}
-        <Grid xs={12} lg={5}>
+        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 5' } }}>
           <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Cumulative P&L Over Time</Typography>
             {pnlChartData.length > 1 ? (
@@ -304,10 +313,43 @@ const AnalyticsDashboard = () => {
               </Box>
             )}
           </Paper>
-        </Grid>
+        </Box>
+
+        {/* Strategy Performance */}
+        <Box sx={{ gridColumn: 'span 12' }}>
+          <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
+            <Typography variant="h6" gutterBottom>Strategy Performance</Typography>
+            <Grid container spacing={2}>
+              {Object.entries(strategyAnalysis).map(([strategy, data]) => (
+                <Grid item xs={12} md={4} key={strategy}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle1" fontWeight="bold">
+                        {strategy.charAt(0).toUpperCase() + strategy.slice(1)}
+                      </Typography>
+                      <Divider sx={{ my: 1 }} />
+                      <Box display="flex" justifyContent="space-between">
+                        <Typography variant="body2">Total Signals:</Typography>
+                        <Typography variant="body2">{data.totalSignals}</Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between">
+                        <Typography variant="body2">Buy/Sell Ratio:</Typography>
+                        <Typography variant="body2">{data.buySignals} / {data.sellSignals}</Typography>
+                      </Box>
+                      <Box display="flex" justifyContent="space-between">
+                        <Typography variant="body2">Avg. Strength:</Typography>
+                        <Typography variant="body2">{data.avgStrength.toFixed(2)}</Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+        </Box>
 
         {/* Exit Reason Analysis */}
-        <Grid xs={12}>
+        <Box sx={{ gridColumn: 'span 12' }}>
           <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
             <Typography variant="h6" gutterBottom>Exit Reason Analysis</Typography>
             {exitReasonData.length > 0 ? (
@@ -323,8 +365,8 @@ const AnalyticsDashboard = () => {
               </Box>
             )}
           </Paper>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Box>
   );
 };

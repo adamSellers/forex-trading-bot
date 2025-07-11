@@ -376,32 +376,32 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
           </Box>
         </Alert>
 
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid xs={4}>
+        <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} sx={{ mb: 2 }}>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
               <Typography variant="caption" color="textSecondary">Total Virtual Portfolio</Typography>
               <Typography variant="h6" color="warning.main">
                 {formatCurrency(getPaperPortfolioValue())}
               </Typography>
             </Card>
-          </Grid>
-          <Grid xs={4}>
+          </Box>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
               <Typography variant="caption" color="textSecondary">Virtual P&L</Typography>
               <Typography variant="h6" color={(portfolio?.totalPnL || 0) >= 0 ? 'success.main' : 'error.main'}>
                 {(portfolio?.totalPnL || 0) >= 0 ? '+' : ''}{formatCurrency(portfolio?.totalPnL || 0)}
               </Typography>
             </Card>
-          </Grid>
-          <Grid xs={4}>
+          </Box>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
               <Typography variant="caption" color="textSecondary">Virtual Positions</Typography>
               <Typography variant="h6" color="warning.main">
                 {getPaperPositions().length}
               </Typography>
             </Card>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
           {/* USDT Balance */}
@@ -444,32 +444,32 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
           </Box>
         </Alert>
 
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid xs={4}>
+        <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} sx={{ mb: 2 }}>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
               <Typography variant="caption" color="textSecondary">Total Real Portfolio</Typography>
               <Typography variant="h6" color="success.main">
                 {formatCurrency(getRealPortfolioValue())}
               </Typography>
             </Card>
-          </Grid>
-          <Grid xs={4}>
+          </Box>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
               <Typography variant="caption" color="textSecondary">Account Type</Typography>
               <Typography variant="h6" color="success.main">
                 {account?.accountType || 'SPOT'}
               </Typography>
             </Card>
-          </Grid>
-          <Grid xs={4}>
+          </Box>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
               <Typography variant="caption" color="textSecondary">Assets Held</Typography>
               <Typography variant="h6" color="success.main">
                 {account?.balances?.filter(b => b.total > 0).length || 0}
               </Typography>
             </Card>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
           {account?.balances?.filter(balance => 
@@ -504,32 +504,32 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
           </Box>
         </Alert>
 
-        <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid xs={4}>
+        <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} sx={{ mb: 2 }}>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
               <Typography variant="caption" color="textSecondary">Paper Trading</Typography>
               <Typography variant="h6" color="warning.main">
                 {formatCurrency(getPaperPortfolioValue())}
               </Typography>
             </Card>
-          </Grid>
-          <Grid xs={4}>
+          </Box>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
               <Typography variant="caption" color="textSecondary">Real Holdings</Typography>
               <Typography variant="h6" color="success.main">
                 {formatCurrency(getRealPortfolioValue())}
               </Typography>
             </Card>
-          </Grid>
-          <Grid xs={4}>
+          </Box>
+          <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
               <Typography variant="caption" color="textSecondary">Combined Total</Typography>
               <Typography variant="h6" color="primary.main">
                 {formatCurrency(getPaperPortfolioValue() + getRealPortfolioValue())}
               </Typography>
             </Card>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         {/* Combined asset view would go here - keeping existing logic */}
         <Typography variant="body2" color="textSecondary" textAlign="center" py={2}>
