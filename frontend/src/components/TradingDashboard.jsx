@@ -660,10 +660,10 @@ const TradingDashboard = () => {
       </Box>
 
       {/* Dashboard Grid */}
-      <Grid 
-        container 
-        spacing={3} 
-        sx={{ 
+      <Grid
+        container
+        spacing={3}
+        sx={{
           width: '100%',
           m: 0,
           '& .MuiGrid-item': {
@@ -672,44 +672,51 @@ const TradingDashboard = () => {
           }
         }}
       >
-        {/* Row 1: Portfolio Overview - Full Width */}
-        <Grid item xs={12}>
-          <PortfolioOverview 
-            account={account} 
-            prices={prices} 
-            portfolio={portfolio} 
-          />
-        </Grid>
-
-        {/* Row 2: Holdings & Signals/Trades */}
+        {/* Row 1: Portfolio Overview & Holdings - 2 columns */}
         <Grid item xs={12} lg={6}>
-          <CurrentHoldings 
-            account={account} 
-            prices={prices} 
+          <PortfolioOverview
+            account={account}
+            prices={prices}
             portfolio={portfolio}
           />
         </Grid>
 
         <Grid item xs={12} lg={6}>
-          <Stack spacing={3} sx={{ height: '100%' }}>
-              <TradingSignals 
-                signals={signalsToRender} 
-                systemStatus={systemStatus}
-              />
-              <RecentTrades trades={trades} />
-          </Stack>
+          <CurrentHoldings
+            account={account}
+            prices={prices}
+            portfolio={portfolio}
+          />
         </Grid>
 
-        {/* Row 3: Live Prices & Chart */}
-        <Grid item xs={12} md={4}>
-          <Typography variant="h6" gutterBottom>
-            Live Market Prices
-          </Typography>
-          <LivePrices prices={prices} />
+        {/* Row 2: Live Prices & Chart - 2 columns */}
+        <Grid item xs={12} lg={4}>
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Live Market Prices
+            </Typography>
+            <LivePrices prices={prices} />
+          </Box>
         </Grid>
 
-        <Grid item xs={12} md={8}>
+        <Grid item xs={12} lg={8}>
           <LivePriceChart prices={prices} />
+        </Grid>
+
+        {/* Row 3: Trading Signals & Recent Trades - 2 columns with matching heights */}
+        <Grid item xs={12} lg={6}>
+          <Box sx={{ height: '600px', display: 'flex' }}>
+            <TradingSignals
+              signals={signalsToRender}
+              systemStatus={systemStatus}
+            />
+          </Box>
+        </Grid>
+
+        <Grid item xs={12} lg={6}>
+          <Box sx={{ height: '600px', display: 'flex' }}>
+            <RecentTrades trades={trades} />
+          </Box>
         </Grid>
       </Grid>
       

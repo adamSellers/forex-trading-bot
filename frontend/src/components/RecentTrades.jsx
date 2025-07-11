@@ -46,12 +46,12 @@ const RecentTrades = ({ trades }) => {
   }
 
   return (
-    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 400, width: '100%', boxSizing: 'border-box' }}>
-      <Typography variant="h6" gutterBottom>
+    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', boxSizing: 'border-box' }}>
+      <Typography variant="h6" gutterBottom sx={{ flexShrink: 0 }}>
         Recent Trades
       </Typography>
       
-      <Box sx={{ flexGrow: 1, overflow: 'auto', pr: 1 }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', pr: 1, minHeight: 0 }}>
         {trades.length === 0 ? (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
             <Typography variant="body2" color="text.secondary">
