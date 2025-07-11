@@ -237,8 +237,8 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         
         <Box
           display="grid"
-          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
-          gap={1}
+          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+          gap={2}
           sx={{ mb: 2 }}
         >
             <MetricCard
@@ -278,8 +278,8 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         
         <Box
           display="grid"
-          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' }}
-          gap={1}
+          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' }}
+          gap={2}
           sx={{ mb: 2 }}
         >
             <MetricCard
@@ -325,8 +325,8 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         
         <Box
           display="grid"
-          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
-          gap={1}
+          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+          gap={2}
           sx={{ mb: 2 }}
         >
             <MetricCard
@@ -409,8 +409,8 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         {/* Performance Metrics */}
         <Box
           display="grid"
-          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
-          gap={1}
+          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+          gap={2}
           sx={{ mb: 2 }}
         >
             <MetricCard
