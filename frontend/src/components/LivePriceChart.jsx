@@ -58,7 +58,7 @@ const LivePriceChart = ({ prices = {} }) => {
 
           const processedData = data.candles.map((candle, index) => ({
             ...candle,
-            time: new Date(candle.openTime).toLocaleDateString(),
+            time: candle.openTime, // Use raw timestamp to avoid parsing issues
             fastMA: fastMAValues[index],
             slowMA: slowMAValues[index],
           }));
@@ -123,7 +123,8 @@ const LivePriceChart = ({ prices = {} }) => {
       return (
         <Paper sx={{ p: 1.5, border: 1, borderColor: 'divider', backgroundColor: 'rgba(30, 30, 30, 0.9)' }}>
           <Typography variant="caption" color="textSecondary" gutterBottom>
-            {label}
+            {/* The 'label' is the timestamp, format it to a readable string */}
+            {new Date(label).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
           </Typography>
           <Typography variant="body2" fontWeight="bold" sx={{ color: assetColors[selectedAsset], display: 'block' }}>
             Close: ${data.close?.toFixed(data.close > 1 ? 2 : 6)}
@@ -264,7 +265,7 @@ const LivePriceChart = ({ prices = {} }) => {
               <XAxis 
                 dataKey="time" 
                 tick={{ fontSize: 12 }}
-                tickFormatter={(timeStr) => new Date(timeStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                tickFormatter={(timestamp) => new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 interval="preserveStartEnd"
               />
               <YAxis 
