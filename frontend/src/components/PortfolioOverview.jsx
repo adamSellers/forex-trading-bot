@@ -178,7 +178,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
   const systemStatus = getSystemStatus();
 
   return (
-    <Paper sx={{ p: 3, boxSizing: 'border-box' }}>
+    <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Typography variant="h6">
           Portfolio Overview
