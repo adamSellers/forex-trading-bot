@@ -517,14 +517,18 @@ module.exports = (tradingController) => {
                     cutoffTime
                 );
 
+            // A "trade" for analytics purposes is a completed round trip, represented by a SELL order.
+            // Filter for sell trades to get accurate metrics for the overview.
+            const sellTrades = trades.filter((t) => t.side === "SELL");
+
             // Analyze by asset
-            const assetAnalysis = analyzeByAsset(trades, signals);
+            const assetAnalysis = analyzeByAsset(trades, signals); // The helper function will handle its own filtering
 
             // Analyze by strategy
             const strategyAnalysis = analyzeByStrategy(signals);
 
             // Time-based analysis
-            const timeAnalysis = analyzeByTime(trades, signals);
+            const timeAnalysis = analyzeByTime(trades, signals); // This correctly shows all activity (BUY/SELL)
 
             const analytics = {
                 period,
@@ -533,11 +537,16 @@ module.exports = (tradingController) => {
                     end: new Date().toISOString(),
                 },
                 overview: {
-                    totalTrades: trades.length,
+                    totalTrades: sellTrades.length,
                     totalSignals: signals.length,
-                    signalToTradeRatio: trades.length / (signals.length || 1),
-                    profitableTrades: trades.filter((t) => t.pnl > 0).length,
-                    totalPnL: trades.reduce((sum, t) => sum + (t.pnl || 0), 0),
+                    signalToTradeRatio:
+                        sellTrades.length / (signals.length || 1),
+                    profitableTrades: sellTrades.filter((t) => t.pnl > 0)
+                        .length,
+                    totalPnL: sellTrades.reduce(
+                        (sum, t) => sum + (t.pnl || 0),
+                        0
+                    ),
                 },
                 assetAnalysis,
                 strategyAnalysis,
@@ -644,18 +653,19 @@ module.exports = (tradingController) => {
         const analysis = {};
 
         assets.forEach((asset) => {
-            const assetTrades = trades.filter((t) => t.symbol === asset);
+            const assetSellTrades = trades.filter(
+                (t) => t.symbol === asset && t.side === "SELL"
+            );
             const assetSignals = signals.filter((s) => s.symbol === asset);
-            const sellTrades = assetTrades.filter((t) => t.side === "SELL");
 
             analysis[asset] = {
-                totalTrades: assetTrades.length,
+                totalTrades: assetSellTrades.length, // FIX: Count only completed (sell) trades
                 totalSignals: assetSignals.length,
-                pnl: sellTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
+                pnl: assetSellTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
                 winRate:
-                    sellTrades.length > 0
-                        ? (sellTrades.filter((t) => t.pnl > 0).length /
-                              sellTrades.length) *
+                    assetSellTrades.length > 0
+                        ? (assetSellTrades.filter((t) => t.pnl > 0).length /
+                              assetSellTrades.length) *
                           100
                         : 0,
                 avgSignalStrength:
