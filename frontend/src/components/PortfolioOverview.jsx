@@ -235,8 +235,12 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
           Real Portfolio Value
         </Typography>
         
-        <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
+        <Box
+          display="grid"
+          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+          gap={1}
+          sx={{ mb: 2 }}
+        >
             <MetricCard
               title="Total Real Value"
               value={formatCurrency(getTotalPortfolioValue())}
@@ -244,32 +248,25 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="success.main"
               icon={<AccountBalance fontSize="small" color="success" />}
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="USDT Balance"
               value={formatUSDT(getUSDTBalance())}
               subtitle="Available Cash"
               color="primary.main"
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="Crypto Value"
               value={formatCurrency(getCryptoValue())}
               subtitle="Holdings Value"
               color="info.main"
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="Cash Allocation"
               value={formatPercent(allocation.usdt)}
               subtitle={`${formatPercent(allocation.crypto)} Crypto`}
               color="text.primary"
             />
-          </Grid>
-        </Grid>
+        </Box>
 
         <Divider sx={{ my: 2 }} />
 
@@ -279,8 +276,12 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
           Paper Trading Performance
         </Typography>
         
-        <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={6} sm={4} md>
+        <Box
+          display="grid"
+          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' }}
+          gap={1}
+          sx={{ mb: 2 }}
+        >
             <MetricCard
               title="Virtual Portfolio"
               value={formatCurrency(portfolio?.totalValue || 5000)}
@@ -288,40 +289,31 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
               color="warning.main"
               icon={<Psychology fontSize="small" color="warning" />}
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Virtual P&L"
               value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`}
               subtitle={`${formatPercent(portfolio?.totalPnLPercent || 0)} Return`}
               color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Unrealized P&L"
               value={`${totalUnrealizedPnL >= 0 ? '+' : ''}${formatUSDT(totalUnrealizedPnL || 0)}`}
               subtitle="From open positions"
               color={totalUnrealizedPnL >= 0 ? 'success.main' : 'error.main'}
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Virtual Positions"
               value={portfolio?.positionCount || 0}
               subtitle="Open Positions"
               color="warning.main"
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md>
             <MetricCard
               title="Paper Win Rate"
               value={formatPercent(portfolio?.performance?.winRate || 0)}
               subtitle="Successful Trades"
               color={portfolio?.performance?.winRate > 50 ? 'success.main' : 'text.primary'}
             />
-          </Grid>
-        </Grid>
+        </Box>
 
         <Divider sx={{ my: 2 }} />
 
@@ -331,32 +323,30 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
           Risk Management Status
         </Typography>
         
-        <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
+        <Box
+          display="grid"
+          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+          gap={1}
+          sx={{ mb: 2 }}
+        >
             <MetricCard
               title="Daily Risk Used"
               value={`${formatUSDT(portfolio?.riskStatus?.dailyLossUsed || 0)}`}
               subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.dailyLossLimit || 100)}`}
               color={portfolio?.riskStatus?.dailyLossUsed > (portfolio?.riskStatus?.dailyLossLimit * 0.8) ? 'error.main' : 'success.main'}
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="Weekly Risk Used"
               value={`${formatUSDT(portfolio?.riskStatus?.weeklyLossUsed || 0)}`}
               subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.weeklyLossLimit || 250)}`}
               color={portfolio?.riskStatus?.weeklyLossUsed > (portfolio?.riskStatus?.weeklyLossLimit * 0.8) ? 'error.main' : 'success.main'}
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="Max Drawdown"
               value={formatPercent(portfolio?.performance?.maxDrawdown || 0)}
               subtitle="Peak to Trough"
               color={portfolio?.performance?.maxDrawdown > 15 ? 'error.main' : 'success.main'}
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <Card 
               variant="outlined" 
               sx={{ 
@@ -414,42 +404,38 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
                 )}
               </CardContent>
             </Card>
-          </Grid>
-        </Grid>
+        </Box>
 
         {/* Performance Metrics */}
-        <Grid container spacing={1} sx={{ mb: 2 }}>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
+        <Box
+          display="grid"
+          gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+          gap={1}
+          sx={{ mb: 2 }}
+        >
             <MetricCard
               title="Profit Factor"
               value={portfolio?.performance?.profitFactor?.toFixed(2) || '0.00'}
               subtitle="Gross Profit/Loss"
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="Sharpe Ratio"
               value={portfolio?.performance?.sharpeRatio?.toFixed(2) || '0.00'}
               subtitle="Risk-Adj Return"
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="Avg Win"
               value={formatUSDT(portfolio?.performance?.avgWin || 0)}
               subtitle="Per Winning Trade"
               color="success.main"
             />
-          </Grid>
-          <Grid item xs={6} sm={4} md={3} lg={3}>
             <MetricCard
               title="Avg Loss"
               value={formatUSDT(portfolio?.performance?.avgLoss || 0)}
               subtitle="Per Losing Trade"
               color="error.main"
             />
-          </Grid>
-        </Grid>
+        </Box>
 
         {/* Enhanced Account Status */}
         <Box display="flex" justifyContent="center" mt={2}>
