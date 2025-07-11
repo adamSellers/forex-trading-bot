@@ -440,56 +440,51 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         {/* Enhanced Account Status */}
         <Box display="flex" justifyContent="center" mt={2}>
           <Card variant="outlined" sx={{ px: 3, py: 1.5, backgroundColor: 'action.hover', width: '100%' }}>
-            <Grid container spacing={2} alignItems="center" justifyContent="center">
-              <Grid item>
-                <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
-                  <AccountBalance color="success" />
-                  <Typography variant="body2" fontWeight="bold">
-                    Real Account: {account?.accountType || 'SPOT'}
-                  </Typography>
-                  <Chip 
-                    size="small" 
-                    label={account?.canTrade ? 'Trading Enabled' : 'Read-Only'} 
-                    color={account?.canTrade ? 'warning' : 'success'}
-                    variant="outlined"
-                  />
-                </Box>
-              </Grid>
-              <Grid item sx={{ display: { xs: 'none', md: 'block' } }}>
-                <Divider orientation="vertical" flexItem />
-              </Grid>
-              <Grid item>
-                <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
-                  <Psychology color="warning" />
-                  <Typography variant="body2" fontWeight="bold">
-                    Paper Mode: Virtual Trading
-                  </Typography>
-                  <Chip 
-                    size="small" 
-                    label="No Real Money Risk" 
-                    color="success"
-                    variant="outlined"
-                  />
-                </Box>
-              </Grid>
-              <Grid item sx={{ display: { xs: 'none', md: 'block' } }}>
-                <Divider orientation="vertical" flexItem />
-              </Grid>
-              <Grid item>
-                <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
-                  <DataUsage color="info" />
-                  <Typography variant="body2" fontWeight="bold">
-                    Data: {systemStatus.dataMode}
-                  </Typography>
-                  <Chip 
-                    size="small" 
-                    label="Live Prices" 
-                    color="info"
-                    variant="outlined"
-                  />
-                </Box>
-              </Grid>
-            </Grid>
+            <Box 
+              display="grid"
+              gridTemplateColumns={{ xs: '1fr', md: '1fr auto 1fr auto 1fr' }}
+              gap={2}
+              alignItems="center"
+            >
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
+                <AccountBalance color="success" />
+                <Typography variant="body2" fontWeight="bold">
+                  Real Account: {account?.accountType || 'SPOT'}
+                </Typography>
+                <Chip 
+                  size="small" 
+                  label={account?.canTrade ? 'Trading Enabled' : 'Read-Only'} 
+                  color={account?.canTrade ? 'warning' : 'success'}
+                  variant="outlined"
+                />
+              </Box>
+              <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
+                <Psychology color="warning" />
+                <Typography variant="body2" fontWeight="bold">
+                  Paper Mode: Virtual Trading
+                </Typography>
+                <Chip 
+                  size="small" 
+                  label="No Real Money Risk" 
+                  color="success"
+                  variant="outlined"
+                />
+              </Box>
+              <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
+              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
+                <DataUsage color="info" />
+                <Typography variant="body2" fontWeight="bold">
+                  Data: {systemStatus.dataMode}
+                </Typography>
+                <Chip 
+                  size="small" 
+                  label="Live Prices" 
+                  color="info"
+                  variant="outlined"
+                />
+              </Box>
+            </Box>
           </Card>
         </Box>
       </Box>
