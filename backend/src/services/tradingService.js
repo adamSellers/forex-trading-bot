@@ -216,6 +216,7 @@ class TradingService extends EventEmitter {
                 isInitialized: this.isActive,
                 config: this.config,
                 services: {
+                    binanceData: binanceStatus,
                     engine: engineStatus,
                     signalGenerator: signalStatus,
                 },
