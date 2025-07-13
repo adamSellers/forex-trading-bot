@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import {
   AccountBalance,
+  MonetizationOn,
   Psychology,
   CompareArrows,
   Info,

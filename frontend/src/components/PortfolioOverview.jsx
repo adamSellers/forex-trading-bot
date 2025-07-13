@@ -15,7 +15,8 @@ import {
   Psychology,
   AccountBalance,
   TrendingUp,
-  Security,
+  MonetizationOn,
+  Security, // Keep for risk
   PlayArrow,
   Pause,
   Cloud,
@@ -23,7 +24,7 @@ import {
   MoneyOff,
   CheckCircle,
   Warning,
-  Info,
+  Info, // Keep for info
   DataUsage
 } from '@mui/icons-material';
 
@@ -179,6 +180,7 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
   };
 
   const systemStatus = getSystemStatus();
+  const isLiveMode = portfolio?.mode === 'live';
 
   return (
     <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -215,12 +217,12 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
 
       {/* System Status Alert */}
       {systemStatus.tradingMode === 'Live' ? (
-        <Alert severity="error" icon={<Warning />} sx={{ mb: 2 }}>
+        <Alert severity="info" icon={<MonetizationOn />} sx={{ mb: 2, backgroundColor: 'success.dark' }}>
           <Typography variant="body2" fontWeight="bold">
             LIVE TRADING IS ACTIVE
           </Typography>
           <Typography variant="caption" display="block">
-            The system is configured to execute trades with real funds on your Binance account.
+            The bot is executing trades with real funds on your Binance account.
           </Typography>
         </Alert>
       ) : (
@@ -278,8 +280,11 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
 
         {/* Paper Trading Section */}
         <Typography variant="h6" sx={{ mb: 2 }}>
-          <Psychology sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Paper Trading Performance
+          {isLiveMode 
+            ? <TrendingUp sx={{ mr: 1, verticalAlign: 'middle', color: 'success.main' }} /> 
+            : <Psychology sx={{ mr: 1, verticalAlign: 'middle', color: 'warning.main' }} />
+          }
+          {isLiveMode ? 'Live Trading Performance' : 'Paper Trading Performance'}
         </Typography>
         
         <Box
@@ -287,34 +292,34 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
           gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' }}
           gap={2}
           sx={{ mb: 2 }}
-        >
+        > 
             <MetricCard
-              title="Virtual Portfolio"
+              title={isLiveMode ? "Live Portfolio" : "Virtual Portfolio"}
               value={formatCurrency(portfolio?.totalValue || 5000)}
-              subtitle="Simulated Trading"
-              color="warning.main"
-              icon={<Psychology fontSize="small" color="warning" />}
+              subtitle={isLiveMode ? "Live Account Value" : "Simulated Trading"}
+              color={isLiveMode ? "success.main" : "warning.main"}
+              icon={isLiveMode ? <AccountBalance fontSize="small" color="success" /> : <Psychology fontSize="small" color="warning" />}
             />
             <MetricCard
-              title="Virtual P&L"
+              title={isLiveMode ? "Realized P&L" : "Virtual P&L"}
               value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`}
               subtitle={`${formatPercent(portfolio?.totalPnLPercent || 0)} Return`}
               color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
             />
             <MetricCard
               title="Unrealized P&L"
-              value={`${totalUnrealizedPnL >= 0 ? '+' : ''}${formatUSDT(totalUnrealizedPnL || 0)}`}
+              value={`${(totalUnrealizedPnL || 0) >= 0 ? '+' : ''}${formatUSDT(totalUnrealizedPnL || 0)}`}
               subtitle="From open positions"
-              color={totalUnrealizedPnL >= 0 ? 'success.main' : 'error.main'}
+              color={(totalUnrealizedPnL || 0) >= 0 ? 'success.main' : 'error.main'}
             />
             <MetricCard
-              title="Virtual Positions"
+              title={isLiveMode ? "Live Positions" : "Virtual Positions"}
               value={portfolio?.positionCount || 0}
               subtitle="Open Positions"
-              color="warning.main"
+              color={isLiveMode ? "success.main" : "warning.main"}
             />
             <MetricCard
-              title="Paper Win Rate"
+              title="Win Rate"
               value={formatPercent(portfolio?.performance?.winRate || 0)}
               subtitle="Successful Trades"
               color={portfolio?.performance?.winRate > 50 ? 'success.main' : 'text.primary'}
