@@ -165,8 +165,8 @@ const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
   );
 
   const allocation = getAssetAllocation();  
-  // FIX: Use portfolio.mode as the source of truth, consistent with CurrentHoldings.jsx
-  const isLiveMode = portfolio?.mode === 'live';
+  // FIX: Use systemStatus as the primary source of truth for the configured mode.
+  const isLiveMode = systemStatus?.config?.tradingMode === 'live';
   const dataMode = systemStatus?.services?.binanceData?.useFallback ? 'Fallback' : 'Live Binance API';
 
   return (

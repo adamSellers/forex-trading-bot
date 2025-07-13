@@ -40,9 +40,10 @@ function TabPanel({ children, value, index, ...other }) {
   );
 }
 
-const CurrentHoldings = ({ account, prices, portfolio }) => {
-  const isLiveMode = portfolio?.mode === 'live';
-  // Default to Real Holdings (index 1) if in live mode, otherwise Paper Trading (index 0)
+const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
+  // FIX: Use systemStatus as the primary source of truth for the configured mode.
+  const isLiveMode = systemStatus?.config?.tradingMode === 'live';
+  // Default to the appropriate tab based on the configured mode.
   const [tabValue, setTabValue] = useState(isLiveMode ? 1 : 0);
 
   // Define our trading assets

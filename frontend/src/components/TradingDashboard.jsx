@@ -648,6 +648,7 @@ const TradingDashboard = () => {
             account={account}
             prices={prices}
             portfolio={portfolio}
+            systemStatus={systemStatus}
           />
         </Box>
 
