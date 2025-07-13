@@ -1094,6 +1094,9 @@ class PaperTradingEngine extends EventEmitter {
         }
 
         this.emit("configUpdated", this.config);
+
+        // CRITICAL FIX: Emit an update so the UI reflects the new risk limits immediately.
+        this.emit("portfolioUpdated", this.getPortfolioSummary());
     }
 
     async initialize() {

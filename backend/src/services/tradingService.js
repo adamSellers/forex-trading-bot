@@ -338,6 +338,9 @@ class TradingService extends EventEmitter {
 
             logger.info("⚙️ Trading service configuration updated");
             this.emit("configUpdated", this.config);
+
+            // CRITICAL FIX: Push the new system status to all clients
+            this.io.emit("systemStatus", this.getStatus());
         } catch (error) {
             logger.error("Error updating config:", error);
             throw error;
