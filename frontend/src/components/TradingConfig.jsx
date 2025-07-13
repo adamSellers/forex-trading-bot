@@ -41,7 +41,7 @@ import { tradingAPI } from '../config/api'; // FIXED: Import new API helpers
 const TradingConfig = () => {
   const [config, setConfig] = useState({
     // Account Settings
-    startingCapital: 5000,
+    maxCapitalAtRisk: 5000,
     enableTrading: false,
     
     // Risk Management
@@ -106,7 +106,7 @@ const TradingConfig = () => {
       
       if (data.config) {
         const fetchedConfig = {
-          startingCapital: data.config.startingCapital || 5000,
+          maxCapitalAtRisk: data.config.maxCapitalAtRisk || 5000,
           enableTrading: data.config.enableTrading || false,
           riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
           maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
@@ -200,9 +200,9 @@ const TradingConfig = () => {
 
   const calculateRiskAmounts = () => {
     return {
-      riskPerTrade: (config.startingCapital * config.riskPerTrade / 100).toFixed(2),
-      maxDailyLoss: (config.startingCapital * config.maxDailyLoss / 100).toFixed(2),
-      maxWeeklyLoss: (config.startingCapital * config.maxWeeklyLoss / 100).toFixed(2)
+      riskPerTrade: (config.maxCapitalAtRisk * config.riskPerTrade / 100).toFixed(2),
+      maxDailyLoss: (config.maxCapitalAtRisk * config.maxDailyLoss / 100).toFixed(2),
+      maxWeeklyLoss: (config.maxCapitalAtRisk * config.maxWeeklyLoss / 100).toFixed(2)
     };
   };
 
@@ -286,14 +286,14 @@ const TradingConfig = () => {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Starting Capital"
+                    label="Max Capital at Risk"
                     type="number"
-                    value={config.startingCapital}
-                    onChange={(e) => updateConfig('startingCapital', parseFloat(e.target.value))}
+                    value={config.maxCapitalAtRisk}
+                    onChange={(e) => updateConfig('maxCapitalAtRisk', parseFloat(e.target.value))}
                     InputProps={{
                       startAdornment: <InputAdornment position="start">$</InputAdornment>
                     }}
-                    helperText="Total portfolio value in USDT"
+                    helperText="The total capital base used for all risk calculations."
                   />
                 </Grid>
                 
@@ -501,7 +501,7 @@ const TradingConfig = () => {
                   <Grid item xs={12} key={asset}>
                     <Typography gutterBottom>
                       {asset.replace('USDT', '')}: {percentage}%
-                      (${(config.startingCapital * percentage / 100).toFixed(0)})
+                      (${(config.maxCapitalAtRisk * percentage / 100).toFixed(0)})
                     </Typography>
                     <Slider
                       value={percentage}

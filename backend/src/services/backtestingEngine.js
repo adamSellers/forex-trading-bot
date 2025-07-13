@@ -11,6 +11,7 @@ class BacktestingEngine {
             ...config,
             // Backtesting specific config
             dataFile: config.dataFile, // e.g., 'BTCUSDT-1h-12m.json'
+            maxCapitalAtRisk: config.maxCapitalAtRisk || 5000,
             strategy: config.strategy || "balanced",
             timeframe: config.timeframe || "1h",
             // Ensure trading is "enabled" for the backtest logic
@@ -128,7 +129,7 @@ class BacktestingEngine {
                 ...analytics.summary,
                 finalPortfolioValue: portfolioSummary.totalValue,
                 totalPnLPercent:
-                    (portfolioSummary.totalPnL / this.config.startingCapital) *
+                    (portfolioSummary.totalPnL / this.config.maxCapitalAtRisk) *
                     100,
             },
             performance: portfolioSummary.performance,

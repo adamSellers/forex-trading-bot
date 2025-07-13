@@ -24,7 +24,7 @@ class TradingService extends EventEmitter {
             enableTrading: false,
             assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"],
             timeframes: ["1h", "4h", "1d"],
-            startingCapital: 5000,
+            maxCapitalAtRisk: 5000,
             riskPerTrade: 0.01,
             maxDailyLoss: 0.02,
             maxWeeklyLoss: 0.05,

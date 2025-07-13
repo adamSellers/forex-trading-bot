@@ -17,7 +17,7 @@ class PaperTradingEngine extends EventEmitter {
         super();
 
         this.config = {
-            startingCapital: config.startingCapital || 5000,
+            maxCapitalAtRisk: config.maxCapitalAtRisk || 5000,
             riskPerTrade: config.riskPerTrade || 0.01, // 1% = $50
             maxDailyLoss: config.maxDailyLoss || 0.02, // 2% = $100
             maxWeeklyLoss: config.maxWeeklyLoss || 0.05, // 5% = $250
@@ -48,8 +48,8 @@ class PaperTradingEngine extends EventEmitter {
 
         // Portfolio state - USDT-based accounting
         this.portfolio = {
-            usdtBalance: this.config.startingCapital,
-            totalValue: this.config.startingCapital,
+            usdtBalance: this.config.maxCapitalAtRisk,
+            totalValue: this.config.maxCapitalAtRisk,
             positions: new Map(),
             dailyPnL: 0,
             weeklyPnL: 0,
@@ -139,9 +139,9 @@ class PaperTradingEngine extends EventEmitter {
         // Risk management
         this.riskLimits = {
             dailyLossLimit:
-                this.config.startingCapital * this.config.maxDailyLoss,
+                this.config.maxCapitalAtRisk * this.config.maxDailyLoss,
             weeklyLossLimit:
-                this.config.startingCapital * this.config.maxWeeklyLoss,
+                this.config.maxCapitalAtRisk * this.config.maxWeeklyLoss,
             isHalted: false,
             haltReason: null,
         };
@@ -163,7 +163,7 @@ class PaperTradingEngine extends EventEmitter {
                 totalValue: this.portfolio.totalValue,
                 totalPnL: this.portfolio.totalPnL,
                 totalPnLPercent:
-                    (this.portfolio.totalPnL / this.config.startingCapital) *
+                    (this.portfolio.totalPnL / this.config.maxCapitalAtRisk) *
                     100,
                 tradesCount: this.tradeHistory.length,
                 positionsCount: this.portfolio.positions.size,
@@ -171,7 +171,7 @@ class PaperTradingEngine extends EventEmitter {
                 config: {
                     enableTrading: this.config.enableTrading,
                     enableTrailingStops: this.config.enableTrailingStops,
-                    startingCapital: this.config.startingCapital,
+                    maxCapitalAtRisk: this.config.maxCapitalAtRisk,
                 },
                 performance: {
                     winRate: this.performanceMetrics.winRate,
@@ -202,9 +202,9 @@ class PaperTradingEngine extends EventEmitter {
         try {
             const allocationPercent = this.config.allocation[symbol] || 0.1;
             const maxAllocationUSDT =
-                this.config.startingCapital * allocationPercent;
+                this.config.maxCapitalAtRisk * allocationPercent;
             const riskAmountUSDT =
-                this.config.startingCapital * this.config.riskPerTrade;
+                this.config.maxCapitalAtRisk * this.config.riskPerTrade;
 
             // Calculate stop loss price
             let stopLoss;
@@ -560,7 +560,7 @@ class PaperTradingEngine extends EventEmitter {
 
         // Calculate drawdown
         const peak = Math.max(
-            this.config.startingCapital,
+            this.config.maxCapitalAtRisk,
             this.portfolio.totalValue
         );
         this.performanceMetrics.currentDrawdown =
@@ -1059,27 +1059,27 @@ class PaperTradingEngine extends EventEmitter {
      * NEW: Update configuration dynamically
      */
     updateConfig(newConfig) {
-        const oldCapital = this.config.startingCapital;
+        const oldCapital = this.config.maxCapitalAtRisk;
         const oldDailyLimit = this.riskLimits.dailyLossLimit;
         const oldWeeklyLimit = this.riskLimits.weeklyLossLimit;
 
         this.config = { ...this.config, ...newConfig };
 
-        // Recalculate risk limits based on the new startingCapital.
-        // This allows for manual compounding by adjusting the capital base.
+        // Recalculate risk limits based on the new maxCapitalAtRisk.
+        // This allows for manual compounding by adjusting the capital base for risk.
         this.riskLimits.dailyLossLimit =
-            this.config.startingCapital * this.config.maxDailyLoss;
+            this.config.maxCapitalAtRisk * this.config.maxDailyLoss;
         this.riskLimits.weeklyLossLimit =
-            this.config.startingCapital * this.config.maxWeeklyLoss;
+            this.config.maxCapitalAtRisk * this.config.maxWeeklyLoss;
 
         logger.info(
             `⚙️ Paper Trading Engine config updated. Trading enabled: ${this.config.enableTrading}`
         );
 
         // Log if the capital base was changed, triggering the risk recalculation
-        if (oldCapital !== this.config.startingCapital) {
+        if (oldCapital !== this.config.maxCapitalAtRisk) {
             logger.info(
-                `💰 Capital base updated from $${oldCapital} to $${this.config.startingCapital}. Risk limits recalculated.`
+                `💰 Max Capital at Risk updated from $${oldCapital} to $${this.config.maxCapitalAtRisk}. Risk limits recalculated.`
             );
             logger.debug(
                 `   - Daily Loss Limit: $${oldDailyLimit.toFixed(
@@ -1091,6 +1091,7 @@ class PaperTradingEngine extends EventEmitter {
                     2
                 )} -> $${this.riskLimits.weeklyLossLimit.toFixed(2)}`
             );
+            // NOTE: The portfolio balance is NOT adjusted. This value only affects risk calculations.
         }
 
         this.emit("configUpdated", this.config);
@@ -1226,8 +1227,8 @@ class PaperTradingEngine extends EventEmitter {
 
     async reset() {
         this.portfolio = {
-            usdtBalance: this.config.startingCapital,
-            totalValue: this.config.startingCapital,
+            usdtBalance: this.config.maxCapitalAtRisk,
+            totalValue: this.config.maxCapitalAtRisk,
             positions: new Map(),
             dailyPnL: 0,
             weeklyPnL: 0,
