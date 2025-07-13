@@ -49,12 +49,22 @@ log_success "Code is up to date."
 # --- CRITICAL FIX: Restore persistent data from the backup ---
 log_info "Restoring persistent data (database and portfolio state)..."
 latest_backup=$(ls -t "$BACKUP_DIR"/*.tar.gz 2>/dev/null | head -1)
+DB_FILE="$PROJECT_DIR/backend/data/trading.db"
+
 if [ -n "$latest_backup" ]; then
     # Restore only the data directory into the project directory, overwriting what's there.
     # The -C /opt ensures extraction happens relative to the root of the backup.
     # The tar command will overwrite the empty 'data' directory from git with the one from the backup.
     tar -xvf "$latest_backup" -C /opt crypto-trading-bot/backend/data
     log_success "Persistent data restored from backup."
+
+    # --- FIX: Synchronize migration filenames ---
+    # This handles cases where migration filenames have changed between deployments.
+    if [ -f "$DB_FILE" ]; then
+        log_info "Checking for migration filename inconsistencies..."
+        sqlite3 "$DB_FILE" "UPDATE knex_migrations SET name = '001_create_initial_tables.js' WHERE name = '001_initial_schema.js';"
+        log_success "Database migration records updated for consistency."
+    fi
 fi
 
 # 0.5 Set executable permissions on all scripts
