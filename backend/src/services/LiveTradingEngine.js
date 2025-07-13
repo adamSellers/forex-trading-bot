@@ -247,7 +247,16 @@ class LiveTradingEngine extends EventEmitter {
                 }
             );
 
-            if (orderResult && orderResult.status === "FILLED") {
+            // ROBUSTNESS FIX: A real "FILLED" order from Binance will always have an orderId
+            // and a non-empty 'fills' array. This check prevents saving a "ghost" trade
+            // if the API returns a malformed or error response that isn't caught.
+            if (
+                orderResult &&
+                orderResult.status === "FILLED" &&
+                orderResult.orderId &&
+                Array.isArray(orderResult.fills) &&
+                orderResult.fills.length > 0
+            ) {
                 logger.success(
                     `[LIVE] MARKET BUY successful for ${signal.symbol}. Order ID: ${orderResult.orderId}`
                 );
@@ -355,7 +364,15 @@ class LiveTradingEngine extends EventEmitter {
                 quantityToSell
             );
 
-            if (orderResult && orderResult.status === "FILLED") {
+            // ROBUSTNESS FIX: Apply the same strict check for sell orders to ensure
+            // we only process and save trades that are genuinely confirmed by Binance.
+            if (
+                orderResult &&
+                orderResult.status === "FILLED" &&
+                orderResult.orderId &&
+                Array.isArray(orderResult.fills) &&
+                orderResult.fills.length > 0
+            ) {
                 logger.success(
                     `[LIVE] MARKET SELL successful for ${signal.symbol}. Order ID: ${orderResult.orderId}`
                 );
