@@ -230,14 +230,20 @@ class LiveTradingEngine extends EventEmitter {
         // 3. --- EXECUTE REAL ORDER ---
         try {
             logger.warn(
-                `[LIVE] Attempting MARKET BUY: ${quantity.toFixed(6)} ${
-                    signal.symbol
-                } for ~$${usdtCost.toFixed(2)}`
+                `[LIVE] Attempting MARKET BUY for ${usdtCost.toFixed(
+                    2
+                )} USDT of ${signal.symbol}`
             );
 
+            // CRITICAL FIX: Use quoteOrderQty to specify the amount in USDT to spend.
+            // This is more reliable than calculating the quantity manually, as it avoids
+            // precision (stepSize) and minimum notional value errors from Binance.
             const orderResult = await binanceClient.marketBuy(
                 signal.symbol,
-                quantity
+                null,
+                {
+                    quoteOrderQty: usdtCost,
+                }
             );
 
             if (orderResult && orderResult.status === "FILLED") {
