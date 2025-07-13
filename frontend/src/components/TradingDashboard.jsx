@@ -380,7 +380,7 @@ const TradingDashboard = () => {
 
   // Enhanced system health calculation
   const getSystemHealth = () => {
-    if (!systemStatus) return { status: 'unknown', color: 'default', icon: <Timeline /> };
+    if (!systemStatus) return { status: 'Offline', color: 'error', icon: <Timeline /> };
     
     const isOnline = systemStatus.isInitialized;
     const hasRecentUpdate = lastUpdate && (Date.now() - lastUpdate) < 120000; // 2 minutes
@@ -388,13 +388,13 @@ const TradingDashboard = () => {
     const accountConnected = account && !account.error;
     
     if (isOnline && hasRecentUpdate && hasData && accountConnected) {
-      return { status: 'optimal', color: 'success', icon: <CheckCircle /> };
+      return { status: 'Optimal', color: 'success', icon: <CheckCircle /> };
     } else if (isOnline && hasData) {
-      return { status: 'operational', color: 'info', icon: <DataUsage /> };
+      return { status: 'Operational', color: 'info', icon: <DataUsage /> };
     } else if (isOnline) {
-      return { status: 'initializing', color: 'warning', icon: <Warning /> };
+      return { status: 'Initializing', color: 'warning', icon: <Warning /> };
     } else {
-      return { status: 'offline', color: 'error', icon: <Timeline /> };
+      return { status: 'Offline', color: 'error', icon: <Timeline /> };
     }
   };
 
@@ -405,41 +405,19 @@ const TradingDashboard = () => {
 
   const systemHealth = getSystemHealth();
   const isLiveMode = systemStatus?.config?.tradingMode === 'live';
-
-  // Enhanced data building status
-  const getDataBuildingStatus = () => {
-    if (!systemStatus?.services?.binanceData) return null;
-    
-    const binanceStatus = systemStatus.services.binanceData;
-    const totalCandles = binanceStatus.totalCandles || 0;
-    const assetsCount = systemStatus.config?.assets?.length || 4;
-    const timeframesCount = systemStatus.config?.timeframes?.length || 3;
-    const minRequired = assetsCount * timeframesCount * 25;
-    
-    return {
-      current: totalCandles,
-      required: minRequired,
-      progress: Math.min((totalCandles / minRequired) * 100, 100),
-      isBuilding: totalCandles < minRequired
-    };
-  };
-
-  const dataStatus = getDataBuildingStatus();
-
+  
   // Enhanced system mode determination
-  const getSystemMode = () => {
+  const systemMode = useMemo(() => {
     const hasAccountData = account && !account.error;
-    const paperTradingActive = portfolio && !portfolio.riskStatus?.isHalted;
-    
+    const isTradingActive = tradingEnabled && portfolio && !portfolio.riskStatus?.isHalted;
+
     return {
       marketData: hasAccountData ? 'Live Binance API' : 'Fallback Data',
-      paperTrading: paperTradingActive ? 'Active' : 'Inactive',
-      realTrading: 'Safety Disabled',
+      tradingMode: isLiveMode ? 'Live' : 'Paper',
+      tradingStatus: isTradingActive ? 'Active' : 'Inactive',
       accountAccess: hasAccountData ? 'Connected' : 'Limited'
     };
-  };
-
-  const systemMode = getSystemMode();
+  }, [account, portfolio, isLiveMode, tradingEnabled]);
 
   // Loading state
   if (loading) {
@@ -475,42 +453,27 @@ const TradingDashboard = () => {
             <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
               <Chip
                 icon={systemHealth.icon}
-                label={`System ${systemHealth.status.charAt(0).toUpperCase() + systemHealth.status.slice(1)}`}
+                label={`System: ${systemHealth.status}`}
                 color={systemHealth.color}
                 size="small"
               />
               <Chip
                 icon={<DataUsage />}
                 label={systemMode.marketData}
-                color={systemMode.marketData.includes('Live') ? 'success' : 'warning'}
+                color={systemMode.marketData === 'Live Binance API' ? 'success' : 'warning'}
                 size="small"
                 variant="outlined"
               />
               <Chip
-                icon={<Psychology />}
-                label={`Paper Trading: ${systemMode.paperTrading}`}
-                color={systemMode.paperTrading === 'Active' ? 'warning' : 'default'}
-                size="small"
-                variant="outlined"
-              />
-              <Chip
-                icon={<Security />}
-                label={`Real Trading: ${systemMode.realTrading}`}
-                color="error"
+                icon={isLiveMode ? <MonetizationOn /> : <Psychology />}
+                label={`${systemMode.tradingMode} Trading: ${systemMode.tradingStatus}`}
+                color={isLiveMode ? 'success' : 'warning'}
                 size="small"
                 variant="outlined"
               />
               {lastUpdate && (
                 <Chip
                   label={`Updated ${new Date(lastUpdate).toLocaleTimeString()}`}
-                  size="small"
-                  variant="outlined"
-                />
-              )}
-              {portfolio?.totalPnLPercent !== undefined && (
-                <Chip
-                  label={`${portfolio.totalPnLPercent >= 0 ? '+' : ''}${portfolio.totalPnLPercent.toFixed(1)}% Paper Return`}
-                  color={portfolio.totalPnLPercent >= 0 ? 'success' : 'error'}
                   size="small"
                   variant="outlined"
                 />
@@ -535,10 +498,10 @@ const TradingDashboard = () => {
         {/* LIVE TRADING BANNER */}
         {systemStatus?.config?.tradingMode === 'live' && (
           <Alert
-            severity="error"
-            variant="filled"
-            icon={<Warning fontSize="inherit" />}
-            sx={{ mb: 2, mt: 2 }}
+            severity="success"
+            variant="standard"
+            icon={<MonetizationOn fontSize="inherit" />}
+            sx={{ mb: 2, mt: 2, borderColor: 'success.main' }}
           >
             <Typography variant="h6" component="div">
               LIVE TRADING ACTIVE
@@ -580,7 +543,7 @@ const TradingDashboard = () => {
                 color={tradingEnabled ? "error" : "warning"}
                 startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
                 onClick={handleToggleTrading}
-                disabled={dataStatus?.isBuilding && !tradingEnabled}
+                disabled={!systemStatus?.isInitialized}
                 size="medium"
               >
                 {tradingEnabled ? `Stop ${isLiveMode ? 'Live' : 'Paper'} Trading` : `Start ${isLiveMode ? 'Live' : 'Paper'} Trading`}
@@ -647,22 +610,6 @@ const TradingDashboard = () => {
                   color="warning"
                   variant="outlined"
                 />
-                <Chip
-                  size="small"
-                  icon={<AccountBalance />}
-                  label={systemMode.accountAccess}
-                  color={systemMode.accountAccess === 'Connected' ? 'success' : 'warning'}
-                  variant="outlined"
-                />
-                {dataStatus && (
-                  <Chip
-                    size="small"
-                    icon={<DataUsage />}
-                    label={dataStatus.isBuilding ? `Building Data (${dataStatus.progress.toFixed(0)}%)` : 'Data Ready'}
-                    color={dataStatus.isBuilding ? 'warning' : 'success'}
-                    variant="outlined"
-                  />
-                )}
               </Box>
             </Grid>
           </Grid>
@@ -670,9 +617,9 @@ const TradingDashboard = () => {
           {/* System Mode Summary */}
           <Box mt={1} p={1} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
             <Typography variant="caption" color="textSecondary">
-              🔧 <strong>System Mode:</strong> Paper Trading with {systemMode.marketData} • 
-              <strong>Account:</strong> {systemMode.accountAccess} • 
-              <strong>Real Trading:</strong> {systemMode.realTrading} for safety • 
+              🔧 <strong>Mode:</strong> {systemMode.tradingMode} Trading • 
+              <strong>Data:</strong> {systemMode.marketData} • 
+              <strong>Account:</strong> {systemMode.accountAccess} •
               <strong>Connection:</strong> {connectionStatus} • 
               <strong>Strategy:</strong> {selectedStrategy}
             </Typography>
@@ -692,6 +639,7 @@ const TradingDashboard = () => {
             account={account}
             prices={prices}
             portfolio={portfolio}
+            systemStatus={systemStatus}
           />
         </Box>
 

@@ -96,7 +96,7 @@ const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) =>
   </Card>
 );
 
-const PortfolioOverview = ({ account, prices, portfolio }) => {
+const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
   // Define our trading assets
   const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE'];
 
@@ -164,23 +164,8 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
     0
   );
 
-  const allocation = getAssetAllocation();
-
-  // Enhanced system status determination
-  const getSystemStatus = () => {
-    const hasAccountData = account && !account.error;
-    const paperTradingActive = portfolio?.riskStatus && !portfolio.riskStatus.isHalted;
-    const isLiveMode = portfolio?.mode === 'live'; // Assuming portfolio indicates mode
-
-    return {
-      marketData: hasAccountData ? 'Live' : 'Fallback',
-      tradingMode: isLiveMode ? 'Live' : 'Paper',
-      tradingStatus: paperTradingActive ? 'Active' : 'Inactive',
-    };
-  };
-
-  const systemStatus = getSystemStatus();
-  const isLiveMode = portfolio?.mode === 'live';
+  const allocation = getAssetAllocation();  
+  const isLiveMode = systemStatus?.config?.tradingMode === 'live';
 
   return (
     <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -190,36 +175,13 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
         </Typography>
         
         {/* Enhanced Status Indicators */}
-        <Box display="flex" gap={1} flexWrap="wrap" sx={{ display: { xs: 'none', md: 'flex' } }}>
-          <Chip 
-            size="small" 
-            icon={<DataUsage />}
-            label={systemStatus.dataMode}
-            color={systemStatus.marketData === 'live' ? 'success' : 'warning'}
-            variant="outlined"
-          />
-          <Chip 
-            size="small" 
-            icon={<Psychology />}
-            label={`Paper Trading: ${systemStatus.paperTrading === 'active' ? 'Active' : 'Inactive'}`}
-            color={systemStatus.paperTrading === 'active' ? 'warning' : 'default'}
-            variant="outlined"
-          />
-          <Chip 
-            size="small" 
-            icon={<Security />}
-            label="Live Trading: Disabled"
-            color="error"
-            variant="outlined"
-          />
-        </Box>
       </Box>
 
       {/* System Status Alert */}
-      {systemStatus.tradingMode === 'Live' ? (
-        <Alert severity="info" icon={<MonetizationOn />} sx={{ mb: 2, backgroundColor: 'success.dark' }}>
+      {isLiveMode ? (
+        <Alert severity="success" icon={<MonetizationOn />} sx={{ mb: 2 }}>
           <Typography variant="body2" fontWeight="bold">
-            LIVE TRADING IS ACTIVE
+            LIVE TRADING MODE
           </Typography>
           <Typography variant="caption" display="block">
             The bot is executing trades with real funds on your Binance account.
