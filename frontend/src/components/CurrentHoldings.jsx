@@ -40,8 +40,10 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 const CurrentHoldings = ({ account, prices, portfolio }) => {
-  const [tabValue, setTabValue] = useState(0);
-  
+  const isLiveMode = portfolio?.mode === 'live';
+  // Default to Real Holdings (index 1) if in live mode, otherwise Paper Trading (index 0)
+  const [tabValue, setTabValue] = useState(isLiveMode ? 1 : 0);
+
   // Define our trading assets
   const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE'];
 
@@ -345,11 +347,11 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
       {/* Tab Navigation */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-          <Tab 
-            icon={<Psychology />} 
-            label="Paper Trading" 
+          <Tab
+            icon={isLiveMode ? <MonetizationOn /> : <Psychology />}
+            label={isLiveMode ? 'Bot Live Trading' : 'Paper Trading'}
             id="portfolio-tab-0"
-            sx={{ color: 'warning.main' }}
+            sx={{ color: isLiveMode ? 'success.main' : 'warning.main' }}
           />
           <Tab 
             icon={<AccountBalance />} 
@@ -367,11 +369,11 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
 
       {/* Paper Trading Tab */}
       <TabPanel value={tabValue} index={0}>
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert severity={isLiveMode ? 'success' : 'warning'} sx={{ mb: 2 }}>
           <Box display="flex" alignItems="center" gap={1}>
-            <Psychology />
+            {isLiveMode ? <MonetizationOn /> : <Psychology />}
             <Typography variant="body2">
-              <strong>Paper Trading Portfolio</strong> - These are simulated positions using virtual $5,000 USDT. No real money is at risk.
+              <strong>{isLiveMode ? 'Live Trading Portfolio' : 'Paper Trading Portfolio'}</strong> - {isLiveMode ? "These are the bot's real-time positions and performance." : 'These are simulated positions using virtual funds. No real money is at risk.'}
             </Typography>
           </Box>
         </Alert>
@@ -379,15 +381,15 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
         <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} sx={{ mb: 2 }}>
           <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">Total Virtual Portfolio</Typography>
-              <Typography variant="h6" color="warning.main">
+              <Typography variant="caption" color="textSecondary">Total {isLiveMode ? 'Live' : 'Virtual'} Portfolio</Typography>
+              <Typography variant="h6" color={isLiveMode ? 'success.main' : 'warning.main'}>
                 {formatCurrency(getPaperPortfolioValue())}
               </Typography>
             </Card>
           </Box>
           <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">Virtual P&L</Typography>
+              <Typography variant="caption" color="textSecondary">{isLiveMode ? 'Live' : 'Virtual'} P&L</Typography>
               <Typography variant="h6" color={(portfolio?.totalPnL || 0) >= 0 ? 'success.main' : 'error.main'}>
                 {(portfolio?.totalPnL || 0) >= 0 ? '+' : ''}{formatCurrency(portfolio?.totalPnL || 0)}
               </Typography>
@@ -395,8 +397,8 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
           </Box>
           <Box>
             <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">Virtual Positions</Typography>
-              <Typography variant="h6" color="warning.main">
+              <Typography variant="caption" color="textSecondary">{isLiveMode ? 'Live' : 'Virtual'} Positions</Typography>
+              <Typography variant="h6" color={isLiveMode ? 'success.main' : 'warning.main'}>
                 {getPaperPositions().length}
               </Typography>
             </Card>
@@ -421,12 +423,12 @@ const CurrentHoldings = ({ account, prices, portfolio }) => {
 
           {getPaperPositions().length === 0 && (
             <Box textAlign="center" py={4}>
-              <Psychology sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+              {isLiveMode ? <MonetizationOn sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} /> : <Psychology sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />}
               <Typography variant="body2" color="textSecondary">
-                No virtual positions currently open
+                No {isLiveMode ? 'live' : 'virtual'} positions currently open
               </Typography>
               <Typography variant="caption" color="textSecondary">
-                Virtual trades will appear here when the paper trading engine executes signals
+                {isLiveMode ? 'Live trades will appear here when the bot executes signals' : 'Virtual trades will appear here when the paper trading engine executes signals'}
               </Typography>
             </Box>
           )}

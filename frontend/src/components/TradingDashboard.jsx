@@ -404,6 +404,7 @@ const TradingDashboard = () => {
   }, [latestSignals]);
 
   const systemHealth = getSystemHealth();
+  const isLiveMode = systemStatus?.config?.tradingMode === 'live';
 
   // Enhanced data building status
   const getDataBuildingStatus = () => {
@@ -580,9 +581,9 @@ const TradingDashboard = () => {
                 startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
                 onClick={handleToggleTrading}
                 disabled={dataStatus?.isBuilding && !tradingEnabled}
-                size="large"
+                size="medium"
               >
-                {tradingEnabled ? 'Stop Paper Trading' : 'Start Paper Trading'}
+                {tradingEnabled ? `Stop ${isLiveMode ? 'Live' : 'Paper'} Trading` : `Start ${isLiveMode ? 'Live' : 'Paper'} Trading`}
               </Button>
             </Grid>
             
@@ -602,7 +603,7 @@ const TradingDashboard = () => {
                 variant="outlined"
                 startIcon={<Refresh />}
                 onClick={handleResetTrading}
-                color="warning"
+                color="error"
                 size="small"
               >
                 Reset Engine
@@ -634,15 +635,15 @@ const TradingDashboard = () => {
               <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
                 <Chip
                   size="small"
-                  icon={<TrendingUp />}
+                  icon={<Timeline />}
                   label={`${signalsToRender.length} signals`}
                   color="info"
                   variant="outlined"
                 />
                 <Chip
                   size="small"
-                  icon={<Psychology />}
-                  label={`${trades.length} paper trades`}
+                  icon={isLiveMode ? <MonetizationOn /> : <Psychology />}
+                  label={`${trades.length} ${isLiveMode ? 'live' : 'paper'} trades`}
                   color="warning"
                   variant="outlined"
                 />
