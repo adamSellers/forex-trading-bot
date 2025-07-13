@@ -230,6 +230,7 @@ class LiveTradingEngine extends EventEmitter {
         // 3. --- EXECUTE REAL ORDER ---
         try {
             logger.warn(
+                // Corrected log message
                 `[LIVE] Attempting MARKET BUY for ${usdtCost.toFixed(
                     2
                 )} USDT of ${signal.symbol}`
@@ -309,26 +310,44 @@ class LiveTradingEngine extends EventEmitter {
         entryTrade,
         exitReason = "SIGNAL_SELL"
     ) {
-        const quantityToSell = position.free;
+        const quantityToSellRaw = position.free;
+
+        // --- FIX: Format sell quantity to match Binance's stepSize rule ---
+        const constraints = this.binanceData.symbolInfo.get(signal.symbol);
+        const stepSize = constraints?.stepSize || 0.000001; // Fallback to high precision
+
+        const quantityToSell = this.formatQuantity(quantityToSellRaw, stepSize);
+
+        if (quantityToSell <= 0) {
+            logger.warn(
+                `[LIVE] Calculated sell quantity for ${signal.symbol} is zero after formatting. Aborting sell.`
+            );
+            return { success: false, reason: "Sell quantity is zero." };
+        }
 
         // 1. Validate Order
         const validation = this.binanceData.validateOrderParams(
             signal.symbol,
-            quantityToSell,
+            quantityToSell, // Use the formatted quantity
             currentPrice
         );
         if (!validation.valid) {
             const reason = `SELL Order validation failed: ${validation.errors.join(
                 ", "
             )}`;
-            logger.error(`[LIVE] ${reason}`);
+            // Also log the raw vs formatted quantity for debugging
+            logger.error(`[LIVE] ${reason}`, {
+                rawQty: quantityToSellRaw,
+                formattedQty: quantityToSell,
+                stepSize,
+            });
             return { success: false, reason };
         }
 
         // 2. --- EXECUTE REAL SELL ORDER ---
         try {
             logger.warn(
-                `[LIVE] Attempting MARKET SELL: ${quantityToSell} ${signal.symbol}`
+                `[LIVE] Attempting MARKET SELL: ${quantityToSell} ${signal.symbol} (Raw: ${quantityToSellRaw})`
             );
 
             const orderResult = await binanceClient.marketSell(
@@ -471,6 +490,28 @@ class LiveTradingEngine extends EventEmitter {
             maxAllocation: maxAllocationUSDT,
             dynamicMinOrderSize,
         };
+    }
+
+    /**
+     * Helper function to format a quantity according to Binance's stepSize rule.
+     * This prevents precision-related API errors on SELL orders.
+     * @param {number} quantity The raw quantity.
+     * @param {number} stepSize The required step size for the symbol.
+     * @returns {number} The formatted quantity.
+     */
+    formatQuantity(quantity, stepSize) {
+        if (!stepSize || stepSize <= 0) {
+            return quantity; // Avoid division by zero if stepSize is invalid
+        }
+        // Determine the number of decimal places from the stepSize
+        const precision = Math.max(
+            0,
+            (stepSize.toString().split(".")[1] || "").length
+        );
+        // Floor the quantity to the nearest multiple of stepSize
+        return parseFloat(
+            (Math.floor(quantity / stepSize) * stepSize).toFixed(precision)
+        );
     }
 
     /**
