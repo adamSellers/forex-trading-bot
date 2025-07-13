@@ -80,6 +80,7 @@ const RecentTrades = ({ trades }) => {
             const usdtCost = trade.usdtCost;
             const usdtReceived = trade.usdtReceived;
             const pnl = trade.pnl; // Can be undefined, handled below
+            const mode = trade.mode || 'paper'; // Default to paper if mode is missing
             const timestamp = trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'Invalid Date';
             // Use a more stable key if a unique ID is available from the backend
             const uniqueKey = trade.id || `${symbol}-${trade.timestamp}-${index}`;
@@ -87,7 +88,7 @@ const RecentTrades = ({ trades }) => {
             return (
               <Card key={uniqueKey} variant="outlined" sx={{ mb: 1 }}>
                 <CardContent sx={{ py: 1 }}>
-                  <Grid container alignItems="center" spacing={1}>
+                  <Grid container alignItems="center" spacing={1} wrap="nowrap">
                     <Grid item>
                       {side === 'BUY' ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
                     </Grid>
@@ -96,11 +97,18 @@ const RecentTrades = ({ trades }) => {
                         {symbol.replace('USDT', '')}
                       </Typography>
                     </Grid>
-                    <Grid item xs={2}>
+                    <Grid item xs={3} display="flex" gap={1}>
                       <Chip
                         size="small"
                         label={side}
                         color={side === 'BUY' ? 'success' : 'error'}
+                      />
+                      <Chip
+                        size="small"
+                        label={mode.toUpperCase()}
+                        color={mode === 'live' ? 'info' : 'warning'}
+                        variant="outlined"
+                        sx={{ fontWeight: 'bold' }}
                       />
                     </Grid>
                     <Grid item xs={2}>

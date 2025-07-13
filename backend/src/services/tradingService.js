@@ -252,11 +252,16 @@ class TradingService extends EventEmitter {
         try {
             const limit = parseInt(query.limit) || 20;
             const symbol = query.symbol;
+            const currentMode = this.config.tradingMode; // Get the current mode
 
             if (symbol) {
-                return await this.tradeRepo.getBySymbol(symbol, limit);
+                return await this.tradeRepo.getBySymbol(
+                    symbol,
+                    limit,
+                    currentMode
+                );
             } else {
-                return await this.tradeRepo.getRecent(limit);
+                return await this.tradeRepo.getRecent(limit, currentMode);
             }
         } catch (error) {
             logger.error("Error getting trades:", error);
