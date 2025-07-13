@@ -945,6 +945,7 @@ class PaperTradingEngine extends EventEmitter {
         });
 
         const summary = {
+            mode: "paper", // Explicitly set the mode for consistency
             totalValue: this.portfolio.totalValue,
             usdtBalance: this.portfolio.usdtBalance,
             cryptoValue: totalCryptoValue,

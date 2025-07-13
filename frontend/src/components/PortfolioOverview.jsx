@@ -97,7 +97,7 @@ const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) =>
 );
 
 const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
-  // Define our trading assets
+  // Define our trading assets to filter the real portfolio view
   const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE'];
 
   const formatCurrency = (value) => {
@@ -165,7 +165,9 @@ const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
   );
 
   const allocation = getAssetAllocation();  
-  const isLiveMode = systemStatus?.config?.tradingMode === 'live';
+  // FIX: Use portfolio.mode as the source of truth, consistent with CurrentHoldings.jsx
+  const isLiveMode = portfolio?.mode === 'live';
+  const dataMode = systemStatus?.services?.binanceData?.useFallback ? 'Fallback' : 'Live Binance API';
 
   return (
     <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -425,30 +427,47 @@ const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
                   Real Account: {account?.accountType || 'SPOT'}
                 </Typography>
                 <Chip 
-                  size="small" 
+                  size="small"
                   label={account?.canTrade ? 'Trading Enabled' : 'Read-Only'} 
-                  color={account?.canTrade ? 'warning' : 'success'}
+                  color={account?.canTrade ? 'success' : 'warning'}
                   variant="outlined"
                 />
               </Box>
               <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
               <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
-                <Psychology color="warning" />
-                <Typography variant="body2" fontWeight="bold">
-                  Paper Mode: Virtual Trading
-                </Typography>
-                <Chip 
-                  size="small" 
-                  label="No Real Money Risk" 
-                  color="success"
-                  variant="outlined"
-                />
+                {isLiveMode ? (
+                  <>
+                    <MonetizationOn color="error" />
+                    <Typography variant="body2" fontWeight="bold">
+                      Mode: Live Trading
+                    </Typography>
+                    <Chip 
+                      size="small" 
+                      label="Real Money Risk" 
+                      color="error"
+                      variant="outlined"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Psychology color="warning" />
+                    <Typography variant="body2" fontWeight="bold">
+                      Mode: Paper Trading
+                    </Typography>
+                    <Chip 
+                      size="small" 
+                      label="No Real Money Risk" 
+                      color="success"
+                      variant="outlined"
+                    />
+                  </>
+                )}
               </Box>
               <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
               <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
                 <DataUsage color="info" />
                 <Typography variant="body2" fontWeight="bold">
-                  Data: {systemStatus.dataMode}
+                  Data: {dataMode}
                 </Typography>
                 <Chip 
                   size="small" 
