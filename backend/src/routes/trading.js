@@ -461,9 +461,16 @@ module.exports = (tradingController) => {
                 );
 
             // Calculate additional metrics
-            const dailyReturns = calculateDailyReturns(trades);
-            const sharpeRatio = calculateSharpeRatio(dailyReturns);
-            const volatility = calculateVolatility(dailyReturns);
+            const tradeReturns = getTradeReturns(trades);
+            const tradingFrequency = calculateTradingFrequency(trades);
+            const sharpeRatio = calculateSharpeRatio(
+                tradeReturns,
+                tradingFrequency
+            );
+            const volatility = calculateVolatility(
+                tradeReturns,
+                tradingFrequency
+            );
 
             const performance = {
                 ...portfolio.performance,
@@ -564,25 +571,63 @@ module.exports = (tradingController) => {
 
     function parsePeriod(period) {
         const periods = {
-            "1h": 60 * 60 * 1000,
-            "4h": 4 * 60 * 60 * 1000,
-            "1d": 24 * 60 * 60 * 1000,
-            "7d": 7 * 24 * 60 * 60 * 1000,
-            "30d": 30 * 24 * 60 * 60 * 1000,
-            "90d": 90 * 24 * 60 * 60 * 1000,
+            "1h": 3600000,
+            "4h": 14400000,
+            "1d": 86400000,
+            "7d": 604800000,
+            "30d": 2592000000,
+            "90d": 7776000000,
         };
         return periods[period] || periods["7d"];
     }
 
-    function calculateDailyReturns(trades) {
+    function getTradeReturns(trades) {
         const sellTrades = trades.filter(
             (t) => t.side === "SELL" && t.pnl !== undefined
         );
         return sellTrades.map((t) => t.pnlPercent || 0);
     }
 
-    // FIXED: Crypto Sharpe Ratio calculation (365 days)
-    function calculateSharpeRatio(returns) {
+    /**
+     * Calculates the annualized Sharpe Ratio from a series of trade returns.
+     * It's annualized using the trading frequency.
+     * @param {number[]} returns - Array of percentage returns per trade.
+     * @param {number} tradingFrequency - Trades per day.
+     * @returns {number} The annualized Sharpe Ratio.
+     */
+    function calculateSharpeRatio(returns, tradingFrequency) {
+        if (returns.length < 2) return 0;
+
+        const avgReturn =
+            returns.reduce((sum, r) => sum + r, 0) / returns.length;
+        const variance =
+            returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
+            (returns.length - 1);
+        const stdDev = Math.sqrt(variance);
+
+        if (stdDev === 0) return 0;
+
+        const perTradeSharpe = avgReturn / stdDev;
+
+        // Only annualize if we have a valid trading frequency.
+        if (tradingFrequency > 0) {
+            const tradesPerYear =
+                tradingFrequency * CRYPTO_TRADING_DAYS_PER_YEAR;
+            const annualizationFactor = Math.sqrt(tradesPerYear);
+            return perTradeSharpe * annualizationFactor;
+        }
+
+        // Return the raw, per-trade Sharpe ratio if frequency is not available.
+        return perTradeSharpe;
+    }
+
+    /**
+     * Calculates the annualized volatility from a series of trade returns.
+     * @param {number[]} returns - Array of percentage returns per trade.
+     * @param {number} tradingFrequency - Trades per day.
+     * @returns {number} The annualized volatility.
+     */
+    function calculateVolatility(returns, tradingFrequency) {
         if (returns.length < 2) return 0;
         const avgReturn =
             returns.reduce((sum, r) => sum + r, 0) / returns.length;
@@ -590,22 +635,16 @@ module.exports = (tradingController) => {
             returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
             (returns.length - 1);
         const stdDev = Math.sqrt(variance);
-        // FIXED: Use 365 days for crypto markets, not 252
-        return stdDev === 0
-            ? 0
-            : (avgReturn / stdDev) * Math.sqrt(CRYPTO_TRADING_DAYS_PER_YEAR);
-    }
 
-    // FIXED: Crypto Volatility calculation (365 days)
-    function calculateVolatility(returns) {
-        if (returns.length < 2) return 0;
-        const avgReturn =
-            returns.reduce((sum, r) => sum + r, 0) / returns.length;
-        const variance =
-            returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) /
-            (returns.length - 1);
-        // FIXED: Use 365 days for crypto markets, not 252
-        return Math.sqrt(variance) * Math.sqrt(CRYPTO_TRADING_DAYS_PER_YEAR);
+        // Only annualize if we have a valid trading frequency.
+        if (tradingFrequency > 0) {
+            const tradesPerYear =
+                tradingFrequency * CRYPTO_TRADING_DAYS_PER_YEAR;
+            return stdDev * Math.sqrt(tradesPerYear);
+        }
+
+        // Return the raw, per-trade standard deviation if frequency is not available.
+        return stdDev;
     }
 
     function calculateAvgHoldingPeriod(trades) {
@@ -642,10 +681,18 @@ module.exports = (tradingController) => {
 
     function calculateTradingFrequency(trades) {
         if (trades.length < 2) return 0;
-        const timeSpan =
-            trades[trades.length - 1].timestamp - trades[0].timestamp;
-        const days = timeSpan / (24 * 60 * 60 * 1000);
-        return trades.length / (days || 1);
+        // Newest trade is at index 0, oldest is at the end.
+        const timeSpanMs =
+            trades[0].timestamp - trades[trades.length - 1].timestamp;
+
+        // If there's no time span, we can't calculate frequency.
+        if (timeSpanMs <= 0) {
+            return 0;
+        }
+
+        const days = timeSpanMs / (24 * 60 * 60 * 1000);
+        // Return trades per day.
+        return trades.length / days;
     }
 
     function analyzeByAsset(trades, signals) {
