@@ -1,40 +1,47 @@
 # Crypto Trend Trading Bot
 
-A full-stack, production-ready cryptocurrency trading bot featuring real-time data analysis, advanced paper trading with sophisticated risk management, and a comprehensive monitoring dashboard.
+A full-stack, production-ready cryptocurrency trading bot featuring real-time data analysis, advanced paper trading, a live trading engine, and a comprehensive monitoring dashboard.
 
  <!-- TODO: Replace with an actual screenshot -->
 
-## Features
+## ✨ Features
 
--   **Real-Time Binance Integration**: Live market data via WebSockets with a robust HTTP polling fallback.
+-   **Dual Trading Modes**:
+    -   **Live Trading Engine**: Execute real trades on your Binance account with real money.
+    -   **Paper Trading Engine**: Simulate trades with a virtual portfolio, tracking detailed P&L without financial risk.
 -   **Advanced Signal Generation**:
-    -   Configurable EMA/SMA crossover strategies.
+    -   Configurable EMA/SMA crossover strategies (`conservative`, `balanced`, `responsive`).
     -   **Volatility Filtering** using Average True Range (ATR) to avoid trading in choppy markets.
     -   Signal strength calculation and cooldown periods to prevent over-trading.
--   **Sophisticated Paper Trading Engine**:
-    -   Simulates trades with a virtual portfolio, tracking detailed P&L.
+-   **Sophisticated Order & Risk Management**:
     -   **Dynamic Position Sizing**: Calculates order size based on user-defined risk per trade and real-time ATR.
-    -   **Advanced Order Management**: Implements **Trailing Stops** and ATR-based **Take Profit** levels.
--   **Comprehensive Risk Management**:
-    -   Configurable daily and weekly loss limits that automatically halt trading.
-    -   Per-asset portfolio allocation rules.
+    -   **Advanced Order Management**: Implements **Trailing Stops** and ATR-based **Take Profit** levels for both paper and live trading.
+    -   **Centralized Risk Service**: Configurable daily and weekly loss limits that automatically halt trading to protect capital.
+-   **Backtesting Engine**:
+    -   Run strategies against months of historical data to evaluate performance before deployment.
+    -   Scripts provided to fetch historical data and run backtests.
 -   **Rich React Dashboard**:
-    -   Live price charts with **Moving Average overlays**.
-    -   Real-time signal and trade execution feed.
+    -   **Live Price Charts** with configurable assets, timeframes, and moving average overlays.
+    -   **Real-time Feeds** for signals and trade executions via WebSockets.
     -   Detailed portfolio overview distinguishing between paper positions and real Binance holdings.
+    -   **Analytics Dashboard** to visualize performance, P&L over time, and trading activity.
+    -   **System Health** monitoring for all backend services.
+    -   **Full Configuration UI** to adjust trading strategy and risk parameters on the fly.
     -   System status banner showing data collection progress.
--   **Persistent Storage**: All signals and trades are saved to a SQLite database for analysis and audit.
+-   **Secure & Persistent**:
+    -   **Encrypted API Key Storage**: Credentials are encrypted on disk and only loaded into memory at runtime.
+    -   **Persistent Database**: All signals and trades are saved to a SQLite database for analysis, audit, and state restoration.
 -   **Production-Ready Deployment**:
     -   Optimized for Raspberry Pi 5 (ARM64) with Node.js v22.
     -   Managed by PM2 with a detailed `ecosystem.config.js`.
     -   Served via nginx with WebSocket proxying.
-    -   Includes automated deployment and backup scripts.
+    -   **Comprehensive Shell Scripts** for automated clean installation, deployment, updates, backups, and restoration.
 
 ## Tech Stack
 
 -   **Backend**: Node.js, Express
 -   **Frontend**: React, Vite, Material-UI
--   **Charting**: Recharts
+-   **Charting**: Recharts, MUI X-Charts
 -   **Real-Time Communication**: Socket.IO
 -   **Database**: SQLite3 with Knex.js for migrations
 -   **API Client**: `node-binance-api`
@@ -42,55 +49,53 @@ A full-stack, production-ready cryptocurrency trading bot featuring real-time da
 
 ## Getting Started
 
--   npm (v8.0.0 or higher)
+### Local Development
 
-### Installation & Setup
+The quickest way to get a local development environment running.
 
 1.  **Clone the repository:**
 
     ```bash
-    git clone https://github.com/your-username/crypto-trading-bot.git
+    git clone https://github.com/adamSellers/crypto-trading-bot.git
     cd crypto-trading-bot
     ```
 
-    npm install
+2.  **Run the setup script:** This will install all dependencies and create the necessary `.env` files.
 
+    ```bash
+    ./scripts/dev-setup.sh
     ```
 
-    ```
+3.  **Add API Keys:** Edit the newly created `backend/.env` file and add your Binance API keys. Read-only keys are sufficient for development.
 
-2.  **Configure Environment Variables for Development:**
-    Create a `.env` file in the `backend/` directory. For production, secrets are managed by the deployment scripts.
+4.  **Run the database migrations:**
 
-    **`backend/.env`**
-
-    ```env
-    # Server Configuration
-
-    # Binance API (Read-only access is sufficient)
-    BINANCE_API_KEY=YOUR_BINANCE_API_KEY
-    BINANCE_API_SECRET=YOUR_BINANCE_API_SECRET
-
-    # Database and Logging
-    DB_PATH=./data/trading.db
-    LOG_LEVEL=debug
-    ```
-
-3.  **Initialize the Database:**
-    Run the database migrations.
-    ````bash
+    ```bash
     npm run db:migrate
-    npm run db:seed
+    ```
+
+5.  **Start the development servers:**
     ```bash
     npm run dev
-    ````
+    ```
+    This will start the backend and frontend concurrently. The dashboard will be available at `http://localhost:5173`.
 
--   **Build for production:** `npm run build`
--   **Run linter:** `npm run lint`
+### Production Install on Raspberry Pi
+
+For a full production deployment on a Raspberry Pi 5, use the automated installation script. This will set up the entire environment, including dependencies, nginx, PM2, and security features.
+
+```bash
+# Run this from your home directory on the Pi
+git clone https://github.com/adamSellers/crypto-trading-bot.git
+cd crypto-trading-bot
+./scripts/clean-install.sh
+```
+
+The script will guide you through the process, including setting up your encrypted API keys.
 
 ## System Architecture
 
-The application follows a clean, service-oriented architecture. The `TradingService` acts as the central orchestrator, ensuring a clear and reliable data flow.
+The application follows a clean, service-oriented architecture. The `TradingService` acts as the central orchestrator, initializing and managing all sub-services. It selects an `activeEngine` (either `PaperTradingEngine` or `LiveTradingEngine`) based on the configuration, ensuring a clear and reliable data flow.
 
 ```
                                        +-------------------------+

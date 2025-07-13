@@ -2,7 +2,9 @@
 const EventEmitter = require("events");
 const BinanceDataService = require("./binanceDataService");
 const SignalGenerator = require("./signalGenerator");
+const RiskManagementService = require("./riskManagementService");
 const PaperTradingEngine = require("./paperTradingEngine");
+const LiveTradingEngine = require("./liveTradingEngine");
 const TradeRepository = require("../repositories/tradeRepository");
 const SignalRepository = require("../repositories/signalRepository");
 const logger = require("../utils/logger");
@@ -21,6 +23,7 @@ class TradingService extends EventEmitter {
         this.config = {
             strategy: "balanced",
             timeframe: "1h",
+            tradingMode: "paper", // 'paper' or 'live'
             enableTrading: false,
             assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"],
             timeframes: ["1h", "4h", "1d"],
@@ -36,6 +39,9 @@ class TradingService extends EventEmitter {
             },
         };
 
+        // The active trading engine (either paper or live)
+        this.activeEngine = null;
+
         logger.info("🎯 TradingService initialized with clean architecture");
     }
 
@@ -45,18 +51,39 @@ class TradingService extends EventEmitter {
 
             // Initialize core services
             this.binanceData = new BinanceDataService(this.config);
+            this.riskService = new RiskManagementService();
             this.signalGenerator = new SignalGenerator(this.config);
-            this.paperTrading = new PaperTradingEngine(this.config);
+
+            // ** THE ENGINE SWITCH **
+            if (this.config.tradingMode === "live") {
+                logger.warn(
+                    "🚨 TRADING MODE IS SET TO 'LIVE'. INITIALIZING LIVE ENGINE. 🚨"
+                );
+                this.activeEngine = new LiveTradingEngine(
+                    this.config,
+                    this.binanceData,
+                    this.riskService
+                );
+            } else {
+                logger.info(
+                    "Trading mode is 'paper'. Initializing paper trading engine."
+                );
+                this.activeEngine = new PaperTradingEngine(
+                    this.config,
+                    this.riskService
+                );
+            }
 
             // Start the data service initialization, which runs in the background
             this.binanceData.initialize();
+            this.riskService.initialize(this.config);
 
             // Wait for services to be ready
             await this.waitForServices();
-            await this.paperTrading.initialize();
+            await this.activeEngine.initialize();
 
             // Start services
-            this.paperTrading.start();
+            this.activeEngine.start();
             this.signalGenerator.start(this.binanceData, 60000);
 
             this.setupServiceEvents();
@@ -114,7 +141,7 @@ class TradingService extends EventEmitter {
         });
 
         // Trade execution events
-        this.paperTrading.on("tradeExecuted", async (trade) => {
+        this.activeEngine.on("tradeExecuted", async (trade) => {
             try {
                 await this.tradeRepo.save(trade);
                 this.emit("tradeExecuted", trade);
@@ -124,12 +151,12 @@ class TradingService extends EventEmitter {
             }
         });
 
-        this.paperTrading.on("portfolioUpdated", (portfolio) => {
+        this.activeEngine.on("portfolioUpdated", (portfolio) => {
             this.emit("portfolioUpdated", portfolio);
             this.io.emit("portfolioUpdated", portfolio);
         });
 
-        this.paperTrading.on("tradingHalted", (data) => {
+        this.activeEngine.on("tradingHalted", (data) => {
             this.emit("tradingHalted", data);
             this.io.emit("tradingHalted", data);
         });
@@ -137,7 +164,7 @@ class TradingService extends EventEmitter {
         // Price update events
         this.binanceData.on("priceUpdate", (priceData) => {
             const allPrices = this.binanceData.getAllPrices();
-            this.paperTrading.updatePortfolioValue(allPrices);
+            this.activeEngine.updatePortfolioValue(allPrices);
             this.io.emit("priceUpdate", priceData);
         });
     }
@@ -148,12 +175,12 @@ class TradingService extends EventEmitter {
             await this.signalRepo.save(signal);
 
             // Process signal if trading enabled
-            if (this.config.enableTrading && this.paperTrading) {
+            if (this.config.enableTrading && this.activeEngine) {
                 const priceData = this.binanceData.getCurrentPrice(
                     signal.symbol
                 );
                 if (priceData) {
-                    const result = await this.paperTrading.processSignal(
+                    const result = await this.activeEngine.processSignal(
                         signal,
                         priceData.price,
                         signal.atr
@@ -178,8 +205,8 @@ class TradingService extends EventEmitter {
             const binanceStatus = this.binanceData
                 ? this.binanceData.getServiceStatus()
                 : null;
-            const paperStatus = this.paperTrading
-                ? this.paperTrading.getStatus()
+            const engineStatus = this.activeEngine
+                ? this.activeEngine.getStatus()
                 : null;
             const signalStatus = this.signalGenerator
                 ? this.signalGenerator.getStatus()
@@ -189,8 +216,7 @@ class TradingService extends EventEmitter {
                 isInitialized: this.isActive,
                 config: this.config,
                 services: {
-                    binanceData: binanceStatus,
-                    paperTrading: paperStatus,
+                    engine: engineStatus,
                     signalGenerator: signalStatus,
                 },
                 requirements: {
@@ -251,11 +277,11 @@ class TradingService extends EventEmitter {
 
     async getPortfolio() {
         try {
-            if (!this.paperTrading) {
-                throw new Error("Paper trading service not initialized");
+            if (!this.activeEngine) {
+                throw new Error("Trading engine not initialized");
             }
-            // The paper trading engine is the source of truth for the portfolio
-            return this.paperTrading.getPortfolioSummary();
+            // The active engine is the source of truth for the portfolio
+            return this.activeEngine.getPortfolioSummary();
         } catch (error) {
             logger.error("Error getting portfolio from service:", error);
             throw error;
@@ -276,27 +302,28 @@ class TradingService extends EventEmitter {
             const account = await this.binanceData.getAccountInfo();
 
             // Get paper trading context
-            const paperPortfolio = this.paperTrading
-                ? this.paperTrading.getPortfolioSummary()
+            const paperPortfolio = this.activeEngine
+                ? this.activeEngine.getPortfolioSummary()
                 : null;
 
             // CRITICAL FIX: Enhanced response with error handling
             const response = {
                 ...account,
-                paperTrading: paperPortfolio
-                    ? {
-                          enabled: true,
-                          totalValue: paperPortfolio.totalValue,
-                          totalPnL: paperPortfolio.totalPnL,
-                          positions: paperPortfolio.positions,
-                      }
-                    : { enabled: false },
+                paperTrading:
+                    this.config.tradingMode === "paper" && paperPortfolio
+                        ? {
+                              enabled: this.config.enableTrading,
+                              totalValue: paperPortfolio.totalValue,
+                              totalPnL: paperPortfolio.totalPnL,
+                              positions: paperPortfolio.positions,
+                          }
+                        : { enabled: false },
 
                 // Add system status context
                 systemStatus: {
                     apiConnected: !account.error,
                     lastUpdate: new Date().toISOString(),
-                    mode: account.error ? "FALLBACK" : "LIVE",
+                    mode: this.config.tradingMode,
                 },
             };
 
@@ -332,8 +359,11 @@ class TradingService extends EventEmitter {
             if (this.signalGenerator) {
                 this.signalGenerator.updateConfig(this.config);
             }
-            if (this.paperTrading) {
-                this.paperTrading.updateConfig(this.config);
+            if (this.activeEngine) {
+                this.activeEngine.updateConfig(this.config);
+            }
+            if (this.riskService) {
+                this.riskService.updateConfig(this.config);
             }
 
             logger.info("⚙️ Trading service configuration updated");
@@ -350,8 +380,8 @@ class TradingService extends EventEmitter {
     async startTrading() {
         try {
             this.config.enableTrading = true;
-            if (this.paperTrading) {
-                await this.paperTrading.start();
+            if (this.activeEngine) {
+                await this.activeEngine.start();
             }
             logger.info("▶️ Trading started");
             this.emit("tradingStarted");
@@ -364,8 +394,8 @@ class TradingService extends EventEmitter {
     async stopTrading() {
         try {
             this.config.enableTrading = false;
-            if (this.paperTrading) {
-                await this.paperTrading.stop();
+            if (this.activeEngine) {
+                await this.activeEngine.stop();
             }
             logger.info("⏹️ Trading stopped");
             this.emit("tradingStopped");
@@ -378,9 +408,12 @@ class TradingService extends EventEmitter {
 
     async resetTrading() {
         try {
-            // Reset paper trading engine
-            if (this.paperTrading) {
-                this.paperTrading.reset();
+            // Reset active trading engine
+            if (
+                this.activeEngine &&
+                typeof this.activeEngine.reset === "function"
+            ) {
+                this.activeEngine.reset();
             }
 
             // Reset signal generator
@@ -405,11 +438,11 @@ class TradingService extends EventEmitter {
             if (this.signalGenerator) {
                 this.signalGenerator.stop();
             }
-            if (this.paperTrading) {
-                this.paperTrading.stop();
+            if (this.activeEngine) {
+                this.activeEngine.stop();
             }
             if (this.binanceData) {
-                this.binanceData.cleanup();
+                await this.binanceData.stop();
             }
 
             this.isActive = false;

@@ -18,10 +18,13 @@ import {
   Security,
   PlayArrow,
   Pause,
-  DataUsage,
+  Cloud,
+  CloudOff,
+  MoneyOff,
   CheckCircle,
   Warning,
-  Info
+  Info,
+  DataUsage
 } from '@mui/icons-material';
 
 // Moved MetricCard outside the component for performance and clarity
@@ -166,26 +169,26 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
   const getSystemStatus = () => {
     const hasAccountData = account && !account.error;
     const paperTradingActive = portfolio?.riskStatus && !portfolio.riskStatus.isHalted;
-    
+    const isLiveMode = portfolio?.mode === 'live'; // Assuming portfolio indicates mode
+
     return {
-      marketData: hasAccountData ? 'live' : 'fallback',
-      paperTrading: paperTradingActive ? 'active' : 'inactive',
-      realTrading: 'disabled', // Always disabled for safety
-      dataMode: hasAccountData ? 'Live Binance API' : 'Fallback Data'
+      marketData: hasAccountData ? 'Live' : 'Fallback',
+      tradingMode: isLiveMode ? 'Live' : 'Paper',
+      tradingStatus: paperTradingActive ? 'Active' : 'Inactive',
     };
   };
 
   const systemStatus = getSystemStatus();
 
   return (
-    <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
         <Typography variant="h6">
           Portfolio Overview
         </Typography>
         
         {/* Enhanced Status Indicators */}
-        <Box display="flex" gap={1} flexWrap="wrap">
+        <Box display="flex" gap={1} flexWrap="wrap" sx={{ display: { xs: 'none', md: 'flex' } }}>
           <Chip 
             size="small" 
             icon={<DataUsage />}
@@ -211,22 +214,25 @@ const PortfolioOverview = ({ account, prices, portfolio }) => {
       </Box>
 
       {/* System Status Alert */}
-      <Alert 
-        severity={systemStatus.marketData === 'live' ? 'success' : 'warning'} 
-        sx={{ mb: 2 }}
-        icon={systemStatus.marketData === 'live' ? <CheckCircle /> : <Warning />}
-      >
-        <Box>
+      {systemStatus.tradingMode === 'Live' ? (
+        <Alert severity="error" icon={<Warning />} sx={{ mb: 2 }}>
           <Typography variant="body2" fontWeight="bold">
-            System Status: {systemStatus.marketData === 'live' ? 'Fully Operational' : 'Operating with Fallback Data'}
+            LIVE TRADING IS ACTIVE
           </Typography>
-          <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-            • <strong>Market Data:</strong> {systemStatus.dataMode} • 
-            <strong> Paper Trading:</strong> {systemStatus.paperTrading === 'active' ? 'Simulating trades with virtual $5,000' : 'Inactive'} • 
-            <strong> Real Trading:</strong> Safely disabled - no real orders will be placed
+          <Typography variant="caption" display="block">
+            The system is configured to execute trades with real funds on your Binance account.
           </Typography>
-        </Box>
-      </Alert>
+        </Alert>
+      ) : (
+        <Alert severity="warning" icon={<Psychology />} sx={{ mb: 2 }}>
+          <Typography variant="body2" fontWeight="bold">
+            PAPER TRADING MODE
+          </Typography>
+          <Typography variant="caption" display="block">
+            The system is in simulation mode. No real funds are at risk.
+          </Typography>
+        </Alert>
+      )}
       
       {/* Portfolio Value Section */}
       <Box sx={{ width: '100%' }}>

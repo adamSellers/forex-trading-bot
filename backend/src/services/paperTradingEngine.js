@@ -13,7 +13,7 @@ const STATE_FILE_PATH = path.join(
 );
 
 class PaperTradingEngine extends EventEmitter {
-    constructor(config = {}) {
+    constructor(config = {}, riskManagementService) {
         super();
 
         this.config = {
@@ -45,6 +45,9 @@ class PaperTradingEngine extends EventEmitter {
 
         // Repository for loading historical data
         this.tradeRepo = new TradeRepository();
+
+        // NEW: Centralized Risk Management
+        this.riskService = riskManagementService;
 
         // Portfolio state - USDT-based accounting
         this.portfolio = {
@@ -136,16 +139,6 @@ class PaperTradingEngine extends EventEmitter {
             },
         };
 
-        // Risk management
-        this.riskLimits = {
-            dailyLossLimit:
-                this.config.maxCapitalAtRisk * this.config.maxDailyLoss,
-            weeklyLossLimit:
-                this.config.maxCapitalAtRisk * this.config.maxWeeklyLoss,
-            isHalted: false,
-            haltReason: null,
-        };
-
         this.isActive = false;
         this.lastStateSave = 0;
 
@@ -167,7 +160,7 @@ class PaperTradingEngine extends EventEmitter {
                     100,
                 tradesCount: this.tradeHistory.length,
                 positionsCount: this.portfolio.positions.size,
-                riskStatus: this.riskLimits,
+                riskStatus: this.riskService.getRiskStatus(),
                 config: {
                     enableTrading: this.config.enableTrading,
                     enableTrailingStops: this.config.enableTrailingStops,
@@ -330,6 +323,7 @@ class PaperTradingEngine extends EventEmitter {
                 atr: atrValue,
                 volatilityPercent: signal.atrPercent || 0,
             };
+            trade.mode = "paper"; // Explicitly set mode
 
             // Update portfolio
             this.portfolio.usdtBalance -= usdtCost;
@@ -413,6 +407,7 @@ class PaperTradingEngine extends EventEmitter {
                 exitReason, // NEW: Track why we exited
                 entrySignal: position.entrySignal?.signal || "UNKNOWN",
                 entrySignalStrength: position.entrySignal?.strength || 0,
+                mode: "paper", // Explicitly set mode
             };
 
             // Update portfolio
@@ -570,7 +565,7 @@ class PaperTradingEngine extends EventEmitter {
             this.performanceMetrics.currentDrawdown
         );
 
-        this.checkRiskLimits();
+        this.riskService.checkRiskLimits(this.getPortfolioSummary());
         this.emit("portfolioUpdated", this.getPortfolioSummary());
 
         // Save state periodically
@@ -833,14 +828,13 @@ class PaperTradingEngine extends EventEmitter {
                 };
             }
 
-            if (this.riskLimits.isHalted) {
+            if (this.riskService.isHalted()) {
                 return {
                     success: false,
-                    reason: `Trading halted: ${this.riskLimits.haltReason}`,
+                    reason: `Trading halted: ${this.riskService.getHaltReason()}`,
                     signal,
                 };
             }
-
             this.checkAndResetCounters();
 
             // Validate the signal (checks strength, cooldown, volatility, etc.)
@@ -910,76 +904,24 @@ class PaperTradingEngine extends EventEmitter {
         }
     }
 
-    /**
-     * Check and enforce risk limits
-     */
-    checkRiskLimits() {
-        const dailyLoss = Math.abs(Math.min(0, this.portfolio.dailyPnL));
-        const weeklyLoss = Math.abs(Math.min(0, this.portfolio.weeklyPnL));
-
-        if (dailyLoss >= this.riskLimits.dailyLossLimit) {
-            this.haltTrading(
-                `Daily loss limit exceeded: ${dailyLoss.toFixed(
-                    2
-                )} USDT (Limit: ${this.riskLimits.dailyLossLimit.toFixed(2)})`
-            );
-        }
-
-        if (weeklyLoss >= this.riskLimits.weeklyLossLimit) {
-            this.haltTrading(
-                `Weekly loss limit exceeded: ${weeklyLoss.toFixed(
-                    2
-                )} USDT (Limit: ${this.riskLimits.weeklyLossLimit.toFixed(2)})`
-            );
-        }
-    }
-
-    haltTrading(reason) {
-        this.riskLimits.isHalted = true;
-        this.riskLimits.haltReason = reason;
-        logger.error(`🛑 ENHANCED TRADING HALTED: ${reason}`);
-        this.emit("tradingHalted", { reason, timestamp: Date.now() });
-    }
-
-    resumeTrading() {
-        this.riskLimits.isHalted = false;
-        this.riskLimits.haltReason = null;
-        logger.info("✅ ENHANCED TRADING RESUMED");
-        this.emit("tradingResumed", { timestamp: Date.now() });
-    }
-
     checkAndResetCounters() {
         const today = new Date().toDateString();
         const currentWeek = this.getWeekStart(new Date());
 
         // Reset daily counter
         if (this.portfolio.lastResetDate !== today) {
-            this.portfolio.dailyPnL = 0;
             this.portfolio.lastResetDate = today;
-            logger.debug("📅 Daily P&L counter reset");
-
-            // Check if we can resume trading after daily reset
-            if (
-                this.riskLimits.isHalted &&
-                this.riskLimits.haltReason?.includes("Daily")
-            ) {
-                this.resumeTrading();
-            }
+            this.portfolio.dailyPnL = 0;
+            this.riskService.resetDailyLimit(today);
+            logger.debug("📅 Daily P&L and Risk counter reset");
         }
 
         // Reset weekly counter
         if (this.portfolio.lastWeeklyReset !== currentWeek) {
-            this.portfolio.weeklyPnL = 0;
             this.portfolio.lastWeeklyReset = currentWeek;
-            logger.debug("📅 Weekly P&L counter reset");
-
-            // Check if we can resume trading after weekly reset
-            if (
-                this.riskLimits.isHalted &&
-                this.riskLimits.haltReason?.includes("Weekly")
-            ) {
-                this.resumeTrading();
-            }
+            this.portfolio.weeklyPnL = 0;
+            this.riskService.resetWeeklyLimit(currentWeek);
+            logger.debug("📅 Weekly P&L and Risk counter reset");
         }
     }
 
@@ -1013,14 +955,7 @@ class PaperTradingEngine extends EventEmitter {
             positionCount: this.portfolio.positions.size,
             performance: this.performanceMetrics,
             enhancedPerformance: this.getEnhancedPerformanceSummary(),
-            riskStatus: {
-                isHalted: this.riskLimits.isHalted,
-                haltReason: this.riskLimits.haltReason,
-                dailyLossUsed: Math.abs(Math.min(0, this.portfolio.dailyPnL)),
-                dailyLossLimit: this.riskLimits.dailyLossLimit,
-                weeklyLossUsed: Math.abs(Math.min(0, this.portfolio.weeklyPnL)),
-                weeklyLossLimit: this.riskLimits.weeklyLossLimit,
-            },
+            riskStatus: this.riskService.getRiskStatus(this.portfolio),
             allocation: {
                 usdt:
                     this.portfolio.totalValue > 0
@@ -1059,40 +994,14 @@ class PaperTradingEngine extends EventEmitter {
      * NEW: Update configuration dynamically
      */
     updateConfig(newConfig) {
-        const oldCapital = this.config.maxCapitalAtRisk;
-        const oldDailyLimit = this.riskLimits.dailyLossLimit;
-        const oldWeeklyLimit = this.riskLimits.weeklyLossLimit;
-
         this.config = { ...this.config, ...newConfig };
 
-        // Recalculate risk limits based on the new maxCapitalAtRisk.
-        // This allows for manual compounding by adjusting the capital base for risk.
-        this.riskLimits.dailyLossLimit =
-            this.config.maxCapitalAtRisk * this.config.maxDailyLoss;
-        this.riskLimits.weeklyLossLimit =
-            this.config.maxCapitalAtRisk * this.config.maxWeeklyLoss;
+        // Update risk service with new config
+        this.riskService.updateConfig(this.config);
 
         logger.info(
             `⚙️ Paper Trading Engine config updated. Trading enabled: ${this.config.enableTrading}`
         );
-
-        // Log if the capital base was changed, triggering the risk recalculation
-        if (oldCapital !== this.config.maxCapitalAtRisk) {
-            logger.info(
-                `💰 Max Capital at Risk updated from $${oldCapital} to $${this.config.maxCapitalAtRisk}. Risk limits recalculated.`
-            );
-            logger.debug(
-                `   - Daily Loss Limit: $${oldDailyLimit.toFixed(
-                    2
-                )} -> $${this.riskLimits.dailyLossLimit.toFixed(2)}`
-            );
-            logger.debug(
-                `   - Weekly Loss Limit: $${oldWeeklyLimit.toFixed(
-                    2
-                )} -> $${this.riskLimits.weeklyLossLimit.toFixed(2)}`
-            );
-            // NOTE: The portfolio balance is NOT adjusted. This value only affects risk calculations.
-        }
 
         this.emit("configUpdated", this.config);
 
@@ -1107,7 +1016,7 @@ class PaperTradingEngine extends EventEmitter {
             await this.loadStateFromFile();
 
             // Load all historical trades from the database for performance metrics
-            await this.loadTradeHistory();
+            await this.loadTradeHistory("paper");
             // Recalculate all performance metrics from the loaded history
             this.recalculateEnhancedPerformanceMetrics();
 
@@ -1305,9 +1214,7 @@ class PaperTradingEngine extends EventEmitter {
             },
         };
 
-        this.riskLimits.isHalted = false;
-        this.riskLimits.haltReason = null;
-
+        this.riskService.reset();
         // NEW: Delete the state file on reset to ensure a clean start
         if (fs.existsSync(STATE_FILE_PATH)) {
             fs.unlinkSync(STATE_FILE_PATH);
@@ -1329,8 +1236,6 @@ class PaperTradingEngine extends EventEmitter {
                     // Convert Map to array for JSON serialization
                     positions: Array.from(this.portfolio.positions.entries()),
                 },
-                performanceMetrics: this.performanceMetrics,
-                riskLimits: this.riskLimits,
                 config: this.config,
                 lastUpdate: Date.now(),
             };
@@ -1358,7 +1263,6 @@ class PaperTradingEngine extends EventEmitter {
                 };
                 this.performanceMetrics =
                     state.performanceMetrics || this.performanceMetrics;
-                this.riskLimits = state.riskLimits || this.riskLimits;
 
                 logger.info(
                     `📖 Portfolio state loaded from ${path.basename(
@@ -1380,10 +1284,10 @@ class PaperTradingEngine extends EventEmitter {
         }
     }
 
-    async loadTradeHistory() {
+    async loadTradeHistory(mode) {
         try {
             // Load all trades from the repository to rebuild performance metrics
-            const trades = await this.tradeRepo.getAllTrades();
+            const trades = await this.tradeRepo.getAllTrades(mode);
             this.tradeHistory = trades || [];
             logger.debug("📈 Enhanced trade history loaded from database");
         } catch (error) {

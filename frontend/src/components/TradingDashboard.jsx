@@ -2,11 +2,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Container,
+  Alert,
   Grid,
   Paper,
   Typography,
   Button,
-  Alert,
   Chip,
   FormControl,
   InputLabel,
@@ -26,11 +26,12 @@ import {
   TrendingUp,
   Assessment,
   Psychology,
-  AccountBalance,
+  MonetizationOn,
   DataUsage,
   Security,
   CheckCircle,
-  Warning
+  Warning,
+  AccountBalance
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
 import { SOCKET_URL, tradingAPI } from '../config/api';
@@ -530,6 +531,25 @@ const TradingDashboard = () => {
           </Box>
         </Box>
         
+        {/* LIVE TRADING BANNER */}
+        {systemStatus?.config?.tradingMode === 'live' && (
+          <Alert
+            severity="error"
+            variant="filled"
+            icon={<Warning fontSize="inherit" />}
+            sx={{ mb: 2, mt: 2 }}
+          >
+            <Typography variant="h6" component="div">
+              LIVE TRADING ACTIVE
+            </Typography>
+            <Typography variant="body2">
+              The system is configured to place real orders with real money.
+              Monitor your positions and account balance closely. To switch back
+              to simulation, go to the Configuration tab.
+            </Typography>
+          </Alert>
+        )}
+
         {/* System Status Banner */}
         <SystemStatusBanner systemStatus={systemStatus} signals={signalsToRender} />
         

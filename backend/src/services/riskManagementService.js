@@ -5,58 +5,62 @@ const logger = require("../utils/logger");
 class RiskManagementService extends EventEmitter {
     constructor() {
         super();
-        this.riskLimits = {
-            dailyLossLimit: 100, // $100
-            weeklyLossLimit: 250, // $250
-            maxDrawdown: 20, // 20%
-            isHalted: false,
-            haltReason: null,
-        };
-        this.currentRisk = {
-            dailyLoss: 0,
-            weeklyLoss: 0,
-            currentDrawdown: 0,
-        };
+        this.config = {};
+        this.riskState = {};
+        this.reset(); // Initialize state
     }
 
-    async initialize() {
+    initialize(config) {
         logger.info("🚀 Initializing Risk Management Service...");
-        // Load risk settings from database if needed
+        this.updateConfig(config);
         logger.info("✅ Risk Management Service initialized");
     }
 
-    checkRiskLimits(portfolio) {
+    updateConfig(newConfig) {
+        const oldCapital = this.config.maxCapitalAtRisk;
+        this.config = { ...this.config, ...newConfig };
+
+        // Recalculate risk limits based on the new config
+        this.riskState.dailyLossLimit =
+            this.config.maxCapitalAtRisk * this.config.maxDailyLoss;
+        this.riskState.weeklyLossLimit =
+            this.config.maxCapitalAtRisk * this.config.maxWeeklyLoss;
+
+        if (oldCapital !== this.config.maxCapitalAtRisk) {
+            logger.info(
+                `💰 Risk capital updated to $${this.config.maxCapitalAtRisk}. Risk limits recalculated.`
+            );
+        }
+    }
+
+    checkRiskLimits(portfolioSummary) {
         try {
-            // Update current risk metrics
-            this.updateRiskMetrics(portfolio);
+            if (!portfolioSummary) return true;
+
+            const dailyLoss = Math.abs(
+                Math.min(0, portfolioSummary.dailyPnL || 0)
+            );
+            const weeklyLoss = Math.abs(
+                Math.min(0, portfolioSummary.weeklyPnL || 0)
+            );
 
             // Check daily loss limit
-            if (this.currentRisk.dailyLoss >= this.riskLimits.dailyLossLimit) {
+            if (dailyLoss >= this.riskState.dailyLossLimit) {
                 this.haltTrading(
-                    `Daily loss limit exceeded: $${this.currentRisk.dailyLoss}`
+                    `Daily loss limit exceeded: $${dailyLoss.toFixed(2)}`
                 );
                 return false;
             }
 
             // Check weekly loss limit
-            if (
-                this.currentRisk.weeklyLoss >= this.riskLimits.weeklyLossLimit
-            ) {
+            if (weeklyLoss >= this.riskState.weeklyLossLimit) {
                 this.haltTrading(
-                    `Weekly loss limit exceeded: $${this.currentRisk.weeklyLoss}`
+                    `Weekly loss limit exceeded: $${weeklyLoss.toFixed(2)}`
                 );
                 return false;
             }
 
-            // Check drawdown limit
-            if (
-                this.currentRisk.currentDrawdown >= this.riskLimits.maxDrawdown
-            ) {
-                this.haltTrading(
-                    `Drawdown limit exceeded: ${this.currentRisk.currentDrawdown}%`
-                );
-                return false;
-            }
+            // Note: Drawdown is a soft limit, checked but doesn't halt trading automatically.
 
             return true;
         } catch (error) {
@@ -65,27 +69,24 @@ class RiskManagementService extends EventEmitter {
         }
     }
 
-    updateRiskMetrics(portfolio) {
-        if (!portfolio) return;
+    isHalted() {
+        return this.riskState.isHalted;
+    }
 
-        this.currentRisk.dailyLoss = Math.abs(
-            Math.min(0, portfolio.dailyPnL || 0)
-        );
-        this.currentRisk.weeklyLoss = Math.abs(
-            Math.min(0, portfolio.weeklyPnL || 0)
-        );
-        this.currentRisk.currentDrawdown =
-            portfolio.performance?.currentDrawdown || 0;
+    getHaltReason() {
+        return this.riskState.haltReason;
     }
 
     haltTrading(reason) {
-        this.riskLimits.isHalted = true;
-        this.riskLimits.haltReason = reason;
+        if (this.riskState.isHalted) return; // Already halted
+
+        this.riskState.isHalted = true;
+        this.riskState.haltReason = reason;
 
         const haltData = {
             reason,
             timestamp: Date.now(),
-            riskMetrics: this.currentRisk,
+            riskMetrics: this.riskState,
         };
 
         this.emit("tradingHalted", haltData);
@@ -93,37 +94,60 @@ class RiskManagementService extends EventEmitter {
     }
 
     resumeTrading() {
-        this.riskLimits.isHalted = false;
-        this.riskLimits.haltReason = null;
+        if (!this.riskState.isHalted) return;
+
+        this.riskState.isHalted = false;
+        this.riskState.haltReason = null;
         this.emit("tradingResumed");
         logger.info("✅ Trading resumed");
     }
 
-    getRiskStatus() {
+    resetDailyLimit(today) {
+        this.riskState.lastResetDate = today;
+        if (this.riskState.haltReason?.includes("Daily")) {
+            this.resumeTrading();
+        }
+    }
+
+    resetWeeklyLimit(currentWeek) {
+        this.riskState.lastWeeklyReset = currentWeek;
+        if (this.riskState.haltReason?.includes("Weekly")) {
+            this.resumeTrading();
+        }
+    }
+
+    getRiskStatus(portfolioSummary = {}) {
         return {
-            limits: this.riskLimits,
-            current: this.currentRisk,
-            utilization: {
-                daily:
-                    (this.currentRisk.dailyLoss /
-                        this.riskLimits.dailyLossLimit) *
-                    100,
-                weekly:
-                    (this.currentRisk.weeklyLoss /
-                        this.riskLimits.weeklyLossLimit) *
-                    100,
-                drawdown:
-                    (this.currentRisk.currentDrawdown /
-                        this.riskLimits.maxDrawdown) *
-                    100,
-            },
+            isHalted: this.riskState.isHalted,
+            haltReason: this.riskState.haltReason,
+            dailyLossUsed: Math.abs(
+                Math.min(0, portfolioSummary.dailyPnL || 0)
+            ),
+            dailyLossLimit: this.riskState.dailyLossLimit,
+            weeklyLossUsed: Math.abs(
+                Math.min(0, portfolioSummary.weeklyPnL || 0)
+            ),
+            weeklyLossLimit: this.riskState.weeklyLossLimit,
         };
     }
 
-    async cleanup() {
-        logger.info("🧹 Cleaning up Risk Management Service...");
-        this.currentRisk = { dailyLoss: 0, weeklyLoss: 0, currentDrawdown: 0 };
-        logger.info("✅ Risk Management Service cleaned up");
+    reset() {
+        this.riskState = {
+            dailyLossLimit: 0,
+            weeklyLossLimit: 0,
+            isHalted: false,
+            haltReason: null,
+            lastResetDate: new Date().toDateString(),
+            lastWeeklyReset: this.getWeekStart(new Date()),
+        };
+        logger.info("🔄 Risk Management Service state has been reset.");
+    }
+
+    getWeekStart(date) {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = d.getDate() - day;
+        return new Date(d.setDate(diff)).toDateString();
     }
 }
 

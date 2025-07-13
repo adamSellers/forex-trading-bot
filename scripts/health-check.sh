@@ -24,7 +24,7 @@ else
 fi
 
 # Check database
-if sqlite3 "/opt/crypto-trading-bot/backend/data/trading_bot.db" "SELECT 1;" > /dev/null 2>&1; then
+if sqlite3 "/opt/crypto-trading-bot/backend/data/trading.db" "SELECT 1;" > /dev/null 2>&1; then
     log_message "✅ Database: HEALTHY"
 else
     log_message "❌ Database: FAILED"

@@ -9,7 +9,6 @@
         "lint": "echo \"'lint' script not yet configured, but this is where it would go.\" && exit 0",
         "test": "npm run lint",
         "db:migrate": "knex migrate:latest",
-        "db:seed": "knex seed:run",
         "db:rollback": "knex migrate:rollback",
         "backtest:fetch": "node scripts/fetch-historical-data.js",
         "backtest:run": "node scripts/run-backtest.js"

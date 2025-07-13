@@ -31,7 +31,9 @@ import {
   ExpandMore,
   Warning,
   Info,
+  MoneyOff,
   TrendingUp,
+  MonetizationOn,
   Security,
   AccountBalance,
   Settings
@@ -42,6 +44,7 @@ const TradingConfig = () => {
   const [config, setConfig] = useState({
     // Account Settings
     maxCapitalAtRisk: 5000,
+    tradingMode: 'paper', // 'paper' or 'live'
     enableTrading: false,
     
     // Risk Management
@@ -107,6 +110,7 @@ const TradingConfig = () => {
       if (data.config) {
         const fetchedConfig = {
           maxCapitalAtRisk: data.config.maxCapitalAtRisk || 5000,
+          tradingMode: data.config.tradingMode || 'paper',
           enableTrading: data.config.enableTrading || false,
           riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
           maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
@@ -274,7 +278,7 @@ const TradingConfig = () => {
       )}
 
       <Grid container spacing={3}>
-        {/* Account Settings */}
+        {/* Trading Mode & Account Settings */}
         <Grid item xs={12} md={6}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
@@ -283,6 +287,33 @@ const TradingConfig = () => {
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Card variant="outlined" sx={{ p: 2, borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main' }}>
+                    <Typography gutterBottom>Trading Mode</Typography>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <MoneyOff color="warning" />
+                      <Switch
+                        checked={config.tradingMode === 'live'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const confirmed = window.confirm(
+                              'DANGER: You are about to enable LIVE TRADING with REAL MONEY.\n\n' +
+                              'Are you absolutely sure you want to proceed?'
+                            );
+                            if (confirmed) {
+                              updateConfig('tradingMode', 'live');
+                            }
+                          } else {
+                            updateConfig('tradingMode', 'paper');
+                          }
+                        }}
+                        color={config.tradingMode === 'live' ? 'error' : 'warning'}
+                      />
+                      <MonetizationOn color="error" />
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">Toggle between Paper (simulation) and Live (real money) trading.</Typography>
+                  </Card>
+                </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
@@ -303,7 +334,7 @@ const TradingConfig = () => {
                     <Switch
                       checked={config.enableTrading}
                       onChange={(e) => updateConfig('enableTrading', e.target.checked)}
-                      color={config.enableTrading ? "error" : "default"}
+                      color={config.enableTrading ? "success" : "default"}
                     />
                   </FormControl>
                 </Grid>
@@ -582,7 +613,7 @@ const TradingConfig = () => {
                     </Typography>
                     <Chip 
                       label={config.enableTrading ? "ENABLED" : "DISABLED"}
-                      color={config.enableTrading ? "error" : "default"}
+                      color={config.enableTrading ? "success" : "default"}
                     />
                   </CardContent>
                 </Card>

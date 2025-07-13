@@ -16,11 +16,19 @@ class TradeRepository {
             pnlPercent: record.pnl_percent,
             signal: record.signal,
             signalStrength: record.signal_strength,
+            atr: record.atr,
+            volatilityPercent: record.volatility_percent,
             stopLoss: record.stop_loss,
             entryCost: record.entry_cost,
             holdingPeriod: record.holding_period,
             exitReason: record.exit_reason,
             timestamp: record.timestamp,
+            mode: record.mode,
+            isOpen: record.is_open,
+            takeProfitPrice: record.take_profit_price,
+            trailingStopPrice: record.trailing_stop_price,
+            highestPrice: record.highest_price,
+            trailingStopPercent: record.trailing_stop_percent,
         };
 
         // Correctly assign cost/received based on trade side
@@ -45,11 +53,19 @@ class TradeRepository {
                 pnl_percent: trade.pnlPercent || 0,
                 signal: trade.signal,
                 signal_strength: trade.signalStrength,
+                atr: trade.atr || null,
+                volatility_percent: trade.volatilityPercent || null,
                 stop_loss: trade.stopLoss || null,
                 entry_cost: trade.entryCost || null,
                 holding_period: trade.holdingPeriod || null,
                 exit_reason: trade.exitReason || "UNKNOWN",
                 timestamp: new Date(trade.timestamp),
+                mode: trade.mode || "paper", // Add mode, default to paper
+                is_open: trade.isOpen || false,
+                take_profit_price: trade.takeProfitPrice || null,
+                trailing_stop_price: trade.trailingStopPrice || null,
+                highest_price: trade.highestPrice || null,
+                trailing_stop_percent: trade.trailingStopPercent || null,
                 created_at: new Date(),
             });
 
@@ -60,11 +76,11 @@ class TradeRepository {
         }
     }
 
-    async getRecent(limit = 20) {
+    async getRecent(limit = 20, mode = null) {
         try {
-            const records = await db("trades")
-                .orderBy("timestamp", "desc")
-                .limit(limit);
+            let query = db("trades").orderBy("timestamp", "desc").limit(limit);
+            if (mode) query = query.where("mode", mode);
+            const records = await query;
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting recent trades:", error);
@@ -72,12 +88,16 @@ class TradeRepository {
         }
     }
 
-    async getBySymbol(symbol, limit = 50) {
+    async getBySymbol(symbol, limit = 50, mode = null) {
         try {
-            const records = await db("trades")
+            let query = db("trades")
                 .where("symbol", symbol)
-                .orderBy("timestamp", "desc")
-                .limit(limit);
+                .orderBy("timestamp", "desc");
+
+            if (mode) {
+                query = query.where("mode", mode);
+            }
+            const records = await query.limit(limit);
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting trades by symbol:", error);
@@ -85,11 +105,13 @@ class TradeRepository {
         }
     }
 
-    async getTradesSince(cutoffTime) {
+    async getTradesSince(cutoffTime, mode = null) {
         try {
-            const records = await db("trades")
-                .where("timestamp", ">=", cutoffTime)
-                .orderBy("timestamp", "desc");
+            let query = db("trades").where("timestamp", ">=", cutoffTime);
+            if (mode) {
+                query = query.where("mode", mode);
+            }
+            const records = await query.orderBy("timestamp", "desc");
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting trades since cutoff:", error);
@@ -97,10 +119,12 @@ class TradeRepository {
         }
     }
 
-    async getAllTrades() {
+    async getAllTrades(mode = null) {
         try {
             // Returns all trades, ordered by time, for full recalculation
-            const records = await db("trades").orderBy("timestamp", "asc");
+            let query = db("trades").orderBy("timestamp", "asc");
+            if (mode) query = query.where("mode", mode);
+            const records = await query;
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
             logger.error("Error getting all trades for recalculation:", error);
@@ -108,13 +132,59 @@ class TradeRepository {
         }
     }
 
-    async getPerformanceMetrics(period = "30d") {
+    async getOpenLiveTrades() {
+        try {
+            const records = await db("trades")
+                .where("mode", "live")
+                .where("is_open", true);
+            return records.map((record) => this._mapToTradeObject(record));
+        } catch (error) {
+            logger.error("Error getting open live trades:", error);
+            return [];
+        }
+    }
+
+    async updateTrade(tradeId, updates) {
+        try {
+            // Knex requires snake_case for column names
+            const dbUpdates = { ...updates };
+            if (dbUpdates.takeProfitPrice) {
+                dbUpdates.take_profit_price = dbUpdates.takeProfitPrice;
+                delete dbUpdates.takeProfitPrice;
+            }
+            if (dbUpdates.trailingStopPrice) {
+                dbUpdates.trailing_stop_price = dbUpdates.trailingStopPrice;
+                delete dbUpdates.trailingStopPrice;
+            }
+            if (dbUpdates.highestPrice) {
+                dbUpdates.highest_price = dbUpdates.highestPrice;
+                delete dbUpdates.highestPrice;
+            }
+            if (dbUpdates.isOpen !== undefined) {
+                dbUpdates.is_open = dbUpdates.isOpen;
+                delete dbUpdates.isOpen;
+            }
+            if (dbUpdates.trailingStopPercent !== undefined) {
+                dbUpdates.trailing_stop_percent = dbUpdates.trailingStopPercent;
+                delete dbUpdates.trailingStopPercent;
+            }
+
+            await db("trades").where("trade_id", tradeId).update(dbUpdates);
+            logger.debug(`Trade ${tradeId} updated in database.`);
+        } catch (error) {
+            logger.error(`Error updating trade ${tradeId}:`, error);
+            throw error;
+        }
+    }
+
+    async getPerformanceMetrics(period = "30d", mode = "paper") {
         try {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = new Date(Date.now() - periodMs);
 
             const trades = await db("trades")
                 .where("timestamp", ">=", cutoffTime)
+                .where("mode", mode)
                 .where("side", "SELL")
                 .orderBy("timestamp", "desc");
 
