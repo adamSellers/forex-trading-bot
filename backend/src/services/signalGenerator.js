@@ -441,6 +441,7 @@ class SignalGenerator extends EventEmitter {
             const signalData = {
                 symbol,
                 signal,
+                strategy: this.config.strategy,
                 strength,
                 crossoverType,
                 timestamp: Date.now(),

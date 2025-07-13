@@ -537,6 +537,9 @@ module.exports = (tradingController) => {
             // Time-based analysis
             const timeAnalysis = analyzeByTime(trades, signals); // This correctly shows all activity (BUY/SELL)
 
+            // Exit reason analysis
+            const exitReasonAnalysis = analyzeExitReasons(trades);
+
             const analytics = {
                 period,
                 timeRange: {
@@ -558,6 +561,7 @@ module.exports = (tradingController) => {
                 assetAnalysis,
                 strategyAnalysis,
                 timeAnalysis,
+                exitReasonAnalysis,
             };
 
             res.json(analytics);
@@ -758,6 +762,30 @@ module.exports = (tradingController) => {
                     .length,
             };
         });
+
+        return analysis;
+    }
+
+    function analyzeExitReasons(trades) {
+        const sellTrades = trades.filter((t) => t.side === "SELL");
+        const analysis = {};
+
+        sellTrades.forEach((trade) => {
+            const reason = trade.exitReason || "UNKNOWN";
+            if (!analysis[reason]) {
+                analysis[reason] = { count: 0, totalPnL: 0 };
+            }
+            analysis[reason].count++;
+            analysis[reason].totalPnL += trade.pnl || 0;
+        });
+
+        // Calculate average PnL
+        for (const reason in analysis) {
+            analysis[reason].avgPnL =
+                analysis[reason].count > 0
+                    ? analysis[reason].totalPnL / analysis[reason].count
+                    : 0;
+        }
 
         return analysis;
     }

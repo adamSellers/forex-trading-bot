@@ -52,7 +52,6 @@ const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) =>
 
 const AnalyticsDashboard = () => {
   const [analytics, setAnalytics] = useState(null);
-  const [portfolio, setPortfolio] = useState(null);
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -64,14 +63,12 @@ const AnalyticsDashboard = () => {
       try {
         setLoading(true);
         setError(null);
-        // Fetch all data in parallel
-        const [analyticsData, portfolioData, tradesData] = await Promise.all([
+        // Fetch all data in parallel - REMOVED portfolio fetch
+        const [analyticsData, tradesData] = await Promise.all([
           tradingAPI.getAnalytics(period),
-          tradingAPI.getPortfolio(),
           tradingAPI.getTrades({ limit: 1000 }) // Fetch enough for P&L chart
         ]);
         setAnalytics(analyticsData);
-        setPortfolio(portfolioData);
         setTrades(tradesData);
       } catch (err) {
         setError(`Failed to load analytics: ${err.message}`);
@@ -100,7 +97,7 @@ const AnalyticsDashboard = () => {
     return <Alert severity="info" sx={{ m: 3 }}>No analytics data available for the selected period.</Alert>;
   }
 
-  const { overview, assetAnalysis, timeAnalysis, strategyAnalysis } = analytics;
+  const { overview, assetAnalysis, timeAnalysis, strategyAnalysis, exitReasonAnalysis } = analytics;
   const winRate = (overview.profitableTrades / (overview.totalTrades || 1)) * 100;
 
   // Prepare data for P&L over time chart
@@ -117,8 +114,7 @@ const AnalyticsDashboard = () => {
     }, []);
 
   // Prepare data for Exit Reason chart
-  const exitReasonStats = portfolio?.enhancedPerformance?.detailed?.exitReasonStats || {};
-  const exitReasonData = Object.entries(exitReasonStats)
+  const exitReasonData = Object.entries(exitReasonAnalysis || {})
     .filter(([_, data]) => data.count > 0)
     .map(([reason, data]) => ({
       label: reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),

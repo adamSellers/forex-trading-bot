@@ -19,6 +19,7 @@ class TradeRepository {
             stopLoss: record.stop_loss,
             entryCost: record.entry_cost,
             holdingPeriod: record.holding_period,
+            exitReason: record.exit_reason,
             timestamp: record.timestamp,
         };
 
@@ -47,6 +48,7 @@ class TradeRepository {
                 stop_loss: trade.stopLoss || null,
                 entry_cost: trade.entryCost || null,
                 holding_period: trade.holdingPeriod || null,
+                exit_reason: trade.exitReason || "UNKNOWN",
                 timestamp: new Date(trade.timestamp),
                 created_at: new Date(),
             });
