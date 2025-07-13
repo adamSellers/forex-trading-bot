@@ -1,7 +1,7 @@
 // =====================================================
 // 1. backend/src/repositories/portfolioRepository.js
 // =====================================================
-const db = require("../../config/database");
+const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class PortfolioRepository {

@@ -29,9 +29,6 @@ async function initializeDatabase() {
     }
 }
 
-// Initialize database on module load
-initializeDatabase().catch(console.error);
-
 // Test database connection
 db.raw("SELECT 1")
     .then(() => {
@@ -41,5 +38,8 @@ db.raw("SELECT 1")
         console.error("❌ Database connection failed:", error);
     });
 
-// Export the database connection - KEEP IT SIMPLE
-module.exports = db;
+// Export both the db connection and the initializer function
+module.exports = {
+    db,
+    initializeDatabase,
+};

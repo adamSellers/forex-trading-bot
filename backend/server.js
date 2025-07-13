@@ -11,6 +11,7 @@ const { createServer } = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 const TradingService = require("./src/services/tradingService");
+const { initializeDatabase } = require("./config/database"); // Import the initializer
 const TradingController = require("./src/controllers/tradingController"); // This is now the bridge
 const tradingRoutes = require("./src/routes/trading");
 const managementRoutes = require("./src/routes/management");
@@ -88,6 +89,9 @@ io.on("connection", (socket) => {
 // Start the server
 async function startServer() {
     try {
+        // CRITICAL FIX: Initialize the database first and wait for it to complete.
+        await initializeDatabase();
+
         // Initialize the CORE SERVICE, not the controller.
         // The service will set up all underlying components (Binance, Signals, etc.).
         await tradingService.initialize();

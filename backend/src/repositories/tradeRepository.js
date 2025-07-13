@@ -1,5 +1,5 @@
 // backend/src/repositories/tradeRepository.js
-const db = require("../../config/database");
+const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class TradeRepository {

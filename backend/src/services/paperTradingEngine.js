@@ -2,7 +2,7 @@
 const EventEmitter = require("events");
 const fs = require("fs");
 const path = require("path");
-const db = require("../../config/database");
+const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
 
