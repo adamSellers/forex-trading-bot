@@ -758,27 +758,34 @@ class LiveTradingEngine extends EventEmitter {
             const prices = this.binanceData.getAllPrices();
             const usdtBalance =
                 accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0;
+            const openTrades = await this.tradeRepo.getOpenLiveTrades();
 
             let cryptoValue = 0;
-            const positions = accountInfo.balances
-                .filter(
-                    (b) =>
-                        this.config.assets.includes(`${b.asset}USDT`) &&
-                        b.total > 0
-                )
-                .map((pos) => {
-                    const symbol = `${pos.asset}USDT`;
-                    const price = prices[symbol]?.price || 0;
-                    const value = pos.total * price;
-                    cryptoValue += value;
-                    return {
-                        symbol: symbol,
-                        quantity: pos.total,
-                        avgPrice: 0, // Cannot know this without trade history
-                        currentValue: value,
-                        unrealizedPnL: 0, // Cannot know this
-                    };
+            const positions = [];
+
+            for (const trade of openTrades) {
+                const currentPrice = prices[trade.symbol]?.price;
+                if (!currentPrice) continue;
+
+                const currentValue = trade.quantity * currentPrice;
+                const unrealizedPnL = currentValue - trade.entryCost;
+                cryptoValue += currentValue;
+
+                positions.push({
+                    symbol: trade.symbol,
+                    quantity: trade.quantity,
+                    avgPrice: trade.entryPrice, // Use the entry price from the DB
+                    currentPrice: currentPrice,
+                    currentValue: currentValue,
+                    unrealizedPnL: unrealizedPnL,
+                    entryCost: trade.entryCost,
+                    entryTime: new Date(trade.timestamp).getTime(),
+                    stopLoss: trade.stopLoss,
+                    takeProfit: trade.takeProfitPrice,
+                    trailingStop: trade.trailingStopPrice,
+                    mode: "live", // Add the mode for the UI
                 });
+            }
 
             const totalValue = usdtBalance + cryptoValue;
 
@@ -788,11 +795,15 @@ class LiveTradingEngine extends EventEmitter {
                 usdtBalance,
                 cryptoValue,
                 ...this.livePortfolioState,
+                totalPnLPercent:
+                    (this.livePortfolioState.totalPnL /
+                        this.config.maxCapitalAtRisk) *
+                    100,
                 positions,
                 positionCount: positions.length,
-                riskStatus: this.riskService.getRiskStatus(
-                    this.livePortfolioState
-                ),
+                riskStatus: this.riskService.getRiskStatus({
+                    ...this.livePortfolioState,
+                }),
             };
 
             return summary;

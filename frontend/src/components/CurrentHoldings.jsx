@@ -96,19 +96,26 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
 
   // Paper Portfolio Asset Card
   const PaperAssetCard = ({ asset, position, usdtBalance }) => {
+    // Determine if the position is live or paper
+    const isLive = position?.mode === 'live';
+    const cardColor = isLive ? 'rgba(76, 175, 80, 0.05)' : 'rgba(255, 193, 7, 0.05)';
+    const chipLabel = isLive ? 'Live Position' : 'Virtual Position';
+    const chipColor = isLive ? 'success' : 'warning';
+    const icon = isLive ? <MonetizationOn color="success" fontSize="small" /> : <Psychology color="warning" fontSize="small" />;
+
     if (asset === 'USDT') {
       return (
-        <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: 'rgba(255, 193, 7, 0.05)' }}>
+        <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: cardColor }}>
           <CardContent sx={{ py: 1.5 }}>
             <Box display="flex" alignItems="center" gap={2}>
               {/* Column 1: Asset Name */}
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Box display="flex" alignItems="center" gap={1}>
-                  <Psychology color="warning" fontSize="small" />
+                  {isLive ? <AccountBalance color="success" fontSize="small" /> : <Psychology color="warning" fontSize="small" />}
                   <Typography variant="subtitle1" fontWeight="bold">
                     USDT
                   </Typography>
-                  <Chip size="small" label="Virtual Cash" color="warning" variant="outlined" />
+                  <Chip size="small" label={isLive ? 'Live Cash' : 'Virtual Cash'} color={chipColor} variant="outlined" />
                 </Box>
               </Box>
               {/* Column 2: Balance */}
@@ -122,7 +129,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
               </Box>
               {/* Column 3: USD Value */}
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" color="warning.main">
+                <Typography variant="body2" color={isLive ? 'success.main' : 'warning.main'}>
                   {formatCurrency(usdtBalance)}
                 </Typography>
                 <Typography variant="caption" color="textSecondary">
@@ -150,17 +157,17 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
     const pnlColor = (position.unrealizedPnL || 0) >= 0 ? 'success.main' : 'error.main';
 
     return (
-      <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: 'rgba(255, 193, 7, 0.05)' }}>
+      <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: cardColor }}>
         <CardContent sx={{ py: 1.5 }}>
           <Box display="flex" alignItems="center" gap={1}>
             {/* Column 1: Asset Name */}
             <Box sx={{ flexBasis: '25%', minWidth: 0 }}>
               <Box display="flex" alignItems="center" gap={1}>
-                <Psychology color="warning" fontSize="small" />
+                {icon}
                 <Typography variant="subtitle1" fontWeight="bold">
                   {asset}
                 </Typography>
-                <Chip size="small" label="Virtual Position" color="warning" variant="outlined" />
+                <Chip size="small" label={chipLabel} color={chipColor} variant="outlined" />
               </Box>
             </Box>
             {/* Column 2: Quantity */}
@@ -174,7 +181,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
             </Box>
             {/* Column 3: Current Value */}
             <Box sx={{ flexBasis: '16.67%', minWidth: 0 }}>
-              <Typography variant="body2" color="warning.main">
+              <Typography variant="body2" color={isLive ? 'success.main' : 'warning.main'}>
                 {formatCurrency(position.currentValue || 0)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
@@ -194,7 +201,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
             {/* Column 5: Entry */}
             <Box sx={{ flexBasis: '12.5%', minWidth: 0 }}>
               <Typography variant="body2">
-                ${position.avgPrice?.toFixed(2) || 'N/A'}
+                {formatCurrency(position.avgPrice || 0).replace('$', '')}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Entry
@@ -202,7 +209,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
             </Box>
             {/* Column 6: Current */}
             <Box sx={{ flexBasis: '12.5%', minWidth: 0, textAlign: 'right' }}>
-              <Typography variant="body2">
+              <Typography variant="body2" fontWeight="500">
                 ${currentPrice.toFixed(2)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
@@ -212,7 +219,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
           </Box>
           
           {/* Position Details */}
-          <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(255, 193, 7, 0.1)', borderRadius: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <Box mt={1} p={1} sx={{ backgroundColor: isLive ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 193, 7, 0.1)', borderRadius: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <Box sx={{ flex: '1 1 20%' }}>
                 <Typography variant="caption" color="textSecondary">Stop Loss:</Typography>
                 <Typography variant="caption" sx={{ ml: 0.5 }}>

@@ -23,6 +23,7 @@ class TradeRepository {
             holdingPeriod: record.holding_period,
             exitReason: record.exit_reason,
             timestamp: record.timestamp,
+            entryPrice: record.entry_price,
             mode: record.mode,
             isOpen: record.is_open,
             takeProfitPrice: record.take_profit_price,
@@ -58,6 +59,7 @@ class TradeRepository {
                 stop_loss: trade.stopLoss || null,
                 entry_cost: trade.entryCost || null,
                 holding_period: trade.holdingPeriod || null,
+                entry_price: trade.entryPrice || null,
                 exit_reason: trade.exitReason || "UNKNOWN",
                 timestamp: new Date(trade.timestamp),
                 mode: trade.mode || "paper", // Add mode, default to paper
