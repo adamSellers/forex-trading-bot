@@ -74,9 +74,13 @@ class TradingService extends EventEmitter {
                 );
             }
 
+            // CRITICAL FIX: Initialize the risk service *before* any service that might trigger a risk check.
+            // The Binance data service starts emitting price updates immediately, which triggers portfolio/risk updates.
+            // If the risk limits aren't set first, it defaults to 0 and halts trading instantly.
+            this.riskService.initialize(this.config);
+
             // Start the data service initialization, which runs in the background
             this.binanceData.initialize();
-            this.riskService.initialize(this.config);
 
             // Wait for services to be ready
             await this.waitForServices();
