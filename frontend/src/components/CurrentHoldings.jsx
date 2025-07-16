@@ -115,7 +115,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                   <Typography variant="subtitle1" fontWeight="bold">
                     USDT
                   </Typography>
-                  <Chip size="small" label={isLive ? 'Live Cash' : 'Virtual Cash'} color={chipColor} variant="outlined" />
+                  <Chip size="small" label={isLiveMode ? 'Live Cash' : 'Virtual Cash'} color={chipColor} variant="outlined" />
                 </Box>
               </Box>
               {/* Column 2: Balance */}
