@@ -246,6 +246,11 @@ class LiveTradingEngine extends EventEmitter {
                     quoteOrderQty: usdtCost,
                 }
             );
+            logger.debug(
+                `[LIVE] binanceClient.marketBuy() result: ${JSON.stringify(
+                    orderResult
+                )}`
+            );
 
             // ROBUSTNESS FIX: A real "FILLED" order from Binance will always have an orderId
             // and a non-empty 'fills' array. This check prevents saving a "ghost" trade
