@@ -45,7 +45,9 @@ class RiskManagementService extends EventEmitter {
             );
 
             // Check daily loss limit
-            if (dailyLoss >= this.riskState.dailyLossLimit) {
+            // FIX: Only halt if loss is strictly positive AND meets/exceeds the limit.
+            // This prevents a $0.00 loss from halting if the limit is also 0.
+            if (dailyLoss > 0 && dailyLoss >= this.riskState.dailyLossLimit) {
                 this.haltTrading(
                     `Daily loss limit exceeded: $${dailyLoss.toFixed(2)}`
                 );
@@ -53,7 +55,10 @@ class RiskManagementService extends EventEmitter {
             }
 
             // Check weekly loss limit
-            if (weeklyLoss >= this.riskState.weeklyLossLimit) {
+            if (
+                weeklyLoss > 0 &&
+                weeklyLoss >= this.riskState.weeklyLossLimit
+            ) {
                 this.haltTrading(
                     `Weekly loss limit exceeded: $${weeklyLoss.toFixed(2)}`
                 );

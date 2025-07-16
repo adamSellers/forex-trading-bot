@@ -568,6 +568,9 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async updatePortfolioValue(priceData) {
+        // FIX: Ensure daily/weekly counters are reset before any checks are made.
+        this.checkAndResetCounters();
+
         const openTrades = await this.tradeRepo.getOpenLiveTrades();
         if (openTrades.length === 0) return;
 
