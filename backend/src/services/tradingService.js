@@ -369,6 +369,26 @@ class TradingService extends EventEmitter {
             if (this.signalGenerator) {
                 this.signalGenerator.updateConfig(this.config);
             }
+
+            // --- CRITICAL FIX: Re-initialize active engine if trading mode changed ---
+            if (
+                this.activeEngine &&
+                this.activeEngine.mode !== newConfig.tradingMode
+            ) {
+                logger.warn(
+                    `Trading mode changed to ${newConfig.tradingMode}. Re-initializing engine.`
+                );
+                await this.activeEngine.stop();
+                this.activeEngine = this.createTradingEngine(
+                    newConfig.tradingMode
+                );
+                await this.activeEngine.initialize();
+                this.activeEngine.start();
+                logger.success(
+                    `Trading engine re-initialized to ${newConfig.tradingMode} mode.`
+                );
+            }
+
             if (this.activeEngine) {
                 this.activeEngine.updateConfig(this.config);
             }
