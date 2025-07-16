@@ -46,6 +46,7 @@ class LiveTradingEngine extends EventEmitter {
         this.lastSnapshotSave = 0;
 
         this.isActive = false;
+        this.mode = "live"; // NEW: Explicitly set the mode for the engine
         logger.info("🚀 Live Trading Engine Initialized - REAL MONEY MODE.");
     }
 

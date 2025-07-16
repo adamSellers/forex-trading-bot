@@ -407,6 +407,30 @@ class TradingService extends EventEmitter {
         }
     }
 
+    /**
+     * FIX: Add the missing helper method to create a trading engine instance.
+     * This resolves the "this.createTradingEngine is not a function" error.
+     * @param {string} tradingMode - The mode ('paper' or 'live') for the new engine.
+     * @returns {PaperTradingEngine|LiveTradingEngine}
+     */
+    createTradingEngine(tradingMode) {
+        if (tradingMode === "live") {
+            logger.warn(
+                "🚨 TRADING MODE IS SET TO 'LIVE'. CREATING NEW LIVE ENGINE. 🚨"
+            );
+            return new LiveTradingEngine(
+                this.config,
+                this.binanceData,
+                this.riskService
+            );
+        } else {
+            logger.info(
+                "Trading mode is 'paper'. Creating new paper trading engine."
+            );
+            return new PaperTradingEngine(this.config, this.riskService);
+        }
+    }
+
     async startTrading() {
         try {
             this.config.enableTrading = true;
