@@ -20,6 +20,7 @@ exports.up = async function (knex) {
         table.decimal("volatility_percent", 8, 4).nullable();
         table.decimal("stop_loss", 18, 8).nullable();
         table.decimal("entry_cost", 18, 8).nullable();
+        table.decimal("entry_price", 18, 8).nullable();
         table.bigInteger("holding_period").nullable(); // Milliseconds
         table.string("exit_reason").nullable();
         table.string("mode").notNullable().defaultTo("paper");
