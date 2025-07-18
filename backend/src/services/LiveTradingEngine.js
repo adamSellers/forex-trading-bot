@@ -234,6 +234,41 @@ class LiveTradingEngine extends EventEmitter {
         }
     }
 
+    /**
+     * NEW: Helper to parse fees from Binance order fills.
+     * @param {Array} fills - The 'fills' array from the Binance order response.
+     * @returns {{totalFeeUsdt: number, avgPrice: number}}
+     */
+    _parseOrderFills(fills) {
+        if (!fills || fills.length === 0) {
+            return { totalFeeUsdt: 0, avgPrice: 0 };
+        }
+
+        let totalFeeUsdt = 0;
+        let totalQty = 0;
+        let totalQuoteQty = 0;
+
+        for (const fill of fills) {
+            const price = parseFloat(fill.price);
+            const qty = parseFloat(fill.qty);
+            const commission = parseFloat(fill.commission);
+
+            totalQty += qty;
+            totalQuoteQty += price * qty;
+
+            if (fill.commissionAsset === "USDT") {
+                totalFeeUsdt += commission;
+            } else {
+                // If fee is in the base asset (e.g., BTC), convert to USDT
+                totalFeeUsdt += commission * price;
+            }
+        }
+
+        const avgPrice = totalQty > 0 ? totalQuoteQty / totalQty : 0;
+
+        return { totalFeeUsdt, avgPrice };
+    }
+
     async executeLiveBuy(signal, currentPrice, atrValue, accountInfo) {
         const usdtBalance =
             accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0;
@@ -304,13 +339,19 @@ class LiveTradingEngine extends EventEmitter {
                     `[LIVE] MARKET BUY successful for ${signal.symbol}. Order ID: ${orderResult.orderId}`
                 );
 
+                // NEW: Parse fills to get accurate price and fees
+                const { totalFeeUsdt, avgPrice } = this._parseOrderFills(
+                    orderResult.fills
+                );
+
                 const trade = {
                     id: orderResult.orderId.toString(),
                     symbol: signal.symbol,
                     side: "BUY",
                     quantity: parseFloat(orderResult.executedQty),
-                    price: parseFloat(orderResult.fills[0].price),
+                    price: avgPrice, // Use more accurate average price from fills
                     usdtCost: parseFloat(orderResult.cummulativeQuoteQty),
+                    feeUsdtValue: totalFeeUsdt, // NEW: Save the fee
                     timestamp: orderResult.transactTime,
                     signal: signal.signal,
                     signalStrength: signal.strength,
@@ -319,15 +360,14 @@ class LiveTradingEngine extends EventEmitter {
                     volatilityPercent: signal.atrPercent || 0,
                     isOpen: true,
                     entryCost: parseFloat(orderResult.cummulativeQuoteQty),
-                    // ADD THESE NEW FIELDS:
-                    entryPrice: parseFloat(orderResult.fills[0].price),
+                    entryPrice: avgPrice, // Use more accurate average price
                     stopLoss: positionSize.stopLoss,
                     takeProfitPrice: positionSize.takeProfit, // from calculation
                     // CRITICAL FIX: Initial trailing stop should match the initial stop loss, like in paper engine.
                     trailingStopPrice: this.config.enableTrailingStops
                         ? positionSize.stopLoss
                         : null,
-                    highestPrice: parseFloat(orderResult.fills[0].price),
+                    highestPrice: avgPrice,
                     trailingStopPercent: this.config.trailingStopPercent,
                 };
 
@@ -427,9 +467,17 @@ class LiveTradingEngine extends EventEmitter {
                     `[LIVE] MARKET SELL successful for ${signal.symbol}. Order ID: ${orderResult.orderId}`
                 );
 
+                // NEW: Parse fills to get accurate price and fees
+                const { totalFeeUsdt: sellFeeUsdt, avgPrice } =
+                    this._parseOrderFills(orderResult.fills);
+
                 const entryCost = entryTrade.entryCost || entryTrade.usdtCost; // Use entryCost if available, fallback to usdtCost
+                // CORRECTED P&L: Account for the fee on the sell side.
+                // The buy-side fee is implicitly handled by receiving less crypto.
                 const pnl =
-                    parseFloat(orderResult.cummulativeQuoteQty) - entryCost;
+                    parseFloat(orderResult.cummulativeQuoteQty) -
+                    entryCost -
+                    sellFeeUsdt;
                 const pnlPercent = (pnl / entryCost) * 100;
                 const holdingPeriod =
                     orderResult.transactTime -
@@ -444,8 +492,9 @@ class LiveTradingEngine extends EventEmitter {
                     symbol: signal.symbol,
                     side: "SELL",
                     quantity: parseFloat(orderResult.executedQty),
-                    price: parseFloat(orderResult.fills[0].price),
+                    price: avgPrice, // Use more accurate average price
                     usdtReceived: parseFloat(orderResult.cummulativeQuoteQty),
+                    feeUsdtValue: sellFeeUsdt, // NEW: Save the fee
                     pnl,
                     pnlPercent,
                     holdingPeriod,

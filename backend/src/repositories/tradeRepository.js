@@ -13,6 +13,7 @@ class TradeRepository {
             quantity: record.quantity,
             price: record.price,
             pnl: record.pnl,
+            feeUsdtValue: record.fee_usdt_value, // NEW: Map fee value
             pnlPercent: record.pnl_percent,
             signal: record.signal,
             signalStrength: record.signal_strength,
@@ -50,6 +51,7 @@ class TradeRepository {
                 quantity: trade.quantity,
                 price: trade.price,
                 total_value: trade.usdtCost || trade.usdtReceived || 0,
+                fee_usdt_value: trade.feeUsdtValue || 0, // NEW: Save fee value
                 pnl: trade.pnl || 0,
                 pnl_percent: trade.pnlPercent || 0,
                 signal: trade.signal,
