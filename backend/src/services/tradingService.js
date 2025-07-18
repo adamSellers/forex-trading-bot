@@ -191,9 +191,12 @@ class TradingService extends EventEmitter {
                     );
 
                     if (result.success) {
+                        // FIX: Log the actual action taken by the engine, not just the initial signal.
                         logger.info(
-                            `🎯 Signal processed: ${signal.symbol} ${signal.signal}`
-                        );
+                            `🎯 Signal processed: ${signal.symbol} -> Action: ${
+                                result.action || "NONE"
+                            }. Reason: ${result.reason}`
+                        ); // The reason is provided by the engine.
                     }
                 }
             }

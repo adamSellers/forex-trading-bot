@@ -320,6 +320,7 @@ class LiveTradingEngine extends EventEmitter {
                     isOpen: true,
                     entryCost: parseFloat(orderResult.cummulativeQuoteQty),
                     // ADD THESE NEW FIELDS:
+                    entryPrice: parseFloat(orderResult.fills[0].price),
                     stopLoss: positionSize.stopLoss,
                     takeProfitPrice: positionSize.takeProfit, // from calculation
                     // CRITICAL FIX: Initial trailing stop should match the initial stop loss, like in paper engine.
@@ -332,7 +333,13 @@ class LiveTradingEngine extends EventEmitter {
 
                 await this.tradeRepo.save(trade);
                 this.emit("tradeExecuted", trade);
-                return { success: true, action: "BUY", trade };
+                // FIX: Add reason for clearer logging in TradingService
+                return {
+                    success: true,
+                    action: "BUY",
+                    trade,
+                    reason: "Bullish signal with no open position.",
+                };
             } else {
                 throw new Error(
                     `Order status was not FILLED: ${
@@ -458,7 +465,13 @@ class LiveTradingEngine extends EventEmitter {
                     isOpen: false,
                 });
                 this.emit("tradeExecuted", trade);
-                return { success: true, action: "SELL", trade };
+                // FIX: Add reason for clearer logging in TradingService
+                return {
+                    success: true,
+                    action: "SELL",
+                    trade,
+                    reason: `Exit due to ${exitReason}`,
+                };
             } else {
                 throw new Error(
                     `Order status was not FILLED: ${

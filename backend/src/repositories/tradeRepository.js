@@ -172,7 +172,11 @@ class TradeRepository {
             }
 
             await db("trades").where("trade_id", tradeId).update(dbUpdates);
-            logger.debug(`Trade ${tradeId} updated in database.`);
+            // FIX: Make this log more specific to reduce noise and add clarity.
+            // It's primarily used for trailing stop updates.
+            logger.debug(`Trade ${tradeId} updated in database.`, {
+                updates: dbUpdates,
+            });
         } catch (error) {
             logger.error(`Error updating trade ${tradeId}:`, error);
             throw error;
