@@ -690,12 +690,15 @@ module.exports = (tradingController) => {
     }
 
     function calculateTradingFrequency(trades, period) {
-        // FIX: Accept period
-        if (trades.length < 2) return 0;
+        // BUG FIX: Frequency should be based on completed (SELL) trades, not all transactions.
+        const sellTrades = trades.filter((t) => t.side === "SELL");
+        if (sellTrades.length < 2) return 0;
 
         // FIX: Use the full period duration for a more accurate frequency calculation,
         // instead of just the time between the first and last trade.
         const periodMapping = {
+            "1h": 1 / 24, // Add smaller periods
+            "4h": 4 / 24,
             "1d": 1,
             "7d": 7,
             "30d": 30,
@@ -705,7 +708,7 @@ module.exports = (tradingController) => {
         if (days <= 0) return 0;
 
         // Return trades per day.
-        return trades.length / days;
+        return sellTrades.length / days;
     }
 
     function analyzeByAsset(trades, signals) {
