@@ -43,8 +43,11 @@ class LiveTradingEngine extends EventEmitter {
             lastResetDate: new Date().toDateString(),
             lastWeeklyReset: this.getWeekStart(new Date()),
         };
+        this.lastFullSummary = null; // Cache for lightweight updates
         this.lastSnapshotSave = 0;
-        this.portfolioEmitThrottle = 2000; // Emit updates every 2 seconds
+        this.portfolioEmitThrottle = 2000; // For full, authoritative updates
+        this.lightweightEmitThrottle = 500; // For fast, visual-only UI updates
+        this.lastPortfolioEmit = 0; // Tracks the last lightweight emit
         this.portfolioUpdateInterval = null; // To hold the setInterval ID
         this.isActive = false;
         this.mode = "live"; // NEW: Explicitly set the mode for the engine
@@ -895,6 +898,45 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
 
+        // --- NEW: Lightweight portfolio update for real-time UI responsiveness ---
+        // This provides fast updates for position values without expensive API calls.
+        const now = Date.now();
+        if (
+            this.lastFullSummary &&
+            now - this.lastPortfolioEmit > this.lightweightEmitThrottle
+        ) {
+            // Create a mutable deep copy of the last known full summary
+            const lightweightSummary = JSON.parse(
+                JSON.stringify(this.lastFullSummary)
+            );
+
+            let newCryptoValue = 0;
+            let hasChanges = false;
+
+            // Update positions with new prices
+            lightweightSummary.positions.forEach((pos) => {
+                const currentPrice = priceData[pos.symbol]?.price;
+                if (currentPrice && pos.currentPrice !== currentPrice) {
+                    pos.currentPrice = currentPrice;
+                    pos.currentValue = pos.quantity * currentPrice;
+                    pos.unrealizedPnL = pos.currentValue - pos.entryCost;
+                    hasChanges = true;
+                }
+                newCryptoValue += pos.currentValue;
+            });
+
+            if (hasChanges) {
+                lightweightSummary.cryptoValue = newCryptoValue;
+                lightweightSummary.totalValue =
+                    lightweightSummary.usdtBalance + newCryptoValue;
+                lightweightSummary.timestamp = now; // Mark as a fresh update
+
+                this.emit("portfolioUpdated", lightweightSummary);
+                this.lastPortfolioEmit = now;
+                logger.debug("[LIVE] Emitted lightweight portfolio update.");
+            }
+        }
+
         // --- CONCURRENT EXIT EXECUTION ---
         if (positionsToClose.length > 0) {
             const accountInfo = await this.binanceData.getAccountInfo();
@@ -1011,6 +1053,9 @@ class LiveTradingEngine extends EventEmitter {
                     ...this.livePortfolioState,
                 }),
             };
+
+            // Cache the latest full summary for lightweight updates
+            this.lastFullSummary = summary;
 
             return summary;
         } catch (error) {
