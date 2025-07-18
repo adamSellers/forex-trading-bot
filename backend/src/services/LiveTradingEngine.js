@@ -155,49 +155,59 @@ class LiveTradingEngine extends EventEmitter {
             return { success: false, reason: accountInfo.error.message };
         }
 
-        // --- LOGIC CORRECTION: Align with PaperTradingEngine's trend-following logic ---
+        // --- LOGIC CORRECTION: Align with PaperTradingEngine's trend-following logic
         const isBullishSignal =
             signal.signal.includes("BUY") || signal.signal.includes("BULLISH");
         const isBearishSignal =
             signal.signal.includes("SELL") || signal.signal.includes("BEARISH");
 
-        const baseAsset = signal.symbol.replace("USDT", "");
-        const existingPosition = accountInfo.balances.find(
-            (b) => b.asset === baseAsset && b.total > 0
+        // --- FIX: Check for an open trade in the database, not just a non-zero balance ---
+        // This prevents "dust" balances from blocking new trades.
+        const openTrades = await this.tradeRepo.getOpenLiveTrades();
+        const openTradeForSymbol = openTrades.find(
+            (t) => t.symbol === signal.symbol
         );
 
         // 3. --- EXECUTE LOGIC ---
-        if (isBullishSignal && !existingPosition) {
+        if (isBullishSignal && !openTradeForSymbol) {
             // --- ACTION: BUY ---
-            // We have a bullish signal and no open position.
+            // We have a bullish signal and no open trade record for this asset.
             return this.executeLiveBuy(
                 signal,
                 currentPrice,
                 atrValue,
                 accountInfo
             );
-        } else if (isBearishSignal && existingPosition) {
+        } else if (isBearishSignal && openTradeForSymbol) {
             // --- ACTION: SELL ---
-            // We have a bearish signal and an open position to close.
-            const openTrades = await this.tradeRepo.getOpenLiveTrades();
-            const entryTrade = openTrades.find(
-                (t) => t.symbol === signal.symbol
+            // We have a bearish signal and an open trade record that needs to be closed.
+            // We still need the actual balance from Binance to know how much to sell.
+            const baseAsset = signal.symbol.replace("USDT", "");
+            const binancePosition = accountInfo.balances.find(
+                (b) => b.asset === baseAsset && b.total > 0
             );
-            if (entryTrade) {
+
+            if (binancePosition) {
                 return this.executeLiveSell(
                     signal,
                     currentPrice,
-                    existingPosition,
-                    entryTrade,
-                    "SIGNAL_SELL" // The exit reason is a signal
+                    binancePosition, // Pass the balance object for quantity
+                    openTradeForSymbol, // Pass the DB trade record for P&L calculation
+                    "SIGNAL_SELL"
                 );
             } else {
+                // This is a state inconsistency. DB says we have a position, Binance says we don't.
+                // This could happen if a trade was manually closed on Binance.
                 logger.warn(
-                    `[LIVE] Received SELL signal for ${signal.symbol} but found no open trade in DB.`
+                    `[LIVE] State inconsistency for ${signal.symbol}: DB shows an open trade but Binance balance is zero. Closing trade record.`
                 );
+                await this.tradeRepo.updateTrade(openTradeForSymbol.id, {
+                    isOpen: false,
+                    exitReason: "INCONSISTENT_STATE_ZERO_BALANCE",
+                });
                 return {
                     success: false,
-                    reason: "No open trade found in DB to sell.",
+                    reason: "State inconsistency detected (zero balance for open trade).",
                 };
             }
         } else {
@@ -205,9 +215,9 @@ class LiveTradingEngine extends EventEmitter {
             // - Bullish signal, but we already have a position.
             // - Bearish signal, but we have no position to sell.
             let reason = `Signal is ${signal.signal}, no trade action needed for current state.`;
-            if (isBullishSignal && existingPosition) {
+            if (isBullishSignal && openTradeForSymbol) {
                 reason = `HOLD: Bullish signal (${signal.signal}) received, but a position for ${signal.symbol} is already open.`;
-            } else if (isBearishSignal && !existingPosition) {
+            } else if (isBearishSignal && !openTradeForSymbol) {
                 reason = `HOLD: Bearish signal (${signal.signal}) received, but no position for ${signal.symbol} to sell.`;
             } else if (signal.signal.includes("HOLD")) {
                 reason = `HOLD: Trend-following signal (${signal.signal}) received, maintaining current state.`;
