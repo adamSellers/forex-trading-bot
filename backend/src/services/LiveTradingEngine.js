@@ -84,6 +84,84 @@ class LiveTradingEngine extends EventEmitter {
         logger.success("✅ Live Trading Engine ready.");
     }
 
+    /**
+     * NEW: Calculates lifetime performance metrics from a list of completed sell trades.
+     * @param {Array} sellTrades - An array of completed sell trade objects.
+     * @returns {Object} A comprehensive performance metrics object.
+     */
+    _calculatePerformanceMetrics(sellTrades) {
+        if (!sellTrades || sellTrades.length === 0) {
+            return {
+                totalTrades: 0,
+                winningTrades: 0,
+                losingTrades: 0,
+                winRate: 0,
+                avgWin: 0,
+                avgLoss: 0,
+                profitFactor: 0,
+                sharpeRatio: 0,
+                maxDrawdown: 0, // Placeholder for now
+                currentDrawdown: 0, // Placeholder
+                avgHoldingPeriod: 0,
+                bestTrade: null,
+                worstTrade: null,
+            };
+        }
+
+        const winningTrades = sellTrades.filter((t) => t.pnl > 0);
+        const losingTrades = sellTrades.filter((t) => t.pnl <= 0);
+
+        const totalGrossProfit = winningTrades.reduce(
+            (sum, t) => sum + (t.pnl || 0),
+            0
+        );
+        const totalGrossLoss = Math.abs(
+            losingTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+        );
+
+        const avgWin =
+            winningTrades.length > 0
+                ? totalGrossProfit / winningTrades.length
+                : 0;
+        const avgLoss =
+            losingTrades.length > 0 ? totalGrossLoss / losingTrades.length : 0;
+
+        const profitFactor =
+            totalGrossLoss > 0 ? totalGrossProfit / totalGrossLoss : 0;
+
+        // Per-trade Sharpe Ratio (not annualized)
+        const returns = sellTrades.map((t) => t.pnlPercent || 0);
+        let sharpeRatio = 0;
+        if (returns.length >= 2) {
+            const avgReturn =
+                returns.reduce((sum, r) => sum + r, 0) / returns.length;
+            const variance =
+                returns.reduce(
+                    (sum, r) => sum + Math.pow(r - avgReturn, 2),
+                    0
+                ) /
+                (returns.length - 1);
+            const stdDev = Math.sqrt(variance);
+            if (stdDev > 0) {
+                sharpeRatio = avgReturn / stdDev;
+            }
+        }
+
+        return {
+            totalTrades: sellTrades.length,
+            winningTrades: winningTrades.length,
+            losingTrades: losingTrades.length,
+            winRate: (winningTrades.length / sellTrades.length) * 100,
+            avgWin,
+            avgLoss,
+            profitFactor,
+            sharpeRatio,
+            // Placeholders for now, as these require more complex historical analysis
+            maxDrawdown: 0,
+            currentDrawdown: 0,
+        };
+    }
+
     start() {
         this.isActive = true;
         this.config.enableTrading = true;
@@ -869,6 +947,13 @@ class LiveTradingEngine extends EventEmitter {
                 accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0;
             const openTrades = await this.tradeRepo.getOpenLiveTrades();
 
+            // NEW: Fetch all completed live trades for performance calculation
+            const allSellTrades = (
+                await this.tradeRepo.getAllTrades("live")
+            ).filter((t) => t.side === "SELL");
+            const performanceMetrics =
+                this._calculatePerformanceMetrics(allSellTrades);
+
             let cryptoValue = 0;
             const positions = [];
 
@@ -908,6 +993,7 @@ class LiveTradingEngine extends EventEmitter {
                     (this.livePortfolioState.totalPnL /
                         this.config.maxCapitalAtRisk) *
                     100,
+                performance: performanceMetrics, // NEW: Attach the calculated metrics
                 positions,
                 positionCount: positions.length,
                 riskStatus: this.riskService.getRiskStatus({
