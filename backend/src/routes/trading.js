@@ -447,22 +447,28 @@ module.exports = (tradingController) => {
     // GET /api/trading/performance - Get detailed performance metrics
     router.get("/performance", async (req, res) => {
         try {
+            const { period = "30d" } = req.query; // Default to 30d for better stats
+
             if (!tradingController.tradingService?.paperTrading) {
                 return res
                     .status(400)
                     .json({ error: "Trading engine not initialized" });
             }
 
+            // FIX: Fetch trades based on the requested period for accurate metrics
+            const periodMs = parsePeriod(period);
+            const cutoffTime = new Date(Date.now() - periodMs);
+            const trades =
+                await tradingController.tradingService.tradeRepo.getTradesSince(
+                    cutoffTime,
+                    "paper" // Assuming paper mode for this route
+                );
             const portfolio =
                 tradingController.tradingService.paperTrading.getPortfolioSummary();
-            const trades =
-                tradingController.tradingService.paperTrading.getRecentTrades(
-                    100
-                );
 
             // Calculate additional metrics
             const tradeReturns = getTradeReturns(trades);
-            const tradingFrequency = calculateTradingFrequency(trades);
+            const tradingFrequency = calculateTradingFrequency(trades, period); // FIX: Pass period
             const sharpeRatio = calculateSharpeRatio(
                 tradeReturns,
                 tradingFrequency
@@ -481,7 +487,7 @@ module.exports = (tradingController) => {
                 avgHoldingPeriod: calculateAvgHoldingPeriod(trades),
                 bestTrade: getBestTrade(trades),
                 worstTrade: getWorstTrade(trades),
-                tradingFrequency: calculateTradingFrequency(trades),
+                tradingFrequency: tradingFrequency, // Use the calculated frequency
 
                 // Metadata about the calculation
                 calculationNotes: {
@@ -683,18 +689,21 @@ module.exports = (tradingController) => {
         );
     }
 
-    function calculateTradingFrequency(trades) {
+    function calculateTradingFrequency(trades, period) {
+        // FIX: Accept period
         if (trades.length < 2) return 0;
-        // Newest trade is at index 0, oldest is at the end.
-        const timeSpanMs =
-            trades[0].timestamp - trades[trades.length - 1].timestamp;
 
-        // If there's no time span, we can't calculate frequency.
-        if (timeSpanMs <= 0) {
-            return 0;
-        }
+        // FIX: Use the full period duration for a more accurate frequency calculation,
+        // instead of just the time between the first and last trade.
+        const periodMapping = {
+            "1d": 1,
+            "7d": 7,
+            "30d": 30,
+            "90d": 90,
+        };
+        const days = periodMapping[period] || 30; // Default to 30 days
+        if (days <= 0) return 0;
 
-        const days = timeSpanMs / (24 * 60 * 60 * 1000);
         // Return trades per day.
         return trades.length / days;
     }
