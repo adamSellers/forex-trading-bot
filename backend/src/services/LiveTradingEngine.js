@@ -44,9 +44,8 @@ class LiveTradingEngine extends EventEmitter {
             lastWeeklyReset: this.getWeekStart(new Date()),
         };
         this.lastSnapshotSave = 0;
-        this.lastPortfolioEmit = 0; // NEW
-        this.portfolioEmitThrottle = 4000; // NEW: 2 seconds throttle
-
+        this.portfolioEmitThrottle = 2000; // Emit updates every 2 seconds
+        this.portfolioUpdateInterval = null; // To hold the setInterval ID
         this.isActive = false;
         this.mode = "live"; // NEW: Explicitly set the mode for the engine
         logger.info("🚀 Live Trading Engine Initialized - REAL MONEY MODE.");
@@ -171,6 +170,33 @@ class LiveTradingEngine extends EventEmitter {
             "🔴 LIVE TRADING IS NOW ACTIVE. REAL ORDERS WILL BE PLACED. 🔴"
         );
         this.emit("engineStarted");
+
+        // NEW: Start a dedicated, periodic loop for portfolio updates.
+        // This is more reliable than throttling inside the high-frequency updatePortfolioValue method.
+        if (this.portfolioUpdateInterval) {
+            clearInterval(this.portfolioUpdateInterval);
+        }
+        this.portfolioUpdateInterval = setInterval(async () => {
+            if (!this.isActive) return;
+            try {
+                const summary = await this.getPortfolioSummary();
+                if (summary && !summary.error) {
+                    this.emit("portfolioUpdated", summary);
+                    this.riskService.checkRiskLimits(summary);
+
+                    const now = Date.now();
+                    if (now - this.lastSnapshotSave > 5 * 60 * 1000) {
+                        await this.portfolioRepo.saveLiveSnapshot(summary);
+                        this.lastSnapshotSave = now;
+                    }
+                }
+            } catch (error) {
+                logger.error(
+                    "[LIVE] Error during periodic portfolio update:",
+                    error
+                );
+            }
+        }, this.portfolioEmitThrottle);
     }
 
     stop() {
@@ -178,6 +204,12 @@ class LiveTradingEngine extends EventEmitter {
         this.config.enableTrading = false;
         logger.info("📴 Live Trading Engine stopped.");
         this.emit("engineStopped");
+
+        // NEW: Stop the periodic update loop
+        if (this.portfolioUpdateInterval) {
+            clearInterval(this.portfolioUpdateInterval);
+            this.portfolioUpdateInterval = null;
+        }
     }
 
     getStatus() {
@@ -904,36 +936,6 @@ class LiveTradingEngine extends EventEmitter {
                 await Promise.all(updatePromises);
             } catch (err) {
                 logger.error("[LIVE] Batch trade update failed:", err);
-            }
-        }
-
-        // --- THROTTLED UPDATE BLOCK ---
-        // This block runs at most every `portfolioEmitThrottle` milliseconds to avoid
-        // overwhelming the database and Binance API on every price tick.
-        const now = Date.now();
-        if (now - this.lastPortfolioEmit > this.portfolioEmitThrottle) {
-            try {
-                const summary = await this.getPortfolioSummary();
-                if (summary && !summary.error) {
-                    // 1. Emit the update for the frontend UI
-                    this.emit("portfolioUpdated", summary);
-                    this.lastPortfolioEmit = now;
-
-                    // 2. Check risk limits with the fresh summary
-                    this.riskService.checkRiskLimits(summary);
-
-                    // 3. Periodically save snapshot (can be less frequent)
-                    if (now - this.lastSnapshotSave > 5 * 60 * 1000) {
-                        // Every 5 minutes
-                        await this.portfolioRepo.saveLiveSnapshot(summary);
-                        this.lastSnapshotSave = now;
-                    }
-                }
-            } catch (error) {
-                logger.error(
-                    "[LIVE] Error during throttled portfolio update:",
-                    error
-                );
             }
         }
     }

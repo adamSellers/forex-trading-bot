@@ -49,6 +49,14 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   // Define our trading assets
   const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE'];
 
+  // NEW: Helper to format prices with dynamic precision
+  const formatPrice = (value) => {
+    if (typeof value !== 'number' || isNaN(value)) return '$0.00';
+    if (value >= 1) return `$${value.toFixed(2)}`;
+    if (value >= 0.01) return `$${value.toFixed(4)}`;
+    return `$${value.toFixed(6)}`;
+  };
+
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -210,7 +218,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
             {/* Column 6: Current */}
             <Box sx={{ flexBasis: '12.5%', minWidth: 0, textAlign: 'right' }}>
               <Typography variant="body2" fontWeight="500">
-                ${currentPrice.toFixed(2)}
+                {formatPrice(currentPrice)}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 Current
@@ -330,7 +338,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
               <Box sx={{ flex: 1, textAlign: 'right' }}>
                   <Typography variant="caption" color="textSecondary">Current Price:</Typography>
                   <Typography variant="caption" sx={{ ml: 0.5 }}>
-                    ${prices[`${balance.asset}USDT`]?.price?.toFixed(2) || 'N/A'}
+                    {prices[`${balance.asset}USDT`]?.price ? formatPrice(prices[`${balance.asset}USDT`].price) : 'N/A'}
                   </Typography>
               </Box>
             </Box>
