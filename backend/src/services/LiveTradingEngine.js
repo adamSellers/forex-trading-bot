@@ -113,23 +113,39 @@ class LiveTradingEngine extends EventEmitter {
         // Check and reset counters before processing
         this.checkAndResetCounters();
 
+        // --- NEW: Add verbose logging for debugging missed trades ---
+        logger.debug(`[LIVE] Processing signal for ${signal.symbol}`, {
+            signal,
+        });
+
         if (!this.isValidSignal(signal)) {
+            // The reason is already logged inside isValidSignal
             return {
                 success: false,
-                reason: "Live signal failed validation (strength or volatility filter)",
+                reason: "Signal failed validation",
             };
         }
         // 1. --- SAFETY CHECKS ---
         if (!this.isActive || !this.config.enableTrading) {
+            logger.warn(
+                `[LIVE] 🚫 Trade for ${signal.symbol} skipped: Live trading is not active.`
+            );
             return { success: false, reason: "Live trading is not active" };
         }
         if (this.riskService.isHalted()) {
+            const reason = this.riskService.getHaltReason();
+            logger.warn(
+                `[LIVE] 🚫 Trade for ${signal.symbol} skipped: Trading is halted. Reason: ${reason}`
+            );
             return {
                 success: false,
-                reason: `Trading halted: ${this.riskService.getHaltReason()}`,
+                reason: `Trading halted: ${reason}`,
             };
         }
         if (!binanceClient) {
+            logger.error(
+                `[LIVE] 🚫 Trade for ${signal.symbol} skipped: Binance client not available.`
+            );
             return { success: false, reason: "Binance client not available" };
         }
 
@@ -188,10 +204,21 @@ class LiveTradingEngine extends EventEmitter {
             // --- ACTION: HOLD ---
             // - Bullish signal, but we already have a position.
             // - Bearish signal, but we have no position to sell.
+            let reason = `Signal is ${signal.signal}, no trade action needed for current state.`;
+            if (isBullishSignal && existingPosition) {
+                reason = `HOLD: Bullish signal (${signal.signal}) received, but a position for ${signal.symbol} is already open.`;
+            } else if (isBearishSignal && !existingPosition) {
+                reason = `HOLD: Bearish signal (${signal.signal}) received, but no position for ${signal.symbol} to sell.`;
+            } else if (signal.signal.includes("HOLD")) {
+                reason = `HOLD: Trend-following signal (${signal.signal}) received, maintaining current state.`;
+            }
+
+            logger.debug(`[LIVE] ${reason}`);
+
             return {
                 success: true,
                 action: "HOLD",
-                reason: `Signal is ${signal.signal}, no trade action needed for current state.`,
+                reason,
                 signal,
             };
         }
@@ -548,7 +575,17 @@ class LiveTradingEngine extends EventEmitter {
             return false;
         if (signal.signal === "LOW_VOLATILITY") return false;
 
-        if (signal.strength < this.config.minSignalStrength) return false;
+        // --- NEW: Add logging for why a signal is invalid ---
+        if (signal.strength < this.config.minSignalStrength) {
+            logger.debug(
+                `[LIVE] 🔇 Blocking signal for ${
+                    signal.symbol
+                } due to weak strength: ${signal.strength?.toFixed(2)} < ${
+                    this.config.minSignalStrength
+                }`
+            );
+            return false;
+        }
 
         if (
             this.config.enableVolatilityFilter &&
