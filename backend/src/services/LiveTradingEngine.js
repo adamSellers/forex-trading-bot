@@ -44,6 +44,8 @@ class LiveTradingEngine extends EventEmitter {
             lastWeeklyReset: this.getWeekStart(new Date()),
         };
         this.lastSnapshotSave = 0;
+        this.lastPortfolioEmit = 0; // NEW
+        this.portfolioEmitThrottle = 4000; // NEW: 2 seconds throttle
 
         this.isActive = false;
         this.mode = "live"; // NEW: Explicitly set the mode for the engine
@@ -792,7 +794,6 @@ class LiveTradingEngine extends EventEmitter {
             const unrealizedPnL =
                 currentValue - (trade.entryCost || trade.usdtCost); // Use entryCost if available
             totalUnrealizedPnL += unrealizedPnL;
-
             // 1. Check Take Profit
             if (
                 trade.takeProfitPrice &&
@@ -906,27 +907,35 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
 
-        // --- NEW: Periodically save portfolio snapshot ---
+        // --- THROTTLED UPDATE BLOCK ---
+        // This block runs at most every `portfolioEmitThrottle` milliseconds to avoid
+        // overwhelming the database and Binance API on every price tick.
         const now = Date.now();
-        if (now - this.lastSnapshotSave > 5 * 60 * 1000) {
-            // Every 5 minutes
+        if (now - this.lastPortfolioEmit > this.portfolioEmitThrottle) {
             try {
                 const summary = await this.getPortfolioSummary();
-                if (!summary.error) {
-                    await this.portfolioRepo.saveLiveSnapshot(summary);
-                    this.lastSnapshotSave = now;
+                if (summary && !summary.error) {
+                    // 1. Emit the update for the frontend UI
+                    this.emit("portfolioUpdated", summary);
+                    this.lastPortfolioEmit = now;
+
+                    // 2. Check risk limits with the fresh summary
+                    this.riskService.checkRiskLimits(summary);
+
+                    // 3. Periodically save snapshot (can be less frequent)
+                    if (now - this.lastSnapshotSave > 5 * 60 * 1000) {
+                        // Every 5 minutes
+                        await this.portfolioRepo.saveLiveSnapshot(summary);
+                        this.lastSnapshotSave = now;
+                    }
                 }
-            } catch (e) {
-                logger.error("[LIVE] Failed to save portfolio snapshot:", e);
+            } catch (error) {
+                logger.error(
+                    "[LIVE] Error during throttled portfolio update:",
+                    error
+                );
             }
         }
-
-        // Check risk limits with current P&L
-        this.riskService.checkRiskLimits({
-            dailyPnL: this.livePortfolioState.dailyPnL,
-            weeklyPnL: this.livePortfolioState.weeklyPnL,
-            totalPnL: this.livePortfolioState.totalPnL,
-        });
     }
 
     async getPortfolioSummary() {
