@@ -451,6 +451,13 @@ class PaperTradingEngine extends EventEmitter {
      * NEW: Enhanced portfolio monitoring with trailing stops and take-profit
      */
     updatePortfolioValue(priceData) {
+        // NEW: Add a log to confirm position management continues during a halt.
+        if (this.riskService.isHalted()) {
+            logger.debug(
+                `[PAPER] Position management is active during trading halt. Reason: ${this.riskService.getHaltReason()}`
+            );
+        }
+
         let totalCryptoValue = 0;
         // FIX: Collect positions to close to avoid modifying the map while iterating
         const positionsToClose = [];

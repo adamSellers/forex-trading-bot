@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container,
   Grid,
   Paper,
   Typography,
   Box,
   Card,
   CardContent,
-  Chip,
   CircularProgress,
   Alert,
   ToggleButtonGroup,
   ToggleButton,
   Divider,
   Tooltip,
-  useTheme
+  useTheme,
 } from '@mui/material';
 import {
   BarChart,
@@ -63,13 +61,14 @@ const AnalyticsDashboard = () => {
       try {
         setLoading(true);
         setError(null);
-        // Fetch all data in parallel - REMOVED portfolio fetch
-        const [analyticsData, tradesData] = await Promise.all([
+        // Fetch all data in parallel
+        const [analyticsData, tradesResponse] = await Promise.all([
           tradingAPI.getAnalytics(period),
           tradingAPI.getTrades({ limit: 1000 }) // Fetch enough for P&L chart
         ]);
         setAnalytics(analyticsData);
-        setTrades(tradesData);
+        // The API returns an object with a 'trades' array, so we extract it.
+        setTrades(tradesResponse || []);
       } catch (err) {
         setError(`Failed to load analytics: ${err.message}`);
       } finally {
@@ -102,7 +101,7 @@ const AnalyticsDashboard = () => {
 
   // Prepare data for P&L over time chart
   const pnlChartData = trades
-    .filter(t => t.side === 'SELL' && t.pnl !== null)
+    .filter(t => t.side === 'SELL' && t.pnl !== null && t.timestamp)
     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
     .reduce((acc, trade) => {
       const cumulativePnl = (acc.length > 0 ? acc[acc.length - 1].pnl : 0) + trade.pnl;

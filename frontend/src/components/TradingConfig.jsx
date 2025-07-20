@@ -71,7 +71,10 @@ const TradingConfig = () => {
     
     // Assets & Timeframes
     assets: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'],
-    timeframes: ['1h', '4h', '1d']
+    timeframes: ['1h', '4h', '1d'],
+    
+    // System & Logging
+    logLevel: 'info'
   });
 
   const [originalConfig, setOriginalConfig] = useState({});
@@ -129,7 +132,8 @@ const TradingConfig = () => {
             DOGEUSDT: (data.config.allocation?.DOGEUSDT * 100) || 10
           },
           assets: data.config.assets || ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'],
-          timeframes: data.config.timeframes || ['1h', '4h', '1d']
+          timeframes: data.config.timeframes || ['1h', '4h', '1d'],
+          logLevel: data.config.logLevel || 'info'
         };
         setConfig(fetchedConfig);
         setOriginalConfig(fetchedConfig);
@@ -162,7 +166,8 @@ const TradingConfig = () => {
           BTCUSDT: config.allocation.BTCUSDT / 100,
           ETHUSDT: config.allocation.ETHUSDT / 100,
           BNBUSDT: config.allocation.BNBUSDT / 100,
-          DOGEUSDT: config.allocation.DOGEUSDT / 100
+          DOGEUSDT: config.allocation.DOGEUSDT / 100,
+          logLevel: config.logLevel
         }
       };
 
@@ -567,6 +572,34 @@ const TradingConfig = () => {
           </Accordion>
         </Grid>
 
+        {/* System & Logging */}
+        <Grid item xs={12}>
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Settings sx={{ mr: 1 }} />
+              <Typography variant="h6">System & Logging</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Log Level</InputLabel>
+                    <Select
+                      value={config.logLevel}
+                      label="Log Level"
+                      onChange={(e) => updateConfig('logLevel', e.target.value)}
+                    >
+                      <MenuItem value="debug">Debug</MenuItem>
+                      <MenuItem value="info">Info</MenuItem>
+                      <MenuItem value="warn">Warn</MenuItem>
+                      <MenuItem value="error">Error</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+            </AccordionDetails>
+          </Accordion>
+        </Grid>
         {/* Current Status Summary */}
         <Grid item xs={12}>
           <Paper sx={{ p: 3 }}>

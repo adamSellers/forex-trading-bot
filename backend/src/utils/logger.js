@@ -21,6 +21,14 @@ class Logger {
             debug: 3,
         };
 
+        // Map numeric level back to name
+        this.levelNames = {
+            0: "error",
+            1: "warn",
+            2: "info",
+            3: "debug",
+        };
+
         // Set the current log level from environment variables, default to 'info'
         const envLogLevel = (process.env.LOG_LEVEL || "info").toLowerCase();
         this.currentLogLevel = this.levels[envLogLevel] ?? this.levels.info;
@@ -81,6 +89,22 @@ class Logger {
 
         // File output (async to avoid blocking)
         setImmediate(() => this.writeToFile(level, formattedMsgFromCaller));
+    }
+
+    getLogLevelName() {
+        // Find the name for the current numeric level.
+        // Since 'success' and 'info' have the same level, we default to 'info'.
+        return this.levelNames[this.currentLogLevel] || "info";
+    }
+
+    setLogLevel(levelName) {
+        const newLevel = this.levels[levelName.toLowerCase()];
+        if (newLevel !== undefined) {
+            this.currentLogLevel = newLevel;
+            this.info(`Log level changed to: ${levelName.toUpperCase()}`);
+        } else {
+            this.warn(`Attempted to set invalid log level: ${levelName}`);
+        }
     }
 
     error(message, data = null) {

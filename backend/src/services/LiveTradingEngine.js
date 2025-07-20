@@ -798,6 +798,13 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async updatePortfolioValue(priceData) {
+        // NEW: Add a log to confirm position management continues during a halt.
+        if (this.riskService.isHalted()) {
+            logger.debug(
+                `[LIVE] Position management is active during trading halt. Reason: ${this.riskService.getHaltReason()}`
+            );
+        }
+
         // FIX: Ensure daily/weekly counters are reset before any checks are made.
         this.checkAndResetCounters();
 

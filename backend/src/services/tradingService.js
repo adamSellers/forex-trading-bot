@@ -49,6 +49,9 @@ class TradingService extends EventEmitter {
         try {
             logger.info("🚀 Initializing Trading Service...");
 
+            // NEW: Set initial log level in config from the logger's current state
+            this.config.logLevel = logger.getLogLevelName();
+
             // Initialize core services
             this.binanceData = new BinanceDataService(this.config);
             this.riskService = new RiskManagementService();
@@ -365,6 +368,14 @@ class TradingService extends EventEmitter {
 
     async updateConfig(newConfig) {
         try {
+            // NEW: Handle log level changes
+            if (
+                newConfig.logLevel &&
+                newConfig.logLevel !== this.config.logLevel
+            ) {
+                logger.setLogLevel(newConfig.logLevel);
+            }
+
             // Merge with existing config
             this.config = { ...this.config, ...newConfig };
 
