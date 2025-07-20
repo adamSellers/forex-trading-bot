@@ -161,13 +161,13 @@ const TradingConfig = () => {
         maxDailyLoss: config.maxDailyLoss / 100,
         maxWeeklyLoss: config.maxWeeklyLoss / 100,
         signalCooldown: config.signalCooldown * 1000,
+        logLevel: config.logLevel,
         minStrength: config.minSignalStrength,
         allocation: {
           BTCUSDT: config.allocation.BTCUSDT / 100,
           ETHUSDT: config.allocation.ETHUSDT / 100,
           BNBUSDT: config.allocation.BNBUSDT / 100,
-          DOGEUSDT: config.allocation.DOGEUSDT / 100,
-          logLevel: config.logLevel
+          DOGEUSDT: config.allocation.DOGEUSDT / 100
         }
       };
 
@@ -574,7 +574,7 @@ const TradingConfig = () => {
 
         {/* System & Logging */}
         <Grid item xs={12}>
-          <Accordion>
+          <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Settings sx={{ mr: 1 }} />
               <Typography variant="h6">System & Logging</Typography>
