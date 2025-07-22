@@ -127,18 +127,17 @@ module.exports = (tradingController) => {
     // GET /api/trading/paper-stats - Get detailed paper trading statistics
     router.get("/paper-stats", async (req, res) => {
         try {
-            if (!tradingController.tradingService?.paperTrading) {
+            // FIX: Check if the active engine is in paper mode, not for a 'paperTrading' property.
+            const engine = tradingController.tradingService?.activeEngine;
+            if (!engine || engine.mode !== "paper") {
                 return res
                     .status(400)
-                    .json({ error: "Paper trading not initialized" });
+                    .json({ error: "Paper trading is not the active mode." });
             }
 
-            const paperPortfolio =
-                tradingController.tradingService.paperTrading.getPortfolioSummary();
-            const paperTrades =
-                tradingController.tradingService.paperTrading.getRecentTrades(
-                    50
-                );
+            // FIX: Access methods directly from the active engine.
+            const paperPortfolio = engine.getPortfolioSummary();
+            const paperTrades = engine.getRecentTrades(50);
 
             const stats = {
                 portfolio: paperPortfolio,
@@ -160,19 +159,20 @@ module.exports = (tradingController) => {
         try {
             const { period = "7d" } = req.query;
 
-            if (!tradingController.tradingService?.paperTrading) {
+            // FIX: Check if the active engine is in paper mode.
+            const engine = tradingController.tradingService?.activeEngine;
+            if (!engine || engine.mode !== "paper") {
                 return res
                     .status(400)
-                    .json({ error: "Paper trading not initialized" });
+                    .json({
+                        error: "Paper trading is not the active mode for comparison.",
+                    });
             }
 
             // Get paper trading performance
-            const paperPortfolio =
-                tradingController.tradingService.paperTrading.getPortfolioSummary();
-            const paperTrades =
-                tradingController.tradingService.paperTrading.getRecentTrades(
-                    50
-                );
+            // FIX: Access methods directly from the active engine.
+            const paperPortfolio = engine.getPortfolioSummary();
+            const paperTrades = engine.getRecentTrades(50);
 
             // Get real account value (calculated with current prices)
             const account =
@@ -277,14 +277,15 @@ module.exports = (tradingController) => {
     // GET /api/trading/risk-status - Risk management status
     router.get("/risk-status", async (req, res) => {
         try {
-            if (!tradingController.tradingService?.paperTrading) {
+            // FIX: Check for an active engine, as risk status applies to both modes.
+            const engine = tradingController.tradingService?.activeEngine;
+            if (!engine) {
                 return res
                     .status(400)
-                    .json({ error: "Paper trading not initialized" });
+                    .json({ error: "Trading engine not initialized" });
             }
 
-            const portfolio =
-                tradingController.tradingService.paperTrading.getPortfolioSummary();
+            const portfolio = await engine.getPortfolioSummary();
             const riskStatus = portfolio.riskStatus;
 
             const enhancedRiskStatus = {
@@ -420,14 +421,14 @@ module.exports = (tradingController) => {
                 timestamp: Date.now(),
             };
 
-            // Process the test signal if paper trading is active
-            if (tradingController.tradingService?.paperTrading) {
-                const result =
-                    await tradingController.tradingService.paperTrading.processSignal(
-                        testSignal,
-                        67000,
-                        500
-                    );
+            // FIX: Check if the active engine is in paper mode.
+            const engine = tradingController.tradingService?.activeEngine;
+            if (engine && engine.mode === "paper") {
+                const result = await engine.processSignal(
+                    testSignal,
+                    67000,
+                    500
+                );
                 res.json({ success: true, signal: testSignal, result });
             } else {
                 res.json({
@@ -449,22 +450,23 @@ module.exports = (tradingController) => {
         try {
             const { period = "30d" } = req.query; // Default to 30d for better stats
 
-            if (!tradingController.tradingService?.paperTrading) {
+            // FIX: Check for an active engine, as performance applies to both modes.
+            const engine = tradingController.tradingService?.activeEngine;
+            if (!engine) {
                 return res
                     .status(400)
                     .json({ error: "Trading engine not initialized" });
             }
 
-            // FIX: Fetch trades based on the requested period for accurate metrics
+            // FIX: Fetch trades for the currently active mode.
             const periodMs = parsePeriod(period);
             const cutoffTime = new Date(Date.now() - periodMs);
             const trades =
                 await tradingController.tradingService.tradeRepo.getTradesSince(
                     cutoffTime,
-                    "paper" // Assuming paper mode for this route
+                    engine.mode // Use the engine's current mode ('paper' or 'live')
                 );
-            const portfolio =
-                tradingController.tradingService.paperTrading.getPortfolioSummary();
+            const portfolio = await engine.getPortfolioSummary();
 
             // Calculate additional metrics
             const tradeReturns = getTradeReturns(trades);
@@ -508,9 +510,12 @@ module.exports = (tradingController) => {
         try {
             const { period = "7d" } = req.query;
 
+            // FIX: Check for the existence of the core services, not just paperTrading.
+            // This makes the route work in both 'live' and 'paper' modes.
             if (
-                !tradingController.tradingService?.paperTrading ||
-                !tradingController.tradingService?.signalGenerator
+                !tradingController.tradingService?.activeEngine ||
+                !tradingController.tradingService?.signalGenerator ||
+                !tradingController.tradingService?.binanceData
             ) {
                 return res
                     .status(400)
