@@ -1104,6 +1104,32 @@ class LiveTradingEngine extends EventEmitter {
         const diff = d.getDate() - day;
         return new Date(d.setDate(diff)).toDateString();
     }
+
+    /**
+     * NEW: Resets the P&L and risk state of the live engine for a fresh start.
+     * This does NOT delete historical trades from the database.
+     */
+    async reset() {
+        logger.warn("[LIVE] Resetting Live Trading Engine P&L state...");
+        this.livePortfolioState = {
+            totalPnL: 0,
+            dailyPnL: 0,
+            weeklyPnL: 0,
+            lastResetDate: new Date().toDateString(),
+            lastWeeklyReset: this.getWeekStart(new Date()),
+        };
+
+        // Also reset the risk service state and re-initialize it
+        if (this.riskService) {
+            this.riskService.reset();
+            this.riskService.initialize(this.config);
+        }
+
+        logger.success(
+            "[LIVE] P&L state has been reset. Risk limits are fresh."
+        );
+        this.emit("engineReset");
+    }
 }
 
 module.exports = LiveTradingEngine;

@@ -121,3 +121,4 @@ CLAUDE.md
 # don't ship the backtesting data
 backend/data/historical
 backend/data/backtests
+binance_orders/

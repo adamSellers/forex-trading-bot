@@ -169,6 +169,18 @@ const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
   const isLiveMode = systemStatus?.config?.tradingMode === 'live';
   const dataMode = systemStatus?.services?.binanceData?.useFallback ? 'Fallback' : 'Live Binance API';
 
+  // NEW: Calculate the conceptual portfolio value for the bot to avoid confusion.
+  // This value represents the bot's performance, independent of external deposits/withdrawals.
+  const conceptualPortfolioValue = React.useMemo(() => {
+    if (isLiveMode) {
+      const initialCapital = systemStatus?.config?.maxCapitalAtRisk || 0;
+      const totalRealizedPnL = portfolio?.totalPnL || 0;
+      return initialCapital + totalRealizedPnL + (totalUnrealizedPnL || 0);
+    }
+    // For paper trading, totalValue is already the conceptual value.
+    return portfolio?.totalValue || 0;
+  }, [portfolio, systemStatus, isLiveMode, totalUnrealizedPnL]);
+
   return (
     <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
@@ -258,11 +270,11 @@ const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
           sx={{ mb: 2 }}
         > 
             <MetricCard
-              title={isLiveMode ? "Live Portfolio" : "Virtual Portfolio"}
-              value={formatCurrency(portfolio?.totalValue || 5000)}
-              subtitle={isLiveMode ? "Live Account Value" : "Simulated Trading"}
+              title={isLiveMode ? "Bot's Portfolio" : "Virtual Portfolio"}
+              value={formatCurrency(conceptualPortfolioValue)}
+              subtitle={isLiveMode ? "Initial Capital + P&L" : "Simulated Value"}
               color={isLiveMode ? "success.main" : "warning.main"}
-              icon={isLiveMode ? <AccountBalance fontSize="small" color="success" /> : <Psychology fontSize="small" color="warning" />}
+              icon={isLiveMode ? <TrendingUp fontSize="small" color="success" /> : <Psychology fontSize="small" color="warning" />}
             />
             <MetricCard
               title={isLiveMode ? "Realized P&L" : "Virtual P&L"}

@@ -481,7 +481,7 @@ class TradingService extends EventEmitter {
                 this.activeEngine &&
                 typeof this.activeEngine.reset === "function"
             ) {
-                this.activeEngine.reset();
+                await this.activeEngine.reset();
             }
 
             // Reset signal generator
