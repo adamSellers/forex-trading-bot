@@ -9,7 +9,7 @@ set -e  # Exit on any error
 # --- Configuration ---
 APP_NAME="crypto-trend-bot"
 PROJECT_DIR="/opt/crypto-trading-bot"
-PROJECT_USER="adam"
+PROJECT_USER=$(whoami)
 BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
 REPO_URL="git@github.com:adamSellers/crypto-trading-bot.git"
 BRANCH="main"
@@ -36,13 +36,6 @@ check_root() {
     if [[ $EUID -eq 0 ]]; then
         log_error "This script should not be run as root. Run as user '$PROJECT_USER' with sudo access."
     fi
-}
-
-check_user() {
-    if [[ "$(whoami)" != "$PROJECT_USER" ]]; then
-        log_error "Script must be run as user '$PROJECT_USER'. Current user: $(whoami)"
-    fi
-    log_success "Running as correct user: $PROJECT_USER"
 }
 
 check_system_requirements() {
@@ -550,7 +543,6 @@ main() {
     export NODE_OPTIONS="--max-old-space-size=2048"  # Node v22 is more memory efficient
     
     check_root
-    check_user
     check_system_requirements
     setup_build_environment
     setup_swap
