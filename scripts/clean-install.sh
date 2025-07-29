@@ -350,20 +350,32 @@ configure_system() {
     log_step "Configuring system services for ARM64..."
     cd "$PROJECT_DIR"
 
-    log_substep "Generating SSL certificate..."
+    # Prompt for the domain name to automate configuration
+    read -p "Enter the public domain name for this server (e.g., my-bot.com): " DOMAIN_NAME
+    if [ -z "$DOMAIN_NAME" ]; then
+        log_warning "No domain name entered. Using default 'img.oakroad'. Manual configuration will be required."
+        DOMAIN_NAME="img.oakroad"
+    fi
+    log_info "Using domain: $DOMAIN_NAME for configuration."
+
+    log_substep "Generating self-signed SSL certificate for $DOMAIN_NAME..."
     mkdir -p ssl
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout ssl/key.pem -out ssl/cert.pem \
-        -subj "/C=US/ST=CA/L=City/O=Org/CN=img.oakroad" \
+        -subj "/C=US/ST=CA/L=City/O=Org/CN=$DOMAIN_NAME" \
         2>/dev/null
     chmod 600 ssl/key.pem
 
-    log_substep "Creating Nginx configuration from template..."
+    log_substep "Creating Nginx configuration for $DOMAIN_NAME..."
     if [ -f "frontend/nginx.conf" ]; then
-        sudo cp "frontend/nginx.conf" "/etc/nginx/sites-available/$APP_NAME"
+        # Use sed to replace the placeholder domain and write the new config
+        sed "s/img.oakroad/$DOMAIN_NAME/g" "frontend/nginx.conf" | sudo tee "/etc/nginx/sites-available/$APP_NAME" > /dev/null
     else
         log_error "Nginx configuration file not found at frontend/nginx.conf"
     fi
+
+    log_substep "Updating CORS origin in ecosystem.config.js for $DOMAIN_NAME..."
+    sed -i "s/img.oakroad/$DOMAIN_NAME/g" "ecosystem.config.js"
 
     sudo ln -sf "/etc/nginx/sites-available/$APP_NAME" "/etc/nginx/sites-enabled/$APP_NAME"
     
