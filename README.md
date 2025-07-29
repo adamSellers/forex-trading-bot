@@ -1,21 +1,29 @@
 # Crypto Trend Trading Bot
 
-A full-stack, production-ready cryptocurrency trading bot featuring real-time data analysis, advanced paper trading, a live trading engine, and a comprehensive monitoring dashboard.
+A production-ready, full-stack cryptocurrency trading bot with live/paper trading engines, advanced risk management, and a comprehensive monitoring dashboard.
 
- <!-- TODO: Replace with an actual screenshot -->
+![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
+![Node.js Version](https://img.shields.io/badge/node-v22%2B-green.svg)
+
+<!-- TODO: Replace with an actual screenshot of the dashboard -->
+
+![Dashboard Screenshot](https://via.placeholder.com/800x450.png?text=Trading+Dashboard+UI)
+
+This project is a sophisticated, full-stack cryptocurrency trend-following bot designed for both simulation and live trading on Binance. It combines a Node.js backend for data processing and trade execution with a real-time React dashboard for monitoring and configuration. The architecture is built to be robust, secure, and deployable on low-power hardware like a Raspberry Pi 5.
 
 ## ✨ Features
 
 -   **Dual Trading Modes**:
     -   **Live Trading Engine**: Execute real trades on your Binance account with real money.
-    -   **Paper Trading Engine**: Simulate trades with a virtual portfolio, tracking detailed P&L without financial risk.
+    -   **Paper Trading Engine**: Simulate trades with a virtual portfolio, tracking detailed P&L without financial risk. State is persisted to disk to survive restarts.
 -   **Advanced Signal Generation**:
     -   Configurable EMA/SMA crossover strategies (`conservative`, `balanced`, `responsive`).
     -   **Volatility Filtering** using Average True Range (ATR) to avoid trading in choppy markets.
     -   Signal strength calculation and cooldown periods to prevent over-trading.
 -   **Sophisticated Order & Risk Management**:
     -   **Dynamic Position Sizing**: Calculates order size based on user-defined risk per trade and real-time ATR.
-    -   **Advanced Order Management**: Implements **Trailing Stops** and ATR-based **Take Profit** levels for both paper and live trading.
+    -   **Advanced Order Management**: Implements **Trailing Stops** and ATR-based **Take Profit** levels for both paper and live trading to maximize gains and protect profits.
     -   **Centralized Risk Service**: Configurable daily and weekly loss limits that automatically halt trading to protect capital.
 -   **Backtesting Engine**:
     -   Run strategies against months of historical data to evaluate performance before deployment.
@@ -29,7 +37,7 @@ A full-stack, production-ready cryptocurrency trading bot featuring real-time da
     -   **Full Configuration UI** to adjust trading strategy and risk parameters on the fly.
     -   System status banner showing data collection progress.
 -   **Secure & Persistent**:
-    -   **Encrypted API Key Storage**: Credentials are encrypted on disk and only loaded into memory at runtime.
+    -   **Encrypted API Key Storage**: Credentials are encrypted on disk using OpenSSL and only loaded into memory at runtime via a wrapper script.
     -   **Persistent Database**: All signals and trades are saved to a SQLite database for analysis, audit, and state restoration.
 -   **Production-Ready Deployment**:
     -   Optimized for Raspberry Pi 5 (ARM64) with Node.js v22.
@@ -39,13 +47,13 @@ A full-stack, production-ready cryptocurrency trading bot featuring real-time da
 
 ## Tech Stack
 
--   **Backend**: Node.js, Express
+-   **Backend**: Node.js, Express.js, Knex.js
 -   **Frontend**: React, Vite, Material-UI
--   **Charting**: Recharts, MUI X-Charts
--   **Real-Time Communication**: Socket.IO
+-   **Real-time**: Socket.IO
 -   **Database**: SQLite3 with Knex.js for migrations
 -   **API Client**: `node-binance-api`
 -   **Process Management**: PM2 for production
+-   **Reverse Proxy**: Nginx
 
 ## Getting Started
 
@@ -53,32 +61,39 @@ A full-stack, production-ready cryptocurrency trading bot featuring real-time da
 
 The quickest way to get a local development environment running.
 
-1.  **Clone the repository:**
+1.  **Prerequisites**: Node.js (v16+ recommended, v22+ for Pi) and `npm`.
+
+2.  **Clone the repository:**
 
     ```bash
     git clone https://github.com/adamSellers/crypto-trading-bot.git
     cd crypto-trading-bot
     ```
 
-2.  **Run the setup script:** This will install all dependencies and create the necessary `.env` files.
+3.  **Run the setup script:** This will install all dependencies for both frontend and backend and create the necessary `.env` files.
 
     ```bash
     ./scripts/dev-setup.sh
     ```
 
-3.  **Add API Keys:** Edit the newly created `backend/.env` file and add your Binance API keys. Read-only keys are sufficient for development.
+4.  **Add API Keys:** Edit the newly created `backend/.env` file and add your Binance API keys. Read-only keys are sufficient for development if you only plan to use paper trading.
 
-4.  **Run the database migrations:**
+    ```dotenv
+    BINANCE_API_KEY=your_api_key_here
+    BINANCE_API_SECRET=your_api_secret_here
+    ```
+
+5.  **Run the database migrations:**
 
     ```bash
     npm run db:migrate
     ```
 
-5.  **Start the development servers:**
+6.  **Start the development servers:** This will start the backend and frontend concurrently with hot-reloading.
     ```bash
     npm run dev
     ```
-    This will start the backend and frontend concurrently. The dashboard will be available at `http://localhost:5173`.
+7.  Open your browser and navigate to `http://localhost:5173`.
 
 ### Production Install on Raspberry Pi
 
@@ -95,7 +110,7 @@ The script will guide you through the process, including setting up your encrypt
 
 ## System Architecture
 
-The application follows a clean, service-oriented architecture. The `TradingService` acts as the central orchestrator, initializing and managing all sub-services. It selects an `activeEngine` (either `PaperTradingEngine` or `LiveTradingEngine`) based on the configuration, ensuring a clear and reliable data flow.
+The application follows a clean, service-oriented architecture. The `TradingService` acts as the central orchestrator, initializing and managing all sub-services. It selects an `activeEngine` (either `PaperTradingEngine` or `LiveTradingEngine`) based on the configuration, ensuring a clear and reliable data flow. The `TradingController` serves as a bridge, exposing service functionality to the outside world via API routes and WebSockets without containing any business logic itself.
 
 ```
                                        +-------------------------+
