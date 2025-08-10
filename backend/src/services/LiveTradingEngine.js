@@ -350,11 +350,12 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     /**
-     * NEW: Helper to parse fees from Binance order fills.
+     * FIXED: Helper to parse fees from Binance order fills.
+     * This is now async to handle fetching prices for commission assets like BNB.
      * @param {Array} fills - The 'fills' array from the Binance order response.
      * @returns {{totalFeeUsdt: number, avgPrice: number}}
      */
-    _parseOrderFills(fills) {
+    async _parseOrderFills(fills) {
         if (!fills || fills.length === 0) {
             return { totalFeeUsdt: 0, avgPrice: 0 };
         }
@@ -367,14 +368,30 @@ class LiveTradingEngine extends EventEmitter {
             const price = parseFloat(fill.price);
             const qty = parseFloat(fill.qty);
             const commission = parseFloat(fill.commission);
+            const commissionAsset = fill.commissionAsset;
 
             totalQty += qty;
             totalQuoteQty += price * qty;
 
-            if (fill.commissionAsset === "USDT") {
+            if (commissionAsset === "USDT") {
                 totalFeeUsdt += commission;
+            } else if (commissionAsset === "BNB") {
+                // Fee is in BNB, we need the BNBUSDT price to convert to USDT
+                const bnbPriceData =
+                    this.binanceData.getCurrentPrice("BNBUSDT");
+                const bnbPrice = bnbPriceData ? bnbPriceData.price : 0;
+                if (bnbPrice > 0) {
+                    totalFeeUsdt += commission * bnbPrice;
+                } else {
+                    // Fallback if we can't get live BNB price, estimate using a standard rate
+                    logger.warn(
+                        "Could not get live BNB price for fee calculation, estimating."
+                    );
+                    totalFeeUsdt += price * qty * 0.00075; // Binance's discounted fee rate (0.075%)
+                }
             } else {
-                // If fee is in the base asset (e.g., BTC), convert to USDT
+                // Assume fee is in the base asset (e.g., BTC for BTCUSDT).
+                // The `price` in the fill is the price of the base asset in USDT.
                 totalFeeUsdt += commission * price;
             }
         }
@@ -455,7 +472,7 @@ class LiveTradingEngine extends EventEmitter {
                 );
 
                 // NEW: Parse fills to get accurate price and fees
-                const { totalFeeUsdt, avgPrice } = this._parseOrderFills(
+                const { totalFeeUsdt, avgPrice } = await this._parseOrderFills(
                     orderResult.fills
                 );
 
@@ -584,7 +601,7 @@ class LiveTradingEngine extends EventEmitter {
 
                 // NEW: Parse fills to get accurate price and fees
                 const { totalFeeUsdt: sellFeeUsdt, avgPrice } =
-                    this._parseOrderFills(orderResult.fills);
+                    await this._parseOrderFills(orderResult.fills);
 
                 const entryCost = entryTrade.entryCost || entryTrade.usdtCost; // Use entryCost if available, fallback to usdtCost
                 // CORRECTED P&L: Account for the fee on the sell side.
