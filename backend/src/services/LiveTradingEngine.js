@@ -472,9 +472,14 @@ class LiveTradingEngine extends EventEmitter {
                 );
 
                 // NEW: Parse fills to get accurate price and fees
-                const { totalFeeUsdt, avgPrice } = await this._parseOrderFills(
-                    orderResult.fills
+                const { totalFeeUsdt: buyFeeUsdt, avgPrice } =
+                    await this._parseOrderFills(orderResult.fills);
+
+                // --- FIX: The true entry cost includes the fee ---
+                const usdtCostValue = parseFloat(
+                    orderResult.cummulativeQuoteQty
                 );
+                const trueEntryCost = usdtCostValue + buyFeeUsdt;
 
                 const trade = {
                     id: orderResult.orderId.toString(),
@@ -482,8 +487,8 @@ class LiveTradingEngine extends EventEmitter {
                     side: "BUY",
                     quantity: parseFloat(orderResult.executedQty),
                     price: avgPrice, // Use more accurate average price from fills
-                    usdtCost: parseFloat(orderResult.cummulativeQuoteQty),
-                    feeUsdtValue: totalFeeUsdt, // NEW: Save the fee
+                    usdtCost: usdtCostValue, // This is the value of the crypto itself
+                    feeUsdtValue: buyFeeUsdt, // Save the fee
                     timestamp: orderResult.transactTime,
                     signal: signal.signal,
                     signalStrength: signal.strength,
@@ -491,7 +496,7 @@ class LiveTradingEngine extends EventEmitter {
                     atr: atrValue,
                     volatilityPercent: signal.atrPercent || 0,
                     isOpen: true,
-                    entryCost: parseFloat(orderResult.cummulativeQuoteQty),
+                    entryCost: trueEntryCost, // Use the fee-inclusive cost for P&L
                     entryPrice: avgPrice, // Use more accurate average price
                     stopLoss: positionSize.stopLoss,
                     takeProfitPrice: positionSize.takeProfit, // from calculation
@@ -604,9 +609,8 @@ class LiveTradingEngine extends EventEmitter {
                     await this._parseOrderFills(orderResult.fills);
 
                 const entryCost = entryTrade.entryCost || entryTrade.usdtCost; // Use entryCost if available, fallback to usdtCost
-                // CORRECTED P&L: Account for the fee on the sell side.
-                // The buy-side fee is implicitly handled by receiving less crypto.
-                const pnl =
+                // P&L Calculation: (USDT from sale) - (Total cost to acquire) - (Fee on sale)
+                const pnl = // The entryCost now correctly includes the buy-side fee.
                     parseFloat(orderResult.cummulativeQuoteQty) -
                     entryCost -
                     sellFeeUsdt;
