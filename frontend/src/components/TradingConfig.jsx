@@ -195,18 +195,26 @@ const TradingConfig = () => {
     setError(null);
   };
 
+  // FIXED: This function now handles state updates immutably, which is crucial for React to detect changes.
+  // The previous version was mutating the nested 'allocation' object directly, preventing the 'hasChanges'
+  // useEffect hook from firing correctly.
   const updateConfig = (path, value) => {
-    setConfig(prev => {
-      const newConfig = { ...prev };
-      const keys = path.split('.');
-      let current = newConfig;
-      
-      for (let i = 0; i < keys.length - 1; i++) {
-        current = current[keys[i]];
+    setConfig((prev) => {
+      const keys = path.split(".");
+
+      // Handle nested 'allocation' property immutably
+      if (keys.length === 2 && keys[0] === "allocation") {
+        return {
+          ...prev,
+          allocation: {
+            ...prev.allocation,
+            [keys[1]]: value,
+          },
+        };
       }
-      
-      current[keys[keys.length - 1]] = value;
-      return newConfig;
+
+      // Handle top-level properties
+      return { ...prev, [keys[0]]: value };
     });
   };
 
