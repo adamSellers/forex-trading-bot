@@ -7,6 +7,7 @@ export const assetColors = {
     ETHUSDT: "#627eea", // Ethereum blue
     BNBUSDT: "#f3ba2f", // Binance yellow
     DOGEUSDT: "#c3a635", // Dogecoin gold
+    TRUMPUSDT: "#00529B", // A presidential blue
     USDT: "#26a17b", // Tether green
 };
 

@@ -63,14 +63,15 @@ const TradingConfig = () => {
     
     // Portfolio Allocation
     allocation: {
-      BTCUSDT: 35,
-      ETHUSDT: 35,
-      BNBUSDT: 20,
-      DOGEUSDT: 10
+      BTCUSDT: 30,
+      ETHUSDT: 30,
+      BNBUSDT: 15,
+      DOGEUSDT: 10,
+      TRUMPUSDT: 15,
     },
     
     // Assets & Timeframes
-    assets: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'],
+    assets: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT', 'TRUMPUSDT'],
     timeframes: ['1h', '4h', '1d'],
     
     // System & Logging
@@ -126,12 +127,13 @@ const TradingConfig = () => {
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
           minSignalStrength: data.config.minStrength || 0.5,
           allocation: {
-            BTCUSDT: (data.config.allocation?.BTCUSDT * 100) || 35,
-            ETHUSDT: (data.config.allocation?.ETHUSDT * 100) || 35,
-            BNBUSDT: (data.config.allocation?.BNBUSDT * 100) || 20,
-            DOGEUSDT: (data.config.allocation?.DOGEUSDT * 100) || 10
+            BTCUSDT: (data.config.allocation?.BTCUSDT * 100) || 30,
+            ETHUSDT: (data.config.allocation?.ETHUSDT * 100) || 30,
+            BNBUSDT: (data.config.allocation?.BNBUSDT * 100) || 15,
+            DOGEUSDT: (data.config.allocation?.DOGEUSDT * 100) || 10,
+            TRUMPUSDT: (data.config.allocation?.TRUMPUSDT * 100) || 15,
           },
-          assets: data.config.assets || ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'],
+          assets: data.config.assets || ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT', 'TRUMPUSDT'],
           timeframes: data.config.timeframes || ['1h', '4h', '1d'],
           logLevel: data.config.logLevel || 'info'
         };
@@ -167,7 +169,8 @@ const TradingConfig = () => {
           BTCUSDT: config.allocation.BTCUSDT / 100,
           ETHUSDT: config.allocation.ETHUSDT / 100,
           BNBUSDT: config.allocation.BNBUSDT / 100,
-          DOGEUSDT: config.allocation.DOGEUSDT / 100
+          DOGEUSDT: config.allocation.DOGEUSDT / 100,
+          TRUMPUSDT: config.allocation.TRUMPUSDT / 100,
         }
       };
 

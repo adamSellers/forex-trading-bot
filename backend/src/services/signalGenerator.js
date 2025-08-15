@@ -20,6 +20,7 @@ class SignalGenerator extends EventEmitter {
                 "ETHUSDT",
                 "BNBUSDT",
                 "DOGEUSDT",
+                "TRUMPUSDT",
             ],
 
             // NEW: Enhanced volatility filter config

@@ -162,11 +162,9 @@ module.exports = (tradingController) => {
             // FIX: Check if the active engine is in paper mode.
             const engine = tradingController.tradingService?.activeEngine;
             if (!engine || engine.mode !== "paper") {
-                return res
-                    .status(400)
-                    .json({
-                        error: "Paper trading is not the active mode for comparison.",
-                    });
+                return res.status(400).json({
+                    error: "Paper trading is not the active mode for comparison.",
+                });
             }
 
             // Get paper trading performance
@@ -717,7 +715,13 @@ module.exports = (tradingController) => {
     }
 
     function analyzeByAsset(trades, signals) {
-        const assets = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"];
+        const assets = [
+            "BTCUSDT",
+            "ETHUSDT",
+            "BNBUSDT",
+            "DOGEUSDT",
+            "TRUMPUSDT",
+        ];
         const analysis = {};
 
         assets.forEach((asset) => {

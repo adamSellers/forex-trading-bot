@@ -47,7 +47,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   const [tabValue, setTabValue] = useState(isLiveMode ? 1 : 0);
 
   // Define our trading assets
-  const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE'];
+  const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE', 'TRUMP'];
 
   // NEW: Helper to format prices with dynamic precision
   const formatPrice = (value) => {

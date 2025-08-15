@@ -36,7 +36,7 @@ const LivePriceChart = ({ prices = {} }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'];
+  const assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT', 'TRUMPUSDT'];
   const timeframes = {
     '1h': '1 Hour',
     '4h': '4 Hours',

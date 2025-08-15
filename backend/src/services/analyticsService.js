@@ -73,7 +73,13 @@ class AnalyticsService {
 
     async getAssetAnalytics() {
         try {
-            const assets = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"];
+            const assets = [
+                "BTCUSDT",
+                "ETHUSDT",
+                "BNBUSDT",
+                "DOGEUSDT",
+                "TRUMPUSDT",
+            ];
             const analytics = {};
 
             for (const asset of assets) {

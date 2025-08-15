@@ -79,7 +79,7 @@ const PriceCard = ({ asset, priceData, history }) => {
 
 const LivePrices = ({ prices = {} }) => {
   const [history, setHistory] = useState(new Map());
-  const assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'];
+  const assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT', 'TRUMPUSDT'];
 
   useEffect(() => {
     if (!prices || typeof prices !== 'object' || Object.keys(prices).length === 0) {

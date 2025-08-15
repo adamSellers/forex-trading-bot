@@ -25,17 +25,18 @@ class TradingService extends EventEmitter {
             timeframe: "1h",
             tradingMode: "paper", // 'paper' or 'live'
             enableTrading: false,
-            assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"],
+            assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT", "TRUMPUSDT"],
             timeframes: ["1h", "4h", "1d"],
             maxCapitalAtRisk: 5000,
             riskPerTrade: 0.01,
             maxDailyLoss: 0.02,
             maxWeeklyLoss: 0.05,
             allocation: {
-                BTCUSDT: 0.35,
-                ETHUSDT: 0.35,
-                BNBUSDT: 0.2,
+                BTCUSDT: 0.3,
+                ETHUSDT: 0.3,
+                BNBUSDT: 0.15,
                 DOGEUSDT: 0.1,
+                TRUMPUSDT: 0.15,
             },
         };
 

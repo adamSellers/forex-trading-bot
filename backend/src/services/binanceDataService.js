@@ -15,6 +15,7 @@ class BinanceDataService extends EventEmitter {
                 "ETHUSDT",
                 "BNBUSDT",
                 "DOGEUSDT",
+                "TRUMPUSDT",
             ],
             timeframes: config.timeframes || ["1h", "4h", "1d"],
             useFallback: config.useFallback || false,
@@ -200,6 +201,7 @@ class BinanceDataService extends EventEmitter {
             ETHUSDT: { minNotional: 5, minQty: 0.0001, stepSize: 0.0001 },
             BNBUSDT: { minNotional: 5, minQty: 0.001, stepSize: 0.001 },
             DOGEUSDT: { minNotional: 1, minQty: 1, stepSize: 1 },
+            TRUMPUSDT: { minNotional: 5, minQty: 0.1, stepSize: 0.1 },
         };
 
         return {
@@ -585,6 +587,7 @@ class BinanceDataService extends EventEmitter {
             ETHUSDT: 2500,
             BNBUSDT: 350,
             DOGEUSDT: 0.08,
+            TRUMPUSDT: 12.0,
         };
         return basePrices[symbol] || 100;
     }

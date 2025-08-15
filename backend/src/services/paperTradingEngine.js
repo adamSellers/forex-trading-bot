@@ -22,10 +22,11 @@ class PaperTradingEngine extends EventEmitter {
             maxDailyLoss: config.maxDailyLoss || 0.02, // 2% = $100
             maxWeeklyLoss: config.maxWeeklyLoss || 0.05, // 5% = $250
             allocation: config.allocation || {
-                BTCUSDT: 0.35,
-                ETHUSDT: 0.35,
-                BNBUSDT: 0.2,
+                BTCUSDT: 0.3,
+                ETHUSDT: 0.3,
+                BNBUSDT: 0.15,
                 DOGEUSDT: 0.1,
+                TRUMPUSDT: 0.15,
             },
             maxPositionsPerAsset: config.maxPositionsPerAsset || 1,
             minOrderSize: config.minOrderSize || 10,
@@ -124,6 +125,13 @@ class PaperTradingEngine extends EventEmitter {
                     avgPnL: 0,
                 },
                 DOGEUSDT: {
+                    trades: 0,
+                    wins: 0,
+                    totalPnL: 0,
+                    winRate: 0,
+                    avgPnL: 0,
+                },
+                TRUMPUSDT: {
                     trades: 0,
                     wins: 0,
                     totalPnL: 0,
@@ -1107,6 +1115,13 @@ class PaperTradingEngine extends EventEmitter {
                     winRate: 0,
                     avgPnL: 0,
                 },
+                TRUMPUSDT: {
+                    trades: 0,
+                    wins: 0,
+                    totalPnL: 0,
+                    winRate: 0,
+                    avgPnL: 0,
+                },
             },
             volatilityStats: {
                 tradesBlocked: 0,
@@ -1209,6 +1224,13 @@ class PaperTradingEngine extends EventEmitter {
                     avgPnL: 0,
                 },
                 DOGEUSDT: {
+                    trades: 0,
+                    wins: 0,
+                    totalPnL: 0,
+                    winRate: 0,
+                    avgPnL: 0,
+                },
+                TRUMPUSDT: {
                     trades: 0,
                     wins: 0,
                     totalPnL: 0,
