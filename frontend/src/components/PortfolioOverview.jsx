@@ -98,7 +98,7 @@ const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) =>
 
 const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
   // Define our trading assets to filter the real portfolio view
-  const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE'];
+  const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE', 'TRUMP'];
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
