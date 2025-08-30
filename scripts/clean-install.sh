@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================
-# Crypto Trading Bot - Clean Install Script for x86 Architecture
-# Optimized for x86_64 systems
+# Crypto Trading Bot - FIXED Clean Install Script for Raspberry Pi 5
+# Addresses ARM64 native module compilation issues
 # =====================================================
 
 set -e  # Exit on any error
@@ -11,8 +11,8 @@ APP_NAME="crypto-trend-bot"
 PROJECT_DIR="/opt/crypto-trading-bot"
 PROJECT_USER=$(whoami)
 BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
-REPO_URL="git@github.com:troysellers/adzas-crypto-bot.git"
-BRANCH="x-86-build"
+REPO_URL="git@github.com:adamSellers/crypto-trading-bot.git"
+BRANCH="main"
 
 # --- Colors for output ---
 RED='\033[0;31m'
@@ -39,11 +39,12 @@ check_root() {
 }
 
 check_system_requirements() {
+    log_step "Checking system requirements for Raspberry Pi 5..."
     
     # Check architecture
     ARCH=$(uname -m)
-    if [[ "$ARCH" != "x86_64" ]]; then
-        log_error "This script is optimized for x86_64 architecture. Found: $ARCH"
+    if [[ "$ARCH" != "aarch64" ]]; then
+        log_error "This script is optimized for ARM64 (aarch64) architecture. Found: $ARCH"
     fi
     log_substep "Architecture: $ARCH ✓"
     
@@ -58,7 +59,7 @@ check_system_requirements() {
     
     # Check memory
     TOTAL_MEM=$(free -m | awk 'NR==2{print $2}')
-    if [[ $TOTAL_MEM -lt 2000 ]]; then  # Reduce from 4000MB to 2000MB
+    if [[ $TOTAL_MEM -lt 4000 ]]; then
         log_warning "Low memory detected: ${TOTAL_MEM}MB. Consider adding swap."
     fi
     log_substep "Memory: ${TOTAL_MEM}MB ✓"
@@ -74,18 +75,49 @@ check_system_requirements() {
 }
 
 setup_build_environment() {
-    log_step "Setting up optimized build environment for Node.js v22 on x86_64..."
+    log_step "Setting up optimized build environment for Node.js v22 on ARM64..."
     
-    # x86_64 can handle more parallel operations
-    export UV_THREADPOOL_SIZE=8  # Increase from 4
-    export NODE_OPTIONS="--max-old-space-size=4096"  # Increase from 2048
+    # Node v22 has much better ARM64 support, so we can be more aggressive
+    export CC=gcc
+    export CXX=g++
+    export AR=ar
+    export STRIP=strip
+    export OBJCOPY=objcopy
+    export LINK=g++
+
+    log_substep "Node.js v22 automatically handles ARM64 architecture detection"
+
+    # Node v22 can handle more parallel operations on Pi 5
+    export UV_THREADPOOL_SIZE=4
+    export NODE_OPTIONS="--max-old-space-size=2048"  # Increased for Node v22
     
-    # x86_64 can handle more parallel compilation
-    export MAKEFLAGS="-j4"  # Increase from 2
+    # Set make flags for controlled but faster compilation
+    export MAKEFLAGS="-j2"  # Node v22 can handle 2 parallel jobs on Pi 5
     
-    log_substep "Build environment configured for Node.js v22 on x86_64"
+    log_substep "Build environment configured for Node.js v22 on ARM64"
+    log_success "Build environment ready - leveraging Node v22 improvements"
 }
 
+setup_swap() {
+    log_step "Setting up optimized swap for Node.js v22 compilation..."
+    
+    if [ -f /swapfile ]; then
+        log_substep "Removing existing swap file..."
+        sudo swapoff /swapfile || true
+        sudo rm -f /swapfile
+    fi
+    
+    # Node v22 is more memory efficient, so 2GB swap should be sufficient
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    
+    # Optimize swappiness for Node v22 compilation workload
+    echo 40 | sudo tee /proc/sys/vm/swappiness > /dev/null
+    
+    log_success "2GB swap file created and optimized for Node.js v22 compilation"
+}
 
 cleanup_swap() {
     log_step "Cleaning up compilation swap file..."
@@ -99,9 +131,11 @@ cleanup_swap() {
 }
 
 install_system_deps() {
-    log_step "Installing x86_64-optimized system dependencies..."
+    log_step "Installing ARM64-optimized system dependencies..."
     
-    # Remove ARM64-specific packages
+    sudo apt-get update -qq
+    
+    # Install build essentials with ARM64 optimizations
     sudo apt-get install -y \
         curl git nginx sqlite3 \
         build-essential python3 python3-dev \
@@ -111,9 +145,9 @@ install_system_deps() {
         pkg-config \
         libsqlite3-dev \
         node-gyp \
-        # Remove: libuv1-dev (not needed for x86)
+        libuv1-dev
     
-    log_success "x86_64-optimized system dependencies installed"
+    log_success "ARM64-optimized system dependencies installed"
 }
 
 configure_npm_and_pm2() {
@@ -125,7 +159,7 @@ configure_npm_and_pm2() {
     npm config set fetch-retries 3
     npm config set fetch-retry-mintimeout 20000
     npm config set fetch-retry-maxtimeout 60000
-    npm config set maxsockets 16  # Node v22 can handle more connections
+    npm config set maxsockets 8  # Node v22 can handle more connections
     
     log_substep "Setting npm global prefix..."
     mkdir -p ~/.npm-global
@@ -276,8 +310,12 @@ build_and_setup_db() {
     cd "$PROJECT_DIR"
     
     log_substep "Building frontend for production with Node.js v22 optimizations..."
-  
-    NODE_OPTIONS="--max-old-space-size=4096" npm run build:frontend 
+    # Add the missing ARM64 rollup dependency first:
+    cd frontend
+    NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --save-optional
+    cd ..
+    
+    NODE_OPTIONS="--max-old-space-size=3072" npm run build:frontend
     
     if [ ! -d "frontend/dist" ]; then
         log_error "Frontend build failed - dist directory not created"
@@ -348,26 +386,7 @@ configure_system() {
     
     log_success "System services configured for ARM64"
 }
-setup_swap() {
-    log_step "Setting up optimized swap for Node.js v22 compilation..."
-    
-    if [ -f /swapfile ]; then
-        log_substep "Removing existing swap file..."
-        sudo swapoff /swapfile || true
-        sudo rm -f /swapfile
-    fi
-    
-    # x86 systems typically have more RAM, so reduce swap
-    sudo fallocate -l 1G /swapfile  # Reduce from 2GB to 1GB
-    sudo chmod 600 /swapfile
-    sudo mkswap /swapfile
-    sudo swapon /swapfile
-    
-    # Optimize swappiness for x86 compilation workload
-    echo 20 | sudo tee /proc/sys/vm/swappiness > /dev/null  # Reduce from 40
-    
-    log_success "1GB swap file created and optimized for Node.js v22 compilation"
-}
+
 setup_environment_and_start() {
     log_step "Setting up environment and starting application..."
     cd "$PROJECT_DIR"
@@ -532,8 +551,8 @@ main() {
     fi
 
     # Set Node v22 optimized limits
-    ulimit -n 131072 # Node v22 can handle more file descriptors
-    export NODE_OPTIONS="--max-old-space-size=4096"  # Node v22 is more memory efficient
+    ulimit -n 65536 # Node v22 can handle more file descriptors
+    export NODE_OPTIONS="--max-old-space-size=2048"  # Node v22 is more memory efficient
     
     check_root
     check_system_requirements
