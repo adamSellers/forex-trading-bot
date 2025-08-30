@@ -39,7 +39,6 @@ check_root() {
 }
 
 check_system_requirements() {
-    log_step "Checking system requirements for Raspberry Pi 5..."
     
     # Check architecture
     ARCH=$(uname -m)
