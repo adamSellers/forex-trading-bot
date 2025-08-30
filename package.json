@@ -63,14 +63,14 @@
         "binance",
         "technical-analysis"
     ],
-    "author": "Troy Sellers",
+    "author": "Adam Sellers",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git@github.com:troysellers/adzas-crypto-bot.git"
+        "url": "git@github.com:adamSellers/crypto-trading-bot.git"
     },
     "bugs": {
-        "url": "https://github.com/troysellers/adzas-crypto-bot/issues"
+        "url": "https://github.com/adamSellers/crypto-trend-bot/issues"
     },
-    "homepage": "https://github.com/troysellers/adzas-crypto-bot#readme"
+    "homepage": "https://github.com/adamSellers/crypto-trend-bot#readme"
 }

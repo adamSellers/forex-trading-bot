@@ -34,15 +34,15 @@ module.exports = {
                 MAX_DAILY_LOSS_OVERRIDE: "0.01",
                 EMERGENCY_STOP_FILE: "/opt/crypto-trading-bot/.emergency_stop",
 
-                // Performance for x86_64
-                UV_THREADPOOL_SIZE: "8",
-                NODE_OPTIONS: "--max-old-space-size=1024",
+                // Performance for Pi
+                UV_THREADPOOL_SIZE: "4",
+                NODE_OPTIONS: "--max-old-space-size=512",
             },
 
             // Process Management
             autorestart: true,
             watch: false, // Set to true for development, false for production
-            max_memory_restart: "1024M", // Adjust for your taste
+            max_memory_restart: "400M", // Adjust for your Raspberry Pi model
             restart_delay: 5000,
             max_restarts: 10,
             min_uptime: "10s",
