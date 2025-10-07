@@ -153,7 +153,7 @@ class PaperTradingEngine extends EventEmitter {
         this.mode = "paper"; // NEW: Explicitly set the mode for the engine
         logger.info(
             "🚀 ENHANCED Paper Trading Engine initialized - $" +
-                this.config.startingCapital +
+                this.config.maxCapitalAtRisk +
                 " USDT"
         );
     }

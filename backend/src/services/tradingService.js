@@ -6,6 +6,7 @@ const RiskManagementService = require("./riskManagementService");
 const PaperTradingEngine = require("./paperTradingEngine");
 const LiveTradingEngine = require("./LiveTradingEngine"); // FIX: Case-sensitive path for Linux
 const TradeRepository = require("../repositories/tradeRepository");
+const AnalyticsService = require("./analyticsService");
 const SignalRepository = require("../repositories/signalRepository");
 const logger = require("../utils/logger");
 
