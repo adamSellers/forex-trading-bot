@@ -39,6 +39,33 @@ echo "🔒 Encrypting and storing API credentials..."
 echo -n "$BINANCE_API_KEY" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/binance_api_key.enc
 echo -n "$BINANCE_API_SECRET" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/binance_api_secret.enc
 
+# NEW: Conditionally get AWS S3 credentials
+echo ""
+read -p "Do you want to enable analytics upload to an AWS S3 bucket? (y/N): " enable_s3
+if [[ "$enable_s3" =~ ^[Yy]$ ]]; then
+    echo ""
+    echo "Please enter your AWS S3 credentials for analytics upload:"
+    read -p "📦 S3 Bucket Name: " S3_BUCKET_NAME
+    read -p "🌎 AWS Region (e.g., us-east-1): " AWS_REGION
+    read -p "🔑 AWS Access Key ID: " AWS_ACCESS_KEY_ID
+    echo ""
+    read -s -p "🔑 AWS Secret Access Key: " AWS_SECRET_ACCESS_KEY
+    echo ""
+
+    # Validate AWS inputs
+    if [ -z "$S3_BUCKET_NAME" ] || [ -z "$AWS_REGION" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+        echo "❌ All AWS S3 fields are required. S3 upload will be disabled."
+    else
+        echo "🔒 Encrypting and storing AWS S3 credentials..."
+        echo -n "$S3_BUCKET_NAME" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/s3_bucket_name.enc
+        echo -n "$AWS_REGION" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_region.enc
+        echo -n "$AWS_ACCESS_KEY_ID" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_access_key_id.enc
+        echo -n "$AWS_SECRET_ACCESS_KEY" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_secret_access_key.enc
+    fi
+else
+    echo "ℹ️  S3 analytics upload will be disabled."
+fi
+
 # Set secure permissions
 chmod 600 $SECRETS_DIR/*
 

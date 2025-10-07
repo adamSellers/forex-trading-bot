@@ -94,6 +94,12 @@ class TradingService extends EventEmitter {
             this.activeEngine.start();
             this.signalGenerator.start(this.binanceData, 60000);
 
+            // Initialize analytics service
+            this.analyticsService = new AnalyticsService(this.activeEngine);
+
+            // NEW: Start the S3 upload scheduler
+            this.analyticsService.startS3UploadScheduler();
+
             this.setupServiceEvents();
             this.isActive = true;
 

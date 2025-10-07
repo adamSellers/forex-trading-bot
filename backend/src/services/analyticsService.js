@@ -1,7 +1,10 @@
 // backend/src/services/analyticsService.js
 const TradeRepository = require("../repositories/tradeRepository");
 const SignalRepository = require("../repositories/signalRepository");
+const LiveTradingEngine = require("./LiveTradingEngine");
+const awsS3Utils = require("../utils/awsS3Utils"); // NEW: Import S3 utilities
 const logger = require("../utils/logger");
+const UPLOAD_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 
 class AnalyticsService {
     constructor() {
@@ -24,7 +27,7 @@ class AnalyticsService {
             const analytics = {
                 period,
                 timestamp: Date.now(),
-                trading: tradeMetrics,
+                trading: tradeMetrics, // OLD: Basic Trade Metrics
                 signals: signalStats,
                 efficiency: this.calculateEfficiency(tradeMetrics, signalStats),
             };
@@ -200,6 +203,69 @@ class AnalyticsService {
         });
 
         return recommendations;
+    }
+
+    /**
+     * NEW: Uploads the performance report to S3.
+     */
+    async uploadPerformanceReportToS3() {
+        if (process.env.ENABLE_S3_ANALYTICS !== "true") {
+            logger.info("S3 analytics upload is disabled. Skipping upload.");
+            return;
+        }
+
+        try {
+            logger.info("Generating and uploading performance report to S3...");
+
+            // 1. Get the latest performance metrics from the LiveTradingEngine
+            const tradingEngine = this.tradingEngine;
+            const performanceMetrics = tradingEngine.performanceMetrics; // Use the direct, live performanceMetrics object.
+
+            // 2. Generate a comprehensive report object
+            const report = {
+                timestamp: new Date().toISOString(),
+                performanceMetrics,
+                // Add other relevant data here (system status, config, etc.)
+            };
+
+            // 3. Define the S3 key (filename)
+            const s3Key = `performance-report-${
+                new Date().toISOString().split("T")[0]
+            }.json`;
+
+            // 4. Upload to S3
+            const uploadResult = await awsS3Utils.uploadJsonToS3(
+                process.env.S3_BUCKET_NAME,
+                s3Key,
+                report
+            );
+
+            if (uploadResult) {
+                logger.info(`Performance report uploaded to S3: ${s3Key}`);
+            } else {
+                logger.error("Failed to upload performance report to S3.");
+            }
+        } catch (error) {
+            logger.error("Error during S3 performance report upload:", error);
+        }
+    }
+
+    /**
+     * NEW: Schedules the upload of the performance report to S3.
+     */
+    startS3UploadScheduler() {
+        if (process.env.ENABLE_S3_ANALYTICS !== "true") {
+            logger.info("S3 analytics upload is disabled. Skipping scheduler.");
+            return;
+        }
+
+        logger.info(
+            `Starting S3 upload scheduler. Interval: ${
+                UPLOAD_INTERVAL / (60 * 60 * 1000)
+            } hours`
+        );
+        setInterval(() => this.uploadPerformanceReportToS3(), UPLOAD_INTERVAL);
+        this.uploadPerformanceReportToS3(); // Initial upload
     }
 }
 

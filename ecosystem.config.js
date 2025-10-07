@@ -34,6 +34,10 @@ module.exports = {
                 MAX_DAILY_LOSS_OVERRIDE: "0.01",
                 EMERGENCY_STOP_FILE: "/opt/crypto-trading-bot/.emergency_stop",
 
+                // NEW: AWS S3 Analytics Upload Control (default is OFF)
+                ENABLE_S3_ANALYTICS: "false",
+                // S3 credentials are injected securely by the start-wrapper.sh script if enabled.
+
                 // Performance for Pi
                 UV_THREADPOOL_SIZE: "4",
                 NODE_OPTIONS: "--max-old-space-size=512",

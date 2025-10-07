@@ -53,6 +53,58 @@ class LiveTradingEngine extends EventEmitter {
         this.isActive = false;
         this.mode = "live"; // NEW: Explicitly set the mode for the engine
         logger.info("🚀 Live Trading Engine Initialized - REAL MONEY MODE.");
+
+        // NEW: Comprehensive performance metrics, mirroring paperTradingEngine
+        this.performanceMetrics = {
+            totalTrades: 0,
+            winningTrades: 0,
+            losingTrades: 0,
+            winRate: 0,
+            avgWin: 0,
+            avgLoss: 0,
+            profitFactor: 0,
+            sharpeRatio: 0, // Placeholder
+            maxDrawdown: 0, // Placeholder
+            currentDrawdown: 0, // Placeholder
+
+            signalPerformance: {
+                BUY_STRONG: { trades: 0, wins: 0, totalPnL: 0 },
+                BUY_MEDIUM: { trades: 0, wins: 0, totalPnL: 0 },
+                BUY_WEAK: { trades: 0, wins: 0, totalPnL: 0 },
+            },
+
+            holdingPeriodStats: {
+                avgHoldingTime: 0, // in hours
+                holdingTimes: [],
+            },
+
+            exitReasonStats: {
+                TAKE_PROFIT: { count: 0, totalPnL: 0, avgPnL: 0 },
+                TRAILING_STOP: { count: 0, totalPnL: 0, avgPnL: 0 },
+                STOP_LOSS: { count: 0, totalPnL: 0, avgPnL: 0 },
+                SIGNAL_SELL: { count: 0, totalPnL: 0, avgPnL: 0 },
+            },
+
+            assetPerformance: {}, // Will be populated dynamically
+
+            volatilityStats: {
+                tradesBlocked: 0,
+                avgVolatilityOnEntry: 0,
+            },
+        };
+
+        // Initialize asset performance for configured assets
+        this.config.assets.forEach((asset) => {
+            this.performanceMetrics.assetPerformance[asset] = {
+                trades: 0,
+                wins: 0,
+                totalPnL: 0,
+                winRate: 0,
+                avgPnL: 0,
+            };
+        });
+
+        this.tradeHistory = []; // To hold trades for recalculation
     }
 
     async initialize() {
@@ -60,6 +112,7 @@ class LiveTradingEngine extends EventEmitter {
         // Load historical P&L to get the correct starting point
         const allLiveTrades = await this.tradeRepo.getAllTrades("live");
         const sellTrades = allLiveTrades.filter((t) => t.side === "SELL");
+        this.tradeHistory = allLiveTrades; // Store for recalculation
 
         // Correctly initialize all P&L states from historical data
         this.livePortfolioState.totalPnL = sellTrades.reduce(
@@ -86,6 +139,10 @@ class LiveTradingEngine extends EventEmitter {
                 2
             )}, Weekly=${this.livePortfolioState.weeklyPnL.toFixed(2)} USDT`
         );
+
+        // NEW: Recalculate detailed metrics from history
+        this.recalculateLivePerformanceMetrics();
+
         logger.success("✅ Live Trading Engine ready.");
     }
 
@@ -95,6 +152,7 @@ class LiveTradingEngine extends EventEmitter {
      * @returns {Object} A comprehensive performance metrics object.
      */
     _calculatePerformanceMetrics(sellTrades) {
+        // This method will be replaced by the new stateful one
         if (!sellTrades || sellTrades.length === 0) {
             return {
                 totalTrades: 0,
@@ -165,6 +223,122 @@ class LiveTradingEngine extends EventEmitter {
             maxDrawdown: 0,
             currentDrawdown: 0,
         };
+    }
+
+    /**
+     * NEW: Updates all performance metrics based on a completed SELL trade.
+     * This is the live equivalent of `updateEnhancedPerformanceMetrics` in the paper engine.
+     * @param {object} trade - The completed SELL trade object.
+     */
+    updateLivePerformanceMetrics(trade) {
+        if (trade.side !== "SELL") return;
+
+        this.performanceMetrics.totalTrades++;
+        const isWin = trade.pnl > 0;
+
+        if (isWin) {
+            this.performanceMetrics.winningTrades++;
+            this.performanceMetrics.avgWin =
+                (this.performanceMetrics.avgWin *
+                    (this.performanceMetrics.winningTrades - 1) +
+                    trade.pnl) /
+                this.performanceMetrics.winningTrades;
+        } else {
+            this.performanceMetrics.losingTrades++;
+            this.performanceMetrics.avgLoss =
+                (this.performanceMetrics.avgLoss *
+                    (this.performanceMetrics.losingTrades - 1) +
+                    Math.abs(trade.pnl)) /
+                this.performanceMetrics.losingTrades;
+        }
+
+        // 1. Signal Performance
+        const signalStrength = trade.entrySignalStrength || 0.5;
+        let signalCategory = "BUY_MEDIUM";
+        if (signalStrength >= 0.8) signalCategory = "BUY_STRONG";
+        else if (signalStrength < 0.6) signalCategory = "BUY_WEAK";
+
+        const signalPerf =
+            this.performanceMetrics.signalPerformance[signalCategory];
+        if (signalPerf) {
+            signalPerf.trades++;
+            if (isWin) signalPerf.wins++;
+            signalPerf.totalPnL += trade.pnl;
+        }
+
+        // 2. Holding Period
+        const holdTimeHours = trade.holdingPeriod / (1000 * 60 * 60);
+        this.performanceMetrics.holdingPeriodStats.holdingTimes.push(
+            holdTimeHours
+        );
+        const allHoldingTimes =
+            this.performanceMetrics.holdingPeriodStats.holdingTimes;
+        this.performanceMetrics.holdingPeriodStats.avgHoldingTime =
+            allHoldingTimes.reduce((sum, time) => sum + time, 0) /
+            allHoldingTimes.length;
+
+        // 3. Exit Reason
+        const exitReason = trade.exitReason || "SIGNAL_SELL";
+        if (!this.performanceMetrics.exitReasonStats[exitReason]) {
+            this.performanceMetrics.exitReasonStats[exitReason] = {
+                count: 0,
+                totalPnL: 0,
+                avgPnL: 0,
+            };
+        }
+        const exitStats = this.performanceMetrics.exitReasonStats[exitReason];
+        exitStats.count++;
+        exitStats.totalPnL += trade.pnl;
+        exitStats.avgPnL = exitStats.totalPnL / exitStats.count;
+
+        // 4. Asset Performance
+        const assetPerf =
+            this.performanceMetrics.assetPerformance[trade.symbol];
+        if (assetPerf) {
+            assetPerf.trades++;
+            if (isWin) assetPerf.wins++;
+            assetPerf.totalPnL += trade.pnl;
+            assetPerf.winRate = (assetPerf.wins / assetPerf.trades) * 100;
+            assetPerf.avgPnL = assetPerf.totalPnL / assetPerf.trades;
+        }
+
+        // 5. Overall Metrics
+        this.performanceMetrics.winRate =
+            (this.performanceMetrics.winningTrades /
+                this.performanceMetrics.totalTrades) *
+            100;
+
+        const grossProfit =
+            this.performanceMetrics.avgWin *
+            this.performanceMetrics.winningTrades;
+        const grossLoss =
+            this.performanceMetrics.avgLoss *
+            this.performanceMetrics.losingTrades;
+        this.performanceMetrics.profitFactor =
+            grossLoss > 0 ? grossProfit / grossLoss : 0;
+
+        logger.debug(
+            `[LIVE] 📊 Performance metrics updated for trade ${trade.id}`
+        );
+    }
+
+    /**
+     * NEW: Recalculates all performance metrics from the loaded trade history.
+     */
+    recalculateLivePerformanceMetrics() {
+        // Reset metrics to zero before recalculating
+        this.resetPerformanceMetrics();
+
+        const sellTrades = this.tradeHistory.filter((t) => t.side === "SELL");
+
+        if (sellTrades.length > 0) {
+            sellTrades.forEach((trade) => {
+                this.updateLivePerformanceMetrics(trade);
+            });
+            logger.info(
+                `[LIVE] Recalculated performance metrics from ${sellTrades.length} historical trades.`
+            );
+        }
     }
 
     start() {
@@ -651,6 +825,10 @@ class LiveTradingEngine extends EventEmitter {
                     isOpen: false,
                 });
                 this.emit("tradeExecuted", trade);
+
+                // NEW: Update performance metrics after a successful sell
+                this.updateLivePerformanceMetrics(trade);
+
                 // FIX: Add reason for clearer logging in TradingService
                 return {
                     success: true,
@@ -1035,7 +1213,6 @@ class LiveTradingEngine extends EventEmitter {
             ).filter((t) => t.side === "SELL");
             const performanceMetrics =
                 this._calculatePerformanceMetrics(allSellTrades);
-
             let cryptoValue = 0;
             const positions = [];
 
@@ -1075,7 +1252,7 @@ class LiveTradingEngine extends EventEmitter {
                     (this.livePortfolioState.totalPnL /
                         this.config.maxCapitalAtRisk) *
                     100,
-                performance: performanceMetrics, // NEW: Attach the calculated metrics
+                performance: this.performanceMetrics, // Use the new stateful metrics object
                 positions,
                 positionCount: positions.length,
                 riskStatus: this.riskService.getRiskStatus({
@@ -1128,6 +1305,53 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     /**
+     * NEW: Helper to reset just the performance metrics object to its initial state.
+     */
+    resetPerformanceMetrics() {
+        this.performanceMetrics = {
+            totalTrades: 0,
+            winningTrades: 0,
+            losingTrades: 0,
+            winRate: 0,
+            avgWin: 0,
+            avgLoss: 0,
+            profitFactor: 0,
+            sharpeRatio: 0,
+            maxDrawdown: 0,
+            currentDrawdown: 0,
+            signalPerformance: {
+                BUY_STRONG: { trades: 0, wins: 0, totalPnL: 0 },
+                BUY_MEDIUM: { trades: 0, wins: 0, totalPnL: 0 },
+                BUY_WEAK: { trades: 0, wins: 0, totalPnL: 0 },
+            },
+            holdingPeriodStats: {
+                avgHoldingTime: 0,
+                holdingTimes: [],
+            },
+            exitReasonStats: {
+                TAKE_PROFIT: { count: 0, totalPnL: 0, avgPnL: 0 },
+                TRAILING_STOP: { count: 0, totalPnL: 0, avgPnL: 0 },
+                STOP_LOSS: { count: 0, totalPnL: 0, avgPnL: 0 },
+                SIGNAL_SELL: { count: 0, totalPnL: 0, avgPnL: 0 },
+            },
+            assetPerformance: {},
+            volatilityStats: {
+                tradesBlocked: 0,
+                avgVolatilityOnEntry: 0,
+            },
+        };
+        this.config.assets.forEach((asset) => {
+            this.performanceMetrics.assetPerformance[asset] = {
+                trades: 0,
+                wins: 0,
+                totalPnL: 0,
+                winRate: 0,
+                avgPnL: 0,
+            };
+        });
+    }
+
+    /**
      * NEW: Resets the P&L and risk state of the live engine for a fresh start.
      * This does NOT delete historical trades from the database.
      */
@@ -1140,6 +1364,9 @@ class LiveTradingEngine extends EventEmitter {
             lastResetDate: new Date().toDateString(),
             lastWeeklyReset: this.getWeekStart(new Date()),
         };
+
+        // NEW: Reset the detailed performance metrics as well
+        this.resetPerformanceMetrics();
 
         // Also reset the risk service state and re-initialize it
         if (this.riskService) {
