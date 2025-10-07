@@ -108,6 +108,7 @@ class TradingService extends EventEmitter {
 
             logger.success("✅ Trading Service initialized successfully");
         } catch (error) {
+            // Change this line to pass the full error object to the logger
             logger.error("❌ Trading Service initialization failed:", error);
             throw error;
         }
