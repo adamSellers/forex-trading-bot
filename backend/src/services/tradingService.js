@@ -91,10 +91,10 @@ class TradingService extends EventEmitter {
             await this.activeEngine.initialize();
 
             // Start services
-            this.activeEngine.start();
             this.signalGenerator.start(this.binanceData, 60000);
 
             // Initialize analytics service
+            // FIX: Initialize analytics AFTER the engine is initialized.
             this.analyticsService = new AnalyticsService(this.activeEngine);
 
             // NEW: Start the S3 upload scheduler
@@ -102,6 +102,9 @@ class TradingService extends EventEmitter {
 
             this.setupServiceEvents();
             this.isActive = true;
+
+            // Start the engine last, after all event listeners are set up.
+            this.activeEngine.start();
 
             logger.success("✅ Trading Service initialized successfully");
         } catch (error) {

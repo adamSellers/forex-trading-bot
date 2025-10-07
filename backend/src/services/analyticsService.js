@@ -7,9 +7,10 @@ const logger = require("../utils/logger");
 const UPLOAD_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 
 class AnalyticsService {
-    constructor() {
+    constructor(tradingEngine) {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
+        this.tradingEngine = tradingEngine; // NEW: Store the passed trading engine
     }
 
     async getPerformanceAnalytics(period = "30d") {
@@ -219,7 +220,7 @@ class AnalyticsService {
 
             // 1. Get the latest performance metrics from the LiveTradingEngine
             const tradingEngine = this.tradingEngine;
-            const performanceMetrics = tradingEngine.performanceMetrics; // Use the direct, live performanceMetrics object.
+            const performanceMetrics = tradingEngine?.performanceMetrics; // Use the direct, live performanceMetrics object.
 
             // 2. Generate a comprehensive report object
             const report = {
