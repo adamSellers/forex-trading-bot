@@ -91,6 +91,11 @@ npm run install:frontend -- --omit=dev --no-optional
 
 # 5. Build frontend
 log_info "Building frontend for production..."
+# FIX: Install the ARM64-specific rollup dependency required for Vite to build on the Pi.
+# This mirrors the logic in the clean-install.sh script and prevents build failures.
+cd frontend
+NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --no-save
+cd ..
 npm run build:frontend
 
 if [ ! -d "frontend/dist" ]; then

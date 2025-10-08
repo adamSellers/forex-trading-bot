@@ -109,6 +109,11 @@ main() {
 
     # 9. Re-build frontend
     log_step "Re-building frontend..."
+    # FIX: Add the ARM64-specific rollup dependency install before building.
+    # This ensures that a restore operation will correctly build the frontend on a Pi.
+    cd "$PROJECT_DIR/frontend"
+    NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --no-save
+    cd ..
     npm run build:frontend
     log_success "Frontend built."
 
