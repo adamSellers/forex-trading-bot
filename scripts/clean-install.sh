@@ -312,7 +312,7 @@ build_and_setup_db() {
     log_substep "Building frontend for production with Node.js v22 optimizations..."
     # Add the missing ARM64 rollup dependency first:
     cd frontend
-    NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --save-optional
+    NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --no-save
     cd ..
     
     NODE_OPTIONS="--max-old-space-size=3072" npm run build:frontend
