@@ -25,7 +25,7 @@ class LiveTradingEngine extends EventEmitter {
             stopLossATR: config.stopLossATR || 1.5,
             takeProfitATRMultiplier: config.takeProfitATRMultiplier || 2.5,
             enableTrailingStops: config.enableTrailingStops !== false,
-            trailingStopPercent: config.trailingStopPercent || 0.02,
+            trailingStopPercent: config.trailingStopPercent || 0.05,
             minSignalStrength: config.minSignalStrength || 0.5,
             enableVolatilityFilter: config.enableVolatilityFilter !== false,
             minVolatilityPercent: config.minVolatilityPercent || 2.0,
