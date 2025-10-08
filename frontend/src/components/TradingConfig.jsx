@@ -125,9 +125,9 @@ const TradingConfig = () => {
           maxPositionsPerAsset: data.config.maxPositionsPerAsset || 1,
           minOrderSize: data.config.minOrderSize || 10,
           strategy: data.config.strategy || 'balanced',
-          timeframe: data.config.timeframe || '1h',
+          timeframe: data.config.primaryTimeframe || data.config.timeframe || '1h',
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
-          minSignalStrength: data.config.minStrength || 0.5,
+          minSignalStrength: data.config.minSignalStrength || 0.5,
           allocation: {
             BTCUSDT: (data.config.allocation?.BTCUSDT * 100) || 30,
             ETHUSDT: (data.config.allocation?.ETHUSDT * 100) || 30,
@@ -167,8 +167,8 @@ const TradingConfig = () => {
         maxDailyLoss: config.maxDailyLoss / 100,
         maxWeeklyLoss: config.maxWeeklyLoss / 100,
         signalCooldown: config.signalCooldown * 1000,
-        logLevel: config.logLevel,
-        minStrength: config.minSignalStrength,
+        logLevel: config.logLevel, // NEW: Ensure log level is saved
+        minSignalStrength: config.minSignalStrength,
         allocation: {
           BTCUSDT: config.allocation.BTCUSDT / 100,
           ETHUSDT: config.allocation.ETHUSDT / 100,

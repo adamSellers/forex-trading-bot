@@ -41,6 +41,9 @@ class TradingService extends EventEmitter {
             },
         };
         // NEW: Initialize S3 settings from environment variables
+        this.config.enableS3Analytics =
+            process.env.ENABLE_S3_ANALYTICS === "true";
+        // NEW: Initialize S3 settings from environment variables
         this.config.enableS3SignalLogging =
             process.env.ENABLE_S3_SIGNAL_LOGGING === "true";
 
