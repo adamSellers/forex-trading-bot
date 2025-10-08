@@ -36,6 +36,7 @@ module.exports = {
 
                 // NEW: AWS S3 Analytics Upload Control (default is OFF)
                 ENABLE_S3_ANALYTICS: "false",
+                ENABLE_S3_SIGNAL_LOGGING: "false", // NEW: Independent control for signal logging
                 // S3 credentials are injected securely by the start-wrapper.sh script if enabled.
 
                 // Performance for Pi

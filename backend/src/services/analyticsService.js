@@ -11,6 +11,7 @@ class AnalyticsService {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
         this.tradingEngine = tradingEngine; // NEW: Store the passed trading engine
+        this.config = tradingEngine.config; // NEW: Store a reference to the engine's config
     }
 
     async getPerformanceAnalytics(period = "30d") {
@@ -263,6 +264,58 @@ class AnalyticsService {
         );
         setInterval(() => this.uploadPerformanceReportToS3(), UPLOAD_INTERVAL);
         this.uploadPerformanceReportToS3(); // Initial upload
+    }
+
+    /**
+     * NEW: Allows the service to receive config updates from the TradingService.
+     * @param {object} newConfig The new configuration object.
+     */
+    updateConfig(newConfig) {
+        this.config = { ...this.config, ...newConfig };
+    }
+
+    /**
+     * NEW: Logs a raw signal and its corresponding price to S3 for backtesting dataset creation.
+     * @param {object} signal - The signal object from the SignalGenerator.
+     * @param {number} currentPrice - The price of the asset at the time of the signal.
+     */
+    async logSignalToS3(signal, currentPrice) {
+        // This feature is controlled by a separate environment variable
+        if (!this.config.enableS3SignalLogging) {
+            return;
+        }
+
+        try {
+            // 1. Construct the data payload. This is the raw data for our future backtest.
+            const signalData = {
+                timestamp: new Date().toISOString(),
+                price: currentPrice,
+                signal: signal,
+            };
+
+            // 2. Define a unique S3 key for each signal to avoid overwrites.
+            // The path structure 'signal-log/YYYY-MM-DD/' makes it easy to query by date.
+            const date = new Date();
+            const dateString = date.toISOString().split("T")[0];
+            const s3Key = `signal-log/${dateString}/${date.toISOString()}_${
+                signal.symbol
+            }.json`;
+
+            // 3. Upload the JSON data to S3.
+            const uploadResult = await awsS3Utils.uploadJsonToS3(
+                process.env.S3_BUCKET_NAME,
+                s3Key,
+                signalData
+            );
+
+            if (uploadResult) {
+                logger.debug(
+                    `Signal for ${signal.symbol} logged to S3: ${s3Key}`
+                );
+            }
+        } catch (error) {
+            logger.error("Error logging signal to S3:", error);
+        }
     }
 }
 

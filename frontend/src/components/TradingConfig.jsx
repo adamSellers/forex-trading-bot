@@ -75,7 +75,9 @@ const TradingConfig = () => {
     timeframes: ['1h', '4h', '1d'],
     
     // System & Logging
-    logLevel: 'info'
+    logLevel: 'info',
+    enableS3Analytics: false, // NEW: Track S3 status
+    enableS3SignalLogging: false, // NEW: Track signal logging status
   });
 
   const [originalConfig, setOriginalConfig] = useState({});
@@ -135,7 +137,9 @@ const TradingConfig = () => {
           },
           assets: data.config.assets || ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT', 'TRUMPUSDT'],
           timeframes: data.config.timeframes || ['1h', '4h', '1d'],
-          logLevel: data.config.logLevel || 'info'
+          logLevel: data.config.logLevel || 'info',
+          enableS3Analytics: data.config.enableS3Analytics || false, // NEW
+          enableS3SignalLogging: data.config.enableS3SignalLogging || false, // NEW
         };
         setConfig(fetchedConfig);
         setOriginalConfig(fetchedConfig);
@@ -171,7 +175,9 @@ const TradingConfig = () => {
           BNBUSDT: config.allocation.BNBUSDT / 100,
           DOGEUSDT: config.allocation.DOGEUSDT / 100,
           TRUMPUSDT: config.allocation.TRUMPUSDT / 100,
-        }
+        },
+        enableS3Analytics: config.enableS3Analytics, // NEW
+        enableS3SignalLogging: config.enableS3SignalLogging, // NEW
       };
 
       // Use the new API helper
@@ -607,6 +613,22 @@ const TradingConfig = () => {
                     </Select>
                   </FormControl>
                 </Grid>
+                {/* NEW: Conditionally render S3 signal logging switch */}
+                {config.enableS3Analytics && (
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <Typography gutterBottom>Log Price Signals to S3</Typography>
+                      <Switch
+                        checked={config.enableS3SignalLogging}
+                        onChange={(e) =>
+                          updateConfig('enableS3SignalLogging', e.target.checked)
+                        }
+                        color={config.enableS3SignalLogging ? 'success' : 'default'}
+                      />
+                      <Typography variant="caption">Creates a dataset for backtesting.</Typography>
+                    </FormControl>
+                  </Grid>
+                )}
               </Grid>
             </AccordionDetails>
           </Accordion>

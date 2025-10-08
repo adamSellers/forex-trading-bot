@@ -40,6 +40,9 @@ class TradingService extends EventEmitter {
                 TRUMPUSDT: 0.15,
             },
         };
+        // NEW: Initialize S3 settings from environment variables
+        this.config.enableS3SignalLogging =
+            process.env.ENABLE_S3_SIGNAL_LOGGING === "true";
 
         // The active trading engine (either paper or live)
         this.activeEngine = null;
@@ -192,6 +195,18 @@ class TradingService extends EventEmitter {
         try {
             // Save signal to database
             await this.signalRepo.save(signal);
+
+            // NEW: Log the raw signal to S3 for backtesting dataset creation.
+            // This is done before any trading logic is applied.
+            if (this.analyticsService) {
+                const priceData = this.binanceData.getCurrentPrice(
+                    signal.symbol
+                );
+                await this.analyticsService.logSignalToS3(
+                    signal,
+                    priceData.price
+                );
+            }
 
             // Process signal if trading enabled
             if (this.config.enableTrading && this.activeEngine) {
@@ -419,6 +434,10 @@ class TradingService extends EventEmitter {
                 this.activeEngine.updateConfig(this.config);
             }
             if (this.riskService) {
+                this.riskService.updateConfig(this.config);
+            }
+            // NEW: Pass the updated config to the analytics service
+            if (this.analyticsService) {
                 this.riskService.updateConfig(this.config);
             }
 
