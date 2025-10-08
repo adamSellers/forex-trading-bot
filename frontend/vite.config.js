@@ -22,5 +22,11 @@ export default defineConfig({
     build: {
         outDir: "dist",
         sourcemap: true,
+        rollupOptions: {
+            // FIX: Exclude the server-side AWS SDK from the frontend bundle.
+            // This prevents the build process from hanging while trying to
+            // resolve and bundle a large, unnecessary backend dependency.
+            external: ["@aws-sdk/client-s3"],
+        },
     },
 });
