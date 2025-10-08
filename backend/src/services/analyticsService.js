@@ -218,16 +218,12 @@ class AnalyticsService {
         try {
             logger.info("Generating and uploading performance report to S3...");
 
-            // 1. Get the latest performance metrics from the LiveTradingEngine
-            const tradingEngine = this.tradingEngine;
-            const performanceMetrics = tradingEngine?.performanceMetrics; // Use the direct, live performanceMetrics object.
+            // 1. Get the full, live portfolio summary from the active engine.
+            // This is much richer than just the performanceMetrics object.
+            const report = await this.tradingEngine.getPortfolioSummary();
 
-            // 2. Generate a comprehensive report object
-            const report = {
-                timestamp: new Date().toISOString(),
-                performanceMetrics,
-                // Add other relevant data here (system status, config, etc.)
-            };
+            // 2. Add a top-level timestamp for the report generation time.
+            report.reportGeneratedAt = new Date().toISOString();
 
             // 3. Define the S3 key (filename)
             const s3Key = `performance-report-${
