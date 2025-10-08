@@ -441,7 +441,7 @@ class TradingService extends EventEmitter {
             }
             // NEW: Pass the updated config to the analytics service
             if (this.analyticsService) {
-                this.riskService.updateConfig(this.config);
+                this.analyticsService.updateConfig(this.config);
             }
 
             logger.info("⚙️ Trading service configuration updated");

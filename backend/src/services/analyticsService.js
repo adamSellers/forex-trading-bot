@@ -301,9 +301,14 @@ class AnalyticsService {
                 signal.symbol
             }.json`;
 
+            // Use the specific signal log bucket if available, otherwise use the main bucket.
+            const bucketName =
+                process.env.S3_SIGNAL_LOG_BUCKET_NAME ||
+                process.env.S3_BUCKET_NAME;
+
             // 3. Upload the JSON data to S3.
             const uploadResult = await awsS3Utils.uploadJsonToS3(
-                process.env.S3_BUCKET_NAME,
+                bucketName,
                 s3Key,
                 signalData
             );

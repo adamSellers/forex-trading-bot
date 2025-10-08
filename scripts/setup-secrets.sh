@@ -45,12 +45,18 @@ read -p "Do you want to enable analytics upload to an AWS S3 bucket? (y/N): " en
 if [[ "$enable_s3" =~ ^[Yy]$ ]]; then
     echo ""
     echo "Please enter your AWS S3 credentials for analytics upload:"
-    read -p "📦 S3 Bucket Name: " S3_BUCKET_NAME
+    read -p "📦 S3 Bucket Name (for performance reports): " S3_BUCKET_NAME
     read -p "🌎 AWS Region (e.g., us-east-1): " AWS_REGION
     read -p "🔑 AWS Access Key ID: " AWS_ACCESS_KEY_ID
     echo ""
     read -s -p "🔑 AWS Secret Access Key: " AWS_SECRET_ACCESS_KEY
     echo ""
+
+    # NEW: Ask for a separate, optional bucket for signal logs
+    read -p "Do you want to use a separate bucket for signal logs? (y/N): " use_separate_signal_bucket
+    if [[ "$use_separate_signal_bucket" =~ ^[Yy]$ ]]; then
+        read -p "📦 S3 Signal Log Bucket Name: " S3_SIGNAL_LOG_BUCKET_NAME
+    fi
 
     # Validate AWS inputs
     if [ -z "$S3_BUCKET_NAME" ] || [ -z "$AWS_REGION" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
@@ -58,6 +64,9 @@ if [[ "$enable_s3" =~ ^[Yy]$ ]]; then
     else
         echo "🔒 Encrypting and storing AWS S3 credentials..."
         echo -n "$S3_BUCKET_NAME" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/s3_bucket_name.enc
+        if [ -n "$S3_SIGNAL_LOG_BUCKET_NAME" ]; then
+            echo -n "$S3_SIGNAL_LOG_BUCKET_NAME" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/s3_signal_log_bucket_name.enc
+        fi
         echo -n "$AWS_REGION" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_region.enc
         echo -n "$AWS_ACCESS_KEY_ID" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_access_key_id.enc
         echo -n "$AWS_SECRET_ACCESS_KEY" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_secret_access_key.enc
