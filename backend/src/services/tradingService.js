@@ -203,11 +203,12 @@ class TradingService extends EventEmitter {
             // This is done before any trading logic is applied.
             if (this.analyticsService) {
                 const priceData = this.binanceData.getCurrentPrice(
+                    // REFACTORED: This now buffers the signal instead of uploading.
                     signal.symbol
                 );
-                await this.analyticsService.logSignalToS3(
+                this.analyticsService.bufferSignalForS3(
                     signal,
-                    priceData.price
+                    priceData?.price
                 );
             }
 

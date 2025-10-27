@@ -12,6 +12,11 @@ class AnalyticsService {
         this.signalRepo = new SignalRepository();
         this.tradingEngine = tradingEngine; // NEW: Store the passed trading engine
         this.config = tradingEngine.config; // NEW: Store a reference to the engine's config
+
+        // NEW: Buffer for S3 signal logs to reduce PUT requests
+        this.signalLogBuffer = [];
+        this.signalLogUploadInterval = 15 * 60 * 1000; // Upload every 15 minutes
+        this.signalLogScheduler = null;
     }
 
     async getPerformanceAnalytics(period = "30d") {
@@ -263,6 +268,19 @@ class AnalyticsService {
             } hours`
         );
         setInterval(() => this.uploadPerformanceReportToS3(), UPLOAD_INTERVAL);
+
+        // NEW: Start the signal log batch uploader
+        if (this.config.enableS3SignalLogging) {
+            logger.info(
+                `Starting S3 signal log batch uploader. Interval: ${
+                    this.signalLogUploadInterval / 60000
+                } minutes`
+            );
+            this.signalLogScheduler = setInterval(
+                () => this.uploadSignalLogBatchToS3(),
+                this.signalLogUploadInterval
+            );
+        }
         this.uploadPerformanceReportToS3(); // Initial upload
     }
 
@@ -275,51 +293,72 @@ class AnalyticsService {
     }
 
     /**
-     * NEW: Logs a raw signal and its corresponding price to S3 for backtesting dataset creation.
+     * REFACTORED: Buffers a raw signal for batch upload instead of uploading immediately.
      * @param {object} signal - The signal object from the SignalGenerator.
      * @param {number} currentPrice - The price of the asset at the time of the signal.
      */
-    async logSignalToS3(signal, currentPrice) {
+    bufferSignalForS3(signal, currentPrice) {
         // This feature is controlled by a separate environment variable
         if (!this.config.enableS3SignalLogging) {
             return;
         }
 
+        // Construct the data payload and add it to the buffer.
+        const signalData = {
+            timestamp: new Date().toISOString(),
+            price: currentPrice,
+            signal: signal,
+        };
+        this.signalLogBuffer.push(signalData);
+        logger.debug(
+            `Signal for ${signal.symbol} buffered for S3 upload. Buffer size: ${this.signalLogBuffer.length}`
+        );
+    }
+
+    /**
+     * NEW: Uploads the buffered signals to S3 as a single batch file.
+     */
+    async uploadSignalLogBatchToS3() {
+        if (this.signalLogBuffer.length === 0) {
+            logger.debug(
+                "S3 signal log buffer is empty. Skipping batch upload."
+            );
+            return;
+        }
+
+        // Create a copy and clear the buffer immediately to prevent race conditions
+        const batchToUpload = [...this.signalLogBuffer];
+        this.signalLogBuffer = [];
+
+        logger.info(
+            `Uploading signal batch of ${batchToUpload.length} signals to S3...`
+        );
+
         try {
-            // 1. Construct the data payload. This is the raw data for our future backtest.
-            const signalData = {
-                timestamp: new Date().toISOString(),
-                price: currentPrice,
-                signal: signal,
-            };
-
-            // 2. Define a unique S3 key for each signal to avoid overwrites.
-            // The path structure 'signal-log/YYYY-MM-DD/' makes it easy to query by date.
             const date = new Date();
-            const dateString = date.toISOString().split("T")[0];
-            const s3Key = `signal-log/${dateString}/${date.toISOString()}_${
-                signal.symbol
-            }.json`;
+            const dateString = date.toISOString().split("T")[0]; // YYYY-MM-DD
+            const timeString = date.toISOString().replace(/:/g, "-"); // YYYY-MM-DDTHH-mm-ss.sssZ
+            const s3Key = `signal-log/${dateString}/signals_${timeString}.json`;
 
-            // Use the specific signal log bucket if available, otherwise use the main bucket.
             const bucketName =
                 process.env.S3_SIGNAL_LOG_BUCKET_NAME ||
                 process.env.S3_BUCKET_NAME;
 
-            // 3. Upload the JSON data to S3.
             const uploadResult = await awsS3Utils.uploadJsonToS3(
                 bucketName,
                 s3Key,
-                signalData
+                batchToUpload // Upload the entire array
             );
 
             if (uploadResult) {
-                logger.debug(
-                    `Signal for ${signal.symbol} logged to S3: ${s3Key}`
+                logger.info(
+                    `Successfully uploaded signal batch to S3: ${s3Key}`
                 );
             }
         } catch (error) {
             logger.error("Error logging signal to S3:", error);
+            // If upload fails, add the data back to the buffer to retry on the next cycle
+            this.signalLogBuffer.unshift(...batchToUpload);
         }
     }
 }
