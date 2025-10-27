@@ -115,17 +115,17 @@ const TradingConfig = () => {
       
       if (data.config) {
         const fetchedConfig = {
-          maxCapitalAtRisk: data.config.maxCapitalAtRisk || 5000,
+          maxCapitalAtRisk: data.config.maxCapitalAtRisk,
           tradingMode: data.config.tradingMode || 'paper',
           enableTrading: data.config.enableTrading || false,
           riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
           maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
           maxWeeklyLoss: (data.config.maxWeeklyLoss * 100) || 5.0,
-          stopLossATR: data.config.stopLossATR || 1.5,
-          maxPositionsPerAsset: data.config.maxPositionsPerAsset || 1,
-          minOrderSize: data.config.minOrderSize || 10,
+          stopLossATR: data.config.stopLossATR,
+          maxPositionsPerAsset: data.config.maxPositionsPerAsset,
+          minOrderSize: data.config.minOrderSize,
           strategy: data.config.strategy || 'balanced',
-          timeframe: data.config.primaryTimeframe || data.config.timeframe || '1h',
+          timeframe: data.config.timeframe || '1h',
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
           minSignalStrength: data.config.minSignalStrength || 0.5,
           allocation: {
