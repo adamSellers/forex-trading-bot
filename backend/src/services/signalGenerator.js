@@ -1,6 +1,7 @@
-// backend/src/services/signalGenerator.js - ENHANCED WITH VOLATILITY FILTER
+// backend/src/services/signalGenerator.js
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
+const { RSI, ADX, SMA, EMA, ATR } = require("technicalindicators");
 
 class SignalGenerator extends EventEmitter {
     constructor(config = {}) {
@@ -13,8 +14,8 @@ class SignalGenerator extends EventEmitter {
         this.config = {
             strategy: config.strategy || "balanced",
             timeframe: config.timeframe || "1h",
-            signalCooldown: config.signalCooldown || 60000, // 1 minute
-            minStrength: config.minStrength || 0.5,
+            signalCooldown: config.signalCooldown || 60000,
+            minStrength: config.minStrength || 20, // Interpreted as Min ADX strength now
             assets: config.assets || [
                 "BTCUSDT",
                 "ETHUSDT",
@@ -23,537 +24,276 @@ class SignalGenerator extends EventEmitter {
                 "TRUMPUSDT",
             ],
 
-            // NEW: Enhanced volatility filter config
-            enableVolatilityFilter: config.enableVolatilityFilter !== false, // Default true
-            minVolatilityPercent: config.minVolatilityPercent || 2.0, // 2% ATR minimum
+            // --- NEW: Advanced Filter Config ---
+            enableAdxFilter: config.enableAdxFilter !== false,
+            adxPeriod: config.adxPeriod || 14,
+            minAdx: config.minAdx || 25, // Below 25 is considered "Chop/Ranging"
+
+            enableRsiFilter: config.enableRsiFilter !== false,
+            rsiPeriod: config.rsiPeriod || 14,
+            rsiOverbought: config.rsiOverbought || 70,
+            rsiOversold: config.rsiOversold || 30,
+
+            // Volatility Config
             atrPeriod: config.atrPeriod || 14,
-            volatilityLookback: config.volatilityLookback || 24, // Hours to check volatility
 
             ...config,
         };
 
-        // Strategy configurations
         this.strategyConfig = {
             conservative: { fast: 50, slow: 200, type: "SMA" },
             balanced: { fast: 20, slow: 50, type: "EMA" },
             responsive: { fast: 12, slow: 26, type: "EMA" },
         };
 
-        this.lastSignals = new Map(); // Cooldown tracking
+        this.lastSignals = new Map();
         this.signalHistory = [];
 
-        // NEW: Volatility tracking
-        this.volatilityHistory = new Map(); // Track volatility over time
-        this.volatilityStats = {
-            periodsChecked: 0,
-            lowVolatilityPeriods: 0,
-            avgVolatility: 0,
-            signalsBlocked: 0,
-        };
-
         logger.info(
-            `🎯 ENHANCED Signal Generator initialized - Strategy: ${this.config.strategy}, Volatility Filter: ${this.config.enableVolatilityFilter}`
+            `🎯 SMART Signal Generator initialized - Strategy: ${this.config.strategy} | ADX Filter: ${this.config.enableAdxFilter}`
         );
     }
 
-    /**
-     * Start the signal generator with periodic signal generation
-     */
     start(binanceDataService, intervalMs = 60000) {
-        if (this.isRunning) {
-            logger.warn("⚠️ Signal Generator already running");
-            return;
-        }
+        if (this.isRunning) return;
 
-        logger.info(
-            `🎯 Starting Signal Generator - Strategy: ${this.config.strategy}, Interval: ${intervalMs}ms`
-        );
-
+        logger.info(`🎯 Starting Signal Generator loop (${intervalMs}ms)...`);
         this.binanceDataService = binanceDataService;
         this.isRunning = true;
 
-        // Generate initial signals
-        this.generateSignalCycle();
-
-        // Set up periodic signal generation
+        this.generateSignalCycle(); // Immediate run
         this.signalInterval = setInterval(() => {
-            if (this.isRunning) {
-                this.generateSignalCycle();
-            }
+            if (this.isRunning) this.generateSignalCycle();
         }, intervalMs);
 
-        logger.success("✅ Signal Generator started successfully");
         this.emit("generatorStarted");
     }
 
-    /**
-     * Stop the signal generator
-     */
     stop() {
-        if (!this.isRunning) {
-            logger.warn("⚠️ Signal Generator not running");
-            return;
-        }
-
-        logger.info("🛑 Stopping Signal Generator...");
-
         this.isRunning = false;
-
         if (this.signalInterval) {
             clearInterval(this.signalInterval);
             this.signalInterval = null;
         }
-
-        logger.success("✅ Signal Generator stopped");
+        logger.info("🛑 Signal Generator stopped");
         this.emit("generatorStopped");
     }
 
     /**
-     * Generate signals for all assets in one cycle
+     * Core loop to process all assets
      */
     async generateSignalCycle() {
+        if (!this.binanceDataService) return;
+
         try {
-            if (!this.binanceDataService) {
-                logger.error("❌ Binance data service not available");
-                return;
-            }
-
-            logger.debug("🔄 Starting signal generation cycle...");
-
             const signals = await this.generateAllSignals(
                 this.binanceDataService
             );
-
-            if (signals && signals.length > 0) {
-                // Emit individual signals
-                signals.forEach((signal) => {
-                    this.emit("signalGenerated", signal);
-                    this.signalHistory.push(signal);
-                });
-
-                // Emit batch of signals
+            if (signals.length > 0) {
                 this.emit("allSignalsGenerated", signals);
-
+                signals.forEach((s) => this.emit("signalGenerated", s));
                 logger.info(`📡 Generated ${signals.length} signals`);
-            } else {
-                logger.debug("📊 No signals generated this cycle");
-            }
-
-            // Keep signal history manageable
-            if (this.signalHistory.length > 1000) {
-                this.signalHistory = this.signalHistory.slice(-500);
             }
         } catch (error) {
             logger.error("❌ Error in signal generation cycle:", error);
-            this.emit("generationError", error);
-        }
-    }
-
-    getStatus() {
-        try {
-            return {
-                isActive: this.isRunning || false,
-                strategy: this.config.strategy,
-                timeframe: this.config.timeframe,
-                signalCount: this.signalHistory.length,
-                lastSignalTime:
-                    Math.max(...Array.from(this.lastSignals.values())) || null,
-                cooldownPeriod: this.config.signalCooldown,
-                assets: this.config.assets,
-
-                // Volatility filter status
-                volatilityFilter: {
-                    enabled: this.config.enableVolatilityFilter,
-                    minVolatilityPercent: this.config.minVolatilityPercent,
-                    periodsChecked: this.volatilityStats.periodsChecked,
-                    signalsBlocked: this.volatilityStats.signalsBlocked,
-                    avgVolatility: this.volatilityStats.avgVolatility,
-                },
-
-                // Configuration
-                config: {
-                    minStrength: this.config.minStrength,
-                    signalCooldown: this.config.signalCooldown,
-                    enableVolatilityFilter: this.config.enableVolatilityFilter,
-                },
-
-                timestamp: Date.now(),
-            };
-        } catch (error) {
-            logger.error("Error getting signal generator status:", error);
-            return {
-                isActive: false,
-                error: error.message,
-                timestamp: Date.now(),
-            };
         }
     }
 
     /**
-     * NEW: Get the minimum number of candles required for the current strategy
+     * Helper to prepare data for technicalindicators lib
      */
-    getRequiredCandleCount() {
-        const strategy = this.strategyConfig[this.config.strategy];
-        if (!strategy) return 50; // Fallback
-        return Math.max(strategy.fast, strategy.slow) + 1;
-    }
-
-    // That's it! This single method addition should fix the signalGenerator getStatus error
-    // without removing any of the existing functionality
-
-    /**
-     * NEW: Calculate Average True Range (ATR)
-     */
-    calculateATR(candles, period = 14) {
-        if (!candles || candles.length < period + 1) {
-            return null;
-        }
-
-        const trueRanges = [];
-
-        for (let i = 1; i < candles.length; i++) {
-            const current = candles[i];
-            const previous = candles[i - 1];
-
-            const tr1 = current.high - current.low;
-            const tr2 = Math.abs(current.high - previous.close);
-            const tr3 = Math.abs(current.low - previous.close);
-
-            trueRanges.push(Math.max(tr1, tr2, tr3));
-        }
-
-        // Calculate simple moving average of true ranges
-        const recentTR = trueRanges.slice(-period);
-        return recentTR.reduce((sum, tr) => sum + tr, 0) / recentTR.length;
-    }
-
-    /**
-     * NEW: Calculate volatility filter data
-     */
-    calculateVolatilityFilter(candles, currentPrice) {
-        const atr = this.calculateATR(candles, this.config.atrPeriod);
-        if (!atr || !currentPrice) {
-            return {
-                atr: null,
-                atrPercent: null,
-                isHighVolatility: false,
-                volatilityRating: "UNKNOWN",
-            };
-        }
-
-        // Calculate ATR as percentage of current price
-        const atrPercent = (atr / currentPrice) * 100;
-
-        // Determine volatility rating
-        let volatilityRating = "LOW";
-        let isHighVolatility = false;
-
-        if (atrPercent >= this.config.minVolatilityPercent) {
-            isHighVolatility = true;
-            if (atrPercent >= this.config.minVolatilityPercent * 2) {
-                volatilityRating = "HIGH";
-            } else {
-                volatilityRating = "MEDIUM";
-            }
-        }
-
-        // Update volatility statistics
-        this.volatilityStats.periodsChecked++;
-        if (!isHighVolatility) {
-            this.volatilityStats.lowVolatilityPeriods++;
-        }
-
-        // Update running average
-        this.volatilityStats.avgVolatility =
-            (this.volatilityStats.avgVolatility *
-                (this.volatilityStats.periodsChecked - 1) +
-                atrPercent) /
-            this.volatilityStats.periodsChecked;
-
+    prepareInputData(candles) {
         return {
-            atr,
-            atrPercent,
-            isHighVolatility,
-            volatilityRating,
-            minRequired: this.config.minVolatilityPercent,
+            open: candles.map((c) => c.open),
+            high: candles.map((c) => c.high),
+            low: candles.map((c) => c.low),
+            close: candles.map((c) => c.close),
+            volume: candles.map((c) => c.volume),
         };
     }
 
     /**
-     * Calculate Simple Moving Average
-     */
-    calculateSMA(candles, period) {
-        if (!candles || candles.length < period) return null;
-
-        const values = candles.slice(-period).map((c) => c.close);
-        return values.reduce((sum, val) => sum + val, 0) / period;
-    }
-
-    /**
-     * Calculate Exponential Moving Average
-     */
-    calculateEMA(candles, period) {
-        if (!candles || candles.length < period) return null;
-
-        const multiplier = 2 / (period + 1);
-        let ema = candles[0].close;
-
-        for (let i = 1; i < candles.length; i++) {
-            ema = candles[i].close * multiplier + ema * (1 - multiplier);
-        }
-
-        return ema;
-    }
-
-    /**
-     * ENHANCED: Generate trading signal with volatility analysis
+     * MAIN LOGIC: Calculates indicators and determines signal
      */
     async generateSignal(symbol, candles, currentPrice) {
         try {
-            const requiredCandles = this.getRequiredCandleCount();
+            const requiredCandles = 200; // Needed for accurate ADX/EMA calc
             if (!candles || candles.length < requiredCandles) {
-                return {
+                return this.createSignalObject(
                     symbol,
-                    signal: "INSUFFICIENT_DATA",
-                    strength: 0,
-                    message: `Insufficient candle data: ${
-                        candles?.length || 0
-                    }/${requiredCandles} required`,
-                    timestamp: Date.now(),
-                };
+                    "INSUFFICIENT_DATA",
+                    0,
+                    "Not enough candle history"
+                );
             }
 
+            const input = this.prepareInputData(candles);
             const strategy = this.strategyConfig[this.config.strategy];
-            if (!strategy) {
-                throw new Error(`Unknown strategy: ${this.config.strategy}`);
-            }
 
-            // Calculate moving averages
-            let fastMA, slowMA;
-            if (strategy.type === "SMA") {
-                fastMA = this.calculateSMA(candles, strategy.fast);
-                slowMA = this.calculateSMA(candles, strategy.slow);
-            } else {
-                fastMA = this.calculateEMA(candles, strategy.fast);
-                slowMA = this.calculateEMA(candles, strategy.slow);
-            }
-
-            if (!fastMA || !slowMA) {
-                return {
-                    symbol,
-                    signal: "INSUFFICIENT_DATA",
-                    strength: 0,
-                    message: "Unable to calculate moving averages",
-                    timestamp: Date.now(),
-                };
-            }
-
-            // NEW: Calculate volatility data
-            const volatilityData = this.calculateVolatilityFilter(
-                candles,
-                currentPrice
-            );
-
-            // Store volatility history for analysis
-            const volatilityKey = `${symbol}_${Date.now()}`;
-            this.volatilityHistory.set(volatilityKey, {
-                symbol,
-                atrPercent: volatilityData.atrPercent,
-                timestamp: Date.now(),
-                rating: volatilityData.volatilityRating,
-            });
-
-            // Clean old volatility data (keep last 100 entries per symbol)
-            const symbolEntries = Array.from(this.volatilityHistory.entries())
-                .filter(([key, data]) => data.symbol === symbol)
-                .slice(-100);
-
-            // Determine crossover signal
-            const previousCandles = candles.slice(0, -1);
-            let prevFastMA, prevSlowMA;
+            // 1. Calculate Moving Averages (The Trend Direction)
+            let fastMAValues, slowMAValues;
+            const maParamsFast = { values: input.close, period: strategy.fast };
+            const maParamsSlow = { values: input.close, period: strategy.slow };
 
             if (strategy.type === "SMA") {
-                prevFastMA = this.calculateSMA(previousCandles, strategy.fast);
-                prevSlowMA = this.calculateSMA(previousCandles, strategy.slow);
+                fastMAValues = SMA.calculate(maParamsFast);
+                slowMAValues = SMA.calculate(maParamsSlow);
             } else {
-                prevFastMA = this.calculateEMA(previousCandles, strategy.fast);
-                prevSlowMA = this.calculateEMA(previousCandles, strategy.slow);
+                fastMAValues = EMA.calculate(maParamsFast);
+                slowMAValues = EMA.calculate(maParamsSlow);
             }
 
-            let signal = "HOLD";
-            let strength = 0;
-            let crossoverType = "NONE";
+            const fastMA = fastMAValues[fastMAValues.length - 1];
+            const slowMA = slowMAValues[slowMAValues.length - 1];
+            const prevFastMA = fastMAValues[fastMAValues.length - 2];
+            const prevSlowMA = slowMAValues[slowMAValues.length - 2];
 
-            // Detect crossovers
-            if (prevFastMA && prevSlowMA) {
-                const currentCross = fastMA > slowMA;
-                const previousCross = prevFastMA > prevSlowMA;
+            // 2. Calculate ADX (The Trend Strength) - CRITICAL FIX
+            const adxInput = {
+                high: input.high,
+                low: input.low,
+                close: input.close,
+                period: this.config.adxPeriod,
+            };
+            const adxValues = ADX.calculate(adxInput);
+            const currentADX = adxValues[adxValues.length - 1];
 
-                if (currentCross && !previousCross) {
-                    // Golden cross - bullish
-                    signal = "BUY";
-                    crossoverType = "GOLDEN_CROSS";
-                    // FIXED: Calculate strength as a percentage
-                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
-                } else if (!currentCross && previousCross) {
-                    // Death cross - bearish
-                    signal = "SELL";
-                    crossoverType = "DEATH_CROSS";
-                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
-                } else if (currentCross) {
-                    // Above but no cross
-                    signal = "HOLD_BULLISH";
-                    // Strength is still relevant for trend-following indicators
-                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
+            // 3. Calculate RSI (Overbought/Oversold)
+            const rsiInput = {
+                values: input.close,
+                period: this.config.rsiPeriod,
+            };
+            const rsiValues = RSI.calculate(rsiInput);
+            const currentRSI = rsiValues[rsiValues.length - 1];
+
+            // 4. Calculate ATR (Volatility)
+            const atrInput = {
+                high: input.high,
+                low: input.low,
+                close: input.close,
+                period: this.config.atrPeriod,
+            };
+            const atrValues = ATR.calculate(atrInput);
+            const currentATR = atrValues[atrValues.length - 1];
+            const atrPercent = (currentATR / currentPrice) * 100;
+
+            // --- LOGIC EVALUATION ---
+
+            let signalType = "HOLD";
+            let reason = "Monitoring";
+
+            // Detect Crossovers
+            const goldenCross = prevFastMA <= prevSlowMA && fastMA > slowMA;
+            const deathCross = prevFastMA >= prevSlowMA && fastMA < slowMA;
+            const bullishHold = fastMA > slowMA;
+            const bearishHold = fastMA < slowMA;
+
+            // Filter Checks
+            const isChoppy =
+                this.config.enableAdxFilter &&
+                currentADX.adx < this.config.minAdx;
+            const isOverbought =
+                this.config.enableRsiFilter &&
+                currentRSI > this.config.rsiOverbought;
+            const isOversold =
+                this.config.enableRsiFilter &&
+                currentRSI < this.config.rsiOversold;
+
+            // DECISION TREE
+            if (goldenCross) {
+                if (isChoppy) {
+                    signalType = "HOLD";
+                    reason = `Golden Cross ignored: Market is Choppy (ADX ${currentADX.adx.toFixed(
+                        1
+                    )} < ${this.config.minAdx})`;
+                } else if (isOverbought) {
+                    signalType = "HOLD";
+                    reason = `Golden Cross ignored: RSI Overbought (${currentRSI.toFixed(
+                        1
+                    )})`;
                 } else {
-                    // Below but no cross
-                    signal = "HOLD_BEARISH";
-                    strength = (Math.abs(fastMA - slowMA) / slowMA) * 100;
+                    signalType = "BUY";
+                    reason = "Golden Cross + Strong Trend";
                 }
+            } else if (deathCross) {
+                if (isChoppy) {
+                    signalType = "HOLD";
+                    reason = `Death Cross ignored: Market is Choppy (ADX ${currentADX.adx.toFixed(
+                        1
+                    )} < ${this.config.minAdx})`;
+                } else if (isOversold) {
+                    signalType = "HOLD";
+                    reason = `Death Cross ignored: RSI Oversold (${currentRSI.toFixed(
+                        1
+                    )})`;
+                } else {
+                    signalType = "SELL";
+                    reason = "Death Cross + Trend Breakdown";
+                }
+            } else if (bullishHold) {
+                signalType = "HOLD_BULLISH";
+                reason = "Trend is Up";
+            } else if (bearishHold) {
+                signalType = "HOLD_BEARISH";
+                reason = "Trend is Down";
             }
 
-            // Adjust strength based on price position relative to MAs
-            const priceAboveFast = currentPrice > fastMA;
-            const priceAboveSlow = currentPrice > slowMA;
-
-            if (signal.includes("BUY") && priceAboveFast && priceAboveSlow) {
-                strength *= 1.2; // Boost if price confirms the signal
-            } else if (
-                signal.includes("SELL") &&
-                !priceAboveFast &&
-                !priceAboveSlow
-            ) {
-                strength *= 1.2;
-            } else if (
-                signal.includes("BUY") &&
-                (!priceAboveFast || !priceAboveSlow)
-            ) {
-                strength *= 0.8; // Reduce if price doesn't confirm
-            } else if (
-                signal.includes("SELL") &&
-                (priceAboveFast || priceAboveSlow)
-            ) {
-                strength *= 0.8;
-            }
-
-            // Cap strength at a reasonable max, but allow it to be higher than 1.0
-            strength = Math.min(10.0, Math.max(0.0, strength));
-
-            const signalData = {
+            return {
                 symbol,
-                signal,
+                signal: signalType,
+                strength: currentADX.adx, // Use ADX as the definitive strength metric
                 strategy: this.config.strategy,
-                strength,
-                crossoverType,
+                message: reason,
                 timestamp: Date.now(),
                 data: {
                     currentPrice,
-                    fastMA: fastMA.toFixed(6),
-                    slowMA: slowMA.toFixed(6),
-                    strategy: `${strategy.fast}/${strategy.slow} ${strategy.type}`,
-                    priceAboveFast,
-                    priceAboveSlow,
+                    fastMA,
+                    slowMA,
+                    rsi: currentRSI,
+                    adx: currentADX.adx,
+                    atr: currentATR,
+                    atrPercent: atrPercent,
+                    isChoppy,
+                    isOverbought,
+                    isOversold,
                 },
-                // NEW: Include volatility data
-                volatility: volatilityData,
-                atr: volatilityData.atr,
-                atrPercent: volatilityData.atrPercent,
-                volatilityRating: volatilityData.volatilityRating,
+                // Standardizing ATR for the engine
+                atr: currentATR,
+                atrPercent: atrPercent,
             };
-
-            // Store in history
-            this.signalHistory.push(signalData);
-            if (this.signalHistory.length > 1000) {
-                this.signalHistory = this.signalHistory.slice(-500);
-            }
-
-            return signalData;
         } catch (error) {
-            logger.error(
-                `Error generating enhanced signal for ${symbol}:`,
-                error
-            );
-            return {
-                symbol,
-                signal: "ERROR",
-                strength: 0,
-                message: error.message,
-                timestamp: Date.now(),
-            };
+            logger.error(`Error calculating signal for ${symbol}:`, error);
+            return this.createSignalObject(symbol, "ERROR", 0, error.message);
         }
     }
 
-    /**
-     * ENHANCED: Validate signal with volatility filter
-     */
-    validateSignal(signal, candles = null, currentPrice = null) {
-        const now = Date.now();
+    validateSignal(signal) {
+        // Cooldown Check
         const key = `${signal.symbol}_${signal.signal}`;
-        const lastSignalTime = this.lastSignals.get(key) || 0;
+        const lastTime = this.lastSignals.get(key) || 0;
+        const now = Date.now();
 
-        // 1. Cooldown check
-        if (now - lastSignalTime < this.config.signalCooldown) {
-            return {
-                ...signal,
-                signal: "COOLDOWN",
-                originalSignal: signal.signal,
-                message: `Cooldown active. Last ${
-                    signal.signal
-                } was ${Math.round((now - lastSignalTime) / 1000)}s ago`,
-            };
-        }
-
-        // 2. NEW: Volatility filter check
-        if (this.config.enableVolatilityFilter && signal.volatilityRating) {
-            if (
-                signal.volatilityRating === "LOW" &&
-                signal.signal !== "HOLD" &&
-                !signal.signal.includes("HOLD")
-            ) {
-                this.volatilityStats.signalsBlocked++;
-
-                return {
-                    ...signal,
-                    signal: "LOW_VOLATILITY",
-                    originalSignal: signal.signal,
-                    message: `Signal blocked due to low volatility: ${signal.atrPercent?.toFixed(
-                        2
-                    )}% (min: ${this.config.minVolatilityPercent}%)`,
-                    blockedAt: now,
-                };
-            }
-        }
-
-        // 3. Strength threshold check
+        // Only apply cooldown to active actionable signals (BUY/SELL), not HOLDs
         if (
-            signal.strength < this.config.minStrength &&
-            signal.signal !== "HOLD" &&
-            !signal.signal.includes("HOLD")
+            (signal.signal === "BUY" || signal.signal === "SELL") &&
+            now - lastTime < this.config.signalCooldown
         ) {
             return {
                 ...signal,
-                signal: "WEAK_SIGNAL",
-                originalSignal: signal.signal,
-                message: `Signal strength ${signal.strength?.toFixed(
-                    3
-                )} below threshold ${this.config.minStrength}`,
+                signal: "COOLDOWN",
+                message: "Signal Cooldown Active",
             };
         }
 
-        // Valid signal - update last signal time
-        if (signal.signal.includes("BUY") || signal.signal.includes("SELL")) {
+        if (signal.signal === "BUY" || signal.signal === "SELL") {
             this.lastSignals.set(key, now);
         }
 
         return signal;
     }
 
-    /**
-     * Generate signals for all configured assets
-     */
     async generateAllSignals(binanceDataService) {
         const signals = [];
-
         for (const asset of this.config.assets) {
             try {
                 const candles = binanceDataService.getCandles(
@@ -562,250 +302,68 @@ class SignalGenerator extends EventEmitter {
                 );
                 const priceData = binanceDataService.getCurrentPrice(asset);
 
-                if (!priceData) {
-                    logger.warn(`No price data available for ${asset}`);
-                    continue;
-                }
-
-                const rawSignal = await this.generateSignal(
-                    asset,
-                    candles,
-                    priceData.price
-                );
-                const validatedSignal = this.validateSignal(
-                    rawSignal,
-                    candles,
-                    priceData.price
-                );
-
-                signals.push(validatedSignal);
-
-                // Log volatility blocking
-                if (validatedSignal.signal === "LOW_VOLATILITY") {
-                    logger.debug(
-                        `🔇 ${asset} signal blocked - Volatility: ${validatedSignal.atrPercent?.toFixed(
-                            2
-                        )}% (${validatedSignal.volatilityRating})`
+                if (candles.length && priceData) {
+                    let signal = await this.generateSignal(
+                        asset,
+                        candles,
+                        priceData.price
                     );
+                    signal = this.validateSignal(signal);
+                    signals.push(signal);
+
+                    // Log actionable signals
+                    if (signal.signal === "BUY" || signal.signal === "SELL") {
+                        logger.info(
+                            `🔔 ${
+                                signal.signal
+                            } ${asset} | Strength(ADX): ${signal.strength.toFixed(
+                                1
+                            )} | RSI: ${signal.data.rsi.toFixed(1)}`
+                        );
+                    }
                 }
-            } catch (error) {
-                logger.error(
-                    `Error generating enhanced signal for ${asset}:`,
-                    error
-                );
-                signals.push({
-                    symbol: asset,
-                    signal: "ERROR",
-                    strength: 0,
-                    message: error.message,
-                    timestamp: Date.now(),
-                });
+            } catch (err) {
+                logger.error(`Failed to generate signal for ${asset}`, err);
             }
         }
-
-        this.emit("allSignalsGenerated", signals);
         return signals;
     }
 
-    /**
-     * NEW: Get enhanced signal statistics with volatility metrics
-     */
-    getEnhancedSignalStats() {
-        const recent = this.signalHistory.slice(-100);
-        const stats = {
-            total: this.signalHistory.length,
-            recent: recent.length,
-            signals: {
-                BUY: recent.filter((s) => s.signal.includes("BUY")).length,
-                SELL: recent.filter((s) => s.signal.includes("SELL")).length,
-                HOLD: recent.filter((s) => s.signal.includes("HOLD")).length,
-                BLOCKED: recent.filter((s) => s.signal === "LOW_VOLATILITY")
-                    .length,
-                WEAK: recent.filter((s) => s.signal === "WEAK_SIGNAL").length,
-                ERROR: recent.filter((s) => s.signal === "ERROR").length,
-            },
-            averageStrength:
-                recent.length > 0
-                    ? recent.reduce((sum, s) => sum + (s.strength || 0), 0) /
-                      recent.length
-                    : 0,
-            lastSignalTime:
-                recent.length > 0 ? recent[recent.length - 1].timestamp : null,
-
-            // NEW: Volatility statistics
-            volatilityStats: {
-                ...this.volatilityStats,
-                avgVolatilityPercent: this.volatilityStats.avgVolatility,
-                lowVolatilityRate:
-                    this.volatilityStats.periodsChecked > 0
-                        ? (this.volatilityStats.lowVolatilityPeriods /
-                              this.volatilityStats.periodsChecked) *
-                          100
-                        : 0,
-                recentVolatilityRatings: recent
-                    .filter((s) => s.volatilityRating)
-                    .reduce((acc, s) => {
-                        acc[s.volatilityRating] =
-                            (acc[s.volatilityRating] || 0) + 1;
-                        return acc;
-                    }, {}),
-                filterEffectiveness: this.volatilityStats.signalsBlocked,
-            },
-        };
-
-        return stats;
-    }
-
-    /**
-     * NEW: Get volatility analysis for dashboard
-     */
-    getVolatilityAnalysis() {
-        const recentVolatility = Array.from(
-            this.volatilityHistory.values()
-        ).slice(-50);
-
-        if (recentVolatility.length === 0) {
-            return {
-                overall: "INSUFFICIENT_DATA",
-                avgVolatility: 0,
-                trends: {},
-                recommendations: ["Collect more data for volatility analysis"],
-            };
-        }
-
-        const assetVolatility = {};
-        this.config.assets.forEach((asset) => {
-            const assetData = recentVolatility.filter(
-                (v) => v.symbol === asset
-            );
-            if (assetData.length > 0) {
-                assetVolatility[asset] = {
-                    avgVolatility:
-                        assetData.reduce((sum, v) => sum + v.atrPercent, 0) /
-                        assetData.length,
-                    currentRating:
-                        assetData[assetData.length - 1]?.rating || "UNKNOWN",
-                    trend: this.calculateVolatilityTrend(assetData),
-                };
-            }
-        });
-
-        const recommendations = [];
-        Object.entries(assetVolatility).forEach(([asset, data]) => {
-            if (data.avgVolatility < this.config.minVolatilityPercent) {
-                recommendations.push(
-                    `${asset}: Low volatility (${data.avgVolatility.toFixed(
-                        2
-                    )}%) - expect fewer signals`
-                );
-            } else if (
-                data.avgVolatility >
-                this.config.minVolatilityPercent * 3
-            ) {
-                recommendations.push(
-                    `${asset}: High volatility (${data.avgVolatility.toFixed(
-                        2
-                    )}%) - use smaller position sizes`
-                );
-            }
-        });
-
+    createSignalObject(symbol, type, strength, msg) {
         return {
-            overall: this.getOverallVolatilityRating(assetVolatility),
-            avgVolatility: this.volatilityStats.avgVolatility,
-            assetBreakdown: assetVolatility,
-            trends: this.getVolatilityTrends(assetVolatility),
-            recommendations:
-                recommendations.length > 0
-                    ? recommendations
-                    : ["Market volatility within normal parameters"],
-            filterStats: {
-                signalsBlocked: this.volatilityStats.signalsBlocked,
-                lowVolatilityPeriods: this.volatilityStats.lowVolatilityPeriods,
-                totalPeriodsChecked: this.volatilityStats.periodsChecked,
-                filterEffectiveness:
-                    this.volatilityStats.periodsChecked > 0
-                        ? (this.volatilityStats.signalsBlocked /
-                              this.volatilityStats.periodsChecked) *
-                          100
-                        : 0,
-            },
+            symbol,
+            signal: type,
+            strength,
+            message: msg,
+            timestamp: Date.now(),
         };
     }
 
-    calculateVolatilityTrend(assetData) {
-        if (assetData.length < 2) return "STABLE";
-
-        const recent = assetData.slice(-5);
-        const older = assetData.slice(-10, -5);
-
-        if (recent.length === 0 || older.length === 0) return "STABLE";
-
-        const recentAvg =
-            recent.reduce((sum, v) => sum + v.atrPercent, 0) / recent.length;
-        const olderAvg =
-            older.reduce((sum, v) => sum + v.atrPercent, 0) / older.length;
-
-        const changePercent = ((recentAvg - olderAvg) / olderAvg) * 100;
-
-        if (changePercent > 10) return "INCREASING";
-        if (changePercent < -10) return "DECREASING";
-        return "STABLE";
+    // Required for Dashboard Status
+    getStatus() {
+        return {
+            isActive: this.isRunning,
+            config: this.config,
+            strategyConfig: this.strategyConfig[this.config.strategy],
+            lastRun: new Date().toISOString(),
+        };
     }
 
-    getOverallVolatilityRating(assetVolatility) {
-        const ratings = Object.values(assetVolatility).map(
-            (v) => v.currentRating
-        );
-        const highCount = ratings.filter((r) => r === "HIGH").length;
-        const mediumCount = ratings.filter((r) => r === "MEDIUM").length;
-        const lowCount = ratings.filter((r) => r === "LOW").length;
-
-        if (highCount >= ratings.length / 2) return "HIGH";
-        if (mediumCount >= ratings.length / 2) return "MEDIUM";
-        return "LOW";
+    // Helper for System Checks
+    getRequiredCandleCount() {
+        return 200; // Always ensure we have enough for 200 SMA calculation
     }
 
-    getVolatilityTrends(assetVolatility) {
-        const trends = {};
-        Object.entries(assetVolatility).forEach(([asset, data]) => {
-            trends[asset] = data.trend;
-        });
-        return trends;
-    }
-
-    /**
-     * Reset signal generator state
-     */
+    // Stub for reset if needed by controller
     reset() {
         this.lastSignals.clear();
         this.signalHistory = [];
-        this.volatilityHistory.clear();
-        this.volatilityStats = {
-            periodsChecked: 0,
-            lowVolatilityPeriods: 0,
-            avgVolatility: 0,
-            signalsBlocked: 0,
-        };
-
-        logger.info("🔄 Enhanced Signal Generator reset");
-        this.emit("generatorReset");
     }
 
-    /**
-     * Update configuration
-     */
+    // Stub for config update
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
-        logger.info("⚙️ Enhanced Signal Generator configuration updated");
-        this.emit("configUpdated", this.config);
-    }
-
-    /**
-     * Get current configuration
-     */
-    getConfig() {
-        return { ...this.config };
+        logger.info("Signal Generator Config Updated");
     }
 }
 

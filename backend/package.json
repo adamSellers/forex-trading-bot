@@ -31,7 +31,8 @@
         "knex": "^2.5.1",
         "node-binance-api": "^0.13.1",
         "socket.io": "^4.7.2",
-        "sqlite3": "^5.1.6"
+        "sqlite3": "^5.1.6",
+        "technicalindicators": "^3.1.0"
     },
     "devDependencies": {
         "nodemon": "^3.0.1"
