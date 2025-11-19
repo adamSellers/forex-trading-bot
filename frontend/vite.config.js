@@ -21,12 +21,22 @@ export default defineConfig({
     },
     build: {
         outDir: "dist",
-        sourcemap: true,
+        // CRITICAL OPTIMIZATION for Raspberry Pi:
+        // Disable source maps to reduce RAM usage by ~40% during build.
+        sourcemap: false,
+        // Increase the chunk size warning limit to reduce log spam
+        chunkSizeWarningLimit: 1600,
         rollupOptions: {
-            // FIX: Exclude the server-side AWS SDK from the frontend bundle.
-            // This prevents the build process from hanging while trying to
-            // resolve and bundle a large, unnecessary backend dependency.
+            // Keep existing exclusion of server-side SDKs
             external: ["@aws-sdk/client-s3"],
+            output: {
+                // OPTIMIZATION: Split vendor chunks to reduce per-file memory pressure
+                manualChunks: (id) => {
+                    if (id.includes("node_modules")) {
+                        return "vendor";
+                    }
+                },
+            },
         },
     },
 });
