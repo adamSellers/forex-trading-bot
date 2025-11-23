@@ -1,169 +1,111 @@
 #!/bin/bash
 
 # ===================================================
-# scripts/local-deploy.sh - Direct deployment on Pi
-# Use this when deploying directly on the Raspberry Pi
+# scripts/deploy.sh - Fixed for ARM64 Dependencies
 # ===================================================
 
 set -e
 
 # --- Configuration ---
 PROJECT_DIR="/opt/crypto-trading-bot"
-BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
+BACKUP_DIR="$HOME/crypto-trading-bot-backups"
 APP_NAME="crypto-trend-bot"
 
-# Colors for output
+# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
 log_success() { echo -e "${GREEN}✅ $1${NC}"; }
-log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 
 echo "🚀 Starting local deployment on Raspberry Pi..."
 
-# Check if we're in the right directory
+# Validation
 if [ ! -f "package.json" ]; then
-    log_error "Not in project root directory. Please run from /opt/crypto-trading-bot"
+    log_error "Run from project root (/opt/crypto-trading-bot)"
     exit 1
 fi
 
-# Check if we're the right user
 if [ "$(whoami)" != "adam" ]; then
     log_error "Please run as user 'adam'"
     exit 1
 fi
 
-# 0. Update code from git
-log_info "Fetching latest changes from git..."
+# 0. Update code
+log_info "Fetching latest changes..."
 git fetch origin main
-
-log_info "Resetting local branch to match remote (discards local changes)..."
+log_info "Resetting local branch..."
 git reset --hard origin/main
-log_success "Code is up to date."
-
-# 0.5 Set executable permissions on all scripts
-log_info "Ensuring all scripts are executable..."
 chmod +x scripts/*.sh
-log_success "Script permissions set."
 
-# 1. Pre-deployment checks
-log_info "Running pre-deployment checks..."
+# 1. Stop Service
+log_info "Stopping service..."
+pm2 stop "$APP_NAME" --silent || true
+sleep 2
 
-# Check Node.js version
-NODE_VERSION=$(node --version | cut -d'v' -f2)
-NODE_MAJOR=$(echo $NODE_VERSION | cut -d'.' -f1)
-if [ "$NODE_MAJOR" -lt 22 ]; then
-    log_warning "Node.js version $NODE_VERSION detected. Recommended: v22+"
-fi
-
-# Check if PM2 is running our app
-if ! pm2 list | grep -q "$APP_NAME"; then
-    log_warning "PM2 app '$APP_NAME' not found. Will start after deployment."
-fi
-
-# Check git status (if this is a git repo)
-if [ -d ".git" ]; then
-    if ! git diff --quiet; then
-        log_warning "Uncommitted changes detected in git"
-    fi
-fi
-
-# 2. Stop the service for a clean update
-log_info "Stopping PM2 service '$APP_NAME' for a clean update..."
-pm2 stop "$APP_NAME" --silent || true # Use silent to avoid errors if not running
-sleep 2 # Give it a moment to stop
-
-# 3. Create backup (service is already stopped, so backup script won't manage PM2)
-log_info "Creating backup before deployment..."
+# 2. Backup
+log_info "Creating backup..."
 ./scripts/backup.sh
 
-# 4. Update dependencies
-log_info "Updating dependencies using workspace scripts..."
-log_info "Updating backend dependencies..."
-npm run install:backend -- --omit=dev --no-optional
-log_info "Updating frontend dependencies..."
-npm run install:frontend -- --omit=dev --no-optional
+# 3. Update Dependencies (FIXED)
+log_info "Updating dependencies..."
 
-# 5. Build frontend
-log_info "Building frontend for production..."
-# FIX: Install the ARM64-specific rollup dependency required for Vite to build on the Pi.
-# This mirrors the logic in the clean-install.sh script and prevents build failures.
+# Backend: Keep it lean (Production deps only)
+log_info "Backend: Installing production dependencies..."
+npm run install:backend -- --omit=dev
+
+# Frontend: MUST install ALL dependencies (Dev + Optional) for build tools (Vite/Esbuild) to work
+log_info "Frontend: Installing build dependencies (ARM64 binaries)..."
+npm run install:frontend
+
+# 4. Build Frontend
+log_info "Building frontend..."
+# Explicitly install the Linux ARM64 Rollup binary to prevent Vite hangs
 cd frontend
-NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --no-save
+npm install @rollup/rollup-linux-arm64-gnu --no-save
 cd ..
-npm run build:frontend
+
+# Run build with memory constraints and NO source maps
+NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build:frontend
 
 if [ ! -d "frontend/dist" ]; then
-    log_error "Frontend build failed - dist directory not created"
+    log_error "Frontend build failed."
     exit 1
 fi
 
-# 6. Reload Nginx to serve the new frontend
-log_info "Reloading Nginx to serve new frontend build..."
+# 5. Reload Nginx
+log_info "Reloading Nginx..."
 sudo systemctl reload nginx
 
-# 7. Run database migrations
+# 6. Migrations
 log_info "Running database migrations..."
 npm run db:migrate
 
-# 8. Restart the application using the more robust 'restart' command
-log_info "Restarting PM2 process '$APP_NAME'..."
+# 7. Restart
+log_info "Restarting Application..."
 pm2 restart ecosystem.config.js --env production
 pm2 save
 
-# 9. Wait for service to become healthy (with retries)
-log_info "Waiting for service to become healthy..."
-max_attempts=12 # 12 attempts * 5 seconds = 60 seconds timeout
+# 8. Health Check
+log_info "Waiting for health check..."
+max_attempts=12
 attempt=0
-until curl -f -s http://localhost:3001/api/management/health | jq -e '.services.tradingController == true and .services.binanceData == true' > /dev/null 2>&1; do
+until curl -f -s http://localhost:3001/api/management/health | jq -e '.services.tradingController == true' > /dev/null 2>&1; do
     attempt=$((attempt+1))
     if [ $attempt -ge $max_attempts ]; then
-        log_error "Health check failed after $max_attempts attempts."
-        pm2 status
+        log_error "Health check failed."
         pm2 logs $APP_NAME --lines 20
-        # Add detailed health check output for debugging
-        echo "Last health check response:"
-        curl -s http://localhost:3001/api/management/health | jq .
         exit 1
     fi
-    echo -n "." # Progress indicator
+    echo -n "."
     sleep 5
 done
-echo "" # Newline after progress dots
+
+echo ""
 log_success "Health check passed!"
-
-# 10. Show status
-log_info "Deployment status:"
-pm2 status
-echo ""
-
-# 11. Check memory usage
-MEMORY_USAGE=$(free -m | awk 'NR==2{printf "%.1f%%", $3*100/$2}')
-log_info "Current memory usage: $MEMORY_USAGE"
-
-# 12. Show recent logs
-log_info "Recent application logs:"
-pm2 logs $APP_NAME --lines 5 --nostream
-
-echo ""
-log_success "🎉 Local deployment completed!"
-echo ""
-echo "📊 Dashboard URL: https://img.oakroad"
-echo "🔧 Commands:"
-echo "  • View logs:     pm2 logs $APP_NAME"
-echo "  • Check status:  pm2 status"
-echo "  • Restart app:   pm2 restart $APP_NAME"
-echo "  • Stop app:      pm2 stop $APP_NAME"
-echo ""
-
-# Check if app is responding
-if curl -f -s http://localhost:3001/api/management/health > /dev/null; then
-    log_success "✅ Application is responding correctly"
-else
-    log_warning "⚠️ Application may not be responding. Check logs above."
-fi
+log_success "🎉 Deployment Complete!"

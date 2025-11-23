@@ -35,7 +35,7 @@ class LiveTradingEngine extends EventEmitter {
         this.tradeRepo = new TradeRepository();
         this.portfolioRepo = new PortfolioRepository();
 
-        // P&L State
+        // PnL State
         this.livePortfolioState = {
             totalPnL: 0,
             dailyPnL: 0,
@@ -44,21 +44,15 @@ class LiveTradingEngine extends EventEmitter {
             lastWeeklyReset: this.getWeekStart(new Date()),
         };
 
-        this.lastFullSummary = null;
-        this.lastSnapshotSave = 0;
         this.portfolioEmitThrottle = 2000;
-        this.lightweightEmitThrottle = 500;
-        this.lastPortfolioEmit = 0;
         this.portfolioUpdateInterval = null;
         this.isActive = false;
         this.mode = "live";
+        this.lastSnapshotSave = 0;
+        this.tradeHistory = [];
 
-        logger.info("🚀 Live Trading Engine Initialized - REAL MONEY MODE.");
-
-        // Performance Metrics
+        // Performance Metrics Initialization
         this.performanceMetrics = this.getInitialMetrics();
-
-        // Asset Performance Init
         this.config.assets.forEach((asset) => {
             this.performanceMetrics.assetPerformance[asset] = {
                 trades: 0,
@@ -69,7 +63,7 @@ class LiveTradingEngine extends EventEmitter {
             };
         });
 
-        this.tradeHistory = [];
+        logger.info("🚀 Live Trading Engine Initialized - REAL MONEY MODE.");
     }
 
     getInitialMetrics() {
@@ -81,9 +75,6 @@ class LiveTradingEngine extends EventEmitter {
             avgWin: 0,
             avgLoss: 0,
             profitFactor: 0,
-            sharpeRatio: 0,
-            maxDrawdown: 0,
-            currentDrawdown: 0,
             signalPerformance: {
                 BUY_STRONG: { trades: 0, wins: 0, totalPnL: 0 },
                 BUY_MEDIUM: { trades: 0, wins: 0, totalPnL: 0 },
@@ -91,10 +82,10 @@ class LiveTradingEngine extends EventEmitter {
             },
             holdingPeriodStats: { avgHoldingTime: 0, holdingTimes: [] },
             exitReasonStats: {
-                TAKE_PROFIT: { count: 0, totalPnL: 0, avgPnL: 0 },
-                TRAILING_STOP: { count: 0, totalPnL: 0, avgPnL: 0 },
-                STOP_LOSS: { count: 0, totalPnL: 0, avgPnL: 0 },
-                SIGNAL_SELL: { count: 0, totalPnL: 0, avgPnL: 0 },
+                TAKE_PROFIT: { count: 0, totalPnL: 0 },
+                TRAILING_STOP: { count: 0, totalPnL: 0 },
+                STOP_LOSS: { count: 0, totalPnL: 0 },
+                SIGNAL_SELL: { count: 0, totalPnL: 0 },
             },
             assetPerformance: {},
             volatilityStats: { tradesBlocked: 0, avgVolatilityOnEntry: 0 },
@@ -107,95 +98,79 @@ class LiveTradingEngine extends EventEmitter {
         const sellTrades = allLiveTrades.filter((t) => t.side === "SELL");
         this.tradeHistory = allLiveTrades;
 
+        // Restore PnL State from Database History
         this.livePortfolioState.totalPnL = sellTrades.reduce(
             (sum, t) => sum + (t.pnl || 0),
             0
         );
 
         const todayString = new Date().toDateString();
-        const weekStart = this.getWeekStart(new Date());
+        const weekStart = new Date(this.getWeekStart(new Date()));
 
         this.livePortfolioState.dailyPnL = sellTrades
             .filter((t) => new Date(t.timestamp).toDateString() === todayString)
             .reduce((sum, t) => sum + (t.pnl || 0), 0);
 
         this.livePortfolioState.weeklyPnL = sellTrades
-            .filter((t) => new Date(t.timestamp) >= new Date(weekStart))
+            .filter((t) => new Date(t.timestamp) >= weekStart)
             .reduce((sum, t) => sum + (t.pnl || 0), 0);
 
         this.recalculateLivePerformanceMetrics();
         logger.success("✅ Live Trading Engine ready.");
     }
 
-    // --- SMART EXECUTION LOGIC ---
+    // ============================================================
+    // 🧠 SMART EXECUTION (Limit -> Wait -> Market)
+    // ============================================================
 
-    /**
-     * Attempts to fill an order via Limit first (Maker), falling back to Market (Taker)
-     * This saves fees and reduces slippage in calm markets.
-     */
     async executeSmartOrder(symbol, side, quantity, quoteOrderQty = null) {
         try {
-            // 1. Get Best Price
+            // 1. Get Current Order Book Price
             const book = await binanceClient.bookTickers(symbol);
-            if (!book || !book.bidPrice || !book.askPrice)
-                throw new Error("Could not fetch OrderBook");
+            if (!book) throw new Error("Failed to fetch order book");
 
             const price =
                 side === "BUY"
                     ? parseFloat(book.bidPrice)
                     : parseFloat(book.askPrice);
 
-            // 2. Place Limit Order
-            logger.info(
-                `[LIVE] ⏳ SmartExec: Placing LIMIT ${side} for ${symbol} @ ${price}...`
-            );
-
-            // Note: For Buys using quoteOrderQty (USDT amount), we must use Market usually.
-            // To use Limit, we must calculate quantity manually.
+            // Calculate specific quantity if only USDT amount (quoteOrderQty) was provided
             let limitQty = quantity;
             if (side === "BUY" && quoteOrderQty && !quantity) {
-                limitQty = (quoteOrderQty / price).toFixed(8); // Approx
-                // Re-validate min notional here if needed, but skipping for speed
+                limitQty = (quoteOrderQty / price).toFixed(8);
             }
 
-            // Params for 'buy' or 'sell' method
-            // flags: { type: 'LIMIT', timeInForce: 'GTC' } implied usually, but we want strict control
-            // node-binance-api signature: binance.buy(symbol, quantity, price, {type:'LIMIT'}, (error, response) => ...)
+            logger.info(
+                `[LIVE] ⏳ SmartExec: Placing LIMIT ${side} ${symbol} @ ${price}`
+            );
 
+            // 2. Place Limit Order
             let orderResult;
-
-            // We wrap the Limit Order placement in a Promise
-            const placeLimit = () =>
-                new Promise((resolve, reject) => {
-                    const callback = (error, response) => {
-                        if (error) reject(error);
-                        else resolve(response);
-                    };
-                    if (side === "BUY")
+            try {
+                orderResult = await new Promise((resolve, reject) => {
+                    const cb = (error, response) =>
+                        error ? reject(error) : resolve(response);
+                    if (side === "BUY") {
                         binanceClient.buy(
                             symbol,
                             limitQty,
                             price,
                             { type: "LIMIT" },
-                            callback
+                            cb
                         );
-                    else
+                    } else {
                         binanceClient.sell(
                             symbol,
                             limitQty,
                             price,
                             { type: "LIMIT" },
-                            callback
+                            cb
                         );
+                    }
                 });
-
-            try {
-                orderResult = await placeLimit();
             } catch (err) {
                 logger.warn(
-                    `[LIVE] Limit Order failed (${
-                        err.body || err.message
-                    }). Failing over to Market.`
+                    `[LIVE] Limit failed (${err.message}). Executing Market Fallback.`
                 );
                 return await this.executeMarketOrderFallback(
                     symbol,
@@ -207,54 +182,43 @@ class LiveTradingEngine extends EventEmitter {
 
             const orderId = orderResult.orderId;
 
-            // 3. Wait 10 Seconds
+            // 3. Wait 10 Seconds for Fill
             await new Promise((r) => setTimeout(r, 10000));
 
             // 4. Check Status
-            const statusParams = { symbol: symbol, orderId: orderId };
             const checkStatus = () =>
                 new Promise((resolve, reject) => {
                     binanceClient.orderStatus(
                         symbol,
                         orderId,
-                        (error, orderStatus, symbol) => {
-                            if (error) reject(error);
-                            else resolve(orderStatus);
-                        }
+                        (error, orderStatus) =>
+                            error ? reject(error) : resolve(orderStatus)
                     );
                 });
 
             const updatedOrder = await checkStatus();
 
             if (updatedOrder.status === "FILLED") {
-                logger.success(`[LIVE] ✅ LIMIT Order FILLED! Saved fees.`);
-                return updatedOrder; // Return structure matching standard response
+                logger.success(`[LIVE] ✅ LIMIT Order FILLED!`);
+                return updatedOrder;
             }
 
-            // 5. Cancel and Market
-            logger.info(
-                `[LIVE] ⏱️ Limit Order timed out (${updatedOrder.status}). Cancelling and moving to Market.`
-            );
-
+            // 5. Cancel and Market Fallback
+            logger.info(`[LIVE] ⏱️ Limit timed out. Cancelling...`);
             try {
                 await binanceClient.cancel(symbol, orderId);
             } catch (e) {
-                // If cancel fails, it might have filled in the last millisecond. Check one last time.
+                // If cancel fails, check if it filled in the split second before cancel
                 const finalCheck = await checkStatus();
                 if (finalCheck.status === "FILLED") return finalCheck;
-                throw e; // Real error
+                // Otherwise throw original cancel error
+                throw e;
             }
 
-            // 6. Execute Market Fallback
-            // Calculate remaining quantity if partially filled (advanced),
-            // for now assuming 0 fill on timeout for simplicity or re-submitting full amount if 0 executed.
-            const executedQty = parseFloat(updatedOrder.executedQty);
-
-            if (executedQty > 0) {
-                // Partial fill logic is complex.
-                // For this "Simple Bot", we treat partials as "Done" to avoid over-buying.
+            // Check for Partial Fills (Simplification: Treat partials as "Done" to avoid logic loops)
+            if (parseFloat(updatedOrder.executedQty) > 0) {
                 logger.warn(
-                    `[LIVE] Order Partially Filled (${executedQty}). treating as complete to avoid complications.`
+                    `[LIVE] Partial fill detected. Treating as complete.`
                 );
                 return updatedOrder;
             }
@@ -266,7 +230,7 @@ class LiveTradingEngine extends EventEmitter {
                 quoteOrderQty
             );
         } catch (error) {
-            logger.error(`[LIVE] SmartOrder Critical Fail:`, error);
+            logger.error(`[LIVE] SmartExec Failed:`, error);
             throw error;
         }
     }
@@ -274,204 +238,178 @@ class LiveTradingEngine extends EventEmitter {
     async executeMarketOrderFallback(symbol, side, quantity, quoteOrderQty) {
         logger.info(`[LIVE] 🚀 Executing MARKET ${side} Fallback...`);
         if (side === "BUY") {
-            // For buys, we prefer quoteOrderQty (USDT amount) to be precise
             if (quoteOrderQty) {
                 return await binanceClient.marketBuy(symbol, null, {
-                    quoteOrderQty: quoteOrderQty,
+                    quoteOrderQty,
                 });
-            } else {
-                return await binanceClient.marketBuy(symbol, quantity);
             }
-        } else {
-            return await binanceClient.marketSell(symbol, quantity);
+            return await binanceClient.marketBuy(symbol, quantity);
         }
+        return await binanceClient.marketSell(symbol, quantity);
     }
 
-    // --- END SMART EXECUTION ---
-
-    // --- EXISTING LOGIC (Refactored to use SmartOrder) ---
-
-    async start() {
-        this.isActive = true;
-        this.config.enableTrading = true;
-        logger.warn("🔴 LIVE TRADING ACTIVE. SMART EXECUTION ENABLED. 🔴");
-        this.emit("engineStarted");
-
-        if (this.portfolioUpdateInterval)
-            clearInterval(this.portfolioUpdateInterval);
-        this.portfolioUpdateInterval = setInterval(async () => {
-            if (!this.isActive) return;
-            try {
-                const summary = await this.getPortfolioSummary();
-                if (summary && !summary.error) {
-                    this.emit("portfolioUpdated", summary);
-                    this.riskService.checkRiskLimits(summary);
-
-                    const now = Date.now();
-                    if (now - this.lastSnapshotSave > 5 * 60 * 1000) {
-                        await this.portfolioRepo.saveLiveSnapshot(summary);
-                        this.lastSnapshotSave = now;
-                    }
-                }
-            } catch (error) {
-                logger.error("[LIVE] Portfolio update error:", error);
-            }
-        }, this.portfolioEmitThrottle);
-    }
-
-    stop() {
-        this.isActive = false;
-        this.config.enableTrading = false;
-        logger.info("📴 Live Trading Engine stopped.");
-        this.emit("engineStopped");
-        if (this.portfolioUpdateInterval)
-            clearInterval(this.portfolioUpdateInterval);
-    }
+    // ============================================================
+    // 🚦 CORE SIGNAL PROCESSING
+    // ============================================================
 
     async processSignal(signal, currentPrice, atrValue) {
         this.checkAndResetCounters();
 
-        // Confluence Check: If generator says HOLD, we HOLD.
-        // This prevents exiting simply because price dipped if trend (ADX) is still strong.
+        // 1. Filter Invalid Signals
         if (signal.signal === "HOLD" || signal.signal === "COOLDOWN") {
-            return {
-                success: true,
-                action: "HOLD",
-                reason: signal.message || "Signal Generator says HOLD",
-            };
+            return { success: true, action: "HOLD", reason: signal.message };
+        }
+        if (!this.isValidSignal(signal)) {
+            return { success: false, reason: "Signal Invalid" };
+        }
+        if (!this.isActive || !this.config.enableTrading) {
+            return { success: false, reason: "Trading Disabled" };
+        }
+        if (this.riskService.isHalted()) {
+            return { success: false, reason: "Risk Halt" };
         }
 
-        if (!this.isValidSignal(signal))
-            return { success: false, reason: "Signal Invalid" };
-
-        if (!this.isActive || !this.config.enableTrading)
-            return { success: false, reason: "Trading Disabled" };
-        if (this.riskService.isHalted())
-            return {
-                success: false,
-                reason: `Halted: ${this.riskService.getHaltReason()}`,
-            };
-
+        // 2. Fetch Account Data
         const accountInfo = await this.binanceData.getAccountInfo();
-        if (accountInfo.error)
-            return { success: false, reason: accountInfo.error.message };
+        if (accountInfo.error) {
+            return { success: false, reason: "Account Info Error" };
+        }
 
         const openTrades = await this.tradeRepo.getOpenLiveTrades();
-        const openTradeForSymbol = openTrades.find(
-            (t) => t.symbol === signal.symbol
-        );
+        const openTrade = openTrades.find((t) => t.symbol === signal.symbol);
 
-        const isBullish = signal.signal.includes("BUY");
-        const isBearish = signal.signal.includes("SELL");
-
-        if (isBullish && !openTradeForSymbol) {
+        // 3. Decision Logic
+        if (signal.signal.includes("BUY") && !openTrade) {
             return this.executeLiveBuy(
                 signal,
                 currentPrice,
                 atrValue,
                 accountInfo
             );
-        } else if (isBearish && openTradeForSymbol) {
+        } else if (signal.signal.includes("SELL") && openTrade) {
             const baseAsset = signal.symbol.replace("USDT", "");
-            const binancePosition = accountInfo.balances.find(
-                (b) => b.asset === baseAsset && b.total > 0
+            const bal = accountInfo.balances.find(
+                (b) => b.asset === baseAsset && parseFloat(b.free) > 0
             );
 
-            if (binancePosition) {
+            if (bal) {
                 return this.executeLiveSell(
                     signal,
                     currentPrice,
-                    binancePosition,
-                    openTradeForSymbol,
+                    bal,
+                    openTrade,
                     "SIGNAL_SELL"
                 );
             } else {
-                // Fix ghost trades
-                await this.tradeRepo.updateTrade(openTradeForSymbol.id, {
+                // Auto-fix Ghost Trades: DB says open, Wallet says 0
+                await this.tradeRepo.updateTrade(openTrade.id, {
                     isOpen: false,
-                    exitReason: "GHOST_TRADE_FIX",
+                    exitReason: "GHOST_FIX",
                 });
                 return {
                     success: false,
-                    reason: "Ghost trade fixed (DB says open, Wallet says 0)",
+                    reason: "Ghost Trade Fixed (0 Balance)",
                 };
             }
         }
+        return { success: true, action: "HOLD" };
+    }
 
-        return { success: true, action: "HOLD", reason: "No Action Required" };
+    // ============================================================
+    // 🛡️ ATOMIC EXECUTION (Prevents Ghost Trades)
+    // ============================================================
+
+    /**
+     * Helper to get precise wallet balance for verification
+     */
+    async getAssetBalance(symbol) {
+        const base = symbol.replace("USDT", "");
+        const info = await this.binanceData.getAccountInfo();
+        const bal = info.balances?.find((b) => b.asset === base);
+        return bal ? parseFloat(bal.free) : 0;
     }
 
     async executeLiveBuy(signal, currentPrice, atrValue, accountInfo) {
-        const usdtBalance =
+        // Calculate Sizing
+        const usdt =
             accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0;
-        const posDetails = this.calculateLivePositionDetails(
+        const details = this.calculateLivePositionDetails(
             signal.symbol,
             currentPrice,
             atrValue,
-            usdtBalance
+            usdt
         );
+        if (details.error) return { success: false, reason: details.error };
 
-        if (posDetails.error)
-            return { success: false, reason: posDetails.error };
-
-        // Validation
-        const validation = this.binanceData.validateOrderParams(
-            signal.symbol,
-            posDetails.quantity,
-            currentPrice
-        );
-        if (!validation.valid)
-            return {
-                success: false,
-                reason: `Validation: ${validation.errors.join(", ")}`,
-            };
+        // 1. Snapshot Balance BEFORE
+        const preBalance = await this.getAssetBalance(signal.symbol);
 
         try {
-            // USE SMART EXECUTION
+            // 2. Execute
             const orderResult = await this.executeSmartOrder(
                 signal.symbol,
                 "BUY",
                 null,
-                posDetails.usdtCost
+                details.usdtCost
             );
 
-            if (orderResult && orderResult.status === "FILLED") {
-                const { totalFeeUsdt, avgPrice } = await this._parseOrderFills(
-                    orderResult.fills
+            // 3. Verify Status
+            if (!orderResult || orderResult.status !== "FILLED") {
+                throw new Error(
+                    `Order Status: ${orderResult?.status || "Unknown"}`
                 );
-                const trueCost =
-                    parseFloat(orderResult.cummulativeQuoteQty) + totalFeeUsdt;
-
-                const trade = {
-                    id: orderResult.orderId.toString(),
-                    symbol: signal.symbol,
-                    side: "BUY",
-                    quantity: parseFloat(orderResult.executedQty),
-                    price: avgPrice,
-                    usdtCost: parseFloat(orderResult.cummulativeQuoteQty),
-                    feeUsdtValue: totalFeeUsdt,
-                    timestamp: orderResult.transactTime,
-                    signal: signal.signal,
-                    signalStrength: signal.strength, // Now storing ADX
-                    mode: "live",
-                    atr: atrValue,
-                    isOpen: true,
-                    entryCost: trueCost,
-                    entryPrice: avgPrice,
-                    stopLoss: posDetails.stopLoss,
-                    takeProfitPrice: posDetails.takeProfit,
-                    trailingStopPrice: this.config.enableTrailingStops
-                        ? posDetails.stopLoss
-                        : null,
-                    highestPrice: avgPrice,
-                    trailingStopPercent: this.config.trailingStopPercent,
-                };
-
-                await this.tradeRepo.save(trade);
-                this.emit("tradeExecuted", trade);
-                return { success: true, action: "BUY", trade };
             }
-            throw new Error(`Order not filled: ${orderResult.status}`);
+
+            // 4. Snapshot Balance AFTER
+            const postBalance = await this.getAssetBalance(signal.symbol);
+            const delta = postBalance - preBalance;
+
+            // 5. CRITICAL: Ghost Trade Prevention
+            // If we didn't gain at least 10% of expected quantity, it's a Ghost Trade.
+            const expectedMin = parseFloat(orderResult.executedQty) * 0.1;
+            if (delta < expectedMin) {
+                logger.error(
+                    `[LIVE] 👻 GHOST TRADE BLOCKED! Binance said FILLED, but balance didn't change. Pre: ${preBalance}, Post: ${postBalance}`
+                );
+                return {
+                    success: false,
+                    reason: "Ghost Trade Detected - Balance Unchanged",
+                };
+            }
+
+            // 6. Save Valid Trade
+            const { totalFeeUsdt, avgPrice } = await this._parseOrderFills(
+                orderResult.fills
+            );
+            const trade = {
+                id: orderResult.orderId.toString(),
+                symbol: signal.symbol,
+                side: "BUY",
+                quantity: parseFloat(orderResult.executedQty),
+                price: avgPrice,
+                usdtCost: parseFloat(orderResult.cummulativeQuoteQty),
+                feeUsdtValue: totalFeeUsdt,
+                timestamp: orderResult.transactTime,
+                signal: signal.signal,
+                signalStrength: signal.strength,
+                mode: "live",
+                atr: atrValue,
+                isOpen: true,
+                entryCost:
+                    parseFloat(orderResult.cummulativeQuoteQty) + totalFeeUsdt,
+                entryPrice: avgPrice,
+                stopLoss: details.stopLoss,
+                takeProfitPrice: details.takeProfit,
+                trailingStopPrice: this.config.enableTrailingStops
+                    ? details.stopLoss
+                    : null,
+                highestPrice: avgPrice,
+                trailingStopPercent: this.config.trailingStopPercent,
+            };
+
+            await this.tradeRepo.save(trade);
+            this.emit("tradeExecuted", trade);
+            return { success: true, action: "BUY", trade };
         } catch (error) {
             logger.error(`[LIVE] Buy Failed:`, error);
             return { success: false, reason: error.message };
@@ -490,11 +428,11 @@ class LiveTradingEngine extends EventEmitter {
             0.000001;
         const quantityToSell = this.formatQuantity(position.free, stepSize);
 
-        if (quantityToSell <= 0)
-            return { success: false, reason: "Zero Quantity" };
+        // 1. Snapshot Balance BEFORE
+        const preBalance = await this.getAssetBalance(signal.symbol);
 
         try {
-            // USE SMART EXECUTION
+            // 2. Execute
             const orderResult = await this.executeSmartOrder(
                 signal.symbol,
                 "SELL",
@@ -502,83 +440,89 @@ class LiveTradingEngine extends EventEmitter {
                 null
             );
 
-            if (orderResult && orderResult.status === "FILLED") {
-                const { totalFeeUsdt, avgPrice } = await this._parseOrderFills(
-                    orderResult.fills
+            if (!orderResult || orderResult.status !== "FILLED") {
+                throw new Error(
+                    `Order Status: ${orderResult?.status || "Unknown"}`
                 );
-
-                const entryCost = entryTrade.entryCost || entryTrade.usdtCost;
-                const pnl =
-                    parseFloat(orderResult.cummulativeQuoteQty) -
-                    entryCost -
-                    totalFeeUsdt;
-                const pnlPercent = (pnl / entryCost) * 100;
-
-                this.livePortfolioState.totalPnL += pnl;
-                this.livePortfolioState.dailyPnL += pnl;
-                this.livePortfolioState.weeklyPnL += pnl;
-
-                const trade = {
-                    id: orderResult.orderId.toString(),
-                    symbol: signal.symbol,
-                    side: "SELL",
-                    quantity: parseFloat(orderResult.executedQty),
-                    price: avgPrice,
-                    usdtReceived: parseFloat(orderResult.cummulativeQuoteQty),
-                    feeUsdtValue: totalFeeUsdt,
-                    pnl,
-                    pnlPercent,
-                    holdingPeriod:
-                        orderResult.transactTime -
-                        new Date(entryTrade.timestamp).getTime(),
-                    entryCost,
-                    exitReason,
-                    signal: signal.signal,
-                    mode: "live",
-                    timestamp: orderResult.transactTime,
-                };
-
-                await this.tradeRepo.save(trade);
-                await this.tradeRepo.updateTrade(entryTrade.id, {
-                    isOpen: false,
-                });
-                this.emit("tradeExecuted", trade);
-                this.updateLivePerformanceMetrics(trade);
-
-                return { success: true, action: "SELL", trade };
             }
-            throw new Error(`Order not filled: ${orderResult.status}`);
+
+            // 3. Snapshot Balance AFTER
+            const postBalance = await this.getAssetBalance(signal.symbol);
+
+            // 4. Verify Sale (Balance should decrease)
+            if (postBalance >= preBalance) {
+                logger.error(
+                    `[LIVE] 👻 GHOST SELL BLOCKED! Balance did not decrease.`
+                );
+                return { success: false, reason: "Ghost Sell Detected" };
+            }
+
+            // 5. Save Valid Trade
+            const { totalFeeUsdt, avgPrice } = await this._parseOrderFills(
+                orderResult.fills
+            );
+            const entryCost = entryTrade.entryCost || entryTrade.usdtCost;
+            const pnl =
+                parseFloat(orderResult.cummulativeQuoteQty) -
+                entryCost -
+                totalFeeUsdt;
+
+            this.livePortfolioState.totalPnL += pnl;
+            this.livePortfolioState.dailyPnL += pnl;
+            this.livePortfolioState.weeklyPnL += pnl;
+
+            const trade = {
+                id: orderResult.orderId.toString(),
+                symbol: signal.symbol,
+                side: "SELL",
+                quantity: parseFloat(orderResult.executedQty),
+                price: avgPrice,
+                usdtReceived: parseFloat(orderResult.cummulativeQuoteQty),
+                feeUsdtValue: totalFeeUsdt,
+                pnl,
+                pnlPercent: (pnl / entryCost) * 100,
+                holdingPeriod:
+                    orderResult.transactTime -
+                    new Date(entryTrade.timestamp).getTime(),
+                entryCost,
+                exitReason,
+                signal: signal.signal,
+                mode: "live",
+                timestamp: orderResult.transactTime,
+            };
+
+            await this.tradeRepo.save(trade);
+            await this.tradeRepo.updateTrade(entryTrade.id, { isOpen: false });
+            this.emit("tradeExecuted", trade);
+            this.updateLivePerformanceMetrics(trade);
+
+            return { success: true, action: "SELL", trade };
         } catch (error) {
             logger.error(`[LIVE] Sell Failed:`, error);
             return { success: false, reason: error.message };
         }
     }
 
-    // --- HELPERS ---
+    // ============================================================
+    // 🛠️ HELPERS & UTILITIES
+    // ============================================================
 
     async _parseOrderFills(fills) {
         if (!fills || !fills.length) return { totalFeeUsdt: 0, avgPrice: 0 };
         let totalFeeUsdt = 0,
             totalQty = 0,
             totalQuote = 0;
-
         for (const fill of fills) {
-            const p = parseFloat(fill.price);
-            const q = parseFloat(fill.qty);
-            const comm = parseFloat(fill.commission);
-
+            const p = parseFloat(fill.price),
+                q = parseFloat(fill.qty),
+                comm = parseFloat(fill.commission);
             totalQty += q;
             totalQuote += p * q;
-
-            if (fill.commissionAsset === "USDT") {
-                totalFeeUsdt += comm;
-            } else if (fill.commissionAsset === "BNB") {
+            if (fill.commissionAsset === "USDT") totalFeeUsdt += comm;
+            else if (fill.commissionAsset === "BNB") {
                 const bnbData = this.binanceData.getCurrentPrice("BNBUSDT");
-                const bnbPrice = bnbData ? bnbData.price : 250; // Fallback
-                totalFeeUsdt += comm * bnbPrice;
-            } else {
-                totalFeeUsdt += comm * p; // Asset fee
-            }
+                totalFeeUsdt += comm * (bnbData ? bnbData.price : 250);
+            } else totalFeeUsdt += comm * p;
         }
         return { totalFeeUsdt, avgPrice: totalQty ? totalQuote / totalQty : 0 };
     }
@@ -587,22 +531,20 @@ class LiveTradingEngine extends EventEmitter {
         const alloc = this.config.allocation[symbol] || 0.1;
         const maxAlloc = this.config.maxCapitalAtRisk * alloc;
         const riskAmt = this.config.maxCapitalAtRisk * this.config.riskPerTrade;
-
         const stopLoss = atrValue
             ? currentPrice - atrValue * this.config.stopLossATR
             : currentPrice * 0.98;
-        const riskPerUnit = currentPrice - stopLoss;
 
-        if (riskPerUnit <= 0) return { error: "Invalid Stop Loss" };
+        if (currentPrice - stopLoss <= 0) return { error: "Invalid Stop Loss" };
 
         let finalUSDT = Math.min(
-            (riskAmt / riskPerUnit) * currentPrice,
+            (riskAmt / (currentPrice - stopLoss)) * currentPrice,
             maxAlloc,
             usdtBalance * 0.95
         );
-
         const minNotional =
             this.binanceData.symbolInfo.get(symbol)?.minNotional || 10;
+
         if (finalUSDT < minNotional)
             return { error: `Below Min Notional ${minNotional}` };
 
@@ -630,110 +572,83 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     isValidSignal(signal) {
-        if (!signal || !signal.symbol || !signal.signal) return false;
         if (
-            [
-                "ERROR",
-                "INSUFFICIENT_DATA",
-                "COOLDOWN",
-                "WEAK_SIGNAL",
-                "LOW_VOLATILITY",
-            ].includes(signal.signal)
+            !signal ||
+            !signal.signal ||
+            ["ERROR", "COOLDOWN", "WEAK_SIGNAL", "LOW_VOLATILITY"].includes(
+                signal.signal
+            )
         )
             return false;
-
-        // ADX Check (Strength)
-        if (signal.strength < this.config.minSignalStrength) {
-            logger.debug(
-                `[LIVE] Weak Signal (ADX ${signal.strength.toFixed(1)})`
-            );
-            return false;
-        }
+        if (signal.strength < this.config.minSignalStrength) return false;
         return true;
     }
-
-    // --- METRICS & STATE ---
 
     updateLivePerformanceMetrics(trade) {
         if (trade.side !== "SELL") return;
         this.performanceMetrics.totalTrades++;
-        const isWin = trade.pnl > 0;
-
-        if (isWin) {
-            this.performanceMetrics.winningTrades++;
-            this.performanceMetrics.avgWin =
-                (this.performanceMetrics.avgWin *
-                    (this.performanceMetrics.winningTrades - 1) +
-                    trade.pnl) /
-                this.performanceMetrics.winningTrades;
-        } else {
-            this.performanceMetrics.losingTrades++;
-            this.performanceMetrics.avgLoss =
-                (this.performanceMetrics.avgLoss *
-                    (this.performanceMetrics.losingTrades - 1) +
-                    Math.abs(trade.pnl)) /
-                this.performanceMetrics.losingTrades;
-        }
-
-        // Recalculate Win Rate & Profit Factor
-        this.performanceMetrics.winRate =
-            (this.performanceMetrics.winningTrades /
-                this.performanceMetrics.totalTrades) *
-            100;
-        const grossProfit =
-            this.performanceMetrics.avgWin *
-            this.performanceMetrics.winningTrades;
-        const grossLoss =
-            this.performanceMetrics.avgLoss *
-            this.performanceMetrics.losingTrades;
-        this.performanceMetrics.profitFactor =
-            grossLoss > 0 ? grossProfit / grossLoss : 0;
+        trade.pnl > 0
+            ? this.performanceMetrics.winningTrades++
+            : this.performanceMetrics.losingTrades++;
+        const m = this.performanceMetrics;
+        if (trade.pnl > 0)
+            m.avgWin =
+                (m.avgWin * (m.winningTrades - 1) + trade.pnl) /
+                m.winningTrades;
+        else
+            m.avgLoss =
+                (m.avgLoss * (m.losingTrades - 1) + Math.abs(trade.pnl)) /
+                m.losingTrades;
+        m.winRate = (m.winningTrades / m.totalTrades) * 100;
+        m.profitFactor =
+            m.avgLoss * m.losingTrades > 0
+                ? (m.avgWin * m.winningTrades) / (m.avgLoss * m.losingTrades)
+                : 0;
     }
 
     recalculateLivePerformanceMetrics() {
         this.performanceMetrics = this.getInitialMetrics();
-        const sellTrades = this.tradeHistory.filter((t) => t.side === "SELL");
-        sellTrades.forEach((t) => this.updateLivePerformanceMetrics(t));
+        this.tradeHistory
+            .filter((t) => t.side === "SELL")
+            .forEach((t) => this.updateLivePerformanceMetrics(t));
     }
 
     checkAndResetCounters() {
         const today = new Date().toDateString();
-        const currentWeek = this.getWeekStart(new Date());
+        const week = this.getWeekStart(new Date());
         if (this.livePortfolioState.lastResetDate !== today) {
             this.livePortfolioState.lastResetDate = today;
             this.livePortfolioState.dailyPnL = 0;
             this.riskService.resetDailyLimit(today);
         }
-        if (this.livePortfolioState.lastWeeklyReset !== currentWeek) {
-            this.livePortfolioState.lastWeeklyReset = currentWeek;
+        if (this.livePortfolioState.lastWeeklyReset !== week) {
+            this.livePortfolioState.lastWeeklyReset = week;
             this.livePortfolioState.weeklyPnL = 0;
-            this.riskService.resetWeeklyLimit(currentWeek);
+            this.riskService.resetWeeklyLimit(week);
         }
     }
 
-    getWeekStart(date) {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day;
+    getWeekStart(d) {
+        d = new Date(d);
+        const diff = d.getDate() - d.getDay();
         return new Date(d.setDate(diff)).toDateString();
     }
 
+    // ============================================================
+    // 📊 PORTFOLIO MANAGEMENT
+    // ============================================================
+
     async updatePortfolioValue(priceData) {
-        // Similar to Paper Engine but optimized for Live
-        // This updates trailing stops in memory and DB
         this.checkAndResetCounters();
         const openTrades = await this.tradeRepo.getOpenLiveTrades();
         if (!openTrades.length) return;
 
         const positionsToClose = [];
-
         for (const trade of openTrades) {
             const currentPrice = priceData[trade.symbol]?.price;
             if (!currentPrice) continue;
 
             let exitReason = null;
-
-            // Checks
             if (trade.takeProfitPrice && currentPrice >= trade.takeProfitPrice)
                 exitReason = "TAKE_PROFIT";
             else if (
@@ -745,29 +660,25 @@ class LiveTradingEngine extends EventEmitter {
             else if (trade.stopLoss && currentPrice <= trade.stopLoss)
                 exitReason = "STOP_LOSS";
 
-            if (exitReason) {
+            if (exitReason)
                 positionsToClose.push({ trade, currentPrice, exitReason });
-            } else if (
+            else if (
                 this.config.enableTrailingStops &&
-                trade.trailingStopPrice
+                trade.trailingStopPrice &&
+                currentPrice > trade.highestPrice
             ) {
-                // Trailing Logic
-                if (currentPrice > trade.highestPrice) {
-                    const newStop =
-                        currentPrice * (1 - trade.trailingStopPercent);
-                    if (newStop > trade.trailingStopPrice) {
-                        await this.tradeRepo.updateTrade(trade.id, {
-                            highestPrice: currentPrice,
-                            trailingStopPrice: newStop,
-                        });
-                        trade.highestPrice = currentPrice; // Local update
-                        trade.trailingStopPrice = newStop;
-                    }
+                const newStop = currentPrice * (1 - trade.trailingStopPercent);
+                if (newStop > trade.trailingStopPrice) {
+                    await this.tradeRepo.updateTrade(trade.id, {
+                        highestPrice: currentPrice,
+                        trailingStopPrice: newStop,
+                    });
+                    trade.highestPrice = currentPrice;
+                    trade.trailingStopPrice = newStop;
                 }
             }
         }
 
-        // Execute Exits
         if (positionsToClose.length > 0) {
             const accountInfo = await this.binanceData.getAccountInfo();
             if (!accountInfo.error) {
@@ -798,8 +709,9 @@ class LiveTradingEngine extends EventEmitter {
         const accountInfo = await this.binanceData.getAccountInfo();
         if (accountInfo.error) return { error: accountInfo.error.message };
 
-        const usdt =
-            accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0;
+        const usdt = parseFloat(
+            accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0
+        );
         const prices = this.binanceData.getAllPrices();
         const openTrades = await this.tradeRepo.getOpenLiveTrades();
 
@@ -817,16 +729,52 @@ class LiveTradingEngine extends EventEmitter {
         });
 
         const cryptoVal = positions.reduce((acc, p) => acc + p.currentValue, 0);
-
         return {
             mode: "live",
-            totalValue: parseFloat(usdt) + cryptoVal,
-            usdtBalance: parseFloat(usdt),
+            totalValue: usdt + cryptoVal,
+            usdtBalance: usdt,
             cryptoValue: cryptoVal,
             positions,
             ...this.livePortfolioState,
             performance: this.performanceMetrics,
         };
+    }
+
+    // ============================================================
+    // 🕹️ CONTROL METHODS
+    // ============================================================
+
+    start() {
+        this.isActive = true;
+        this.config.enableTrading = true;
+        logger.warn("🔴 LIVE TRADING ACTIVE.");
+        this.emit("engineStarted");
+        if (this.portfolioUpdateInterval)
+            clearInterval(this.portfolioUpdateInterval);
+        this.portfolioUpdateInterval = setInterval(async () => {
+            if (!this.isActive) return;
+            try {
+                const summary = await this.getPortfolioSummary();
+                if (summary && !summary.error) {
+                    this.emit("portfolioUpdated", summary);
+                    this.riskService.checkRiskLimits(summary);
+                    if (Date.now() - this.lastSnapshotSave > 5 * 60000) {
+                        await this.portfolioRepo.saveLiveSnapshot(summary);
+                        this.lastSnapshotSave = Date.now();
+                    }
+                }
+            } catch (e) {
+                logger.error("[LIVE] Portfolio update error:", e);
+            }
+        }, this.portfolioEmitThrottle);
+    }
+
+    stop() {
+        this.isActive = false;
+        this.config.enableTrading = false;
+        this.emit("engineStopped");
+        if (this.portfolioUpdateInterval)
+            clearInterval(this.portfolioUpdateInterval);
     }
 
     updateConfig(cfg) {
