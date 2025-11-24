@@ -1,4 +1,4 @@
-// frontend/src/components/AnalyticsDashboard.jsx - REFACTORED FOR V2 ENGINE
+// frontend/src/components/AnalyticsDashboard.jsx - FIXED MISSING IMPORT
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Grid, Paper, Typography, Box, Card, CardContent, CircularProgress, Alert,
@@ -9,7 +9,7 @@ import {
 } from '@mui/x-charts';
 import {
   TrendingUp, TrendingDown, ShowChart, Insights, QueryStats,
-  FilterAlt, Speed, Block, CheckCircle
+  FilterAlt, Speed, Block, CheckCircle, MonetizationOn // <--- ADDED THIS
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
@@ -277,7 +277,7 @@ const AnalyticsDashboard = () => {
                 </Box>
             </Box>
             <Alert severity="info" variant="outlined">
-                Target: Winners should have higher ADX (>25) than losers.
+                Target: Winners should have higher ADX ({'>'}25) than losers.
             </Alert>
           </Paper>
         </Grid>
