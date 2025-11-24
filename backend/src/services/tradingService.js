@@ -1,14 +1,18 @@
-// backend/src/services/tradingService.js - FIXED VERSION
+// backend/src/services/tradingService.js - WITH PERSISTENCE
 const EventEmitter = require("events");
+const fs = require("fs").promises; // Use Promise API for async file ops
+const path = require("path");
 const BinanceDataService = require("./binanceDataService");
 const SignalGenerator = require("./signalGenerator");
 const RiskManagementService = require("./riskManagementService");
 const PaperTradingEngine = require("./paperTradingEngine");
-const LiveTradingEngine = require("./LiveTradingEngine"); // FIX: Case-sensitive path
+const LiveTradingEngine = require("./LiveTradingEngine");
 const TradeRepository = require("../repositories/tradeRepository");
 const AnalyticsService = require("./analyticsService");
 const SignalRepository = require("../repositories/signalRepository");
 const logger = require("../utils/logger");
+
+const CONFIG_FILE = path.join(__dirname, "../../data/trading_config.json");
 
 class TradingService extends EventEmitter {
     constructor(io) {
@@ -19,45 +23,53 @@ class TradingService extends EventEmitter {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
 
-        // Default configuration
-        this.config = {
+        // 1. Hardcoded Defaults (The "Factory Settings")
+        this.defaultConfig = {
             strategy: "balanced",
             timeframe: "1h",
-            tradingMode: "paper", // 'paper' or 'live'
-            enableTrading: false,
+            tradingMode: "paper",
+            enableTrading: false, // Default to OFF for safety on fresh install
             assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT", "TRUMPUSDT"],
             timeframes: ["1h", "4h", "1d"],
-            maxCapitalAtRisk: 5000,
+            maxCapitalAtRisk: 120, // Updated to your new default
             riskPerTrade: 0.01,
             maxDailyLoss: 0.02,
             maxWeeklyLoss: 0.05,
             allocation: {
-                BTCUSDT: 0.3,
+                BTCUSDT: 0.4,
                 ETHUSDT: 0.3,
-                BNBUSDT: 0.15,
-                DOGEUSDT: 0.1,
-                TRUMPUSDT: 0.15,
+                BNBUSDT: 0.3,
+                DOGEUSDT: 0.0,
+                TRUMPUSDT: 0.0,
             },
-            // --- NEW: Advanced Filter Config Defaults ---
+            // Advanced Filters
             enableAdxFilter: true,
             minAdx: 25,
             enableRsiFilter: true,
             rsiOverbought: 70,
             rsiOversold: 30,
+
+            // S3 Config
+            enableS3Analytics: process.env.ENABLE_S3_ANALYTICS === "true",
+            enableS3SignalLogging:
+                process.env.ENABLE_S3_SIGNAL_LOGGING === "true",
         };
 
-        this.config.enableS3Analytics =
-            process.env.ENABLE_S3_ANALYTICS === "true";
-        this.config.enableS3SignalLogging =
-            process.env.ENABLE_S3_SIGNAL_LOGGING === "true";
+        // Initialize config with defaults temporarily
+        this.config = { ...this.defaultConfig };
 
         this.activeEngine = null;
-        logger.info("🎯 TradingService initialized with clean architecture");
+        logger.info("🎯 TradingService initialized.");
     }
 
     async initialize() {
         try {
             logger.info("🚀 Initializing Trading Service...");
+
+            // 2. LOAD PERSISTED CONFIG (The "User Settings")
+            await this.loadConfig();
+
+            // Ensure log level is set correctly
             this.config.logLevel = logger.getLogLevelName();
 
             // Initialize core services
@@ -66,24 +78,9 @@ class TradingService extends EventEmitter {
             this.signalGenerator = new SignalGenerator(this.config);
 
             // ** THE ENGINE SWITCH **
-            if (this.config.tradingMode === "live") {
-                logger.warn(
-                    "🚨 TRADING MODE IS SET TO 'LIVE'. INITIALIZING LIVE ENGINE. 🚨"
-                );
-                this.activeEngine = new LiveTradingEngine(
-                    this.config,
-                    this.binanceData,
-                    this.riskService
-                );
-            } else {
-                logger.info(
-                    "Trading mode is 'paper'. Initializing paper trading engine."
-                );
-                this.activeEngine = new PaperTradingEngine(
-                    this.config,
-                    this.riskService
-                );
-            }
+            this.activeEngine = this.createTradingEngine(
+                this.config.tradingMode
+            );
 
             this.riskService.initialize(this.config);
             this.binanceData.initialize();
@@ -98,7 +95,18 @@ class TradingService extends EventEmitter {
 
             this.setupServiceEvents();
             this.isActive = true;
-            this.activeEngine.start();
+
+            // Start the engine if trading was enabled in the saved config
+            if (this.config.enableTrading) {
+                logger.warn(
+                    `▶️ Auto-starting trading in ${this.config.tradingMode} mode based on saved config.`
+                );
+                this.activeEngine.start();
+            } else {
+                logger.info(
+                    "⏸️ Trading engine ready but paused (waiting for start command)."
+                );
+            }
 
             logger.success("✅ Trading Service initialized successfully");
         } catch (error) {
@@ -106,6 +114,45 @@ class TradingService extends EventEmitter {
             throw error;
         }
     }
+
+    // --- PERSISTENCE METHODS ---
+
+    async loadConfig() {
+        try {
+            const data = await fs.readFile(CONFIG_FILE, "utf8");
+            const savedConfig = JSON.parse(data);
+
+            // Merge: Defaults < Saved.
+            // This ensures new fields added to defaults in code updates still appear,
+            // but don't overwrite user's saved preferences.
+            this.config = {
+                ...this.defaultConfig,
+                ...savedConfig,
+            };
+            logger.success("💾 Loaded persistent configuration from disk.");
+        } catch (error) {
+            if (error.code === "ENOENT") {
+                logger.info("📄 No config file found. Using defaults.");
+            } else {
+                logger.error("⚠️ Failed to load config file:", error);
+            }
+        }
+    }
+
+    async saveConfig() {
+        try {
+            // Save the current config to disk
+            await fs.writeFile(
+                CONFIG_FILE,
+                JSON.stringify(this.config, null, 2)
+            );
+            logger.debug("💾 Configuration saved to disk.");
+        } catch (error) {
+            logger.error("❌ Failed to save configuration persistence:", error);
+        }
+    }
+
+    // ---------------------------
 
     async waitForServices() {
         return new Promise((resolve, reject) => {
@@ -140,7 +187,6 @@ class TradingService extends EventEmitter {
 
         this.activeEngine.on("tradeExecuted", async (trade) => {
             try {
-                // Engine saves to DB, we just emit
                 this.emit("tradeExecuted", trade);
                 this.io.emit("tradeExecuted", trade);
             } catch (error) {
@@ -187,9 +233,8 @@ class TradingService extends EventEmitter {
                     const result = await this.activeEngine.processSignal(
                         signal,
                         priceData.price,
-                        signal.atr // passed from SignalGenerator
+                        signal.atr
                     );
-
                     if (result.success) {
                         logger.info(
                             `🎯 Action: ${result.action || "NONE"} (${
@@ -273,14 +318,17 @@ class TradingService extends EventEmitter {
             logger.setLogLevel(newConfig.logLevel);
         }
 
+        // Update memory config
         this.config = { ...this.config, ...newConfig };
 
+        // Propagate to sub-services
         if (this.signalGenerator)
             this.signalGenerator.updateConfig(this.config);
         if (this.riskService) this.riskService.updateConfig(this.config);
         if (this.analyticsService)
             this.analyticsService.updateConfig(this.config);
 
+        // Handle Engine Switching
         if (
             this.activeEngine &&
             this.activeEngine.mode !== newConfig.tradingMode
@@ -291,12 +339,17 @@ class TradingService extends EventEmitter {
             await this.activeEngine.stop();
             this.activeEngine = this.createTradingEngine(newConfig.tradingMode);
             await this.activeEngine.initialize();
-            this.activeEngine.start();
+            if (this.config.enableTrading) {
+                this.activeEngine.start();
+            }
         } else if (this.activeEngine) {
             this.activeEngine.updateConfig(this.config);
         }
 
-        logger.info("⚙️ Config updated");
+        // 3. SAVE TO DISK
+        await this.saveConfig();
+
+        logger.info("⚙️ Config updated & saved");
         this.emit("configUpdated", this.config);
         this.io.emit("systemStatus", this.getStatus());
     }
@@ -313,6 +366,7 @@ class TradingService extends EventEmitter {
 
     async startTrading() {
         this.config.enableTrading = true;
+        await this.saveConfig(); // Persist state
         if (this.activeEngine) await this.activeEngine.start();
         this.emit("tradingStarted");
         this.io.emit("tradingStarted");
@@ -320,6 +374,7 @@ class TradingService extends EventEmitter {
 
     async stopTrading() {
         this.config.enableTrading = false;
+        await this.saveConfig(); // Persist state
         if (this.activeEngine) await this.activeEngine.stop();
         this.emit("tradingStopped");
         this.io.emit("tradingStopped");
