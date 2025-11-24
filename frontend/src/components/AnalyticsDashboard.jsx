@@ -1,47 +1,32 @@
-import React, { useState, useEffect } from 'react';
+// frontend/src/components/AnalyticsDashboard.jsx - REFACTORED FOR V2 ENGINE
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Grid,
-  Paper,
-  Typography,
-  Box,
-  Card,
-  CardContent,
-  CircularProgress,
-  Alert,
-  ToggleButtonGroup,
-  ToggleButton,
-  Divider,
-  Tooltip,
-  useTheme,
+  Grid, Paper, Typography, Box, Card, CardContent, CircularProgress, Alert,
+  ToggleButtonGroup, ToggleButton, Divider, useTheme, Chip, Stack
 } from '@mui/material';
 import {
-  BarChart,
-  pieArcLabelClasses,
-  PieChart as MuiPieChart, // Renamed to avoid conflict
-  LineChart
+  BarChart, PieChart, LineChart, ScatterChart
 } from '@mui/x-charts';
 import {
-  TrendingUp,
-  TrendingDown,
-  ShowChart,
-  Insights,
-  QueryStats
-} from '@mui/icons-material'; 
+  TrendingUp, TrendingDown, ShowChart, Insights, QueryStats,
+  FilterAlt, Speed, Block, CheckCircle
+} from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
+// --- Reusable Metric Card ---
 const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) => (
   <Card variant="outlined" sx={{ height: '100%' }}>
     <CardContent>
-      <Box display="flex" alignItems="center" mb={1}>
-        {icon}
-        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+      <Box display="flex" alignItems="center" mb={1} gap={1}>
+        <Box sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>{icon}</Box>
+        <Typography variant="body2" color="text.secondary" fontWeight="medium">
           {title}
         </Typography>
       </Box>
-      <Typography variant="h5" fontWeight="bold" color={color}>
+      <Typography variant="h4" fontWeight="bold" color={color} sx={{ my: 1 }}>
         {value}
       </Typography>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
         {subtitle}
       </Typography>
     </CardContent>
@@ -49,328 +34,310 @@ const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) =>
 );
 
 const AnalyticsDashboard = () => {
-  const [analytics, setAnalytics] = useState(null);
-  const [trades, setTrades] = useState([]);
+  const [period, setPeriod] = useState('30d'); // Default to 30d for better data density
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [period, setPeriod] = useState('7d');
   const theme = useTheme();
 
+  // --- Data Fetching & Processing ---
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        setError(null);
-        // Fetch all data in parallel
-        const [analyticsData, tradesResponse] = await Promise.all([
+        // Fetch Report (Summary) AND Raw Data (Trades/Signals) to compute advanced charts
+        const [report, trades, signals] = await Promise.all([
           tradingAPI.getAnalytics(period),
-          tradingAPI.getTrades({ limit: 1000 }) // Fetch enough for P&L chart
+          tradingAPI.getTrades({ limit: 500 }), // Fetch last 500 trades
+          tradingAPI.getSignals({ limit: 1000 }) // Fetch last 1000 signals
         ]);
-        setAnalytics(analyticsData);
-        // The API returns an object with a 'trades' array, so we extract it.
-        setTrades(tradesResponse || []);
+
+        setData({ report, trades, signals });
       } catch (err) {
-        setError(`Failed to load analytics: ${err.message}`);
+        console.error("Analytics Load Error:", err);
+        setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-
-    fetchAnalytics();
+    loadData();
   }, [period]);
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" sx={{ height: '80vh' }}>
-        <CircularProgress />
-        <Typography sx={{ ml: 2 }}>Loading Analytics...</Typography>
-      </Box>
-    );
-  }
+  // --- Metrics Calculation Engine ---
+  const metrics = useMemo(() => {
+    if (!data) return null;
+    const { report, trades, signals } = data;
 
-  if (error) {
-    return <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>;
-  }
+    // 1. Overview Metrics (From Backend Report)
+    const tradingStats = report.summary?.trading || {};
+    const efficiency = report.summary?.efficiency || {};
+    
+    // 2. P&L Curve (Computed from Trades)
+    // Sort trades chronologically
+    const sortedTrades = [...trades]
+        .filter(t => t.side === 'SELL')
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    let runningPnL = 0;
+    const pnlCurve = sortedTrades.map(t => {
+        runningPnL += (t.pnl || 0);
+        return { date: new Date(t.timestamp), pnl: runningPnL };
+    });
 
-  if (!analytics || !analytics.overview) {
-    return <Alert severity="info" sx={{ m: 3 }}>No analytics data available for the selected period.</Alert>;
-  }
+    // 3. Filter Efficiency (Computed from Signals)
+    const signalStats = {
+        total: signals.length,
+        executed: 0,
+        blockedADX: 0,
+        blockedRSI: 0,
+        blockedOther: 0
+    };
 
-  const { overview, assetAnalysis, timeAnalysis, strategyAnalysis, exitReasonAnalysis } = analytics;
-  const winRate = (overview.profitableTrades / (overview.totalTrades || 1)) * 100;
+    signals.forEach(s => {
+        const msg = (s.message || "").toLowerCase();
+        if (s.signal.includes('BUY') || s.signal.includes('SELL')) signalStats.executed++;
+        else if (msg.includes('choppy') || msg.includes('adx')) signalStats.blockedADX++;
+        else if (msg.includes('rsi') || msg.includes('over')) signalStats.blockedRSI++;
+        else signalStats.blockedOther++;
+    });
 
-  // Prepare data for P&L over time chart
-  const pnlChartData = trades
-    .filter(t => t.side === 'SELL' && t.pnl !== null && t.timestamp)
-    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-    .reduce((acc, trade) => {
-      const cumulativePnl = (acc.length > 0 ? acc[acc.length - 1].pnl : 0) + trade.pnl;
-      acc.push({
-        time: new Date(trade.timestamp).toLocaleDateString(),
-        pnl: cumulativePnl,
-      });
-      return acc;
-    }, []);
+    const filterPieData = [
+        { id: 0, value: signalStats.executed, label: 'Executed', color: theme.palette.success.main },
+        { id: 1, value: signalStats.blockedADX, label: 'Blocked (ADX/Chop)', color: theme.palette.warning.main },
+        { id: 2, value: signalStats.blockedRSI, label: 'Blocked (RSI)', color: theme.palette.info.main },
+        { id: 3, value: signalStats.blockedOther, label: 'Wait/Hold', color: theme.palette.grey[500] },
+    ].filter(d => d.value > 0);
 
-  // Prepare data for Exit Reason chart
-  const exitReasonData = Object.entries(exitReasonAnalysis || {})
-    .filter(([_, data]) => data.count > 0)
-    .map(([reason, data]) => ({
-      label: reason.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      value: data.count,
-      pnl: data.avgPnL
+    // 4. ADX Performance (Do high ADX trades win more?)
+    const wins = sortedTrades.filter(t => t.pnl > 0);
+    const losses = sortedTrades.filter(t => t.pnl <= 0);
+    
+    const avgAdxWin = wins.reduce((sum, t) => sum + (t.signalStrength || 0), 0) / (wins.length || 1);
+    const avgAdxLoss = losses.reduce((sum, t) => sum + (t.signalStrength || 0), 0) / (losses.length || 1);
+
+    // 5. Exit Reasons
+    const exitReasons = sortedTrades.reduce((acc, t) => {
+        const reason = t.exitReason || 'Unknown';
+        acc[reason] = (acc[reason] || 0) + 1;
+        return acc;
+    }, {});
+    
+    const exitPieData = Object.keys(exitReasons).map((k, i) => ({
+        id: i, value: exitReasons[k], label: k.replace(/_/g, ' ')
     }));
+
+    return {
+        tradingStats,
+        efficiency,
+        pnlCurve,
+        filterPieData,
+        adxStats: { avgAdxWin, avgAdxLoss },
+        exitPieData,
+        assetStats: report.assets || {}
+    };
+  }, [data, theme]);
+
+  if (loading) return <Box display="flex" justifyContent="center" p={10}><CircularProgress /></Box>;
+  if (error) return <Alert severity="error">Error loading analytics: {error}</Alert>;
+  if (!metrics) return <Alert severity="info">No data available</Alert>;
+
+  const { tradingStats, efficiency, pnlCurve, filterPieData, adxStats, exitPieData, assetStats } = metrics;
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+      {/* Header */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Performance Analytics</Typography>
-        <ToggleButtonGroup
-          value={period}
-          exclusive
-          onChange={(e, newPeriod) => newPeriod && setPeriod(newPeriod)}
+        <ToggleButtonGroup 
+          value={period} 
+          exclusive 
+          onChange={(e, v) => v && setPeriod(v)}
           size="small"
         >
-          <ToggleButton value="1d">24 Hours</ToggleButton>
-          <ToggleButton value="7d">7 Days</ToggleButton>
-          <ToggleButton value="30d">30 Days</ToggleButton>
+          <ToggleButton value="24h">24H</ToggleButton>
+          <ToggleButton value="7d">7D</ToggleButton>
+          <ToggleButton value="30d">30D</ToggleButton>
         </ToggleButtonGroup>
       </Box>
 
-      {/* KPI Overview */}
-      <Box
-        display="grid"
-        gridTemplateColumns="repeat(12, 1fr)"
-        gap={3}
-        mb={2}
-      >
-        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
-          <MetricCard
-            title="Total P&L"
-            value={`${overview.totalPnL >= 0 ? '+' : ''}${overview.totalPnL.toFixed(2)} USDT`}
-            subtitle="Net Profit/Loss"
-            color={overview.totalPnL >= 0 ? 'success.main' : 'error.main'}
-            icon={<ShowChart color={overview.totalPnL >= 0 ? 'success' : 'error'} />}
+      {/* KPI Cards */}
+      <Grid container spacing={3} mb={3}>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard 
+            title="Total P&L" 
+            value={`$${tradingStats.totalPnL?.toFixed(2) || '0.00'}`} 
+            subtitle={`${tradingStats.totalTrades || 0} Trades`}
+            color={tradingStats.totalPnL >= 0 ? 'success.main' : 'error.main'}
+            icon={<ShowChart color="inherit" />}
           />
-        </Box>
-        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
-          <MetricCard
-            title="Win Rate"
-            value={`${winRate.toFixed(1)}%`}
-            subtitle={`${overview.profitableTrades} / ${overview.totalTrades} trades`}
-            color={winRate >= 50 ? 'success.main' : 'warning.main'}
-            icon={<Insights color={winRate >= 50 ? 'success' : 'warning'} />}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard 
+            title="Win Rate" 
+            value={`${tradingStats.winRate?.toFixed(1) || 0}%`} 
+            subtitle={`PF: ${tradingStats.profitFactor?.toFixed(2) || 0}`}
+            color={tradingStats.winRate > 50 ? 'success.main' : 'warning.main'}
+            icon={<Insights color="inherit" />}
           />
-        </Box>
-        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
-          <MetricCard
-            title="Total Trades"
-            value={overview.totalTrades}
-            subtitle="Completed sell orders"
-            icon={<QueryStats color="primary" />}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard 
+            title="Signal Quality" 
+            value={efficiency.signalQuality || 'N/A'} 
+            subtitle={`${efficiency.conversionRate || '0%'} Conversion`}
+            icon={<FilterAlt color="info" />}
           />
-        </Box>
-        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 3' } }}>
-          <MetricCard
-            title="Signal Conversion"
-            value={`${(overview.signalToTradeRatio * 100).toFixed(1)}%`}
-            subtitle={`${overview.totalSignals} signals generated`}
-            icon={<TrendingUp color="secondary" />}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <MetricCard 
+            title="Avg. Trade" 
+            value={`$${tradingStats.avgWin?.toFixed(2) || '0.00'}`} 
+            subtitle={`Avg Loss: $${tradingStats.avgLoss?.toFixed(2) || '0.00'}`}
+            icon={<MonetizationOn color="success" />}
           />
-        </Box>
-      </Box>
+        </Grid>
+      </Grid>
 
-      <Box
-        display="grid"
-        gridTemplateColumns="repeat(12, 1fr)"
-        gap={3}
-      >
-        {/* Asset Performance */}
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 7' } }}>
-          <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
-            <Typography variant="h6" gutterBottom>Asset Performance</Typography>
-            <Grid container spacing={2}>
-              {Object.entries(assetAnalysis).map(([asset, data]) => (
-                <Grid xs={12} md={6} key={asset}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="subtitle1" fontWeight="bold">{asset.replace('USDT', '')}</Typography>
-                      <Divider sx={{ my: 1 }} />
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2">P&L:</Typography>
-                        <Typography variant="body2" color={data.pnl >= 0 ? 'success.main' : 'error.main'}>
-                          {data.pnl.toFixed(2)} USDT
-                        </Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2">Win Rate:</Typography>
-                        <Typography variant="body2">{data.winRate.toFixed(1)}%</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2">Trades:</Typography>
-                        <Typography variant="body2">{data.totalTrades}</Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Paper>
-        </Box>
-
-        {/* Trading Activity by Hour */}
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 5' } }}>
-          <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
-            <Typography variant="h6" gutterBottom>Trading Activity by Hour (UTC)</Typography>
-            {timeAnalysis.hourlyDistribution.some(h => h.trades > 0 || h.signals > 0) ? (
-              <Box sx={{ height: 300 }}>
-                <BarChart
-                  dataset={timeAnalysis.hourlyDistribution}
-                  xAxis={[{
-                    scaleType: 'band',
-                    dataKey: 'label',
-                    tickLabelStyle: { angle: -45, textAnchor: 'end', fontSize: 10 }
-                  }]}
-                  yAxis={[
-                    { id: 'signalsAxis', scaleType: 'linear' },
-                    { id: 'tradesAxis', scaleType: 'linear' },
-                  ]}
-                  series={[
-                    { dataKey: 'trades', label: 'Trades', yAxisKey: 'tradesAxis', color: theme.palette.success.main },
-                    { dataKey: 'signals', label: 'Signals', yAxisKey: 'signalsAxis', color: theme.palette.info.main }
-                  ]}
-                  leftAxis="signalsAxis"
-                  rightAxis="tradesAxis"
-                  grid={{ horizontal: true }}
-                />
-              </Box>
-            ) : (
-              <Box display="flex" justifyContent="center" alignItems="center" height={300}>
-                <Typography color="text.secondary">No activity in this period.</Typography>
-              </Box>
-            )}
-          </Paper>
-        </Box>
-
-        {/* Trading Activity by Day */}
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 7' } }}>
-          <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
-            <Typography variant="h6" gutterBottom>Trading Activity by Day of Week</Typography>
-            {timeAnalysis.dailyDistribution.some(d => d.trades > 0 || d.signals > 0) ? (
-              <Box sx={{ height: 250 }}>
-                <BarChart
-                  dataset={timeAnalysis.dailyDistribution}
-                  xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
-                  yAxis={[
-                    { id: 'signalsAxis', scaleType: 'linear' },
-                    { id: 'tradesAxis', scaleType: 'linear' },
-                  ]}
-                  series={[
-                    { dataKey: 'trades', label: 'Trades', yAxisKey: 'tradesAxis', color: theme.palette.success.main },
-                    { dataKey: 'signals', label: 'Signals', yAxisKey: 'signalsAxis', color: theme.palette.info.main }
-                  ]}
-                  leftAxis="signalsAxis"
-                  rightAxis="tradesAxis"
-                  grid={{ horizontal: true }}
-                />
-              </Box>
-            ) : (
-              <Box display="flex" justifyContent="center" alignItems="center" height={250}>
-                <Typography color="text.secondary">No activity in this period.</Typography>
-              </Box>
-            )}
-          </Paper>
-        </Box>
-
-        {/* P&L Over Time */}
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 5' } }}>
-          <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
-            <Typography variant="h6" gutterBottom>Cumulative P&L Over Time</Typography>
-            {pnlChartData.length > 1 ? (
-              <Box sx={{ height: 250 }}>
+      {/* Charts Grid */}
+      <Grid container spacing={3}>
+        
+        {/* 1. P&L Growth Curve */}
+        <Grid item xs={12} lg={8}>
+          <Paper sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" gutterBottom>Portfolio Growth (Realized P&L)</Typography>
+            {pnlCurve.length > 1 ? (
                 <LineChart
-                  dataset={pnlChartData}
-                  xAxis={[{ scaleType: 'point', dataKey: 'time' }]}
-                  series={[{ dataKey: 'pnl', label: 'Cumulative P&L', area: true, showMark: false }]}
-                  grid={{ horizontal: true }}
-                  sx={{
-                    '& .MuiLineElement-root': {
-                      stroke: '#8884d8',
-                      strokeWidth: 2,
-                    },
-                    '& .MuiAreaElement-root': {
-                      fill: 'url(#pnlGradient)',
-                    },
-                  }}
-                >
-                  <defs>
-                    <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                </LineChart>
-              </Box>
+                    dataset={pnlCurve}
+                    xAxis={[{ 
+                        dataKey: 'date', 
+                        scaleType: 'time', 
+                        valueFormatter: (date) => date.toLocaleDateString() 
+                    }]}
+                    series={[{ 
+                        dataKey: 'pnl', 
+                        area: true, 
+                        color: theme.palette.primary.main,
+                        showMark: false
+                    }]}
+                    grid={{ horizontal: true }}
+                />
             ) : (
-              <Box display="flex" justifyContent="center" alignItems="center" height={250}>
-                <Typography color="text.secondary">Not enough trade data for P&L chart.</Typography>
-              </Box>
+                <Box display="flex" alignItems="center" justifyContent="center" height="100%" color="text.secondary">
+                    Not enough trade data to plot curve
+                </Box>
             )}
           </Paper>
-        </Box>
+        </Grid>
 
-        {/* Strategy Performance */}
-        <Box sx={{ gridColumn: 'span 12' }}>
-          <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
-            <Typography variant="h6" gutterBottom>Strategy Performance</Typography>
+        {/* 2. Filter Efficiency (The V2 Feature!) */}
+        <Grid item xs={12} lg={4}>
+          <Paper sx={{ p: 3, height: 400 }}>
+            <Typography variant="h6" gutterBottom>Smart Filter Efficiency</Typography>
+            <Typography variant="caption" color="text.secondary" mb={2} display="block">
+                How many bad trades were blocked by ADX/RSI?
+            </Typography>
+            {filterPieData.length > 0 ? (
+                <PieChart
+                    series={[{
+                        data: filterPieData,
+                        innerRadius: 60,
+                        paddingAngle: 2,
+                        cornerRadius: 4,
+                        highlightScope: { faded: 'global', highlighted: 'item' },
+                    }]}
+                    margin={{ right: 200 }}
+                    slotProps={{
+                        legend: { direction: 'column', position: { vertical: 'middle', horizontal: 'right' } }
+                    }}
+                />
+            ) : (
+                <Box display="flex" alignItems="center" justifyContent="center" height="100%">No Signal Data</Box>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* 3. ADX Impact Analysis */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Trend Strength Impact</Typography>
+            <Box display="flex" justifyContent="space-around" mt={4} mb={2}>
+                <Box textAlign="center">
+                    <Typography variant="h3" color="success.main" fontWeight="bold">
+                        {adxStats.avgAdxWin.toFixed(1)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Avg ADX of Winners</Typography>
+                </Box>
+                <Divider orientation="vertical" flexItem />
+                <Box textAlign="center">
+                    <Typography variant="h3" color="error.main" fontWeight="bold">
+                        {adxStats.avgAdxLoss.toFixed(1)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">Avg ADX of Losers</Typography>
+                </Box>
+            </Box>
+            <Alert severity="info" variant="outlined">
+                Target: Winners should have higher ADX (>25) than losers.
+            </Alert>
+          </Paper>
+        </Grid>
+
+        {/* 4. Exit Reason Analysis */}
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3, height: '100%' }}>
+            <Typography variant="h6" gutterBottom>Exit Strategy Performance</Typography>
+            <Box height={250}>
+                {exitPieData.length > 0 ? (
+                    <PieChart
+                        series={[{
+                            data: exitPieData,
+                            innerRadius: 40,
+                            paddingAngle: 1,
+                        }]}
+                    />
+                ) : (
+                    <Box display="flex" alignItems="center" justifyContent="center" height="100%">No Exits Yet</Box>
+                )}
+            </Box>
+          </Paper>
+        </Grid>
+
+        {/* 5. Asset Performance Table */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Asset Breakdown</Typography>
             <Grid container spacing={2}>
-              {Object.entries(strategyAnalysis).map(([strategy, data]) => (
-                <Grid item xs={12} md={4} key={strategy}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        {strategy.charAt(0).toUpperCase() + strategy.slice(1)}
-                      </Typography>
-                      <Divider sx={{ my: 1 }} />
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2">Total Signals:</Typography>
-                        <Typography variant="body2">{data.totalSignals}</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2">Buy/Sell Ratio:</Typography>
-                        <Typography variant="body2">{data.buySignals} / {data.sellSignals}</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between">
-                        <Typography variant="body2">Avg. Strength:</Typography>
-                        <Typography variant="body2">{data.avgStrength.toFixed(2)}</Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
+                {Object.entries(assetStats).map(([symbol, stats]) => {
+                    const perf = stats.performance;
+                    if (!perf) return null;
+                    return (
+                        <Grid item xs={12} sm={6} md={4} key={symbol}>
+                            <Card variant="outlined">
+                                <CardContent>
+                                    <Stack direction="row" justifyContent="space-between" mb={1}>
+                                        <Typography fontWeight="bold">{symbol.replace('USDT','')}</Typography>
+                                        <Chip 
+                                            label={`${perf.winRate.toFixed(0)}% WR`} 
+                                            size="small" 
+                                            color={perf.winRate > 50 ? "success" : "default"} 
+                                        />
+                                    </Stack>
+                                    <Typography variant="h5" color={perf.totalPnL >= 0 ? "success.main" : "error.main"}>
+                                        {perf.totalPnL >= 0 ? "+" : ""}{perf.totalPnL.toFixed(2)}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {perf.totalTrades} Trades • Best: +{perf.bestTrade?.toFixed(2)}
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    );
+                })}
             </Grid>
           </Paper>
-        </Box>
+        </Grid>
 
-        {/* Exit Reason Analysis */}
-        <Box sx={{ gridColumn: 'span 12' }}>
-          <Paper sx={{ p: 3, width: '100%', boxSizing: 'border-box' }}>
-            <Typography variant="h6" gutterBottom>Exit Reason Analysis</Typography>
-            {exitReasonData.length > 0 ? (
-              <Box sx={{ height: 300 }}>
-                 <MuiPieChart
-                    series={[{ data: exitReasonData, arcLabel: (item) => `${item.label} (${item.value})` }]}
-                    sx={{ [`& .${pieArcLabelClasses.root}`]: { fill: 'white', fontSize: 12 } }}
-                 />
-              </Box>
-            ) : (
-              <Box display="flex" justifyContent="center" alignItems="center" height={300}>
-                <Typography color="text.secondary">No exit data to analyze.</Typography>
-              </Box>
-            )}
-          </Paper>
-        </Box>
-      </Box>
+      </Grid>
     </Box>
   );
 };
