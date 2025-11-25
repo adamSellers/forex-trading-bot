@@ -32,6 +32,11 @@ if [ -f "$ENCRYPTION_KEY_FILE" ]; then
     # NEW: Decrypt AWS S3 credentials and export them
     if [ -f "$S3_BUCKET_FILE" ]; then
         export ENABLE_S3_ANALYTICS="true"
+        
+        # --- FIX: Explicitly enable signal logging if bucket exists ---
+        export ENABLE_S3_SIGNAL_LOGGING="true" 
+        # --------------------------------------------------------------
+
         export S3_BUCKET_NAME=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$S3_BUCKET_FILE" 2>/dev/null)
         export AWS_REGION=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_REGION_FILE" 2>/dev/null)
         export AWS_ACCESS_KEY_ID=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_KEY_ID_FILE" 2>/dev/null)
@@ -39,6 +44,10 @@ if [ -f "$ENCRYPTION_KEY_FILE" ]; then
         if [ -f "$S3_SIGNAL_LOG_BUCKET_FILE" ]; then
             export S3_SIGNAL_LOG_BUCKET_NAME=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$S3_SIGNAL_LOG_BUCKET_FILE" 2>/dev/null)
         fi
+    else
+        # Explicitly disable if no bucket file found
+        export ENABLE_S3_ANALYTICS="false"
+        export ENABLE_S3_SIGNAL_LOGGING="false"
     fi
 
     echo "✅ Secrets decrypted and loaded into environment." >&2
