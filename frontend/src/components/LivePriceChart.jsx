@@ -1,12 +1,12 @@
-// frontend/src/components/LivePriceChart.jsx - OPTIMIZED
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+// frontend/src/components/LivePriceChart.jsx - FIXED CALLBACK DEPENDENCY
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Paper, Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
   InputLabel, Select, MenuItem, Grid, CircularProgress, Alert, useTheme
 } from '@mui/material';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, Legend, Area 
+  ResponsiveContainer, Legend
 } from 'recharts';
 import { tradingAPI } from '../config/api';
 import { calculateEMA } from '../utils/indicators';
@@ -17,10 +17,11 @@ const useChartData = (asset, timeframe) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const fetchData = async () => {
+    // FIX: Added isBackground parameter to avoid depending on 'data' state
+    const fetchData = useCallback(async (isBackground = false) => {
         try {
-            // Don't set loading true on background refreshes, only initial load
-            if (data.length === 0) setLoading(true);
+            // Only show loading spinner on explicit fetches, not background polls
+            if (!isBackground) setLoading(true);
             
             const response = await tradingAPI.getCandles(asset, timeframe);
             
@@ -28,7 +29,6 @@ const useChartData = (asset, timeframe) => {
                 const closes = response.candles.map(c => c.close);
                 
                 // Calculate Indicators locally
-                // (In a real production app, backend should send these to save client CPU)
                 const fastMA = calculateEMA(closes, 20);
                 const slowMA = calculateEMA(closes, 50);
 
@@ -48,20 +48,20 @@ const useChartData = (asset, timeframe) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [asset, timeframe]); // No longer depends on 'data'
 
     // Initial Load
     useEffect(() => {
         setData([]); // Reset on asset change
-        fetchData();
-    }, [asset, timeframe]);
+        fetchData(false); // false = Show Loading Spinner
+    }, [fetchData]);
 
     // Polling Interval (Fixes "Infinite Candle" bug)
-    // Fetches fresh candles every 1 minute to ensure new bars appear correctly
     useEffect(() => {
-        const interval = setInterval(fetchData, 60 * 1000); 
+        // true = Background update (No Spinner)
+        const interval = setInterval(() => fetchData(true), 60 * 1000); 
         return () => clearInterval(interval);
-    }, [asset, timeframe]);
+    }, [fetchData]);
 
     return { data, setData, loading, error };
 };
@@ -90,14 +90,11 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
         lastCandle.high = Math.max(lastCandle.high, livePrice);
         lastCandle.low = Math.min(lastCandle.low, livePrice);
         
-        // NOTE: We don't recalculate EMAs here for performance. 
-        // The 1-minute poller will correct the EMAs shortly.
-        
         newData[lastIdx] = lastCandle;
         return newData;
       });
     }
-  }, [prices, selectedAsset]);
+  }, [prices, selectedAsset, chartData.length, setChartData]);
 
   // --- Derived Statistics ---
   const stats = useMemo(() => {
@@ -117,7 +114,7 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
 
   // --- Renderers ---
   
-  const CustomTooltip = ({ active, payload, label }) => {
+  const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const d = payload[0].payload;
       return (
