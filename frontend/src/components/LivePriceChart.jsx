@@ -1,4 +1,4 @@
-// frontend/src/components/LivePriceChart.jsx - FIXED CALLBACK DEPENDENCY
+// frontend/src/components/LivePriceChart.jsx - ALIGNED WITH BACKEND CONFIG
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Paper, Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
@@ -17,10 +17,8 @@ const useChartData = (asset, timeframe) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // FIX: Added isBackground parameter to avoid depending on 'data' state
     const fetchData = useCallback(async (isBackground = false) => {
         try {
-            // Only show loading spinner on explicit fetches, not background polls
             if (!isBackground) setLoading(true);
             
             const response = await tradingAPI.getCandles(asset, timeframe);
@@ -34,7 +32,7 @@ const useChartData = (asset, timeframe) => {
 
                 const processed = response.candles.map((c, i) => ({
                     ...c,
-                    time: c.openTime, // Keep raw timestamp for Recharts
+                    time: c.openTime, 
                     fastMA: fastMA[i],
                     slowMA: slowMA[i]
                 }));
@@ -48,17 +46,14 @@ const useChartData = (asset, timeframe) => {
         } finally {
             setLoading(false);
         }
-    }, [asset, timeframe]); // No longer depends on 'data'
+    }, [asset, timeframe]);
 
-    // Initial Load
     useEffect(() => {
-        setData([]); // Reset on asset change
-        fetchData(false); // false = Show Loading Spinner
+        setData([]); 
+        fetchData(false);
     }, [fetchData]);
 
-    // Polling Interval (Fixes "Infinite Candle" bug)
     useEffect(() => {
-        // true = Background update (No Spinner)
         const interval = setInterval(() => fetchData(true), 60 * 1000); 
         return () => clearInterval(interval);
     }, [fetchData]);
@@ -69,13 +64,11 @@ const useChartData = (asset, timeframe) => {
 const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'] }) => {
   const theme = useTheme();
   const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'BTCUSDT');
-  const [timeframe, setTimeframe] = useState('1h');
+  const [timeframe, setTimeframe] = useState('1h'); // Default matches strategy
   
-  // Use our smart hook
   const { data: chartData, setData: setChartData, loading, error } = useChartData(selectedAsset, timeframe);
 
   // --- Real-time Updates ---
-  // Merges live socket price into the historical dataset for instant feedback
   useEffect(() => {
     const livePrice = prices[selectedAsset]?.price;
     
@@ -85,7 +78,6 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
         const lastIdx = newData.length - 1;
         const lastCandle = { ...newData[lastIdx] };
         
-        // Update standard candle data
         lastCandle.close = livePrice;
         lastCandle.high = Math.max(lastCandle.high, livePrice);
         lastCandle.low = Math.min(lastCandle.low, livePrice);
@@ -113,7 +105,6 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
   }, [chartData]);
 
   // --- Renderers ---
-  
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const d = payload[0].payload;
@@ -155,15 +146,16 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
             </Select>
           </FormControl>
 
+          {/* UPDATED: Matches Backend Config (No 15m) */}
           <ToggleButtonGroup
             value={timeframe}
             exclusive
             onChange={(e, v) => v && setTimeframe(v)}
             size="small"
           >
-            <ToggleButton value="15m">15m</ToggleButton>
             <ToggleButton value="1h">1H</ToggleButton>
             <ToggleButton value="4h">4H</ToggleButton>
+            <ToggleButton value="1d">1D</ToggleButton>
           </ToggleButtonGroup>
         </Box>
       </Box>
@@ -176,11 +168,11 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                 <Typography fontWeight="bold">${stats.current.toFixed(2)}</Typography>
             </Grid>
             <Grid item xs={3} textAlign="center">
-                <Typography variant="caption" display="block" color="text.secondary">24h High</Typography>
+                <Typography variant="caption" display="block" color="text.secondary">Period High</Typography>
                 <Typography>${stats.high.toFixed(2)}</Typography>
             </Grid>
             <Grid item xs={3} textAlign="center">
-                <Typography variant="caption" display="block" color="text.secondary">24h Low</Typography>
+                <Typography variant="caption" display="block" color="text.secondary">Period Low</Typography>
                 <Typography>${stats.low.toFixed(2)}</Typography>
             </Grid>
             <Grid item xs={3} textAlign="center">
@@ -221,7 +213,6 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                     <Tooltip content={<CustomTooltip />} />
                     <Legend verticalAlign="top" height={36} />
                     
-                    {/* Close Price Line */}
                     <Line 
                         type="monotone" 
                         dataKey="close" 
@@ -231,8 +222,6 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                         name="Price"
                         animationDuration={500}
                     />
-                    
-                    {/* EMA Lines */}
                     <Line 
                         type="monotone" 
                         dataKey="fastMA" 
