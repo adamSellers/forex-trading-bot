@@ -1,4 +1,4 @@
-// backend/src/services/binanceDataService.js
+// backend/src/services/binanceDataService.js - FIXED WEBSOCKET LOOPS
 const EventEmitter = require("events");
 const Binance = require("node-binance-api");
 const logger = require("../utils/logger");
@@ -10,34 +10,28 @@ class BinanceDataService extends EventEmitter {
         this.client = new Binance().options({
             APIKEY: process.env.BINANCE_API_KEY,
             APISECRET: process.env.BINANCE_API_SECRET,
-            family: 4, // Use IPv4
+            family: 4,
             useServerTime: true,
+            // Only log errors, suppress verbosity
+            log: (...args) => logger.debug(args),
         });
 
-        // In-Memory Database of Candles
-        // Structure: { "BTCUSDT": { "1h": [candle1, candle2...] } }
         this.candleCache = {};
-
-        // Real-time Price Cache
         this.priceCache = {};
-
-        // Static Symbol Info (Min notional, step size, etc.)
         this.symbolInfo = new Map();
 
         this.isReady = false;
-        this.streams = [];
     }
 
     async initialize() {
         try {
             logger.info(
-                "📡 Initializing Binance Data Service (WebSocket Mode)..."
+                "📡 Initializing Binance Data Service (Fixed WebSocket Mode)..."
             );
 
-            // 1. Load Exchange Info (limits, precision) - ONE TIME CALL
             await this.loadExchangeInfo();
 
-            // 2. Initialize Cache Structure
+            // Initialize Cache Structure
             this.config.assets.forEach((symbol) => {
                 this.candleCache[symbol] = {};
                 this.config.timeframes.forEach((tf) => {
@@ -45,8 +39,6 @@ class BinanceDataService extends EventEmitter {
                 });
             });
 
-            // 3. Hydrate Cache & Start Streams
-            // We fetch initial history via REST, then immediately hook the socket
             await this.startHybridDataFeeds();
 
             this.isReady = true;
@@ -82,12 +74,10 @@ class BinanceDataService extends EventEmitter {
         const timeframes = this.config.timeframes;
 
         // A. Snapshot History (The "Backfill")
-        // We do this sequentially to avoid hammering the API (Rate Limit Protection)
         logger.info("📥 Fetching historical snapshots...");
         for (const symbol of assets) {
             for (const interval of timeframes) {
                 try {
-                    // Fetch last 200 candles to fill the chart
                     const candles = await this.client.candlesticks(
                         symbol,
                         interval,
@@ -95,11 +85,10 @@ class BinanceDataService extends EventEmitter {
                         { limit: 200 }
                     );
                     this.processSnapshot(symbol, interval, candles);
-                    await new Promise((r) => setTimeout(r, 100)); // 100ms throttle
+                    await new Promise((r) => setTimeout(r, 50)); // Tiny throttle
                 } catch (e) {
                     logger.error(
-                        `Failed snapshot for ${symbol} ${interval}`,
-                        e.message
+                        `Failed snapshot for ${symbol} ${interval}: ${e.message}`
                     );
                 }
             }
@@ -108,19 +97,11 @@ class BinanceDataService extends EventEmitter {
         // B. Start WebSockets (The "Live Feed")
         logger.info("🔌 Connecting WebSockets...");
 
-        // 1. Candle Streams (for Indicators)
-        // Format: btcusdt@kline_1h
-        const streams = [];
-        assets.forEach((s) => {
-            timeframes.forEach((tf) =>
-                streams.push(`${s.toLowerCase()}@kline_${tf}`)
-            );
-        });
-
-        this.client.websockets.candlesticks(
-            assets,
-            timeframes,
-            (candlesticks) => {
+        // 1. Candle Streams - FIX: Loop through timeframes separately
+        for (const tf of timeframes) {
+            // "assets" is an array of symbols, "tf" is a single string (e.g. "1h")
+            // This creates a combined stream for all assets on this specific timeframe
+            this.client.websockets.candlesticks(assets, tf, (candlesticks) => {
                 const {
                     e: eventType,
                     E: eventTime,
@@ -134,15 +115,9 @@ class BinanceDataService extends EventEmitter {
                     l: low,
                     c: close,
                     v: volume,
-                    n: trades,
-                    i: interval,
                     x: isFinal,
-                    q: quoteVolume,
-                    V: buyVolume,
-                    Q: quoteBuyVolume,
                 } = ticks;
 
-                // Standardize format to match our engine's expectations
                 const candle = {
                     openTime: time,
                     open: parseFloat(open),
@@ -153,11 +128,15 @@ class BinanceDataService extends EventEmitter {
                     isFinal: isFinal,
                 };
 
-                this.updateCandleCache(symbol, interval, candle);
-            }
-        );
+                this.updateCandleCache(symbol, tf, candle);
+            });
+            logger.debug(
+                `   ↳ Listening to ${tf} candles for ${assets.length} assets`
+            );
+        }
 
         // 2. Ticker Streams (for Live Prices)
+        // prevDay takes an array of symbols correctly
         this.client.websockets.prevDay(assets, (error, response) => {
             if (response) {
                 const symbol = response.symbol;
@@ -167,16 +146,17 @@ class BinanceDataService extends EventEmitter {
                     priceChangePercent: parseFloat(response.percentChange),
                     timestamp: Date.now(),
                 };
-                // Emit lightweight price update event
                 this.emit("priceUpdate", { symbol, price });
             }
         });
+        logger.debug(
+            `   ↳ Listening to live tickers for ${assets.length} assets`
+        );
     }
 
     processSnapshot(symbol, interval, rawData) {
         if (!rawData || !Array.isArray(rawData)) return;
 
-        // Map Binance Array [time, open, high, low, close...] to Objects
         const mapped = rawData.map((c) => ({
             openTime: c[0],
             open: parseFloat(c[1]),
@@ -187,7 +167,6 @@ class BinanceDataService extends EventEmitter {
         }));
 
         this.candleCache[symbol][interval] = mapped;
-        // Update price cache with latest close
         const last = mapped[mapped.length - 1];
         if (last) {
             this.priceCache[symbol] = {
@@ -198,27 +177,21 @@ class BinanceDataService extends EventEmitter {
     }
 
     updateCandleCache(symbol, interval, newCandle) {
+        if (!this.candleCache[symbol] || !this.candleCache[symbol][interval])
+            return;
+
         const cache = this.candleCache[symbol][interval];
         const lastCandle = cache[cache.length - 1];
 
         if (lastCandle && lastCandle.openTime === newCandle.openTime) {
-            // Update current candle in-place
             cache[cache.length - 1] = newCandle;
         } else {
-            // It's a new candle, push it
             cache.push(newCandle);
-            // Maintain max length (keep memory low)
             if (cache.length > 500) cache.shift();
-
-            // IMPORTANT: If candle closed, trigger specific event for SignalGenerator
-            if (cache[cache.length - 2] && cache[cache.length - 2].isFinal) {
-                // We could emit 'candleClosed' here if needed
-            }
         }
     }
 
-    // --- Public API for TradingEngine ---
-    // Now purely synchronous! No awaits, no bans.
+    // --- Public API ---
 
     getCandles(symbol, interval, limit = 200) {
         const data = this.candleCache[symbol]?.[interval] || [];
@@ -234,8 +207,6 @@ class BinanceDataService extends EventEmitter {
     }
 
     async getAccountInfo() {
-        // This is the ONLY method that still needs a real API call
-        // But we call it rarely (only on trade execution or dashboard refresh)
         try {
             const res = await this.client.account();
             return {
