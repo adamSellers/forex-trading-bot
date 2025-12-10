@@ -790,10 +790,51 @@ class LiveTradingEngine extends EventEmitter {
         };
     }
 
+    // REPLACEMENT for the existing reset() method
     async reset() {
-        this.livePortfolioState.totalPnL = 0;
-        this.recalculateLivePerformanceMetrics();
-        this.emit("engineReset");
+        logger.warn(
+            "⚠️ HARD RESET TRIGGERED: Wiping memory and closing all open database positions."
+        );
+
+        try {
+            // 1. Close all open trades in DB (Fixes Ghost Trades)
+            const openTrades = await this.tradeRepo.getOpenLiveTrades();
+            for (const trade of openTrades) {
+                await this.tradeRepo.updateTrade(trade.id, {
+                    isOpen: false,
+                    exitReason: "MANUAL_RESET",
+                    pnl: 0, // Neutralize PnL effect
+                });
+                logger.info(`🧹 Cleared ghost trade: ${trade.symbol}`);
+            }
+
+            // 2. Reset Internal State
+            this.livePortfolioState = {
+                totalPnL: 0,
+                dailyPnL: 0,
+                weeklyPnL: 0,
+                lastResetDate: new Date().toDateString(),
+                lastWeeklyReset: this.getWeekStart(new Date()),
+            };
+
+            // 3. Reset Metrics
+            this.recalculateLivePerformanceMetrics();
+
+            // 4. Reset Risk Service
+            if (
+                this.riskService &&
+                typeof this.riskService.reset === "function"
+            ) {
+                this.riskService.reset();
+            }
+
+            this.emit("engineReset");
+            logger.success(
+                "✅ Engine Hard Reset Complete. Ghost trades removed."
+            );
+        } catch (error) {
+            logger.error("❌ Error during Hard Reset:", error);
+        }
     }
 }
 
