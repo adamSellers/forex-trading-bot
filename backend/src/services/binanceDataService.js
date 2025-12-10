@@ -1,905 +1,265 @@
-// backend/src/services/binanceDataService.js - ENHANCED WITH TESTNET REMOVED
-const Binance = require("node-binance-api");
+// backend/src/services/binanceDataService.js
 const EventEmitter = require("events");
+const Binance = require("node-binance-api");
 const logger = require("../utils/logger");
 
 class BinanceDataService extends EventEmitter {
-    constructor(config = {}) {
+    constructor(config) {
         super();
+        this.config = config;
+        this.client = new Binance().options({
+            APIKEY: process.env.BINANCE_API_KEY,
+            APISECRET: process.env.BINANCE_API_SECRET,
+            family: 4, // Use IPv4
+            useServerTime: true,
+        });
 
-        this.config = {
-            apiKey: config.apiKey || process.env.BINANCE_API_KEY,
-            apiSecret: config.apiSecret || process.env.BINANCE_API_SECRET,
-            assets: config.assets || [
-                "BTCUSDT",
-                "ETHUSDT",
-                "BNBUSDT",
-                "DOGEUSDT",
-                "TRUMPUSDT",
-            ],
-            timeframes: config.timeframes || ["1h", "4h", "1d"],
-            useFallback: config.useFallback || false,
+        // In-Memory Database of Candles
+        // Structure: { "BTCUSDT": { "1h": [candle1, candle2...] } }
+        this.candleCache = {};
 
-            // NEW: Enhanced features
-            autoFetchExchangeInfo: config.autoFetchExchangeInfo !== false, // Default true
-            cacheExchangeInfo: config.cacheExchangeInfo !== false, // Default true
-            exchangeInfoRefreshInterval:
-                config.exchangeInfoRefreshInterval || 24 * 60 * 60 * 1000, // 24 hours
+        // Real-time Price Cache
+        this.priceCache = {};
 
-            ...config,
-        };
-
-        // Data storage
-        this.priceData = new Map();
-        this.candleCache = new Map();
-        this.webSocketConnections = new Map();
-
-        // NEW: Exchange info and symbol data
-        this.exchangeInfo = null;
+        // Static Symbol Info (Min notional, step size, etc.)
         this.symbolInfo = new Map();
-        this.lastExchangeInfoUpdate = 0;
 
-        this.isServiceReady = false;
-        // Connection state
-        this.isConnected = false;
-        this.candleUpdateInterval = null;
-        this.connectionAttempts = 0;
-        this.maxRetries = 5;
-        this.readyTimeout = null; // NEW: Timeout for service readiness
-
-        // Initialize Binance client
-        this.initializeBinanceClient();
-
-        logger.info(
-            `🌐 ENHANCED Binance Data Service initialized - Production Mode, Exchange Info: ${this.config.autoFetchExchangeInfo}`
-        );
+        this.isReady = false;
+        this.streams = [];
     }
 
-    initializeBinanceClient() {
-        try {
-            if (!this.config.apiKey || !this.config.apiSecret) {
-                logger.warn(
-                    "⚠️ No Binance API credentials - Using fallback mode"
-                );
-                this.config.useFallback = true;
-                return;
-            }
-
-            this.binanceClient = Binance({
-                APIKEY: this.config.apiKey,
-                APISECRET: this.config.apiSecret,
-                test: false, // Always use production endpoints
-                reconnect: true,
-                keepAlive: true,
-                verbose: false,
-            });
-
-            logger.info("✅ Binance client initialized successfully");
-        } catch (error) {
-            logger.error("❌ Failed to initialize Binance client:", error);
-            this.config.useFallback = true;
-        }
-    }
-
-    /**
-     * NEW: Fetch and cache exchange information
-     */
-    async fetchExchangeInfo() {
-        try {
-            if (!this.binanceClient) {
-                logger.warn("⚠️ No Binance client available for exchange info");
-                return this.createFallbackExchangeInfo();
-            }
-
-            logger.info("📊 Fetching exchange information from Binance...");
-
-            const exchangeInfo = await new Promise((resolve, reject) => {
-                this.binanceClient.exchangeInfo((error, data) => {
-                    if (error) reject(error);
-                    else resolve(data);
-                });
-            });
-
-            if (!exchangeInfo || !exchangeInfo.symbols) {
-                throw new Error("Invalid exchange info response");
-            }
-
-            this.exchangeInfo = exchangeInfo;
-            this.lastExchangeInfoUpdate = Date.now();
-
-            // Process symbol information for our assets
-            this.processSymbolInfo(exchangeInfo.symbols);
-
-            logger.success(
-                `✅ Exchange info loaded - ${exchangeInfo.symbols.length} symbols processed`
-            );
-            return exchangeInfo;
-        } catch (error) {
-            logger.error("❌ Failed to fetch exchange info:", error);
-
-            // Fallback to default values
-            const fallbackInfo = this.createFallbackExchangeInfo();
-            this.exchangeInfo = fallbackInfo;
-            this.processSymbolInfo(fallbackInfo.symbols);
-
-            return fallbackInfo;
-        }
-    }
-
-    /**
-     * NEW: Process symbol information and extract trading constraints
-     */
-    processSymbolInfo(symbols) {
-        logger.info("🔍 Processing symbol information...");
-
-        this.config.assets.forEach((asset) => {
-            const symbolData = symbols.find((s) => s.symbol === asset);
-
-            if (symbolData) {
-                const info = this.extractSymbolConstraints(symbolData);
-                this.symbolInfo.set(asset, info);
-
-                logger.debug(
-                    `✅ ${asset}: min ${info.minNotional} USDT, min qty ${info.minQty}, status: ${info.status}`
-                );
-            } else {
-                logger.warn(`⚠️ Symbol ${asset} not found in exchange info`);
-                // Set fallback constraints
-                this.symbolInfo.set(asset, this.getFallbackConstraints(asset));
-            }
-        });
-
-        logger.success(
-            `✅ Processed ${this.symbolInfo.size} symbol constraints`
-        );
-    }
-
-    /**
-     * NEW: Extract trading constraints from symbol data
-     */
-    extractSymbolConstraints(symbolData) {
-        const constraints = {
-            symbol: symbolData.symbol,
-            status: symbolData.status,
-            baseAsset: symbolData.baseAsset,
-            quoteAsset: symbolData.quoteAsset,
-            minNotional: 10, // Default fallback
-            minQty: 0.001, // Default fallback
-            maxQty: 100000, // Default fallback
-            stepSize: 0.001, // Default fallback
-            tickSize: 0.01, // Default fallback
-            maxPrice: 1000000, // Default fallback
-        };
-
-        // Extract filters
-        symbolData.filters?.forEach((filter) => {
-            switch (filter.filterType) {
-                case "MIN_NOTIONAL":
-                    constraints.minNotional = parseFloat(filter.minNotional);
-                    break;
-                case "LOT_SIZE":
-                    constraints.minQty = parseFloat(filter.minQty);
-                    constraints.maxQty = parseFloat(filter.maxQty);
-                    constraints.stepSize = parseFloat(filter.stepSize);
-                    break;
-                case "PRICE_FILTER":
-                    constraints.tickSize = parseFloat(filter.tickSize);
-                    constraints.maxPrice = parseFloat(filter.maxPrice);
-                    break;
-            }
-        });
-
-        return constraints;
-    }
-
-    /**
-     * NEW: Get fallback constraints for symbols not in exchange info
-     */
-    getFallbackConstraints(symbol) {
-        const defaults = {
-            BTCUSDT: { minNotional: 5, minQty: 0.00001, stepSize: 0.00001 },
-            ETHUSDT: { minNotional: 5, minQty: 0.0001, stepSize: 0.0001 },
-            BNBUSDT: { minNotional: 5, minQty: 0.001, stepSize: 0.001 },
-            DOGEUSDT: { minNotional: 1, minQty: 1, stepSize: 1 },
-            TRUMPUSDT: { minNotional: 5, minQty: 0.1, stepSize: 0.1 },
-        };
-
-        return {
-            symbol,
-            status: "TRADING",
-            minNotional: defaults[symbol]?.minNotional || 10,
-            minQty: defaults[symbol]?.minQty || 0.001,
-            maxQty: 100000,
-            stepSize: defaults[symbol]?.stepSize || 0.001,
-            tickSize: 0.01,
-            maxPrice: 1000000,
-        };
-    }
-
-    /**
-     * NEW: Create fallback exchange info when API fails
-     */
-    createFallbackExchangeInfo() {
-        return {
-            timezone: "UTC",
-            serverTime: Date.now(),
-            symbols: this.config.assets.map((asset) => ({
-                symbol: asset,
-                status: "TRADING",
-                baseAsset: asset.replace("USDT", ""),
-                quoteAsset: "USDT",
-                filters: [
-                    {
-                        filterType: "MIN_NOTIONAL",
-                        minNotional: "10.00000000",
-                    },
-                    {
-                        filterType: "LOT_SIZE",
-                        minQty: "0.00100000",
-                        maxQty: "100000.00000000",
-                        stepSize: "0.00100000",
-                    },
-                ],
-            })),
-        };
-    }
-
-    /**
-     * NEW: Validate order parameters against symbol constraints
-     */
-    validateOrderParams(symbol, quantity, price) {
-        const constraints = this.symbolInfo.get(symbol);
-        if (!constraints) {
-            return {
-                valid: false,
-                errors: [`No constraints found for symbol ${symbol}`],
-            };
-        }
-
-        const validation = { valid: true, errors: [] };
-        const notional = quantity * price;
-
-        // Check minimum notional
-        if (notional < constraints.minNotional) {
-            validation.valid = false;
-            validation.errors.push(
-                `Notional ${notional.toFixed(2)} below minimum ${
-                    constraints.minNotional
-                }`
-            );
-        }
-
-        // Check quantity constraints
-        if (quantity < constraints.minQty) {
-            validation.valid = false;
-            validation.errors.push(
-                `Quantity ${quantity} below minimum ${constraints.minQty}`
-            );
-        }
-
-        if (quantity > constraints.maxQty) {
-            validation.valid = false;
-            validation.errors.push(
-                `Quantity ${quantity} above maximum ${constraints.maxQty}`
-            );
-        }
-
-        // Check price constraints
-        if (price > constraints.maxPrice) {
-            validation.valid = false;
-            validation.errors.push(
-                `Price ${price} above maximum ${constraints.maxPrice}`
-            );
-        }
-
-        return validation;
-    }
-
-    /**
-     * Enhanced initialization with exchange info
-     */
     async initialize() {
         try {
-            logger.info("🚀 Initializing ENHANCED Binance Data Service...");
-
-            // Test connection first
-            await this.testConnection();
-
-            // Fetch exchange information
-            if (this.config.autoFetchExchangeInfo) {
-                await this.fetchExchangeInfo();
-            }
-
-            // Load historical data
-            await this.loadHistoricalData();
-
-            // Start real-time data streams
-            await this.startRealTimeData();
-
-            // NEW: Start the continuous candle updater
-            this.startCandleUpdater();
-
-            this.isConnected = true;
-            logger.success(
-                "✅ ENHANCED Binance Data Service initialized, waiting for price streams..."
+            logger.info(
+                "📡 Initializing Binance Data Service (WebSocket Mode)..."
             );
 
-            // NEW: Set a timeout to ensure serviceReady is always emitted
-            this.readyTimeout = setTimeout(() => {
-                if (!this.isServiceReady) {
-                    logger.warn(
-                        "⚠️ Service ready timeout reached. Emitting serviceReady with partial data."
-                    );
-                    this.emit("serviceReady"); // This will unblock the TradingService
-                }
-            }, 15000); // 15 second timeout
+            // 1. Load Exchange Info (limits, precision) - ONE TIME CALL
+            await this.loadExchangeInfo();
+
+            // 2. Initialize Cache Structure
+            this.config.assets.forEach((symbol) => {
+                this.candleCache[symbol] = {};
+                this.config.timeframes.forEach((tf) => {
+                    this.candleCache[symbol][tf] = [];
+                });
+            });
+
+            // 3. Hydrate Cache & Start Streams
+            // We fetch initial history via REST, then immediately hook the socket
+            await this.startHybridDataFeeds();
+
+            this.isReady = true;
+            this.emit("serviceReady");
+            logger.success("✅ Binance Data Service Fully Synced & Listening.");
         } catch (error) {
-            logger.error("❌ Failed to initialize enhanced service:", error);
+            logger.error("❌ Data Service Initialization Failed:", error);
             this.emit("serviceError", error);
-            throw error;
         }
     }
 
-    async testConnection() {
-        if (this.config.useFallback) {
-            logger.info("📱 Using fallback mode - skipping connection test");
-            return;
-        }
-
+    async loadExchangeInfo() {
         try {
-            logger.info("🔌 Testing Binance connection...");
-
-            const serverTime = await new Promise((resolve, reject) => {
-                this.binanceClient.time((error, data) => {
-                    if (error) reject(error);
-                    else resolve(data);
+            const data = await this.client.exchangeInfo();
+            data.symbols.forEach((s) => {
+                const filters = {};
+                s.filters.forEach((f) => (filters[f.filterType] = f));
+                this.symbolInfo.set(s.symbol, {
+                    stepSize: parseFloat(filters.LOT_SIZE?.stepSize || 0),
+                    minNotional: parseFloat(
+                        filters.NOTIONAL?.minNotional || 10
+                    ),
                 });
             });
-
-            logger.success(
-                `✅ Binance connection successful - Server time: ${new Date(
-                    serverTime.serverTime
-                )}`
-            );
-            return serverTime;
-        } catch (error) {
-            logger.error("❌ Binance connection failed:", error);
-            logger.info("⚠️ Switching to fallback mode...");
-            this.config.useFallback = true;
+            logger.info("ℹ️  Exchange Info Loaded.");
+        } catch (e) {
+            logger.warn("⚠️ Failed to load exchange info, using defaults.");
         }
     }
 
-    async loadHistoricalData() {
-        logger.info("📚 Loading historical candle data...");
+    async startHybridDataFeeds() {
+        const assets = this.config.assets;
+        const timeframes = this.config.timeframes;
 
-        const dataRequirements = {
-            "1h": 300, // Increased for better MA calculation on charts
-            "4h": 300,
-            "1d": 300,
-        };
-
-        for (const asset of this.config.assets) {
-            for (const timeframe of this.config.timeframes) {
+        // A. Snapshot History (The "Backfill")
+        // We do this sequentially to avoid hammering the API (Rate Limit Protection)
+        logger.info("📥 Fetching historical snapshots...");
+        for (const symbol of assets) {
+            for (const interval of timeframes) {
                 try {
-                    const limit = dataRequirements[timeframe] || 100;
-                    logger.debug(
-                        `📊 Loading ${limit} ${timeframe} candles for ${asset}...`
+                    // Fetch last 200 candles to fill the chart
+                    const candles = await this.client.candlesticks(
+                        symbol,
+                        interval,
+                        false,
+                        { limit: 200 }
                     );
-
-                    const candles = await this.fetchCandles(
-                        asset,
-                        timeframe,
-                        limit
-                    );
-
-                    if (candles && candles.length > 0) {
-                        const cacheKey = `${asset}_${timeframe}`;
-                        this.candleCache.set(cacheKey, candles);
-                        logger.debug(
-                            `✅ Loaded ${candles.length} candles for ${asset} ${timeframe}`
-                        );
-                    }
-
-                    // Small delay to avoid rate limits
-                    await new Promise((resolve) => setTimeout(resolve, 100));
-                } catch (error) {
+                    this.processSnapshot(symbol, interval, candles);
+                    await new Promise((r) => setTimeout(r, 100)); // 100ms throttle
+                } catch (e) {
                     logger.error(
-                        `❌ Failed to load ${timeframe} data for ${asset}:`,
-                        error.message
+                        `Failed snapshot for ${symbol} ${interval}`,
+                        e.message
                     );
                 }
             }
         }
 
-        logger.success("✅ Historical data loading completed");
-    }
+        // B. Start WebSockets (The "Live Feed")
+        logger.info("🔌 Connecting WebSockets...");
 
-    async fetchCandles(symbol, interval, limit = 100) {
-        if (this.config.useFallback) {
-            return this.generateFallbackCandles(symbol, interval, limit);
-        }
-
-        try {
-            logger.debug(
-                `📈 Fetching ${limit} ${interval} candles for ${symbol}...`
+        // 1. Candle Streams (for Indicators)
+        // Format: btcusdt@kline_1h
+        const streams = [];
+        assets.forEach((s) => {
+            timeframes.forEach((tf) =>
+                streams.push(`${s.toLowerCase()}@kline_${tf}`)
             );
-
-            let candles;
-            let retries = 3;
-
-            while (retries > 0) {
-                try {
-                    candles = await new Promise((resolve, reject) => {
-                        this.binanceClient.candlesticks(
-                            symbol,
-                            interval,
-                            (error, ticks) => {
-                                if (error) reject(error);
-                                else resolve(ticks);
-                            },
-                            { limit: Math.min(limit, 1000) }
-                        );
-                    });
-                    break;
-                } catch (error) {
-                    retries--;
-                    if (retries === 0) throw error;
-
-                    logger.debug(
-                        `⚠️ Retry ${4 - retries}/3 for ${symbol} ${interval}...`
-                    );
-                    await new Promise((resolve) => setTimeout(resolve, 1000));
-                }
-            }
-
-            return this.formatCandles(candles);
-        } catch (error) {
-            logger.error(`Failed to fetch candles for ${symbol}:`, error);
-            return this.generateFallbackCandles(symbol, interval, limit);
-        }
-    }
-
-    async startRealTimeData() {
-        logger.info("📡 Starting real-time data streams...");
-
-        for (const asset of this.config.assets) {
-            try {
-                await this.startPriceStream(asset);
-                await new Promise((resolve) => setTimeout(resolve, 100));
-            } catch (error) {
-                logger.error(
-                    `Failed to start price stream for ${asset}:`,
-                    error
-                );
-            }
-        }
-    }
-
-    async startPriceStream(symbol) {
-        if (this.config.useFallback) {
-            this.startFallbackPriceData(symbol);
-            return;
-        }
-
-        try {
-            const stream = this.binanceClient.websockets.prevDay(
-                symbol,
-                (error, ticker) => {
-                    // DEBUG: Log the raw data structure
-                    logger.debug(`Raw ticker data for ${symbol}:`, {
-                        error,
-                        ticker,
-                        type: typeof ticker,
-                        isNull: ticker === null,
-                        isUndefined: ticker === undefined,
-                        keys: ticker ? Object.keys(ticker) : "no keys",
-                    });
-
-                    // Handle errors
-                    if (error) {
-                        logger.error(`WebSocket error for ${symbol}:`, error);
-                        return;
-                    }
-
-                    // IGNORE CONFIRMATION MESSAGES - This is the key fix
-                    if (ticker === null || ticker === undefined) {
-                        logger.debug(
-                            `Ignoring confirmation/null message for ${symbol}`
-                        );
-                        return;
-                    }
-
-                    // Check if ticker has required properties
-                    if (!ticker || !ticker.symbol) {
-                        logger.debug(
-                            `Invalid ticker data structure for ${symbol}`
-                        );
-                        return;
-                    }
-
-                    const priceData = {
-                        symbol: ticker.symbol,
-                        price: parseFloat(ticker.close),
-                        priceChange: parseFloat(ticker.priceChange),
-                        priceChangePercent: parseFloat(ticker.percentChange),
-                        volume: parseFloat(ticker.volume),
-                        timestamp: Date.now(),
-                    };
-
-                    this.priceData.set(symbol, priceData);
-                    this.emit("priceUpdate", priceData);
-
-                    // NEW: Check if all initial price streams are active
-                    if (
-                        !this.isServiceReady &&
-                        this.priceData.size === this.config.assets.length
-                    ) {
-                        this.isServiceReady = true;
-                        clearTimeout(this.readyTimeout); // Clear the timeout if all streams connect
-                        logger.success(
-                            "✅ All price streams active. Service is ready."
-                        );
-                        this.emit("serviceReady");
-                    }
-                }
-            );
-
-            this.webSocketConnections.set(symbol, stream);
-            logger.debug(`📈 Price stream started for ${symbol}`);
-        } catch (error) {
-            logger.error(`Failed to start WebSocket for ${symbol}:`, error);
-            this.startFallbackPriceData(symbol);
-        }
-    }
-
-    startFallbackPriceData(symbol) {
-        const basePrice = this.getFallbackBasePrice(symbol);
-
-        const updatePrice = () => {
-            const change = (Math.random() - 0.5) * 0.02; // ±1% random change
-            const currentPrice = this.priceData.get(symbol)?.price || basePrice;
-            const newPrice = currentPrice * (1 + change);
-
-            const priceData = {
-                symbol,
-                price: newPrice,
-                priceChange: newPrice - currentPrice,
-                priceChangePercent: change * 100,
-                volume: Math.random() * 1000000,
-                timestamp: Date.now(),
-                fallback: true,
-            };
-
-            this.priceData.set(symbol, priceData);
-            this.emit("priceUpdate", priceData);
-        };
-
-        // Update every 5 seconds
-        setInterval(updatePrice, 5000);
-        updatePrice(); // Initial update
-
-        logger.debug(`📈 Fallback price stream started for ${symbol}`);
-    }
-
-    getFallbackBasePrice(symbol) {
-        const basePrices = {
-            BTCUSDT: 45000,
-            ETHUSDT: 2500,
-            BNBUSDT: 350,
-            DOGEUSDT: 0.08,
-            TRUMPUSDT: 12.0,
-        };
-        return basePrices[symbol] || 100;
-    }
-
-    formatCandles(rawCandles) {
-        return rawCandles.map((candle) => ({
-            openTime: candle[0],
-            open: parseFloat(candle[1]),
-            high: parseFloat(candle[2]),
-            low: parseFloat(candle[3]),
-            close: parseFloat(candle[4]),
-            volume: parseFloat(candle[5]),
-            closeTime: candle[6],
-        }));
-    }
-
-    generateFallbackCandles(symbol, interval, limit) {
-        const basePrice = this.getFallbackBasePrice(symbol);
-        const candles = [];
-        const now = Date.now();
-        const intervals = { "1h": 3600000, "4h": 14400000, "1d": 86400000 };
-        const intervalMs = intervals[interval] || 3600000;
-
-        for (let i = limit - 1; i >= 0; i--) {
-            const timestamp = now - i * intervalMs;
-            const price = basePrice * (1 + (Math.random() - 0.5) * 0.1);
-
-            candles.push({
-                openTime: timestamp,
-                open: price,
-                high: price * 1.02,
-                low: price * 0.98,
-                close: price * (1 + (Math.random() - 0.5) * 0.02),
-                volume: Math.random() * 1000,
-                closeTime: timestamp + intervalMs - 1,
-            });
-        }
-
-        return candles;
-    }
-
-    /**
-     * NEW: Starts a periodic job to update candle data for all assets.
-     */
-    startCandleUpdater(intervalMs = 60 * 1000) {
-        // Default to 1 minute
-        logger.info(
-            `🕯️  Starting continuous candle updater with a ${
-                intervalMs / 1000
-            }s interval...`
-        );
-        this.candleUpdateInterval = setInterval(async () => {
-            if (!this.isConnected) return; // Don't run if not connected
-
-            logger.debug("🔄 Running periodic candle update cycle...");
-            for (const asset of this.config.assets) {
-                for (const timeframe of this.config.timeframes) {
-                    try {
-                        await this.updateCandleCacheForSymbol(asset, timeframe);
-                    } catch (error) {
-                        logger.warn(
-                            `Failed to update candles for ${asset} ${timeframe}: ${error.message}`
-                        );
-                    }
-                }
-            }
-        }, intervalMs);
-    }
-
-    /**
-     * NEW: Fetches the latest candles for a symbol and updates the cache.
-     */
-    async updateCandleCacheForSymbol(symbol, interval) {
-        const cacheKey = `${symbol}_${interval}`;
-        const existingCandles = this.candleCache.get(cacheKey) || [];
-        if (existingCandles.length === 0) return; // Should not happen after init
-
-        // Fetch the last 2 candles to check for new closed candles or updates
-        const newCandlesData = await this.fetchCandles(symbol, interval, 2);
-        if (!newCandlesData || newCandlesData.length === 0) return;
-
-        const lastCachedCandle = existingCandles[existingCandles.length - 1];
-
-        newCandlesData.forEach((newCandle) => {
-            if (newCandle.openTime > lastCachedCandle.openTime) {
-                // This is a new, closed candle. Append it.
-                existingCandles.push(newCandle);
-                logger.debug(
-                    `➕ Appended new ${interval} candle for ${symbol} at ${new Date(
-                        newCandle.openTime
-                    ).toISOString()}`
-                );
-                this.emit("candleUpdated", {
-                    symbol,
-                    interval,
-                    candle: newCandle,
-                });
-            } else if (newCandle.openTime === lastCachedCandle.openTime) {
-                // This is an update to the current, unclosed candle. Replace it.
-                existingCandles[existingCandles.length - 1] = newCandle;
-                logger.debug(
-                    `🔄 Updated current ${interval} candle for ${symbol}`
-                );
-            }
         });
 
-        // Trim the cache to a max size to prevent memory bloat over long runtimes
-        const maxCacheSize = 500;
-        if (existingCandles.length > maxCacheSize) {
-            this.candleCache.set(
-                cacheKey,
-                existingCandles.slice(-maxCacheSize)
-            );
+        this.client.websockets.candlesticks(
+            assets,
+            timeframes,
+            (candlesticks) => {
+                const {
+                    e: eventType,
+                    E: eventTime,
+                    s: symbol,
+                    k: ticks,
+                } = candlesticks;
+                const {
+                    t: time,
+                    o: open,
+                    h: high,
+                    l: low,
+                    c: close,
+                    v: volume,
+                    n: trades,
+                    i: interval,
+                    x: isFinal,
+                    q: quoteVolume,
+                    V: buyVolume,
+                    Q: quoteBuyVolume,
+                } = ticks;
+
+                // Standardize format to match our engine's expectations
+                const candle = {
+                    openTime: time,
+                    open: parseFloat(open),
+                    high: parseFloat(high),
+                    low: parseFloat(low),
+                    close: parseFloat(close),
+                    volume: parseFloat(volume),
+                    isFinal: isFinal,
+                };
+
+                this.updateCandleCache(symbol, interval, candle);
+            }
+        );
+
+        // 2. Ticker Streams (for Live Prices)
+        this.client.websockets.prevDay(assets, (error, response) => {
+            if (response) {
+                const symbol = response.symbol;
+                const price = parseFloat(response.close);
+                this.priceCache[symbol] = {
+                    price: price,
+                    priceChangePercent: parseFloat(response.percentChange),
+                    timestamp: Date.now(),
+                };
+                // Emit lightweight price update event
+                this.emit("priceUpdate", { symbol, price });
+            }
+        });
+    }
+
+    processSnapshot(symbol, interval, rawData) {
+        if (!rawData || !Array.isArray(rawData)) return;
+
+        // Map Binance Array [time, open, high, low, close...] to Objects
+        const mapped = rawData.map((c) => ({
+            openTime: c[0],
+            open: parseFloat(c[1]),
+            high: parseFloat(c[2]),
+            low: parseFloat(c[3]),
+            close: parseFloat(c[4]),
+            volume: parseFloat(c[5]),
+        }));
+
+        this.candleCache[symbol][interval] = mapped;
+        // Update price cache with latest close
+        const last = mapped[mapped.length - 1];
+        if (last) {
+            this.priceCache[symbol] = {
+                price: last.close,
+                timestamp: Date.now(),
+            };
+        }
+    }
+
+    updateCandleCache(symbol, interval, newCandle) {
+        const cache = this.candleCache[symbol][interval];
+        const lastCandle = cache[cache.length - 1];
+
+        if (lastCandle && lastCandle.openTime === newCandle.openTime) {
+            // Update current candle in-place
+            cache[cache.length - 1] = newCandle;
         } else {
-            this.candleCache.set(cacheKey, existingCandles);
+            // It's a new candle, push it
+            cache.push(newCandle);
+            // Maintain max length (keep memory low)
+            if (cache.length > 500) cache.shift();
+
+            // IMPORTANT: If candle closed, trigger specific event for SignalGenerator
+            if (cache[cache.length - 2] && cache[cache.length - 2].isFinal) {
+                // We could emit 'candleClosed' here if needed
+            }
         }
     }
 
-    /**
-     * NEW: Refresh exchange info if needed
-     */
-    async refreshExchangeInfoIfNeeded() {
-        const now = Date.now();
-        const timeSinceUpdate = now - this.lastExchangeInfoUpdate;
+    // --- Public API for TradingEngine ---
+    // Now purely synchronous! No awaits, no bans.
 
-        if (timeSinceUpdate > this.config.exchangeInfoRefreshInterval) {
-            logger.info("🔄 Refreshing exchange information...");
-            await this.fetchExchangeInfo();
-        }
+    getCandles(symbol, interval, limit = 200) {
+        const data = this.candleCache[symbol]?.[interval] || [];
+        return data.slice(-limit);
     }
 
-    // Public API methods
     getCurrentPrice(symbol) {
-        return this.priceData.get(symbol) || null;
+        return this.priceCache[symbol] || null;
     }
 
     getAllPrices() {
-        const prices = {};
-        this.priceData.forEach((data, symbol) => {
-            prices[symbol] = data;
-        });
-        return prices;
+        return this.priceCache;
     }
 
-    getCandles(symbol, timeframe) {
-        const cacheKey = `${symbol}_${timeframe}`;
-        return this.candleCache.get(cacheKey) || [];
-    }
-
-    /**
-     * NEW: Get enhanced service status with exchange info
-     */
-    getServiceStatus() {
-        const totalCandles = Array.from(this.candleCache.values()).reduce(
-            (total, candles) => total + (candles?.length || 0),
-            0
-        );
-
-        return {
-            connected: this.isConnected,
-            useFallback: this.config.useFallback,
-            exchangeInfoLoaded: this.exchangeInfo !== null,
-            symbolsConfigured: this.symbolInfo.size,
-            lastExchangeInfoUpdate: this.lastExchangeInfoUpdate,
-            activeStreams: this.webSocketConnections.size,
-            cachedCandles: this.candleCache.size,
-            currentPrices: this.priceData.size,
-            totalCandles: totalCandles,
-            assets: this.config.assets,
-            timeframes: this.config.timeframes,
-
-            // NEW: Symbol constraint summary
-            symbolConstraints: Array.from(this.symbolInfo.entries()).map(
-                ([symbol, info]) => ({
-                    symbol,
-                    minNotional: info.minNotional,
-                    minQty: info.minQty,
-                    status: info.status,
-                })
-            ),
-        };
-    }
-
-    /**
-     * NEW: Get account information from Binance or provide a fallback
-     */
     async getAccountInfo() {
-        // Helper to create a consistent fallback/error response
-        const createFallbackResponse = (errorMessage) => {
-            logger.warn(`⚠️ ${errorMessage}`);
-            const fallbackBalances = [
-                { asset: "USDT", free: 5000, locked: 0, total: 5000 },
-            ];
-            // Ensure all tracked assets are present, even with 0 balance
-            this.config.assets.forEach((assetSymbol) => {
-                const baseAsset = assetSymbol.replace("USDT", "");
-                if (!fallbackBalances.some((b) => b.asset === baseAsset)) {
-                    fallbackBalances.push({
-                        asset: baseAsset,
-                        free: 0,
-                        locked: 0,
-                        total: 0,
-                    });
-                }
-            });
-
-            return {
-                accountType: "SPOT",
-                balances: fallbackBalances,
-                canTrade: true,
-                error: new Error(errorMessage),
-            };
-        };
-
-        if (this.config.useFallback || !this.binanceClient) {
-            return createFallbackResponse(
-                "Using fallback account information because client is not available or in fallback mode."
-            );
-        }
-
+        // This is the ONLY method that still needs a real API call
+        // But we call it rarely (only on trade execution or dashboard refresh)
         try {
-            const accountInfo = await new Promise((resolve, reject) => {
-                this.binanceClient.account((error, data) => {
-                    if (error) {
-                        return reject(
-                            new Error(error.body || "Unknown Binance API error")
-                        );
-                    }
-                    resolve(data);
-                });
-            });
-
-            // CRITICAL FIX: Process balances to add 'total' and parse numbers
-            if (accountInfo && Array.isArray(accountInfo.balances)) {
-                accountInfo.balances = accountInfo.balances.map((balance) => ({
-                    asset: balance.asset,
-                    free: parseFloat(balance.free),
-                    locked: parseFloat(balance.locked),
+            const res = await this.client.account();
+            return {
+                balances: Object.entries(res.balances).map(([asset, data]) => ({
+                    asset,
+                    free: parseFloat(data.available),
+                    locked: parseFloat(data.onOrder),
                     total:
-                        parseFloat(balance.free) + parseFloat(balance.locked),
-                }));
-            }
-
-            // NEW: Ensure all tracked assets are present in the response, even if balance is 0.
-            // This makes the data structure consistent with the fallback response.
-            if (accountInfo && Array.isArray(accountInfo.balances)) {
-                const trackedAssets = this.config.assets.map((a) =>
-                    a.replace("USDT", "")
-                );
-                trackedAssets.push("USDT"); // Make sure USDT is always tracked
-                const uniqueTrackedAssets = [...new Set(trackedAssets)];
-
-                uniqueTrackedAssets.forEach((assetSymbol) => {
-                    const found = accountInfo.balances.some(
-                        (b) => b.asset === assetSymbol
-                    );
-                    if (!found) {
-                        accountInfo.balances.push({
-                            asset: assetSymbol,
-                            free: 0,
-                            locked: 0,
-                            total: 0,
-                        });
-                    }
-                });
-            }
-
-            return accountInfo;
-        } catch (error) {
-            logger.error(
-                "❌ Failed to fetch account info from Binance:",
-                error
-            );
-            return createFallbackResponse(
-                `Failed to fetch account info: ${error.message}`
-            );
+                        parseFloat(data.available) + parseFloat(data.onOrder),
+                })),
+                canTrade: res.canTrade,
+                accountType: res.accountType,
+            };
+        } catch (e) {
+            return { error: e };
         }
     }
 
-    async stop() {
-        logger.info("🛑 Stopping Enhanced Binance Data Service...");
-
-        clearTimeout(this.readyTimeout); // NEW: Clear the readiness timeout
-
-        // NEW: Stop the candle updater
-        if (this.candleUpdateInterval) {
-            clearInterval(this.candleUpdateInterval);
-            this.candleUpdateInterval = null;
-            logger.info("🕯️  Candle updater stopped.");
-        }
-
-        // Close WebSocket connections
-        for (const [symbol, stream] of this.webSocketConnections) {
-            try {
-                if (
-                    this.binanceClient &&
-                    typeof this.binanceClient.websockets.terminate ===
-                        "function"
-                ) {
-                    this.binanceClient.websockets.terminate(stream);
-                }
-                logger.debug(`📡 Closed WebSocket for ${symbol}`);
-            } catch (error) {
-                logger.error(`Error closing WebSocket for ${symbol}:`, error);
-            }
-        }
-
-        this.webSocketConnections.clear();
-        this.isConnected = false;
-
-        logger.info("✅ Enhanced Binance Data Service stopped");
-        this.emit("serviceStopped");
+    getServiceStatus() {
+        return {
+            ready: this.isReady,
+            cachedSymbols: Object.keys(this.candleCache).length,
+            prices: Object.keys(this.priceCache).length,
+        };
     }
 }
 
