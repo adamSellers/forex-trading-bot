@@ -50,10 +50,10 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
     );
   }
 
-  // FIXED: Correct candle calculation with debugging
-  const totalCandles = binanceStatus.totalCandles || 0;
-  const candleDatasets = binanceStatus.candleDatasets || 0;
-  const priceStreams = binanceStatus.currentPrices || 0; // FIX: Use 'currentPrices' from backend
+  // FIXED: Correct property mapping from Backend API (binanceDataService.js)
+  const totalCandles = binanceStatus.candleCount || 0;      // Was: .totalCandles
+  const candleDatasets = binanceStatus.cachedSymbols || 0;  // Was: .candleDatasets
+  const priceStreams = binanceStatus.prices || 0;           // Was: .currentPrices
   
   console.log('🔍 SystemStatusBanner Debug:', {
     totalCandles,
@@ -72,10 +72,9 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
   
   // Calculate expected candles for different analysis levels
   const expectedCandles = {
-    // CRITICAL FIX: Use the requirement from the backend for the 'minimal' target
-    minimal: requiredCandlesPerDataset * numberOfDatasets, // Target for basic signals on all datasets
-    good: 100 * numberOfDatasets,     // Target for good analysis
-    optimal: 250 * numberOfDatasets   // Target for optimal analysis
+    minimal: requiredCandlesPerDataset * numberOfDatasets, 
+    good: 100 * numberOfDatasets,     
+    optimal: 250 * numberOfDatasets   
   };
   
   // Calculate progress percentages
@@ -96,15 +95,6 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
   const phase = getPhase();
   const isBuilding = phase === 'building';
   
-  console.log('📊 Phase Calculation:', {
-    totalCandles,
-    expectedMinimal: expectedCandles.minimal,
-    expectedGood: expectedCandles.good,
-    expectedOptimal: expectedCandles.optimal,
-    phase,
-    progressMinimal: progress.minimal.toFixed(1)
-  });
-
   // Phase configuration
   const phaseConfig = {
     building: {
@@ -170,7 +160,7 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
     return `${Math.ceil(hoursNeeded / 24)} days`;
   };
 
-  // CRITICAL FIX: Hide banner when system is optimal and working well
+  // Hide banner when system is optimal and working well
   if (phase === 'optimal' && insufficientSignals === 0) {
     return null;
   }
@@ -391,8 +381,9 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
               {/* Additional Info */}
               <Box mt={2} p={1} sx={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 1 }}>
                 <Typography variant="caption" color="textSecondary">
+                  {/* FIXED: 'connected' is undefined on backend, use 'ready' instead */}
                   💡 <strong>System Status:</strong> {systemStatus.isInitialized ? '🟢 Online' : '🔴 Offline'} •
-                  <strong> Data Collection:</strong> {binanceStatus.connected ? '🟢 Active' : '🔴 Inactive'} • 
+                  <strong> Data Collection:</strong> {binanceStatus.ready ? '🟢 Active' : '🔴 Inactive'} • 
                   <strong> Assets Building:</strong> {insufficientSignals} • 
                   <strong> Last Update:</strong> {binanceStatus.lastUpdate ? new Date(binanceStatus.lastUpdate).toLocaleTimeString() : 'Never'}
                 </Typography>
