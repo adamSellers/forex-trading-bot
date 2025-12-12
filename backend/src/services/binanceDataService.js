@@ -217,10 +217,6 @@ class BinanceDataService extends EventEmitter {
     async getAccountInfo() {
         try {
             const res = await this.client.account();
-
-            // DEBUG: Log the data structure once to be sure
-            // logger.info(`🔍 RAW ACCOUNT DATA SAMPLE: ${JSON.stringify(res.balances[0])}`);
-
             let balances = [];
 
             // HANDLE ARRAY FORMAT (Raw Binance API)
@@ -246,6 +242,18 @@ class BinanceDataService extends EventEmitter {
                 );
             }
 
+            // DEBUG PROBE 1: Check why "Real Holdings" sees nothing
+            const usdt = balances.find((b) => b.asset === "USDT");
+            if (usdt) {
+                logger.info(
+                    `💰 DEBUG ACCOUNT: Found USDT: ${usdt.total} (Free: ${usdt.free})`
+                );
+            } else {
+                logger.warn(
+                    "💰 DEBUG ACCOUNT: USDT NOT FOUND in balance list!"
+                );
+            }
+
             return {
                 balances,
                 canTrade: res.canTrade,
@@ -258,17 +266,25 @@ class BinanceDataService extends EventEmitter {
     }
 
     getServiceStatus() {
-        // FIX: Report the actual candle count from the first asset
-        const firstSymbol = this.config.assets[0];
-        const firstTf = this.config.timeframes[0];
+        const firstSymbol = this.config.assets[0]; // Should be BTCUSDT
+        const firstTf = this.config.timeframes[0]; // Should be 1h
         const history = this.candleCache[firstSymbol]?.[firstTf];
+
+        const count = history ? history.length : 0;
+
+        // DEBUG PROBE 2: Check why Progress Bar says 0
+        // Only log this occasionally to avoid spamming, or use logger.debug
+        if (Math.random() < 0.05) {
+            logger.info(
+                `📊 DEBUG STATUS: Symbol=${firstSymbol} TF=${firstTf} Candles=${count}`
+            );
+        }
 
         return {
             ready: this.isReady,
             cachedSymbols: Object.keys(this.candleCache).length,
             prices: Object.keys(this.priceCache).length,
-            // This is the magic number the frontend wants:
-            candleCount: history ? history.length : 0,
+            candleCount: count,
         };
     }
 }
