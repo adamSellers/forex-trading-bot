@@ -1,43 +1,26 @@
-// frontend/src/components/TradingConfig.jsx - FIXED TEXT
-import React, { useState, useEffect } from 'react';
+// frontend/src/components/TradingConfig.jsx - LINTER FIX
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box,
-  Grid,
-  Typography,
-  TextField,
-  Button,
-  Slider,
-  Switch,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
-  Chip,
-  Card,
-  InputAdornment,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Divider,
+  Box, Grid, Typography, TextField, Button, Slider, Switch, FormControl,
+  InputLabel, Select, MenuItem, Alert, Chip, Card, InputAdornment,
+  Accordion, AccordionSummary, AccordionDetails, Divider, IconButton, Stack
 } from '@mui/material';
 import {
-  Save,
-  Refresh,
-  ExpandMore,
-  TrendingUp,
-  Security,
-  AccountBalance,
-  Settings,
-  MoneyOff,
-  MonetizationOn,
-  FilterList,
-  Mail
+  Save, Refresh, ExpandMore, TrendingUp, Security, AccountBalance,
+  Settings, MoneyOff, MonetizationOn, FilterList, Mail, Delete
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
-const TradingConfig = () => {
-  const [config, setConfig] = useState({
+// Curated List of Top 20 High-Liquidity Assets on Binance
+const SUPPORTED_ASSETS = [
+  'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 
+  'DOGEUSDT', 'ADAUSDT', 'TRXUSDT', 'AVAXUSDT', 'SHIBUSDT',
+  'TONUSDT', 'LINKUSDT', 'DOTUSDT', 'BCHUSDT', 'LTCUSDT',
+  'UNIUSDT', 'NEARUSDT', 'MATICUSDT', 'ICPUSDT', 'PEPEUSDT'
+];
+
+// FIX: Define defaults OUTSIDE component to stabilize useEffect dependencies
+const DEFAULT_CONFIG = {
     // Account Settings
     maxCapitalAtRisk: 5000,
     tradingMode: 'paper',
@@ -49,7 +32,6 @@ const TradingConfig = () => {
     maxWeeklyLoss: 5.0,
     stopLossATR: 1.5,
     takeProfitATRMultiplier: 3.0,
-    maxPositionsPerAsset: 1,
     minOrderSize: 10,
     
     // Strategy Settings
@@ -64,10 +46,9 @@ const TradingConfig = () => {
     rsiOverbought: 70,
     rsiOversold: 30,
     
-    // Portfolio Allocation
-    allocation: {
-      BTCUSDT: 30, ETHUSDT: 30, BNBUSDT: 15, DOGEUSDT: 10, TRUMPUSDT: 15,
-    },
+    // Dynamic Assets & Allocation
+    assets: [], 
+    allocation: {}, 
     
     // Notifications
     enableEmailAlerts: false,
@@ -77,42 +58,45 @@ const TradingConfig = () => {
     logLevel: 'info',
     enableS3Analytics: false,
     enableS3SignalLogging: false,
-  });
+};
 
+const TradingConfig = () => {
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [originalConfig, setOriginalConfig] = useState({});
+  const [newAsset, setNewAsset] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  useEffect(() => { fetchCurrentConfig(); }, []);
-
-  useEffect(() => {
-    setHasChanges(JSON.stringify(config) !== JSON.stringify(originalConfig));
-  }, [config, originalConfig]);
-
-  const fetchCurrentConfig = async () => {
+  // FIX: Uses DEFAULT_CONFIG instead of state 'config' to avoid circular dependencies
+  const fetchCurrentConfig = useCallback(async () => {
     try {
       setLoading(true);
       const data = await tradingAPI.getStatus();
       
       if (data.config) {
+        // Map backend config to frontend state & Normalize Percentages
         const fetchedConfig = {
-          ...config, 
+          ...DEFAULT_CONFIG, // Use static default, not dynamic state
           ...data.config,
           riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
           maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
           maxWeeklyLoss: (data.config.maxWeeklyLoss * 100) || 5.0,
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
-          allocation: { ...config.allocation, ...data.config.allocation }
+          allocation: { ...data.config.allocation }
         };
         
+        // Fix allocation percentages if they came in as decimals (0.3)
         Object.keys(fetchedConfig.allocation).forEach(key => {
             if (fetchedConfig.allocation[key] <= 1) {
                 fetchedConfig.allocation[key] = fetchedConfig.allocation[key] * 100;
             }
         });
+
+        // Ensure assets array exists
+        if (!fetchedConfig.assets) fetchedConfig.assets = [];
 
         setConfig(fetchedConfig);
         setOriginalConfig(fetchedConfig);
@@ -122,12 +106,21 @@ const TradingConfig = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Dependency array is now truly empty and safe
+
+  useEffect(() => { 
+      fetchCurrentConfig(); 
+  }, [fetchCurrentConfig]);
+
+  useEffect(() => {
+    setHasChanges(JSON.stringify(config) !== JSON.stringify(originalConfig));
+  }, [config, originalConfig]);
 
   const handleSaveConfig = async () => {
     setSaving(true);
     setError(null);
     try {
+      // Prepare payload for API (Convert to decimals/milliseconds)
       const configToSave = {
         ...config,
         riskPerTrade: config.riskPerTrade / 100,
@@ -137,8 +130,11 @@ const TradingConfig = () => {
         allocation: {}
       };
 
-      Object.keys(config.allocation).forEach(key => {
-          configToSave.allocation[key] = config.allocation[key] / 100;
+      // Clean allocation (remove 0% or deleted assets) and convert to decimal
+      config.assets.forEach(asset => {
+          const alloc = config.allocation[asset] || 0;
+          if (alloc > 0) configToSave.allocation[asset] = alloc / 100;
+          else configToSave.allocation[asset] = 0;
       });
 
       await tradingAPI.updateConfig(configToSave);
@@ -152,16 +148,39 @@ const TradingConfig = () => {
     }
   };
 
-  const updateConfig = (path, value) => {
-    setConfig((prev) => {
-      const keys = path.split(".");
-      if (keys.length === 2 && keys[0] === "allocation") {
-        return { ...prev, allocation: { ...prev.allocation, [keys[1]]: value } };
-      }
-      return { ...prev, [keys[0]]: value };
-    });
+  const updateConfig = (key, value) => {
+    setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
+  // --- Dynamic Asset Logic ---
+  const handleAddAsset = () => {
+      if (!newAsset || config.assets.includes(newAsset)) return;
+      setConfig(prev => ({
+          ...prev,
+          assets: [...prev.assets, newAsset],
+          allocation: { ...prev.allocation, [newAsset]: 0 } // Start at 0%
+      }));
+      setNewAsset('');
+  };
+
+  const handleRemoveAsset = (assetToRemove) => {
+      setConfig(prev => {
+          const newAssets = prev.assets.filter(a => a !== assetToRemove);
+          const newAllocation = { ...prev.allocation };
+          delete newAllocation[assetToRemove];
+          return { ...prev, assets: newAssets, allocation: newAllocation };
+      });
+  };
+
+  const updateAllocation = (asset, val) => {
+      setConfig(prev => ({
+          ...prev,
+          allocation: { ...prev.allocation, [asset]: val }
+      }));
+  };
+
+  const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.allocation[asset] || 0), 0);
+  
   const riskAmounts = {
     riskPerTrade: (config.maxCapitalAtRisk * config.riskPerTrade / 100).toFixed(2),
     maxDailyLoss: (config.maxCapitalAtRisk * config.maxDailyLoss / 100).toFixed(2),
@@ -172,6 +191,7 @@ const TradingConfig = () => {
 
   return (
     <Box>
+      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">Trading Configuration</Typography>
         <Box display="flex" gap={2}>
@@ -349,39 +369,70 @@ const TradingConfig = () => {
           </Accordion>
         </Grid>
 
-        {/* 4. Portfolio Allocation */}
+        {/* 4. Portfolio Composition (DYNAMIC) */}
         <Grid item xs={12} md={6}>
-          <Accordion>
+          <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Settings sx={{ mr: 1 }} />
-              <Typography variant="h6">Allocation</Typography>
+              <Typography variant="h6">Portfolio Composition</Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Grid container spacing={1}>
-                {Object.entries(config.allocation).map(([asset, percentage]) => (
-                  <Grid item xs={12} key={asset}>
-                    <Typography variant="caption">
-                      {asset.replace('USDT', '')}: {percentage}%
-                    </Typography>
-                    <Slider
-                      size="small"
-                      value={percentage}
-                      onChange={(_, v) => updateConfig(`allocation.${asset}`, v)}
-                      min={0} max={50} step={5}
-                    />
-                  </Grid>
+              
+              {/* Asset Selector */}
+              <Box display="flex" gap={1} mb={2}>
+                <FormControl fullWidth size="small">
+                    <InputLabel>Add Asset to Portfolio</InputLabel>
+                    <Select 
+                        value={newAsset} 
+                        label="Add Asset to Portfolio"
+                        onChange={(e) => setNewAsset(e.target.value)}
+                    >
+                        {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
+                            <MenuItem key={asset} value={asset}>{asset}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset}>Add</Button>
+              </Box>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Dynamic Sliders */}
+              <Stack spacing={2}>
+                {config.assets.map(asset => (
+                    <Box key={asset}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Typography variant="subtitle2" fontWeight="bold">{asset}</Typography>
+                            <Box display="flex" alignItems="center">
+                                <Typography variant="caption" sx={{ mr: 1 }}>{config.allocation[asset] || 0}%</Typography>
+                                <IconButton size="small" color="error" onClick={() => handleRemoveAsset(asset)}>
+                                    <Delete fontSize="small" />
+                                </IconButton>
+                            </Box>
+                        </Box>
+                        <Slider 
+                            value={config.allocation[asset] || 0} 
+                            onChange={(_, v) => updateAllocation(asset, v)}
+                            min={0} max={50} step={5}
+                            size="small"
+                        />
+                    </Box>
                 ))}
-                <Typography variant="body2" color={Object.values(config.allocation).reduce((a,b)=>a+b,0) !== 100 ? "error" : "textSecondary"}>
-                    Total: {Object.values(config.allocation).reduce((a, b) => a + b, 0)}%
-                </Typography>
-              </Grid>
+              </Stack>
+
+              <Box mt={2} p={1} bgcolor={totalAllocation > 100 ? 'error.light' : 'action.hover'} borderRadius={1}>
+                  <Typography variant="body2" align="center" fontWeight="bold" color={totalAllocation > 100 ? 'error.contrastText' : 'text.primary'}>
+                      Total Allocation: {totalAllocation}%
+                  </Typography>
+              </Box>
+
             </AccordionDetails>
           </Accordion>
         </Grid>
         
-        {/* 5. Notifications (UPDATED TEXT) */}
+        {/* 5. Notifications (RESTORED) */}
         <Grid item xs={12} md={6}>
-          <Accordion defaultExpanded>
+          <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Mail sx={{ mr: 1 }} />
               <Typography variant="h6">Notifications</Typography>
@@ -409,7 +460,7 @@ const TradingConfig = () => {
                     value={config.alertEmail} 
                     onChange={(e) => updateConfig('alertEmail', e.target.value)}
                     disabled={!config.enableEmailAlerts}
-                    helperText="Leave blank to use the securely stored default email" // FIXED
+                    helperText="Leave blank to use the securely stored default email"
                   />
                 </Grid>
               </Grid>

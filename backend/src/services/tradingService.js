@@ -1,4 +1,4 @@
-// backend/src/services/tradingService.js - COMPLETE (Original Comments + Email)
+// backend/src/services/tradingService.js - COMPLETE (Original Comments + Dynamic Assets)
 const EventEmitter = require("events");
 const fs = require("fs").promises; // Use Promise API for async file ops
 const path = require("path");
@@ -10,7 +10,7 @@ const LiveTradingEngine = require("./LiveTradingEngine");
 const TradeRepository = require("../repositories/tradeRepository");
 const AnalyticsService = require("./analyticsService");
 const SignalRepository = require("../repositories/signalRepository");
-const emailService = require("./emailService"); // [NEW] Import Email Service
+const emailService = require("./emailService");
 const logger = require("../utils/logger");
 
 const CONFIG_FILE = path.join(__dirname, "../../data/trading_config.json");
@@ -60,7 +60,7 @@ class TradingService extends EventEmitter {
             enableTrailingStops: true,
             trailingStopPercent: 0.03,
 
-            // [NEW] Notification Defaults
+            // Notification Defaults
             enableEmailAlerts: false,
             alertEmail: "",
 
@@ -138,6 +138,8 @@ class TradingService extends EventEmitter {
             const savedConfig = JSON.parse(data);
 
             // Merge: Defaults < Saved.
+            // This ensures new fields added to defaults in code updates still appear,
+            // but don't overwrite user's saved preferences.
             this.config = {
                 ...this.defaultConfig,
                 ...savedConfig,
@@ -203,9 +205,8 @@ class TradingService extends EventEmitter {
                 this.emit("tradeExecuted", trade);
                 this.io.emit("tradeExecuted", trade);
 
-                // [NEW] CHECK CONFIG: Only send if enabled
+                // Email Notification Hook
                 if (this.config.enableEmailAlerts) {
-                    // Pass the custom email address if one is set
                     emailService.sendTradeAlert(trade, this.config.alertEmail);
                 }
             } catch (error) {
@@ -286,6 +287,8 @@ class TradingService extends EventEmitter {
             },
             candleCount: bdStatus.candleCount || 0,
             activeSignals: signalStatus.activeSignals || [],
+            // --------------------------------------------
+
             timestamp: Date.now(),
         };
     }
@@ -344,6 +347,12 @@ class TradingService extends EventEmitter {
             logger.setLogLevel(newConfig.logLevel);
         }
 
+        // [NEW] 1. Detect if ASSETS changed
+        const oldAssets = JSON.stringify((this.config.assets || []).sort());
+        const newAssetsList = newConfig.assets || this.config.assets;
+        const assetsChanged =
+            oldAssets !== JSON.stringify(newAssetsList.sort());
+
         // Update memory config
         this.config = { ...this.config, ...newConfig };
 
@@ -353,6 +362,25 @@ class TradingService extends EventEmitter {
         if (this.riskService) this.riskService.updateConfig(this.config);
         if (this.analyticsService)
             this.analyticsService.updateConfig(this.config);
+
+        // [NEW] 2. Handle Asset Swapping (Re-init Binance Service)
+        if (assetsChanged && this.binanceData) {
+            logger.warn("🔄 Asset list changed. Restarting Data Service...");
+            this.binanceData.removeAllListeners(); // Prevent memory leaks
+
+            // Re-create service with new config
+            this.binanceData = new BinanceDataService(this.config);
+            this.binanceData.initialize();
+
+            // Re-bind listeners
+            this.binanceData.on("priceUpdate", (priceData) => {
+                const allPrices = this.binanceData.getAllPrices();
+                this.activeEngine.updatePortfolioValue(allPrices);
+                this.io.emit("priceUpdate", priceData);
+            });
+            // Update Signal Generator reference
+            this.signalGenerator.start(this.binanceData, 60000);
+        }
 
         // Handle Engine Switching
         if (
