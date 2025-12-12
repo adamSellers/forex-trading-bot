@@ -90,7 +90,7 @@ class BinanceDataService extends EventEmitter {
                         symbol,
                         interval,
                         false,
-                        { limit: 200 }
+                        { limit: 1000 }
                     );
                     this.processSnapshot(symbol, interval, candles);
                     await new Promise((r) => setTimeout(r, 50)); // Tiny throttle
