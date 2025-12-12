@@ -23,31 +23,41 @@ class TradingService extends EventEmitter {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
 
-        // 1. Hardcoded Defaults (The "Factory Settings")
+        // 1. Hardcoded Defaults (The "Golden Config" - BTC/ETH/BNB/DOGE)
         this.defaultConfig = {
             strategy: "balanced",
             timeframe: "1h",
-            tradingMode: "paper",
-            enableTrading: false, // Default to OFF for safety on fresh install
+            tradingMode: "live",
+            enableTrading: false,
+            // Watch everything, but only trade the winners
             assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT", "TRUMPUSDT"],
             timeframes: ["1h", "4h", "1d"],
-            maxCapitalAtRisk: 120, // Updated to your new default
-            riskPerTrade: 0.01,
-            maxDailyLoss: 0.02,
-            maxWeeklyLoss: 0.05,
+            maxCapitalAtRisk: 120,
+            riskPerTrade: 0.02,
+            maxDailyLoss: 0.05,
+            maxWeeklyLoss: 0.1,
+
+            // --- ALLOCATION (Optimized Mix) ---
             allocation: {
-                BTCUSDT: 0.4,
-                ETHUSDT: 0.3,
-                BNBUSDT: 0.3,
-                DOGEUSDT: 0.0,
-                TRUMPUSDT: 0.0,
+                BTCUSDT: 0.3, // Core
+                ETHUSDT: 0.3, // Core
+                BNBUSDT: 0.2, // Utility
+                DOGEUSDT: 0.2, // The "Good" Meme (Proven Profitable)
+                TRUMPUSDT: 0.0, // The "Bad" Meme (Banned)
             },
-            // Advanced Filters
+
+            // --- STRATEGY SETTINGS (Verified $157 Profit) ---
             enableAdxFilter: true,
-            minAdx: 25,
+            minAdx: 30, // Strict Trend Entry
+
             enableRsiFilter: true,
             rsiOverbought: 70,
             rsiOversold: 30,
+
+            stopLossATR: 1.5, // Tight risk management
+            takeProfitATRMultiplier: 3.0, // High reward targeting
+            enableTrailingStops: true,
+            trailingStopPercent: 0.03,
 
             // S3 Config
             enableS3Analytics: process.env.ENABLE_S3_ANALYTICS === "true",

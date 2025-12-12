@@ -1,135 +1,381 @@
 // backend/scripts/optimize-strategy.js
-const BacktestingEngine = require("../src/services/backtestingEngine");
-const logger = require("../src/utils/logger");
+// Standalone Backtester - No API Keys required (Public Data Only)
 
-// 1. THE GRID (Parameters to test)
+const Binance = require("node-binance-api");
+
+// --- CONFIGURATION ---
+const SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"];
+const TIMEFRAME = "1h";
+const DAYS_OF_HISTORY = 120; // Look back 45 days
+
+// GRID SEARCH RANGES (The "What If" Scenarios)
 const PARAM_GRID = {
-    // Trend Strength: Testing if we should only trade strong trends (25+) or catch early ones (20)
-    minAdx: [20, 25, 30, 35],
-    // Overbought Levels: Testing if 70 is too sensitive or 80 is too risky
-    rsiOverbought: [65, 70, 75, 80],
-    // Risk Management: Tight vs Loose stops
-    stopLossATR: [1.5, 2.0, 2.5],
+    adxThreshold: [20, 25, 30], // Trend Strength
+    rsiBuyThreshold: [30, 35, 40], // Oversold level
+    rsiSellThreshold: [70, 75, 80], // Overbought level
+    stopLossATR: [1.5, 2.0, 3.0], // Risk tolerance
+    takeProfitATR: [2.0, 3.0, 4.0], // Greed level
 };
 
-const DATA_FILE = "BTCUSDT-1h-1000.json";
+// Initialize without keys (Public data only)
+const binance = new Binance().options({
+    family: 4,
+    log: () => {}, // Silence default logs
+});
 
-async function runGridSearch() {
-    console.log("🔬 Starting Grid Search Optimization...");
-    console.time("Optimization Duration");
+// --- INDICATOR MATH (Embedded for standalone usage) ---
+function calculateSMA(data, period) {
+    if (data.length < period) return [];
+    return data.map((_, idx, arr) => {
+        if (idx < period - 1) return null;
+        const slice = arr.slice(idx - period + 1, idx + 1);
+        return slice.reduce((a, b) => a + b, 0) / period;
+    });
+}
 
-    const results = [];
-    let runCount = 0;
-    const totalRuns =
-        PARAM_GRID.minAdx.length *
-        PARAM_GRID.rsiOverbought.length *
-        PARAM_GRID.stopLossATR.length;
+function calculateEMA(data, period) {
+    const k = 2 / (period + 1);
+    let emaArray = [data[0]];
+    for (let i = 1; i < data.length; i++) {
+        emaArray.push(data[i] * k + emaArray[i - 1] * (1 - k));
+    }
+    return emaArray;
+}
 
-    // 2. THE LOOP
-    for (const adx of PARAM_GRID.minAdx) {
-        for (const rsi of PARAM_GRID.rsiOverbought) {
-            for (const sl of PARAM_GRID.stopLossATR) {
-                runCount++;
+function calculateRSI(closes, period = 14) {
+    let gains = 0,
+        losses = 0;
+    // Initial Average
+    for (let i = 1; i <= period; i++) {
+        const change = closes[i] - closes[i - 1];
+        if (change > 0) gains += change;
+        else losses += Math.abs(change);
+    }
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
 
-                // Configure this specific run
-                const testConfig = {
-                    dataFile: DATA_FILE,
-                    symbol: "BTCUSDT",
-                    strategy: "balanced",
-                    enableAdxFilter: true,
-                    minAdx: adx,
-                    enableRsiFilter: true,
-                    rsiOverbought: rsi,
-                    stopLossATR: sl,
-                    // Mute logger to keep console clean
-                    logLevel: "error",
-                };
+    const rsiArray = new Array(period).fill(null); // Pad start
+    rsiArray.push(100 - 100 / (1 + avgGain / avgLoss));
 
-                try {
-                    const engine = new BacktestingEngine(testConfig);
+    // Smoothed
+    for (let i = period + 1; i < closes.length; i++) {
+        const change = closes[i] - closes[i - 1];
+        const gain = change > 0 ? change : 0;
+        const loss = change < 0 ? Math.abs(change) : 0;
 
-                    // --- MOCKING: CRITICAL FIXES ---
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        rsiArray.push(100 - 100 / (1 + avgGain / avgLoss));
+    }
+    return rsiArray;
+}
 
-                    // 1. Mock the Repository to prevent SQLITE_ERROR
-                    engine.paperTrading.tradeRepo = {
-                        getAllTrades: async () => [], // Return empty history
-                        save: async () => {}, // Do nothing on save
-                        updateTrade: async () => {}, // Do nothing on update
-                        getOpenLiveTrades: async () => [],
-                    };
+function calculateATR(highs, lows, closes, period = 14) {
+    let tr = [highs[0] - lows[0]];
+    for (let i = 1; i < highs.length; i++) {
+        tr.push(
+            Math.max(
+                highs[i] - lows[i],
+                Math.abs(highs[i] - closes[i - 1]),
+                Math.abs(lows[i] - closes[i - 1])
+            )
+        );
+    }
+    // First ATR is SMA of TR
+    let atr = [tr.slice(0, period).reduce((a, b) => a + b, 0) / period];
+    // Subsequent are smoothed
+    for (let i = period; i < tr.length; i++) {
+        atr.push((atr[i - period] * (period - 1) + tr[i]) / period);
+    }
+    // Pad output to match input length roughly (simplified)
+    return new Array(period - 1).fill(null).concat(atr);
+}
 
-                    // 2. Disable file persistence
-                    engine.paperTrading.saveStateToFile = () => {};
+function calculateADX(highs, lows, closes, period = 14) {
+    // Standard ADX implementation
+    const getTR = (i) =>
+        Math.max(
+            highs[i] - lows[i],
+            Math.abs(highs[i] - closes[i - 1]),
+            Math.abs(lows[i] - closes[i - 1])
+        );
+    const getDM = (i) => {
+        const up = highs[i] - highs[i - 1];
+        const down = lows[i - 1] - lows[i];
+        return {
+            p: up > down && up > 0 ? up : 0,
+            m: down > up && down > 0 ? down : 0,
+        };
+    };
 
-                    // 3. Patch missing method 'isValidSignal' if it doesn't exist
-                    if (!engine.paperTrading.isValidSignal) {
-                        engine.paperTrading.isValidSignal = (signal) => {
-                            // Replicate basic validation logic
-                            return (
-                                signal &&
-                                signal.signal !== "HOLD" &&
-                                signal.signal !== "COOLDOWN" &&
-                                signal.signal !== "ERROR"
-                            );
-                        };
+    let tr = [],
+        pdm = [],
+        mdm = [];
+    for (let i = 1; i < highs.length; i++) {
+        tr.push(getTR(i));
+        const dm = getDM(i);
+        pdm.push(dm.p);
+        mdm.push(dm.m);
+    }
+
+    // Smooth
+    const smooth = (arr) => {
+        let s = [arr.slice(0, period).reduce((a, b) => a + b, 0)];
+        for (let i = period; i < arr.length; i++)
+            s.push(s[s.length - 1] - s[s.length - 1] / period + arr[i]);
+        return s;
+    };
+
+    const sTR = smooth(tr);
+    const sPDM = smooth(pdm);
+    const sMDM = smooth(mdm);
+
+    let adx = [];
+    let dxList = [];
+
+    for (let i = 0; i < sTR.length; i++) {
+        const diPlus = (sPDM[i] / sTR[i]) * 100;
+        const diMinus = (sMDM[i] / sTR[i]) * 100;
+        const dx = (Math.abs(diPlus - diMinus) / (diPlus + diMinus)) * 100;
+        dxList.push(dx);
+
+        if (i >= period - 1) {
+            // Wait for enough DX
+            if (adx.length === 0) {
+                adx.push(
+                    dxList
+                        .slice(i - period + 1, i + 1)
+                        .reduce((a, b) => a + b, 0) / period
+                );
+            } else {
+                adx.push((adx[adx.length - 1] * (period - 1) + dx) / period);
+            }
+        } else {
+            adx.push(null);
+        }
+    }
+    // Pad to match input array length
+    return new Array(period * 2).fill(null).concat(adx);
+}
+
+// --- ENGINE LOGIC ---
+
+async function fetchHistory(symbol) {
+    process.stdout.write(`📥 ${symbol}: Fetching history... `);
+    const limit = 1000;
+    let allCandles = [];
+    let endTime = Date.now();
+
+    while (allCandles.length < DAYS_OF_HISTORY * 24) {
+        const candles = await new Promise((resolve) => {
+            binance.candlesticks(
+                symbol,
+                TIMEFRAME,
+                (error, ticks) => {
+                    if (error || !ticks) {
+                        resolve([]);
+                        return;
                     }
-
-                    // --- END MOCKING ---
-
-                    // Run Simulation
-                    const report = await engine.run();
-                    const summary = report.summary;
-
-                    const result = {
-                        params: { adx, rsi, sl },
-                        metrics: {
-                            pnl: summary.totalPnL,
-                            winRate: summary.winRate,
-                            trades: summary.totalTrades,
-                        },
-                    };
-
-                    results.push(result);
-
-                    // Progress Bar
-                    process.stdout.write(
-                        `\r[${runCount}/${totalRuns}] ADX:${adx} RSI:${rsi} SL:${sl} => PnL: $${summary.totalPnL.toFixed(
-                            2
-                        )}   `
+                    resolve(
+                        ticks.map((t) => ({
+                            time: t[0],
+                            open: parseFloat(t[1]),
+                            high: parseFloat(t[2]),
+                            low: parseFloat(t[3]),
+                            close: parseFloat(t[4]),
+                            volume: parseFloat(t[5]),
+                        }))
                     );
-                } catch (error) {
-                    // Only log real logic errors, not the expected ones we just fixed
-                    // console.error(`\nRun failed:`, error.message);
+                },
+                { limit, endTime }
+            );
+        });
+
+        if (candles.length === 0) break;
+        allCandles = [...candles, ...allCandles]; // Prepend
+        endTime = candles[0].time - 1;
+        await new Promise((r) => setTimeout(r, 100)); // Be nice to API
+    }
+
+    // Sort and Remove duplicates
+    allCandles.sort((a, b) => a.time - b.time);
+    const unique = allCandles.filter(
+        (v, i, a) => a.findIndex((t) => t.time === v.time) === i
+    );
+
+    console.log(`✅ Loaded ${unique.length} candles`);
+    return unique;
+}
+
+function simulateTrade(candles, params) {
+    let usdt = 1000; // Starting Cash
+    let position = null;
+    let trades = 0;
+    let wins = 0;
+
+    // 1. Pre-calc indicators for speed
+    const closes = candles.map((c) => c.close);
+    const highs = candles.map((c) => c.high);
+    const lows = candles.map((c) => c.low);
+
+    const rsiArr = calculateRSI(closes, 14);
+    const adxArr = calculateADX(highs, lows, closes, 14);
+    const atrArr = calculateATR(highs, lows, closes, 14);
+
+    // 2. Walk through history
+    for (let i = 50; i < candles.length; i++) {
+        const price = closes[i];
+        const rsi = rsiArr[i];
+        const adx = adxArr[i];
+        const atr = atrArr[i];
+        const high = highs[i];
+        const low = lows[i];
+
+        if (!rsi || !adx || !atr) continue;
+
+        if (!position) {
+            // BUY SIGNAL
+            if (adx > params.adxThreshold && rsi < params.rsiBuyThreshold) {
+                // Risk Calculation: Risk 2% of current account per trade
+                const stopPrice = price - atr * params.stopLossATR;
+                const riskPerShare = price - stopPrice;
+
+                if (riskPerShare <= 0) continue;
+
+                // Position Size = (Account * Risk%) / (Entry - Stop)
+                let qty = (usdt * 0.02) / riskPerShare;
+
+                // Cap max allocation at 95% of current cash
+                const maxQty = (usdt * 0.95) / price;
+                qty = Math.min(qty, maxQty);
+
+                if (qty * price < 10) continue; // Min order size check
+
+                const cost = qty * price;
+                usdt -= cost; // Pay for asset
+                usdt -= cost * 0.001; // Pay fee
+
+                position = {
+                    entry: price,
+                    qty,
+                    sl: stopPrice,
+                    tp: price + atr * params.takeProfitATR,
+                };
+            }
+        } else {
+            // SELL CHECKS
+            let exitPrice = null;
+
+            if (low <= position.sl) exitPrice = position.sl; // Stop Loss
+            else if (high >= position.tp)
+                exitPrice = position.tp; // Take Profit
+            else if (rsi > params.rsiSellThreshold) exitPrice = price; // RSI Exit
+
+            if (exitPrice) {
+                const revenue = exitPrice * position.qty;
+                usdt += revenue; // Get cash back
+                usdt -= revenue * 0.001; // Pay fee
+
+                if (exitPrice > position.entry) wins++;
+                trades++;
+                position = null;
+            }
+        }
+    }
+
+    return {
+        profit: usdt - 1000,
+        trades,
+        winRate: trades > 0 ? (wins / trades) * 100 : 0,
+    };
+}
+
+async function run() {
+    console.log("🚀 Starting Strategy Optimization (Local Mode)");
+
+    // Fetch Data
+    const marketData = {};
+    for (const sym of SYMBOLS) {
+        marketData[sym] = await fetchHistory(sym);
+    }
+
+    // Run Grid
+    let best = { score: -Infinity, params: null };
+    let iterations = 0;
+
+    const totalCombos =
+        PARAM_GRID.adxThreshold.length *
+        PARAM_GRID.rsiBuyThreshold.length *
+        PARAM_GRID.rsiSellThreshold.length *
+        PARAM_GRID.stopLossATR.length *
+        PARAM_GRID.takeProfitATR.length;
+
+    console.log(`\n🔄 Testing ${totalCombos} strategy combinations...`);
+
+    const start = Date.now();
+
+    for (const adx of PARAM_GRID.adxThreshold) {
+        for (const rsiBuy of PARAM_GRID.rsiBuyThreshold) {
+            for (const rsiSell of PARAM_GRID.rsiSellThreshold) {
+                for (const sl of PARAM_GRID.stopLossATR) {
+                    for (const tp of PARAM_GRID.takeProfitATR) {
+                        const params = {
+                            adxThreshold: adx,
+                            rsiBuyThreshold: rsiBuy,
+                            rsiSellThreshold: rsiSell,
+                            stopLossATR: sl,
+                            takeProfitATR: tp,
+                        };
+
+                        let totalProfit = 0;
+                        let totalTrades = 0;
+
+                        for (const sym of SYMBOLS) {
+                            const res = simulateTrade(marketData[sym], params);
+                            totalProfit += res.profit;
+                            totalTrades += res.trades;
+                        }
+
+                        // Scoring Function: Profit is good, but need activity (>10 trades total)
+                        let score = totalProfit;
+                        if (totalTrades < 10) score = -1000;
+
+                        if (score > best.score) {
+                            best = {
+                                score,
+                                params,
+                                profit: totalProfit,
+                                trades: totalTrades,
+                            };
+                            process.stdout.write(
+                                `\r🌟 BEST: +$${totalProfit.toFixed(
+                                    2
+                                )} | ADX>${adx} RSI<${rsiBuy} | Trades: ${totalTrades}      `
+                            );
+                        }
+
+                        iterations++;
+                        if (iterations % 50 === 0) {
+                            const pct = Math.round(
+                                (iterations / totalCombos) * 100
+                            );
+                            process.stdout.write(`\r⏳ ${pct}% Done... `);
+                        }
+                    }
                 }
             }
         }
     }
 
-    console.log("\n\n✅ Optimization Complete.");
-    console.timeEnd("Optimization Duration");
-
-    // 3. ANALYSIS
-    if (results.length === 0) {
-        console.log("❌ No results found. All runs failed.");
-        return;
-    }
-
-    // Sort by Profit (High to Low)
-    results.sort((a, b) => b.metrics.pnl - a.metrics.pnl);
-
-    console.log("\n🏆 TOP 3 CONFIGURATIONS");
-    console.log("========================================");
-    results.slice(0, 3).forEach((res, i) => {
-        console.log(
-            `#${i + 1}: PnL $${res.metrics.pnl.toFixed(2)} | Win Rate: ${
-                res.metrics.winRate
-            }% | Trades: ${res.metrics.trades}`
-        );
-        console.log(
-            `    Set: minAdx: ${res.params.adx}, rsiOverbought: ${res.params.rsi}, stopLossATR: ${res.params.sl}`
-        );
-        console.log("----------------------------------------");
-    });
+    console.log("\n\n🏆 OPTIMIZATION RESULTS 🏆");
+    console.log("---------------------------");
+    console.log(
+        `Total Simulated Profit: $${best.profit.toFixed(2)} (on $1000 starting)`
+    );
+    console.log(`Total Trades: ${best.trades}`);
+    console.log("Recommended Settings:");
+    console.log(JSON.stringify(best.params, null, 2));
+    console.log(`Time taken: ${(Date.now() - start) / 1000}s`);
 }
 
-runGridSearch();
+run();
