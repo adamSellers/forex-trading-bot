@@ -1,4 +1,4 @@
-// backend/src/routes/management.js - COMPLETE Management Routes
+// backend/src/routes/management.js - FIXED HEALTH CHECK
 const express = require("express");
 const router = express.Router();
 const fs = require("fs");
@@ -11,17 +11,23 @@ module.exports = (tradingController) => {
             const uptime = process.uptime();
             const memory = process.memoryUsage();
 
-            // Get trading system status
-            const tradingStatus = tradingController?.isInitialized || false;
-            const binanceStatus =
-                tradingController.tradingService?.binanceData?.getServiceStatus();
-            const paperTradingStatus =
-                tradingController.tradingService?.paperTrading?.getStatus();
-            const signalGeneratorStatus =
-                tradingController.tradingService?.signalGenerator?.getStatus();
+            // Access the core service
+            const ts = tradingController.tradingService;
+
+            // 1. Get Binance Status (Fix: Check 'ready', not 'connected')
+            const binanceStatus = ts?.binanceData?.getServiceStatus();
+            const isBinanceReady = binanceStatus?.ready || false;
+
+            // 2. Get Engine Status (Fix: Check 'activeEngine', works for both Live & Paper)
+            const engineStatus = ts?.activeEngine?.getStatus();
+            const isEngineActive = engineStatus?.isActive || false;
+
+            // 3. Get Signal Status
+            const signalStatus = ts?.signalGenerator?.getStatus();
 
             res.json({
                 status: "OK",
+                isInitialized: tradingController.isInitialized, // Critical for Banner
                 timestamp: new Date().toISOString(),
                 uptime: uptime,
                 uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor(
@@ -36,20 +42,16 @@ module.exports = (tradingController) => {
                 environment: process.env.NODE_ENV || "production",
                 version: "2.0.0",
                 services: {
-                    tradingController: tradingStatus,
-                    database: true, // SQLite is embedded
-                    binanceData: binanceStatus?.connected || false,
-                    paperTrading: paperTradingStatus?.isActive || false,
-                    signalGenerator: signalGeneratorStatus?.isActive || false,
+                    tradingController: tradingController.isInitialized,
+                    database: true,
+                    binanceData: isBinanceReady, // Green Light!
+                    engine: isEngineActive, // Green Light!
+                    signalGenerator: signalStatus?.isActive || false,
                 },
-                api: {
-                    endpoints: [
-                        "/api/trading/*",
-                        "/api/management/*",
-                        "/api/health",
-                    ],
-                    lastRequest: new Date().toISOString(),
-                },
+                // Pass through stats for the banner
+                candleCount: binanceStatus?.candleCount || 0,
+                activeSignals: signalStatus?.activeSignals || [],
+                config: ts?.config || {},
             });
         } catch (error) {
             console.error("Health check error:", error);
@@ -57,13 +59,6 @@ module.exports = (tradingController) => {
                 status: "ERROR",
                 timestamp: new Date().toISOString(),
                 error: error.message,
-                services: {
-                    tradingController: false,
-                    database: false,
-                    binanceData: false,
-                    paperTrading: false,
-                    signalGenerator: false,
-                },
             });
         }
     });
@@ -71,16 +66,15 @@ module.exports = (tradingController) => {
     // GET /api/management/system - Detailed system information
     router.get("/system", (req, res) => {
         try {
-            const systemInfo = {
+            const ts = tradingController?.tradingService;
+
+            res.json({
                 timestamp: new Date().toISOString(),
                 server: {
                     uptime: process.uptime(),
                     platform: process.platform,
-                    architecture: process.arch,
                     nodeVersion: process.version,
                     pid: process.pid,
-                    cwd: process.cwd(),
-                    execPath: process.execPath,
                 },
                 memory: {
                     ...process.memoryUsage(),
@@ -94,327 +88,89 @@ module.exports = (tradingController) => {
                         rss: `${Math.round(
                             process.memoryUsage().rss / 1024 / 1024
                         )}MB`,
-                        external: `${Math.round(
-                            process.memoryUsage().external / 1024 / 1024
-                        )}MB`,
                     },
                 },
                 environment: {
                     nodeEnv: process.env.NODE_ENV || "production",
-                    port: process.env.PORT || 3001,
                     hasApiKeys: !!(
                         process.env.BINANCE_API_KEY &&
                         process.env.BINANCE_API_SECRET
                     ),
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 },
-                tradingSystem: tradingController
-                    ? {
-                          initialized: tradingController.isInitialized,
-                          status: tradingController.isInitialized
-                              ? tradingController.tradingService?.getStatus?.() ||
-                                "Running"
-                              : "Not Initialized",
-                      }
-                    : {
-                          initialized: false,
-                          error: "Trading service not available",
-                      },
-                binanceData: tradingController?.tradingService?.binanceData
-                    ? {
-                          ...tradingController.tradingService.binanceData.getServiceStatus(),
-                          mode: tradingController.tradingService.binanceData
-                              .useFallback
-                              ? "FALLBACK"
-                              : "LIVE",
-                      }
-                    : {
-                          available: false,
-                          error: "Binance data service not available",
-                      },
-            };
-
-            res.json(systemInfo);
-        } catch (error) {
-            console.error("System info error:", error);
-            res.status(500).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
+                tradingSystem: {
+                    status: ts?.getStatus() || {},
+                    mode: ts?.config?.tradingMode || "Unknown",
+                },
+                binanceData: ts?.binanceData?.getServiceStatus() || {},
             });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
     });
 
     // GET /api/management/logs - Recent application logs
     router.get("/logs", (req, res) => {
         try {
-            const { level = "info", limit = 50, format = "json" } = req.query;
-
-            // Try to read from log files if they exist
+            const { level = "info", limit = 50 } = req.query;
             const logDir = path.join(__dirname, "../../logs");
             let logs = [];
 
             if (fs.existsSync(logDir)) {
-                try {
-                    const logFiles = fs
-                        .readdirSync(logDir)
-                        .filter((file) => file.endsWith(".log"))
-                        .sort()
-                        .slice(-3); // Get last 3 log files
-
-                    logFiles.forEach((file) => {
-                        const filePath = path.join(logDir, file);
-                        const content = fs.readFileSync(filePath, "utf8");
-                        const lines = content
-                            .split("\n")
-                            .filter((line) => line.trim())
-                            .slice(-parseInt(limit) / logFiles.length); // Distribute limit across files
-
-                        lines.forEach((line) => {
-                            try {
-                                const logEntry = JSON.parse(line);
-                                if (
-                                    !level ||
-                                    logEntry.level?.toLowerCase() ===
-                                        level.toLowerCase()
-                                ) {
-                                    logs.push(logEntry);
-                                }
-                            } catch (parseError) {
-                                // Handle non-JSON log lines
-                                logs.push({
-                                    timestamp: new Date().toISOString(),
-                                    level: "info",
-                                    message: line,
-                                    source: "file",
-                                });
-                            }
-                        });
+                const logFiles = fs
+                    .readdirSync(logDir)
+                    .filter((f) => f.endsWith(".log"))
+                    .sort()
+                    .slice(-2);
+                logFiles.forEach((file) => {
+                    const content = fs.readFileSync(
+                        path.join(logDir, file),
+                        "utf8"
+                    );
+                    const lines = content
+                        .split("\n")
+                        .filter((l) => l.trim())
+                        .slice(-parseInt(limit));
+                    lines.forEach((line) => {
+                        try {
+                            logs.push(JSON.parse(line));
+                        } catch (e) {
+                            /* ignore raw text */
+                        }
                     });
-                } catch (fileError) {
-                    console.warn("Error reading log files:", fileError);
-                }
+                });
             }
 
-            // If no file logs, provide recent system logs
-            if (logs.length === 0) {
-                logs = [
-                    {
-                        timestamp: new Date().toISOString(),
-                        level: "info",
-                        message:
-                            "System operational - logs available in file system",
-                        service: "management",
-                    },
-                    {
-                        timestamp: new Date(Date.now() - 1000).toISOString(),
-                        level: "info",
-                        message: `Trading controller status: ${
-                            tradingController?.isInitialized
-                                ? "Initialized"
-                                : "Not initialized"
-                        }`,
-                        service: "trading",
-                    },
-                    {
-                        timestamp: new Date(Date.now() - 2000).toISOString(),
-                        level: "info",
-                        message: `Memory usage: ${Math.round(
-                            process.memoryUsage().heapUsed / 1024 / 1024
-                        )}MB`,
-                        service: "system",
-                    },
-                ];
-            }
-
-            // Sort by timestamp and limit
+            // Filter and Sort
             logs = logs
+                .filter(
+                    (l) =>
+                        !level ||
+                        (l.level &&
+                            l.level.toLowerCase() === level.toLowerCase())
+                )
                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
                 .slice(0, parseInt(limit));
 
-            const response = {
-                level,
-                limit: parseInt(limit),
-                count: logs.length,
-                logs,
-                metadata: {
-                    generated: new Date().toISOString(),
-                    logDirectory: logDir,
-                    hasFileAccess: fs.existsSync(logDir),
-                },
-            };
-
-            res.json(response);
+            res.json({ logs });
         } catch (error) {
-            console.error("Logs error:", error);
-            res.status(500).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
-                logs: [],
-            });
+            res.status(500).json({ error: error.message, logs: [] });
         }
     });
 
-    // GET /api/management/performance - System performance metrics
-    router.get("/performance", (req, res) => {
-        try {
-            const cpuUsage = process.cpuUsage();
-            const memUsage = process.memoryUsage();
-
-            const performance = {
-                timestamp: new Date().toISOString(),
-                uptime: process.uptime(),
-                cpu: {
-                    user: cpuUsage.user,
-                    system: cpuUsage.system,
-                    usage: `${(
-                        (cpuUsage.user + cpuUsage.system) /
-                        1000000
-                    ).toFixed(2)}s total`,
-                },
-                memory: {
-                    heapUsed: memUsage.heapUsed,
-                    heapTotal: memUsage.heapTotal,
-                    rss: memUsage.rss,
-                    external: memUsage.external,
-                    heapUtilization:
-                        (
-                            (memUsage.heapUsed / memUsage.heapTotal) *
-                            100
-                        ).toFixed(2) + "%",
-                },
-                trading: {
-                    isActive: tradingController?.isInitialized || false,
-                    dataCollectionRate:
-                        tradingController?.tradingService?.binanceData?.getServiceStatus()
-                            ?.totalCandles || 0,
-                    signalsGenerated:
-                        tradingController?.tradingService?.signalGenerator
-                            ?.signalHistory?.length || 0,
-                    tradesExecuted:
-                        tradingController?.tradingService?.paperTrading
-                            ?.tradeHistory?.length || 0,
-                },
-                network: {
-                    socketConnections: 0, // Would need to track socket.io connections
-                    apiRequests: "N/A", // Would need request counter middleware
-                },
-                alerts: [],
-            };
-
-            // Add performance alerts
-            if (performance.memory.heapUtilization > 80) {
-                performance.alerts.push({
-                    type: "warning",
-                    message: `High memory usage: ${performance.memory.heapUtilization}`,
-                    timestamp: new Date().toISOString(),
-                });
-            }
-
-            if (!performance.trading.isActive) {
-                performance.alerts.push({
-                    type: "info",
-                    message: "Trading system not initialized",
-                    timestamp: new Date().toISOString(),
-                });
-            }
-
-            res.json(performance);
-        } catch (error) {
-            console.error("Performance metrics error:", error);
-            res.status(500).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            });
-        }
-    });
-
-    // POST /api/management/restart - Restart trading services (not the server)
+    // POST /api/management/restart
     router.post("/restart", async (req, res) => {
         try {
-            if (!tradingController) {
-                return res.status(400).json({
-                    error: "Trading controller not available",
-                    timestamp: new Date().toISOString(),
-                });
-            }
-
-            console.log("🔄 Restarting trading services...");
-
-            // Cleanup current services
-            await tradingController.cleanup();
-
-            // Reinitialize
-            await tradingController.initialize();
-
-            res.json({
-                success: true,
-                message: "Trading services restarted successfully",
-                timestamp: new Date().toISOString(),
-            });
-        } catch (error) {
-            console.error("Restart error:", error);
-            res.status(500).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            });
+            await tradingController.resetTrading();
+            await tradingController.startTrading();
+            res.json({ success: true, message: "System restarted" });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
         }
     });
 
-    // GET /api/management/config - Get current system configuration
+    // GET /api/management/config
     router.get("/config", (req, res) => {
-        try {
-            const config = {
-                timestamp: new Date().toISOString(),
-                server: {
-                    port: process.env.PORT || 3001,
-                    nodeEnv: process.env.NODE_ENV || "production",
-                },
-                trading: tradingController?.tradingService
-                    ? {
-                          strategy:
-                              tradingController.tradingService.config
-                                  ?.strategy || "balanced",
-                          enableTrading:
-                              tradingController.tradingService.config
-                                  ?.enableTrading || false,
-                          assets:
-                              tradingController.tradingService.config?.assets ||
-                              [],
-                          timeframes:
-                              tradingController.tradingService.config
-                                  ?.timeframes || [],
-                          riskManagement: {
-                              riskPerTrade:
-                                  tradingController.tradingService.config
-                                      ?.riskPerTrade || 0.01,
-                              maxDailyLoss:
-                                  tradingController.tradingService.config
-                                      ?.maxDailyLoss || 0.02,
-                              maxWeeklyLoss:
-                                  tradingController.tradingService.config
-                                      ?.maxWeeklyLoss || 0.05,
-                          },
-                      }
-                    : null,
-                binance: {
-                    hasCredentials: !!(
-                        process.env.BINANCE_API_KEY &&
-                        process.env.BINANCE_API_SECRET
-                    ),
-                    useFallback:
-                        tradingController?.tradingService?.binanceData
-                            ?.useFallback || false,
-                },
-            };
-
-            res.json(config);
-        } catch (error) {
-            console.error("Config error:", error);
-            res.status(500).json({
-                error: error.message,
-                timestamp: new Date().toISOString(),
-            });
-        }
+        res.json(tradingController?.tradingService?.config || {});
     });
 
     return router;
