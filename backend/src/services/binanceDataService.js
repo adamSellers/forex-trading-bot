@@ -217,23 +217,42 @@ class BinanceDataService extends EventEmitter {
     async getAccountInfo() {
         try {
             const res = await this.client.account();
-            // DEBUG: Log successful fetch to prove connection
-            // logger.info("💰 Balance fetch successful");
+
+            // DEBUG: Log the data structure once to be sure
+            // logger.info(`🔍 RAW ACCOUNT DATA SAMPLE: ${JSON.stringify(res.balances[0])}`);
+
+            let balances = [];
+
+            // HANDLE ARRAY FORMAT (Raw Binance API)
+            if (Array.isArray(res.balances)) {
+                balances = res.balances.map((b) => ({
+                    asset: b.asset,
+                    free: parseFloat(b.free),
+                    locked: parseFloat(b.locked),
+                    total: parseFloat(b.free) + parseFloat(b.locked),
+                }));
+            }
+            // HANDLE OBJECT FORMAT (Legacy node-binance-api)
+            else {
+                balances = Object.entries(res.balances).map(
+                    ([asset, data]) => ({
+                        asset: data.asset || asset,
+                        free: parseFloat(data.available || data.free),
+                        locked: parseFloat(data.onOrder || data.locked),
+                        total:
+                            parseFloat(data.available || data.free) +
+                            parseFloat(data.onOrder || data.locked),
+                    })
+                );
+            }
+
             return {
-                balances: Object.entries(res.balances).map(([asset, data]) => ({
-                    asset,
-                    free: parseFloat(data.available),
-                    locked: parseFloat(data.onOrder),
-                    total:
-                        parseFloat(data.available) + parseFloat(data.onOrder),
-                })),
+                balances,
                 canTrade: res.canTrade,
                 accountType: res.accountType,
             };
         } catch (e) {
-            // CRITICAL DEBUG: Log the exact error why balance is 0
             logger.error("❌ FAILED TO FETCH BALANCE:", e.message || e);
-            if (e.body) logger.error("❌ Binance Error Body:", e.body);
             return { error: e };
         }
     }
