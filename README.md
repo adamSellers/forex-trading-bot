@@ -1,16 +1,14 @@
-# Crypto Trend Trading Bot
+# Crypto Trend Trading Bot (V2 Smart Engine)
 
-A production-ready, full-stack cryptocurrency trading bot with live/paper trading engines, advanced risk management, and a comprehensive monitoring dashboard.
+A production-ready, full-stack cryptocurrency trading bot with live/paper trading engines, advanced risk management, email notifications, and a comprehensive real-time dashboard.
 
 ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
 ![Node.js Version](https://img.shields.io/badge/node-v22%2B-green.svg)
 
-<!-- TODO: Replace with an actual screenshot of the dashboard -->
-
 ![Dashboard Screenshot](https://via.placeholder.com/800x450.png?text=Trading+Dashboard+UI)
 
-This project is a sophisticated, full-stack cryptocurrency trend-following bot designed for both simulation and live trading on Binance. It combines a Node.js backend for data processing and trade execution with a real-time React dashboard for monitoring and configuration. The architecture is built to be robust, secure, and deployable on low-power hardware like a Raspberry Pi 5.
+This project is a sophisticated, full-stack cryptocurrency trend-following bot designed for both simulation and live trading on Binance. It combines a Node.js backend for data processing and trade execution with a real-time React dashboard for monitoring and configuration. The architecture is optimized for low-latency execution on ARM64 hardware (Raspberry Pi 5).
 
 ## ✨ Features
 
@@ -18,42 +16,38 @@ This project is a sophisticated, full-stack cryptocurrency trend-following bot d
     -   **Live Trading Engine**: Execute real trades on your Binance account with real money.
     -   **Paper Trading Engine**: Simulate trades with a virtual portfolio, tracking detailed P&L without financial risk. State is persisted to disk to survive restarts.
 -   **Advanced Signal Generation**:
-    -   Configurable EMA/SMA crossover strategies (`conservative`, `balanced`, `responsive`).
-    -   **Volatility Filtering** using Average True Range (ATR) to avoid trading in choppy markets.
-    -   Signal strength calculation and cooldown periods to prevent over-trading.
+    -   **Multi-Indicator Strategy**: Combines EMA crossovers (20/50), RSI filters (30/70), and ADX trend strength validation.
+    -   **Golden Config**: Pre-tuned for BTC, ETH, BNB, and DOGE based on historical backtesting (ADX > 30, TP 3.0 ATR).
+    -   **Volatility Filtering**: Uses Average True Range (ATR) to size positions dynamically and avoid chop.
 -   **Sophisticated Order & Risk Management**:
-    -   **Dynamic Position Sizing**: Calculates order size based on user-defined risk per trade and real-time ATR.
-    -   **Advanced Order Management**: Implements **Trailing Stops** and ATR-based **Take Profit** levels for both paper and live trading to maximize gains and protect profits.
-    -   **Centralized Risk Service**: Configurable daily and weekly loss limits that automatically halt trading to protect capital.
--   **Backtesting Engine**:
-    -   Run strategies against months of historical data to evaluate performance before deployment.
-    -   Scripts provided to fetch historical data and run backtests.
+    -   **Dynamic Position Sizing**: Automatically calculates order size based on risk percentage (e.g., 2% per trade) relative to the asset's volatility.
+    -   **Ghost Trade Protection**: Atomic execution logic verifies wallet balances before and after trades to prevent database/exchange desync.
+    -   **Trailing Stops**: Secures profits by trailing the price movement once a trade moves in favor.
+-   **Real-Time Notifications**:
+    -   **Email Alerts**: Instant HTML email notifications for every Buy and Sell execution via secure SMTP (Gmail supported).
 -   **Rich React Dashboard**:
-    -   **Live Price Charts** with configurable assets, timeframes, and moving average overlays.
-    -   **Real-time Feeds** for signals and trade executions via WebSockets.
-    -   Detailed portfolio overview distinguishing between paper positions and real Binance holdings.
-    -   **Analytics Dashboard** to visualize performance, P&L over time, and trading activity.
-    -   **System Health** monitoring for all backend services.
-    -   **Full Configuration UI** to adjust trading strategy and risk parameters on the fly.
-    -   System status banner showing data collection progress.
+    -   **Live Price Charts** with real-time EMA overlays.
+    -   **Portfolio Overview** showing real Binance wallet balances vs. virtual paper trading performance.
+    -   **Signal Widget** displaying live ADX strength and trend direction for all tracked assets.
+    -   **System Health** banner monitoring data collection depth and API latency.
+    -   **Full Configuration UI** to adjust strategies, risk limits, and notification settings on the fly.
 -   **Secure & Persistent**:
-    -   **Encrypted API Key Storage**: Credentials are encrypted on disk using OpenSSL and only loaded into memory at runtime via a wrapper script.
-    -   **Persistent Database**: All signals and trades are saved to a SQLite database for analysis, audit, and state restoration.
+    -   **Encrypted Secrets**: API keys and email credentials are encrypted at rest using OpenSSL (`.enc` files) and decrypted only in memory at runtime.
+    -   **Persistent Database**: All signals and trades are stored in SQLite for audit trails and analytics.
 -   **Production-Ready Deployment**:
     -   Optimized for Raspberry Pi 5 (ARM64) with Node.js v22.
-    -   Managed by PM2 with a detailed `ecosystem.config.js`.
-    -   Served via nginx with WebSocket proxying.
-    -   **Comprehensive Shell Scripts** for automated clean installation, deployment, updates, backups, and restoration.
+    -   **Zero-Downtime Updates**: `deploy.sh` script handles updates without wiping local data.
+    -   **Automated Maintenance**: Scripts for log rotation and nightly database backups.
 
 ## Tech Stack
 
--   **Backend**: Node.js, Express.js, Knex.js
--   **Frontend**: React, Vite, Material-UI
--   **Real-time**: Socket.IO
--   **Database**: SQLite3 with Knex.js for migrations
+-   **Backend**: Node.js, Express.js, Knex.js, Nodemailer
+-   **Frontend**: React, Vite, Material-UI, Recharts
+-   **Real-time**: Socket.IO (WebSockets)
+-   **Database**: SQLite3
 -   **API Client**: `node-binance-api`
--   **Process Management**: PM2 for production
--   **Reverse Proxy**: Nginx
+-   **Process Management**: PM2
+-   **Security**: OpenSSL (AES-256-CBC)
 
 ## Getting Started
 
@@ -66,105 +60,58 @@ The quickest way to get a local development environment running.
 2.  **Clone the repository:**
 
     ```bash
-    git clone https://github.com/adamSellers/crypto-trading-bot.git
+    git clone [https://github.com/adamSellers/crypto-trading-bot.git](https://github.com/adamSellers/crypto-trading-bot.git)
     cd crypto-trading-bot
     ```
 
-3.  **Run the setup script:** This will install all dependencies for both frontend and backend and create the necessary `.env` files.
+3.  **Run the setup script:** This will install all dependencies for both frontend and backend.
 
     ```bash
     ./scripts/dev-setup.sh
     ```
 
-4.  **Add API Keys:** Edit the newly created `backend/.env` file and add your Binance API keys. Read-only keys are sufficient for development if you only plan to use paper trading.
+4.  **Configure Environment**:
+    Create a `backend/.env` file with your credentials (for local dev only):
 
     ```dotenv
-    BINANCE_API_KEY=your_api_key_here
-    BINANCE_API_SECRET=your_api_secret_here
+    BINANCE_API_KEY=your_key
+    BINANCE_API_SECRET=your_secret
+    EMAIL_USER=your_email@gmail.com
+    EMAIL_PASS=your_app_password
     ```
 
-5.  **Run the database migrations:**
-
+5.  **Run Migrations & Start**:
     ```bash
     npm run db:migrate
-    ```
-
-6.  **Start the development servers:** This will start the backend and frontend concurrently with hot-reloading.
-    ```bash
     npm run dev
     ```
-7.  Open your browser and navigate to `http://localhost:5173`.
+    Access the dashboard at `http://localhost:5173`.
 
-### Production Install on Raspberry Pi
+### Production Install (Raspberry Pi 5)
 
-For a full production deployment on a Raspberry Pi 5, use the automated installation script. This will set up the entire environment, including dependencies, nginx, PM2, and security features.
+For a secure production deployment, use the automated installation scripts.
 
-```bash
-# Run this from your home directory on the Pi
-git clone https://github.com/adamSellers/crypto-trading-bot.git
-cd crypto-trading-bot
-./scripts/clean-install.sh
-```
+1.  **Clone & Install**:
 
-The script will guide you through the process, including setting up your encrypted API keys.
+    ```bash
+    git clone [https://github.com/adamSellers/crypto-trading-bot.git](https://github.com/adamSellers/crypto-trading-bot.git)
+    cd crypto-trading-bot
+    ./scripts/clean-install.sh
+    ```
+
+2.  **Secure Setup**:
+    Run the secrets management script to encrypt your credentials. You will need your Binance API keys and Gmail App Password.
+
+    ```bash
+    ./scripts/setup-secrets.sh
+    ```
+
+3.  **Deploy Updates**:
+    To update the code later without wiping data:
+    ```bash
+    ./scripts/deploy.sh
+    ```
 
 ## System Architecture
 
-The application follows a clean, service-oriented architecture. The `TradingService` acts as the central orchestrator, initializing and managing all sub-services. It selects an `activeEngine` (either `PaperTradingEngine` or `LiveTradingEngine`) based on the configuration, ensuring a clear and reliable data flow. The `TradingController` serves as a bridge, exposing service functionality to the outside world via API routes and WebSockets without containing any business logic itself.
-
-```
-                                       +-------------------------+
-                                       |      React Frontend     |
-                                       +------------+------------+
-                                                    | (Socket.IO)
-                                       +------------v------------+
-                                       |   TradingController.js  | (API/Socket Bridge)
-                                       +------------+------------+
-                                                    | (Events)
-+----------------------+               +------------v------------+
-| Binance API / WSS    |<------------->|     TradingService.js   | (Orchestrator)
-+----------------------+               +--+---------+---------+--+
-                                          |          |         |
-             +----------------------------+          |         +--------------------------+
-             |                                       |                                    |
- +-----------v-----------+               +-----------v-----------+              +-----------v-----------+
- | BinanceDataService.js |               |  SignalGenerator.js   |              | PaperTradingEngine.js |
- +-----------------------+               +-----------------------+              +-----------------------+
-             |                                       |                                    |
-             | (Candles/Prices)                      | (Signals)                          | (Trades)
-             |                                       |                                    |
-             +--------------------------->-----------+------------------------------------+
-                                                     |
-                                         +-----------v-----------+
-                                         |   SQLite3 Database    | (Repositories)
-                                         +-----------------------+
-```
-
-## Paper Trading Mechanics
-
-### Trade Execution Flow
-
-1.  **Signal Generated**: e.g., BTC 20-EMA crosses above 50-EMA, and volatility is above the minimum threshold.
-2.  **Risk Calculation**: Position size is determined based on the **Risk Per Trade** setting (e.g., 1% of capital) and the asset's real-time **ATR**.
-3.  **Virtual Buy**: A virtual order is executed and recorded.
-4.  **Balance Update**: The virtual USDT balance is reduced by the cost of the trade.
-5.  **Position Tracking**: The new position is added to the virtual portfolio with a calculated **Stop Loss**, **Take Profit**, and initial **Trailing Stop** price.
-6.  **Database Record**: The complete trade is stored in the SQLite database.
-
-## Deployment
-
-This application is optimized for deployment on a **Raspberry Pi 5 (ARM64)** using PM2 and nginx.
-
-### Automated Clean Install
-
-The `./scripts/clean-install.sh` script automates the entire setup process on a fresh Raspberry Pi, including dependency installation, nginx configuration, and PM2 setup.
-
-### Verifying the Deployment
-
--   Check PM2 status: `pm2 status` or `./scripts/status.sh`
--   View live logs: `pm2 logs crypto-trend-bot` or `./scripts/logs.sh`
-
-## Troubleshooting
-
-    -   In your Binance API settings, make sure the key has "Enable Reading" permissions.
-    -   If you have IP restrictions enabled, ensure your server's IP is whitelisted.
+The application follows a Service-Oriented Architecture (SOA). The `TradingService` acts as the brain, orchestrating data from Binance and managing the active trading engine.
