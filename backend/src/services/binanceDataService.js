@@ -258,10 +258,17 @@ class BinanceDataService extends EventEmitter {
     }
 
     getServiceStatus() {
+        // FIX: Report the actual candle count from the first asset
+        const firstSymbol = this.config.assets[0];
+        const firstTf = this.config.timeframes[0];
+        const history = this.candleCache[firstSymbol]?.[firstTf];
+
         return {
             ready: this.isReady,
             cachedSymbols: Object.keys(this.candleCache).length,
             prices: Object.keys(this.priceCache).length,
+            // This is the magic number the frontend wants:
+            candleCount: history ? history.length : 0,
         };
     }
 }
