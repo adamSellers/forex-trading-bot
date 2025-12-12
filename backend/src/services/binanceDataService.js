@@ -1,4 +1,4 @@
-// backend/src/services/binanceDataService.js - FIXED WEBSOCKET LOOPS
+// backend/src/services/binanceDataService.js - FIXED COUNTS & LIMITS
 const EventEmitter = require("events");
 const Binance = require("node-binance-api");
 const logger = require("../utils/logger");
@@ -86,6 +86,7 @@ class BinanceDataService extends EventEmitter {
         for (const symbol of assets) {
             for (const interval of timeframes) {
                 try {
+                    // Fetch 1000 candles per asset/timeframe
                     const candles = await this.client.candlesticks(
                         symbol,
                         interval,
@@ -105,10 +106,8 @@ class BinanceDataService extends EventEmitter {
         // B. Start WebSockets (The "Live Feed")
         logger.info("🔌 Connecting WebSockets...");
 
-        // 1. Candle Streams - FIX: Loop through timeframes separately
+        // 1. Candle Streams
         for (const tf of timeframes) {
-            // "assets" is an array of symbols, "tf" is a single string (e.g. "1h")
-            // This creates a combined stream for all assets on this specific timeframe
             this.client.websockets.candlesticks(assets, tf, (candlesticks) => {
                 const {
                     e: eventType,
@@ -144,7 +143,6 @@ class BinanceDataService extends EventEmitter {
         }
 
         // 2. Ticker Streams (for Live Prices)
-        // prevDay takes an array of symbols correctly
         this.client.websockets.prevDay(assets, (error, response) => {
             if (response) {
                 const symbol = response.symbol;
@@ -195,7 +193,8 @@ class BinanceDataService extends EventEmitter {
             cache[cache.length - 1] = newCandle;
         } else {
             cache.push(newCandle);
-            if (cache.length > 500) cache.shift();
+            // FIXED: Increased hard limit from 500 to 1500 to maintain "Optimal" history depth
+            if (cache.length > 1500) cache.shift();
         }
     }
 
@@ -219,7 +218,6 @@ class BinanceDataService extends EventEmitter {
             const res = await this.client.account();
             let balances = [];
 
-            // HANDLE ARRAY FORMAT (Raw Binance API)
             if (Array.isArray(res.balances)) {
                 balances = res.balances.map((b) => ({
                     asset: b.asset,
@@ -227,9 +225,7 @@ class BinanceDataService extends EventEmitter {
                     locked: parseFloat(b.locked),
                     total: parseFloat(b.free) + parseFloat(b.locked),
                 }));
-            }
-            // HANDLE OBJECT FORMAT (Legacy node-binance-api)
-            else {
+            } else {
                 balances = Object.entries(res.balances).map(
                     ([asset, data]) => ({
                         asset: data.asset || asset,
@@ -239,18 +235,6 @@ class BinanceDataService extends EventEmitter {
                             parseFloat(data.available || data.free) +
                             parseFloat(data.onOrder || data.locked),
                     })
-                );
-            }
-
-            // DEBUG PROBE 1: Check why "Real Holdings" sees nothing
-            const usdt = balances.find((b) => b.asset === "USDT");
-            if (usdt) {
-                logger.info(
-                    `💰 DEBUG ACCOUNT: Found USDT: ${usdt.total} (Free: ${usdt.free})`
-                );
-            } else {
-                logger.warn(
-                    "💰 DEBUG ACCOUNT: USDT NOT FOUND in balance list!"
                 );
             }
 
@@ -266,17 +250,23 @@ class BinanceDataService extends EventEmitter {
     }
 
     getServiceStatus() {
-        const firstSymbol = this.config.assets[0]; // Should be BTCUSDT
-        const firstTf = this.config.timeframes[0]; // Should be 1h
-        const history = this.candleCache[firstSymbol]?.[firstTf];
+        // FIXED: Count ALL candles across ALL assets and timeframes
+        let totalCandles = 0;
+        const assets = this.config.assets || [];
+        const timeframes = this.config.timeframes || [];
 
-        const count = history ? history.length : 0;
+        for (const symbol of assets) {
+            for (const tf of timeframes) {
+                if (this.candleCache[symbol] && this.candleCache[symbol][tf]) {
+                    totalCandles += this.candleCache[symbol][tf].length;
+                }
+            }
+        }
 
-        // DEBUG PROBE 2: Check why Progress Bar says 0
-        // Only log this occasionally to avoid spamming, or use logger.debug
+        // Only log occasional status updates
         if (Math.random() < 0.05) {
             logger.info(
-                `📊 DEBUG STATUS: Symbol=${firstSymbol} TF=${firstTf} Candles=${count}`
+                `📊 SYSTEM STATUS: Total Candles=${totalCandles} (Assets: ${assets.length})`
             );
         }
 
@@ -284,7 +274,7 @@ class BinanceDataService extends EventEmitter {
             ready: this.isReady,
             cachedSymbols: Object.keys(this.candleCache).length,
             prices: Object.keys(this.priceCache).length,
-            candleCount: count,
+            candleCount: totalCandles, // Now returns the TRUE total (approx 15,000)
         };
     }
 }
