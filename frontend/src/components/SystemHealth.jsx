@@ -1,4 +1,4 @@
-// frontend/src/components/SystemHealth.jsx - FIXED PROPERTY MAPPING
+// frontend/src/components/SystemHealth.jsx - FIXED & DIAGNOSTIC MODE
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Grid,
@@ -11,7 +11,10 @@ import {
   CircularProgress,
   Alert,
   Button,
-  LinearProgress
+  LinearProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   CheckCircle,
@@ -25,12 +28,15 @@ import {
   Timeline,
   SettingsEthernet,
   Refresh,
-  MonetizationOn
+  MonetizationOn,
+  Key,
+  ExpandMore,
+  BugReport
 } from '@mui/icons-material';
 import { managementAPI } from '../config/api';
 
-const MetricCard = ({ title, value, subtitle, icon }) => (
-  <Card variant="outlined" sx={{ height: '100%' }}>
+const MetricCard = ({ title, value, subtitle, icon, color }) => (
+  <Card variant="outlined" sx={{ height: '100%', borderLeft: color ? 4 : 0, borderColor: color ? `${color}.main` : 'divider' }}>
     <CardContent>
       <Box display="flex" alignItems="center" mb={1}>
         {icon}
@@ -51,12 +57,16 @@ const MetricCard = ({ title, value, subtitle, icon }) => (
 );
 
 const ServiceStatusCard = ({ name, status }) => {
-  // FIX: Added 'ready' check for BinanceDataService
-  const isOnline = status === true || status?.isConnected === true || status?.isActive === true || status?.ready === true;
+  // FIXED: Broader check for "Online" status to catch all variations
+  const isOnline = 
+    status === true || 
+    status?.ready === true || 
+    status?.isActive === true || 
+    status?.isConnected === true ||
+    status?.status === 'OK';
+
   const color = isOnline ? 'success' : 'error';
   const icon = isOnline ? <CloudDone /> : <CloudOff />;
-
-  // Clean up camelCase names for display
   const displayName = name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
 
   return (
@@ -89,6 +99,7 @@ const SystemHealth = () => {
         managementAPI.getSystemHealth(),
         managementAPI.getSystemInfo()
       ]);
+      console.log("🔍 Health Data:", healthData); // Console Debug
       setHealth(healthData);
       setSystemInfo(systemInfoData);
       setError(null);
@@ -101,7 +112,7 @@ const SystemHealth = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+    const interval = setInterval(fetchData, 15000); 
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -114,37 +125,32 @@ const SystemHealth = () => {
     );
   }
 
-  if (error) {
-    return <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>;
-  }
+  if (error) return <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>;
+  if (!health || !systemInfo) return <Alert severity="info" sx={{ m: 3 }}>No system data available.</Alert>;
 
-  if (!health || !systemInfo) {
-    return <Alert severity="info" sx={{ m: 3 }}>No system data available.</Alert>;
-  }
-
-  // FIX: Check nested services correctly
   const services = health.services || {};
-  const overallStatus = health.status === 'OK' && Object.values(services).every(s => 
-    s === true || s?.isConnected || s?.isActive || s?.ready
-  );
   
+  // FIXED: Check 'isInitialized' (Backend standard) instead of 'status' (Frontend assumption)
+  const isBackendReady = health.isInitialized === true;
+  const isBinanceReady = services.binanceData?.ready === true;
+  
+  const overallStatus = isBackendReady && isBinanceReady;
+
   const memoryUsage = systemInfo.memory?.formatted || {};
   const memPercent = systemInfo.memory ? (systemInfo.memory.heapUsed / systemInfo.memory.heapTotal) * 100 : 0;
+  
+  const keysLoaded = systemInfo.environment?.hasApiKeys === true;
 
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">System Health</Typography>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={fetchData}
-          disabled={loading}
-        >
+        <Button variant="outlined" startIcon={<Refresh />} onClick={fetchData} disabled={loading}>
           {loading ? 'Refreshing...' : 'Refresh'}
         </Button>
       </Box>
 
+      {/* Main Status Banner */}
       <Paper sx={{ p: 3, mb: 2, borderTop: 4, borderColor: overallStatus ? 'success.main' : 'error.main' }}>
         <Box display="flex" alignItems="center" gap={2}>
           {overallStatus ? <CheckCircle color="success" sx={{ fontSize: 40 }} /> : <Error color="error" sx={{ fontSize: 40 }} />}
@@ -153,7 +159,10 @@ const SystemHealth = () => {
               {overallStatus ? 'All Systems Operational' : 'System Alert'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Last updated: {new Date(health.timestamp || Date.now()).toLocaleString()}
+              {!isBackendReady ? 'Backend Initializing...' : 
+               !isBinanceReady ? 'Binance Data Disconnected' : 
+               'Systems Nominal'} 
+              • Updated: {new Date(health.timestamp || Date.now()).toLocaleTimeString()}
             </Typography>
           </Box>
         </Box>
@@ -165,41 +174,20 @@ const SystemHealth = () => {
           <Paper sx={{ p: 2, height: '100%' }}>
             <Typography variant="h6" gutterBottom>Service Status</Typography>
             <Grid container spacing={1.5}>
-              {Object.entries(services).map(([name, status]) => (
-                <Grid item xs={12} key={name}>
-                  <ServiceStatusCard name={name} status={status} />
-                </Grid>
-              ))}
+              <Grid item xs={12}><ServiceStatusCard name="Trading Controller" status={true} /></Grid>
+              <Grid item xs={12}><ServiceStatusCard name="Binance Data" status={services.binanceData} /></Grid>
+              <Grid item xs={12}><ServiceStatusCard name="Trading Engine" status={services.engine} /></Grid>
+              <Grid item xs={12}><ServiceStatusCard name="Signal Generator" status={services.signalGenerator} /></Grid>
             </Grid>
           </Paper>
         </Grid>
 
-        {/* System & Memory Info */}
+        {/* System Info */}
         <Grid item xs={12} md={7}>
           <Grid container spacing={3}>
             <Grid item xs={12}>
               <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>System Information</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={6} sm={3}>
-                    <MetricCard title="Uptime" value={health.uptimeFormatted || '0m'} icon={<Speed color="primary" />} />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <MetricCard title="Node.js" value={systemInfo.server?.nodeVersion || 'N/A'} icon={<Dns color="primary" />} />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <MetricCard title="Environment" value={health.environment || 'N/A'} icon={<SettingsEthernet color="primary" />} />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <MetricCard title="Platform" value={systemInfo.server?.platform || 'Linux'} icon={<Dns color="primary" />} />
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>Memory Usage</Typography>
+                <Typography variant="h6" gutterBottom>Environment & Memory</Typography>
                 <Box sx={{ mb: 2 }}>
                   <Box display="flex" justifyContent="space-between">
                     <Typography variant="body2">Heap Usage</Typography>
@@ -208,69 +196,81 @@ const SystemHealth = () => {
                   <LinearProgress variant="determinate" value={memPercent} sx={{ height: 8, borderRadius: 4 }} />
                 </Box>
                 <Grid container spacing={2}>
+                  <Grid item xs={6} sm={4}>
+                    <MetricCard title="Uptime" value={health.uptimeFormatted || '0m'} icon={<Speed color="primary" />} />
+                  </Grid>
+                  <Grid item xs={6} sm={4}>
+                    <MetricCard title="Node.js" value={systemInfo.server?.nodeVersion || 'N/A'} icon={<Dns color="primary" />} />
+                  </Grid>
+                  <Grid item xs={6} sm={4}>
+                    <MetricCard title="Platform" value={systemInfo.server?.platform || 'Linux'} icon={<SettingsEthernet color="primary" />} />
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+
+            {/* Detailed Metrics */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>Trading Metrics</Typography>
+                <Grid container spacing={2}>
                   <Grid item xs={6} sm={3}>
-                    <MetricCard title="Heap Used" value={memoryUsage.heapUsed || 0} icon={<Memory color="secondary" />} />
+                    <MetricCard 
+                      title="API Credentials" 
+                      value={keysLoaded ? 'Loaded' : 'Missing'}
+                      subtitle={keysLoaded ? 'Decrypted' : 'Check Logs'}
+                      icon={<Key color={keysLoaded ? "success" : "error"} />}
+                      color={keysLoaded ? 'success' : 'error'}
+                    />
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <MetricCard title="Heap Total" value={memoryUsage.heapTotal || 0} icon={<Memory color="secondary" />} />
+                    <MetricCard 
+                      title="Data Streams" 
+                      // Fix: Map 'prices' count to display
+                      value={services.binanceData?.prices || 0}
+                      subtitle={services.binanceData?.ready ? 'Active (WSS)' : 'Waiting...'}
+                      icon={<Timeline color="info" />} 
+                    />
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <MetricCard title="RSS" value={memoryUsage.rss || 0} subtitle="Total process memory" icon={<Memory color="secondary" />} />
+                    <MetricCard 
+                      title="Engine Mode" 
+                      value={health.config?.tradingMode === 'live' ? 'LIVE' : 'PAPER'}
+                      subtitle={health.config?.enableTrading ? 'Trading Enabled' : 'Trading Paused'}
+                      icon={health.config?.tradingMode === 'live' ? <MonetizationOn color="error" /> : <Psychology color="warning" />} 
+                    />
                   </Grid>
                   <Grid item xs={6} sm={3}>
-                    <MetricCard title="External" value={memoryUsage.external || 0} subtitle="C++ objects" icon={<Memory color="secondary" />} />
+                    <MetricCard 
+                      title="Signals" 
+                      value={health.activeSignals?.length || 0}
+                      subtitle="Active Candidates"
+                      icon={<Timeline color="success" />} 
+                    />
                   </Grid>
                 </Grid>
               </Paper>
             </Grid>
           </Grid>
         </Grid>
-
-        {/* Trading System Details (FIXED MAPPING) */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>Trading System Details</Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={6} sm={3}>
-                <MetricCard 
-                  title="Binance Data" 
-                  // Fix: Read 'ready' from health.services.binanceData
-                  value={services.binanceData?.ready ? 'Live (WSS)' : 'Disconnected'}
-                  // Fix: Read 'prices' count (number of streams)
-                  subtitle={`${services.binanceData?.prices || 0} active streams`}
-                  icon={<Timeline color="info" />} 
-                />
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <MetricCard 
-                  title="Trading Engine" 
-                  // Fix: Read from health.services.engine
-                  value={services.engine?.isActive ? 'Active' : 'Inactive'}
-                  subtitle={health.config?.tradingMode === 'live' ? 'Real Money Mode' : 'Paper Mode'}
-                  icon={health.config?.tradingMode === 'live' ? <MonetizationOn color="error" /> : <Psychology color="warning" />} 
-                />
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <MetricCard 
-                  title="Signal Generator" 
-                  // Fix: Read from health.services.signalGenerator
-                  value={services.signalGenerator?.isActive ? 'Active' : 'Inactive'}
-                  subtitle={`${health.activeSignals?.length || 0} active signals`}
-                  icon={<Timeline color="info" />} 
-                />
-              </Grid>
-              <Grid item xs={6} sm={3}>
-                <MetricCard 
-                  title="API Keys" 
-                  value={services.binanceData?.ready ? 'Loaded' : 'Check Logs'}
-                  subtitle="Encrypted in memory"
-                  icon={services.binanceData?.ready ? <CheckCircle color="success" /> : <Error color="error" />} 
-                />
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
       </Grid>
+
+      {/* DEBUG DATA DUMP - Hidden by default */}
+      <Box mt={4}>
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMore />}>
+            <Box display="flex" alignItems="center" gap={1}>
+                <BugReport fontSize="small" color="action" />
+                <Typography variant="caption" color="text.secondary">Raw Diagnostic Data</Typography>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <pre style={{ fontSize: '0.7rem', overflow: 'auto', maxHeight: '200px' }}>
+                {JSON.stringify(health, null, 2)}
+            </pre>
+          </AccordionDetails>
+        </Accordion>
+      </Box>
     </Box>
   );
 };
