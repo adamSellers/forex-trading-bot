@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - ADDED NOTIFICATIONS
+// frontend/src/components/TradingConfig.jsx - FIXED TEXT
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -32,7 +32,7 @@ import {
   MoneyOff,
   MonetizationOn,
   FilterList,
-  Mail // NEW ICON
+  Mail
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
@@ -69,7 +69,7 @@ const TradingConfig = () => {
       BTCUSDT: 30, ETHUSDT: 30, BNBUSDT: 15, DOGEUSDT: 10, TRUMPUSDT: 15,
     },
     
-    // Notifications (NEW)
+    // Notifications
     enableEmailAlerts: false,
     alertEmail: '',
 
@@ -379,7 +379,7 @@ const TradingConfig = () => {
           </Accordion>
         </Grid>
         
-        {/* 5. Notifications (NEW) */}
+        {/* 5. Notifications (UPDATED TEXT) */}
         <Grid item xs={12} md={6}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
@@ -409,7 +409,7 @@ const TradingConfig = () => {
                     value={config.alertEmail} 
                     onChange={(e) => updateConfig('alertEmail', e.target.value)}
                     disabled={!config.enableEmailAlerts}
-                    helperText="Leave blank to use the default email from .env"
+                    helperText="Leave blank to use the securely stored default email" // FIXED
                   />
                 </Grid>
               </Grid>
