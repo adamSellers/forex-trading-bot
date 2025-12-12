@@ -1,5 +1,5 @@
-// frontend/src/components/SystemLogs.jsx - ROBUST & CLEANER UI
-import React, { useState, useEffect, useCallback } from 'react';
+// frontend/src/components/SystemLogs.jsx - FIXED FILTERING
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Paper,
   Typography,
@@ -14,22 +14,23 @@ import {
   Alert,
   Chip
 } from '@mui/material';
-import { Refresh as RefreshIcon, ExpandMore, BugReport, Info, Warning, Error as ErrorIcon } from '@mui/icons-material';
+import { Refresh as RefreshIcon, ExpandMore, BugReport, Info, Warning, Error as ErrorIcon, CheckCircle } from '@mui/icons-material';
 import { managementAPI } from '../config/api';
 
 const LogViewer = () => {
   const [logs, setLogs] = useState([]);
-  const [logLevelFilter, setLogLevelFilter] = useState('info');
+  const [logLevelFilter, setLogLevelFilter] = useState('info'); // Default view
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // 1. Fetch Logs (Get maximum detail 'debug' from server to ensure we have data to filter)
   const fetchLogs = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await managementAPI.getLogs({ level: logLevelFilter, limit: 200 });
+      // We request 'debug' to get ALL recent logs, then filter locally
+      const response = await managementAPI.getLogs({ level: 'debug', limit: 200 });
       
-      // FIX: Robust data handling - checks for Array vs Object wrapper
       let parsedLogs = [];
       if (Array.isArray(response)) {
           parsedLogs = response;
@@ -46,17 +47,40 @@ const LogViewer = () => {
     } finally {
       setLoading(false);
     }
-  }, [logLevelFilter]);
+  }, []); // Only fetch once on mount/refresh
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  // 2. Define Log Levels Hierarchy
+  const LOG_LEVELS = {
+    debug: 0,
+    info: 1,
+    success: 1, // Treat success same as info priority
+    warn: 2,
+    error: 3
+  };
+
+  // 3. Client-Side Filtering (Robust)
+  const filteredLogs = useMemo(() => {
+    if (!logs.length) return [];
+    
+    const minPriority = LOG_LEVELS[logLevelFilter] || 0;
+    
+    return logs.filter(log => {
+        const level = (log.level || 'info').toLowerCase();
+        const priority = LOG_LEVELS[level] !== undefined ? LOG_LEVELS[level] : 1;
+        return priority >= minPriority;
+    });
+  }, [logs, logLevelFilter]);
 
   const getLogConfig = (level) => {
     const normalized = (level || 'info').toLowerCase();
     switch (normalized) {
       case 'error': return { color: 'error.main', icon: <ErrorIcon fontSize="small" /> };
       case 'warn': return { color: 'warning.main', icon: <Warning fontSize="small" /> };
+      case 'success': return { color: 'success.main', icon: <CheckCircle fontSize="small" /> };
       case 'debug': return { color: 'text.secondary', icon: <BugReport fontSize="small" /> };
       default: return { color: 'info.main', icon: <Info fontSize="small" /> };
     }
@@ -100,11 +124,10 @@ const LogViewer = () => {
             <CircularProgress size={30} />
             <Typography sx={{ ml: 2 }}>Loading Logs...</Typography>
           </Box>
-        ) : logs.length > 0 ? (
-          logs.map((log, index) => {
+        ) : filteredLogs.length > 0 ? (
+          filteredLogs.map((log, index) => {
              const config = getLogConfig(log.level);
              const hasData = log.data && Object.keys(log.data).length > 0;
-             // Handle flexible timestamp keys
              const timestamp = log.timestamp || log.time || new Date().toISOString();
              
              return (
@@ -116,14 +139,16 @@ const LogViewer = () => {
                     <Chip 
                         label={(log.level || 'INFO').toUpperCase()} 
                         size="small" 
+                        icon={config.icon}
                         sx={{ 
-                            height: 20, 
+                            height: 24, 
                             fontSize: '0.7rem', 
                             color: 'white',
-                            bgcolor: config.color 
+                            bgcolor: config.color,
+                            '& .MuiChip-icon': { color: 'white' }
                         }} 
                     />
-                    <Typography variant="body2" sx={{ fontFamily: 'monospace', flexGrow: 1 }}>
+                    <Typography variant="body2" sx={{ fontFamily: 'monospace', flexGrow: 1, wordBreak: 'break-word' }}>
                         {log.message}
                     </Typography>
                   </Box>
@@ -155,7 +180,8 @@ const LogViewer = () => {
         ) : (
           <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="100%" opacity={0.6}>
             <BugReport fontSize="large" sx={{ mb: 1 }} />
-            <Typography>No logs found for this level</Typography>
+            <Typography>No logs found for <strong>{logLevelFilter.toUpperCase()}</strong> level.</Typography>
+            <Typography variant="caption">Try selecting a lower log level (e.g., DEBUG)</Typography>
           </Box>
         )}
       </Box>
