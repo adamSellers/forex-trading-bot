@@ -13,7 +13,7 @@ const TradingSignals = ({ signals, systemStatus }) => {
   const dataStatus = useMemo(() => {
       if (!systemStatus?.services?.binanceData) return null;
       
-      const { totalCandles = 0 } = systemStatus.services.binanceData;
+      const { candleCount: totalCandles = 0 } = systemStatus.services.binanceData;
       // Estimates based on typical config (e.g. 5 assets * 3 timeframes * 200 candles)
       const target = 3000; 
       const percent = Math.min((totalCandles / target) * 100, 100);
