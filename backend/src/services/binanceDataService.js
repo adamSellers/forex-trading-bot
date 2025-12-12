@@ -7,12 +7,20 @@ class BinanceDataService extends EventEmitter {
     constructor(config) {
         super();
         this.config = config;
+
+        // DEBUG: Reveal what key the bot is ACTUALLY seeing
+        const key = process.env.BINANCE_API_KEY || "";
+        const visibleKey =
+            key.length > 4 ? `${key.substring(0, 4)}...` : "INVALID/EMPTY";
+        logger.warn(
+            `🔍 BOT BOOT: Using API Key starting with [ ${visibleKey} ] (Length: ${key.length})`
+        );
+
         this.client = new Binance().options({
-            APIKEY: process.env.BINANCE_API_KEY,
+            APIKEY: key,
             APISECRET: process.env.BINANCE_API_SECRET,
             family: 4,
             useServerTime: true,
-            // Only log errors, suppress verbosity
             log: (...args) => logger.debug(args),
         });
 
@@ -209,6 +217,8 @@ class BinanceDataService extends EventEmitter {
     async getAccountInfo() {
         try {
             const res = await this.client.account();
+            // DEBUG: Log successful fetch to prove connection
+            // logger.info("💰 Balance fetch successful");
             return {
                 balances: Object.entries(res.balances).map(([asset, data]) => ({
                     asset,
@@ -221,6 +231,9 @@ class BinanceDataService extends EventEmitter {
                 accountType: res.accountType,
             };
         } catch (e) {
+            // CRITICAL DEBUG: Log the exact error why balance is 0
+            logger.error("❌ FAILED TO FETCH BALANCE:", e.message || e);
+            if (e.body) logger.error("❌ Binance Error Body:", e.body);
             return { error: e };
         }
     }
