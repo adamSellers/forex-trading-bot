@@ -1,9 +1,8 @@
-// frontend/src/components/TradingConfig.jsx
+// frontend/src/components/TradingConfig.jsx - ADDED NOTIFICATIONS
 import React, { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
-  Paper,
   Typography,
   TextField,
   Button,
@@ -16,14 +15,11 @@ import {
   Alert,
   Chip,
   Card,
-  CardContent,
   InputAdornment,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Divider,
-  Tooltip,
-  IconButton
 } from '@mui/material';
 import {
   Save,
@@ -35,7 +31,8 @@ import {
   Settings,
   MoneyOff,
   MonetizationOn,
-  FilterList
+  FilterList,
+  Mail // NEW ICON
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
@@ -51,7 +48,7 @@ const TradingConfig = () => {
     maxDailyLoss: 2.0,
     maxWeeklyLoss: 5.0,
     stopLossATR: 1.5,
-    takeProfitATRMultiplier: 3.0, // NEW: Added to UI
+    takeProfitATRMultiplier: 3.0,
     maxPositionsPerAsset: 1,
     minOrderSize: 10,
     
@@ -60,7 +57,7 @@ const TradingConfig = () => {
     timeframe: '1h',
     signalCooldown: 60,
     
-    // Advanced Filters (NEW)
+    // Advanced Filters
     enableAdxFilter: true,
     minAdx: 25,
     enableRsiFilter: true,
@@ -72,6 +69,10 @@ const TradingConfig = () => {
       BTCUSDT: 30, ETHUSDT: 30, BNBUSDT: 15, DOGEUSDT: 10, TRUMPUSDT: 15,
     },
     
+    // Notifications (NEW)
+    enableEmailAlerts: false,
+    alertEmail: '',
+
     // System
     logLevel: 'info',
     enableS3Analytics: false,
@@ -97,20 +98,16 @@ const TradingConfig = () => {
       const data = await tradingAPI.getStatus();
       
       if (data.config) {
-        // Map backend config to frontend state
         const fetchedConfig = {
-          ...config, // Keep defaults for any missing keys
+          ...config, 
           ...data.config,
-          // Normalize Percentages
           riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
           maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
           maxWeeklyLoss: (data.config.maxWeeklyLoss * 100) || 5.0,
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
-          // Deep merge allocation to ensure we have a clean object
           allocation: { ...config.allocation, ...data.config.allocation }
         };
         
-        // Fix allocation percentages if they came in as decimals (0.3) instead of (30)
         Object.keys(fetchedConfig.allocation).forEach(key => {
             if (fetchedConfig.allocation[key] <= 1) {
                 fetchedConfig.allocation[key] = fetchedConfig.allocation[key] * 100;
@@ -131,7 +128,6 @@ const TradingConfig = () => {
     setSaving(true);
     setError(null);
     try {
-      // Prepare payload for API (Convert to decimals/milliseconds)
       const configToSave = {
         ...config,
         riskPerTrade: config.riskPerTrade / 100,
@@ -141,7 +137,6 @@ const TradingConfig = () => {
         allocation: {}
       };
 
-      // Convert allocation back to decimal
       Object.keys(config.allocation).forEach(key => {
           configToSave.allocation[key] = config.allocation[key] / 100;
       });
@@ -177,7 +172,6 @@ const TradingConfig = () => {
 
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">Trading Configuration</Typography>
         <Box display="flex" gap={2}>
@@ -277,7 +271,7 @@ const TradingConfig = () => {
 
         {/* 3. Strategy Settings */}
         <Grid item xs={12} md={6}>
-          <Accordion defaultExpanded>
+          <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <TrendingUp sx={{ mr: 1 }} />
               <Typography variant="h6">Strategy & Filters</Typography>
@@ -309,7 +303,6 @@ const TradingConfig = () => {
                   <Divider textAlign="left"><Chip icon={<FilterList />} label="Advanced Filters" /></Divider>
                 </Grid>
 
-                {/* NEW ADX CONTROLS */}
                 <Grid item xs={12}>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
                     <Typography>ADX Filter (Anti-Chop)</Typography>
@@ -329,7 +322,6 @@ const TradingConfig = () => {
                   </Box>
                 </Grid>
 
-                {/* NEW RSI CONTROLS */}
                 <Grid item xs={12}>
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                         <Typography>RSI Filter (Overbought/Sold)</Typography>
@@ -352,7 +344,6 @@ const TradingConfig = () => {
                         </Grid>
                     </Grid>
                 </Grid>
-
               </Grid>
             </AccordionDetails>
           </Accordion>
@@ -360,7 +351,7 @@ const TradingConfig = () => {
 
         {/* 4. Portfolio Allocation */}
         <Grid item xs={12} md={6}>
-          <Accordion defaultExpanded>
+          <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Settings sx={{ mr: 1 }} />
               <Typography variant="h6">Allocation</Typography>
@@ -383,6 +374,44 @@ const TradingConfig = () => {
                 <Typography variant="body2" color={Object.values(config.allocation).reduce((a,b)=>a+b,0) !== 100 ? "error" : "textSecondary"}>
                     Total: {Object.values(config.allocation).reduce((a, b) => a + b, 0)}%
                 </Typography>
+              </Grid>
+            </AccordionDetails>
+          </Accordion>
+        </Grid>
+        
+        {/* 5. Notifications (NEW) */}
+        <Grid item xs={12} md={6}>
+          <Accordion defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Mail sx={{ mr: 1 }} />
+              <Typography variant="h6">Notifications</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography>Enable Email Alerts</Typography>
+                    <Switch 
+                      checked={config.enableEmailAlerts} 
+                      onChange={(e) => updateConfig('enableEmailAlerts', e.target.checked)} 
+                      color="primary"
+                    />
+                  </Box>
+                  <Typography variant="caption" color="textSecondary" display="block" mb={2}>
+                    Receive instant alerts when the bot executes a trade.
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField 
+                    fullWidth 
+                    label="Alert Email Address" 
+                    placeholder="you@example.com"
+                    value={config.alertEmail} 
+                    onChange={(e) => updateConfig('alertEmail', e.target.value)}
+                    disabled={!config.enableEmailAlerts}
+                    helperText="Leave blank to use the default email from .env"
+                  />
+                </Grid>
               </Grid>
             </AccordionDetails>
           </Accordion>

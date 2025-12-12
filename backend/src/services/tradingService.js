@@ -1,4 +1,4 @@
-// backend/src/services/tradingService.js - WITH PERSISTENCE
+// backend/src/services/tradingService.js - COMPLETE (Original Comments + Email)
 const EventEmitter = require("events");
 const fs = require("fs").promises; // Use Promise API for async file ops
 const path = require("path");
@@ -10,6 +10,7 @@ const LiveTradingEngine = require("./LiveTradingEngine");
 const TradeRepository = require("../repositories/tradeRepository");
 const AnalyticsService = require("./analyticsService");
 const SignalRepository = require("../repositories/signalRepository");
+const emailService = require("./emailService"); // [NEW] Import Email Service
 const logger = require("../utils/logger");
 
 const CONFIG_FILE = path.join(__dirname, "../../data/trading_config.json");
@@ -58,6 +59,10 @@ class TradingService extends EventEmitter {
             takeProfitATRMultiplier: 3.0, // High reward targeting
             enableTrailingStops: true,
             trailingStopPercent: 0.03,
+
+            // [NEW] Notification Defaults
+            enableEmailAlerts: false,
+            alertEmail: "",
 
             // S3 Config
             enableS3Analytics: process.env.ENABLE_S3_ANALYTICS === "true",
@@ -133,8 +138,6 @@ class TradingService extends EventEmitter {
             const savedConfig = JSON.parse(data);
 
             // Merge: Defaults < Saved.
-            // This ensures new fields added to defaults in code updates still appear,
-            // but don't overwrite user's saved preferences.
             this.config = {
                 ...this.defaultConfig,
                 ...savedConfig,
@@ -199,6 +202,12 @@ class TradingService extends EventEmitter {
             try {
                 this.emit("tradeExecuted", trade);
                 this.io.emit("tradeExecuted", trade);
+
+                // [NEW] CHECK CONFIG: Only send if enabled
+                if (this.config.enableEmailAlerts) {
+                    // Pass the custom email address if one is set
+                    emailService.sendTradeAlert(trade, this.config.alertEmail);
+                }
             } catch (error) {
                 logger.error("Error processing trade event:", error);
             }
@@ -277,8 +286,6 @@ class TradingService extends EventEmitter {
             },
             candleCount: bdStatus.candleCount || 0,
             activeSignals: signalStatus.activeSignals || [],
-            // --------------------------------------------
-
             timestamp: Date.now(),
         };
     }
