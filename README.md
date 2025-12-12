@@ -26,11 +26,10 @@ This project is a sophisticated, full-stack cryptocurrency trend-following bot d
 -   **Real-Time Notifications**:
     -   **Email Alerts**: Instant HTML email notifications for every Buy and Sell execution via secure SMTP (Gmail supported).
 -   **Rich React Dashboard**:
-    -   **Live Price Charts** with real-time EMA overlays.
-    -   **Portfolio Overview** showing real Binance wallet balances vs. virtual paper trading performance.
-    -   **Signal Widget** displaying live ADX strength and trend direction for all tracked assets.
-    -   **System Health** banner monitoring data collection depth and API latency.
-    -   **Full Configuration UI** to adjust strategies, risk limits, and notification settings on the fly.
+    -   **Live Price Charts**: Real-time charts with EMA overlays and auto-updating indicators.
+    -   **Portfolio Overview**: Tracks real Binance wallet balances alongside virtual paper trading performance.
+    -   **System Health**: Diagnostic panel monitoring API latency, memory usage, and data stream connectivity.
+    -   **Full Configuration UI**: Adjust strategies, risk limits, and notification settings on the fly without restarting.
 -   **Secure & Persistent**:
     -   **Encrypted Secrets**: API keys and email credentials are encrypted at rest using OpenSSL (`.enc` files) and decrypted only in memory at runtime.
     -   **Persistent Database**: All signals and trades are stored in SQLite for audit trails and analytics.
@@ -55,7 +54,7 @@ This project is a sophisticated, full-stack cryptocurrency trend-following bot d
 
 The quickest way to get a local development environment running.
 
-1.  **Prerequisites**: Node.js (v16+ recommended, v22+ for Pi) and `npm`.
+1.  **Prerequisites**: Node.js (v22+ recommended) and `npm`.
 
 2.  **Clone the repository:**
 
