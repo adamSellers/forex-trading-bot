@@ -439,7 +439,7 @@ const TradingDashboard = () => {
           <LivePriceChart prices={prices} assets={activeChartAssets} />
         </Box>
         <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 4' } }}>
-          <LivePrices prices={prices} />
+          <LivePrices prices={prices} assets={activeChartAssets} />
         </Box>
         
         {/* Row 3: Signals & Recent Trades */}

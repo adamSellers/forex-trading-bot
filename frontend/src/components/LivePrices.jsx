@@ -1,6 +1,6 @@
-// frontend/src/components/LivePrices.jsx - ENHANCED VERSION
+// frontend/src/components/LivePrices.jsx - DYNAMIC ASSET LIST
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Grid, Card, CardContent, Skeleton } from '@mui/material';
+import { Box, Typography, Card, CardContent, Skeleton } from '@mui/material';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { SparkLineChart } from '@mui/x-charts/SparkLineChart';
 import { assetColors } from '../theme/tradingTheme';
@@ -77,9 +77,9 @@ const PriceCard = ({ asset, priceData, history }) => {
   );
 };
 
-const LivePrices = ({ prices = {} }) => {
+// UPDATED: Now accepts 'assets' prop
+const LivePrices = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'] }) => {
   const [history, setHistory] = useState(new Map());
-  const assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT', 'TRUMPUSDT'];
 
   useEffect(() => {
     if (!prices || typeof prices !== 'object' || Object.keys(prices).length === 0) {
@@ -97,10 +97,8 @@ const LivePrices = ({ prices = {} }) => {
       });
       return newHistory;
     });
-  }, [prices]);
+  }, [prices, assets]); // Added assets dependency
 
-  // This useMemo is now just for getting the latest price data for the defined assets.
-  // The bug is fixed because `prices` prop will be clean.
   const latestPrices = useMemo(() => {
     const data = new Map();
     assets.forEach(asset => {
@@ -109,7 +107,7 @@ const LivePrices = ({ prices = {} }) => {
       }
     });
     return data;
-  }, [prices]);
+  }, [prices, assets]); // Added assets dependency
 
   return (
     <Box
