@@ -262,14 +262,23 @@ class TradingService extends EventEmitter {
     // =================== API METHODS ===================
 
     getStatus() {
+        // Get status from sub-services
+        const bdStatus = this.binanceData?.getServiceStatus() || {};
+        const engineStatus = this.activeEngine?.getStatus() || {};
+        const signalStatus = this.signalGenerator?.getStatus() || {};
+
         return {
             isInitialized: this.isActive,
             config: this.config,
             services: {
-                binanceData: this.binanceData?.getServiceStatus(),
-                engine: this.activeEngine?.getStatus(),
-                signalGenerator: this.signalGenerator?.getStatus(),
+                binanceData: bdStatus,
+                engine: engineStatus,
+                signalGenerator: signalStatus,
             },
+            candleCount: bdStatus.candleCount || 0,
+            activeSignals: signalStatus.activeSignals || [],
+            // --------------------------------------------
+
             timestamp: Date.now(),
         };
     }
