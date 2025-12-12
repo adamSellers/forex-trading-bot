@@ -1,4 +1,4 @@
-// frontend/src/components/LivePriceChart.jsx - ALIGNED WITH BACKEND CONFIG
+// frontend/src/components/LivePriceChart.jsx - UPDATED WITH SAFETY CHECK
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Paper, Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
@@ -63,8 +63,16 @@ const useChartData = (asset, timeframe) => {
 
 const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'] }) => {
   const theme = useTheme();
+  // Initialize with the first asset in the provided list
   const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'BTCUSDT');
-  const [timeframe, setTimeframe] = useState('1h'); // Default matches strategy
+  const [timeframe, setTimeframe] = useState('1h');
+  
+  // FIX: Ensure selectedAsset is valid when assets prop changes
+  useEffect(() => {
+      if (assets.length > 0 && !assets.includes(selectedAsset)) {
+          setSelectedAsset(assets[0]);
+      }
+  }, [assets, selectedAsset]);
   
   const { data: chartData, setData: setChartData, loading, error } = useChartData(selectedAsset, timeframe);
 
@@ -146,7 +154,6 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
             </Select>
           </FormControl>
 
-          {/* UPDATED: Matches Backend Config (No 15m) */}
           <ToggleButtonGroup
             value={timeframe}
             exclusive

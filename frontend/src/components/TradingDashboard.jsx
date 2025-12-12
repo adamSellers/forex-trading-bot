@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - Refactored for Stability and Performance
+// frontend/src/components/TradingDashboard.jsx - FIXED: Linter Warning & Dynamic Assets
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container,
@@ -52,7 +52,6 @@ const TradingDashboard = () => {
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
-  // Using Map for efficient signal updates by symbol
   const [latestSignals, setLatestSignals] = useState(new Map());
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
@@ -65,7 +64,7 @@ const TradingDashboard = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-  // Refs for cleanup and socket management
+  // Refs
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
 
@@ -78,8 +77,6 @@ const TradingDashboard = () => {
   }, []);
 
   // --- Helpers ---
-
-  // Helper: Unified Signal State Updater
   const updateSignalState = useCallback((newSignals) => {
     if (!newSignals) return;
     const signalArray = Array.isArray(newSignals) ? newSignals : [newSignals];
@@ -91,7 +88,6 @@ const TradingDashboard = () => {
         signalArray.forEach(signal => {
             if (signal && signal.symbol) {
                 const existing = newMap.get(signal.symbol);
-                // Update if it's a new symbol OR the timestamp is newer
                 if (!existing || new Date(signal.timestamp) > new Date(existing.timestamp)) {
                     newMap.set(signal.symbol, signal);
                     hasUpdates = true;
@@ -103,14 +99,13 @@ const TradingDashboard = () => {
   }, []);
 
   // --- Data Fetching ---
-
   const fetchInitialData = useCallback(async () => {
     if (!isMountedRef.current) return;
     
     try {
       console.log('🔄 Fetching initial trading data...');
       setLoading(true);
-      setError(null); // Clear previous errors on retry
+      setError(null);
       
       const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData] = await Promise.allSettled([
           tradingAPI.getStatus(),
@@ -123,35 +118,27 @@ const TradingDashboard = () => {
 
       if (!isMountedRef.current) return;
 
-      // Process Status
       if (statusData.status === 'fulfilled') {
           setSystemStatus(statusData.value);
           setTradingEnabled(statusData.value.config?.enableTrading || false);
           setSelectedStrategy(statusData.value.config?.strategy || 'balanced');
-      } else {
-          console.warn('Failed to fetch status:', statusData.reason);
       }
 
-      // Process Signals
       if (signalsData.status === 'fulfilled' && signalsData.value?.signals) {
           updateSignalState(signalsData.value.signals);
       }
 
-      // Process Portfolio
       if (portfolioData.status === 'fulfilled') setPortfolio(portfolioData.value);
 
-      // Process Trades
       if (tradesData.status === 'fulfilled') {
           const t = tradesData.value.trades || tradesData.value;
           if (Array.isArray(t)) setTrades(t);
       }
 
-      // Process Prices
       if (pricesData.status === 'fulfilled' && pricesData.value?.prices) {
           setPrices(pricesData.value.prices);
       }
 
-      // Process Account
       if (accountData.status === 'fulfilled') setAccount(accountData.value);
 
       setLoading(false);
@@ -166,11 +153,8 @@ const TradingDashboard = () => {
   }, [updateSignalState]);
 
   // --- WebSocket Management ---
-
   useEffect(() => {
     const socketUrl = SOCKET_URL || window.location.origin;
-    
-    // Initialize Socket
     socketRef.current = io(socketUrl, {
       transports: ['websocket', 'polling'],
       upgrade: true,
@@ -186,26 +170,22 @@ const TradingDashboard = () => {
       if (isMountedRef.current) {
         setConnectionStatus('connected');
         setError(null);
-        // Fetch fresh data on connect/reconnect to ensure sync
         fetchInitialData();
       }
     });
 
-    socket.on('disconnect', (reason) => {
-      console.warn('🔌 Disconnected:', reason);
+    socket.on('disconnect', () => {
       if (isMountedRef.current) setConnectionStatus('disconnected');
     });
 
+    // FIXED: Now using 'err' to log the specific connection error
     socket.on('connect_error', (err) => {
         if (isMountedRef.current) {
             setConnectionStatus('error');
-            // Only log if it's a persistent issue to avoid console spam
-            console.warn('Socket connection error:', err.message);
+            console.warn('Socket connection error:', err);
         }
     });
     
-    // -- Real-time Event Listeners --
-
     socket.on('systemStatus', (status) => {
       if (isMountedRef.current) {
         setSystemStatus(status);
@@ -243,7 +223,6 @@ const TradingDashboard = () => {
     socket.on('tradeExecuted', (trade) => {
         if (isMountedRef.current) {
             setTrades(prev => {
-                // Prevent duplicate trades
                 if (prev.some(t => t.id === trade.id)) return prev;
                 return [trade, ...prev].slice(0, FETCH_LIMITS.TRADES);
             });
@@ -251,25 +230,18 @@ const TradingDashboard = () => {
         }
     });
 
-    // Cleanup on unmount
-    return () => {
-      socket.disconnect();
-    };
+    return () => socket.disconnect();
   }, [fetchInitialData, updateSignalState]);
 
   // --- Handlers ---
-
   const handleToggleTrading = async () => {
     try {
       if (tradingEnabled) await tradingAPI.stopTrading();
       else await tradingAPI.startTrading();
       setError(null);
-      // Optimistic update or wait for socket? 
-      // Socket 'systemStatus' will update the UI, but we can optimistically toggle for responsiveness
       setTradingEnabled(!tradingEnabled); 
     } catch (err) {
       setError(`Failed to toggle trading: ${err.message}`);
-      // Revert state if failed (if we implemented optimistic update)
       fetchInitialData(); 
     }
   };
@@ -291,16 +263,13 @@ const TradingDashboard = () => {
       setSelectedStrategy(newStrategy);
       try {
           await tradingAPI.updateConfig({ strategy: newStrategy });
-          // No need to manually refetch, config update should trigger systemStatus update via socket
       } catch (err) {
           setError(`Failed to update strategy: ${err.message}`);
-          // Revert UI if failed
           setSelectedStrategy(systemStatus?.config?.strategy || 'balanced');
       }
   };
 
-  // --- Derived State & Rendering Helpers ---
-
+  // --- Derived State ---
   const signalsToRender = useMemo(() => {
       return Array.from(latestSignals.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [latestSignals]);
@@ -315,8 +284,18 @@ const TradingDashboard = () => {
 
   const isLiveMode = systemStatus?.config?.tradingMode === 'live';
 
-  // --- Render ---
+  // FIX: Calculate Active Assets based on Config Allocation
+  const activeChartAssets = useMemo(() => {
+    if (!systemStatus?.config) return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
+    
+    const { assets = [], allocation = {} } = systemStatus.config;
+    // Filter assets where allocation is greater than 0
+    if (Object.keys(allocation).length === 0) return assets;
+    
+    return assets.filter(symbol => (allocation[symbol] || 0) > 0);
+  }, [systemStatus]);
 
+  // --- Render ---
   if (loading && !systemStatus) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -426,7 +405,7 @@ const TradingDashboard = () => {
                         value={selectedStrategy} 
                         label="Strategy" 
                         onChange={handleStrategyChange}
-                        disabled={tradingEnabled} // Prevent strategy change while running? Optional.
+                        disabled={tradingEnabled}
                     >
                         <MenuItem value="conservative">Conservative (SMA)</MenuItem>
                         <MenuItem value="balanced">Balanced (EMA)</MenuItem>
@@ -456,7 +435,8 @@ const TradingDashboard = () => {
         
         {/* Row 2: Charts & Live Prices */}
         <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 8' } }}>
-          <LivePriceChart prices={prices} />
+          {/* FIX: Pass calculated activeChartAssets to component */}
+          <LivePriceChart prices={prices} assets={activeChartAssets} />
         </Box>
         <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 4' } }}>
           <LivePrices prices={prices} />
