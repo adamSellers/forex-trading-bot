@@ -1,54 +1,61 @@
-// backend/src/routes/management.js - FIXED HEALTH CHECK
+// backend/src/routes/management.js - FIXED FOR DASHBOARD COMPATIBILITY
 const express = require("express");
 const router = express.Router();
 const fs = require("fs");
 const path = require("path");
 
 module.exports = (tradingController) => {
-    // GET /api/management/health - Comprehensive health check
+    // GET /api/management/health - The Source of Truth
     router.get("/health", (req, res) => {
         try {
             const uptime = process.uptime();
             const memory = process.memoryUsage();
 
-            // Access the core service
+            // Access the core service directly
             const ts = tradingController.tradingService;
 
-            // 1. Get Binance Status (Fix: Check 'ready', not 'connected')
+            // 1. Get Real Status from Sub-Services
             const binanceStatus = ts?.binanceData?.getServiceStatus();
-            const isBinanceReady = binanceStatus?.ready || false;
-
-            // 2. Get Engine Status (Fix: Check 'activeEngine', works for both Live & Paper)
             const engineStatus = ts?.activeEngine?.getStatus();
-            const isEngineActive = engineStatus?.isActive || false;
-
-            // 3. Get Signal Status
             const signalStatus = ts?.signalGenerator?.getStatus();
+
+            // 2. Determine "Ready" States
+            const isBinanceReady = binanceStatus?.ready || false;
+            const isEngineActive = engineStatus?.isActive || false;
+            const isSignalsActive = signalStatus?.isActive || false;
 
             res.json({
                 status: "OK",
-                isInitialized: tradingController.isInitialized, // Critical for Banner
+                isInitialized: tradingController.isInitialized,
                 timestamp: new Date().toISOString(),
                 uptime: uptime,
-                uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor(
-                    (uptime % 3600) / 60
-                )}m ${Math.floor(uptime % 60)}s`,
+                uptimeFormatted: formatUptime(uptime),
+
+                // System Resources
                 memory: {
-                    used: Math.round(memory.heapUsed / 1024 / 1024) + "MB",
-                    total: Math.round(memory.heapTotal / 1024 / 1024) + "MB",
-                    rss: Math.round(memory.rss / 1024 / 1024) + "MB",
-                    external: Math.round(memory.external / 1024 / 1024) + "MB",
+                    used: formatBytes(memory.heapUsed),
+                    total: formatBytes(memory.heapTotal),
+                    rss: formatBytes(memory.rss),
+                    external: formatBytes(memory.external),
                 },
                 environment: process.env.NODE_ENV || "production",
                 version: "2.0.0",
+
+                // Detailed Service Status (Formatted as Objects for Frontend)
                 services: {
-                    tradingController: tradingController.isInitialized,
-                    database: true,
-                    binanceData: isBinanceReady, // Green Light!
-                    engine: isEngineActive, // Green Light!
-                    signalGenerator: signalStatus?.isActive || false,
+                    tradingController: {
+                        isActive: tradingController.isInitialized,
+                    },
+                    database: { isActive: true }, // If we are here, DB is up
+                    binanceData: {
+                        ready: isBinanceReady,
+                        prices: binanceStatus?.prices || 0,
+                    },
+                    engine: { isActive: isEngineActive },
+                    signalGenerator: { isActive: isSignalsActive },
                 },
-                // Pass through stats for the banner
+
+                // Metrics for the Dashboard Banner
                 candleCount: binanceStatus?.candleCount || 0,
                 activeSignals: signalStatus?.activeSignals || [],
                 config: ts?.config || {},
@@ -63,7 +70,7 @@ module.exports = (tradingController) => {
         }
     });
 
-    // GET /api/management/system - Detailed system information
+    // GET /api/management/system - Info Card Data
     router.get("/system", (req, res) => {
         try {
             const ts = tradingController?.tradingService;
@@ -79,19 +86,14 @@ module.exports = (tradingController) => {
                 memory: {
                     ...process.memoryUsage(),
                     formatted: {
-                        heapUsed: `${Math.round(
-                            process.memoryUsage().heapUsed / 1024 / 1024
-                        )}MB`,
-                        heapTotal: `${Math.round(
-                            process.memoryUsage().heapTotal / 1024 / 1024
-                        )}MB`,
-                        rss: `${Math.round(
-                            process.memoryUsage().rss / 1024 / 1024
-                        )}MB`,
+                        heapUsed: formatBytes(process.memoryUsage().heapUsed),
+                        heapTotal: formatBytes(process.memoryUsage().heapTotal),
+                        rss: formatBytes(process.memoryUsage().rss),
                     },
                 },
                 environment: {
                     nodeEnv: process.env.NODE_ENV || "production",
+                    // Check if keys are actually loaded in memory
                     hasApiKeys: !!(
                         process.env.BINANCE_API_KEY &&
                         process.env.BINANCE_API_SECRET
@@ -116,11 +118,13 @@ module.exports = (tradingController) => {
             let logs = [];
 
             if (fs.existsSync(logDir)) {
+                // Read last 2 log files to ensure we catch recent events
                 const logFiles = fs
                     .readdirSync(logDir)
                     .filter((f) => f.endsWith(".log"))
                     .sort()
                     .slice(-2);
+
                 logFiles.forEach((file) => {
                     const content = fs.readFileSync(
                         path.join(logDir, file),
@@ -140,7 +144,7 @@ module.exports = (tradingController) => {
                 });
             }
 
-            // Filter and Sort
+            // Filter and Sort descending
             logs = logs
                 .filter(
                     (l) =>
@@ -157,12 +161,12 @@ module.exports = (tradingController) => {
         }
     });
 
-    // POST /api/management/restart
+    // POST /api/management/restart - Soft Restart
     router.post("/restart", async (req, res) => {
         try {
             await tradingController.resetTrading();
             await tradingController.startTrading();
-            res.json({ success: true, message: "System restarted" });
+            res.json({ success: true, message: "System services restarted" });
         } catch (e) {
             res.status(500).json({ error: e.message });
         }
@@ -172,6 +176,23 @@ module.exports = (tradingController) => {
     router.get("/config", (req, res) => {
         res.json(tradingController?.tradingService?.config || {});
     });
+
+    // --- Helpers ---
+    function formatUptime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        return `${h}h ${m}m ${s}s`;
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return "0 B";
+        const sizes = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (
+            parseFloat((bytes / Math.pow(1024, i)).toFixed(0)) + " " + sizes[i]
+        );
+    }
 
     return router;
 };
