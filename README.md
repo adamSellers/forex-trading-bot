@@ -6,7 +6,7 @@ A production-ready, full-stack cryptocurrency trading bot with live/paper tradin
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
 ![Node.js Version](https://img.shields.io/badge/node-v22%2B-green.svg)
 
-![Dashboard Screenshot](https://via.placeholder.com/800x450.png?text=Trading+Dashboard+UI)
+![Dashboard Screenshot](docs/dashboard-preview.png)
 
 This project is a sophisticated, full-stack cryptocurrency trend-following bot designed for both simulation and live trading on Binance. It combines a Node.js backend for data processing and trade execution with a real-time React dashboard for monitoring and configuration. The architecture is optimized for low-latency execution on ARM64 hardware (Raspberry Pi 5).
 
