@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - REORDERED LAYOUT (KPI -> DATA -> CHART)
+// frontend/src/components/TradingDashboard.jsx - TALLER DATA TERMINAL
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container, Paper, Typography, Button, Chip,
@@ -275,12 +275,19 @@ const TradingDashboard = () => {
                     </IconButton>
                  </Tooltip>
                  
+                 {/* STRATEGY SELECTOR - LOCKED WHEN TRADING IS ACTIVE */}
                  <FormControl size="small">
                     <Select 
                         value={selectedStrategy} 
                         onChange={handleStrategyChange} 
                         disabled={tradingEnabled}
-                        sx={{ height: 32, fontSize: '0.8rem', minWidth: 120, bgcolor: alpha(theme.palette.background.paper, 0.1) }}
+                        sx={{ 
+                            height: 32, 
+                            fontSize: '0.8rem', 
+                            minWidth: 140, 
+                            bgcolor: alpha(theme.palette.background.paper, 0.1),
+                            '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.2) } 
+                        }}
                     >
                         <MenuItem value="conservative">🛡️ Conservative</MenuItem>
                         <MenuItem value="balanced">⚖️ Balanced</MenuItem>
@@ -311,8 +318,8 @@ const TradingDashboard = () => {
             <Box flex={1} minWidth={200}><StatCard title="Win Rate" value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`} subValue={`${portfolio?.performance?.totalTrades || 0} Trades Executed`} icon={<History fontSize="small" />} color={theme.palette.info.main} /></Box>
         </Box>
 
-        {/* --- 3. DATA TERMINAL (ROW 2 - Fixed Height) --- */}
-        <GlassCard sx={{ flexGrow: 0, height: 320, flexShrink: 0, mb: 2 }}>
+        {/* --- 3. DATA TERMINAL (ROW 2 - INCREASED HEIGHT to 420px) --- */}
+        <GlassCard sx={{ flexGrow: 0, height: 420, flexShrink: 0, mb: 2 }}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.background.paper, 0.02) }}>
                 <Tabs 
                     value={activeTab} 
