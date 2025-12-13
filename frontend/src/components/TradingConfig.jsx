@@ -1,18 +1,48 @@
-// frontend/src/components/TradingConfig.jsx - FIXED IMPORTS
+// frontend/src/components/TradingConfig.jsx - PRO CONFIGURATION CONSOLE
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
-  InputLabel, Select, MenuItem, Alert, Card, InputAdornment,
-  IconButton, Paper, Container, Stack, Divider, Chip, Tabs, Tab,
-  List, ListItem, ListItemText, ListItemSecondaryAction, Avatar, Tooltip,
-  Grid // <--- ADDED MISSING IMPORT
+  InputLabel, Select, MenuItem, Alert, InputAdornment,
+  IconButton, Container, Stack, Divider, Chip, Tabs, Tab,
+  List, ListItem, Avatar, Grid, styled, alpha, useTheme
 } from '@mui/material';
 import {
   Save, Refresh, TrendingUp, Security, AccountBalance,
-  PieChart, Notifications, Delete, AddCircle, Warning,
-  CheckCircle, ShowChart, Tune, Science
+  PieChart, Notifications, Delete, AddCircle, 
+  Science, Tune, SettingsRemote
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
+
+// --- STYLED COMPONENTS ---
+const GlassCard = styled(Box)(({ theme }) => ({
+  background: alpha(theme.palette.background.paper, 0.05),
+  backdropFilter: 'blur(10px)',
+  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+  borderRadius: theme.shape.borderRadius * 2,
+  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+  padding: theme.spacing(3),
+  transition: 'border-color 0.3s ease',
+  '&:hover': {
+    borderColor: alpha(theme.palette.primary.main, 0.3),
+  }
+}));
+
+const SectionHeader = ({ icon, title, subtitle }) => {
+    const theme = useTheme();
+    return (
+        <Box display="flex" alignItems="center" gap={2} mb={3}>
+            <Avatar variant="rounded" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                {icon}
+            </Avatar>
+            <Box>
+                <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>
+                    {title}
+                </Typography>
+                {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
+            </Box>
+        </Box>
+    );
+};
 
 // --- ASSET LIST ---
 const SUPPORTED_ASSETS = [
@@ -49,6 +79,8 @@ const DEFAULT_CONFIG = {
 };
 
 const TradingConfig = () => {
+  const theme = useTheme();
+
   // --- STATE ---
   const [activeTab, setActiveTab] = useState(0);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
@@ -157,105 +189,112 @@ const TradingConfig = () => {
 
   const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.allocation[asset] || 0), 0);
 
-  // --- SUB-COMPONENTS (RENDER HELPERS) ---
+  // --- RENDERERS ---
 
   const renderGeneralSettings = () => (
     <Stack spacing={3}>
-        <Card variant="outlined" sx={{ p: 3, borderLeft: 6, borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Box>
-                    <Typography variant="h6" fontWeight="bold">
-                        {config.tradingMode === 'live' ? "⚠️ LIVE TRADING ACTIVE" : "🧪 PAPER TRADING MODE"}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" mt={0.5}>
-                        {config.tradingMode === 'live' 
-                            ? "Real funds are at risk. Trades will be executed on Binance." 
-                            : "Simulation only. No real funds will be used."}
-                    </Typography>
-                </Box>
-                <FormControl component="fieldset">
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="caption" fontWeight="bold">PAPER</Typography>
-                        <Switch
-                            checked={config.tradingMode === 'live'}
-                            onChange={(e) => {
-                                if (e.target.checked && !window.confirm("DANGER: Are you sure you want to enable Real Money Trading?")) return;
-                                updateConfig('tradingMode', e.target.checked ? 'live' : 'paper');
-                            }}
-                            color="error"
-                        />
-                        <Typography variant="caption" fontWeight="bold" color={config.tradingMode === 'live' ? 'error.main' : 'text.primary'}>LIVE</Typography>
-                    </Stack>
-                </FormControl>
+        {/* Trading Mode Banner */}
+        <Box 
+            sx={{ 
+                p: 3, 
+                borderRadius: 2,
+                border: 1,
+                borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main',
+                bgcolor: alpha(config.tradingMode === 'live' ? theme.palette.error.main : theme.palette.warning.main, 0.05),
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+            }}
+        >
+            <Box>
+                <Typography variant="h6" fontWeight="bold" color={config.tradingMode === 'live' ? 'error.main' : 'warning.main'}>
+                    {config.tradingMode === 'live' ? "⚠️ LIVE TRADING ENVIRONMENT" : "🧪 PAPER TRADING ENVIRONMENT"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mt={0.5}>
+                    {config.tradingMode === 'live' 
+                        ? "Real funds are at risk. Trades execute directly on Binance." 
+                        : "Simulation mode. No real assets will be moved."}
+                </Typography>
             </Box>
-        </Card>
+            <FormControl>
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="button" color={config.tradingMode === 'paper' ? 'warning.main' : 'text.disabled'}>PAPER</Typography>
+                    <Switch
+                        checked={config.tradingMode === 'live'}
+                        onChange={(e) => {
+                            if (e.target.checked && !window.confirm("DANGER: Are you sure you want to enable Real Money Trading?")) return;
+                            updateConfig('tradingMode', e.target.checked ? 'live' : 'paper');
+                        }}
+                        color="error"
+                    />
+                    <Typography variant="button" color={config.tradingMode === 'live' ? 'error.main' : 'text.disabled'}>LIVE</Typography>
+                </Stack>
+            </FormControl>
+        </Box>
 
-        <Paper variant="outlined" sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Global Controls</Typography>
-            <Box display="flex" gap={4} alignItems="center" flexWrap="wrap">
-                 <Box flexGrow={1} minWidth={200}>
+        <GlassCard>
+            <SectionHeader icon={<SettingsRemote />} title="System Controls" subtitle="Global switches and limits" />
+            <Grid container spacing={3} alignItems="center">
+                 <Grid item xs={12} md={6}>
                     <TextField
                         fullWidth label="Max Capital Allocation" type="number"
-                        helperText="The maximum USDT amount the bot can use."
+                        helperText="Hard limit on USDT usage."
                         value={config.maxCapitalAtRisk}
                         onChange={(e) => updateConfig('maxCapitalAtRisk', parseFloat(e.target.value))}
                         InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
                     />
-                 </Box>
-                 
-                 <Box flexGrow={1} minWidth={200} display="flex" alignItems="center" justifyContent="space-between" 
-                      border={1} borderColor={config.enableTrading ? "success.main" : "divider"} 
-                      borderRadius={1} p={2}
-                      bgcolor={config.enableTrading ? "rgba(46, 125, 50, 0.04)" : "transparent"}
-                 >
-                    <Box>
-                        <Typography fontWeight="bold">Master Bot Switch</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            {config.enableTrading ? "System is ON and processing signals." : "System is OFF. No trades will be taken."}
-                        </Typography>
-                    </Box>
-                    <Switch 
-                        checked={config.enableTrading} 
-                        onChange={(e) => updateConfig('enableTrading', e.target.checked)} 
-                        color="success" size="large"
-                    />
-                 </Box>
-            </Box>
-        </Paper>
+                 </Grid>
+                 <Grid item xs={12} md={6}>
+                     <Box 
+                        display="flex" alignItems="center" justifyContent="space-between" 
+                        border={1} borderColor={config.enableTrading ? "success.main" : "divider"} 
+                        borderRadius={1} p={2}
+                        bgcolor={config.enableTrading ? alpha(theme.palette.success.main, 0.05) : "transparent"}
+                     >
+                        <Box>
+                            <Typography fontWeight="bold">Master Kill Switch</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {config.enableTrading ? "SYSTEM ACTIVE" : "SYSTEM PAUSED"}
+                            </Typography>
+                        </Box>
+                        <Switch 
+                            checked={config.enableTrading} 
+                            onChange={(e) => updateConfig('enableTrading', e.target.checked)} 
+                            color="success"
+                        />
+                     </Box>
+                 </Grid>
+            </Grid>
+        </GlassCard>
 
-        <Paper variant="outlined" sx={{ p: 3 }}>
-            <Box display="flex" alignItems="center" gap={1} mb={2}>
-                <Notifications color="action" />
-                <Typography variant="h6">Notifications</Typography>
-            </Box>
+        <GlassCard>
+            <SectionHeader icon={<Notifications />} title="Alerts & Notifications" />
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-                 <Box display="flex" alignItems="center" width="100%">
+                 <Box display="flex" alignItems="center" minWidth={200}>
                     <Switch checked={config.enableEmailAlerts} onChange={(e) => updateConfig('enableEmailAlerts', e.target.checked)} />
-                    <Typography sx={{ ml: 1 }}>Enable Email Alerts</Typography>
+                    <Typography sx={{ ml: 1 }}>Email Notifications</Typography>
                  </Box>
                  <TextField 
-                    fullWidth label="Alert Email Address" 
+                    fullWidth label="Recipient Email" 
                     value={config.alertEmail} 
                     onChange={(e) => updateConfig('alertEmail', e.target.value)}
                     disabled={!config.enableEmailAlerts}
+                    size="small"
                 />
             </Stack>
-        </Paper>
+        </GlassCard>
     </Stack>
   );
 
   const renderStrategySettings = () => (
     <Stack spacing={3}>
-        <Paper variant="outlined" sx={{ p: 3 }}>
-             <Box display="flex" alignItems="center" gap={1} mb={3}>
-                <Science color="primary" />
-                <Typography variant="h6">Core Strategy</Typography>
-            </Box>
+        <GlassCard>
+             <SectionHeader icon={<Science />} title="Core Logic" subtitle="Algorithm parameters" />
             <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                     <FormControl fullWidth>
-                        <InputLabel>Strategy Logic</InputLabel>
-                        <Select value={config.strategy} label="Strategy Logic" onChange={(e) => updateConfig('strategy', e.target.value)}>
+                        <InputLabel>Strategy Type</InputLabel>
+                        <Select value={config.strategy} label="Strategy Type" onChange={(e) => updateConfig('strategy', e.target.value)}>
                             <MenuItem value="balanced">Balanced (EMA Crossover)</MenuItem>
                             <MenuItem value="responsive">Responsive (Fast EMA)</MenuItem>
                             <MenuItem value="conservative">Conservative (SMA Trend)</MenuItem>
@@ -273,74 +312,72 @@ const TradingConfig = () => {
                     </FormControl>
                 </Grid>
             </Grid>
-        </Paper>
+        </GlassCard>
 
-        <Paper variant="outlined" sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>Filters & Conditions</Typography>
+        <GlassCard>
+            <SectionHeader icon={<Tune />} title="Signal Filters" subtitle="Refine entry conditions" />
             
             <Box mb={4}>
                 <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography fontWeight="bold">ADX Trend Filter</Typography>
+                    <Typography fontWeight="bold">ADX Trend Filter (Min Strength)</Typography>
                     <Switch size="small" checked={config.enableAdxFilter} onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)} />
                 </Box>
-                <Typography variant="body2" color="text.secondary" mb={2}>
-                    Only take trades when the trend strength is above this threshold.
-                </Typography>
-                <Box px={2}>
+                <Box px={2} display="flex" alignItems="center" gap={2}>
                     <Slider 
                         value={config.minAdx} min={10} max={50} step={1}
                         onChange={(_, v) => updateConfig('minAdx', v)} disabled={!config.enableAdxFilter}
-                        valueLabelDisplay="auto" marks={[{value: 25, label: 'Strong Trend'}]}
+                        valueLabelDisplay="auto" marks={[{value: 25, label: 'Strong'}]}
+                        sx={{ flexGrow: 1 }}
                     />
+                    <Typography fontFamily="monospace" fontWeight="bold">{config.minAdx}</Typography>
                 </Box>
             </Box>
 
-            <Divider sx={{ my: 2 }} />
+            <Divider sx={{ my: 3 }} />
 
             <Box>
-                <Box display="flex" justifyContent="space-between" mb={1}>
+                <Box display="flex" justifyContent="space-between" mb={2}>
                     <Typography fontWeight="bold">RSI Momentum Filter</Typography>
                     <Switch size="small" checked={config.enableRsiFilter} onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)} />
                 </Box>
-                 <Typography variant="body2" color="text.secondary" mb={2}>
-                    Prevent buying at peaks (Overbought) or selling at bottoms (Oversold).
-                </Typography>
-                <Stack direction="row" spacing={4}>
+                <Stack direction="row" spacing={3}>
                      <TextField 
-                        fullWidth label="Overbought Threshold (>)" type="number"
+                        fullWidth label="Overbought (>)" type="number"
                         value={config.rsiOverbought} onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))} 
                         disabled={!config.enableRsiFilter}
+                        size="small"
                     />
                      <TextField 
-                        fullWidth label="Oversold Threshold (<)" type="number"
+                        fullWidth label="Oversold (<)" type="number"
                         value={config.rsiOversold} onChange={(e) => updateConfig('rsiOversold', parseFloat(e.target.value))} 
                         disabled={!config.enableRsiFilter}
+                        size="small"
                     />
                 </Stack>
             </Box>
-        </Paper>
+        </GlassCard>
     </Stack>
   );
 
   const renderRiskSettings = () => (
      <Stack spacing={3}>
-        <Paper variant="outlined" sx={{ p: 3 }}>
-            <Box display="flex" alignItems="center" gap={1} mb={3}>
-                <Security color="warning" />
-                <Typography variant="h6">Risk Parameters</Typography>
-            </Box>
+        <GlassCard>
+            <SectionHeader icon={<Security />} title="Risk Management" subtitle="Capital protection rules" />
 
             <Grid container spacing={4}>
                 <Grid item xs={12}>
-                     <Typography gutterBottom>Risk Per Trade (% of Capital)</Typography>
+                     <Typography gutterBottom variant="subtitle2" color="text.secondary">RISK PER TRADE (% OF CAPITAL)</Typography>
                      <Stack direction="row" spacing={2} alignItems="center">
                         <Slider 
                             value={config.riskPerTrade} min={0.1} max={5.0} step={0.1}
                             onChange={(_, v) => updateConfig('riskPerTrade', v)} 
                             valueLabelDisplay="auto"
+                            marks={[{value: 1, label: 'Conservative'}, {value: 3, label: 'Aggressive'}]}
                             sx={{ flexGrow: 1 }}
                         />
-                        <Typography fontWeight="bold" minWidth={50}>{config.riskPerTrade}%</Typography>
+                        <Typography fontWeight="bold" fontFamily="monospace" sx={{ border: 1, borderColor: 'divider', p: 1, borderRadius: 1 }}>
+                            {config.riskPerTrade}%
+                        </Typography>
                      </Stack>
                 </Grid>
 
@@ -366,7 +403,7 @@ const TradingConfig = () => {
                  <Grid item xs={12} md={6}>
                     <TextField 
                         fullWidth label="Max Daily Loss Limit (%)" type="number"
-                        helperText="Stop trading if daily loss exceeds this."
+                        helperText="Engine auto-stop threshold"
                         value={config.maxDailyLoss} 
                         onChange={(e) => updateConfig('maxDailyLoss', parseFloat(e.target.value))} 
                     />
@@ -379,19 +416,20 @@ const TradingConfig = () => {
                     />
                 </Grid>
             </Grid>
-        </Paper>
+        </GlassCard>
      </Stack>
   );
 
   const renderPortfolioSettings = () => (
     <Stack spacing={3}>
-         <Paper variant="outlined" sx={{ p: 2 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={2}>
-                 <Box>
-                     <Typography variant="h6">Asset Allocation</Typography>
-                     <Typography variant="body2" color="text.secondary">
-                         Define which assets the bot should trade and their weight.
-                     </Typography>
+         <GlassCard>
+            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={2} mb={3}>
+                 <Box display="flex" alignItems="center" gap={2}>
+                     <PieChart color="primary" />
+                     <Box>
+                        <Typography variant="h6" fontWeight="bold">Asset Allocation</Typography>
+                        <Typography variant="caption" color="text.secondary">Portfolio weighting logic</Typography>
+                     </Box>
                  </Box>
                  <Box display="flex" alignItems="center" gap={2}>
                      <Chip 
@@ -402,57 +440,54 @@ const TradingConfig = () => {
                  </Box>
             </Stack>
 
-            <Divider sx={{ my: 2 }} />
-
-            <Box display="flex" gap={2} mb={3}>
-                <FormControl size="small" fullWidth sx={{ maxWidth: 300 }}>
-                    <InputLabel>Select Asset</InputLabel>
-                    <Select value={newAsset} label="Select Asset" onChange={(e) => setNewAsset(e.target.value)}>
+            <Box display="flex" gap={2} mb={3} p={2} bgcolor={alpha(theme.palette.background.paper, 0.3)} borderRadius={2}>
+                <FormControl size="small" fullWidth>
+                    <InputLabel>Add Asset to Portfolio</InputLabel>
+                    <Select value={newAsset} label="Add Asset to Portfolio" onChange={(e) => setNewAsset(e.target.value)}>
                         {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
                             <MenuItem key={asset} value={asset}>{asset}</MenuItem>
                         ))}
                     </Select>
                 </FormControl>
-                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />}>
-                    Add to Portfolio
+                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />} sx={{ minWidth: 120 }}>
+                    ADD
                 </Button>
             </Box>
 
             <List disablePadding>
                 {config.assets.length === 0 && (
-                    <Alert severity="info" sx={{ width: '100%' }}>Your portfolio is empty. Add an asset to begin.</Alert>
+                    <Alert severity="info" sx={{ width: '100%' }}>Portfolio is empty. Add assets to begin trading.</Alert>
                 )}
                 
                 {config.assets.map((asset) => (
                     <React.Fragment key={asset}>
                         <ListItem sx={{ 
-                            border: 1, 
-                            borderColor: 'divider', 
-                            borderRadius: 1, 
-                            mb: 1, 
+                            borderBottom: 1, 
+                            borderColor: 'divider',
+                            py: 2,
+                            px: 1,
                             flexWrap: 'wrap',
-                            bgcolor: 'background.paper',
-                            '&:hover': { bgcolor: 'action.hover' }
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
                         }}>
-                             <Box display="flex" alignItems="center" minWidth={120}>
-                                <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: 'primary.main', fontSize: '0.8rem' }}>
+                             <Box display="flex" alignItems="center" width={{ xs: '100%', sm: '20%' }}>
+                                <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: alpha(theme.palette.primary.main, 0.2), color: 'primary.main', fontSize: '0.75rem', fontWeight: 'bold' }}>
                                     {asset.substring(0,3)}
                                 </Avatar>
-                                <ListItemText primary={asset.replace('USDT', '')} secondary="USDT Pair" />
+                                <Typography fontWeight="bold">{asset.replace('USDT', '')}</Typography>
                              </Box>
 
-                             <Box sx={{ flexGrow: 1, mx: 4, minWidth: 200 }}>
+                             <Box sx={{ flexGrow: 1, mx: { xs: 0, sm: 4 }, my: { xs: 2, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}>
                                  <Stack direction="row" spacing={2} alignItems="center">
-                                    <Typography variant="caption" color="text.secondary">Weight</Typography>
                                     <Slider 
                                         value={config.allocation[asset] || 0} 
                                         onChange={(_, v) => updateAllocation(asset, v)}
                                         min={0} max={50} step={1}
+                                        sx={{ flexGrow: 1 }}
                                     />
                                  </Stack>
                              </Box>
 
-                             <Box display="flex" alignItems="center" gap={2}>
+                             <Box display="flex" alignItems="center" gap={2} width={{ xs: '100%', sm: 'auto' }} justifyContent="flex-end">
                                  <TextField 
                                     size="small" type="number" 
                                     value={config.allocation[asset] || 0} 
@@ -462,19 +497,19 @@ const TradingConfig = () => {
                                     }}
                                     sx={{ width: 100 }}
                                  />
-                                 <IconButton color="error" onClick={() => handleRemoveAsset(asset)}>
-                                     <Delete />
+                                 <IconButton color="error" onClick={() => handleRemoveAsset(asset)} size="small">
+                                     <Delete fontSize="small" />
                                  </IconButton>
                              </Box>
                         </ListItem>
                     </React.Fragment>
                 ))}
             </List>
-         </Paper>
+         </GlassCard>
     </Stack>
   );
 
-  if (loading) return <Box p={4} display="flex" justifyContent="center"><Typography>Loading Configuration...</Typography></Box>;
+  if (loading) return <Box minHeight="80vh" display="flex" alignItems="center" justifyContent="center"><Typography>Loading Configuration...</Typography></Box>;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -482,11 +517,15 @@ const TradingConfig = () => {
         {/* HEADER */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
             <Box>
-                <Typography variant="h4" fontWeight="bold">Settings</Typography>
-                <Typography color="text.secondary">Manage your trading bot configuration</Typography>
+                <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
+                    SYSTEM <span style={{ color: theme.palette.primary.main }}>CONFIG</span>
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                    BOT PARAMETERS & RISK CONTROLS
+                </Typography>
             </Box>
             <Stack direction="row" spacing={2}>
-                <Button startIcon={<Refresh />} onClick={fetchCurrentConfig} disabled={saving}>
+                <Button startIcon={<Refresh />} onClick={fetchCurrentConfig} disabled={saving} color="inherit">
                     Revert
                 </Button>
                 <Button 
@@ -495,6 +534,7 @@ const TradingConfig = () => {
                     onClick={handleSaveConfig} 
                     disabled={!hasChanges || saving}
                     size="large"
+                    sx={{ px: 4, fontWeight: 'bold' }}
                 >
                     {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
@@ -506,11 +546,18 @@ const TradingConfig = () => {
 
         {/* TABS NAVIGATION */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-            <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} variant="scrollable" scrollButtons="auto">
-                <Tab icon={<AccountBalance />} iconPosition="start" label="General" />
-                <Tab icon={<Science />} iconPosition="start" label="Strategy" />
-                <Tab icon={<Security />} iconPosition="start" label="Risk" />
-                <Tab icon={<PieChart />} iconPosition="start" label="Portfolio" />
+            <Tabs 
+                value={activeTab} 
+                onChange={(_, v) => setActiveTab(v)} 
+                variant="scrollable" 
+                scrollButtons="auto"
+                textColor="primary"
+                indicatorColor="primary"
+            >
+                <Tab icon={<AccountBalance />} iconPosition="start" label="General" sx={{ minHeight: 64 }} />
+                <Tab icon={<Science />} iconPosition="start" label="Strategy" sx={{ minHeight: 64 }} />
+                <Tab icon={<Security />} iconPosition="start" label="Risk" sx={{ minHeight: 64 }} />
+                <Tab icon={<PieChart />} iconPosition="start" label="Portfolio" sx={{ minHeight: 64 }} />
             </Tabs>
         </Box>
 
