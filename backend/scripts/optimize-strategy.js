@@ -1,4 +1,4 @@
-// backend/scripts/optimize-strategy.js - COMPARISON EDITION
+// backend/scripts/optimize-strategy.js - MARKOV REGIME EDITION
 const Binance = require("node-binance-api");
 const readline = require("readline");
 
@@ -28,23 +28,15 @@ const CANDIDATES = [
 
 // Your "Golden Config" parameters
 const STRATEGY = {
-    adxThreshold: 30,
+    adxThreshold: 40,
     rsiBuyThreshold: 30,
     rsiSellThreshold: 70,
     stopLossATR: 1.5,
     takeProfitATR: 3.0,
 };
 
-// Current Production Settings for Comparison
-const CURRENT_PORTFOLIO = {
-    BTCUSDT: 0.3,
-    ETHUSDT: 0.3,
-    BNBUSDT: 0.2,
-    DOGEUSDT: 0.2,
-};
-
 const TIMEFRAME = "1h";
-const INITIAL_CAPITAL_PER_ASSET = 1000;
+const INITIAL_CAPITAL = 1000;
 
 const binance = new Binance().options({ family: 4, log: () => {} });
 
@@ -151,7 +143,66 @@ function calculateADX(highs, lows, closes, period = 14) {
     return new Array(period * 2).fill(null).concat(adx);
 }
 
-// --- ENGINE ---
+// --- MARKOV REGIME ENGINE ---
+class MarkovRegime {
+    constructor() {
+        // State 0: Bear, State 1: Chop, State 2: Bull
+        this.transitionCounts = {
+            0: { 0: 0, 1: 0, 2: 0 },
+            1: { 0: 0, 1: 0, 2: 0 },
+            2: { 0: 0, 1: 0, 2: 0 },
+        };
+        this.stateTotals = { 0: 0, 1: 0, 2: 0 };
+    }
+
+    // Determine state based on Return and Volatility
+    determineState(pctChange, volatility) {
+        // High volatility threshold (simplified)
+        const VOL_THRESHOLD = 0.005; // 0.5% move in 1h
+
+        if (pctChange > VOL_THRESHOLD) return 2; // Strong Bull
+        if (pctChange < -VOL_THRESHOLD) return 0; // Strong Bear
+        return 1; // Chop/Noise
+    }
+
+    train(closes) {
+        let prevState = null;
+
+        for (let i = 1; i < closes.length; i++) {
+            const pctChange = (closes[i] - closes[i - 1]) / closes[i - 1];
+            // Volatility could be ATR, but pctChange magnitude works for rough state
+            const currentState = this.determineState(pctChange);
+
+            if (prevState !== null) {
+                this.transitionCounts[prevState][currentState]++;
+                this.stateTotals[prevState]++;
+            }
+            prevState = currentState;
+        }
+    }
+
+    getProbabilities() {
+        const probs = {};
+        for (let from = 0; from <= 2; from++) {
+            probs[from] = {};
+            const total = this.stateTotals[from] || 1;
+            for (let to = 0; to <= 2; to++) {
+                probs[from][to] = this.transitionCounts[from][to] / total;
+            }
+        }
+        return probs;
+    }
+
+    // "Stability Score": How likely is a Bull state to stay Bull?
+    // High persistence = Good for trend following
+    getBullStability() {
+        const probs = this.getProbabilities();
+        // Return P(Bull->Bull)
+        return probs[2][2] || 0;
+    }
+}
+
+// --- TRADING ENGINE ---
 async function fetchHistory(symbol, days) {
     process.stdout.write(`📥 ${symbol}: Fetching ${days} days... `);
     const limit = 1000;
@@ -202,8 +253,8 @@ async function fetchHistory(symbol, days) {
     return unique;
 }
 
-function simulateTrade(symbol, candles) {
-    let usdt = INITIAL_CAPITAL_PER_ASSET;
+function analyzeAsset(symbol, candles) {
+    let usdt = INITIAL_CAPITAL;
     let position = null;
     let trades = 0;
     let wins = 0;
@@ -215,6 +266,11 @@ function simulateTrade(symbol, candles) {
     const rsiArr = calculateRSI(closes, 14);
     const adxArr = calculateADX(highs, lows, closes, 14);
     const atrArr = calculateATR(highs, lows, closes, 14);
+
+    // --- MARKOV ANALYSIS ---
+    const markov = new MarkovRegime();
+    markov.train(closes);
+    const stabilityScore = markov.getBullStability();
 
     for (let i = 50; i < candles.length; i++) {
         const price = closes[i];
@@ -258,180 +314,114 @@ function simulateTrade(symbol, candles) {
             }
         }
     }
+
     return {
         symbol,
-        profit: usdt - INITIAL_CAPITAL_PER_ASSET,
-        roi: (usdt - INITIAL_CAPITAL_PER_ASSET) / INITIAL_CAPITAL_PER_ASSET, // Decimal ROI (0.10 = 10%)
+        profit: usdt - INITIAL_CAPITAL,
+        roi: ((usdt - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100,
         trades,
         winRate: trades > 0 ? (wins / trades) * 100 : 0,
+        stabilityScore, // New Metric
     };
 }
 
 async function run() {
     try {
-        console.log("🚀 Interactive Portfolio Builder & Comparison");
+        console.log("🚀 AI Portfolio Builder (Markov Chain Enhanced)");
         const daysInput = await askQuestion(
-            "Enter number of days to backtest (e.g. 180): "
+            "Enter number of days to backtest (Rec: 365 or 730): "
         );
-        const days = parseInt(daysInput) || 180;
+        const days = parseInt(daysInput) || 365;
 
-        console.log(`\n🔄 Starting Optimization for last ${days} days...`);
+        console.log(`\n🔄 Analyzing Market Regimes for last ${days} days...`);
         console.log("-----------------------------------");
 
         let results = [];
-        let resultMap = {};
 
         for (const sym of CANDIDATES) {
             try {
                 const data = await fetchHistory(sym, days);
-                if (data.length < 50) {
-                    console.log(`⚠️  Skipping ${sym} (Insufficient data)`);
-                    continue;
-                }
-                const res = simulateTrade(sym, data);
+                if (data.length < 50) continue;
+                const res = analyzeAsset(sym, data);
                 results.push(res);
-                resultMap[sym] = res;
             } catch (e) {
                 console.error(`Error processing ${sym}:`, e.message);
             }
         }
 
+        // Rank by a mix of Profit AND Stability
+        // We want profitable coins, but we prioritize those that STAY in bull trends
         results.sort((a, b) => b.profit - a.profit);
 
-        // --- 1. ASSET RANKING TABLE ---
         console.log(`\n🏆 ASSET PERFORMANCE RANKING (${days} Days)`);
         console.log(
-            "-----------------------------------------------------------------"
+            "----------------------------------------------------------------------------------"
         );
         console.log(
-            "Symbol      | Profit ($) | Return (%) | Win Rate | Trades"
+            "Symbol      | Profit ($) | Return (%) | Win Rate | Stability (P) | Trades"
         );
         console.log(
-            "-----------------------------------------------------------------"
+            "----------------------------------------------------------------------------------"
         );
 
         results.forEach((r) => {
             const pColor = r.profit > 0 ? "\x1b[32m" : "\x1b[31m";
+            const sColor = r.stabilityScore > 0.35 ? "\x1b[32m" : "\x1b[33m"; // >35% persistence is good for hourly
             const reset = "\x1b[0m";
+
             console.log(
-                `${r.symbol.padEnd(12)}| ${pColor}$${r.profit
-                    .toFixed(2)
-                    .padEnd(9)}${reset}| ${pColor}${(r.roi * 100).toFixed(
-                    1
-                )}%${reset}`.padEnd(38) +
-                    `| ${r.winRate.toFixed(0)}%      | ${r.trades}`
+                `${r.symbol.padEnd(12)}| ` +
+                    `${pColor}$${r.profit.toFixed(2).padEnd(9)}${reset}| ` +
+                    `${pColor}${r.roi.toFixed(1)}%${reset}`.padEnd(19) +
+                    `| ${r.winRate.toFixed(0)}%       ` +
+                    `| ${sColor}${(r.stabilityScore * 100).toFixed(
+                        1
+                    )}%${reset}`.padEnd(23) +
+                    `| ${r.trades}`
             );
         });
 
-        // --- 2. CALCULATE OPTIMIZED ALLOCATION ---
         const winners = results.filter((r) => r.profit > 0).slice(0, 5);
-        let optimizedAllocation = {};
 
-        if (winners.length > 0) {
-            const totalProfit = winners.reduce((sum, r) => sum + r.profit, 0);
-            winners.forEach((r) => {
-                let share = r.profit / totalProfit; // Decimal
-                // Cap between 5% and 35%
-                share = Math.max(0.05, Math.min(0.35, share));
-                optimizedAllocation[r.symbol] = share;
-            });
-            // Normalize to 1.0 (100%)
-            const currentTotal = Object.values(optimizedAllocation).reduce(
-                (a, b) => a + b,
-                0
-            );
-            Object.keys(optimizedAllocation).forEach(
-                (k) =>
-                    (optimizedAllocation[k] =
-                        optimizedAllocation[k] / currentTotal)
-            );
-        }
-
-        // --- 3. PORTFOLIO COMPARISON (Hypothetical $10,000 Portfolio) ---
-        const PORTFOLIO_SIZE = 10000;
-
-        const calcPortfolioPerf = (name, allocation) => {
-            let totalProfit = 0;
-            let weightedWinRate = 0;
-            let covered = 0;
-
-            Object.entries(allocation).forEach(([symbol, weight]) => {
-                const res = resultMap[symbol];
-                if (res) {
-                    // Profit = Allocated Capital * ROI
-                    const allocatedCapital = PORTFOLIO_SIZE * weight;
-                    const profit = allocatedCapital * res.roi;
-                    totalProfit += profit;
-                    weightedWinRate += res.winRate * weight;
-                    covered += weight;
-                }
-            });
-
-            // Adjust if portfolio not fully covered (e.g. missing data)
-            if (covered > 0) weightedWinRate = weightedWinRate / covered;
-
-            return {
-                name,
-                totalProfit,
-                roi: (totalProfit / PORTFOLIO_SIZE) * 100,
-                winRate: weightedWinRate,
-            };
-        };
-
-        const currentPerf = calcPortfolioPerf(
-            "Current (PRD)",
-            CURRENT_PORTFOLIO
-        );
-        const optPerf = calcPortfolioPerf("Optimized", optimizedAllocation);
-
-        console.log(
-            `\n⚖️  STRATEGY SHOWDOWN ($${PORTFOLIO_SIZE.toLocaleString()} Portfolio)`
-        );
-        console.log(
-            "-----------------------------------------------------------------"
-        );
-        console.log(`Strategy       | Net Profit   | Total ROI | Avg Win Rate`);
-        console.log(
-            "-----------------------------------------------------------------"
-        );
-
-        const printPerf = (p) => {
-            const color = p.totalProfit > 0 ? "\x1b[32m" : "\x1b[31m";
-            const reset = "\x1b[0m";
-            console.log(
-                `${p.name.padEnd(15)}| ${color}$${p.totalProfit
-                    .toFixed(2)
-                    .padEnd(11)}${reset}| ${color}${p.roi.toFixed(
-                    2
-                )}%${reset}    | ${p.winRate.toFixed(1)}%`
-            );
-        };
-
-        printPerf(currentPerf);
-        printPerf(optPerf);
-
-        // --- 4. RECOMMENDATION ---
         if (winners.length === 0) {
             console.log(
                 "\n⚠️ No assets were profitable. Recommendation: STAY IN CASH (USDT)."
             );
         } else {
-            console.log("\n💡 RECOMMENDED CONFIGURATION (Copy to Config)");
-            console.log("---------------------------------------------");
-            // Convert back to integer percentages for display
-            let displayAlloc = {};
-            Object.entries(optimizedAllocation).forEach(
-                ([k, v]) => (displayAlloc[k] = Math.round(v * 100))
+            // ALLOCATION LOGIC: Weight by Profit * Stability
+            // This rewards coins that are not just lucky, but consistent.
+            let totalWeight = 0;
+            const allocation = {};
+
+            winners.forEach((r) => {
+                const weight = r.profit * (1 + r.stabilityScore); // Boost stable coins
+                totalWeight += weight;
+                r.weight = weight;
+            });
+
+            winners.forEach((r) => {
+                let share = (r.weight / totalWeight) * 100;
+                share = Math.max(5, Math.min(35, share));
+                allocation[r.symbol] = Math.round(share);
+            });
+
+            // Normalize
+            const currentTotal = Object.values(allocation).reduce(
+                (a, b) => a + b,
+                0
+            );
+            const factor = 100 / currentTotal;
+            Object.keys(allocation).forEach(
+                (k) => (allocation[k] = Math.round(allocation[k] * factor))
             );
 
-            // Fix rounding error to ensure 100%
-            const sum = Object.values(displayAlloc).reduce((a, b) => a + b, 0);
-            if (sum !== 100) {
-                const k = Object.keys(displayAlloc)[0];
-                displayAlloc[k] += 100 - sum;
-            }
-
-            console.log(JSON.stringify(displayAlloc, null, 2));
+            console.log(
+                "\n💡 MARKOV-ADJUSTED ALLOCATION (Optimized for Regime Stability)"
+            );
+            console.log(
+                "-------------------------------------------------------------"
+            );
+            console.log(JSON.stringify(allocation, null, 2));
         }
     } catch (err) {
         console.error("Fatal Error:", err);

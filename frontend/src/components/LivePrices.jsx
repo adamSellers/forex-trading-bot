@@ -1,128 +1,188 @@
-// frontend/src/components/LivePrices.jsx - DYNAMIC ASSET LIST
-import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Card, CardContent, Skeleton } from '@mui/material';
-import { TrendingUp, TrendingDown } from 'lucide-react';
-import { SparkLineChart } from '@mui/x-charts/SparkLineChart';
-import { assetColors } from '../theme/tradingTheme';
+// frontend/src/components/LivePrices.jsx - WITH PORTFOLIO WEIGHT INDICATORS
+import React, { useEffect, useState, useRef } from 'react';
+import { 
+  Box, Grid, Card, CardContent, Typography, Chip, Skeleton, useTheme, alpha 
+} from '@mui/material';
+import { 
+  TrendingUp, TrendingDown, PieChart, DonutLarge 
+} from '@mui/icons-material';
+import { tradingAPI, socket } from '../config/api';
 
-const PriceCard = ({ asset, priceData, history }) => {
-  if (!priceData) {
+const LivePrices = () => {
+  const [prices, setPrices] = useState({});
+  const [prevPrices, setPrevPrices] = useState({});
+  const [allocation, setAllocation] = useState({}); // Stores target % from config
+  const [loading, setLoading] = useState(true);
+  const theme = useTheme();
+  
+  // Use ref to keep track of previous prices for coloring
+  const pricesRef = useRef({});
+
+  // 1. Fetch Configuration (To get Allocations)
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const status = await tradingAPI.getStatus();
+        if (status && status.config && status.config.allocation) {
+          // Normalize allocation keys if needed (ensure 'BTCUSDT' matches)
+          setAllocation(status.config.allocation);
+        }
+      } catch (err) {
+        console.error("Failed to load allocation config:", err);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  // 2. Setup WebSocket for Live Prices
+  useEffect(() => {
+    setLoading(true);
+
+    // Initial fetch to populate quickly
+    const fetchInitial = async () => {
+        try {
+            const data = await tradingAPI.getPrices();
+            setPrices(data);
+            pricesRef.current = data;
+            setLoading(false);
+        } catch (e) { console.error(e); }
+    };
+    fetchInitial();
+
+    // Listen for updates
+    socket.on('priceUpdate', (data) => {
+      setPrevPrices(pricesRef.current);
+      setPrices(data);
+      pricesRef.current = data;
+      setLoading(false);
+    });
+
+    return () => {
+      socket.off('priceUpdate');
+    };
+  }, []);
+
+  // Sort assets: High allocation first, then alphabetical
+  const sortedSymbols = Object.keys(prices).sort((a, b) => {
+    const allocA = allocation[a] || 0;
+    const allocB = allocation[b] || 0;
+    if (allocB !== allocA) return allocB - allocA; // Descending weight
+    return a.localeCompare(b);
+  });
+
+  if (loading && Object.keys(prices).length === 0) {
     return (
-      <Card variant="outlined" sx={{ height: '100%' }}>
-        <CardContent sx={{ p: 2, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
-          <Box>
-            <Typography variant="subtitle2" color="textSecondary">
-              {asset.replace('USDT', '')}
-            </Typography>
-            <Skeleton variant="text" width="80%" height={32} />
-          </Box>
-          <Skeleton variant="rectangular" width="100%" height={20} />
-          <Skeleton variant="text" width="40%" />
-        </CardContent>
-      </Card>
+      <Grid container spacing={2}>
+        {[1, 2, 3, 4].map((i) => (
+          <Grid item xs={12} sm={6} md={3} key={i}>
+            <Skeleton variant="rectangular" height={140} sx={{ borderRadius: 2 }} />
+          </Grid>
+        ))}
+      </Grid>
     );
   }
 
-  const isPositive = (priceData.priceChangePercent || 0) >= 0;
-  const color = isPositive ? 'success.main' : 'error.main';
-
   return (
-    <Card variant="outlined" sx={{ height: '100%', width: '100%', minWidth: 0, borderLeft: `4px solid ${assetColors[asset] || '#fff'}` }}>
-      <CardContent sx={{ p: 2, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%' }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Typography variant="subtitle1" fontWeight="bold">
-            {asset.replace('USDT', '')}
-          </Typography>
-          {isPositive ? (
-            <TrendingUp size={20} color={assetColors.success || '#4caf50'} />
-          ) : (
-            <TrendingDown size={20} color={assetColors.error || '#f44336'} />
-          )}
-        </Box>
-        
-        <Box my={1}>
-          <Typography variant="h5" fontWeight="bold">
-            ${priceData.price.toFixed(priceData.price > 1 ? 2 : 6)}
-          </Typography>
-        </Box>
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+         <Typography variant="h6" fontWeight="bold">Live Market & Allocations</Typography>
+         <Chip 
+            icon={<PieChart />} 
+            label="Sorted by Portfolio Weight" 
+            size="small" 
+            variant="outlined" 
+            color="primary"
+         />
+      </Box>
 
-        {history && history.length > 1 && (
-          <Box sx={{ height: 40, mx: 0 }}>
-            <SparkLineChart
-              data={history}
-              height={40}
-              colors={[assetColors[asset] || '#fff']}
-              curve="natural"
-              area
-              sx={{
-                '& .MuiSparkline-area': {
-                  fill: assetColors[asset] || '#fff',
-                  fillOpacity: 0.1,
-                },
-              }}
-            />
-          </Box>
-        )}
-        
-        <Box display="flex" justifyContent="space-between" alignItems="baseline" mt={1}>
-          <Typography variant="body2" color={color} fontWeight="500">
-            {isPositive ? '+' : ''}{(priceData.priceChangePercent || 0).toFixed(2)}%
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            24h Change
-          </Typography>
-        </Box>
-      </CardContent>
-    </Card>
-  );
-};
+      <Grid container spacing={2}>
+        {sortedSymbols.map((symbol) => {
+          const price = parseFloat(prices[symbol]);
+          const prev = parseFloat(prevPrices[symbol]);
+          const targetWeight = allocation[symbol] || 0;
+          
+          // Determine Price Movement Color
+          let color = theme.palette.text.primary;
+          if (prev) {
+            if (price > prev) color = theme.palette.success.main;
+            if (price < prev) color = theme.palette.error.main;
+          }
 
-// UPDATED: Now accepts 'assets' prop
-const LivePrices = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'DOGEUSDT'] }) => {
-  const [history, setHistory] = useState(new Map());
+          // Determine Card Border (Highlight high conviction assets)
+          const isHighConviction = targetWeight >= 20;
+          const isActive = targetWeight > 0;
 
-  useEffect(() => {
-    if (!prices || typeof prices !== 'object' || Object.keys(prices).length === 0) {
-      return;
-    }
+          return (
+            <Grid item xs={12} sm={6} md={3} key={symbol}>
+              <Card 
+                variant="outlined" 
+                sx={{ 
+                    position: 'relative',
+                    borderColor: isHighConviction ? 'primary.main' : 'divider',
+                    borderWidth: isHighConviction ? 2 : 1,
+                    backgroundColor: isHighConviction ? alpha(theme.palette.primary.main, 0.05) : 'background.paper',
+                    transition: 'all 0.3s ease'
+                }}
+              >
+                <CardContent>
+                  {/* Header: Symbol + Weight Badge */}
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                    <Typography variant="h6" fontWeight="bold" color="text.secondary">
+                        {symbol.replace('USDT', '')}
+                    </Typography>
+                    
+                    {/* THE NEW INDICATOR */}
+                    <Chip 
+                        label={isActive ? `${targetWeight}%` : "Watch"} 
+                        size="small" 
+                        color={isHighConviction ? "primary" : isActive ? "default" : "default"} 
+                        variant={isActive ? "filled" : "outlined"}
+                        icon={isActive ? <DonutLarge sx={{ fontSize: '14px !important' }} /> : null}
+                        sx={{ fontWeight: 'bold', height: 24 }}
+                    />
+                  </Box>
 
-    setHistory(prevHistory => {
-      const newHistory = new Map(prevHistory);
-      assets.forEach(asset => {
-        if (prices[asset] && typeof prices[asset].price === 'number') {
-          const assetHistory = newHistory.get(asset) || [];
-          const updatedHistory = [...assetHistory, prices[asset].price].slice(-30); // Keep last 30 points
-          newHistory.set(asset, updatedHistory);
-        }
-      });
-      return newHistory;
-    });
-  }, [prices, assets]); // Added assets dependency
+                  {/* Price Display */}
+                  <Typography variant="h4" fontWeight="bold" sx={{ color: color }}>
+                    ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                  </Typography>
 
-  const latestPrices = useMemo(() => {
-    const data = new Map();
-    assets.forEach(asset => {
-      if (prices[asset]) {
-        data.set(asset, prices[asset]);
-      }
-    });
-    return data;
-  }, [prices, assets]); // Added assets dependency
+                  {/* Visual Decoration for "Weight" */}
+                  {isActive && (
+                      <Box mt={2} display="flex" alignItems="center" gap={1}>
+                          <Box 
+                            height={4} 
+                            flexGrow={1} 
+                            bgcolor={alpha(theme.palette.primary.main, 0.2)} 
+                            borderRadius={1}
+                            overflow="hidden"
+                          >
+                              <Box 
+                                height="100%" 
+                                width={`${Math.min(targetWeight, 100)}%`} 
+                                bgcolor="primary.main" 
+                              />
+                          </Box>
+                          <Typography variant="caption" color="text.secondary">
+                              Target
+                          </Typography>
+                      </Box>
+                  )}
 
-  return (
-    <Box
-      display="grid"
-      gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)' }}
-      gap={2}
-    >
-      {assets.map((asset) => (
-        <PriceCard
-          key={asset}
-          asset={asset}
-          priceData={latestPrices.get(asset)}
-          history={history.get(asset)}
-        />
-      ))}
+                  {!isActive && (
+                      <Box mt={2}>
+                          <Typography variant="caption" color="text.disabled" fontStyle="italic">
+                              Watching (No Capital Allocated)
+                          </Typography>
+                      </Box>
+                  )}
+
+                </CardContent>
+              </Card>
+            </Grid>
+          );
+        })}
+      </Grid>
     </Box>
   );
 };
