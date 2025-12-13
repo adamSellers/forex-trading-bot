@@ -119,7 +119,7 @@ class SignalGenerator extends EventEmitter {
      */
     async generateSignal(symbol, candles, currentPrice) {
         try {
-            const requiredCandles = 200; // Needed for accurate ADX/EMA calc
+            const requiredCandles = 200;
             if (!candles || candles.length < requiredCandles) {
                 return this.createSignalObject(
                     symbol,
@@ -132,7 +132,8 @@ class SignalGenerator extends EventEmitter {
             const input = this.prepareInputData(candles);
             const strategy = this.strategyConfig[this.config.strategy];
 
-            // 1. Calculate Moving Averages (Kept for context & safety checks)
+            // 1. Calculations (MA, ADX, RSI, ATR)
+            // ... (Keep your existing calculation logic here) ...
             let fastMAValues, slowMAValues;
             const maParamsFast = { values: input.close, period: strategy.fast };
             const maParamsSlow = { values: input.close, period: strategy.slow };
@@ -144,11 +145,10 @@ class SignalGenerator extends EventEmitter {
                 fastMAValues = EMA.calculate(maParamsFast);
                 slowMAValues = EMA.calculate(maParamsSlow);
             }
-
             const fastMA = fastMAValues[fastMAValues.length - 1];
             const slowMA = slowMAValues[slowMAValues.length - 1];
 
-            // 2. Calculate ADX (The Trend Strength)
+            // ADX
             const adxInput = {
                 high: input.high,
                 low: input.low,
@@ -158,7 +158,7 @@ class SignalGenerator extends EventEmitter {
             const adxValues = ADX.calculate(adxInput);
             const currentADX = adxValues[adxValues.length - 1];
 
-            // 3. Calculate RSI (Overbought/Oversold)
+            // RSI
             const rsiInput = {
                 values: input.close,
                 period: this.config.rsiPeriod,
@@ -166,7 +166,7 @@ class SignalGenerator extends EventEmitter {
             const rsiValues = RSI.calculate(rsiInput);
             const currentRSI = rsiValues[rsiValues.length - 1];
 
-            // 4. Calculate ATR (Volatility)
+            // ATR
             const atrInput = {
                 high: input.high,
                 low: input.low,
@@ -177,28 +177,27 @@ class SignalGenerator extends EventEmitter {
             const currentATR = atrValues[atrValues.length - 1];
             const atrPercent = (currentATR / currentPrice) * 100;
 
-            // --- STRATEGY EVALUATION (LEAN CONFIG) ---
-
-            let signalType = "HOLD";
-            let reason = "Monitoring";
+            // --- STRATEGY EVALUATION ---
 
             // Conditions
-            const isHighVolatility = currentADX.adx > this.config.minAdx; // > 30
-            const isOversold = currentRSI < this.config.rsiOversold; // < 30
-            const isOverbought = currentRSI > this.config.rsiOverbought; // > 70
-            const trendBroken = fastMA < slowMA; // EMA Cross (Bearish)
+            const isHighVolatility = currentADX.adx > this.config.minAdx;
+            const isOversold = currentRSI < this.config.rsiOversold;
+            const isOverbought = currentRSI > this.config.rsiOverbought;
 
-            // ENTRY LOGIC: Volatility Snapback
-            // Buy when the trend is powerful (High ADX) but price has dipped (Low RSI)
+            let signalType = "HOLD";
+            let reason = `Monitoring (ADX:${currentADX.adx.toFixed(
+                0
+            )} RSI:${currentRSI.toFixed(0)})`;
+
+            // 1. BUY SIGNAL
             if (isHighVolatility && isOversold) {
                 signalType = "BUY";
                 reason = `🔥 VOLATILITY SNAPBACK: Strong Trend (ADX ${currentADX.adx.toFixed(
                     0
-                )}) + Oversold (RSI ${currentRSI.toFixed(0)})`;
+                )}) + Oversold`;
             }
 
-            // EXIT LOGIC: Profit Taking
-            // Sell when price is overextended
+            // 2. SELL SIGNAL
             else if (isOverbought) {
                 signalType = "SELL";
                 reason = `💰 OVERBOUGHT EXIT: RSI ${currentRSI.toFixed(
@@ -206,23 +205,28 @@ class SignalGenerator extends EventEmitter {
                 )} hit peak`;
             }
 
-            // EXIT LOGIC: Safety Net (Optional - uncomment to enable)
-            // If the macro trend breaks, get out to prevent bag holding
-            /* else if (trendBroken) {
-                 signalType = "SELL";
-                 reason = "📉 SAFETY EXIT: Trend Collapse (EMA Cross)";
+            // --- 3. ANALYTICS: DETECT REJECTIONS (Why did we NOT buy?) ---
+
+            // Case A: RSI is good (Oversold), but ADX is too weak (Choppy)
+            else if (isOversold && !isHighVolatility) {
+                signalType = "WEAK_SIGNAL"; //
+                reason = `⛔ BLOCKED (ADX): Market too choppy (ADX ${currentADX.adx.toFixed(
+                    0
+                )} < ${this.config.minAdx})`;
             }
-            */
-            else {
-                reason = `Monitoring (ADX: ${currentADX.adx.toFixed(
-                    1
-                )} | RSI: ${currentRSI.toFixed(1)})`;
+
+            // Case B: Trend is strong (High ADX), but RSI hasn't dipped enough yet
+            else if (isHighVolatility && !isOversold && currentRSI < 50) {
+                signalType = "WEAK_SIGNAL";
+                reason = `⏳ WAITING (RSI): Strong Trend, waiting for dip (RSI ${currentRSI.toFixed(
+                    0
+                )} > ${this.config.rsiOversold})`;
             }
 
             return {
                 symbol,
                 signal: signalType,
-                strength: currentADX.adx, // Use ADX as the definitive strength metric
+                strength: currentADX.adx,
                 strategy: "mean_reversion_lean",
                 message: reason,
                 timestamp: Date.now(),
@@ -233,13 +237,11 @@ class SignalGenerator extends EventEmitter {
                     rsi: currentRSI,
                     adx: currentADX.adx,
                     atr: currentATR,
-                    atrPercent: atrPercent,
                     isChoppy: !isHighVolatility,
                     isOverbought,
                     isOversold,
                 },
                 atr: currentATR,
-                atrPercent: atrPercent,
             };
         } catch (error) {
             logger.error(`Error calculating signal for ${symbol}:`, error);

@@ -487,7 +487,7 @@ const AnalyticsDashboard = () => {
                                         <StyledTableCell align="right" sx={{ color: 'success.light' }}>
                                             +${perf.bestTrade?.toFixed(2)}
                                         </StyledTableCell>
-                                         <StyledTableCell align="right" sx={{ color: 'error.light' }}>
+                                        <StyledTableCell align="right" sx={{ color: 'error.light' }}>
                                             ${perf.worstTrade?.toFixed(2)}
                                         </StyledTableCell>
                                     </TableRow>
