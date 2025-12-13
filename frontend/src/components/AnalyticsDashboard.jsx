@@ -1,7 +1,7 @@
-// frontend/src/components/AnalyticsDashboard.jsx - FINAL LAYOUT POLISH
+// frontend/src/components/AnalyticsDashboard.jsx - FINAL CONSISTENT LAYOUT
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Grid, Typography, Box, CircularProgress, Alert,
+  Typography, Box, CircularProgress, Alert,
   ToggleButtonGroup, ToggleButton, Divider, useTheme, Chip, Stack,
   Paper, styled, alpha, Table, TableBody, TableCell, TableContainer, 
   TableHead, TableRow, Avatar, LinearProgress
@@ -240,8 +240,8 @@ const AnalyticsDashboard = () => {
         </ToggleButtonGroup>
       </Box>
 
-      {/* KPI Cards - Top Row (NOW USING FLEX STRIP like TradingDashboard) */}
-      <Box display="flex" gap={2} mb={3} sx={{ overflowX: 'auto', pb: 0.5 }}>
+      {/* 1. KPI Cards - Flex Strip */}
+      <Box display="flex" gap={2} mb={2} sx={{ overflowX: 'auto', pb: 0.5 }}>
         <Box flex={1} minWidth={220}>
             <MetricCard 
                 title="Net Profit" 
@@ -280,12 +280,12 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* Main Charts Grid */}
-      <Grid container spacing={2}>
+      {/* 2. Main Charts Row - Flexbox (Fixed consistency with Trading Dashboard) */}
+      <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={2} mb={2} sx={{ minHeight: 420 }}>
         
-        {/* Row 2: Growth Curve */}
-        <Grid item xs={12} lg={8}>
-          <GlassCard sx={{ p: 2, height: 420 }}>
+        {/* Growth Curve - Fluid Width */}
+        <Box flex={1} minWidth={0}>
+          <GlassCard sx={{ p: 2, height: '100%' }}>
             <Box mb={2} display="flex" alignItems="center" gap={1}>
                 <ShowChart color="primary" fontSize="small" />
                 <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">EQUITY CURVE</Typography>
@@ -318,11 +318,11 @@ const AnalyticsDashboard = () => {
                 )}
             </Box>
           </GlassCard>
-        </Grid>
+        </Box>
 
-        {/* Row 2b: Filter Efficiency */}
-        <Grid item xs={12} lg={4}>
-          <GlassCard sx={{ p: 2, height: 420 }}>
+        {/* Filter Efficiency - Fixed/Smaller Width like Sidebar */}
+        <Box flex={{ xs: 1, lg: '0 0 35%' }} minWidth={{ lg: 350 }}>
+          <GlassCard sx={{ p: 2, height: '100%' }}>
             <Box mb={2} display="flex" alignItems="center" gap={1}>
                 <FilterAlt color="secondary" fontSize="small" />
                 <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">SIGNAL FILTERING</Typography>
@@ -349,14 +349,18 @@ const AnalyticsDashboard = () => {
                         height={300}
                     />
                 ) : (
-                    <EmptyState icon={<FilterAlt />} message="No signals generated in this period" />
+                    <EmptyState icon={<FilterAlt />} message="No signals generated" />
                 )}
             </Box>
           </GlassCard>
-        </Grid>
+        </Box>
+      </Box>
 
-        {/* Row 3: ADX & Exits */}
-        <Grid item xs={12} md={6}>
+      {/* 3. Secondary Stats Row - Flexbox */}
+      <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} mb={2} sx={{ minHeight: 350 }}>
+        
+        {/* Trend Strength */}
+        <Box flex={1}>
           <GlassCard sx={{ p: 3, height: '100%' }}>
             <Box mb={2} display="flex" alignItems="center" gap={1}>
                 <TrendingUp color="warning" fontSize="small" />
@@ -403,9 +407,10 @@ const AnalyticsDashboard = () => {
                 <EmptyState height={200} icon={<TrendingUp />} message="No data for ADX analysis" />
             )}
           </GlassCard>
-        </Grid>
+        </Box>
 
-        <Grid item xs={12} md={6}>
+        {/* Exit Breakdown */}
+        <Box flex={1}>
           <GlassCard sx={{ p: 2, height: '100%' }}>
              <Box mb={2} display="flex" alignItems="center" gap={1}>
                 <DonutLarge color="info" fontSize="small" />
@@ -433,10 +438,11 @@ const AnalyticsDashboard = () => {
                 )}
             </Box>
           </GlassCard>
-        </Grid>
+        </Box>
+      </Box>
 
-        {/* Row 4: Asset Breakdown (Replaced with Table) */}
-        <Grid item xs={12}>
+      {/* 4. Asset Table Row - Full Width */}
+      <Box width="100%">
           <GlassCard sx={{ p: 0, overflow: 'hidden' }}>
             <Box p={2} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
                 <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">ASSET PERFORMANCE</Typography>
@@ -494,9 +500,8 @@ const AnalyticsDashboard = () => {
                 <EmptyState height={200} icon={<CalendarToday />} message="No asset data available" />
             )}
           </GlassCard>
-        </Grid>
+      </Box>
 
-      </Grid>
     </Box>
   );
 };
