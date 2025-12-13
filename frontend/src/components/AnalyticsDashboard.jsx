@@ -1,4 +1,4 @@
-// frontend/src/components/AnalyticsDashboard.jsx - PRO ANALYTICS SUITE
+// frontend/src/components/AnalyticsDashboard.jsx - FINAL LAYOUT POLISH
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Grid, Typography, Box, CircularProgress, Alert,
@@ -240,45 +240,45 @@ const AnalyticsDashboard = () => {
         </ToggleButtonGroup>
       </Box>
 
-      {/* KPI Cards - Top Row */}
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard 
-            title="Net Profit" 
-            value={`$${tradingStats.totalPnL?.toFixed(2) || '0.00'}`} 
-            subtitle={`${tradingStats.totalTrades || 0} Trades Executed`}
-            color={tradingStats.totalPnL >= 0 ? 'success.main' : 'error.main'}
-            icon={<ShowChart fontSize="small" />}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard 
-            title="Win Rate" 
-            value={`${tradingStats.winRate?.toFixed(1) || 0}%`} 
-            subtitle={`Profit Factor: ${tradingStats.profitFactor?.toFixed(2) || 0}`}
-            color={tradingStats.winRate > 50 ? 'success.main' : 'warning.main'}
-            icon={<DataUsage fontSize="small" />}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard 
-            title="Signal Efficiency" 
-            value={efficiency.signalQuality || 'N/A'} 
-            subtitle={`${efficiency.conversionRate || '0%'} Execution Rate`}
-            color="info.main"
-            icon={<FilterAlt fontSize="small" />}
-          />
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MetricCard 
-            title="Avg. PnL" 
-            value={`$${tradingStats.avgWin?.toFixed(2) || '0.00'}`} 
-            subtitle={`Avg Loss: $${tradingStats.avgLoss?.toFixed(2) || '0.00'}`}
-            color="warning.main"
-            icon={<MonetizationOn fontSize="small" />}
-          />
-        </Grid>
-      </Grid>
+      {/* KPI Cards - Top Row (NOW USING FLEX STRIP like TradingDashboard) */}
+      <Box display="flex" gap={2} mb={3} sx={{ overflowX: 'auto', pb: 0.5 }}>
+        <Box flex={1} minWidth={220}>
+            <MetricCard 
+                title="Net Profit" 
+                value={`$${tradingStats.totalPnL?.toFixed(2) || '0.00'}`} 
+                subtitle={`${tradingStats.totalTrades || 0} Trades Executed`}
+                color={tradingStats.totalPnL >= 0 ? 'success.main' : 'error.main'}
+                icon={<ShowChart fontSize="small" />}
+            />
+        </Box>
+        <Box flex={1} minWidth={220}>
+            <MetricCard 
+                title="Win Rate" 
+                value={`${tradingStats.winRate?.toFixed(1) || 0}%`} 
+                subtitle={`Profit Factor: ${tradingStats.profitFactor?.toFixed(2) || 0}`}
+                color={tradingStats.winRate > 50 ? 'success.main' : 'warning.main'}
+                icon={<DataUsage fontSize="small" />}
+            />
+        </Box>
+        <Box flex={1} minWidth={220}>
+            <MetricCard 
+                title="Signal Efficiency" 
+                value={efficiency.signalQuality || 'N/A'} 
+                subtitle={`${efficiency.conversionRate || '0%'} Execution Rate`}
+                color="info.main"
+                icon={<FilterAlt fontSize="small" />}
+            />
+        </Box>
+        <Box flex={1} minWidth={220}>
+            <MetricCard 
+                title="Avg. PnL" 
+                value={`$${tradingStats.avgWin?.toFixed(2) || '0.00'}`} 
+                subtitle={`Avg Loss: $${tradingStats.avgLoss?.toFixed(2) || '0.00'}`}
+                color="warning.main"
+                icon={<MonetizationOn fontSize="small" />}
+            />
+        </Box>
+      </Box>
 
       {/* Main Charts Grid */}
       <Grid container spacing={2}>
