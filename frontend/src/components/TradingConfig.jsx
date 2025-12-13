@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - PRO CONFIGURATION CONSOLE
+// frontend/src/components/TradingConfig.jsx - FULL WIDTH LAYOUT FIX
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -7,7 +7,7 @@ import {
   List, ListItem, Avatar, Grid, styled, alpha, useTheme
 } from '@mui/material';
 import {
-  Save, Refresh, TrendingUp, Security, AccountBalance,
+  Save, Refresh, Security, AccountBalance,
   PieChart, Notifications, Delete, AddCircle, 
   Science, Tune, SettingsRemote
 } from '@mui/icons-material';
@@ -512,10 +512,11 @@ const TradingConfig = () => {
   if (loading) return <Box minHeight="80vh" display="flex" alignItems="center" justifyContent="center"><Typography>Loading Configuration...</Typography></Box>;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    // FIXED: Changed maxWidth="lg" to maxWidth={false} to span full width like Dashboard
+    <Container maxWidth={false} sx={{ py: 2 }}>
         
         {/* HEADER */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} px={1}>
             <Box>
                 <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
                     SYSTEM <span style={{ color: theme.palette.primary.main }}>CONFIG</span>
