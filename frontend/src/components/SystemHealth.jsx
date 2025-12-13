@@ -1,9 +1,9 @@
-// frontend/src/components/SystemHealth.jsx - COMMAND DECK STYLE
+// frontend/src/components/SystemHealth.jsx - PERFECT VERTICAL ALIGNMENT
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Grid, Typography, Box, CircularProgress, Alert, Button,
   LinearProgress, Accordion, AccordionSummary, AccordionDetails,
-  Container, Stack, Chip, Avatar, useTheme, alpha, styled, Paper, Divider
+  Container, Stack, Chip, Avatar, useTheme, alpha, styled, Paper
 } from '@mui/material';
 import {
   CheckCircle, Error, Dns, Speed, CloudDone, CloudOff,
@@ -19,7 +19,7 @@ const GlassCard = styled(Paper)(({ theme }) => ({
   border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
   borderRadius: theme.shape.borderRadius * 2,
   boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-  height: '100%',
+  // Removed fixed height '100%' to allow flexbox control
   overflow: 'hidden',
   display: 'flex',
   flexDirection: 'column',
@@ -48,7 +48,6 @@ const StatusDot = styled(Box)(({ theme, status }) => ({
 const ServiceRow = ({ name, status }) => {
   const theme = useTheme();
   
-  // Logic: Broader check for "Online" status to catch all variations
   const isOnline = 
     status === true || 
     status?.ready === true || 
@@ -146,8 +145,6 @@ const SystemHealth = () => {
   if (!health || !systemInfo) return <Alert severity="info" sx={{ m: 3 }}>No system data available.</Alert>;
 
   const services = health.services || {};
-  
-  // Logic checks
   const isBackendReady = health.isInitialized === true;
   const isBinanceReady = services.binanceData?.ready === true;
   const overallStatus = isBackendReady && isBinanceReady;
@@ -205,11 +202,11 @@ const SystemHealth = () => {
         </Box>
       </GlassCard>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={3} alignItems="stretch">
         
         {/* LEFT COLUMN: SERVICES & SPECS */}
-        <Grid item xs={12} md={5}>
-          <Stack spacing={3}>
+        <Grid item xs={12} md={5} display="flex" flexDirection="column">
+          <Stack spacing={3} sx={{ flexGrow: 1 }}>
             {/* Service Status Module */}
             <GlassCard sx={{ p: 0 }}>
                 <Box p={2} borderBottom={`1px solid ${alpha(theme.palette.divider, 0.1)}`} display="flex" alignItems="center" gap={1}>
@@ -224,8 +221,8 @@ const SystemHealth = () => {
                 </Box>
             </GlassCard>
 
-            {/* System Specs */}
-            <GlassCard sx={{ p: 3 }}>
+            {/* System Specs - Added flexGrow to fill column */}
+            <GlassCard sx={{ p: 3, flexGrow: 1 }}>
                 <Box display="flex" alignItems="center" gap={1} mb={3}>
                     <PowerSettingsNew color="warning" />
                     <Typography variant="h6" fontWeight="bold">Environment</Typography>
@@ -262,8 +259,8 @@ const SystemHealth = () => {
         </Grid>
 
         {/* RIGHT COLUMN: METRICS & RESOURCES */}
-        <Grid item xs={12} md={7}>
-          <Stack spacing={3}>
+        <Grid item xs={12} md={7} display="flex" flexDirection="column">
+          <Stack spacing={3} sx={{ flexGrow: 1 }}>
             {/* Memory Usage Visualization */}
             <GlassCard sx={{ p: 3 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -290,8 +287,8 @@ const SystemHealth = () => {
                 </Box>
             </GlassCard>
 
-            {/* Trading Telemetry Grid */}
-            <GlassCard sx={{ p: 3 }}>
+            {/* Trading Telemetry Grid - Added flexGrow to fill column */}
+            <GlassCard sx={{ p: 3, flexGrow: 1 }}>
                 <Box display="flex" alignItems="center" gap={1} mb={3}>
                     <Timeline color="success" />
                     <Typography variant="h6" fontWeight="bold">Trading Telemetry</Typography>
