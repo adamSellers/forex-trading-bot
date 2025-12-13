@@ -1,13 +1,13 @@
-// frontend/src/components/TradingConfig.jsx - FINE GRAIN CONTROL UPDATE
+// frontend/src/components/TradingConfig.jsx - LAYOUT FIX
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Typography, TextField, Button, Slider, Switch, FormControl,
   InputLabel, Select, MenuItem, Alert, Chip, Card, InputAdornment,
-  Accordion, AccordionSummary, AccordionDetails, Divider, IconButton, Stack
+  Accordion, AccordionSummary, AccordionDetails, Divider, IconButton, Stack, Paper
 } from '@mui/material';
 import {
   Save, Refresh, ExpandMore, TrendingUp, Security, AccountBalance,
-  Settings, MoneyOff, MonetizationOn, FilterList, Mail, Delete
+  Settings, MoneyOff, MonetizationOn, FilterList, Mail, Delete, AddCircle
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
@@ -21,40 +21,27 @@ const SUPPORTED_ASSETS = [
 
 // Default configuration structure
 const DEFAULT_CONFIG = {
-    // Account Settings
     maxCapitalAtRisk: 5000,
     tradingMode: 'paper',
     enableTrading: false,
-    
-    // Risk Management
     riskPerTrade: 1.0,
     maxDailyLoss: 2.0,
     maxWeeklyLoss: 5.0,
     stopLossATR: 1.5,
     takeProfitATRMultiplier: 3.0,
     minOrderSize: 10,
-    
-    // Strategy Settings
     strategy: 'balanced',
     timeframe: '1h',
     signalCooldown: 60,
-    
-    // Advanced Filters
     enableAdxFilter: true,
     minAdx: 25,
     enableRsiFilter: true,
     rsiOverbought: 70,
     rsiOversold: 30,
-    
-    // Dynamic Assets & Allocation
     assets: [], 
     allocation: {}, 
-    
-    // Notifications
     enableEmailAlerts: false,
     alertEmail: '',
-
-    // System
     logLevel: 'info',
     enableS3Analytics: false,
     enableS3SignalLogging: false,
@@ -70,7 +57,6 @@ const TradingConfig = () => {
   const [success, setSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Fetch configuration
   const fetchCurrentConfig = useCallback(async () => {
     try {
       setLoading(true);
@@ -87,7 +73,6 @@ const TradingConfig = () => {
           allocation: { ...data.config.allocation }
         };
         
-        // Normalize allocation percentages
         Object.keys(fetchedConfig.allocation).forEach(key => {
             if (fetchedConfig.allocation[key] <= 1) {
                 fetchedConfig.allocation[key] = Math.round(fetchedConfig.allocation[key] * 100);
@@ -106,13 +91,8 @@ const TradingConfig = () => {
     }
   }, []);
 
-  useEffect(() => { 
-      fetchCurrentConfig(); 
-  }, [fetchCurrentConfig]);
-
-  useEffect(() => {
-    setHasChanges(JSON.stringify(config) !== JSON.stringify(originalConfig));
-  }, [config, originalConfig]);
+  useEffect(() => { fetchCurrentConfig(); }, [fetchCurrentConfig]);
+  useEffect(() => { setHasChanges(JSON.stringify(config) !== JSON.stringify(originalConfig)); }, [config, originalConfig]);
 
   const handleSaveConfig = async () => {
     setSaving(true);
@@ -144,9 +124,7 @@ const TradingConfig = () => {
     }
   };
 
-  const updateConfig = (key, value) => {
-    setConfig((prev) => ({ ...prev, [key]: value }));
-  };
+  const updateConfig = (key, value) => { setConfig((prev) => ({ ...prev, [key]: value })); };
 
   const handleAddAsset = () => {
       if (!newAsset || config.assets.includes(newAsset)) return;
@@ -168,18 +146,12 @@ const TradingConfig = () => {
   };
 
   const updateAllocation = (asset, val) => {
-      setConfig(prev => ({
-          ...prev,
-          allocation: { ...prev.allocation, [asset]: val }
-      }));
+      setConfig(prev => ({ ...prev, allocation: { ...prev.allocation, [asset]: val } }));
   };
 
   const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.allocation[asset] || 0), 0);
-  
   const riskAmounts = {
     riskPerTrade: (config.maxCapitalAtRisk * config.riskPerTrade / 100).toFixed(2),
-    maxDailyLoss: (config.maxCapitalAtRisk * config.maxDailyLoss / 100).toFixed(2),
-    maxWeeklyLoss: (config.maxCapitalAtRisk * config.maxWeeklyLoss / 100).toFixed(2)
   };
 
   if (loading) return <Box><Typography>Loading...</Typography></Box>;
@@ -211,11 +183,11 @@ const TradingConfig = () => {
             <AccordionDetails>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
-                  <Card variant="outlined" sx={{ p: 2, borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main' }}>
+                  <Card variant="outlined" sx={{ p: 2, borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main', borderWidth: 2 }}>
                     <Box display="flex" alignItems="center" justifyContent="space-between">
                         <Box display="flex" alignItems="center" gap={1}>
                             {config.tradingMode === 'live' ? <MonetizationOn color="error" /> : <MoneyOff color="warning" />}
-                            <Typography variant="subtitle1" fontWeight="bold">
+                            <Typography variant="subtitle1" fontWeight="bold" color={config.tradingMode === 'live' ? 'error.main' : 'warning.main'}>
                                 {config.tradingMode === 'live' ? "LIVE TRADING (REAL MONEY)" : "PAPER TRADING (SIMULATION)"}
                             </Typography>
                         </Box>
@@ -261,7 +233,10 @@ const TradingConfig = () => {
             <AccordionDetails>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
-                  <Typography variant="body2" gutterBottom>Risk Per Trade: {config.riskPerTrade}% (${riskAmounts.riskPerTrade})</Typography>
+                  <Box display="flex" justifyContent="space-between">
+                    <Typography variant="body2" gutterBottom>Risk Per Trade: {config.riskPerTrade}%</Typography>
+                    <Typography variant="body2" color="text.secondary">(${riskAmounts.riskPerTrade})</Typography>
+                  </Box>
                   <Slider value={config.riskPerTrade} onChange={(_, v) => updateConfig('riskPerTrade', v)} min={0.1} max={5.0} step={0.1} valueLabelDisplay="auto" />
                 </Grid>
                 <Grid item xs={6}>
@@ -363,7 +338,7 @@ const TradingConfig = () => {
           </Accordion>
         </Grid>
 
-        {/* 4. Portfolio Composition (FIXED STEP SIZE) */}
+        {/* 4. Portfolio Composition (REDESIGNED LAYOUT) */}
         <Grid item xs={12} md={6}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
@@ -372,13 +347,12 @@ const TradingConfig = () => {
             </AccordionSummary>
             <AccordionDetails>
               
-              {/* Asset Selector */}
-              <Box display="flex" gap={1} mb={2}>
+              <Box display="flex" gap={1} mb={3}>
                 <FormControl fullWidth size="small">
-                    <InputLabel>Add Asset to Portfolio</InputLabel>
+                    <InputLabel>Select Asset to Add</InputLabel>
                     <Select 
                         value={newAsset} 
-                        label="Add Asset to Portfolio"
+                        label="Select Asset to Add"
                         onChange={(e) => setNewAsset(e.target.value)}
                     >
                         {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
@@ -386,38 +360,51 @@ const TradingConfig = () => {
                         ))}
                     </Select>
                 </FormControl>
-                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset}>Add</Button>
+                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />}>
+                    Add
+                </Button>
               </Box>
 
-              <Divider sx={{ my: 2 }} />
-
-              {/* Dynamic Sliders */}
               <Stack spacing={2}>
                 {config.assets.map(asset => (
-                    <Box key={asset}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center">
-                            <Typography variant="subtitle2" fontWeight="bold">{asset}</Typography>
-                            <Box display="flex" alignItems="center">
-                                <Typography variant="caption" sx={{ mr: 1 }}>{config.allocation[asset] || 0}%</Typography>
-                                <IconButton size="small" color="error" onClick={() => handleRemoveAsset(asset)}>
-                                    <Delete fontSize="small" />
-                                </IconButton>
-                            </Box>
+                    <Paper key={asset} variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {/* 1. Asset Label (Fixed Width) */}
+                        <Box minWidth={80}>
+                            <Typography variant="subtitle2" fontWeight="bold">{asset.replace('USDT','')}</Typography>
                         </Box>
-                        <Slider 
-                            value={config.allocation[asset] || 0} 
-                            onChange={(_, v) => updateAllocation(asset, v)}
-                            min={0} max={50} step={1} // <--- UPDATED: Step is now 1%
-                            size="small"
-                        />
-                    </Box>
+
+                        {/* 2. Slider (Fluid) */}
+                        <Box flexGrow={1}>
+                            <Slider 
+                                value={config.allocation[asset] || 0} 
+                                onChange={(_, v) => updateAllocation(asset, v)}
+                                min={0} max={50} step={1} // Fine grain control
+                                size="small"
+                            />
+                        </Box>
+
+                        {/* 3. Percentage (Fixed Width) */}
+                        <Box minWidth={45} textAlign="right">
+                            <Typography variant="body2" fontWeight="bold">{config.allocation[asset] || 0}%</Typography>
+                        </Box>
+
+                        {/* 4. Delete Action */}
+                        <IconButton size="small" color="error" onClick={() => handleRemoveAsset(asset)}>
+                            <Delete fontSize="small" />
+                        </IconButton>
+                    </Paper>
                 ))}
               </Stack>
 
-              <Box mt={2} p={1} bgcolor={totalAllocation > 100 ? 'error.light' : 'action.hover'} borderRadius={1}>
-                  <Typography variant="body2" align="center" fontWeight="bold" color={totalAllocation > 100 ? 'error.contrastText' : 'text.primary'}>
+              <Box mt={3} p={2} bgcolor={totalAllocation > 100 ? 'error.light' : 'action.hover'} borderRadius={2} textAlign="center">
+                  <Typography variant="subtitle1" fontWeight="bold" color={totalAllocation > 100 ? 'error.contrastText' : 'text.primary'}>
                       Total Allocation: {totalAllocation}%
                   </Typography>
+                  {totalAllocation !== 100 && (
+                      <Typography variant="caption" color={totalAllocation > 100 ? 'error.contrastText' : 'text.secondary'}>
+                          {totalAllocation < 100 ? `Unallocated: ${100 - totalAllocation}%` : `Overallocated by ${totalAllocation - 100}%`}
+                      </Typography>
+                  )}
               </Box>
 
             </AccordionDetails>
