@@ -1,30 +1,28 @@
-// frontend/src/components/LivePrices.jsx - WITH PORTFOLIO WEIGHT INDICATORS
+// frontend/src/components/LivePrices.jsx - ROBUST SOCKET HANDLER
 import React, { useEffect, useState, useRef } from 'react';
 import { 
   Box, Grid, Card, CardContent, Typography, Chip, Skeleton, useTheme, alpha 
 } from '@mui/material';
 import { 
-  TrendingUp, TrendingDown, PieChart, DonutLarge 
+  TrendingUp, TrendingDown, PieChart, DonutLarge, Bolt 
 } from '@mui/icons-material';
 import { tradingAPI, socket } from '../config/api';
 
 const LivePrices = () => {
   const [prices, setPrices] = useState({});
   const [prevPrices, setPrevPrices] = useState({});
-  const [allocation, setAllocation] = useState({}); // Stores target % from config
+  const [allocation, setAllocation] = useState({});
   const [loading, setLoading] = useState(true);
   const theme = useTheme();
   
-  // Use ref to keep track of previous prices for coloring
   const pricesRef = useRef({});
 
-  // 1. Fetch Configuration (To get Allocations)
+  // 1. Fetch Config for Allocations
   useEffect(() => {
     const fetchConfig = async () => {
       try {
         const status = await tradingAPI.getStatus();
         if (status && status.config && status.config.allocation) {
-          // Normalize allocation keys if needed (ensure 'BTCUSDT' matches)
           setAllocation(status.config.allocation);
         }
       } catch (err) {
@@ -34,39 +32,60 @@ const LivePrices = () => {
     fetchConfig();
   }, []);
 
-  // 2. Setup WebSocket for Live Prices
+  // 2. WebSocket Logic
   useEffect(() => {
     setLoading(true);
 
-    // Initial fetch to populate quickly
+    // A. Initial Fetch (Get full map immediately)
     const fetchInitial = async () => {
         try {
             const data = await tradingAPI.getPrices();
-            setPrices(data);
-            pricesRef.current = data;
-            setLoading(false);
+            // Ensure data is a map, not an array or single obj
+            if (data && typeof data === 'object' && !data.symbol) {
+                setPrices(data);
+                pricesRef.current = data;
+                setLoading(false);
+            }
         } catch (e) { console.error(e); }
     };
     fetchInitial();
 
-    // Listen for updates
-    socket.on('priceUpdate', (data) => {
-      setPrevPrices(pricesRef.current);
-      setPrices(data);
-      pricesRef.current = data;
+    // B. Listen for Updates
+    const handlePriceUpdate = (data) => {
       setLoading(false);
-    });
 
+      // SCENARIO 1: Single Ticker Update { symbol: 'BTC', price: 100 }
+      // The backend is likely sending this to save bandwidth
+      if (data.symbol && data.price) {
+          setPrices(prev => {
+              const newMap = { ...prev, [data.symbol]: parseFloat(data.price) };
+              // Update ref/prev for color logic
+              setPrevPrices(prev); 
+              pricesRef.current = newMap;
+              return newMap;
+          });
+      } 
+      // SCENARIO 2: Full Map Update { BTC: 100, ETH: 200 }
+      else {
+          setPrevPrices(pricesRef.current);
+          setPrices(data);
+          pricesRef.current = data;
+      }
+    };
+
+    socket.on('priceUpdate', handlePriceUpdate);
+
+    // Cleanup
     return () => {
-      socket.off('priceUpdate');
+      socket.off('priceUpdate', handlePriceUpdate);
     };
   }, []);
 
-  // Sort assets: High allocation first, then alphabetical
+  // Sort: Allocated Assets First, then Alphabetical
   const sortedSymbols = Object.keys(prices).sort((a, b) => {
     const allocA = allocation[a] || 0;
     const allocB = allocation[b] || 0;
-    if (allocB !== allocA) return allocB - allocA; // Descending weight
+    if (allocB !== allocA) return allocB - allocA; 
     return a.localeCompare(b);
   });
 
@@ -85,10 +104,14 @@ const LivePrices = () => {
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-         <Typography variant="h6" fontWeight="bold">Live Market & Allocations</Typography>
+         <Box display="flex" alignItems="center" gap={1}>
+            <Bolt color="primary" />
+            <Typography variant="h6" fontWeight="bold">Live Market</Typography>
+         </Box>
+         
          <Chip 
             icon={<PieChart />} 
-            label="Sorted by Portfolio Weight" 
+            label="Portfolio Weight" 
             size="small" 
             variant="outlined" 
             color="primary"
@@ -97,20 +120,22 @@ const LivePrices = () => {
 
       <Grid container spacing={2}>
         {sortedSymbols.map((symbol) => {
+          // Safety Check: Don't render if it's not a valid ticker key
+          if (symbol === 'symbol' || symbol === 'price') return null;
+
           const price = parseFloat(prices[symbol]);
           const prev = parseFloat(prevPrices[symbol]);
           const targetWeight = allocation[symbol] || 0;
           
-          // Determine Price Movement Color
+          // Color Logic
           let color = theme.palette.text.primary;
-          if (prev) {
+          if (!isNaN(prev) && !isNaN(price)) {
             if (price > prev) color = theme.palette.success.main;
             if (price < prev) color = theme.palette.error.main;
           }
 
-          // Determine Card Border (Highlight high conviction assets)
-          const isHighConviction = targetWeight >= 20;
           const isActive = targetWeight > 0;
+          const isHighConviction = targetWeight >= 20;
 
           return (
             <Grid item xs={12} sm={6} md={3} key={symbol}>
@@ -121,17 +146,16 @@ const LivePrices = () => {
                     borderColor: isHighConviction ? 'primary.main' : 'divider',
                     borderWidth: isHighConviction ? 2 : 1,
                     backgroundColor: isHighConviction ? alpha(theme.palette.primary.main, 0.05) : 'background.paper',
-                    transition: 'all 0.3s ease'
+                    transition: 'all 0.2s ease'
                 }}
               >
                 <CardContent>
-                  {/* Header: Symbol + Weight Badge */}
+                  {/* Header */}
                   <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
                     <Typography variant="h6" fontWeight="bold" color="text.secondary">
                         {symbol.replace('USDT', '')}
                     </Typography>
                     
-                    {/* THE NEW INDICATOR */}
                     <Chip 
                         label={isActive ? `${targetWeight}%` : "Watch"} 
                         size="small" 
@@ -142,13 +166,13 @@ const LivePrices = () => {
                     />
                   </Box>
 
-                  {/* Price Display */}
+                  {/* Price */}
                   <Typography variant="h4" fontWeight="bold" sx={{ color: color }}>
-                    ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                    ${isNaN(price) ? '---' : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                   </Typography>
 
-                  {/* Visual Decoration for "Weight" */}
-                  {isActive && (
+                  {/* Weight Bar */}
+                  {isActive ? (
                       <Box mt={2} display="flex" alignItems="center" gap={1}>
                           <Box 
                             height={4} 
@@ -167,12 +191,10 @@ const LivePrices = () => {
                               Target
                           </Typography>
                       </Box>
-                  )}
-
-                  {!isActive && (
+                  ) : (
                       <Box mt={2}>
                           <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                              Watching (No Capital Allocated)
+                              No Capital Allocated
                           </Typography>
                       </Box>
                   )}
