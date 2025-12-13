@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - TALLER DATA TERMINAL
+// frontend/src/components/TradingDashboard.jsx - EXPANDED DATA TERMINAL (520px)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container, Paper, Typography, Button, Chip,
@@ -318,8 +318,8 @@ const TradingDashboard = () => {
             <Box flex={1} minWidth={200}><StatCard title="Win Rate" value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`} subValue={`${portfolio?.performance?.totalTrades || 0} Trades Executed`} icon={<History fontSize="small" />} color={theme.palette.info.main} /></Box>
         </Box>
 
-        {/* --- 3. DATA TERMINAL (ROW 2 - INCREASED HEIGHT to 420px) --- */}
-        <GlassCard sx={{ flexGrow: 0, height: 420, flexShrink: 0, mb: 2 }}>
+        {/* --- 3. DATA TERMINAL (ROW 2 - INCREASED HEIGHT to 520px) --- */}
+        <GlassCard sx={{ flexGrow: 0, height: 520, flexShrink: 0, mb: 2 }}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.background.paper, 0.02) }}>
                 <Tabs 
                     value={activeTab} 
