@@ -1,4 +1,4 @@
-// frontend/src/components/SystemHealth.jsx - PERFECT VERTICAL ALIGNMENT
+// frontend/src/components/SystemHealth.jsx - FINAL WIDTH & HEIGHT FIX
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Grid, Typography, Box, CircularProgress, Alert, Button,
@@ -85,7 +85,16 @@ const ServiceRow = ({ name, status }) => {
 const MetricItem = ({ title, value, subValue, icon, color = 'primary' }) => {
     const theme = useTheme();
     return (
-        <Box display="flex" alignItems="center" gap={2} p={2} borderRadius={2} bgcolor={alpha(theme.palette.background.paper, 0.2)}>
+        // FIXED: Added width="100%" to ensure the box fills the Grid cell
+        <Box 
+            display="flex" 
+            alignItems="center" 
+            gap={2} 
+            p={2} 
+            borderRadius={2} 
+            bgcolor={alpha(theme.palette.background.paper, 0.2)}
+            width="100%" 
+        >
             <Avatar variant="rounded" sx={{ bgcolor: alpha(theme.palette[color].main, 0.1), color: theme.palette[color].main }}>
                 {icon}
             </Avatar>
@@ -206,7 +215,8 @@ const SystemHealth = () => {
         
         {/* LEFT COLUMN: SERVICES & SPECS */}
         <Grid item xs={12} md={5} display="flex" flexDirection="column">
-          <Stack spacing={3} sx={{ flexGrow: 1 }}>
+          {/* FIXED: Added width="100%" to Stack */}
+          <Stack spacing={3} sx={{ flexGrow: 1, width: '100%' }}>
             {/* Service Status Module */}
             <GlassCard sx={{ p: 0 }}>
                 <Box p={2} borderBottom={`1px solid ${alpha(theme.palette.divider, 0.1)}`} display="flex" alignItems="center" gap={1}>
@@ -260,7 +270,8 @@ const SystemHealth = () => {
 
         {/* RIGHT COLUMN: METRICS & RESOURCES */}
         <Grid item xs={12} md={7} display="flex" flexDirection="column">
-          <Stack spacing={3} sx={{ flexGrow: 1 }}>
+          {/* FIXED: Added width="100%" to Stack */}
+          <Stack spacing={3} sx={{ flexGrow: 1, width: '100%' }}>
             {/* Memory Usage Visualization */}
             <GlassCard sx={{ p: 3 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
