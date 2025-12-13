@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - PRO TERMINAL LAYOUT (FIXED WIDTH SIDEBAR)
+// frontend/src/components/TradingDashboard.jsx - REORDERED LAYOUT (KPI -> DATA -> CHART)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container, Paper, Typography, Button, Chip,
@@ -18,7 +18,7 @@ import { SOCKET_URL, tradingAPI } from '../config/api';
 // Sub-components
 import CurrentHoldings from './CurrentHoldings';
 import LivePrices from './LivePrices';
-import TradingSignals from './TradingSignals'; // Updates to Table View automatically
+import TradingSignals from './TradingSignals'; 
 import RecentTrades from './RecentTrades';
 import LivePriceChart from './LivePriceChart';
 
@@ -121,7 +121,6 @@ const TradingDashboard = () => {
           setSelectedStrategy(statusData.value.config?.strategy || 'balanced');
       }
       if (signalsData.status === 'fulfilled' && signalsData.value) {
-          // Handle both raw array and object response
           const sigs = Array.isArray(signalsData.value) ? signalsData.value : signalsData.value.signals;
           updateSignalState(sigs);
       }
@@ -304,7 +303,7 @@ const TradingDashboard = () => {
 
         {error && <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>{error}</Alert>}
 
-        {/* --- 2. KPI STRIP (FLEX ROW) --- */}
+        {/* --- 2. KPI STRIP (ROW 1) --- */}
         <Box display="flex" gap={2} mb={2} flexShrink={0} sx={{ overflowX: 'auto', pb: 0.5 }}>
             <Box flex={1} minWidth={200}><StatCard title="Total Equity" value={`$${(portfolio?.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} subValue={`${(portfolio?.usdtBalance || 0).toFixed(2)} USDT Available`} icon={<AccountBalanceWallet fontSize="small" />} color={theme.palette.primary.main} /></Box>
             <Box flex={1} minWidth={200}><StatCard title="24h PnL" value={`$${(portfolio?.dailyPnL || 0).toFixed(2)}`} subValue={portfolio?.dailyPnL > 0 ? "+2.4%" : "0.0%"} icon={<ShowChart fontSize="small" />} color={portfolio?.dailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main} /></Box>
@@ -312,38 +311,8 @@ const TradingDashboard = () => {
             <Box flex={1} minWidth={200}><StatCard title="Win Rate" value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`} subValue={`${portfolio?.performance?.totalTrades || 0} Trades Executed`} icon={<History fontSize="small" />} color={theme.palette.info.main} /></Box>
         </Box>
 
-        {/* --- 3. MAIN WORKSPACE (Flexbox: Fluid Chart + Fixed Sidebar) --- */}
-        <Box sx={{ display: 'flex', gap: 2, flexGrow: 1, minHeight: 0, mb: 2 }}>
-            
-            {/* A. Chart Area - FLUID GROW */}
-            <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <GlassCard>
-                    <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
-                        <Timeline color="primary" fontSize="small" />
-                        <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">MARKET OVERVIEW</Typography>
-                    </Box>
-                    <Box flexGrow={1} sx={{ position: 'relative' }}>
-                        <LivePriceChart prices={prices} assets={activeChartAssets} height="100%" />
-                    </Box>
-                </GlassCard>
-            </Box>
-
-            {/* B. Watchlist Sidebar - FIXED WIDTH */}
-            <Box sx={{ width: SIDEBAR_WIDTH, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-                <GlassCard>
-                    <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
-                        <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">LIVE MARKETS</Typography>
-                        <Chip label={activeChartAssets.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
-                    </Box>
-                    <Box flexGrow={1} sx={{ overflowY: 'auto', p: 0 }}>
-                         <LivePrices prices={prices} assets={activeChartAssets} />
-                    </Box>
-                </GlassCard>
-            </Box>
-        </Box>
-
-        {/* --- 4. DATA TERMINAL (Bottom Panel) --- */}
-        <GlassCard sx={{ flexGrow: 0, height: 320, flexShrink: 0 }}>
+        {/* --- 3. DATA TERMINAL (ROW 2 - Fixed Height) --- */}
+        <GlassCard sx={{ flexGrow: 0, height: 320, flexShrink: 0, mb: 2 }}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.background.paper, 0.02) }}>
                 <Tabs 
                     value={activeTab} 
@@ -379,7 +348,6 @@ const TradingDashboard = () => {
                          />
                     </Box>
                 )}
-                {/* Fixed: Removed 'compact' prop to enable Table View */}
                 {activeTab === 1 && (
                      <Box height="100%" sx={{ overflow: 'hidden' }}>
                         <TradingSignals signals={signalsToRender} systemStatus={systemStatus} />
@@ -392,6 +360,36 @@ const TradingDashboard = () => {
                 )}
             </Box>
         </GlassCard>
+
+        {/* --- 4. MAIN WORKSPACE (ROW 3 - Flex Grow) --- */}
+        <Box sx={{ display: 'flex', gap: 2, flexGrow: 1, minHeight: 0 }}>
+            
+            {/* A. Chart Area - FLUID GROW */}
+            <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                <GlassCard>
+                    <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
+                        <Timeline color="primary" fontSize="small" />
+                        <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">MARKET OVERVIEW</Typography>
+                    </Box>
+                    <Box flexGrow={1} sx={{ position: 'relative' }}>
+                        <LivePriceChart prices={prices} assets={activeChartAssets} height="100%" />
+                    </Box>
+                </GlassCard>
+            </Box>
+
+            {/* B. Watchlist Sidebar - FIXED WIDTH */}
+            <Box sx={{ width: SIDEBAR_WIDTH, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
+                <GlassCard>
+                    <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
+                        <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">LIVE MARKETS</Typography>
+                        <Chip label={activeChartAssets.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                    </Box>
+                    <Box flexGrow={1} sx={{ overflowY: 'auto', p: 0 }}>
+                         <LivePrices prices={prices} assets={activeChartAssets} />
+                    </Box>
+                </GlassCard>
+            </Box>
+        </Box>
 
     </Container>
   );
