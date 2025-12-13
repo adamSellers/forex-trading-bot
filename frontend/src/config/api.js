@@ -104,11 +104,17 @@ export const tradingAPI = {
     getStatus: () => apiCall(API_ENDPOINTS.trading.status),
     getPortfolio: () => apiCall(API_ENDPOINTS.trading.portfolio),
 
+    // Inside api.js > tradingAPI object
     getSignals: (params = {}) => {
         const query = new URLSearchParams(params).toString();
         return apiCall(
             `${API_ENDPOINTS.trading.signals}${query ? `?${query}` : ""}`
-        );
+        ).then((data) => {
+            // Safety wrapper to ensure we always return an array
+            if (data && Array.isArray(data.signals)) return data.signals;
+            if (data && Array.isArray(data)) return data;
+            return [];
+        });
     },
 
     getTrades: (params = {}) => {

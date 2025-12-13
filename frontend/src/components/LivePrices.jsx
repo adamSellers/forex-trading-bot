@@ -1,12 +1,48 @@
 // frontend/src/components/LivePrices.jsx
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { 
-  Box, Grid, Card, CardContent, Typography, Chip, Skeleton, useTheme, alpha, Divider 
+  Box, Typography, Chip, Skeleton, useTheme, alpha, 
+  Divider, LinearProgress, Stack, styled, Fade
 } from '@mui/material';
 import { 
-  Bolt, PieChart, ShowChart, Visibility 
+  PieChart, Visibility, TrendingUp, TrendingDown 
 } from '@mui/icons-material';
 import { tradingAPI, socket } from '../config/api';
+
+// --- STYLED COMPONENTS ---
+const TickerRow = styled(Box)(({ theme, active }) => ({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: theme.spacing(1.5, 2),
+  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+  backgroundColor: active ? alpha(theme.palette.primary.main, 0.03) : 'transparent',
+  transition: 'background-color 0.2s',
+  '&:hover': {
+    backgroundColor: alpha(theme.palette.action.hover, 0.1),
+  },
+  '&:last-child': {
+    borderBottom: 'none'
+  }
+}));
+
+// Fixed: Removed unused 'theme' prop
+const PriceText = styled(Typography)(({ color }) => ({
+  fontFamily: '"Roboto Mono", monospace',
+  fontWeight: 700,
+  color: color,
+  transition: 'color 0.3s ease'
+}));
+
+const AllocationBar = styled(LinearProgress)(({ theme }) => ({
+  height: 2,
+  borderRadius: 2,
+  marginTop: 4,
+  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+  '& .MuiLinearProgress-bar': {
+    borderRadius: 2,
+  }
+}));
 
 const LivePrices = () => {
   const [prices, setPrices] = useState({}); // Store as { SYMBOL: { price: Number, ... } }
@@ -38,21 +74,19 @@ const LivePrices = () => {
   useEffect(() => {
     setLoading(true);
 
-    // Helper to safely parse price data
     const parsePrice = (input) => {
         if (typeof input === 'object' && input !== null) return parseFloat(input.price);
         return parseFloat(input);
     };
 
-    // A. Initial Fetch (Snapshot)
+    // A. Initial Fetch
     const fetchInitial = async () => {
         try {
             const data = await tradingAPI.getPrices();
-            // Normalize API response to simple map { SYMBOL: price }
             const initialMap = {};
             if (data) {
                 Object.keys(data).forEach(key => {
-                    if (key !== 'symbol' && key !== 'price') { // Filter out stray keys
+                    if (key !== 'symbol' && key !== 'price') {
                         initialMap[key] = parsePrice(data[key]);
                     }
                 });
@@ -67,35 +101,27 @@ const LivePrices = () => {
     // B. Socket Listener
     const handlePriceUpdate = (data) => {
       setLoading(false);
-      
-      // Update Reference for comparison (Previous Price)
       setPrevPrices(pricesRef.current);
 
       setPrices(currentPrices => {
           const newPrices = { ...currentPrices };
           
-          // SCENARIO 1: Single Ticker Update { symbol: 'BTC', price: 100 }
           if (data && data.symbol && data.price) {
               newPrices[data.symbol] = parsePrice(data.price);
           } 
-          // SCENARIO 2: Full Map Update { BTC: { price: 100 }, ETH: ... }
           else if (typeof data === 'object') {
               Object.keys(data).forEach(key => {
                   if (data[key]) newPrices[key] = parsePrice(data[key]);
               });
           }
 
-          pricesRef.current = newPrices; // Sync Ref
+          pricesRef.current = newPrices;
           return newPrices;
       });
     };
 
     socket.on('priceUpdate', handlePriceUpdate);
-
-    // Cleanup
-    return () => {
-      socket.off('priceUpdate', handlePriceUpdate);
-    };
+    return () => { socket.off('priceUpdate', handlePriceUpdate); };
   }, []);
 
   // 3. Separation Logic
@@ -123,16 +149,20 @@ const LivePrices = () => {
 
 
   // 4. Render Helpers
-  const renderPriceCard = (symbol, isCompact = false) => {
+  const RenderRow = ({ symbol, isActive }) => {
       const price = prices[symbol];
       const prev = prevPrices[symbol];
       const targetWeight = allocation[symbol] || 0;
       
       // Color Logic
       let color = theme.palette.text.primary;
+      
       if (price && prev) {
-        if (price > prev) color = theme.palette.success.main;
-        if (price < prev) color = theme.palette.error.main;
+        if (price > prev) {
+            color = theme.palette.success.main;
+        } else if (price < prev) {
+            color = theme.palette.error.main;
+        }
       }
 
       const formattedPrice = isNaN(price) 
@@ -141,127 +171,114 @@ const LivePrices = () => {
             ? price.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })
             : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-      if (isCompact) {
-          return (
-            <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
-                <CardContent sx={{ p: '12px !important', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      return (
+        <TickerRow active={isActive ? 1 : 0}>
+            <Box display="flex" flexDirection="column" width="100%">
+                <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
                     <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" fontWeight="bold" color="text.secondary">
+                        <Typography variant="body2" fontWeight="700">
                             {symbol.replace('USDT', '')}
                         </Typography>
+                        {isActive && (
+                            <Chip 
+                                label={`${targetWeight}%`} 
+                                size="small" 
+                                color="primary" 
+                                variant="filled"
+                                sx={{ 
+                                    height: 16, 
+                                    fontSize: '0.6rem', 
+                                    fontWeight: 'bold',
+                                    borderRadius: 0.5
+                                }} 
+                            />
+                        )}
                     </Box>
-                    <Typography variant="body2" fontWeight="bold" sx={{ color }}>
-                        ${formattedPrice}
-                    </Typography>
-                </CardContent>
-            </Card>
-          );
-      }
-
-      // Full Card (Portfolio)
-      return (
-        <Card 
-            variant="outlined" 
-            sx={{ 
-                position: 'relative',
-                borderColor: 'primary.main',
-                borderWidth: 1,
-                bgcolor: alpha(theme.palette.primary.main, 0.04)
-            }}
-        >
-            <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                    <Typography variant="h6" fontWeight="bold">
-                        {symbol.replace('USDT', '')}
-                    </Typography>
-                    <Chip 
-                        label={`${targetWeight}%`} 
-                        size="small" 
-                        color="primary" 
-                        icon={<PieChart sx={{ fontSize: '14px !important' }} />}
-                        sx={{ fontWeight: 'bold', height: 24 }}
-                    />
+                    
+                    <Box textAlign="right">
+                        <PriceText variant="body2" color={color}>
+                            ${formattedPrice}
+                        </PriceText>
+                    </Box>
                 </Box>
-
-                <Typography variant="h4" fontWeight="bold" sx={{ color }}>
-                    ${formattedPrice}
-                </Typography>
-
-                <Box mt={2} display="flex" alignItems="center" gap={1}>
-                    <Box 
-                        height={6} 
-                        flexGrow={1} 
-                        bgcolor={alpha(theme.palette.primary.main, 0.2)} 
-                        borderRadius={1}
-                        overflow="hidden"
-                    >
-                        <Box 
-                            height="100%" 
-                            width={`${Math.min(targetWeight, 100)}%`} 
-                            bgcolor="primary.main" 
+                
+                {/* Allocation Progress Bar for Active Assets */}
+                {isActive && (
+                    <Box mt={0.5} width="100%">
+                        <AllocationBar 
+                            variant="determinate" 
+                            value={Math.min(targetWeight * 2, 100)} // Scale purely for visual
+                            color="primary"
                         />
                     </Box>
-                </Box>
-            </CardContent>
-        </Card>
+                )}
+            </Box>
+        </TickerRow>
       );
   };
 
   if (loading && Object.keys(prices).length === 0) {
     return (
-      <Grid container spacing={2}>
-        {[1, 2, 3].map((i) => (
-          <Grid item xs={12} key={i}>
-            <Skeleton variant="rectangular" height={100} sx={{ borderRadius: 2 }} />
-          </Grid>
+      <Box p={2}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Skeleton key={i} variant="text" height={40} sx={{ my: 1 }} />
         ))}
-      </Grid>
+      </Box>
     );
   }
 
   return (
     <Box>
-        {/* Header */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Box display="flex" alignItems="center" gap={1}>
-                <Bolt color="primary" />
-                <Typography variant="h6" fontWeight="bold">Live Market</Typography>
-            </Box>
-        </Box>
-
         {/* SECTION 1: ACTIVE PORTFOLIO */}
-        <Box mb={3}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PieChart fontSize="small" /> ACTIVE ALLOCATION
-            </Typography>
-            <Grid container spacing={2}>
-                {portfolioAssets.map(symbol => (
-                    <Grid item xs={12} sm={6} md={12} lg={6} key={symbol}>
-                        {renderPriceCard(symbol, false)}
-                    </Grid>
-                ))}
-            </Grid>
-            {portfolioAssets.length === 0 && (
-                <Typography variant="body2" color="text.secondary" fontStyle="italic">
-                    No active assets allocated in config.
-                </Typography>
-            )}
-        </Box>
+        {portfolioAssets.length > 0 && (
+            <Box>
+                <Box 
+                    px={2} py={1} 
+                    bgcolor={alpha(theme.palette.primary.main, 0.05)} 
+                    borderBottom={`1px solid ${alpha(theme.palette.divider, 0.1)}`}
+                    display="flex" alignItems="center" gap={1}
+                >
+                    <PieChart sx={{ fontSize: 14, color: 'text.secondary' }} />
+                    <Typography variant="caption" fontWeight="bold" color="text.secondary">
+                        ALLOCATION
+                    </Typography>
+                </Box>
+                <Stack>
+                    {portfolioAssets.map(symbol => (
+                        <RenderRow key={symbol} symbol={symbol} isActive={true} />
+                    ))}
+                </Stack>
+            </Box>
+        )}
 
-        {/* SECTION 2: MARKET WATCH */}
+        {/* SECTION 2: WATCHLIST */}
         {watchlistAssets.length > 0 && (
             <Box>
-                <Divider sx={{ mb: 2 }} />
-                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Visibility fontSize="small" /> WATCHLIST
-                </Typography>
-                <Grid container spacing={1}>
+                 <Box 
+                    px={2} py={1} 
+                    bgcolor={alpha(theme.palette.background.default, 0.4)} 
+                    borderBottom={`1px solid ${alpha(theme.palette.divider, 0.1)}`}
+                    borderTop={portfolioAssets.length > 0 ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : 'none'}
+                    display="flex" alignItems="center" gap={1}
+                >
+                    <Visibility sx={{ fontSize: 14, color: 'text.secondary' }} />
+                    <Typography variant="caption" fontWeight="bold" color="text.secondary">
+                        MARKET WATCH
+                    </Typography>
+                </Box>
+                <Stack>
                     {watchlistAssets.map(symbol => (
-                        <Grid item xs={6} sm={4} md={6} lg={4} key={symbol}>
-                            {renderPriceCard(symbol, true)}
-                        </Grid>
+                        <RenderRow key={symbol} symbol={symbol} isActive={false} />
                     ))}
-                </Grid>
+                </Stack>
+            </Box>
+        )}
+        
+        {portfolioAssets.length === 0 && watchlistAssets.length === 0 && (
+             <Box p={3} textAlign="center">
+                <Typography variant="caption" color="text.secondary">
+                    Waiting for market data...
+                </Typography>
             </Box>
         )}
     </Box>
