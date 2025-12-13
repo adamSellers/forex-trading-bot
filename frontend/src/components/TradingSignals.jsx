@@ -1,48 +1,66 @@
-// frontend/src/components/TradingSignals.jsx - FINAL FIX
+// frontend/src/components/TradingSignals.jsx - DATA GRID LAYOUT
 import React, { useMemo } from 'react';
 import { 
     Typography, Box, LinearProgress, Stack, Avatar, 
-    useTheme, alpha, Chip, styled
+    useTheme, alpha, Chip, styled, Table, TableBody, 
+    TableCell, TableContainer, TableHead, TableRow, Paper
 } from '@mui/material';
 import { 
     TrendingUp, TrendingDown, Timeline, Radar, 
-    AutoGraph
+    AutoGraph, AccessTime, Tag
 } from '@mui/icons-material';
 
 // --- STYLED COMPONENTS ---
-// Fixed: Removed unused 'type' prop from destructuring
-const SignalRow = styled(Box)(({ theme }) => ({
-    padding: theme.spacing(1.5),
-    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    transition: 'background-color 0.2s ease',
-    cursor: 'default',
-    '&:hover': {
+const StyledTableRow = styled(TableRow)(({ theme }) => ({
+    '&:nth-of-type(odd)': {
         backgroundColor: alpha(theme.palette.action.hover, 0.05),
     },
-    '&:last-child': {
-        borderBottom: 'none'
-    }
+    '&:hover': {
+        backgroundColor: alpha(theme.palette.primary.main, 0.05),
+        cursor: 'default'
+    },
+    // Hide last border
+    '&:last-child td, &:last-child th': {
+        border: 0,
+    },
+}));
+
+const StyledTableCell = styled(TableCell)(({ theme }) => ({
+    padding: '6px 16px',
+    height: 40,
+    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+    fontSize: '0.8rem',
+    fontFamily: '"Roboto Mono", monospace', // Tech font for data
+}));
+
+const HeaderCell = styled(TableCell)(({ theme }) => ({
+    backgroundColor: alpha(theme.palette.background.paper, 0.5),
+    backdropFilter: 'blur(5px)',
+    color: theme.palette.text.secondary,
+    fontWeight: 700,
+    fontSize: '0.7rem',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    padding: '8px 16px',
+    borderBottom: `1px solid ${theme.palette.divider}`,
 }));
 
 const MonoText = styled(Typography)(({ theme, color }) => ({
     fontFamily: '"Roboto Mono", monospace',
     fontWeight: 500,
-    color: color || theme.palette.text.secondary,
-    fontSize: '0.75rem'
+    color: color || theme.palette.text.primary,
+    fontSize: '0.8rem'
 }));
 
 const TradingSignals = ({ signals, systemStatus, compact = false }) => {
   const theme = useTheme();
 
-  // --- LOGIC: Signal Colors ---
+  // --- LOGIC: Signal Meta ---
   const getSignalMeta = (signalType) => {
     const s = (signalType || '').toUpperCase();
     if (s.includes('BUY')) return { color: 'success', icon: <TrendingUp fontSize="small" /> };
     if (s.includes('SELL')) return { color: 'error', icon: <TrendingDown fontSize="small" /> };
-    return { color: 'info', icon: <Timeline fontSize="small" /> }; // Fallback to 'info' to prevent crash
+    return { color: 'info', icon: <Timeline fontSize="small" /> }; 
   };
 
   // --- LOGIC: System Health ---
@@ -91,85 +109,161 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       );
   }
 
-  // 2. SIGNAL ROW RENDERER
-  const renderSignal = (signal, index) => {
-      const { color, icon } = getSignalMeta(signal.signal);
-      const paletteColor = theme.palette[color]; // Safe access now
-
+  // 2. COMPACT VIEW (Sidebar / List)
+  if (compact) {
       return (
-        <SignalRow key={`${signal.symbol}-${index}`}>
-            {/* Left: Icon & Symbol */}
-            <Box display="flex" alignItems="center" gap={2}>
-                <Avatar 
-                    variant="rounded" 
-                    sx={{ 
-                        width: 32, height: 32, 
-                        bgcolor: alpha(paletteColor.main, 0.1), 
-                        color: paletteColor.main,
-                        border: `1px solid ${alpha(paletteColor.main, 0.2)}`
-                    }}
-                >
-                    {icon}
-                </Avatar>
-                <Box>
-                    <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" fontWeight="bold">
-                            {signal.symbol.replace('USDT', '')}
-                        </Typography>
-                        {signal.isNew && (
-                            <Chip label="NEW" size="small" color="primary" sx={{ height: 16, fontSize: '0.6rem' }} />
-                        )}
+        <Stack spacing={0} sx={{ height: '100%', overflowY: 'auto' }}>
+            {signals.map((signal, index) => {
+                const { color, icon } = getSignalMeta(signal.signal);
+                const paletteColor = theme.palette[color];
+                
+                return (
+                    <Box 
+                        key={`${signal.symbol}-${index}`}
+                        sx={{
+                            p: 1.5,
+                            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.05) }
+                        }}
+                    >
+                         <Box display="flex" alignItems="center" gap={1.5}>
+                             <Avatar 
+                                variant="rounded" 
+                                sx={{ 
+                                    width: 28, height: 28, 
+                                    bgcolor: alpha(paletteColor.main, 0.1), 
+                                    color: paletteColor.main,
+                                    border: `1px solid ${alpha(paletteColor.main, 0.2)}`
+                                }}
+                            >
+                                {icon}
+                            </Avatar>
+                            <Box>
+                                <Typography variant="body2" fontWeight="bold">
+                                    {signal.symbol.replace('USDT', '')}
+                                </Typography>
+                                <MonoText sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                                     {new Date(signal.timestamp).toLocaleTimeString([], { hour12: false })}
+                                </MonoText>
+                            </Box>
+                         </Box>
+                         
+                         <Box textAlign="right">
+                             <Chip 
+                                label={signal.signal?.split('_')[0]} 
+                                size="small" 
+                                sx={{ 
+                                    height: 18, fontSize: '0.65rem', fontWeight: 'bold', 
+                                    bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main 
+                                }}
+                            />
+                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.7rem' }}>
+                                ADX: {signal.strength?.toFixed(0)}
+                            </Typography>
+                         </Box>
                     </Box>
-                    <MonoText>
-                        {new Date(signal.timestamp).toLocaleTimeString([], { hour12: false })}
-                    </MonoText>
-                </Box>
-            </Box>
-            
-            {/* Right: Type & Strength */}
-            <Box textAlign="right">
-                <Chip 
-                    label={signal.signal?.split('_')[0] || 'HOLD'} 
-                    size="small" 
-                    sx={{ 
-                        height: 20, 
-                        fontSize: '0.7rem', 
-                        fontWeight: 'bold',
-                        bgcolor: alpha(paletteColor.main, 0.1),
-                        color: paletteColor.main,
-                        border: `1px solid ${alpha(paletteColor.main, 0.2)}`,
-                        mb: 0.5
-                    }}
-                />
-                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
-                    <AutoGraph sx={{ fontSize: 12, opacity: 0.5 }} />
-                    <MonoText color="text.primary">
-                        ADX:{signal.strength?.toFixed(0) || '0'}
-                    </MonoText>
-                </Box>
-            </Box>
-        </SignalRow>
-      );
-  };
-
-  // 3. MAIN CONTAINER
-  return (
-    <Box height="100%" display="flex" flexDirection="column">
-        {/* Header (Only if not in compact tab mode, though currently compact is default usage) */}
-        {!compact && (
-             <Box p={2} borderBottom={1} borderColor="divider" display="flex" justifyContent="space-between" alignItems="center">
-                <Box display="flex" alignItems="center" gap={1}>
-                    <Radar color="primary" fontSize="small" />
-                    <Typography variant="subtitle2" fontWeight="bold">SIGNALS FEED</Typography>
-                </Box>
-                <Chip label={`${signals.length} ACTIVE`} size="small" color="primary" variant="outlined" />
-             </Box>
-        )}
-
-        <Stack spacing={0} sx={{ flexGrow: 1, overflowY: 'auto' }}>
-            {signals.map((signal, index) => renderSignal(signal, index))}
+                );
+            })}
         </Stack>
-    </Box>
+      );
+  }
+
+  // 3. FULL TABLE VIEW (Dashboard Bottom Panel)
+  return (
+    <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
+        <Table stickyHeader size="small">
+            <TableHead>
+                <TableRow>
+                    <HeaderCell>Symbol</HeaderCell>
+                    <HeaderCell>Time</HeaderCell>
+                    <HeaderCell>Signal Type</HeaderCell>
+                    <HeaderCell align="right">Strength (ADX)</HeaderCell>
+                    <HeaderCell align="right">Price</HeaderCell>
+                    <HeaderCell align="center">Status</HeaderCell>
+                </TableRow>
+            </TableHead>
+            <TableBody>
+                {signals.map((signal, index) => {
+                     const { color, icon } = getSignalMeta(signal.signal);
+                     const paletteColor = theme.palette[color];
+
+                     return (
+                         <StyledTableRow key={`${signal.symbol}-${index}`}>
+                             {/* Symbol */}
+                             <StyledTableCell>
+                                 <Box display="flex" alignItems="center" gap={1}>
+                                    <Avatar 
+                                        variant="rounded" 
+                                        sx={{ 
+                                            width: 24, height: 24, 
+                                            bgcolor: alpha(paletteColor.main, 0.1), 
+                                            color: paletteColor.main
+                                        }}
+                                    >
+                                        {icon}
+                                    </Avatar>
+                                    <Typography variant="body2" fontWeight="bold">
+                                        {signal.symbol.replace('USDT', '')}
+                                    </Typography>
+                                 </Box>
+                             </StyledTableCell>
+
+                             {/* Time */}
+                             <StyledTableCell>
+                                 {new Date(signal.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                             </StyledTableCell>
+
+                             {/* Signal */}
+                             <StyledTableCell>
+                                 <Chip 
+                                    label={signal.signal?.replace(/_/g, ' ') || 'UNKNOWN'} 
+                                    size="small" 
+                                    sx={{ 
+                                        height: 20, 
+                                        fontSize: '0.7rem', 
+                                        fontWeight: 'bold',
+                                        bgcolor: alpha(paletteColor.main, 0.1),
+                                        color: paletteColor.main,
+                                        border: `1px solid ${alpha(paletteColor.main, 0.2)}`
+                                    }} 
+                                />
+                             </StyledTableCell>
+
+                             {/* Strength */}
+                             <StyledTableCell align="right">
+                                 <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                                     <LinearProgress 
+                                        variant="determinate" 
+                                        value={Math.min((signal.strength || 0) * 2, 100)} 
+                                        sx={{ width: 50, height: 4, borderRadius: 2 }}
+                                        color={signal.strength > 25 ? "primary" : "secondary"}
+                                      />
+                                      <MonoText>{signal.strength?.toFixed(1)}</MonoText>
+                                  </Box>
+                              </StyledTableCell>
+
+                             {/* Price */}
+                              <StyledTableCell align="right">
+                                  <MonoText>${signal.currentPrice?.toFixed(2) || '---'}</MonoText>
+                              </StyledTableCell>
+
+                             {/* Status */}
+                              <StyledTableCell align="center">
+                                  {signal.isNew ? (
+                                      <Chip label="NEW" color="error" size="small" sx={{ height: 16, fontSize: '0.6rem' }} />
+                                  ) : (
+                                      <Typography variant="caption" color="text.secondary">LOGGED</Typography>
+                                  )}
+                              </StyledTableCell>
+                          </StyledTableRow>
+                      );
+                })}
+            </TableBody>
+        </Table>
+    </TableContainer>
   );
 };
 
