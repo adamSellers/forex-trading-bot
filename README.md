@@ -42,72 +42,70 @@ cd crypto-trend-bot
 
 # Run the automated setup (installs dependencies & sets up environment)
 ./scripts/clean-install.sh
-
+```
 
 2. Secure Configuration
-Generate your encrypted secrets file. You will need your Binance API Key and Secret.
+   Generate your encrypted secrets file. You will need your Binance API Key and Secret.
 
-Bash
+```bash
 
 
 ./scripts/setup-secrets.sh
-
+```
 
 3. Launch
 
-Bash
+```bash
 
 
 # Start the full stack (Backend + Frontend)
 npm run start
-
+```
 
 Access the dashboard at http://localhost:5173.
-🧠 Using the Portfolio Optimizer
+
+### 🧠 Using the Portfolio Optimizer
+
 Don't guess which coins to trade. Let the data decide.
 The included optimizer script backtests your strategy against the Top 20 assets on Binance to find the highest probability setups for the current market cycle.
 How to Run
 
-Bash
+```bash
 
 
 node backend/scripts/optimize-strategy.js
+```
 
+#### What It Does
 
-What It Does
 Prompts for a timeframe (recommended: 180 days).
 Fetches high-resolution candle data for 20+ liquid assets (BTC, ETH, SOL, NEAR, PEPE, etc.).
 Simulates your exact trading strategy (ADX > 30, TP 3.0 ATR) on every candle.
 Ranks assets by Win Rate, ROI, and Stability.
 Outputs a JSON block of the perfect portfolio allocation.
-Example Output
 
-Plaintext
+#### Example Output
 
+## 🏆 ASSET PERFORMANCE RANKING (180 Days)
 
-🏆 ASSET PERFORMANCE RANKING (180 Days)
------------------------------------------------------------------
-Symbol      | Profit ($) | Return (%) | Win Rate | Trades
------------------------------------------------------------------
-NEARUSDT    | $242.98    | 24.3%      | 67%      | 12
-LTCUSDT     | $148.57    | 14.9%      | 48%      | 23
+## Symbol | Profit ($) | Return (%) | Win Rate | Trades
+
+NEARUSDT | $242.98 | 24.3% | 67% | 12
+LTCUSDT | $148.57 | 14.9% | 48% | 23
 ...
 
-⚖️  STRATEGY SHOWDOWN ($10,000 Portfolio)
------------------------------------------------------------------
-Strategy       | Net Profit   | Total ROI | Avg Win Rate
------------------------------------------------------------------
-Current (PRD)  | $471.32      | 4.71%     | 43.0%
-Optimized      | $1615.33     | 16.15%    | 55.0%
+## ⚖️ STRATEGY SHOWDOWN ($10,000 Portfolio)
 
+## Strategy | Net Profit | Total ROI | Avg Win Rate
+
+Current (PRD) | $471.32 | 4.71% | 43.0%
+Optimized | $1615.33 | 16.15% | 55.0%
 
 Workflow: Copy the recommended JSON output, go to the Configuration tab in the dashboard, and adjust your Portfolio Composition to match the winners.
 🏗 System Architecture
 The application follows a Service-Oriented Architecture (SOA) optimized for the Raspberry Pi 5.
 
-Code snippet
-
-
+```Code snippet
 graph TD
     A[React Frontend] -->|Socket.IO| B(TradingController)
     B --> C{TradingService}
@@ -117,9 +115,10 @@ graph TD
     C --> G[SignalGenerator]
     H[Optimizer Script] -.->|Updates| I[Config JSON]
     I --> C
+```
 
+#### 🛠 Strategy: "The Golden Config"
 
-🛠 Strategy: "The Golden Config"
 The bot uses a "Momentum Sniper" strategy tuned for trending markets.
 Entry:
 Price crosses 20/50 EMA (Trend Change).
@@ -132,4 +131,7 @@ Trailing Stop: Activates after 1.5% profit to lock in gains.
 ⚠️ Disclaimer
 USE AT YOUR OWN RISK.
 Cryptocurrency trading involves significant risk of financial loss. The "Optimizer" uses historical data, which is not a guarantee of future performance. Always test with Paper Trading mode before risking real capital.
+
+```
+
 ```
