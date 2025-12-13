@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - LAYOUT FIX
+// frontend/src/components/TradingConfig.jsx - FIXED COLUMNS LAYOUT
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -73,6 +73,7 @@ const TradingConfig = () => {
           allocation: { ...data.config.allocation }
         };
         
+        // Normalize allocation to 0-100 scale for UI
         Object.keys(fetchedConfig.allocation).forEach(key => {
             if (fetchedConfig.allocation[key] <= 1) {
                 fetchedConfig.allocation[key] = Math.round(fetchedConfig.allocation[key] * 100);
@@ -173,280 +174,282 @@ const TradingConfig = () => {
 
       <Grid container spacing={3}>
         
-        {/* 1. Account Settings */}
+        {/* === LEFT COLUMN === */}
         <Grid item xs={12} md={6}>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <AccountBalance sx={{ mr: 1 }} />
-              <Typography variant="h6">Account</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <Card variant="outlined" sx={{ p: 2, borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main', borderWidth: 2 }}>
-                    <Box display="flex" alignItems="center" justifyContent="space-between">
-                        <Box display="flex" alignItems="center" gap={1}>
-                            {config.tradingMode === 'live' ? <MonetizationOn color="error" /> : <MoneyOff color="warning" />}
-                            <Typography variant="subtitle1" fontWeight="bold" color={config.tradingMode === 'live' ? 'error.main' : 'warning.main'}>
-                                {config.tradingMode === 'live' ? "LIVE TRADING (REAL MONEY)" : "PAPER TRADING (SIMULATION)"}
-                            </Typography>
-                        </Box>
-                        <Switch
-                            checked={config.tradingMode === 'live'}
-                            onChange={(e) => {
-                                if (e.target.checked && !window.confirm("DANGER: Enable Real Money Trading?")) return;
-                                updateConfig('tradingMode', e.target.checked ? 'live' : 'paper');
-                            }}
-                            color="error"
-                        />
-                    </Box>
-                  </Card>
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField
-                    fullWidth label="Max Capital" type="number"
-                    value={config.maxCapitalAtRisk}
-                    onChange={(e) => updateConfig('maxCapitalAtRisk', parseFloat(e.target.value))}
-                    InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
-                  />
-                </Grid>
-                <Grid item xs={6} display="flex" alignItems="center">
-                  <FormControl fullWidth>
-                     <Box display="flex" alignItems="center" justifyContent="space-between" border={1} borderColor="divider" borderRadius={1} p={1.5}>
-                        <Typography>Master Switch</Typography>
-                        <Switch checked={config.enableTrading} onChange={(e) => updateConfig('enableTrading', e.target.checked)} color="success" />
-                     </Box>
-                  </FormControl>
-                </Grid>
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
-        </Grid>
-
-        {/* 2. Risk Management */}
-        <Grid item xs={12} md={6}>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Security sx={{ mr: 1 }} />
-              <Typography variant="h6">Risk Management</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <Box display="flex" justifyContent="space-between">
-                    <Typography variant="body2" gutterBottom>Risk Per Trade: {config.riskPerTrade}%</Typography>
-                    <Typography variant="body2" color="text.secondary">(${riskAmounts.riskPerTrade})</Typography>
-                  </Box>
-                  <Slider value={config.riskPerTrade} onChange={(_, v) => updateConfig('riskPerTrade', v)} min={0.1} max={5.0} step={0.1} valueLabelDisplay="auto" />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField fullWidth label="Stop Loss (ATR)" type="number" 
-                    value={config.stopLossATR} onChange={(e) => updateConfig('stopLossATR', parseFloat(e.target.value))}
-                    inputProps={{ step: 0.1 }} />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField fullWidth label="Take Profit (ATR)" type="number" 
-                    value={config.takeProfitATRMultiplier} onChange={(e) => updateConfig('takeProfitATRMultiplier', parseFloat(e.target.value))}
-                    inputProps={{ step: 0.1 }} />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField fullWidth label="Min Order Size ($)" type="number" 
-                    value={config.minOrderSize} onChange={(e) => updateConfig('minOrderSize', parseFloat(e.target.value))} />
-                </Grid>
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
-        </Grid>
-
-        {/* 3. Strategy Settings */}
-        <Grid item xs={12} md={6}>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <TrendingUp sx={{ mr: 1 }} />
-              <Typography variant="h6">Strategy & Filters</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Strategy</InputLabel>
-                    <Select value={config.strategy} label="Strategy" onChange={(e) => updateConfig('strategy', e.target.value)}>
-                      <MenuItem value="conservative">Conservative (SMA)</MenuItem>
-                      <MenuItem value="balanced">Balanced (20/50 EMA)</MenuItem>
-                      <MenuItem value="responsive">Responsive (12/26 EMA)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Timeframe</InputLabel>
-                    <Select value={config.timeframe} label="Timeframe" onChange={(e) => updateConfig('timeframe', e.target.value)}>
-                      <MenuItem value="15m">15 Min</MenuItem>
-                      <MenuItem value="1h">1 Hour</MenuItem>
-                      <MenuItem value="4h">4 Hour</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <Divider textAlign="left"><Chip icon={<FilterList />} label="Advanced Filters" /></Divider>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography>ADX Filter (Anti-Chop)</Typography>
-                    <Switch checked={config.enableAdxFilter} onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)} />
-                  </Box>
-                  <Box px={2}>
-                    <Typography variant="caption" color="textSecondary">
-                        Min Trend Strength (ADX): {config.minAdx}
-                    </Typography>
-                    <Slider 
-                        value={config.minAdx} 
-                        onChange={(_, v) => updateConfig('minAdx', v)} 
-                        disabled={!config.enableAdxFilter}
-                        min={10} max={50} step={1} 
-                        marks={[{value: 20, label: 'Weak'}, {value: 25, label: 'Strong'}, {value: 40, label: 'Very Strong'}]}
-                    />
-                  </Box>
-                </Grid>
-
-                <Grid item xs={12}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography>RSI Filter (Overbought/Sold)</Typography>
-                        <Switch checked={config.enableRsiFilter} onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)} />
-                    </Box>
+            <Stack spacing={3}>
+                
+                {/* 1. Account Settings */}
+                <Accordion defaultExpanded>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                    <AccountBalance sx={{ mr: 1 }} />
+                    <Typography variant="h6">Account</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
                     <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                            <TextField fullWidth size="small" label="Overbought >" type="number" 
-                                value={config.rsiOverbought} 
-                                onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))}
-                                disabled={!config.enableRsiFilter}
-                            />
+                        <Grid item xs={12}>
+                        <Card variant="outlined" sx={{ p: 2, borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main', borderWidth: 2 }}>
+                            <Box display="flex" alignItems="center" justifyContent="space-between">
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    {config.tradingMode === 'live' ? <MonetizationOn color="error" /> : <MoneyOff color="warning" />}
+                                    <Typography variant="subtitle1" fontWeight="bold" color={config.tradingMode === 'live' ? 'error.main' : 'warning.main'}>
+                                        {config.tradingMode === 'live' ? "LIVE TRADING (REAL MONEY)" : "PAPER TRADING (SIMULATION)"}
+                                    </Typography>
+                                </Box>
+                                <Switch
+                                    checked={config.tradingMode === 'live'}
+                                    onChange={(e) => {
+                                        if (e.target.checked && !window.confirm("DANGER: Enable Real Money Trading?")) return;
+                                        updateConfig('tradingMode', e.target.checked ? 'live' : 'paper');
+                                    }}
+                                    color="error"
+                                />
+                            </Box>
+                        </Card>
                         </Grid>
                         <Grid item xs={6}>
-                            <TextField fullWidth size="small" label="Oversold <" type="number" 
-                                value={config.rsiOversold} 
-                                onChange={(e) => updateConfig('rsiOversold', parseFloat(e.target.value))}
-                                disabled={!config.enableRsiFilter}
-                            />
+                        <TextField
+                            fullWidth label="Max Capital" type="number"
+                            value={config.maxCapitalAtRisk}
+                            onChange={(e) => updateConfig('maxCapitalAtRisk', parseFloat(e.target.value))}
+                            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                        />
+                        </Grid>
+                        <Grid item xs={6} display="flex" alignItems="center">
+                        <FormControl fullWidth>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" border={1} borderColor="divider" borderRadius={1} p={1.5}>
+                                <Typography>Master Switch</Typography>
+                                <Switch checked={config.enableTrading} onChange={(e) => updateConfig('enableTrading', e.target.checked)} color="success" />
+                            </Box>
+                        </FormControl>
                         </Grid>
                     </Grid>
-                </Grid>
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
-        </Grid>
+                    </AccordionDetails>
+                </Accordion>
 
-        {/* 4. Portfolio Composition (REDESIGNED LAYOUT) */}
-        <Grid item xs={12} md={6}>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Settings sx={{ mr: 1 }} />
-              <Typography variant="h6">Portfolio Composition</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              
-              <Box display="flex" gap={1} mb={3}>
-                <FormControl fullWidth size="small">
-                    <InputLabel>Select Asset to Add</InputLabel>
-                    <Select 
-                        value={newAsset} 
-                        label="Select Asset to Add"
-                        onChange={(e) => setNewAsset(e.target.value)}
-                    >
-                        {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
-                            <MenuItem key={asset} value={asset}>{asset}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />}>
-                    Add
-                </Button>
-              </Box>
+                {/* 2. Strategy Settings */}
+                <Accordion>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                    <TrendingUp sx={{ mr: 1 }} />
+                    <Typography variant="h6">Strategy & Filters</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                    <Grid container spacing={2}>
+                        <Grid item xs={6}>
+                        <FormControl fullWidth>
+                            <InputLabel>Strategy</InputLabel>
+                            <Select value={config.strategy} label="Strategy" onChange={(e) => updateConfig('strategy', e.target.value)}>
+                            <MenuItem value="conservative">Conservative (SMA)</MenuItem>
+                            <MenuItem value="balanced">Balanced (20/50 EMA)</MenuItem>
+                            <MenuItem value="responsive">Responsive (12/26 EMA)</MenuItem>
+                            </Select>
+                        </FormControl>
+                        </Grid>
+                        <Grid item xs={6}>
+                        <FormControl fullWidth>
+                            <InputLabel>Timeframe</InputLabel>
+                            <Select value={config.timeframe} label="Timeframe" onChange={(e) => updateConfig('timeframe', e.target.value)}>
+                            <MenuItem value="15m">15 Min</MenuItem>
+                            <MenuItem value="1h">1 Hour</MenuItem>
+                            <MenuItem value="4h">4 Hour</MenuItem>
+                            </Select>
+                        </FormControl>
+                        </Grid>
 
-              <Stack spacing={2}>
-                {config.assets.map(asset => (
-                    <Paper key={asset} variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                        {/* 1. Asset Label (Fixed Width) */}
-                        <Box minWidth={80}>
-                            <Typography variant="subtitle2" fontWeight="bold">{asset.replace('USDT','')}</Typography>
+                        <Grid item xs={12}>
+                        <Divider textAlign="left"><Chip icon={<FilterList />} label="Advanced Filters" /></Divider>
+                        </Grid>
+
+                        <Grid item xs={12}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Typography>ADX Filter (Anti-Chop)</Typography>
+                            <Switch checked={config.enableAdxFilter} onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)} />
                         </Box>
-
-                        {/* 2. Slider (Fluid) */}
-                        <Box flexGrow={1}>
+                        <Box px={2}>
+                            <Typography variant="caption" color="textSecondary">
+                                Min Trend Strength (ADX): {config.minAdx}
+                            </Typography>
                             <Slider 
-                                value={config.allocation[asset] || 0} 
-                                onChange={(_, v) => updateAllocation(asset, v)}
-                                min={0} max={50} step={1} // Fine grain control
-                                size="small"
+                                value={config.minAdx} 
+                                onChange={(_, v) => updateConfig('minAdx', v)} 
+                                disabled={!config.enableAdxFilter}
+                                min={10} max={50} step={1} 
+                                marks={[{value: 20, label: 'Weak'}, {value: 25, label: 'Strong'}, {value: 40, label: 'Very Strong'}]}
                             />
                         </Box>
+                        </Grid>
 
-                        {/* 3. Percentage (Fixed Width) */}
-                        <Box minWidth={45} textAlign="right">
-                            <Typography variant="body2" fontWeight="bold">{config.allocation[asset] || 0}%</Typography>
+                        <Grid item xs={12}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                                <Typography>RSI Filter (Overbought/Sold)</Typography>
+                                <Switch checked={config.enableRsiFilter} onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)} />
+                            </Box>
+                            <Grid container spacing={2}>
+                                <Grid item xs={6}>
+                                    <TextField fullWidth size="small" label="Overbought >" type="number" 
+                                        value={config.rsiOverbought} 
+                                        onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))}
+                                        disabled={!config.enableRsiFilter}
+                                    />
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <TextField fullWidth size="small" label="Oversold <" type="number" 
+                                        value={config.rsiOversold} 
+                                        onChange={(e) => updateConfig('rsiOversold', parseFloat(e.target.value))}
+                                        disabled={!config.enableRsiFilter}
+                                    />
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                    </AccordionDetails>
+                </Accordion>
+
+                {/* 3. Notifications */}
+                <Accordion>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Mail sx={{ mr: 1 }} />
+                    <Typography variant="h6">Notifications</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                    <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                            <Typography>Enable Email Alerts</Typography>
+                            <Switch 
+                            checked={config.enableEmailAlerts} 
+                            onChange={(e) => updateConfig('enableEmailAlerts', e.target.checked)} 
+                            color="primary"
+                            />
                         </Box>
-
-                        {/* 4. Delete Action */}
-                        <IconButton size="small" color="error" onClick={() => handleRemoveAsset(asset)}>
-                            <Delete fontSize="small" />
-                        </IconButton>
-                    </Paper>
-                ))}
-              </Stack>
-
-              <Box mt={3} p={2} bgcolor={totalAllocation > 100 ? 'error.light' : 'action.hover'} borderRadius={2} textAlign="center">
-                  <Typography variant="subtitle1" fontWeight="bold" color={totalAllocation > 100 ? 'error.contrastText' : 'text.primary'}>
-                      Total Allocation: {totalAllocation}%
-                  </Typography>
-                  {totalAllocation !== 100 && (
-                      <Typography variant="caption" color={totalAllocation > 100 ? 'error.contrastText' : 'text.secondary'}>
-                          {totalAllocation < 100 ? `Unallocated: ${100 - totalAllocation}%` : `Overallocated by ${totalAllocation - 100}%`}
-                      </Typography>
-                  )}
-              </Box>
-
-            </AccordionDetails>
-          </Accordion>
+                        <Typography variant="caption" color="textSecondary" display="block" mb={2}>
+                            Receive instant alerts when the bot executes a trade.
+                        </Typography>
+                        </Grid>
+                        <Grid item xs={12}>
+                        <TextField 
+                            fullWidth 
+                            label="Alert Email Address" 
+                            placeholder="you@example.com"
+                            value={config.alertEmail} 
+                            onChange={(e) => updateConfig('alertEmail', e.target.value)}
+                            disabled={!config.enableEmailAlerts}
+                            helperText="Leave blank to use the securely stored default email"
+                        />
+                        </Grid>
+                    </Grid>
+                    </AccordionDetails>
+                </Accordion>
+            </Stack>
         </Grid>
-        
-        {/* 5. Notifications */}
+
+        {/* === RIGHT COLUMN === */}
         <Grid item xs={12} md={6}>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Mail sx={{ mr: 1 }} />
-              <Typography variant="h6">Notifications</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography>Enable Email Alerts</Typography>
-                    <Switch 
-                      checked={config.enableEmailAlerts} 
-                      onChange={(e) => updateConfig('enableEmailAlerts', e.target.checked)} 
-                      color="primary"
-                    />
-                  </Box>
-                  <Typography variant="caption" color="textSecondary" display="block" mb={2}>
-                    Receive instant alerts when the bot executes a trade.
-                  </Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField 
-                    fullWidth 
-                    label="Alert Email Address" 
-                    placeholder="you@example.com"
-                    value={config.alertEmail} 
-                    onChange={(e) => updateConfig('alertEmail', e.target.value)}
-                    disabled={!config.enableEmailAlerts}
-                    helperText="Leave blank to use the securely stored default email"
-                  />
-                </Grid>
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
+            <Stack spacing={3}>
+                
+                {/* 4. Risk Management */}
+                <Accordion defaultExpanded>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Security sx={{ mr: 1 }} />
+                    <Typography variant="h6">Risk Management</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                    <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                        <Box display="flex" justifyContent="space-between">
+                            <Typography variant="body2" gutterBottom>Risk Per Trade: {config.riskPerTrade}%</Typography>
+                            <Typography variant="body2" color="text.secondary">(${riskAmounts.riskPerTrade})</Typography>
+                        </Box>
+                        <Slider value={config.riskPerTrade} onChange={(_, v) => updateConfig('riskPerTrade', v)} min={0.1} max={5.0} step={0.1} valueLabelDisplay="auto" />
+                        </Grid>
+                        <Grid item xs={6}>
+                        <TextField fullWidth label="Stop Loss (ATR)" type="number" 
+                            value={config.stopLossATR} onChange={(e) => updateConfig('stopLossATR', parseFloat(e.target.value))}
+                            inputProps={{ step: 0.1 }} />
+                        </Grid>
+                        <Grid item xs={6}>
+                        <TextField fullWidth label="Take Profit (ATR)" type="number" 
+                            value={config.takeProfitATRMultiplier} onChange={(e) => updateConfig('takeProfitATRMultiplier', parseFloat(e.target.value))}
+                            inputProps={{ step: 0.1 }} />
+                        </Grid>
+                        <Grid item xs={6}>
+                        <TextField fullWidth label="Min Order Size ($)" type="number" 
+                            value={config.minOrderSize} onChange={(e) => updateConfig('minOrderSize', parseFloat(e.target.value))} />
+                        </Grid>
+                    </Grid>
+                    </AccordionDetails>
+                </Accordion>
+
+                {/* 5. Portfolio Composition */}
+                <Accordion defaultExpanded>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Settings sx={{ mr: 1 }} />
+                    <Typography variant="h6">Portfolio Composition</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                    
+                    <Box display="flex" gap={1} mb={3}>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Select Asset to Add</InputLabel>
+                            <Select 
+                                value={newAsset} 
+                                label="Select Asset to Add"
+                                onChange={(e) => setNewAsset(e.target.value)}
+                            >
+                                {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
+                                    <MenuItem key={asset} value={asset}>{asset}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />}>
+                            Add
+                        </Button>
+                    </Box>
+
+                    <Stack spacing={2}>
+                        {config.assets.map(asset => (
+                            <Paper key={asset} variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                {/* 1. Asset Label (Fixed Width) */}
+                                <Box minWidth={80}>
+                                    <Typography variant="subtitle2" fontWeight="bold">{asset.replace('USDT','')}</Typography>
+                                </Box>
+
+                                {/* 2. Slider (Fluid) */}
+                                <Box flexGrow={1}>
+                                    <Slider 
+                                        value={config.allocation[asset] || 0} 
+                                        onChange={(_, v) => updateAllocation(asset, v)}
+                                        min={0} max={50} step={1} // Fine grain control
+                                        size="small"
+                                    />
+                                </Box>
+
+                                {/* 3. Percentage (Fixed Width) */}
+                                <Box minWidth={45} textAlign="right">
+                                    <Typography variant="body2" fontWeight="bold">{config.allocation[asset] || 0}%</Typography>
+                                </Box>
+
+                                {/* 4. Delete Action */}
+                                <IconButton size="small" color="error" onClick={() => handleRemoveAsset(asset)}>
+                                    <Delete fontSize="small" />
+                                </IconButton>
+                            </Paper>
+                        ))}
+                    </Stack>
+
+                    <Box mt={3} p={2} bgcolor={totalAllocation > 100 ? 'error.light' : 'action.hover'} borderRadius={2} textAlign="center">
+                        <Typography variant="subtitle1" fontWeight="bold" color={totalAllocation > 100 ? 'error.contrastText' : 'text.primary'}>
+                            Total Allocation: {totalAllocation}%
+                        </Typography>
+                        {totalAllocation !== 100 && (
+                            <Typography variant="caption" color={totalAllocation > 100 ? 'error.contrastText' : 'text.secondary'}>
+                                {totalAllocation < 100 ? `Unallocated: ${100 - totalAllocation}%` : `Overallocated by ${totalAllocation - 100}%`}
+                            </Typography>
+                        )}
+                    </Box>
+
+                    </AccordionDetails>
+                </Accordion>
+            </Stack>
         </Grid>
 
       </Grid>
