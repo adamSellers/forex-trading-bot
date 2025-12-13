@@ -3,15 +3,14 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Container, Grid, Paper, Typography, Button, Chip,
   FormControl, Select, MenuItem, IconButton, Box,
-  Card, CardContent, Stack, Avatar, LinearProgress,
-  useTheme, alpha, Tooltip, Alert, Tabs, Tab, Badge, Divider
+  Stack, Avatar, LinearProgress, useTheme, alpha,
+  Tooltip, Alert, Tabs, Tab, Badge, Divider, styled
 } from '@mui/material';
 import {
   PlayArrow, Stop, Refresh,
-  Psychology, MonetizationOn,
-  CheckCircle, Warning,
   AccountBalanceWallet, History, Bolt,
-  ShowChart, Timeline, ReceiptLong, Radar, PieChart
+  ShowChart, Timeline, ReceiptLong, Radar, PieChart,
+  Circle, SignalCellularAlt
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
 import { SOCKET_URL, tradingAPI } from '../config/api';
@@ -25,6 +24,30 @@ import LivePriceChart from './LivePriceChart';
 
 // --- CONSTANTS ---
 const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
+
+// --- STYLED COMPONENTS ---
+const GlassCard = styled(Paper)(({ theme }) => ({
+  background: alpha(theme.palette.background.paper, 0.05), // Very subtle base
+  backdropFilter: 'blur(10px)',
+  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+  borderRadius: theme.shape.borderRadius * 2,
+  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+  height: '100%',
+  overflow: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
+  transition: 'border-color 0.3s ease',
+  '&:hover': {
+    borderColor: alpha(theme.palette.primary.main, 0.3),
+  }
+}));
+
+// Fixed: Removed unused 'theme' argument
+const MetricValue = styled(Typography)(() => ({
+  fontFamily: '"Roboto Mono", monospace', // Tech look for numbers
+  fontWeight: 700,
+  letterSpacing: '-0.5px'
+}));
 
 const TradingDashboard = () => {
   const theme = useTheme();
@@ -164,68 +187,89 @@ const TradingDashboard = () => {
   // --- RENDER HELPERS ---
   
   const StatCard = ({ title, value, subValue, icon, color }) => (
-    <Card elevation={0} sx={{ 
-        bgcolor: alpha(theme.palette.background.paper, 0.5), 
-        border: 1, borderColor: 'divider', height: '100%'
-    }}>
-        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
+    <GlassCard elevation={0}>
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                 <Box>
-                    <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ textTransform: 'uppercase' }}>
+                    <Typography variant="overline" color="text.secondary" fontWeight="700" letterSpacing={1}>
                         {title}
                     </Typography>
-                    <Typography variant="h5" fontWeight="bold" sx={{ my: 0.5 }}>
+                    <MetricValue variant="h5" sx={{ mt: 0.5 }}>
                         {value}
-                    </Typography>
-                    {subValue && (
-                        <Typography variant="caption" sx={{ color: subValue.includes('+') ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
-                            {subValue}
-                        </Typography>
-                    )}
+                    </MetricValue>
                 </Box>
-                <Avatar variant="rounded" sx={{ bgcolor: alpha(color, 0.1), color: color, width: 40, height: 40 }}>
+                <Avatar variant="rounded" sx={{ 
+                    bgcolor: alpha(color, 0.1), 
+                    color: color, 
+                    width: 36, height: 36,
+                    border: `1px solid ${alpha(color, 0.2)}`
+                }}>
                     {icon}
                 </Avatar>
             </Box>
-        </CardContent>
-    </Card>
+            
+            {subValue && (
+                <Box mt={1} display="flex" alignItems="center" gap={0.5}>
+                    <Circle sx={{ width: 8, height: 8, color: subValue.includes('+') ? 'success.main' : (subValue.includes('0.0%') ? 'text.secondary' : 'error.main') }} />
+                    <Typography variant="caption" sx={{ 
+                        color: subValue.includes('+') ? 'success.main' : 'text.secondary', 
+                        fontWeight: 'bold',
+                        fontFamily: 'monospace'
+                    }}>
+                        {subValue}
+                    </Typography>
+                </Box>
+            )}
+        </Box>
+    </GlassCard>
   );
 
   if (loading && !systemStatus) return <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center"><LinearProgress sx={{ width: 300 }} /></Box>;
 
   return (
-    <Container maxWidth="xl" sx={{ py: 3, height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Container maxWidth={false} sx={{ py: 2, height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         
         {/* --- 1. HEADER & CONTROLS --- */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} px={1}>
             <Box display="flex" alignItems="center" gap={2}>
-                 <Typography variant="h5" fontWeight="900" sx={{ letterSpacing: -0.5 }}>
-                    CRYPTO<span style={{ color: theme.palette.primary.main }}>TREND</span>
-                </Typography>
-                <Divider orientation="vertical" flexItem />
-                <Chip 
-                    label={isLiveMode ? "LIVE NET" : "PAPER NET"} 
-                    size="small" 
-                    color={isLiveMode ? "error" : "warning"} 
-                    sx={{ fontWeight: 'bold', borderRadius: 1 }}
-                />
-                 <Chip 
-                    label={connectionStatus === 'connected' ? 'SYSTEM ONLINE' : 'OFFLINE'} 
-                    size="small" 
-                    color={connectionStatus === 'connected' ? 'success' : 'default'} 
-                    variant="outlined"
-                    sx={{ fontWeight: 'bold', borderRadius: 1 }}
-                />
+                 <Box display="flex" flexDirection="column">
+                    <Typography variant="h5" fontWeight="900" sx={{ letterSpacing: -0.5, lineHeight: 1 }}>
+                        CRYPTO<span style={{ color: theme.palette.primary.main }}>TREND</span>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 2 }}>
+                        TERMINAL V1.0
+                    </Typography>
+                 </Box>
+                 
+                <Divider orientation="vertical" flexItem sx={{ height: 30, alignSelf: 'center', mx: 1 }} />
+                
+                <Stack direction="row" spacing={1}>
+                    <Chip 
+                        icon={<SignalCellularAlt fontSize="small" />}
+                        label={isLiveMode ? "LIVE NET" : "PAPER TRADING"} 
+                        size="small" 
+                        color={isLiveMode ? "error" : "info"} 
+                        variant={isLiveMode ? "filled" : "outlined"}
+                        sx={{ fontWeight: 'bold', borderRadius: 1 }}
+                    />
+                    <Chip 
+                        label={connectionStatus === 'connected' ? 'SYSTEM ONLINE' : 'OFFLINE'} 
+                        size="small" 
+                        color={connectionStatus === 'connected' ? 'success' : 'default'} 
+                        variant="outlined"
+                        sx={{ fontWeight: 'bold', borderRadius: 1, borderColor: connectionStatus === 'connected' ? alpha(theme.palette.success.main, 0.5) : undefined }}
+                    />
+                </Stack>
             </Box>
 
             <Stack direction="row" spacing={2} alignItems="center">
-                 <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
-                     Last Sync: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '---'}
+                 <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', display: { xs: 'none', md: 'block' } }}>
+                     SYNC: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}
                  </Typography>
 
-                 <Tooltip title="Reset Engine">
-                    <IconButton size="small" color="warning" onClick={fetchInitialData}>
-                        <Refresh />
+                 <Tooltip title="Force Refresh">
+                    <IconButton size="small" onClick={fetchInitialData} sx={{ border: 1, borderColor: 'divider' }}>
+                        <Refresh fontSize="small" />
                     </IconButton>
                  </Tooltip>
                  
@@ -234,7 +278,7 @@ const TradingDashboard = () => {
                         value={selectedStrategy} 
                         onChange={handleStrategyChange} 
                         disabled={tradingEnabled}
-                        sx={{ height: 32, fontSize: '0.875rem' }}
+                        sx={{ height: 32, fontSize: '0.8rem', minWidth: 120, bgcolor: alpha(theme.palette.background.paper, 0.1) }}
                     >
                         <MenuItem value="conservative">🛡️ Conservative</MenuItem>
                         <MenuItem value="balanced">⚖️ Balanced</MenuItem>
@@ -248,23 +292,23 @@ const TradingDashboard = () => {
                     onClick={handleToggleTrading}
                     startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
                     size="small"
-                    sx={{ px: 3, fontWeight: 'bold' }}
+                    sx={{ px: 3, fontWeight: 'bold', boxShadow: tradingEnabled ? `0 0 15px ${theme.palette.error.main}` : 'none' }}
                  >
-                    {tradingEnabled ? "STOP" : "START"}
+                    {tradingEnabled ? "STOP ENGINE" : "START ENGINE"}
                  </Button>
             </Stack>
         </Box>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 
         {/* --- 2. KPI STRIP --- */}
-        <Grid container spacing={2} mb={2}>
+        <Grid container spacing={2} mb={2} sx={{ flexShrink: 0 }}>
             <Grid item xs={12} sm={6} md={3}>
                 <StatCard 
                     title="Total Equity" 
                     value={`$${(portfolio?.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                     subValue={`${(portfolio?.usdtBalance || 0).toFixed(2)} USDT Available`}
-                    icon={<AccountBalanceWallet />}
+                    icon={<AccountBalanceWallet fontSize="small" />}
                     color={theme.palette.primary.main}
                 />
             </Grid>
@@ -273,7 +317,7 @@ const TradingDashboard = () => {
                     title="24h PnL" 
                     value={`$${(portfolio?.dailyPnL || 0).toFixed(2)}`}
                     subValue={portfolio?.dailyPnL > 0 ? "+2.4%" : "0.0%"} 
-                    icon={<ShowChart />}
+                    icon={<ShowChart fontSize="small" />}
                     color={portfolio?.dailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main}
                 />
             </Grid>
@@ -281,17 +325,17 @@ const TradingDashboard = () => {
                 <StatCard 
                     title="Active Positions" 
                     value={portfolio?.positions?.length || 0}
-                    subValue={`${signalsToRender.length} Signals Detected`}
-                    icon={<Bolt />}
+                    subValue={`${signalsToRender.length} Signals Active`}
+                    icon={<Bolt fontSize="small" />}
                     color={theme.palette.warning.main}
                 />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
                 <StatCard 
-                    title="Performance" 
-                    value={`${portfolio?.performance?.totalTrades || 0} Trades`}
-                    subValue={`Win Rate: ${(portfolio?.performance?.winRate || 0).toFixed(1)}%`}
-                    icon={<History />}
+                    title="Win Rate" 
+                    value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`}
+                    subValue={`${portfolio?.performance?.totalTrades || 0} Trades Executed`}
+                    icon={<History fontSize="small" />}
                     color={theme.palette.info.main}
                 />
             </Grid>
@@ -300,47 +344,59 @@ const TradingDashboard = () => {
         {/* --- 3. MAIN WORKSPACE (Chart + Watchlist) --- */}
         <Grid container spacing={2} sx={{ flexGrow: 1, minHeight: 0, mb: 2 }}>
             {/* Chart Area */}
-            <Grid item xs={12} md={9} sx={{ display: 'flex', flexDirection: 'column' }}>
-                <Paper variant="outlined" sx={{ p: 2, flexGrow: 1, display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.4) }}>
-                    <Box display="flex" alignItems="center" gap={1} mb={1}>
+            <Grid item xs={12} md={9} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <GlassCard>
+                    <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
                         <Timeline color="primary" fontSize="small" />
-                        <Typography variant="subtitle2" fontWeight="bold">Market Overview</Typography>
+                        <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">MARKET OVERVIEW</Typography>
                     </Box>
-                    <Box flexGrow={1} sx={{ bgcolor: alpha(theme.palette.background.default, 0.5), borderRadius: 1, overflow: 'hidden' }}>
+                    <Box flexGrow={1} sx={{ position: 'relative' }}>
                         <LivePriceChart prices={prices} assets={activeChartAssets} height="100%" />
                     </Box>
-                </Paper>
+                </GlassCard>
             </Grid>
 
             {/* Watchlist Sidebar */}
-            <Grid item xs={12} md={3} sx={{ display: 'flex', flexDirection: 'column' }}>
-                <Paper variant="outlined" sx={{ p: 0, flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.4) }}>
-                     <LivePrices prices={prices} assets={activeChartAssets} />
-                </Paper>
+            <Grid item xs={12} md={3} sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <GlassCard>
+                    <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
+                        <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">LIVE MARKETS</Typography>
+                        <Chip label={activeChartAssets.length} size="small" sx={{ height: 20, fontSize: '0.7rem' }} />
+                    </Box>
+                    <Box flexGrow={1} sx={{ overflowY: 'auto', p: 0 }}>
+                         <LivePrices prices={prices} assets={activeChartAssets} />
+                    </Box>
+                </GlassCard>
             </Grid>
         </Grid>
 
         {/* --- 4. DATA TERMINAL (Bottom Tabs) --- */}
-        <Paper variant="outlined" sx={{ flexGrow: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: 350 }}>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} sx={{ minHeight: 40 }}>
+        <GlassCard sx={{ flexGrow: 0, height: 350, flexShrink: 0 }}>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.background.paper, 0.02) }}>
+                <Tabs 
+                    value={activeTab} 
+                    onChange={(_, v) => setActiveTab(v)} 
+                    textColor="primary"
+                    indicatorColor="primary"
+                    sx={{ minHeight: 48 }}
+                >
                     <Tab 
                         icon={<PieChart fontSize="small" />} iconPosition="start" 
-                        label="Holdings & Positions" sx={{ minHeight: 40 }} 
+                        label="HOLDINGS" sx={{ minHeight: 48, fontWeight: 'bold' }} 
                     />
                     <Tab 
                         icon={<Radar fontSize="small" />} iconPosition="start" 
-                        label={<Badge badgeContent={signalsToRender.length} color="primary">Signals Feed</Badge>} 
-                        sx={{ minHeight: 40 }} 
+                        label={<Badge badgeContent={signalsToRender.length} color="error" variant="dot" sx={{ pl: 1 }}>SIGNALS</Badge>} 
+                        sx={{ minHeight: 48, fontWeight: 'bold' }} 
                     />
                     <Tab 
                         icon={<ReceiptLong fontSize="small" />} iconPosition="start" 
-                        label="Execution History" sx={{ minHeight: 40 }} 
+                        label="HISTORY" sx={{ minHeight: 48, fontWeight: 'bold' }} 
                     />
                 </Tabs>
             </Box>
             
-            <Box sx={{ flexGrow: 1, overflow: 'hidden', p: 0 }}>
+            <Box sx={{ flexGrow: 1, overflow: 'hidden', position: 'relative' }}>
                 {activeTab === 0 && (
                     <Box height="100%" sx={{ overflowY: 'auto' }}>
                          <CurrentHoldings 
@@ -362,7 +418,7 @@ const TradingDashboard = () => {
                     </Box>
                 )}
             </Box>
-        </Paper>
+        </GlassCard>
 
     </Container>
   );
