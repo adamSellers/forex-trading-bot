@@ -1,4 +1,4 @@
-// backend/scripts/optimize-strategy.js - MARKOV REGIME EDITION
+// backend/scripts/optimize-strategy.js - LEAN CONFIG EDITION
 const Binance = require("node-binance-api");
 const readline = require("readline");
 
@@ -26,11 +26,11 @@ const CANDIDATES = [
     "PEPEUSDT",
 ];
 
-// Your "Golden Config" parameters
+// EXACT MATCH WITH PRODUCTION "LEAN CONFIG"
 const STRATEGY = {
-    adxThreshold: 40,
-    rsiBuyThreshold: 30,
-    rsiSellThreshold: 70,
+    minAdx: 30, // Volatility Requirement
+    rsiOversold: 30, // Dip Buy Trigger
+    rsiOverbought: 70, // Profit Take Trigger
     stopLossATR: 1.5,
     takeProfitATR: 3.0,
 };
@@ -143,10 +143,9 @@ function calculateADX(highs, lows, closes, period = 14) {
     return new Array(period * 2).fill(null).concat(adx);
 }
 
-// --- MARKOV REGIME ENGINE ---
+// --- MARKOV REGIME ENGINE (Kept for Stability Scoring) ---
 class MarkovRegime {
     constructor() {
-        // State 0: Bear, State 1: Chop, State 2: Bull
         this.transitionCounts = {
             0: { 0: 0, 1: 0, 2: 0 },
             1: { 0: 0, 1: 0, 2: 0 },
@@ -154,25 +153,17 @@ class MarkovRegime {
         };
         this.stateTotals = { 0: 0, 1: 0, 2: 0 };
     }
-
-    // Determine state based on Return and Volatility
-    determineState(pctChange, volatility) {
-        // High volatility threshold (simplified)
-        const VOL_THRESHOLD = 0.005; // 0.5% move in 1h
-
-        if (pctChange > VOL_THRESHOLD) return 2; // Strong Bull
-        if (pctChange < -VOL_THRESHOLD) return 0; // Strong Bear
-        return 1; // Chop/Noise
+    determineState(pctChange) {
+        const VOL_THRESHOLD = 0.005;
+        if (pctChange > VOL_THRESHOLD) return 2; // Bull
+        if (pctChange < -VOL_THRESHOLD) return 0; // Bear
+        return 1; // Chop
     }
-
     train(closes) {
         let prevState = null;
-
         for (let i = 1; i < closes.length; i++) {
             const pctChange = (closes[i] - closes[i - 1]) / closes[i - 1];
-            // Volatility could be ATR, but pctChange magnitude works for rough state
             const currentState = this.determineState(pctChange);
-
             if (prevState !== null) {
                 this.transitionCounts[prevState][currentState]++;
                 this.stateTotals[prevState]++;
@@ -180,25 +171,9 @@ class MarkovRegime {
             prevState = currentState;
         }
     }
-
-    getProbabilities() {
-        const probs = {};
-        for (let from = 0; from <= 2; from++) {
-            probs[from] = {};
-            const total = this.stateTotals[from] || 1;
-            for (let to = 0; to <= 2; to++) {
-                probs[from][to] = this.transitionCounts[from][to] / total;
-            }
-        }
-        return probs;
-    }
-
-    // "Stability Score": How likely is a Bull state to stay Bull?
-    // High persistence = Good for trend following
     getBullStability() {
-        const probs = this.getProbabilities();
-        // Return P(Bull->Bull)
-        return probs[2][2] || 0;
+        const total = this.stateTotals[2] || 1;
+        return this.transitionCounts[2][2] / total || 0;
     }
 }
 
@@ -267,11 +242,12 @@ function analyzeAsset(symbol, candles) {
     const adxArr = calculateADX(highs, lows, closes, 14);
     const atrArr = calculateATR(highs, lows, closes, 14);
 
-    // --- MARKOV ANALYSIS ---
+    // Train Markov for stability Score
     const markov = new MarkovRegime();
     markov.train(closes);
     const stabilityScore = markov.getBullStability();
 
+    // Start Simulation
     for (let i = 50; i < candles.length; i++) {
         const price = closes[i];
         const rsi = rsiArr[i];
@@ -280,13 +256,19 @@ function analyzeAsset(symbol, candles) {
 
         if (!rsi || !adx || !atr) continue;
 
-        if (!position) {
-            if (adx > STRATEGY.adxThreshold && rsi < STRATEGY.rsiBuyThreshold) {
-                const stopPrice = price - atr * STRATEGY.stopLossATR;
-                const riskPerShare = price - stopPrice;
-                if (riskPerShare <= 0) continue;
+        // --- PRODUCTION LOGIC MATCH START ---
 
-                let qty = (usdt * 0.02) / riskPerShare;
+        if (!position) {
+            // ENTRY: Volatility Snapback
+            // 1. High Volatility (ADX > 30)
+            // 2. Oversold Dip (RSI < 30)
+            if (adx > STRATEGY.minAdx && rsi < STRATEGY.rsiOversold) {
+                const stopDist = atr * STRATEGY.stopLossATR;
+                const stopPrice = price - stopDist;
+
+                // Risk Management
+                const riskPerShare = price - stopPrice;
+                let qty = (usdt * 0.02) / riskPerShare; // 2% Risk per trade
                 const maxQty = (usdt * 0.95) / price;
                 qty = Math.min(qty, maxQty);
 
@@ -297,22 +279,38 @@ function analyzeAsset(symbol, candles) {
                         sl: stopPrice,
                         tp: price + atr * STRATEGY.takeProfitATR,
                     };
-                    usdt -= qty * price * 1.001;
+                    usdt -= qty * price * 1.001; // Buy Fee
                 }
             }
         } else {
             let exitPrice = null;
-            if (lows[i] <= position.sl) exitPrice = position.sl;
-            else if (highs[i] >= position.tp) exitPrice = position.tp;
-            else if (rsi > STRATEGY.rsiSellThreshold) exitPrice = price;
+            let reason = "";
+
+            // EXIT 1: Stop Loss
+            if (lows[i] <= position.sl) {
+                exitPrice = position.sl;
+                reason = "SL";
+            }
+            // EXIT 2: Take Profit
+            else if (highs[i] >= position.tp) {
+                exitPrice = position.tp;
+                reason = "TP";
+            }
+            // EXIT 3: RSI Overbought (Profit Taking)
+            // This matches the updated SignalGenerator.js logic
+            else if (rsi > STRATEGY.rsiOverbought) {
+                exitPrice = price;
+                reason = "RSI_PEAK";
+            }
 
             if (exitPrice) {
-                usdt += exitPrice * position.qty * 0.999;
+                usdt += exitPrice * position.qty * 0.999; // Sell Fee
                 if (exitPrice > position.entry) wins++;
                 trades++;
                 position = null;
             }
         }
+        // --- PRODUCTION LOGIC MATCH END ---
     }
 
     return {
@@ -321,19 +319,23 @@ function analyzeAsset(symbol, candles) {
         roi: ((usdt - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100,
         trades,
         winRate: trades > 0 ? (wins / trades) * 100 : 0,
-        stabilityScore, // New Metric
+        stabilityScore,
     };
 }
 
 async function run() {
     try {
-        console.log("🚀 AI Portfolio Builder (Markov Chain Enhanced)");
+        console.log("🚀 LEAN STRATEGY OPTIMIZER (Volatility Snapback)");
+        console.log(
+            `ℹ️  Logic: Buy if ADX > ${STRATEGY.minAdx} AND RSI < ${STRATEGY.rsiOversold}`
+        );
+
         const daysInput = await askQuestion(
-            "Enter number of days to backtest (Rec: 365 or 730): "
+            "Enter number of days to backtest (Rec: 180 or 365): "
         );
         const days = parseInt(daysInput) || 365;
 
-        console.log(`\n🔄 Analyzing Market Regimes for last ${days} days...`);
+        console.log(`\n🔄 Analyzing last ${days} days...`);
         console.log("-----------------------------------");
 
         let results = [];
@@ -349,11 +351,9 @@ async function run() {
             }
         }
 
-        // Rank by a mix of Profit AND Stability
-        // We want profitable coins, but we prioritize those that STAY in bull trends
         results.sort((a, b) => b.profit - a.profit);
 
-        console.log(`\n🏆 ASSET PERFORMANCE RANKING (${days} Days)`);
+        console.log(`\n🏆 ASSET RANKING (${days} Days)`);
         console.log(
             "----------------------------------------------------------------------------------"
         );
@@ -366,7 +366,7 @@ async function run() {
 
         results.forEach((r) => {
             const pColor = r.profit > 0 ? "\x1b[32m" : "\x1b[31m";
-            const sColor = r.stabilityScore > 0.35 ? "\x1b[32m" : "\x1b[33m"; // >35% persistence is good for hourly
+            const sColor = r.stabilityScore > 0.3 ? "\x1b[32m" : "\x1b[33m";
             const reset = "\x1b[0m";
 
             console.log(
@@ -388,13 +388,12 @@ async function run() {
                 "\n⚠️ No assets were profitable. Recommendation: STAY IN CASH (USDT)."
             );
         } else {
-            // ALLOCATION LOGIC: Weight by Profit * Stability
-            // This rewards coins that are not just lucky, but consistent.
             let totalWeight = 0;
             const allocation = {};
 
+            // Weight by Profit * Stability
             winners.forEach((r) => {
-                const weight = r.profit * (1 + r.stabilityScore); // Boost stable coins
+                const weight = r.profit * (1 + r.stabilityScore);
                 totalWeight += weight;
                 r.weight = weight;
             });
@@ -405,7 +404,6 @@ async function run() {
                 allocation[r.symbol] = Math.round(share);
             });
 
-            // Normalize
             const currentTotal = Object.values(allocation).reduce(
                 (a, b) => a + b,
                 0
@@ -415,9 +413,7 @@ async function run() {
                 (k) => (allocation[k] = Math.round(allocation[k] * factor))
             );
 
-            console.log(
-                "\n💡 MARKOV-ADJUSTED ALLOCATION (Optimized for Regime Stability)"
-            );
+            console.log("\n💡 RECOMMENDED ALLOCATION (JSON)");
             console.log(
                 "-------------------------------------------------------------"
             );

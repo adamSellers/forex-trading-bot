@@ -15,7 +15,7 @@ class SignalGenerator extends EventEmitter {
             strategy: config.strategy || "balanced",
             timeframe: config.timeframe || "1h",
             signalCooldown: config.signalCooldown || 60000,
-            minStrength: config.minStrength || 20, // Interpreted as Min ADX strength now
+
             assets: config.assets || [
                 "BTCUSDT",
                 "ETHUSDT",
@@ -24,15 +24,16 @@ class SignalGenerator extends EventEmitter {
                 "TRUMPUSDT",
             ],
 
-            // --- NEW: Advanced Filter Config ---
+            // --- LEAN CONFIG DEFAULTS ---
+            // Updated to match the "Golden Config" from your backtest
             enableAdxFilter: config.enableAdxFilter !== false,
             adxPeriod: config.adxPeriod || 14,
-            minAdx: config.minAdx || 25, // Below 25 is considered "Chop/Ranging"
+            minAdx: config.minAdx || 30, // Updated to 30 (High Volatility Requirement)
 
             enableRsiFilter: config.enableRsiFilter !== false,
             rsiPeriod: config.rsiPeriod || 14,
             rsiOverbought: config.rsiOverbought || 70,
-            rsiOversold: config.rsiOversold || 30,
+            rsiOversold: config.rsiOversold || 30, // Updated to 30 (Dip Buying)
 
             // Volatility Config
             atrPeriod: config.atrPeriod || 14,
@@ -50,14 +51,14 @@ class SignalGenerator extends EventEmitter {
         this.signalHistory = [];
 
         logger.info(
-            `🎯 SMART Signal Generator initialized - Strategy: ${this.config.strategy} | ADX Filter: ${this.config.enableAdxFilter}`
+            `🧠 Signal Generator initialized - Strategy: Lean Snapback | Min ADX: ${this.config.minAdx}`
         );
     }
 
     start(binanceDataService, intervalMs = 60000) {
         if (this.isRunning) return;
 
-        logger.info(`🎯 Starting Signal Generator loop (${intervalMs}ms)...`);
+        logger.info(`🚀 Starting Signal Generator loop (${intervalMs}ms)...`);
         this.binanceDataService = binanceDataService;
         this.isRunning = true;
 
@@ -92,7 +93,7 @@ class SignalGenerator extends EventEmitter {
             if (signals.length > 0) {
                 this.emit("allSignalsGenerated", signals);
                 signals.forEach((s) => this.emit("signalGenerated", s));
-                logger.info(`📡 Generated ${signals.length} signals`);
+                logger.info(`⚡ Generated ${signals.length} signals`);
             }
         } catch (error) {
             logger.error("❌ Error in signal generation cycle:", error);
@@ -114,6 +115,7 @@ class SignalGenerator extends EventEmitter {
 
     /**
      * MAIN LOGIC: Calculates indicators and determines signal
+     * STRATEGY: Volatility Mean Reversion ("The Lean Config")
      */
     async generateSignal(symbol, candles, currentPrice) {
         try {
@@ -130,7 +132,7 @@ class SignalGenerator extends EventEmitter {
             const input = this.prepareInputData(candles);
             const strategy = this.strategyConfig[this.config.strategy];
 
-            // 1. Calculate Moving Averages (The Trend Direction)
+            // 1. Calculate Moving Averages (Kept for context & safety checks)
             let fastMAValues, slowMAValues;
             const maParamsFast = { values: input.close, period: strategy.fast };
             const maParamsSlow = { values: input.close, period: strategy.slow };
@@ -145,10 +147,8 @@ class SignalGenerator extends EventEmitter {
 
             const fastMA = fastMAValues[fastMAValues.length - 1];
             const slowMA = slowMAValues[slowMAValues.length - 1];
-            const prevFastMA = fastMAValues[fastMAValues.length - 2];
-            const prevSlowMA = slowMAValues[slowMAValues.length - 2];
 
-            // 2. Calculate ADX (The Trend Strength) - CRITICAL FIX
+            // 2. Calculate ADX (The Trend Strength)
             const adxInput = {
                 high: input.high,
                 low: input.low,
@@ -177,72 +177,53 @@ class SignalGenerator extends EventEmitter {
             const currentATR = atrValues[atrValues.length - 1];
             const atrPercent = (currentATR / currentPrice) * 100;
 
-            // --- LOGIC EVALUATION ---
+            // --- STRATEGY EVALUATION (LEAN CONFIG) ---
 
             let signalType = "HOLD";
             let reason = "Monitoring";
 
-            // Detect Crossovers
-            const goldenCross = prevFastMA <= prevSlowMA && fastMA > slowMA;
-            const deathCross = prevFastMA >= prevSlowMA && fastMA < slowMA;
-            const bullishHold = fastMA > slowMA;
-            const bearishHold = fastMA < slowMA;
+            // Conditions
+            const isHighVolatility = currentADX.adx > this.config.minAdx; // > 30
+            const isOversold = currentRSI < this.config.rsiOversold; // < 30
+            const isOverbought = currentRSI > this.config.rsiOverbought; // > 70
+            const trendBroken = fastMA < slowMA; // EMA Cross (Bearish)
 
-            // Filter Checks
-            const isChoppy =
-                this.config.enableAdxFilter &&
-                currentADX.adx < this.config.minAdx;
-            const isOverbought =
-                this.config.enableRsiFilter &&
-                currentRSI > this.config.rsiOverbought;
-            const isOversold =
-                this.config.enableRsiFilter &&
-                currentRSI < this.config.rsiOversold;
+            // ENTRY LOGIC: Volatility Snapback
+            // Buy when the trend is powerful (High ADX) but price has dipped (Low RSI)
+            if (isHighVolatility && isOversold) {
+                signalType = "BUY";
+                reason = `🔥 VOLATILITY SNAPBACK: Strong Trend (ADX ${currentADX.adx.toFixed(
+                    0
+                )}) + Oversold (RSI ${currentRSI.toFixed(0)})`;
+            }
 
-            // DECISION TREE
-            if (goldenCross) {
-                if (isChoppy) {
-                    signalType = "HOLD";
-                    reason = `Golden Cross ignored: Market is Choppy (ADX ${currentADX.adx.toFixed(
-                        1
-                    )} < ${this.config.minAdx})`;
-                } else if (isOverbought) {
-                    signalType = "HOLD";
-                    reason = `Golden Cross ignored: RSI Overbought (${currentRSI.toFixed(
-                        1
-                    )})`;
-                } else {
-                    signalType = "BUY";
-                    reason = "Golden Cross + Strong Trend";
-                }
-            } else if (deathCross) {
-                if (isChoppy) {
-                    signalType = "HOLD";
-                    reason = `Death Cross ignored: Market is Choppy (ADX ${currentADX.adx.toFixed(
-                        1
-                    )} < ${this.config.minAdx})`;
-                } else if (isOversold) {
-                    signalType = "HOLD";
-                    reason = `Death Cross ignored: RSI Oversold (${currentRSI.toFixed(
-                        1
-                    )})`;
-                } else {
-                    signalType = "SELL";
-                    reason = "Death Cross + Trend Breakdown";
-                }
-            } else if (bullishHold) {
-                signalType = "HOLD_BULLISH";
-                reason = "Trend is Up";
-            } else if (bearishHold) {
-                signalType = "HOLD_BEARISH";
-                reason = "Trend is Down";
+            // EXIT LOGIC: Profit Taking
+            // Sell when price is overextended
+            else if (isOverbought) {
+                signalType = "SELL";
+                reason = `💰 OVERBOUGHT EXIT: RSI ${currentRSI.toFixed(
+                    0
+                )} hit peak`;
+            }
+
+            // EXIT LOGIC: Safety Net (Optional - uncomment to enable)
+            // If the macro trend breaks, get out to prevent bag holding
+            /* else if (trendBroken) {
+                 signalType = "SELL";
+                 reason = "📉 SAFETY EXIT: Trend Collapse (EMA Cross)";
+            }
+            */
+            else {
+                reason = `Monitoring (ADX: ${currentADX.adx.toFixed(
+                    1
+                )} | RSI: ${currentRSI.toFixed(1)})`;
             }
 
             return {
                 symbol,
                 signal: signalType,
                 strength: currentADX.adx, // Use ADX as the definitive strength metric
-                strategy: this.config.strategy,
+                strategy: "mean_reversion_lean",
                 message: reason,
                 timestamp: Date.now(),
                 data: {
@@ -253,11 +234,10 @@ class SignalGenerator extends EventEmitter {
                     adx: currentADX.adx,
                     atr: currentATR,
                     atrPercent: atrPercent,
-                    isChoppy,
+                    isChoppy: !isHighVolatility,
                     isOverbought,
                     isOversold,
                 },
-                // Standardizing ATR for the engine
                 atr: currentATR,
                 atrPercent: atrPercent,
             };
@@ -316,7 +296,7 @@ class SignalGenerator extends EventEmitter {
                         logger.info(
                             `🔔 ${
                                 signal.signal
-                            } ${asset} | Strength(ADX): ${signal.strength.toFixed(
+                            } ${asset} | ADX: ${signal.strength.toFixed(
                                 1
                             )} | RSI: ${signal.data.rsi.toFixed(1)}`
                         );
