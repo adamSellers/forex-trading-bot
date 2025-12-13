@@ -1,42 +1,65 @@
-// backend/scripts/optimize-strategy.js - GOLDEN CONFIG VALIDATOR
-// Standalone Backtester - Verifies your specific Live Config
-
+// backend/scripts/optimize-strategy.js - COMPARISON EDITION
 const Binance = require("node-binance-api");
+const readline = require("readline");
 
 // --- CONFIGURATION ---
-const SYMBOLS = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT"]; // Top 4 Assets
-const TIMEFRAME = "1h";
-const DAYS_OF_HISTORY = 90; // 2 Months of recent data
+const CANDIDATES = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "TRXUSDT",
+    "AVAXUSDT",
+    "SHIBUSDT",
+    "TONUSDT",
+    "LINKUSDT",
+    "DOTUSDT",
+    "BCHUSDT",
+    "LTCUSDT",
+    "UNIUSDT",
+    "NEARUSDT",
+    "MATICUSDT",
+    "ICPUSDT",
+    "PEPEUSDT",
+];
 
-// 🎯 TARGET: Your "Golden Config" (Single Value for Validation)
-const PARAM_GRID = {
-    adxThreshold: [30], // Live: 30
-    rsiBuyThreshold: [30], // Live: 30
-    rsiSellThreshold: [70], // Live: 70
-    stopLossATR: [1.5], // Live: 1.5
-    takeProfitATR: [3.0], // Live: 3.0
+// Your "Golden Config" parameters
+const STRATEGY = {
+    adxThreshold: 30,
+    rsiBuyThreshold: 30,
+    rsiSellThreshold: 70,
+    stopLossATR: 1.5,
+    takeProfitATR: 3.0,
 };
 
-// Initialize without keys (Public data only)
-const binance = new Binance().options({
-    family: 4,
-    log: () => {}, // Silence default logs
+// Current Production Settings for Comparison
+const CURRENT_PORTFOLIO = {
+    BTCUSDT: 0.3,
+    ETHUSDT: 0.3,
+    BNBUSDT: 0.2,
+    DOGEUSDT: 0.2,
+};
+
+const TIMEFRAME = "1h";
+const INITIAL_CAPITAL_PER_ASSET = 1000;
+
+const binance = new Binance().options({ family: 4, log: () => {} });
+
+// --- UTILS ---
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
 });
+const askQuestion = (query) =>
+    new Promise((resolve) => rl.question(query, resolve));
 
 // --- INDICATOR MATH ---
-function calculateEMA(data, period) {
-    const k = 2 / (period + 1);
-    let emaArray = [data[0]];
-    for (let i = 1; i < data.length; i++) {
-        emaArray.push(data[i] * k + emaArray[i - 1] * (1 - k));
-    }
-    return emaArray;
-}
-
 function calculateRSI(closes, period = 14) {
     let gains = 0,
         losses = 0;
-    // Initial Average
     for (let i = 1; i <= period; i++) {
         const change = closes[i] - closes[i - 1];
         if (change > 0) gains += change;
@@ -44,16 +67,12 @@ function calculateRSI(closes, period = 14) {
     }
     let avgGain = gains / period;
     let avgLoss = losses / period;
-
     const rsiArray = new Array(period).fill(null);
     rsiArray.push(100 - 100 / (1 + avgGain / avgLoss));
-
-    // Smoothed
     for (let i = period + 1; i < closes.length; i++) {
         const change = closes[i] - closes[i - 1];
         const gain = change > 0 ? change : 0;
         const loss = change < 0 ? Math.abs(change) : 0;
-
         avgGain = (avgGain * (period - 1) + gain) / period;
         avgLoss = (avgLoss * (period - 1) + loss) / period;
         rsiArray.push(100 - 100 / (1 + avgGain / avgLoss));
@@ -94,7 +113,6 @@ function calculateADX(highs, lows, closes, period = 14) {
             m: down > up && down > 0 ? down : 0,
         };
     };
-
     let tr = [],
         pdm = [],
         mdm = [];
@@ -104,54 +122,44 @@ function calculateADX(highs, lows, closes, period = 14) {
         pdm.push(dm.p);
         mdm.push(dm.m);
     }
-
     const smooth = (arr) => {
         let s = [arr.slice(0, period).reduce((a, b) => a + b, 0)];
         for (let i = period; i < arr.length; i++)
             s.push(s[s.length - 1] - s[s.length - 1] / period + arr[i]);
         return s;
     };
-
     const sTR = smooth(tr);
     const sPDM = smooth(pdm);
     const sMDM = smooth(mdm);
-
-    let adx = [];
-    let dxList = [];
-
+    let adx = [],
+        dxList = [];
     for (let i = 0; i < sTR.length; i++) {
         const diPlus = (sPDM[i] / sTR[i]) * 100;
         const diMinus = (sMDM[i] / sTR[i]) * 100;
         const dx = (Math.abs(diPlus - diMinus) / (diPlus + diMinus)) * 100;
         dxList.push(dx);
-
         if (i >= period - 1) {
-            if (adx.length === 0) {
+            if (adx.length === 0)
                 adx.push(
                     dxList
                         .slice(i - period + 1, i + 1)
                         .reduce((a, b) => a + b, 0) / period
                 );
-            } else {
-                adx.push((adx[adx.length - 1] * (period - 1) + dx) / period);
-            }
-        } else {
-            adx.push(null);
-        }
+            else adx.push((adx[adx.length - 1] * (period - 1) + dx) / period);
+        } else adx.push(null);
     }
     return new Array(period * 2).fill(null).concat(adx);
 }
 
-// --- ENGINE LOGIC ---
-
-async function fetchHistory(symbol) {
-    process.stdout.write(`📥 ${symbol}: Fetching history... `);
+// --- ENGINE ---
+async function fetchHistory(symbol, days) {
+    process.stdout.write(`📥 ${symbol}: Fetching ${days} days... `);
     const limit = 1000;
     let allCandles = [];
     let endTime = Date.now();
+    const startTime = endTime - days * 24 * 60 * 60 * 1000;
 
-    // Fetch loop
-    while (allCandles.length < DAYS_OF_HISTORY * 24) {
+    while (true) {
         const candles = await new Promise((resolve) => {
             binance.candlesticks(
                 symbol,
@@ -168,7 +176,6 @@ async function fetchHistory(symbol) {
                             high: parseFloat(t[2]),
                             low: parseFloat(t[3]),
                             close: parseFloat(t[4]),
-                            volume: parseFloat(t[5]),
                         }))
                     );
                 },
@@ -177,22 +184,26 @@ async function fetchHistory(symbol) {
         });
 
         if (candles.length === 0) break;
-        allCandles = [...candles, ...allCandles];
+        const validCandles = candles.filter((c) => c.time >= startTime);
+        allCandles = [...validCandles, ...allCandles];
+        if (
+            validCandles.length < candles.length ||
+            candles[0].time <= startTime
+        )
+            break;
         endTime = candles[0].time - 1;
         await new Promise((r) => setTimeout(r, 100));
     }
 
-    allCandles.sort((a, b) => a.time - b.time);
-    const unique = allCandles.filter(
-        (v, i, a) => a.findIndex((t) => t.time === v.time) === i
-    );
-
-    console.log(`✅ Loaded ${unique.length} candles`);
+    const unique = allCandles
+        .sort((a, b) => a.time - b.time)
+        .filter((v, i, a) => a.findIndex((t) => t.time === v.time) === i);
+    console.log(`${unique.length} candles`);
     return unique;
 }
 
-function simulateTrade(symbol, candles, params) {
-    let usdt = 1000;
+function simulateTrade(symbol, candles) {
+    let usdt = INITIAL_CAPITAL_PER_ASSET;
     let position = null;
     let trades = 0;
     let wins = 0;
@@ -210,150 +221,224 @@ function simulateTrade(symbol, candles, params) {
         const rsi = rsiArr[i];
         const adx = adxArr[i];
         const atr = atrArr[i];
-        const high = highs[i];
-        const low = lows[i];
-        const date = new Date(candles[i].time).toLocaleString();
 
         if (!rsi || !adx || !atr) continue;
 
         if (!position) {
-            // BUY SIGNAL: Strict Golden Config
-            if (adx > params.adxThreshold && rsi < params.rsiBuyThreshold) {
-                const stopPrice = price - atr * params.stopLossATR;
+            if (adx > STRATEGY.adxThreshold && rsi < STRATEGY.rsiBuyThreshold) {
+                const stopPrice = price - atr * STRATEGY.stopLossATR;
                 const riskPerShare = price - stopPrice;
                 if (riskPerShare <= 0) continue;
 
-                // Position Sizing: Risk 2% of Account
                 let qty = (usdt * 0.02) / riskPerShare;
                 const maxQty = (usdt * 0.95) / price;
                 qty = Math.min(qty, maxQty);
 
-                if (qty * price < 10) continue;
-
-                const cost = qty * price;
-                usdt -= cost;
-                usdt -= cost * 0.001;
-
-                position = {
-                    entry: price,
-                    qty,
-                    sl: stopPrice,
-                    tp: price + atr * params.takeProfitATR,
-                };
-
-                console.log(
-                    `  🟢 BUY  ${symbol} @ $${price.toFixed(
-                        4
-                    )} | Time: ${date} | ADX: ${adx.toFixed(1)}`
-                );
+                if (qty * price > 10) {
+                    position = {
+                        entry: price,
+                        qty,
+                        sl: stopPrice,
+                        tp: price + atr * STRATEGY.takeProfitATR,
+                    };
+                    usdt -= qty * price * 1.001;
+                }
             }
         } else {
-            // SELL CHECKS
             let exitPrice = null;
-            let reason = "";
-
-            if (low <= position.sl) {
-                exitPrice = position.sl;
-                reason = "STOP_LOSS";
-            } else if (high >= position.tp) {
-                exitPrice = position.tp;
-                reason = "TAKE_PROFIT";
-            } else if (rsi > params.rsiSellThreshold) {
-                exitPrice = price;
-                reason = "RSI_EXIT";
-            }
+            if (lows[i] <= position.sl) exitPrice = position.sl;
+            else if (highs[i] >= position.tp) exitPrice = position.tp;
+            else if (rsi > STRATEGY.rsiSellThreshold) exitPrice = price;
 
             if (exitPrice) {
-                const revenue = exitPrice * position.qty;
-                usdt += revenue;
-                usdt -= revenue * 0.001;
-
-                const pnl = revenue - position.entry * position.qty;
-                const isWin = pnl > 0;
-
-                if (isWin) wins++;
+                usdt += exitPrice * position.qty * 0.999;
+                if (exitPrice > position.entry) wins++;
                 trades++;
-
-                const icon = isWin ? "💰" : "🔻";
-                console.log(
-                    `  ${icon} SELL ${symbol} @ $${exitPrice.toFixed(
-                        4
-                    )} | PnL: $${pnl.toFixed(2)} (${reason})`
-                );
-
                 position = null;
             }
         }
     }
-
     return {
-        profit: usdt - 1000,
+        symbol,
+        profit: usdt - INITIAL_CAPITAL_PER_ASSET,
+        roi: (usdt - INITIAL_CAPITAL_PER_ASSET) / INITIAL_CAPITAL_PER_ASSET, // Decimal ROI (0.10 = 10%)
         trades,
         winRate: trades > 0 ? (wins / trades) * 100 : 0,
     };
 }
 
 async function run() {
-    console.log("🚀 Starting LIVE CONFIG Validation...");
-    console.log(
-        `⚙️  Params: ADX>${PARAM_GRID.adxThreshold[0]} | TP:${PARAM_GRID.takeProfitATR[0]}xATR | SL:${PARAM_GRID.stopLossATR[0]}xATR`
-    );
+    try {
+        console.log("🚀 Interactive Portfolio Builder & Comparison");
+        const daysInput = await askQuestion(
+            "Enter number of days to backtest (e.g. 180): "
+        );
+        const days = parseInt(daysInput) || 180;
 
-    // Fetch Data
-    const marketData = {};
-    for (const sym of SYMBOLS) {
-        try {
-            marketData[sym] = await fetchHistory(sym);
-        } catch (e) {
-            console.error(`Failed to load ${sym}`);
+        console.log(`\n🔄 Starting Optimization for last ${days} days...`);
+        console.log("-----------------------------------");
+
+        let results = [];
+        let resultMap = {};
+
+        for (const sym of CANDIDATES) {
+            try {
+                const data = await fetchHistory(sym, days);
+                if (data.length < 50) {
+                    console.log(`⚠️  Skipping ${sym} (Insufficient data)`);
+                    continue;
+                }
+                const res = simulateTrade(sym, data);
+                results.push(res);
+                resultMap[sym] = res;
+            } catch (e) {
+                console.error(`Error processing ${sym}:`, e.message);
+            }
         }
-    }
 
-    // Run Single Simulation
-    const params = {
-        adxThreshold: PARAM_GRID.adxThreshold[0],
-        rsiBuyThreshold: PARAM_GRID.rsiBuyThreshold[0],
-        rsiSellThreshold: PARAM_GRID.rsiSellThreshold[0],
-        stopLossATR: PARAM_GRID.stopLossATR[0],
-        takeProfitATR: PARAM_GRID.takeProfitATR[0],
-    };
+        results.sort((a, b) => b.profit - a.profit);
 
-    let totalProfit = 0;
-    let totalTrades = 0;
-    let totalWins = 0;
-
-    for (const sym of SYMBOLS) {
-        if (!marketData[sym] || marketData[sym].length === 0) continue;
-        console.log(`\n--- Simulating ${sym} ---`);
-        const res = simulateTrade(sym, marketData[sym], params);
-
+        // --- 1. ASSET RANKING TABLE ---
+        console.log(`\n🏆 ASSET PERFORMANCE RANKING (${days} Days)`);
         console.log(
-            `👉 ${sym} Result: $${res.profit.toFixed(2)} | Trades: ${
-                res.trades
-            }`
+            "-----------------------------------------------------------------"
+        );
+        console.log(
+            "Symbol      | Profit ($) | Return (%) | Win Rate | Trades"
+        );
+        console.log(
+            "-----------------------------------------------------------------"
         );
 
-        totalProfit += res.profit;
-        totalTrades += res.trades;
-        if (res.winRate > 0) totalWins += (res.winRate / 100) * res.trades;
+        results.forEach((r) => {
+            const pColor = r.profit > 0 ? "\x1b[32m" : "\x1b[31m";
+            const reset = "\x1b[0m";
+            console.log(
+                `${r.symbol.padEnd(12)}| ${pColor}$${r.profit
+                    .toFixed(2)
+                    .padEnd(9)}${reset}| ${pColor}${(r.roi * 100).toFixed(
+                    1
+                )}%${reset}`.padEnd(38) +
+                    `| ${r.winRate.toFixed(0)}%      | ${r.trades}`
+            );
+        });
+
+        // --- 2. CALCULATE OPTIMIZED ALLOCATION ---
+        const winners = results.filter((r) => r.profit > 0).slice(0, 5);
+        let optimizedAllocation = {};
+
+        if (winners.length > 0) {
+            const totalProfit = winners.reduce((sum, r) => sum + r.profit, 0);
+            winners.forEach((r) => {
+                let share = r.profit / totalProfit; // Decimal
+                // Cap between 5% and 35%
+                share = Math.max(0.05, Math.min(0.35, share));
+                optimizedAllocation[r.symbol] = share;
+            });
+            // Normalize to 1.0 (100%)
+            const currentTotal = Object.values(optimizedAllocation).reduce(
+                (a, b) => a + b,
+                0
+            );
+            Object.keys(optimizedAllocation).forEach(
+                (k) =>
+                    (optimizedAllocation[k] =
+                        optimizedAllocation[k] / currentTotal)
+            );
+        }
+
+        // --- 3. PORTFOLIO COMPARISON (Hypothetical $10,000 Portfolio) ---
+        const PORTFOLIO_SIZE = 10000;
+
+        const calcPortfolioPerf = (name, allocation) => {
+            let totalProfit = 0;
+            let weightedWinRate = 0;
+            let covered = 0;
+
+            Object.entries(allocation).forEach(([symbol, weight]) => {
+                const res = resultMap[symbol];
+                if (res) {
+                    // Profit = Allocated Capital * ROI
+                    const allocatedCapital = PORTFOLIO_SIZE * weight;
+                    const profit = allocatedCapital * res.roi;
+                    totalProfit += profit;
+                    weightedWinRate += res.winRate * weight;
+                    covered += weight;
+                }
+            });
+
+            // Adjust if portfolio not fully covered (e.g. missing data)
+            if (covered > 0) weightedWinRate = weightedWinRate / covered;
+
+            return {
+                name,
+                totalProfit,
+                roi: (totalProfit / PORTFOLIO_SIZE) * 100,
+                winRate: weightedWinRate,
+            };
+        };
+
+        const currentPerf = calcPortfolioPerf(
+            "Current (PRD)",
+            CURRENT_PORTFOLIO
+        );
+        const optPerf = calcPortfolioPerf("Optimized", optimizedAllocation);
+
+        console.log(
+            `\n⚖️  STRATEGY SHOWDOWN ($${PORTFOLIO_SIZE.toLocaleString()} Portfolio)`
+        );
+        console.log(
+            "-----------------------------------------------------------------"
+        );
+        console.log(`Strategy       | Net Profit   | Total ROI | Avg Win Rate`);
+        console.log(
+            "-----------------------------------------------------------------"
+        );
+
+        const printPerf = (p) => {
+            const color = p.totalProfit > 0 ? "\x1b[32m" : "\x1b[31m";
+            const reset = "\x1b[0m";
+            console.log(
+                `${p.name.padEnd(15)}| ${color}$${p.totalProfit
+                    .toFixed(2)
+                    .padEnd(11)}${reset}| ${color}${p.roi.toFixed(
+                    2
+                )}%${reset}    | ${p.winRate.toFixed(1)}%`
+            );
+        };
+
+        printPerf(currentPerf);
+        printPerf(optPerf);
+
+        // --- 4. RECOMMENDATION ---
+        if (winners.length === 0) {
+            console.log(
+                "\n⚠️ No assets were profitable. Recommendation: STAY IN CASH (USDT)."
+            );
+        } else {
+            console.log("\n💡 RECOMMENDED CONFIGURATION (Copy to Config)");
+            console.log("---------------------------------------------");
+            // Convert back to integer percentages for display
+            let displayAlloc = {};
+            Object.entries(optimizedAllocation).forEach(
+                ([k, v]) => (displayAlloc[k] = Math.round(v * 100))
+            );
+
+            // Fix rounding error to ensure 100%
+            const sum = Object.values(displayAlloc).reduce((a, b) => a + b, 0);
+            if (sum !== 100) {
+                const k = Object.keys(displayAlloc)[0];
+                displayAlloc[k] += 100 - sum;
+            }
+
+            console.log(JSON.stringify(displayAlloc, null, 2));
+        }
+    } catch (err) {
+        console.error("Fatal Error:", err);
+    } finally {
+        rl.close();
+        process.exit(0);
     }
-
-    console.log("\n\n🏆 VALIDATION RESULTS 🏆");
-    console.log("---------------------------");
-    console.log(
-        `Total Simulated Profit: $${totalProfit.toFixed(
-            2
-        )} (on $1000 per asset)`
-    );
-    console.log(`Total Trades: ${totalTrades}`);
-    console.log(
-        `Overall Win Rate: ${
-            totalTrades > 0 ? ((totalWins / totalTrades) * 100).toFixed(1) : 0
-        }%`
-    );
-
-    if (totalProfit > 0) console.log("✅ STRATEGY VALIDATED: PROFITABLE");
-    else console.log("⚠️ STRATEGY WARNING: CURRENT SETTINGS SHOW LOSS");
 }
 
 run();

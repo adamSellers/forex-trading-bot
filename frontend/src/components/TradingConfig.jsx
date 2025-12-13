@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - LINTER FIX
+// frontend/src/components/TradingConfig.jsx - FINE GRAIN CONTROL UPDATE
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Grid, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -19,7 +19,7 @@ const SUPPORTED_ASSETS = [
   'UNIUSDT', 'NEARUSDT', 'MATICUSDT', 'ICPUSDT', 'PEPEUSDT'
 ];
 
-// FIX: Define defaults OUTSIDE component to stabilize useEffect dependencies
+// Default configuration structure
 const DEFAULT_CONFIG = {
     // Account Settings
     maxCapitalAtRisk: 5000,
@@ -70,16 +70,15 @@ const TradingConfig = () => {
   const [success, setSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // FIX: Uses DEFAULT_CONFIG instead of state 'config' to avoid circular dependencies
+  // Fetch configuration
   const fetchCurrentConfig = useCallback(async () => {
     try {
       setLoading(true);
       const data = await tradingAPI.getStatus();
       
       if (data.config) {
-        // Map backend config to frontend state & Normalize Percentages
         const fetchedConfig = {
-          ...DEFAULT_CONFIG, // Use static default, not dynamic state
+          ...DEFAULT_CONFIG,
           ...data.config,
           riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
           maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
@@ -88,14 +87,13 @@ const TradingConfig = () => {
           allocation: { ...data.config.allocation }
         };
         
-        // Fix allocation percentages if they came in as decimals (0.3)
+        // Normalize allocation percentages
         Object.keys(fetchedConfig.allocation).forEach(key => {
             if (fetchedConfig.allocation[key] <= 1) {
-                fetchedConfig.allocation[key] = fetchedConfig.allocation[key] * 100;
+                fetchedConfig.allocation[key] = Math.round(fetchedConfig.allocation[key] * 100);
             }
         });
 
-        // Ensure assets array exists
         if (!fetchedConfig.assets) fetchedConfig.assets = [];
 
         setConfig(fetchedConfig);
@@ -106,7 +104,7 @@ const TradingConfig = () => {
     } finally {
       setLoading(false);
     }
-  }, []); // Dependency array is now truly empty and safe
+  }, []);
 
   useEffect(() => { 
       fetchCurrentConfig(); 
@@ -120,7 +118,6 @@ const TradingConfig = () => {
     setSaving(true);
     setError(null);
     try {
-      // Prepare payload for API (Convert to decimals/milliseconds)
       const configToSave = {
         ...config,
         riskPerTrade: config.riskPerTrade / 100,
@@ -130,7 +127,6 @@ const TradingConfig = () => {
         allocation: {}
       };
 
-      // Clean allocation (remove 0% or deleted assets) and convert to decimal
       config.assets.forEach(asset => {
           const alloc = config.allocation[asset] || 0;
           if (alloc > 0) configToSave.allocation[asset] = alloc / 100;
@@ -152,13 +148,12 @@ const TradingConfig = () => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
-  // --- Dynamic Asset Logic ---
   const handleAddAsset = () => {
       if (!newAsset || config.assets.includes(newAsset)) return;
       setConfig(prev => ({
           ...prev,
           assets: [...prev.assets, newAsset],
-          allocation: { ...prev.allocation, [newAsset]: 0 } // Start at 0%
+          allocation: { ...prev.allocation, [newAsset]: 0 }
       }));
       setNewAsset('');
   };
@@ -191,7 +186,6 @@ const TradingConfig = () => {
 
   return (
     <Box>
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">Trading Configuration</Typography>
         <Box display="flex" gap={2}>
@@ -369,7 +363,7 @@ const TradingConfig = () => {
           </Accordion>
         </Grid>
 
-        {/* 4. Portfolio Composition (DYNAMIC) */}
+        {/* 4. Portfolio Composition (FIXED STEP SIZE) */}
         <Grid item xs={12} md={6}>
           <Accordion defaultExpanded>
             <AccordionSummary expandIcon={<ExpandMore />}>
@@ -413,7 +407,7 @@ const TradingConfig = () => {
                         <Slider 
                             value={config.allocation[asset] || 0} 
                             onChange={(_, v) => updateAllocation(asset, v)}
-                            min={0} max={50} step={5}
+                            min={0} max={50} step={1} // <--- UPDATED: Step is now 1%
                             size="small"
                         />
                     </Box>
@@ -430,7 +424,7 @@ const TradingConfig = () => {
           </Accordion>
         </Grid>
         
-        {/* 5. Notifications (RESTORED) */}
+        {/* 5. Notifications */}
         <Grid item xs={12} md={6}>
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
