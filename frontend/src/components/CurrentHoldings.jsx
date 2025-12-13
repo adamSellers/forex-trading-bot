@@ -1,569 +1,253 @@
-// frontend/src/components/CurrentHoldings.jsx - Enhanced with Clear Tabs
+// frontend/src/components/CurrentHoldings.jsx - FINAL FIX
 import React, { useState } from 'react';
 import {
-  Box,
-  Paper,
-  Typography,
-  Card,
-  CardContent,
-  Grid,
-  Chip,
-  Divider,
-  Tabs,
-  Tab,
-  Alert,
-  IconButton,
-  Tooltip
+  Box, Paper, Typography, Card, CardContent, Chip, Tabs, Tab,
+  IconButton, Tooltip, Stack, LinearProgress, useTheme, alpha, Grid, Divider, Alert
 } from '@mui/material';
 import {
-  AccountBalance,
-  MonetizationOn,
-  Psychology,
-  CompareArrows,
-  Info,
-  TrendingUp,
-  Wallet,
-  ShowChart
+  AccountBalance, MonetizationOn, Psychology, CompareArrows, Info,
+  Lock, LockOpen
 } from '@mui/icons-material';
 
-function TabPanel({ children, value, index, ...other }) {
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`portfolio-tabpanel-${index}`}
-      aria-labelledby={`portfolio-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
-    </div>
-  );
+function TabPanel({ children, value, index }) {
+  return <div hidden={value !== index}>{value === index && <Box sx={{ pt: 2 }}>{children}</Box>}</div>;
 }
 
 const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
-  // FIX: Use systemStatus as the primary source of truth for the configured mode.
+  const theme = useTheme();
   const isLiveMode = systemStatus?.config?.tradingMode === 'live';
-  // Default to the appropriate tab based on the configured mode.
   const [tabValue, setTabValue] = useState(isLiveMode ? 1 : 0);
-
-  // Define our trading assets
   const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE', 'TRUMP'];
 
-  // NEW: Helper to format prices with dynamic precision
-  const formatPrice = (value) => {
-    if (typeof value !== 'number' || isNaN(value)) return '$0.00';
-    if (value >= 1) return `$${value.toFixed(2)}`;
-    if (value >= 0.01) return `$${value.toFixed(4)}`;
-    return `$${value.toFixed(6)}`;
+  // --- HELPERS ---
+  const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+  const formatCrypto = (val) => parseFloat(val || 0).toFixed(4);
+  const getPaperValue = () => (portfolio?.usdtBalance || 0) + (portfolio?.cryptoValue || 0);
+  
+  const calculateRealValue = (balance) => {
+      if (balance.asset === 'USDT') return balance.total;
+      const p = prices[`${balance.asset}USDT`]?.price || 0;
+      return balance.total * p;
+  };
+  
+  const getRealTotal = () => {
+      if (!account?.balances) return 0;
+      return account.balances.reduce((acc, b) => {
+          if (TRADING_ASSETS.includes(b.asset)) return acc + calculateRealValue(b);
+          return acc;
+      }, 0);
   };
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value || 0);
-  };
+  // --- SUB-COMPONENTS ---
 
-  const formatCrypto = (value, decimals = 6) => {
-    if (value === 0) return '0';
-    return parseFloat(value).toFixed(decimals);
-  };
+  // 1. Detailed Position Row (For Bot/Paper Trading)
+  const PositionRow = ({ position }) => {
+      const asset = position.symbol.replace('USDT', '');
+      const pnl = position.unrealizedPnL || 0;
+      const isPositive = pnl >= 0;
+      const pnlColor = isPositive ? theme.palette.success.main : theme.palette.error.main;
+      const curPrice = prices[position.symbol]?.price || 0;
+      const durationHours = position.entryTime ? ((Date.now() - position.entryTime) / (1000 * 60 * 60)).toFixed(1) : 0;
 
-  const formatPercent = (value) => {
-    return `${(value || 0).toFixed(2)}%`;
-  };
-
-  const calculateAssetValue = (balance, prices) => {
-    if (!balance || !prices) return 0;
-    if (balance.asset === 'USDT') return balance.total;
-    const symbol = `${balance.asset}USDT`;
-    const price = prices[symbol]?.price || 0;
-    return balance.total * price;
-  };
-
-  // Calculate Real Portfolio Value
-  const getRealPortfolioValue = () => {
-    if (!account?.balances || !prices) return 0;
-    return account.balances
-      .filter(balance => TRADING_ASSETS.includes(balance.asset))
-      .reduce((total, balance) => total + calculateAssetValue(balance, prices), 0);
-  };
-
-  // Get Paper Trading Positions
-  const getPaperPositions = () => {
-    if (!portfolio?.positions) return [];
-    return portfolio.positions;
-  };
-
-  // Calculate Paper Portfolio Value
-  const getPaperPortfolioValue = () => {
-    const paperUSDT = portfolio?.usdtBalance || 0;
-    const paperCrypto = portfolio?.cryptoValue || 0;
-    return paperUSDT + paperCrypto;
-  };
-
-  // Paper Portfolio Asset Card
-  const PaperAssetCard = ({ asset, position, usdtBalance }) => {
-    // Determine if the position is live or paper
-    const isLive = position?.mode === 'live';
-    const cardColor = isLive ? 'rgba(76, 175, 80, 0.05)' : 'rgba(255, 193, 7, 0.05)';
-    const chipLabel = isLive ? 'Live Position' : 'Virtual Position';
-    const chipColor = isLive ? 'success' : 'warning';
-    const icon = isLive ? <MonetizationOn color="success" fontSize="small" /> : <Psychology color="warning" fontSize="small" />;
-
-    if (asset === 'USDT') {
       return (
-        <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: cardColor }}>
-          <CardContent sx={{ py: 1.5 }}>
-            <Box display="flex" alignItems="center" gap={2}>
-              {/* Column 1: Asset Name */}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {isLive ? <AccountBalance color="success" fontSize="small" /> : <Psychology color="warning" fontSize="small" />}
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    USDT
-                  </Typography>
-                  <Chip size="small" label={isLiveMode ? 'Live Cash' : 'Virtual Cash'} color={chipColor} variant="outlined" />
+        <Card variant="outlined" sx={{ mb: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.4) }}>
+            <CardContent sx={{ p: '12px !important' }}>
+                {/* Top Row: Main Info */}
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Box display="flex" alignItems="center" gap={1.5}>
+                        <Chip 
+                            label={asset} 
+                            color={isLiveMode ? "error" : "warning"} 
+                            size="small" 
+                            sx={{ fontWeight: 'bold' }} 
+                        />
+                        <Typography variant="body2" fontWeight="bold">
+                            {formatCrypto(position.quantity)} units
+                        </Typography>
+                        <Chip 
+                            label={`${durationHours}h`} 
+                            size="small" 
+                            variant="outlined" 
+                            sx={{ height: 20, fontSize: '0.7rem' }} 
+                        />
+                    </Box>
+                    <Box textAlign="right">
+                        <Typography variant="body2" fontWeight="bold" sx={{ color: pnlColor }}>
+                            {isPositive ? '+' : ''}{formatCurrency(pnl)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            Unrealized PnL
+                        </Typography>
+                    </Box>
                 </Box>
-              </Box>
-              {/* Column 2: Balance */}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="h6" color="warning.main" fontWeight="bold">
-                  {formatCrypto(usdtBalance, 2)}
-                </Typography>
-                <Typography variant="caption" color="textSecondary">
-                  Available for Trading
-                </Typography>
-              </Box>
-              {/* Column 3: USD Value */}
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" color={isLive ? 'success.main' : 'warning.main'}>
-                  {formatCurrency(usdtBalance)}
-                </Typography>
-                <Typography variant="caption" color="textSecondary">
-                  USD Value
-                </Typography>
-              </Box>
-              {/* Column 4: Allocation */}
-              <Box sx={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-                <Typography variant="body2" color="primary.main">
-                  {((usdtBalance / getPaperPortfolioValue()) * 100).toFixed(1)}%
-                </Typography>
-                <Typography variant="caption" color="textSecondary">
-                  Portfolio Allocation
-                </Typography>
-              </Box>
-            </Box>
-          </CardContent>
+
+                <Divider sx={{ my: 1, borderColor: alpha(theme.palette.divider, 0.1) }} />
+
+                {/* Bottom Row: Detailed Stats */}
+                <Grid container spacing={1}>
+                    <Grid item xs={3}>
+                        <Typography variant="caption" color="text.secondary" display="block">Entry</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatCurrency(position.avgPrice)}</Typography>
+                    </Grid>
+                    <Grid item xs={3}>
+                        <Typography variant="caption" color="text.secondary" display="block">Current</Typography>
+                        <Typography variant="caption" fontWeight="bold">{formatCurrency(curPrice)}</Typography>
+                    </Grid>
+                    <Grid item xs={3}>
+                        <Typography variant="caption" color="text.secondary" display="block">Stop Loss</Typography>
+                        <Typography variant="caption" color="error.main" fontWeight="bold">
+                            {position.stopLoss ? formatCurrency(position.stopLoss) : '---'}
+                        </Typography>
+                    </Grid>
+                    <Grid item xs={3} textAlign="right">
+                        <Typography variant="caption" color="text.secondary" display="block">Trailing</Typography>
+                        <Typography variant="caption" color="info.main" fontWeight="bold">
+                            {position.trailingStop ? formatCurrency(position.trailingStop) : '---'}
+                        </Typography>
+                    </Grid>
+                </Grid>
+            </CardContent>
         </Card>
       );
-    }
-
-    if (!position) return null;
-
-    const currentPrice = prices[position.symbol]?.price || 0;
-    const pnlColor = (position.unrealizedPnL || 0) >= 0 ? 'success.main' : 'error.main';
-
-    return (
-      <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: cardColor }}>
-        <CardContent sx={{ py: 1.5 }}>
-          <Box display="flex" alignItems="center" gap={1}>
-            {/* Column 1: Asset Name */}
-            <Box sx={{ flexBasis: '25%', minWidth: 0 }}>
-              <Box display="flex" alignItems="center" gap={1}>
-                {icon}
-                <Typography variant="subtitle1" fontWeight="bold">
-                  {asset}
-                </Typography>
-                <Chip size="small" label={chipLabel} color={chipColor} variant="outlined" />
-              </Box>
-            </Box>
-            {/* Column 2: Quantity */}
-            <Box sx={{ flexBasis: '16.67%', minWidth: 0 }}>
-              <Typography variant="body2" fontWeight="500">
-                {formatCrypto(position.quantity, asset === 'USDT' ? 2 : 6)}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Quantity
-              </Typography>
-            </Box>
-            {/* Column 3: Current Value */}
-            <Box sx={{ flexBasis: '16.67%', minWidth: 0 }}>
-              <Typography variant="body2" color={isLive ? 'success.main' : 'warning.main'}>
-                {formatCurrency(position.currentValue || 0)}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Current Value
-              </Typography>
-            </Box>
-            {/* Column 4: P&L */}
-            <Box sx={{ flexBasis: '16.67%', minWidth: 0 }}>
-              <Typography variant="body2" color={pnlColor} fontWeight="bold">
-                {(position.unrealizedPnL || 0) >= 0 ? '+' : ''}
-                {formatCurrency(position.unrealizedPnL || 0)}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Unrealized P&L
-              </Typography>
-            </Box>
-            {/* Column 5: Entry */}
-            <Box sx={{ flexBasis: '12.5%', minWidth: 0 }}>
-              <Typography variant="body2">
-                {formatCurrency(position.avgPrice || 0).replace('$', '')}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Entry
-              </Typography>
-            </Box>
-            {/* Column 6: Current */}
-            <Box sx={{ flexBasis: '12.5%', minWidth: 0, textAlign: 'right' }}>
-              <Typography variant="body2" fontWeight="500">
-                {formatPrice(currentPrice)}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Current
-              </Typography>
-            </Box>
-          </Box>
-          
-          {/* Position Details */}
-          <Box mt={1} p={1} sx={{ backgroundColor: isLive ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 193, 7, 0.1)', borderRadius: 1, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <Box sx={{ flex: '1 1 20%' }}>
-                <Typography variant="caption" color="textSecondary">Stop Loss:</Typography>
-                <Typography variant="caption" sx={{ ml: 0.5 }}>
-                  ${position.stopLoss?.toFixed(2) || 'N/A'}
-                </Typography>
-            </Box>
-            <Box sx={{ flex: '1 1 20%' }}>
-                <Typography variant="caption" color="textSecondary">Trailing Stop:</Typography>
-                <Typography variant="caption" sx={{ ml: 0.5, color: 'info.main', fontWeight: 'bold' }}>
-                  ${position.trailingStop?.toFixed(2) || 'N/A'}
-                </Typography>
-            </Box>
-            <Box sx={{ flex: '1 1 20%' }}>
-                <Typography variant="caption" color="textSecondary">Duration:</Typography>
-                <Typography variant="caption" sx={{ ml: 0.5 }}>
-                  {position.entryTime ? 
-                    Math.floor((Date.now() - position.entryTime) / (1000 * 60 * 60)) + 'h' : 
-                    'N/A'
-                  }
-                </Typography>
-            </Box>
-            <Box sx={{ flex: '1 1 20%' }}>
-                <Typography variant="caption" color="textSecondary">Entry Cost:</Typography>
-                <Typography variant="caption" sx={{ ml: 0.5 }}>
-                  {formatCurrency(position.entryCost || 0)}
-                </Typography>
-            </Box>
-            <Box sx={{ flex: '1 1 10%', textAlign: 'right' }}>
-                <Typography variant="caption" color="textSecondary">Allocation:</Typography>
-                <Typography variant="caption" sx={{ ml: 0.5 }}>
-                  {((position.currentValue || 0) / getPaperPortfolioValue() * 100).toFixed(1)}%
-                </Typography>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
-    );
   };
 
-  // Real Holdings Asset Card
-  const RealAssetCard = ({ balance }) => {
-    // Always show the USDT card, but only show other assets if they have a balance.
-    if (!balance || (balance.asset !== 'USDT' && balance.total === 0)) {
-      return null;
-    }
+  // 2. Real Balance Row (For Binance Account)
+  const BalanceRow = ({ balance }) => {
+      const value = calculateRealValue(balance);
+      const isUsdt = balance.asset === 'USDT';
 
-    const assetValue = calculateAssetValue(balance, prices);
-    const totalPortfolioValue = getRealPortfolioValue();
-    const allocation = totalPortfolioValue > 0 ? (assetValue / totalPortfolioValue) * 100 : 0;
+      return (
+        <Card variant="outlined" sx={{ mb: 1.5, bgcolor: alpha(theme.palette.success.main, 0.05), borderColor: alpha(theme.palette.success.main, 0.2) }}>
+            <CardContent sx={{ p: '12px !important' }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <Box display="flex" alignItems="center" gap={1.5}>
+                         <Chip 
+                            label={balance.asset} 
+                            color={isUsdt ? "success" : "default"} 
+                            size="small" 
+                            sx={{ fontWeight: 'bold' }} 
+                        />
+                        <Typography variant="body2" fontWeight="bold">
+                            {formatCurrency(value)}
+                        </Typography>
+                    </Box>
+                    <Typography variant="body2" fontWeight="bold" color="text.secondary">
+                        {formatCrypto(balance.total)}
+                    </Typography>
+                </Box>
 
-    return (
-      <Card variant="outlined" sx={{ mb: 1.5, backgroundColor: 'rgba(76, 175, 80, 0.05)' }}>
-        <CardContent sx={{ py: 1.5 }}>
-          <Box display="flex" alignItems="center" gap={2}>
-            {/* Column 1: Asset Name */}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box display="flex" alignItems="center" gap={1}>
-                <AccountBalance color="success" fontSize="small" />
-                <Typography variant="subtitle1" fontWeight="bold">
-                  {balance.asset}
-                </Typography>
-                <Chip size="small" label="Real Holdings" color="success" variant="outlined" />
-              </Box>
-            </Box>
-            {/* Column 2: Balance */}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="h6" color="success.main" fontWeight="bold">
-                {formatCrypto(balance.total, balance.asset === 'USDT' ? 2 : 6)}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Total Balance
-              </Typography>
-            </Box>
-            {/* Column 3: USD Value */}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="body2" color="success.main">
-                {formatCurrency(assetValue)}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                USD Value
-              </Typography>
-            </Box>
-            {/* Column 4: Allocation */}
-            <Box sx={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
-              <Typography variant="body2" color="primary.main">
-                {formatPercent(allocation)}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Portfolio %
-              </Typography>
-            </Box>
-          </Box>
-          
-          {balance.asset !== 'USDT' && (
-            <Box mt={1} p={1} sx={{ backgroundColor: 'rgba(76, 175, 80, 0.1)', borderRadius: 1, display: 'flex', gap: 2 }}>
-              <Box sx={{ flex: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Available:</Typography>
-                  <Typography variant="caption" sx={{ ml: 0.5 }}>
-                    {formatCrypto(balance.free, balance.asset === 'USDT' ? 2 : 6)}
-                  </Typography>
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                  <Typography variant="caption" color="textSecondary">Locked:</Typography>
-                  <Typography variant="caption" sx={{ ml: 0.5 }}>
-                    {formatCrypto(balance.locked, balance.asset === 'USDT' ? 2 : 6)}
-                  </Typography>
-              </Box>
-              <Box sx={{ flex: 1, textAlign: 'right' }}>
-                  <Typography variant="caption" color="textSecondary">Current Price:</Typography>
-                  <Typography variant="caption" sx={{ ml: 0.5 }}>
-                    {prices[`${balance.asset}USDT`]?.price ? formatPrice(prices[`${balance.asset}USDT`].price) : 'N/A'}
-                  </Typography>
-              </Box>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-    );
+                {!isUsdt && (
+                    <Box mt={1} display="flex" gap={2} fontSize="0.75rem" color="text.secondary">
+                        <Box display="flex" alignItems="center" gap={0.5}>
+                            <LockOpen fontSize="inherit" /> Free: {formatCrypto(balance.free)}
+                        </Box>
+                        <Box display="flex" alignItems="center" gap={0.5}>
+                            <Lock fontSize="inherit" /> Locked: {formatCrypto(balance.locked)}
+                        </Box>
+                    </Box>
+                )}
+            </CardContent>
+        </Card>
+      );
   };
 
   return (
-    <Paper sx={{ p: 3, height: '100%', width: '100%', boxSizing: 'border-box' }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h6">
-          Portfolio Holdings
-        </Typography>
-        <Tooltip title="This shows both your simulated paper trading positions and real Binance account holdings">
-          <IconButton size="small">
-            <Info fontSize="small" />
-          </IconButton>
+    <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.6) }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+        <Typography variant="h6" fontWeight="bold">Holdings</Typography>
+        <Tooltip title="Switch between Bot Portfolio and Real Binance Balances">
+          <IconButton size="small"><Info fontSize="small" /></IconButton>
         </Tooltip>
       </Box>
 
-      {/* Tab Navigation */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-          <Tab
-            icon={isLiveMode ? <MonetizationOn /> : <Psychology />}
-            label={isLiveMode ? 'Bot Live Trading' : 'Paper Trading'}
-            id="portfolio-tab-0"
-            sx={{ color: isLiveMode ? 'success.main' : 'warning.main' }}
-          />
-          <Tab 
-            icon={<AccountBalance />} 
-            label="Real Holdings" 
-            id="portfolio-tab-1"
-            sx={{ color: 'success.main' }}
-          />
-          <Tab 
-            icon={<CompareArrows />} 
-            label="Combined View" 
-            id="portfolio-tab-2"
-          />
-        </Tabs>
-      </Box>
+      <Tabs 
+        value={tabValue} 
+        onChange={(e, v) => setTabValue(v)} 
+        variant="fullWidth" 
+        sx={{ minHeight: 40, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab iconPosition="start" icon={isLiveMode ? <MonetizationOn fontSize="small" /> : <Psychology fontSize="small" />} label="Bot" sx={{ minHeight: 40 }} />
+        <Tab iconPosition="start" icon={<AccountBalance fontSize="small" />} label="Wallet" sx={{ minHeight: 40 }} />
+        <Tab iconPosition="start" icon={<CompareArrows fontSize="small" />} label="Net Worth" sx={{ minHeight: 40 }} />
+      </Tabs>
 
-      {/* Paper Trading Tab */}
-      <TabPanel value={tabValue} index={0}>
-        <Alert severity={isLiveMode ? 'success' : 'warning'} sx={{ mb: 2 }}>
-          <Box display="flex" alignItems="center" gap={1}>
-            {isLiveMode ? <MonetizationOn /> : <Psychology />}
-            <Typography variant="body2">
-              <strong>{isLiveMode ? 'Live Trading Portfolio' : 'Paper Trading Portfolio'}</strong> - {isLiveMode ? "These are the bot's real-time positions and performance." : 'These are simulated positions using virtual funds. No real money is at risk.'}
-            </Typography>
-          </Box>
-        </Alert>
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', mt: 2 }}>
+        
+        {/* TAB 1: BOT PORTFOLIO */}
+        <TabPanel value={tabValue} index={0}>
+             {/* Summary Header */}
+             <Box mb={2} p={1.5} borderRadius={1} bgcolor={alpha(isLiveMode ? theme.palette.error.main : theme.palette.warning.main, 0.1)}>
+                 <Grid container spacing={1} textAlign="center">
+                     <Grid item xs={6}>
+                         <Typography variant="caption" color="text.secondary">Total Equity</Typography>
+                         <Typography variant="subtitle1" fontWeight="bold" color={isLiveMode ? "error.main" : "warning.main"}>
+                             {formatCurrency(getPaperValue())}
+                         </Typography>
+                     </Grid>
+                     <Grid item xs={6}>
+                         <Typography variant="caption" color="text.secondary">Open PnL</Typography>
+                         <Typography variant="subtitle1" fontWeight="bold" color={(portfolio?.totalPnL || 0) >= 0 ? "success.main" : "error.main"}>
+                             {(portfolio?.totalPnL || 0) >= 0 ? '+' : ''}{formatCurrency(portfolio?.totalPnL)}
+                         </Typography>
+                     </Grid>
+                 </Grid>
+             </Box>
+             
+             {/* Cash Row */}
+             <Box display="flex" justifyContent="space-between" alignItems="center" p={1.5} mb={1.5} borderRadius={1} border={1} borderColor="divider">
+                 <Box display="flex" alignItems="center" gap={1}>
+                    <AccountBalance color="disabled" fontSize="small" />
+                    <Typography variant="body2">Available Cash (USDT)</Typography>
+                 </Box>
+                 <Typography variant="body2" fontWeight="bold">{formatCurrency(portfolio?.usdtBalance)}</Typography>
+             </Box>
+             
+             {/* Positions */}
+             {portfolio?.positions?.map(p => (
+                 <PositionRow key={p.symbol} position={p} />
+             ))}
 
-        <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} sx={{ mb: 2 }}>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">Total {isLiveMode ? 'Live' : 'Virtual'} Portfolio</Typography>
-              <Typography variant="h6" color={isLiveMode ? 'success.main' : 'warning.main'}>
-                {formatCurrency(getPaperPortfolioValue())}
-              </Typography>
-            </Card>
-          </Box>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">{isLiveMode ? 'Live' : 'Virtual'} P&L</Typography>
-              <Typography variant="h6" color={(portfolio?.totalPnL || 0) >= 0 ? 'success.main' : 'error.main'}>
-                {(portfolio?.totalPnL || 0) >= 0 ? '+' : ''}{formatCurrency(portfolio?.totalPnL || 0)}
-              </Typography>
-            </Card>
-          </Box>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(255, 193, 7, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">{isLiveMode ? 'Live' : 'Virtual'} Positions</Typography>
-              <Typography variant="h6" color={isLiveMode ? 'success.main' : 'warning.main'}>
-                {getPaperPositions().length}
-              </Typography>
-            </Card>
-          </Box>
-        </Box>
+             {(!portfolio?.positions?.length) && (
+                 <Typography align="center" py={4} color="text.secondary">No active positions.</Typography>
+             )}
+        </TabPanel>
 
-        <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-          {/* USDT Balance */}
-          <PaperAssetCard asset="USDT" usdtBalance={portfolio?.usdtBalance || 0} />
-          
-          {/* Paper Positions */}
-          {getPaperPositions().map(position => {
-            const asset = position.symbol.replace('USDT', '');
-            return (
-              <PaperAssetCard 
-                key={position.symbol} 
-                asset={asset} 
-                position={position} 
-              />
-            );
-          })}
+        {/* TAB 2: BINANCE WALLET */}
+        <TabPanel value={tabValue} index={1}>
+             <Box mb={2} p={1.5} borderRadius={1} bgcolor={alpha(theme.palette.success.main, 0.1)}>
+                 <Typography align="center" variant="caption" display="block" color="text.secondary">Binance Total Balance</Typography>
+                 <Typography align="center" variant="h5" fontWeight="bold" color="success.main">
+                     {formatCurrency(getRealTotal())}
+                 </Typography>
+             </Box>
 
-          {getPaperPositions().length === 0 && (
-            <Box textAlign="center" py={4}>
-              {isLiveMode ? <MonetizationOn sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} /> : <Psychology sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />}
-              <Typography variant="body2" color="textSecondary">
-                No {isLiveMode ? 'live' : 'virtual'} positions currently open
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                {isLiveMode ? 'Live trades will appear here when the bot executes signals' : 'Virtual trades will appear here when the paper trading engine executes signals'}
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      </TabPanel>
+             {account?.balances?.filter(b => TRADING_ASSETS.includes(b.asset) && (parseFloat(b.total) > 0 || b.asset === 'USDT')).map(b => (
+                 <BalanceRow key={b.asset} balance={b} />
+             ))}
 
-      {/* Real Holdings Tab */}
-      <TabPanel value={tabValue} index={1}>
-        <Alert severity="success" sx={{ mb: 2 }}>
-          <Box display="flex" alignItems="center" gap={1}>
-            <AccountBalance />
-            <Typography variant="body2">
-              <strong>Real Binance Account</strong> - These are your actual cryptocurrency holdings. Values are live from Binance API.
-            </Typography>
-          </Box>
-        </Alert>
+             {(!account?.balances) && (
+                 <Typography align="center" py={4} color="text.secondary">No balances found.</Typography>
+             )}
+        </TabPanel>
 
-        <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} sx={{ mb: 2 }}>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">Total Real Portfolio</Typography>
-              <Typography variant="h6" color="success.main">
-                {formatCurrency(getRealPortfolioValue())}
-              </Typography>
-            </Card>
-          </Box>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">Account Type</Typography>
-              <Typography variant="h6" color="success.main">
-                {account?.accountType || 'SPOT'}
-              </Typography>
-            </Card>
-          </Box>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1, backgroundColor: 'rgba(76, 175, 80, 0.1)' }}>
-              <Typography variant="caption" color="textSecondary">Assets Held</Typography>
-              <Typography variant="h6" color="success.main">
-                {account?.balances?.filter(b => b.total > 0).length || 0}
-              </Typography>
-            </Card>
-          </Box>
-        </Box>
-
-        <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
-          {account?.balances?.filter(balance => 
-            TRADING_ASSETS.includes(balance.asset) && (balance.total > 0 || balance.asset === 'USDT')
-          ).sort((a, b) => a.asset === 'USDT' ? -1 : b.asset === 'USDT' ? 1 : a.asset.localeCompare(b.asset)) // Keep USDT at the top
-          .map(balance => (
-            <RealAssetCard key={balance.asset} balance={balance} />
-          ))}
-
-          {(!account?.balances || account.balances.filter(b => TRADING_ASSETS.includes(b.asset) && b.total > 0).length === 0) && (
-            <Box textAlign="center" py={4}>
-              <AccountBalance sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-              <Typography variant="body2" color="textSecondary">
-                No holdings found in tracked assets
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                Tracking: {TRADING_ASSETS.join(', ')}
-              </Typography>
-            </Box>
-          )}
-        </Box>
-      </TabPanel>
-
-      {/* Combined View Tab (existing functionality) */}
-      <TabPanel value={tabValue} index={2}>
-        <Alert severity="info" sx={{ mb: 2 }}>
-          <Box display="flex" alignItems="center" gap={1}>
-            <CompareArrows />
-            <Typography variant="body2">
-              <strong>Combined Portfolio View</strong> - Side-by-side comparison of paper trading performance vs real holdings.
-            </Typography>
-          </Box>
-        </Alert>
-
-        <Box display="grid" gridTemplateColumns="repeat(3, 1fr)" gap={2} sx={{ mb: 2 }}>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
-              <Typography variant="caption" color="textSecondary">Paper Trading</Typography>
-              <Typography variant="h6" color="warning.main">
-                {formatCurrency(getPaperPortfolioValue())}
-              </Typography>
-            </Card>
-          </Box>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
-              <Typography variant="caption" color="textSecondary">Real Holdings</Typography>
-              <Typography variant="h6" color="success.main">
-                {formatCurrency(getRealPortfolioValue())}
-              </Typography>
-            </Card>
-          </Box>
-          <Box>
-            <Card variant="outlined" sx={{ textAlign: 'center', py: 1 }}>
-              <Typography variant="caption" color="textSecondary">Combined Total</Typography>
-              <Typography variant="h6" color="primary.main">
-                {formatCurrency(getPaperPortfolioValue() + getRealPortfolioValue())}
-              </Typography>
-            </Card>
-          </Box>
-        </Box>
-
-        {/* Combined asset view would go here - keeping existing logic */}
-        <Typography variant="body2" color="textSecondary" textAlign="center" py={2}>
-          Combined asset-by-asset comparison view
-        </Typography>
-      </TabPanel>
-
-      {/* Footer Info */}
-      <Box mt={2} p={1} sx={{ backgroundColor: 'action.hover', borderRadius: 1 }}>
-        <Typography variant="caption" color="textSecondary">
-          📊 <strong>Data Sources:</strong> Live market prices from Binance API • 
-          Paper positions from virtual trading engine • 
-          Real balances from Binance account • 
-          <strong>Last Update:</strong> {new Date().toLocaleTimeString()}
-        </Typography>
+        {/* TAB 3: NET WORTH */}
+        <TabPanel value={tabValue} index={2}>
+            <Stack spacing={2} mt={2}>
+                <Paper variant="outlined" sx={{ p: 3, textAlign: 'center', borderColor: theme.palette.primary.main }}>
+                    <Typography color="text.secondary" gutterBottom>Combined Net Worth</Typography>
+                    <Typography variant="h3" fontWeight="bold" color="primary.main">
+                        {formatCurrency(getPaperValue() + getRealTotal())}
+                    </Typography>
+                </Paper>
+                
+                <Alert severity="info" variant="outlined">
+                    <Typography variant="caption">
+                        This combines your Bot&apos;s allocated capital (Real or Paper) with your unallocated Binance Wallet funds.
+                    </Typography>
+                </Alert>
+            </Stack>
+        </TabPanel>
+      
       </Box>
     </Paper>
   );

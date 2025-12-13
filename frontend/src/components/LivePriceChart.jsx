@@ -1,17 +1,16 @@
-// frontend/src/components/LivePriceChart.jsx - UPDATED WITH SAFETY CHECK
+// frontend/src/components/LivePriceChart.jsx - SEAMLESS INTEGRATION
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Paper, Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
-  InputLabel, Select, MenuItem, Grid, CircularProgress, Alert, useTheme
+  Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
+  Select, MenuItem, Grid, CircularProgress, Alert, useTheme, alpha
 } from '@mui/material';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, Legend
+  ResponsiveContainer, Legend, Area
 } from 'recharts';
 import { tradingAPI } from '../config/api';
 import { calculateEMA } from '../utils/indicators';
 
-// --- Custom Hook for Data Management ---
 const useChartData = (asset, timeframe) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -20,41 +19,27 @@ const useChartData = (asset, timeframe) => {
     const fetchData = useCallback(async (isBackground = false) => {
         try {
             if (!isBackground) setLoading(true);
-            
             const response = await tradingAPI.getCandles(asset, timeframe);
-            
-            if (response && response.candles && response.candles.length > 0) {
+            if (response?.candles?.length > 0) {
                 const closes = response.candles.map(c => c.close);
-                
-                // Calculate Indicators locally
                 const fastMA = calculateEMA(closes, 20);
                 const slowMA = calculateEMA(closes, 50);
-
                 const processed = response.candles.map((c, i) => ({
                     ...c,
                     time: c.openTime, 
                     fastMA: fastMA[i],
                     slowMA: slowMA[i]
                 }));
-                
                 setData(processed);
                 setError(null);
             }
-        } catch (err) {
-            console.error("Chart Data Error:", err);
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { setError(err.message); } 
+        finally { setLoading(false); }
     }, [asset, timeframe]);
 
-    useEffect(() => {
-        setData([]); 
-        fetchData(false);
-    }, [fetchData]);
-
-    useEffect(() => {
-        const interval = setInterval(() => fetchData(true), 60 * 1000); 
+    useEffect(() => { setData([]); fetchData(false); }, [fetchData]);
+    useEffect(() => { 
+        const interval = setInterval(() => fetchData(true), 60000); 
         return () => clearInterval(interval);
     }, [fetchData]);
 
@@ -63,92 +48,93 @@ const useChartData = (asset, timeframe) => {
 
 const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'] }) => {
   const theme = useTheme();
-  // Initialize with the first asset in the provided list
   const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'BTCUSDT');
   const [timeframe, setTimeframe] = useState('1h');
   
-  // FIX: Ensure selectedAsset is valid when assets prop changes
   useEffect(() => {
-      if (assets.length > 0 && !assets.includes(selectedAsset)) {
-          setSelectedAsset(assets[0]);
-      }
+      if (assets.length > 0 && !assets.includes(selectedAsset)) setSelectedAsset(assets[0]);
   }, [assets, selectedAsset]);
   
   const { data: chartData, setData: setChartData, loading, error } = useChartData(selectedAsset, timeframe);
 
-  // --- Real-time Updates ---
+  // Live Update Logic
   useEffect(() => {
     const livePrice = prices[selectedAsset]?.price;
-    
     if (livePrice && chartData.length > 0) {
       setChartData(prev => {
         const newData = [...prev];
-        const lastIdx = newData.length - 1;
-        const lastCandle = { ...newData[lastIdx] };
-        
-        lastCandle.close = livePrice;
-        lastCandle.high = Math.max(lastCandle.high, livePrice);
-        lastCandle.low = Math.min(lastCandle.low, livePrice);
-        
-        newData[lastIdx] = lastCandle;
+        const last = { ...newData[newData.length - 1] };
+        last.close = livePrice;
+        last.high = Math.max(last.high, livePrice);
+        last.low = Math.min(last.low, livePrice);
+        newData[newData.length - 1] = last;
         return newData;
       });
     }
   }, [prices, selectedAsset, chartData.length, setChartData]);
 
-  // --- Derived Statistics ---
   const stats = useMemo(() => {
     if (!chartData.length) return null;
     const last = chartData[chartData.length - 1];
     const first = chartData[0];
     const change = last.close - first.close;
-    
     return {
         current: last.close,
         high: Math.max(...chartData.map(c => c.high)),
         low: Math.min(...chartData.map(c => c.low)),
         change: change,
-        changePercent: (change / first.close) * 100
+        pct: (change / first.close) * 100
     };
   }, [chartData]);
 
-  // --- Renderers ---
   const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
+    if (active && payload?.[0]) {
       const d = payload[0].payload;
       return (
-        <Paper sx={{ p: 1.5, bgcolor: 'background.paper', border: 1, borderColor: 'divider' }}>
+        <Box sx={{ 
+            p: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.9), 
+            border: 1, borderColor: 'divider', borderRadius: 1,
+            boxShadow: theme.shadows[4]
+        }}>
           <Typography variant="caption" color="text.secondary">
             {new Date(d.time).toLocaleString()}
           </Typography>
-          <Typography variant="subtitle2" color="primary.main">
+          <Typography variant="h6" color="primary.main" fontWeight="bold">
             ${d.close.toFixed(2)}
           </Typography>
-          <Box mt={1} fontSize={11}>
-            <div style={{ color: '#8884d8' }}>Fast EMA (20): ${d.fastMA?.toFixed(2)}</div>
-            <div style={{ color: '#82ca9d' }}>Slow EMA (50): ${d.slowMA?.toFixed(2)}</div>
-          </Box>
-        </Paper>
+          <Grid container spacing={1} sx={{ mt: 0.5, fontSize: 11 }}>
+             <Grid item xs={6} color="#8884d8">EMA(20): ${d.fastMA?.toFixed(2)}</Grid>
+             <Grid item xs={6} color="#82ca9d">EMA(50): ${d.slowMA?.toFixed(2)}</Grid>
+          </Grid>
+        </Box>
       );
     }
     return null;
   };
 
   return (
-    <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box height="100%" display="flex" flexDirection="column" sx={{ overflow: 'hidden' }}>
       
-      {/* Header Control Bar */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={2}>
-        <Typography variant="h6">Live Market Analysis</Typography>
+      {/* HEADER CONTROLS */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
+        {stats ? (
+            <Box>
+                <Typography variant="h5" fontWeight="bold" fontFamily="monospace">
+                    ${stats.current.toFixed(2)}
+                </Typography>
+                <Typography variant="caption" fontWeight="bold" sx={{ color: stats.change >= 0 ? 'success.main' : 'error.main' }}>
+                     {stats.change >= 0 ? '+' : ''}{stats.pct.toFixed(2)}% (24h)
+                </Typography>
+            </Box>
+        ) : <Box />}
         
-        <Box display="flex" gap={2}>
-          <FormControl size="small">
-            <InputLabel>Asset</InputLabel>
+        <Box display="flex" gap={1}>
+          <FormControl size="small" variant="standard" sx={{ minWidth: 100 }}>
             <Select 
                 value={selectedAsset} 
-                label="Asset" 
                 onChange={(e) => setSelectedAsset(e.target.value)}
-                sx={{ minWidth: 120 }}
+                disableUnderline
+                sx={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'primary.main' }}
             >
               {assets.map(a => <MenuItem key={a} value={a}>{a.replace('USDT','')}</MenuItem>)}
             </Select>
@@ -159,98 +145,85 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
             exclusive
             onChange={(e, v) => v && setTimeframe(v)}
             size="small"
+            sx={{ height: 32 }}
           >
-            <ToggleButton value="1h">1H</ToggleButton>
-            <ToggleButton value="4h">4H</ToggleButton>
-            <ToggleButton value="1d">1D</ToggleButton>
+            <ToggleButton value="1h" sx={{ px: 1 }}>1H</ToggleButton>
+            <ToggleButton value="4h" sx={{ px: 1 }}>4H</ToggleButton>
+            <ToggleButton value="1d" sx={{ px: 1 }}>1D</ToggleButton>
           </ToggleButtonGroup>
         </Box>
       </Box>
 
-      {/* Stats Bar */}
-      {stats && (
-        <Grid container spacing={2} mb={2} sx={{ bgcolor: 'action.hover', p: 1, borderRadius: 1 }}>
-            <Grid item xs={3} textAlign="center">
-                <Typography variant="caption" display="block" color="text.secondary">Current</Typography>
-                <Typography fontWeight="bold">${stats.current.toFixed(2)}</Typography>
-            </Grid>
-            <Grid item xs={3} textAlign="center">
-                <Typography variant="caption" display="block" color="text.secondary">Period High</Typography>
-                <Typography>${stats.high.toFixed(2)}</Typography>
-            </Grid>
-            <Grid item xs={3} textAlign="center">
-                <Typography variant="caption" display="block" color="text.secondary">Period Low</Typography>
-                <Typography>${stats.low.toFixed(2)}</Typography>
-            </Grid>
-            <Grid item xs={3} textAlign="center">
-                <Typography variant="caption" display="block" color="text.secondary">Change</Typography>
-                <Typography color={stats.change >= 0 ? 'success.main' : 'error.main'} fontWeight="bold">
-                    {stats.change >= 0 ? '+' : ''}{stats.changePercent.toFixed(2)}%
-                </Typography>
-            </Grid>
-        </Grid>
-      )}
-
-      {/* Main Chart Area */}
-      <Box flexGrow={1} minHeight={300} position="relative">
-        {loading && chartData.length === 0 ? (
+      {/* CHART AREA */}
+      <Box flexGrow={1} position="relative" sx={{ minHeight: 0 }}>
+        {loading && !chartData.length ? (
             <Box display="flex" alignItems="center" justifyContent="center" height="100%">
-                <CircularProgress />
+                <CircularProgress size={40} thickness={4} />
             </Box>
         ) : error ? (
             <Alert severity="error">{error}</Alert>
         ) : (
             <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
+                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.1}/>
+                            <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+                        </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.1)} vertical={false} />
                     <XAxis 
                         dataKey="time" 
-                        tickFormatter={(t) => new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        minTickGap={30}
-                        stroke={theme.palette.text.secondary}
-                        fontSize={12}
+                        tickFormatter={(t) => new Date(t).getHours() + ':00'}
+                        stroke={alpha(theme.palette.text.secondary, 0.5)}
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={false}
                     />
                     <YAxis 
                         domain={['auto', 'auto']}
                         tickFormatter={(v) => `$${v}`}
-                        stroke={theme.palette.text.secondary}
-                        fontSize={12}
-                        width={60}
+                        stroke={alpha(theme.palette.text.secondary, 0.5)}
+                        fontSize={11}
+                        tickLine={false}
+                        axisLine={false}
                     />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend verticalAlign="top" height={36} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: theme.palette.text.secondary, strokeDasharray: '4 4' }} />
+                    <Legend verticalAlign="top" iconType="circle" height={30} />
                     
                     <Line 
                         type="monotone" 
                         dataKey="close" 
                         stroke={theme.palette.primary.main} 
-                        strokeWidth={2} 
+                        strokeWidth={3} 
                         dot={false} 
                         name="Price"
-                        animationDuration={500}
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                        animationDuration={1000}
                     />
                     <Line 
                         type="monotone" 
                         dataKey="fastMA" 
                         stroke="#8884d8" 
-                        strokeWidth={1.5} 
+                        strokeWidth={1} 
                         dot={false} 
                         name="EMA 20" 
-                        strokeDasharray="5 5"
+                        strokeOpacity={0.7}
                     />
                     <Line 
                         type="monotone" 
                         dataKey="slowMA" 
                         stroke="#82ca9d" 
-                        strokeWidth={1.5} 
+                        strokeWidth={1} 
                         dot={false} 
                         name="EMA 50"
+                        strokeOpacity={0.7}
                     />
                 </LineChart>
             </ResponsiveContainer>
         )}
       </Box>
-    </Paper>
+    </Box>
   );
 };
 

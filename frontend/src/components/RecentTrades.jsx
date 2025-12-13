@@ -1,168 +1,118 @@
-// frontend/src/components/RecentTrades.jsx
+// frontend/src/components/RecentTrades.jsx - EXECUTION FEED STYLE
 import React from 'react';
 import PropTypes from 'prop-types';
-import {
-  Paper,
-  Typography,
-  Card,
-  CardContent,
-  Grid,
-  Chip,
-  Box
-} from '@mui/material';
-import {
-  TrendingUp,
-  TrendingDown,
-  ErrorOutline
-} from '@mui/icons-material';
+import { Typography, Chip, Box, Stack, useTheme, alpha } from '@mui/material';
+import { TrendingUp, TrendingDown, ReceiptLong } from '@mui/icons-material';
 
 const RecentTrades = ({ trades }) => {
+  const theme = useTheme();
+
   const formatUSDT = (value) => {
-    // Ensure value is a number before formatting
     const numericValue = Number(value);
-    if (isNaN(numericValue)) {
-      return 'N/A USDT';
-    }
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(numericValue) + ' USDT';
+    if (isNaN(numericValue)) return '---';
+    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(numericValue);
   };
 
-  // Guard Clause: This is the most critical fix. If `trades` is not an array
-  // for any reason, this component will render a safe fallback UI instead of crashing.
   if (!Array.isArray(trades)) {
-    // Log the unexpected prop type in development for easier debugging
-    if (import.meta.env.DEV) {
-      console.error('RecentTrades received a non-array prop:', trades);
-    }
     return (
-      <Paper sx={{ p: 3, height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
-          Loading recent trades...
-        </Typography>
-      </Paper>
+        <Box p={3} textAlign="center" color="text.secondary">
+            <Typography variant="caption">Loading Feed...</Typography>
+        </Box>
     );
   }
 
+  if (trades.length === 0) {
+      return (
+        <Box height="100%" display="flex" flexDirection="column" alignItems="center" justifyContent="center" color="text.secondary" p={3}>
+            <ReceiptLong sx={{ fontSize: 40, opacity: 0.2, mb: 1 }} />
+            <Typography variant="caption">NO EXECUTIONS LOGGED</Typography>
+        </Box>
+      );
+  }
+
   return (
-    <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%', width: '100%', boxSizing: 'border-box' }}>
-      <Typography variant="h6" gutterBottom sx={{ flexShrink: 0 }}>
-        Recent Trades
-      </Typography>
-      
-      <Box sx={{ flexGrow: 1, overflow: 'auto', pr: 1, minHeight: 0 }}>
-        {trades.length === 0 ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Typography variant="body2" color="text.secondary">
-              No recent trades to display.
-            </Typography>
-          </Box>
-        ) : (
-          trades.slice(0, 15).map((trade, index) => {
-            // Defensive data access for each trade object to prevent crashes from malformed data
-            if (!trade || typeof trade !== 'object') {
-              return (
-                <Card key={`error-${index}`} variant="outlined" sx={{ mb: 1, borderColor: 'error.main' }}>
-                  <CardContent sx={{ py: 1 }}>
-                    <Grid container alignItems="center" spacing={1}>
-                      <Grid item><ErrorOutline color="error" /></Grid>
-                      <Grid item><Typography variant="body2" color="error.main">Invalid trade data received</Typography></Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              );
-            }
+    <Stack spacing={0}>
+        {trades.slice(0, 20).map((trade, index) => {
+            if (!trade || typeof trade !== 'object') return null;
 
             const side = trade.side || 'UNKNOWN';
-            const symbol = String(trade.symbol || 'N/A');
+            const symbol = String(trade.symbol || 'N/A').replace('USDT', '');
             const price = Number(trade.price || 0);
-            const usdtCost = trade.usdtCost;
-            const usdtReceived = trade.usdtReceived;
-            const pnl = trade.pnl; // Can be undefined, handled below
-            const mode = trade.mode || 'paper'; // Default to paper if mode is missing
-            const timestamp = trade.timestamp ? new Date(trade.timestamp).toLocaleString() : 'Invalid Date';
-            // Use a more stable key if a unique ID is available from the backend
+            const pnl = Number(trade.pnl || 0);
+            const isBuy = side === 'BUY';
+            const color = isBuy ? theme.palette.success.main : theme.palette.error.main;
             const uniqueKey = trade.id || `${symbol}-${trade.timestamp}-${index}`;
 
             return (
-              <Card key={uniqueKey} variant="outlined" sx={{ mb: 1 }}>
-                <CardContent sx={{ py: 1 }}>
-                  <Grid container alignItems="center" spacing={1} wrap="nowrap">
-                    <Grid item>
-                      {side === 'BUY' ? <TrendingUp color="success" /> : <TrendingDown color="error" />}
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {symbol.replace('USDT', '')}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={3} display="flex" gap={1}>
-                      <Chip
-                        size="small"
-                        label={side}
-                        color={side === 'BUY' ? 'success' : 'error'}
-                      />
-                      <Chip
-                        size="small"
-                        label={mode.toUpperCase()}
-                        color={mode === 'live' ? 'info' : 'warning'}
-                        variant="outlined"
-                        sx={{ fontWeight: 'bold' }}
-                      />
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2">
-                        ${price.toFixed(price > 1 ? 2 : 6)}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={2}>
-                      <Typography variant="body2" color="info.main">
-                        {side === 'BUY' 
-                          ? formatUSDT(usdtCost)
-                          : formatUSDT(usdtReceived)
-                        }
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={2}>
-                      {pnl !== undefined && (
-                        <Typography 
-                          variant="body2" 
-                          color={Number(pnl) >= 0 ? 'success.main' : 'error.main'}
-                          fontWeight="bold"
-                        >
-                          {Number(pnl) >= 0 ? '+' : ''}{formatUSDT(pnl)}
+              <Box 
+                key={uniqueKey} 
+                sx={{ 
+                    p: 1.5, 
+                    borderBottom: 1, 
+                    borderColor: 'divider',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    transition: 'background-color 0.2s',
+                    '&:hover': { bgcolor: alpha(color, 0.05) }
+                }}
+              >
+                {/* Left: Icon & Symbol */}
+                <Box display="flex" alignItems="center" gap={1.5}>
+                    <Box sx={{ color: color, display: 'flex' }}>
+                        {isBuy ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
+                    </Box>
+                    <Box>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <Typography variant="body2" fontWeight="bold">{symbol}</Typography>
+                            <Chip 
+                                label={side} 
+                                size="small" 
+                                sx={{ 
+                                    height: 16, 
+                                    fontSize: '0.6rem', 
+                                    fontWeight: 'bold',
+                                    bgcolor: alpha(color, 0.1),
+                                    color: color
+                                }} 
+                            />
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                             @ {price.toFixed(price > 1 ? 2 : 5)}
                         </Typography>
-                      )}
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Typography variant="caption" color="textSecondary">
-                        {timestamp}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </CardContent>
-              </Card>
+                    </Box>
+                </Box>
+
+                {/* Right: Value & PnL */}
+                <Box textAlign="right">
+                    <Typography variant="body2" fontWeight="500">
+                        ${isBuy ? formatUSDT(trade.usdtCost) : formatUSDT(trade.usdtReceived)}
+                    </Typography>
+                    
+                    {!isBuy && (
+                        <Typography 
+                            variant="caption" 
+                            fontWeight="bold"
+                            sx={{ color: pnl >= 0 ? 'success.main' : 'error.main' }}
+                        >
+                            {pnl >= 0 ? '+' : ''}{formatUSDT(pnl)} PnL
+                        </Typography>
+                    )}
+                    {isBuy && (
+                        <Typography variant="caption" color="text.secondary">
+                            ENTRY
+                        </Typography>
+                    )}
+                </Box>
+              </Box>
             );
-          })
-        )}
-      </Box>
-    </Paper>
+        })}
+    </Stack>
   );
 };
 
 RecentTrades.propTypes = {
-  /** An array of trade objects to be displayed. */
-  trades: PropTypes.arrayOf(PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    symbol: PropTypes.string,
-    side: PropTypes.oneOf(['BUY', 'SELL', 'UNKNOWN']),
-    price: PropTypes.number,
-    usdtCost: PropTypes.number,
-    usdtReceived: PropTypes.number,
-    pnl: PropTypes.number,
-    timestamp: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-  })),
+  trades: PropTypes.array
 };
 
 export default RecentTrades;

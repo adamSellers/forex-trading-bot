@@ -1,54 +1,35 @@
-// frontend/src/components/TradingDashboard.jsx - FIXED: Linter Warning & Dynamic Assets
+// frontend/src/components/TradingDashboard.jsx - FINAL LINT FIX
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  Container,
-  Alert,
-  Grid,
-  Paper,
-  Typography,
-  Button,
-  Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  IconButton,
-  Box,
-  CircularProgress
+  Container, Grid, Paper, Typography, Button, Chip,
+  FormControl, Select, MenuItem, IconButton, Box,
+  Card, CardContent, Stack, Avatar, LinearProgress,
+  useTheme, alpha, Tooltip, Alert // <--- ADDED ALERT
 } from '@mui/material';
 import {
-  PlayArrow,
-  Stop,
-  Refresh,
-  Settings,
-  Timeline,
-  Assessment,
-  Psychology,
-  MonetizationOn,
-  DataUsage,
-  CheckCircle,
-  Warning
+  PlayArrow, Stop, Refresh,
+  Psychology, MonetizationOn,
+  CheckCircle, Warning,
+  AccountBalanceWallet, History, Bolt,
+  ShowChart, Timeline
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
 import { SOCKET_URL, tradingAPI } from '../config/api';
 
-// Import components
-import PortfolioOverview from './PortfolioOverview';
+// Sub-components
 import CurrentHoldings from './CurrentHoldings';
 import LivePrices from './LivePrices';
 import TradingSignals from './TradingSignals';
 import RecentTrades from './RecentTrades';
 import LivePriceChart from './LivePriceChart';
-import SystemStatusBanner from './SystemStatusBanner';
 
-// Constants for data fetching limits
-const FETCH_LIMITS = {
-  TRADES: 25,
-  SIGNALS: 50
-};
+// --- CONSTANTS ---
+const FETCH_LIMITS = { TRADES: 25, SIGNALS: 50 };
 
 const TradingDashboard = () => {
-  // --- State Management ---
+  const theme = useTheme();
+  
+  // --- STATE ---
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
@@ -58,33 +39,26 @@ const TradingDashboard = () => {
   const [tradingEnabled, setTradingEnabled] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState('balanced');
   
-  // UI State
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-  // Refs
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
     isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      if (socketRef.current) socketRef.current.disconnect();
-    };
+    return () => { isMountedRef.current = false; if (socketRef.current) socketRef.current.disconnect(); };
   }, []);
 
-  // --- Helpers ---
+  // --- LOGIC: Signal Merging ---
   const updateSignalState = useCallback((newSignals) => {
     if (!newSignals) return;
     const signalArray = Array.isArray(newSignals) ? newSignals : [newSignals];
-
     setLatestSignals(prevMap => {
         const newMap = new Map(prevMap);
         let hasUpdates = false;
-
         signalArray.forEach(signal => {
             if (signal && signal.symbol) {
                 const existing = newMap.get(signal.symbol);
@@ -98,12 +72,10 @@ const TradingDashboard = () => {
     });
   }, []);
 
-  // --- Data Fetching ---
+  // --- LOGIC: Data Fetching ---
   const fetchInitialData = useCallback(async () => {
     if (!isMountedRef.current) return;
-    
     try {
-      console.log('🔄 Fetching initial trading data...');
       setLoading(true);
       setError(null);
       
@@ -123,334 +95,285 @@ const TradingDashboard = () => {
           setTradingEnabled(statusData.value.config?.enableTrading || false);
           setSelectedStrategy(statusData.value.config?.strategy || 'balanced');
       }
-
-      if (signalsData.status === 'fulfilled' && signalsData.value?.signals) {
-          updateSignalState(signalsData.value.signals);
-      }
-
+      if (signalsData.status === 'fulfilled' && signalsData.value?.signals) updateSignalState(signalsData.value.signals);
       if (portfolioData.status === 'fulfilled') setPortfolio(portfolioData.value);
-
-      if (tradesData.status === 'fulfilled') {
-          const t = tradesData.value.trades || tradesData.value;
-          if (Array.isArray(t)) setTrades(t);
-      }
-
-      if (pricesData.status === 'fulfilled' && pricesData.value?.prices) {
-          setPrices(pricesData.value.prices);
-      }
-
+      if (tradesData.status === 'fulfilled' && Array.isArray(tradesData.value.trades || tradesData.value)) setTrades(tradesData.value.trades || tradesData.value);
+      if (pricesData.status === 'fulfilled' && pricesData.value?.prices) setPrices(pricesData.value.prices);
       if (accountData.status === 'fulfilled') setAccount(accountData.value);
 
       setLoading(false);
       setLastUpdate(Date.now());
-
     } catch (err) {
-      if (!isMountedRef.current) return;
-      console.error('❌ Critical error in fetchInitialData:', err);
-      setError(`Failed to load trading data: ${err.message}`);
-      setLoading(false);
+      if (isMountedRef.current) {
+          console.error(err);
+          setError(`Data Sync Error: ${err.message}`);
+          setLoading(false);
+      }
     }
   }, [updateSignalState]);
 
-  // --- WebSocket Management ---
+  // --- LOGIC: Websockets ---
   useEffect(() => {
     const socketUrl = SOCKET_URL || window.location.origin;
-    socketRef.current = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-    });
-
+    socketRef.current = io(socketUrl, { transports: ['websocket', 'polling'], upgrade: true, reconnection: true });
     const socket = socketRef.current;
 
-    socket.on('connect', () => {
-      console.log('🔌 Connected to Trading Server');
-      if (isMountedRef.current) {
-        setConnectionStatus('connected');
-        setError(null);
-        fetchInitialData();
-      }
-    });
-
-    socket.on('disconnect', () => {
-      if (isMountedRef.current) setConnectionStatus('disconnected');
-    });
-
-    // FIXED: Now using 'err' to log the specific connection error
-    socket.on('connect_error', (err) => {
-        if (isMountedRef.current) {
-            setConnectionStatus('error');
-            console.warn('Socket connection error:', err);
-        }
-    });
+    socket.on('connect', () => { if (isMountedRef.current) { setConnectionStatus('connected'); setError(null); fetchInitialData(); } });
+    socket.on('disconnect', () => { if (isMountedRef.current) setConnectionStatus('disconnected'); });
+    socket.on('connect_error', () => { if (isMountedRef.current) setConnectionStatus('error'); });
     
-    socket.on('systemStatus', (status) => {
-      if (isMountedRef.current) {
-        setSystemStatus(status);
-        setLastUpdate(Date.now());
-      }
-    });
-
-    socket.on('portfolioUpdated', (data) => {
-        if (isMountedRef.current) {
-            setPortfolio(data);
-            setLastUpdate(Date.now());
-        }
-    });
-
-    socket.on('priceUpdate', (data) => {
-        if (isMountedRef.current) {
-            setPrices(prev => ({ ...prev, [data.symbol]: data }));
-        }
-    });
-
-    socket.on('signalGenerated', (data) => {
-        if (isMountedRef.current) {
-            updateSignalState(data);
-            setLastUpdate(Date.now());
-        }
-    });
-
-    socket.on('allSignalsGenerated', (data) => {
-        if (isMountedRef.current) {
-            updateSignalState(data);
-            setLastUpdate(Date.now());
-        }
-    });
-
-    socket.on('tradeExecuted', (trade) => {
-        if (isMountedRef.current) {
-            setTrades(prev => {
-                if (prev.some(t => t.id === trade.id)) return prev;
-                return [trade, ...prev].slice(0, FETCH_LIMITS.TRADES);
-            });
-            setLastUpdate(Date.now());
-        }
-    });
+    socket.on('systemStatus', (s) => isMountedRef.current && setSystemStatus(s));
+    socket.on('portfolioUpdated', (d) => { if(isMountedRef.current) { setPortfolio(d); setLastUpdate(Date.now()); }});
+    socket.on('priceUpdate', (d) => { if(isMountedRef.current) { setPrices(p => ({ ...p, [d.symbol]: d })); }});
+    socket.on('signalGenerated', (d) => { if(isMountedRef.current) { updateSignalState(d); setLastUpdate(Date.now()); }});
+    socket.on('tradeExecuted', (t) => { if(isMountedRef.current) { setTrades(prev => [t, ...prev].slice(0, FETCH_LIMITS.TRADES)); setLastUpdate(Date.now()); }});
 
     return () => socket.disconnect();
   }, [fetchInitialData, updateSignalState]);
 
-  // --- Handlers ---
+  // --- HANDLERS ---
   const handleToggleTrading = async () => {
     try {
-      if (tradingEnabled) await tradingAPI.stopTrading();
-      else await tradingAPI.startTrading();
-      setError(null);
-      setTradingEnabled(!tradingEnabled); 
-    } catch (err) {
-      setError(`Failed to toggle trading: ${err.message}`);
-      fetchInitialData(); 
-    }
+      tradingEnabled ? await tradingAPI.stopTrading() : await tradingAPI.startTrading();
+      setTradingEnabled(!tradingEnabled);
+    } catch (err) { setError(err.message); fetchInitialData(); }
   };
 
-  const handleResetTrading = async () => {
-    if (!window.confirm("Are you sure you want to reset the engine? PnL will be cleared.")) return;
-    try {
-      await tradingAPI.resetTrading();
-      setLatestSignals(new Map());
-      setTrades([]);
-      fetchInitialData();
-    } catch (err) {
-      setError(`Failed to reset: ${err.message}`);
-    }
+  const handleStrategyChange = async (e) => {
+      const s = e.target.value;
+      setSelectedStrategy(s);
+      try { await tradingAPI.updateConfig({ strategy: s }); }
+      catch (err) { setError(err.message); }
   };
 
-  const handleStrategyChange = async (event) => {
-      const newStrategy = event.target.value;
-      setSelectedStrategy(newStrategy);
-      try {
-          await tradingAPI.updateConfig({ strategy: newStrategy });
-      } catch (err) {
-          setError(`Failed to update strategy: ${err.message}`);
-          setSelectedStrategy(systemStatus?.config?.strategy || 'balanced');
-      }
-  };
-
-  // --- Derived State ---
-  const signalsToRender = useMemo(() => {
-      return Array.from(latestSignals.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
-  }, [latestSignals]);
-
-  const systemHealth = useMemo(() => {
-      if (!systemStatus?.isInitialized) return { status: 'Offline', color: 'error', icon: <Timeline /> };
-      if (connectionStatus === 'connecting') return { status: 'Connecting', color: 'warning', icon: <DataUsage /> };
-      if (connectionStatus === 'disconnected') return { status: 'Disconnected', color: 'error', icon: <Warning /> };
-      if (connectionStatus === 'error') return { status: 'Connection Error', color: 'error', icon: <Warning /> };
-      return { status: 'Optimal', color: 'success', icon: <CheckCircle /> };
-  }, [systemStatus, connectionStatus]);
-
+  // --- DERIVED DATA ---
+  const signalsToRender = useMemo(() => Array.from(latestSignals.values()).sort((a, b) => b.timestamp - a.timestamp), [latestSignals]);
   const isLiveMode = systemStatus?.config?.tradingMode === 'live';
-
-  // FIX: Calculate Active Assets based on Config Allocation
   const activeChartAssets = useMemo(() => {
     if (!systemStatus?.config) return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
-    
     const { assets = [], allocation = {} } = systemStatus.config;
-    // Filter assets where allocation is greater than 0
-    if (Object.keys(allocation).length === 0) return assets;
-    
-    return assets.filter(symbol => (allocation[symbol] || 0) > 0);
+    return Object.keys(allocation).length === 0 ? assets : assets.filter(s => (allocation[s] || 0) > 0);
   }, [systemStatus]);
 
-  // --- Render ---
-  if (loading && !systemStatus) {
-    return (
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-          <Box textAlign="center">
-            <DataUsage sx={{ fontSize: 64, color: 'primary.main', mb: 2, animation: 'spin 2s linear infinite' }} />
-            <Typography variant="h5">Initializing Dashboard...</Typography>
-            <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-          </Box>
-        </Box>
-      </Container>
-    );
-  }
+  // --- RENDER HELPERS ---
+  
+  const StatCard = ({ title, value, subValue, icon, color }) => (
+    <Card elevation={0} sx={{ 
+        bgcolor: alpha(theme.palette.background.paper, 0.6), 
+        backdropFilter: 'blur(10px)',
+        border: 1, borderColor: 'divider', height: '100%'
+    }}>
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                <Box>
+                    <Typography variant="body2" color="text.secondary" fontWeight="bold" sx={{ mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {title}
+                    </Typography>
+                    <Typography variant="h5" fontWeight="bold">
+                        {value}
+                    </Typography>
+                    {subValue && (
+                        <Typography variant="caption" sx={{ color: subValue.includes('+') ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+                            {subValue}
+                        </Typography>
+                    )}
+                </Box>
+                <Avatar variant="rounded" sx={{ bgcolor: alpha(color, 0.1), color: color }}>
+                    {icon}
+                </Avatar>
+            </Box>
+        </CardContent>
+    </Card>
+  );
+
+  if (loading && !systemStatus) return <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center"><LinearProgress sx={{ width: 300 }} /></Box>;
 
   return (
-    <Box>
-      {/* Header & Controls */}
-      <Box mb={3}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexWrap="wrap" gap={2}>
-          <Box>
-            <Typography variant="h4" component="h1" gutterBottom>Crypto Trend Bot</Typography>
-            <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
-                <Chip 
-                    label={isLiveMode ? "LIVE MODE" : "PAPER MODE"} 
-                    color={isLiveMode ? "error" : "warning"} 
-                    icon={isLiveMode ? <MonetizationOn /> : <Psychology />} 
-                />
-                <Chip 
-                    label={`System: ${systemHealth.status}`} 
-                    color={systemHealth.color} 
-                    icon={systemHealth.icon} 
-                />
-                {lastUpdate && (
-                    <Chip 
-                        label={`Updated: ${new Date(lastUpdate).toLocaleTimeString()}`} 
-                        variant="outlined" 
-                        size="small" 
-                    />
-                )}
-                <Chip 
-                    label={`Socket: ${connectionStatus}`} 
-                    variant="outlined" 
-                    size="small" 
-                    color={connectionStatus === 'connected' ? 'default' : 'error'} 
-                />
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+        
+        {/* --- SECTION 1: HUD HEADER --- */}
+        <Box display="flex" flexWrap="wrap" justifyContent="space-between" alignItems="center" mb={3} gap={2}>
+            <Box display="flex" alignItems="center" gap={2}>
+                <Avatar sx={{ bgcolor: isLiveMode ? 'error.main' : 'warning.main', width: 48, height: 48 }}>
+                    {isLiveMode ? <MonetizationOn /> : <Psychology />}
+                </Avatar>
+                <Box>
+                    <Typography variant="h5" fontWeight="900" sx={{ letterSpacing: -0.5 }}>
+                        CRYPTO<span style={{ color: theme.palette.primary.main }}>TREND</span>
+                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <Chip 
+                            label={isLiveMode ? "LIVE NET" : "PAPER NET"} 
+                            size="small" 
+                            color={isLiveMode ? "error" : "warning"} 
+                            variant="filled"
+                            sx={{ fontWeight: 'bold', height: 20, fontSize: '0.65rem' }}
+                        />
+                        <Chip 
+                            label={connectionStatus.toUpperCase()} 
+                            size="small" 
+                            color={connectionStatus === 'connected' ? 'success' : 'error'} 
+                            variant="outlined"
+                            icon={connectionStatus === 'connected' ? <CheckCircle sx={{ fontSize: '12px !important' }} /> : <Warning />}
+                            sx={{ height: 20, fontSize: '0.65rem' }}
+                        />
+                    </Stack>
+                </Box>
             </Box>
-          </Box>
-          <Box>
-            <IconButton color="primary" title="Analytics"><Assessment /></IconButton>
-            <IconButton color="primary" title="Settings"><Settings /></IconButton>
-          </Box>
-        </Box>
 
-        {/* Live Trading Warning */}
-        {isLiveMode && (
-            <Alert severity="error" sx={{ mb: 2 }} icon={<Warning fontSize="inherit" />}>
-                ⚠️ <strong>LIVE TRADING ACTIVE</strong> - Real funds are at risk. Ensure your strategy is tested.
-            </Alert>
-        )}
+            <Stack direction="row" spacing={2} alignItems="center">
+                 {/* Last Update Indicator */}
+                 <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
+                     Synced: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '---'}
+                 </Typography>
 
-        {/* System Status Banner */}
-        <SystemStatusBanner systemStatus={systemStatus} signals={signalsToRender} />
-
-        {/* Error Display */}
-        {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                {error}
-            </Alert>
-        )}
-
-        {/* Control Panel */}
-        <Paper sx={{ p: 2 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item>
-              <Button
-                variant={tradingEnabled ? "contained" : "outlined"}
-                color={tradingEnabled ? "error" : "success"}
-                startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
-                onClick={handleToggleTrading}
-                disabled={connectionStatus !== 'connected'}
-              >
-                {tradingEnabled ? "Stop Trading" : "Start Trading"}
-              </Button>
-            </Grid>
-            
-            <Grid item>
-              <Button 
-                variant="outlined" 
-                startIcon={<Refresh />} 
-                onClick={fetchInitialData}
-                disabled={loading}
-              >
-                Refresh
-              </Button>
-            </Grid>
-
-            <Grid item>
-                <Button variant="outlined" color="warning" onClick={handleResetTrading}>
-                    Reset Engine
-                </Button>
-            </Grid>
-
-            <Grid item>
-                <FormControl size="small" sx={{ minWidth: 150 }}>
-                    <InputLabel>Strategy</InputLabel>
+                 {/* Refresh */}
+                 <Tooltip title="Reset Engine State">
+                    <IconButton size="small" color="warning" onClick={fetchInitialData}>
+                        <Refresh />
+                    </IconButton>
+                 </Tooltip>
+                 
+                 {/* Strategy Select */}
+                 <FormControl size="small" sx={{ minWidth: 160 }}>
                     <Select 
                         value={selectedStrategy} 
-                        label="Strategy" 
-                        onChange={handleStrategyChange}
+                        onChange={handleStrategyChange} 
+                        displayEmpty
                         disabled={tradingEnabled}
+                        sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
                     >
-                        <MenuItem value="conservative">Conservative (SMA)</MenuItem>
-                        <MenuItem value="balanced">Balanced (EMA)</MenuItem>
-                        <MenuItem value="responsive">Responsive (EMA)</MenuItem>
+                        <MenuItem value="conservative">🛡️ Conservative</MenuItem>
+                        <MenuItem value="balanced">⚖️ Balanced</MenuItem>
+                        <MenuItem value="responsive">⚡ Responsive</MenuItem>
                     </Select>
-                </FormControl>
+                 </FormControl>
+
+                 {/* MASTER SWITCH */}
+                 <Button
+                    variant={tradingEnabled ? "contained" : "contained"}
+                    color={tradingEnabled ? "error" : "success"}
+                    onClick={handleToggleTrading}
+                    startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
+                    sx={{ 
+                        borderRadius: 2, 
+                        px: 4, py: 1, 
+                        fontWeight: 'bold',
+                        boxShadow: tradingEnabled ? '0 0 15px rgba(244, 67, 54, 0.4)' : '0 0 15px rgba(102, 187, 106, 0.4)'
+                    }}
+                 >
+                    {tradingEnabled ? "STOP ENGINE" : "START ENGINE"}
+                 </Button>
+            </Stack>
+        </Box>
+
+        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+
+        {/* --- SECTION 2: KEY METRICS --- */}
+        <Grid container spacing={2} mb={3}>
+            <Grid item xs={12} sm={6} md={3}>
+                <StatCard 
+                    title="Total Balance" 
+                    value={`$${(portfolio?.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                    subValue={`${(portfolio?.usdtBalance || 0).toFixed(2)} USDT Free`}
+                    icon={<AccountBalanceWallet />}
+                    color={theme.palette.primary.main}
+                />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+                <StatCard 
+                    title="24h Profit/Loss" 
+                    value={`$${(portfolio?.dailyPnL || 0).toFixed(2)}`}
+                    subValue={portfolio?.dailyPnL > 0 ? "+2.4%" : "0.0%"} 
+                    icon={<ShowChart />}
+                    color={portfolio?.dailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main}
+                />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+                <StatCard 
+                    title="Active Trades" 
+                    value={portfolio?.positions?.length || 0}
+                    subValue="Open Positions"
+                    icon={<Bolt />}
+                    color={theme.palette.warning.main}
+                />
+            </Grid>
+            <Grid item xs={12} sm={6} md={3}>
+                <StatCard 
+                    title="Total Trades" 
+                    value={portfolio?.performance?.totalTrades || 0}
+                    subValue={`Win Rate: ${(portfolio?.performance?.winRate || 0).toFixed(1)}%`}
+                    icon={<History />}
+                    color={theme.palette.info.main}
+                />
+            </Grid>
+        </Grid>
+
+        {/* --- SECTION 3: MAIN STAGE (Chart + Live Prices) --- */}
+        <Grid container spacing={3} mb={3}>
+            {/* Main Chart */}
+            <Grid item xs={12} lg={8}>
+                <Paper variant="outlined" sx={{ p: 2, height: '500px', display: 'flex', flexDirection: 'column' }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <Timeline color="primary" />
+                            <Typography variant="h6" fontWeight="bold">Market Analysis</Typography>
+                        </Box>
+                    </Box>
+                    <Box flexGrow={1} sx={{ bgcolor: alpha(theme.palette.background.default, 0.5), borderRadius: 1, overflow: 'hidden' }}>
+                        <LivePriceChart prices={prices} assets={activeChartAssets} height="100%" />
+                    </Box>
+                </Paper>
             </Grid>
 
-            <Grid item sx={{ ml: 'auto', display: { xs: 'none', md: 'block' } }}>
-                <Typography variant="caption" color="textSecondary">
-                    Active Signals: {signalsToRender.length} • Trades: {trades.length}
-                </Typography>
+            {/* Watchlist / Live Ticker */}
+            <Grid item xs={12} lg={4}>
+                <Paper variant="outlined" sx={{ p: 0, height: '500px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <LivePrices prices={prices} assets={activeChartAssets} />
+                </Paper>
             </Grid>
-          </Grid>
-        </Paper>
-      </Box>
+        </Grid>
 
-      {/* Main Dashboard Grid */}
-      <Box display="grid" gap={3} gridTemplateColumns="repeat(12, 1fr)">
-        {/* Row 1: Portfolio & Holdings */}
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 6' } }}>
-          <PortfolioOverview account={account} prices={prices} portfolio={portfolio} systemStatus={systemStatus} />
-        </Box>
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 6' } }}>
-          <CurrentHoldings account={account} prices={prices} portfolio={portfolio} systemStatus={systemStatus} />
-        </Box>
-        
-        {/* Row 2: Charts & Live Prices */}
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 8' } }}>
-          {/* FIX: Pass calculated activeChartAssets to component */}
-          <LivePriceChart prices={prices} assets={activeChartAssets} />
-        </Box>
-        <Box sx={{ gridColumn: { xs: 'span 12', lg: 'span 4' } }}>
-          <LivePrices prices={prices} assets={activeChartAssets} />
-        </Box>
-        
-        {/* Row 3: Signals & Recent Trades */}
-        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' } }}>
-            <TradingSignals signals={signalsToRender} systemStatus={systemStatus} />
-        </Box>
-        <Box sx={{ gridColumn: { xs: 'span 12', md: 'span 6' } }}>
-            <RecentTrades trades={trades} />
-        </Box>
-      </Box>
-    </Box>
+        {/* --- SECTION 4: OPERATIONS (Holdings + Activity) --- */}
+        <Grid container spacing={3}>
+            
+            {/* Left Col: Holdings */}
+            <Grid item xs={12} md={6}>
+                 <CurrentHoldings 
+                    account={account} 
+                    prices={prices} 
+                    portfolio={portfolio} 
+                    systemStatus={systemStatus} 
+                 />
+            </Grid>
+
+            {/* Right Col: Activity Log */}
+            <Grid item xs={12} md={6}>
+                <Stack spacing={3}>
+                    {/* Signals Feed */}
+                    <Paper variant="outlined" sx={{ p: 0, maxHeight: 300, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                         <Box p={2} borderBottom={1} borderColor="divider" bgcolor={alpha(theme.palette.primary.main, 0.05)}>
+                            <Typography variant="subtitle2" fontWeight="bold" color="primary">AI SIGNAL DETECTION</Typography>
+                         </Box>
+                         <Box flexGrow={1} sx={{ overflowY: 'auto' }}>
+                            <TradingSignals signals={signalsToRender} systemStatus={systemStatus} compact />
+                         </Box>
+                    </Paper>
+
+                    {/* Execution Feed */}
+                    <Paper variant="outlined" sx={{ p: 0, maxHeight: 300, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                         <Box p={2} borderBottom={1} borderColor="divider" bgcolor={alpha(theme.palette.secondary.main, 0.05)}>
+                            <Typography variant="subtitle2" fontWeight="bold" color="secondary">EXECUTION HISTORY</Typography>
+                         </Box>
+                         <Box flexGrow={1} sx={{ overflowY: 'auto' }}>
+                            <RecentTrades trades={trades} />
+                         </Box>
+                    </Paper>
+                </Stack>
+            </Grid>
+
+        </Grid>
+    </Container>
   );
 };
 
