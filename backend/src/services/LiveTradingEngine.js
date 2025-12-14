@@ -378,6 +378,36 @@ class LiveTradingEngine extends EventEmitter {
     updateConfig(c) {
         this.config = { ...this.config, ...c };
     }
+
+    // --- RESET & RECOVERY ---
+    async reset() {
+        logger.warn("⚠️ ENGINE RESET TRIGGERED.");
+
+        // 1. Unlock everything
+        this.processingLocks.clear();
+
+        // 2. Reset Memory State
+        this.livePortfolioState = {
+            totalPnL: 0,
+            dailyPnL: 0,
+            weeklyPnL: 0,
+            totalTrades: 0,
+            winningTrades: 0,
+            winRate: 0,
+        };
+
+        // 3. Close open trades in DB (Safety Measure)
+        // If we reset, we assume we want a clean slate.
+        const openTrades = await this.tradeRepo.getOpenLiveTrades();
+        for (const t of openTrades) {
+            await this.tradeRepo.updateTrade(t.id, {
+                isOpen: false,
+                exitReason: "MANUAL_RESET",
+            });
+        }
+
+        logger.success("✅ Engine State Wiped.");
+    }
 }
 
 module.exports = LiveTradingEngine;

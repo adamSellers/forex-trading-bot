@@ -162,6 +162,7 @@ const TradingConfig = () => {
     }
   };
 
+  // --- ADDED RESET HANDLER ---
   const handleResetEngine = async () => {
       if (!window.confirm("⚠️ ARE YOU SURE? This will wipe memory, clear PnL stats, and reset internal locks. History is preserved.")) return;
       try {
@@ -295,7 +296,7 @@ const TradingConfig = () => {
             </Stack>
         </GlassCard>
 
-        {/* DANGER ZONE */}
+        {/* DANGER ZONE - ADDED BACK */}
         <Paper 
             variant="outlined" 
             sx={{ 
