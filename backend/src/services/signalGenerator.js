@@ -1,91 +1,52 @@
 // backend/src/services/signalGenerator.js
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
-const { RSI, ADX, SMA, EMA, ATR } = require("technicalindicators");
+const { RSI, ADX, ATR } = require("technicalindicators");
 
 class SignalGenerator extends EventEmitter {
     constructor(config = {}) {
         super();
-
         this.isRunning = false;
         this.signalInterval = null;
         this.binanceDataService = null;
 
         this.config = {
-            strategy: config.strategy || "balanced",
-            timeframe: config.timeframe || "1h",
-            signalCooldown: config.signalCooldown || 60000,
+            strategy: "balanced",
+            timeframe: "1h",
+            signalCooldown: 60000,
+            assets: [], // Will be populated by tradingService
 
-            assets: config.assets || [
-                "BTCUSDT",
-                "ETHUSDT",
-                "BNBUSDT",
-                "DOGEUSDT",
-                "TRUMPUSDT",
-            ],
-
-            // --- LEAN CONFIG DEFAULTS ---
-            // Updated to match the "Golden Config" from your backtest
-            enableAdxFilter: config.enableAdxFilter !== false,
-            adxPeriod: config.adxPeriod || 14,
-            minAdx: config.minAdx || 30, // Updated to 30 (High Volatility Requirement)
-
-            enableRsiFilter: config.enableRsiFilter !== false,
-            rsiPeriod: config.rsiPeriod || 14,
-            rsiOverbought: config.rsiOverbought || 70,
-            rsiOversold: config.rsiOversold || 30, // Updated to 30 (Dip Buying)
-
-            // Volatility Config
-            atrPeriod: config.atrPeriod || 14,
+            // --- THE WINNING "LEAN" CONFIG ---
+            minAdx: 30, // Strong Trends Only
+            rsiOversold: 30, // Deep Dips Only
+            rsiOverbought: 70, // Momentum Peak Exit
 
             ...config,
         };
 
-        this.strategyConfig = {
-            conservative: { fast: 50, slow: 200, type: "SMA" },
-            balanced: { fast: 20, slow: 50, type: "EMA" },
-            responsive: { fast: 12, slow: 26, type: "EMA" },
-        };
-
         this.lastSignals = new Map();
-        this.signalHistory = [];
-
-        logger.info(
-            `🧠 Signal Generator initialized - Strategy: Lean Snapback | Min ADX: ${this.config.minAdx}`
-        );
+        logger.info(`🧠 Signal Generator v3.0 (Lean Logic) Initialized`);
     }
 
     start(binanceDataService, intervalMs = 60000) {
         if (this.isRunning) return;
-
-        logger.info(`🚀 Starting Signal Generator loop (${intervalMs}ms)...`);
         this.binanceDataService = binanceDataService;
         this.isRunning = true;
-
-        this.generateSignalCycle(); // Immediate run
+        this.generateSignalCycle();
         this.signalInterval = setInterval(() => {
             if (this.isRunning) this.generateSignalCycle();
         }, intervalMs);
-
-        this.emit("generatorStarted");
+        logger.info(`🚀 Generator Loop Started (${intervalMs}ms)`);
     }
 
     stop() {
         this.isRunning = false;
-        if (this.signalInterval) {
-            clearInterval(this.signalInterval);
-            this.signalInterval = null;
-        }
-        logger.info("🛑 Signal Generator stopped");
+        if (this.signalInterval) clearInterval(this.signalInterval);
         this.emit("generatorStopped");
     }
 
-    /**
-     * Core loop to process all assets
-     */
     async generateSignalCycle() {
         if (!this.binanceDataService) return;
-
         try {
             const signals = await this.generateAllSignals(
                 this.binanceDataService
@@ -93,184 +54,98 @@ class SignalGenerator extends EventEmitter {
             if (signals.length > 0) {
                 this.emit("allSignalsGenerated", signals);
                 signals.forEach((s) => this.emit("signalGenerated", s));
-                logger.info(`⚡ Generated ${signals.length} signals`);
             }
         } catch (error) {
-            logger.error("❌ Error in signal generation cycle:", error);
+            logger.error("❌ Signal Cycle Error:", error);
         }
     }
 
-    /**
-     * Helper to prepare data for technicalindicators lib
-     */
     prepareInputData(candles) {
         return {
-            open: candles.map((c) => c.open),
             high: candles.map((c) => c.high),
             low: candles.map((c) => c.low),
             close: candles.map((c) => c.close),
-            volume: candles.map((c) => c.volume),
         };
     }
 
-    /**
-     * MAIN LOGIC: Calculates indicators and determines signal
-     * STRATEGY: Volatility Mean Reversion ("The Lean Config")
-     */
     async generateSignal(symbol, candles, currentPrice) {
         try {
-            const requiredCandles = 200;
-            if (!candles || candles.length < requiredCandles) {
-                return this.createSignalObject(
-                    symbol,
-                    "INSUFFICIENT_DATA",
-                    0,
-                    "Not enough candle history"
-                );
-            }
+            if (!candles || candles.length < 200) return null;
 
             const input = this.prepareInputData(candles);
-            const strategy = this.strategyConfig[this.config.strategy];
 
-            // 1. Calculations (MA, ADX, RSI, ATR)
-            // ... (Keep your existing calculation logic here) ...
-            let fastMAValues, slowMAValues;
-            const maParamsFast = { values: input.close, period: strategy.fast };
-            const maParamsSlow = { values: input.close, period: strategy.slow };
-
-            if (strategy.type === "SMA") {
-                fastMAValues = SMA.calculate(maParamsFast);
-                slowMAValues = SMA.calculate(maParamsSlow);
-            } else {
-                fastMAValues = EMA.calculate(maParamsFast);
-                slowMAValues = EMA.calculate(maParamsSlow);
-            }
-            const fastMA = fastMAValues[fastMAValues.length - 1];
-            const slowMA = slowMAValues[slowMAValues.length - 1];
-
-            // ADX
-            const adxInput = {
-                high: input.high,
-                low: input.low,
-                close: input.close,
-                period: this.config.adxPeriod,
-            };
-            const adxValues = ADX.calculate(adxInput);
-            const currentADX = adxValues[adxValues.length - 1];
-
-            // RSI
-            const rsiInput = {
+            // 1. Core Indicators
+            const rsi = RSI.calculate({
                 values: input.close,
-                period: this.config.rsiPeriod,
-            };
-            const rsiValues = RSI.calculate(rsiInput);
-            const currentRSI = rsiValues[rsiValues.length - 1];
-
-            // ATR
-            const atrInput = {
+                period: 14,
+            }).pop();
+            const adx = ADX.calculate({
                 high: input.high,
                 low: input.low,
                 close: input.close,
-                period: this.config.atrPeriod,
-            };
-            const atrValues = ATR.calculate(atrInput);
-            const currentATR = atrValues[atrValues.length - 1];
-            const atrPercent = (currentATR / currentPrice) * 100;
+                period: 14,
+            }).pop();
+            const atr = ATR.calculate({
+                high: input.high,
+                low: input.low,
+                close: input.close,
+                period: 14,
+            }).pop();
 
-            // --- STRATEGY EVALUATION ---
-
-            // Conditions
-            const isHighVolatility = currentADX.adx > this.config.minAdx;
-            const isOversold = currentRSI < this.config.rsiOversold;
-            const isOverbought = currentRSI > this.config.rsiOverbought;
-
+            // 2. Logic: The "Lean" Snapback
             let signalType = "HOLD";
-            let reason = `Monitoring (ADX:${currentADX.adx.toFixed(
+            let reason = `Monitoring (ADX:${adx.adx.toFixed(
                 0
-            )} RSI:${currentRSI.toFixed(0)})`;
+            )} RSI:${rsi.toFixed(0)})`;
 
-            // 1. BUY SIGNAL
-            if (isHighVolatility && isOversold) {
+            // BUY: Strong Trend + Oversold
+            if (adx.adx > this.config.minAdx && rsi < this.config.rsiOversold) {
                 signalType = "BUY";
-                reason = `🔥 VOLATILITY SNAPBACK: Strong Trend (ADX ${currentADX.adx.toFixed(
+                reason = `🔥 SNAPBACK: ADX ${adx.adx.toFixed(
                     0
-                )}) + Oversold`;
+                )} > 30 + RSI ${rsi.toFixed(0)} < 30`;
             }
-
-            // 2. SELL SIGNAL
-            else if (isOverbought) {
+            // SELL: Overbought (Profit Taking)
+            else if (rsi > this.config.rsiOverbought) {
                 signalType = "SELL";
-                reason = `💰 OVERBOUGHT EXIT: RSI ${currentRSI.toFixed(
-                    0
-                )} hit peak`;
-            }
-
-            // --- 3. ANALYTICS: DETECT REJECTIONS (Why did we NOT buy?) ---
-
-            // Case A: RSI is good (Oversold), but ADX is too weak (Choppy)
-            else if (isOversold && !isHighVolatility) {
-                signalType = "WEAK_SIGNAL"; //
-                reason = `⛔ BLOCKED (ADX): Market too choppy (ADX ${currentADX.adx.toFixed(
-                    0
-                )} < ${this.config.minAdx})`;
-            }
-
-            // Case B: Trend is strong (High ADX), but RSI hasn't dipped enough yet
-            else if (isHighVolatility && !isOversold && currentRSI < 50) {
-                signalType = "WEAK_SIGNAL";
-                reason = `⏳ WAITING (RSI): Strong Trend, waiting for dip (RSI ${currentRSI.toFixed(
-                    0
-                )} > ${this.config.rsiOversold})`;
+                reason = `💰 OVERBOUGHT: RSI ${rsi.toFixed(0)} > 70`;
             }
 
             return {
                 symbol,
                 signal: signalType,
-                strength: currentADX.adx,
-                strategy: "mean_reversion_lean",
+                strength: adx.adx,
                 message: reason,
                 timestamp: Date.now(),
-                data: {
-                    currentPrice,
-                    fastMA,
-                    slowMA,
-                    rsi: currentRSI,
-                    adx: currentADX.adx,
-                    atr: currentATR,
-                    isChoppy: !isHighVolatility,
-                    isOverbought,
-                    isOversold,
-                },
-                atr: currentATR,
+                data: { currentPrice, rsi, adx: adx.adx, atr },
+                atr, // Passing ATR for position sizing
             };
         } catch (error) {
-            logger.error(`Error calculating signal for ${symbol}:`, error);
-            return this.createSignalObject(symbol, "ERROR", 0, error.message);
+            logger.error(`Calc error ${symbol}:`, error);
+            return null;
         }
     }
 
     validateSignal(signal) {
-        // Cooldown Check
+        if (!signal) return null;
         const key = `${signal.symbol}_${signal.signal}`;
         const lastTime = this.lastSignals.get(key) || 0;
-        const now = Date.now();
 
-        // Only apply cooldown to active actionable signals (BUY/SELL), not HOLDs
+        // 60s cooldown to prevent double-firing
         if (
             (signal.signal === "BUY" || signal.signal === "SELL") &&
-            now - lastTime < this.config.signalCooldown
+            Date.now() - lastTime < this.config.signalCooldown
         ) {
             return {
                 ...signal,
                 signal: "COOLDOWN",
-                message: "Signal Cooldown Active",
+                message: "Signal Spam Filter",
             };
         }
 
         if (signal.signal === "BUY" || signal.signal === "SELL") {
-            this.lastSignals.set(key, now);
+            this.lastSignals.set(key, Date.now());
         }
-
         return signal;
     }
 
@@ -283,7 +158,6 @@ class SignalGenerator extends EventEmitter {
                     this.config.timeframe
                 );
                 const priceData = binanceDataService.getCurrentPrice(asset);
-
                 if (candles.length && priceData) {
                     let signal = await this.generateSignal(
                         asset,
@@ -291,61 +165,23 @@ class SignalGenerator extends EventEmitter {
                         priceData.price
                     );
                     signal = this.validateSignal(signal);
-                    signals.push(signal);
-
-                    // Log actionable signals
-                    if (signal.signal === "BUY" || signal.signal === "SELL") {
-                        logger.info(
-                            `🔔 ${
-                                signal.signal
-                            } ${asset} | ADX: ${signal.strength.toFixed(
-                                1
-                            )} | RSI: ${signal.data.rsi.toFixed(1)}`
-                        );
-                    }
+                    if (signal) signals.push(signal);
                 }
-            } catch (err) {
-                logger.error(`Failed to generate signal for ${asset}`, err);
-            }
+            } catch (err) {}
         }
         return signals;
     }
 
-    createSignalObject(symbol, type, strength, msg) {
-        return {
-            symbol,
-            signal: type,
-            strength,
-            message: msg,
-            timestamp: Date.now(),
-        };
-    }
-
-    // Required for Dashboard Status
-    getStatus() {
-        return {
-            isActive: this.isRunning,
-            config: this.config,
-            strategyConfig: this.strategyConfig[this.config.strategy],
-            lastRun: new Date().toISOString(),
-        };
-    }
-
-    // Helper for System Checks
-    getRequiredCandleCount() {
-        return 200; // Always ensure we have enough for 200 SMA calculation
-    }
-
-    // Stub for reset if needed by controller
-    reset() {
-        this.lastSignals.clear();
-        this.signalHistory = [];
-    }
-
-    // Stub for config update
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
-        logger.info("Signal Generator Config Updated");
+    }
+
+    getStatus() {
+        return { isActive: this.isRunning, config: this.config };
+    }
+
+    reset() {
+        this.lastSignals.clear();
     }
 }
 

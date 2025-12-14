@@ -1,57 +1,84 @@
-// backend/scripts/compare-strategies.js - FIXED MATH
+// backend/scripts/compare-strategies.js
 const Binance = require("node-binance-api");
+const readline = require("readline");
 
 // --- CONFIGURATION ---
-const ASSETS_TO_TEST = [
-    "NEARUSDT",
-    "LTCUSDT",
-    "XRPUSDT",
-    "BNBUSDT",
+const CANDIDATES = [
     "BTCUSDT",
-    "PEPEUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
     "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "TRXUSDT",
+    "AVAXUSDT",
+    "SHIBUSDT",
+    "TONUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "NEARUSDT",
+    "MATICUSDT",
+    "ICPUSDT",
 ];
+
 const TIMEFRAME = "1h";
 const INITIAL_CAPITAL = 1000;
-const DAYS_HISTORY = 180;
 
 const binance = new Binance().options({ family: 4, log: () => {} });
 
 // --- UTILS ---
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+});
+const askQuestion = (query) =>
+    new Promise((resolve) => rl.question(query, resolve));
+
+// --- INDICATOR MATH ---
 function calculateSMA(data, period) {
-    if (data.length < period) return null;
-    return data.slice(-period).reduce((a, b) => a + b, 0) / period;
+    let sma = new Array(data.length).fill(null);
+    for (let i = period - 1; i < data.length; i++) {
+        const sum = data
+            .slice(i - period + 1, i + 1)
+            .reduce((a, b) => a + b, 0);
+        sma[i] = sum / period;
+    }
+    return sma;
 }
 
 function calculateEMA(data, period) {
-    if (data.length < period) return null;
     const k = 2 / (period + 1);
-    let ema = data[0];
-    for (let i = 1; i < data.length; i++) {
-        ema = data[i] * k + ema * (1 - k);
+    let ema = new Array(data.length).fill(null);
+    if (data.length < period) return ema;
+    ema[period - 1] = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    for (let i = period; i < data.length; i++) {
+        ema[i] = data[i] * k + ema[i - 1] * (1 - k);
     }
     return ema;
 }
 
-function calculateStandardDeviation(data, period) {
-    if (data.length < period) return null;
-    const mean = calculateSMA(data, period);
-    const squareDiffs = data
-        .slice(-period)
-        .map((value) => Math.pow(value - mean, 2));
-    const avgSquareDiff = calculateSMA(squareDiffs, period);
-    return Math.sqrt(avgSquareDiff);
-}
-
-function calculateBollingerBands(closes, period = 20, multiplier = 2) {
-    const sma = calculateSMA(closes, period);
-    if (!sma) return null;
-    const stdDev = calculateStandardDeviation(closes, period);
-    return {
-        middle: sma,
-        upper: sma + stdDev * multiplier,
-        lower: sma - stdDev * multiplier,
-    };
+function calculateRSI(closes, period = 14) {
+    let gains = 0,
+        losses = 0;
+    for (let i = 1; i <= period; i++) {
+        const change = closes[i] - closes[i - 1];
+        if (change > 0) gains += change;
+        else losses += Math.abs(change);
+    }
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    const rsiArray = new Array(period).fill(null);
+    rsiArray.push(100 - 100 / (1 + avgGain / avgLoss));
+    for (let i = period + 1; i < closes.length; i++) {
+        const change = closes[i] - closes[i - 1];
+        const gain = change > 0 ? change : 0;
+        const loss = change < 0 ? Math.abs(change) : 0;
+        avgGain = (avgGain * (period - 1) + gain) / period;
+        avgLoss = (avgLoss * (period - 1) + loss) / period;
+        rsiArray.push(100 - 100 / (1 + avgGain / avgLoss));
+    }
+    return rsiArray;
 }
 
 function calculateATR(highs, lows, closes, period = 14) {
@@ -65,273 +92,315 @@ function calculateATR(highs, lows, closes, period = 14) {
             )
         );
     }
-    let atr = [tr.slice(0, period).reduce((a, b) => a + b, 0) / period];
-    for (let i = period; i < tr.length; i++) {
-        atr.push((atr[i - period] * (period - 1) + tr[i]) / period);
+    let atr = new Array(period).fill(null);
+    atr.push(tr.slice(0, period).reduce((a, b) => a + b, 0) / period);
+    for (let i = period + 1; i < tr.length; i++) {
+        atr.push((atr[i - 1] * (period - 1) + tr[i]) / period);
     }
     return new Array(period - 1).fill(null).concat(atr);
 }
 
-// --- STRATEGY A: CLASSIC TREND (EMA + ADX) ---
-function runStrategyA(candles) {
+function calculateADX(highs, lows, closes, period = 14) {
+    // Simplified ADX
+    const getTR = (i) =>
+        Math.max(
+            highs[i] - lows[i],
+            Math.abs(highs[i] - closes[i - 1]),
+            Math.abs(lows[i] - closes[i - 1])
+        );
+    let tr = [],
+        pdm = [],
+        mdm = [];
+    for (let i = 1; i < highs.length; i++) {
+        tr.push(getTR(i));
+        const up = highs[i] - highs[i - 1];
+        const down = lows[i - 1] - lows[i];
+        pdm.push(up > down && up > 0 ? up : 0);
+        mdm.push(down > up && down > 0 ? down : 0);
+    }
+    const smooth = (arr) => {
+        let s = [arr.slice(0, period).reduce((a, b) => a + b, 0)];
+        for (let i = period; i < arr.length; i++)
+            s.push(s[s.length - 1] - s[s.length - 1] / period + arr[i]);
+        return s;
+    };
+    const sTR = smooth(tr);
+    const sPDM = smooth(pdm);
+    const sMDM = smooth(mdm);
+    let adx = [],
+        dxList = [];
+    for (let i = 0; i < sTR.length; i++) {
+        const diPlus = (100 * sPDM[i]) / sTR[i];
+        const diMinus = (100 * sMDM[i]) / sTR[i];
+        const dx = (100 * Math.abs(diPlus - diMinus)) / (diPlus + diMinus);
+        dxList.push(dx);
+        if (i >= period - 1) {
+            if (adx.length === 0)
+                adx.push(
+                    dxList
+                        .slice(i - period + 1, i + 1)
+                        .reduce((a, b) => a + b, 0) / period
+                );
+            else adx.push((adx[adx.length - 1] * (period - 1) + dx) / period);
+        } else adx.push(null);
+    }
+    return new Array(period * 2).fill(null).concat(adx);
+}
+
+// --- CORE SIMULATION ---
+
+function determineRegime(price, ema50, ema200) {
+    if (!ema50 || !ema200) return "UNKNOWN";
+    if (ema50 > ema200 && price > ema50) return "BULL_STRONG";
+    if (ema50 > ema200 && price < ema50) return "BULL_PULLBACK";
+    if (ema50 < ema200 && price < ema50) return "BEAR_STRONG";
+    return "CHOP";
+}
+
+// STRATEGY 1: LEAN (Old)
+function runLeanStrategy(candles, indicators) {
     let usdt = INITIAL_CAPITAL;
     let position = null;
     let trades = 0;
-    let wins = 0;
 
-    const closes = candles.map((c) => c.close);
-    const highs = candles.map((c) => c.high);
-    const lows = candles.map((c) => c.low);
-    const atrArr = calculateATR(highs, lows, closes, 14);
+    const { closes, highs, lows, rsiArr, adxArr, atrArr } = indicators;
 
-    for (let i = 50; i < candles.length; i++) {
+    for (let i = 200; i < candles.length; i++) {
         const price = closes[i];
+        const rsi = rsiArr[i];
+        const adx = adxArr[i];
         const atr = atrArr[i];
-        if (!atr) continue;
-
-        const ema20 = calculateEMA(closes.slice(0, i + 1), 20);
-        const ema50 = calculateEMA(closes.slice(0, i + 1), 50);
-        const prevEma20 = calculateEMA(closes.slice(0, i), 20);
-        const prevEma50 = calculateEMA(closes.slice(0, i), 50);
+        if (!rsi || !adx || !atr) continue;
 
         if (!position) {
-            // BUY Logic
-            if (prevEma20 <= prevEma50 && ema20 > ema50) {
-                const stopLoss = price - atr * 1.5;
-                const takeProfit = price + atr * 3.0;
-
-                // Position Sizing (Compounding)
-                const cost = usdt * 0.99; // Use 99% of available cash
-                const qty = cost / price;
+            // ENTRY: Fixed ADX 30, RSI 30
+            if (adx > 30 && rsi < 30) {
+                const stopDist = atr * 1.5;
+                const stopPrice = price - stopDist;
+                const riskPerShare = price - stopPrice;
+                let qty = (usdt * 0.02) / riskPerShare;
+                if (qty * price > usdt * 0.95) qty = (usdt * 0.95) / price;
 
                 if (qty * price > 10) {
                     position = {
                         entry: price,
-                        qty,
-                        sl: stopLoss,
-                        tp: takeProfit,
+                        qty: qty,
+                        sl: stopPrice,
+                        tp: price + atr * 3.0,
                     };
-
-                    // FIXED: Subtract cost AND fee
-                    usdt = usdt - cost - cost * 0.001;
+                    usdt -= qty * price * 1.001;
                 }
             }
         } else {
-            // SELL Logic
+            // EXIT: Fixed TP or SL or RSI > 70
             let exitPrice = null;
             if (lows[i] <= position.sl) exitPrice = position.sl;
             else if (highs[i] >= position.tp) exitPrice = position.tp;
-            else if (ema20 < ema50) exitPrice = price;
+            else if (rsi > 70) exitPrice = price;
 
             if (exitPrice) {
-                const revenue = exitPrice * position.qty;
-                // FIXED: Add revenue MINUS fee
-                usdt = usdt + revenue - revenue * 0.001;
-
-                if (exitPrice > position.entry) wins++;
+                usdt += exitPrice * position.qty * 0.999;
                 trades++;
                 position = null;
             }
         }
     }
-    return {
-        profit: usdt - INITIAL_CAPITAL,
-        trades,
-        winRate: trades ? (wins / trades) * 100 : 0,
-    };
+    if (position) usdt += position.qty * closes[closes.length - 1] * 0.999;
+    return { profit: usdt - INITIAL_CAPITAL, trades };
 }
 
-// --- STRATEGY B: HYBRID (BOLLINGER BREAKOUT + EMA) ---
-function runStrategyB(candles) {
+// STRATEGY 2: QUANT (New - With Hybrid Tweak)
+function runQuantStrategy(candles, indicators) {
     let usdt = INITIAL_CAPITAL;
     let position = null;
     let trades = 0;
-    let wins = 0;
 
-    const closes = candles.map((c) => c.close);
-    const highs = candles.map((c) => c.high);
-    const lows = candles.map((c) => c.low);
-    const volumes = candles.map((c) => c.volume);
-    const atrArr = calculateATR(highs, lows, closes, 14);
+    const {
+        closes,
+        highs,
+        lows,
+        volumes,
+        rsiArr,
+        adxArr,
+        atrArr,
+        ema50Arr,
+        ema200Arr,
+        volSmaArr,
+    } = indicators;
 
-    for (let i = 50; i < candles.length; i++) {
+    for (let i = 200; i < candles.length; i++) {
         const price = closes[i];
+        const rsi = rsiArr[i];
+        const adx = adxArr[i];
         const atr = atrArr[i];
-        if (!atr) continue;
+        const high = highs[i];
+        const low = lows[i];
+        if (!rsi || !adx || !atr) continue;
 
-        // Indicators
-        const bb = calculateBollingerBands(closes.slice(0, i + 1), 20, 2);
-        const avgVol = calculateSMA(volumes.slice(i - 20, i), 20);
-        const currentVol = volumes[i];
+        const regime = determineRegime(price, ema50Arr[i], ema200Arr[i]);
+        const volRatio = volumes[i] / (volSmaArr[i] || 1);
 
-        const ema20 = calculateEMA(closes.slice(0, i + 1), 20);
-        const ema50 = calculateEMA(closes.slice(0, i + 1), 50);
+        if (position) {
+            // UPDATE TRAILING STOP
+            if (high > position.highestPrice) position.highestPrice = high;
 
-        if (!position) {
-            let signal = false;
+            let exitPrice = null;
+            let currentSL = position.sl;
 
-            // 1. BREAKOUT LOGIC
-            if (price > bb.upper && currentVol > avgVol * 1.5) {
-                signal = true;
+            // HYBRID TWEAK: Only trail IF we hit TP1. Otherwise use fixed SL.
+            // AND: Widen the trail to 5% (0.05) instead of 3% to catch runners like NEAR
+            if (position.tp1Hit) {
+                const trailSL = position.highestPrice * (1 - 0.05); // 5% Trail
+                if (trailSL > currentSL) currentSL = trailSL;
             }
 
-            // 2. TREND LOGIC
-            const prevEma20 = calculateEMA(closes.slice(0, i), 20);
-            const prevEma50 = calculateEMA(closes.slice(0, i), 50);
-            if (prevEma20 <= prevEma50 && ema20 > ema50) {
-                signal = true;
+            if (low <= currentSL) {
+                // Stop Out (Remainder)
+                exitPrice = currentSL;
+                usdt += position.qty * exitPrice * 0.999;
+                position = null;
+                trades++;
+            } else if (!position.tp1Hit && high >= position.tp1) {
+                // SCALE OUT 50%
+                const sellQty = position.qty * 0.5;
+                usdt += sellQty * position.tp1 * 0.999;
+                position.qty -= sellQty;
+                position.tp1Hit = true;
+                position.sl = position.entry; // Breakeven
+                trades++;
+            } else if (rsi > 80 && regime === "BULL_STRONG") {
+                // Extreme Overbought Exit
+                exitPrice = price;
+                usdt += position.qty * exitPrice * 0.999;
+                position = null;
+                trades++;
             }
+        } else {
+            // DYNAMIC ENTRY
+            let rsiBuy = 30;
+            if (regime === "BULL_STRONG" && adx > 25) rsiBuy = 40; // Catch SOL
+            if (regime === "BEAR_STRONG") rsiBuy = 20;
 
-            if (signal) {
-                const stopLoss = price - atr * 1.5;
-                const takeProfit = price + atr * 3.0;
-
-                const cost = usdt * 0.99;
-                const qty = cost / price;
+            if (rsi < rsiBuy && adx > 25 && volRatio > 0.8) {
+                // Lower vol requirement slightly
+                const stopDist = atr * 2.0; // Wider stop
+                const riskPerShare = price - (price - stopDist);
+                let qty = (usdt * 0.02) / riskPerShare;
+                if (qty * price > usdt * 0.95) qty = (usdt * 0.95) / price;
 
                 if (qty * price > 10) {
                     position = {
                         entry: price,
-                        qty,
-                        sl: stopLoss,
-                        tp: takeProfit,
+                        qty: qty,
+                        sl: price - stopDist,
+                        tp1: price + atr * 3.0, // TP1 at 3R (Match Lean Target)
+                        tp1Hit: false,
+                        highestPrice: price,
                     };
-
-                    // FIXED: Subtract cost AND fee
-                    usdt = usdt - cost - cost * 0.001;
+                    usdt -= qty * price * 1.001;
                 }
-            }
-        } else {
-            let exitPrice = null;
-            if (lows[i] <= position.sl) exitPrice = position.sl;
-            else if (highs[i] >= position.tp) exitPrice = position.tp;
-            else if (ema20 < ema50) exitPrice = price;
-            else if (price < bb.middle) exitPrice = price;
-
-            if (exitPrice) {
-                const revenue = exitPrice * position.qty;
-                // FIXED: Add revenue MINUS fee
-                usdt = usdt + revenue - revenue * 0.001;
-
-                if (exitPrice > position.entry) wins++;
-                trades++;
-                position = null;
             }
         }
     }
-    return {
-        profit: usdt - INITIAL_CAPITAL,
-        trades,
-        winRate: trades ? (wins / trades) * 100 : 0,
-    };
+    if (position) usdt += position.qty * closes[closes.length - 1] * 0.999;
+    return { profit: usdt - INITIAL_CAPITAL, trades };
 }
 
-// --- ENGINE ---
-async function fetchHistory(symbol) {
-    process.stdout.write(`📥 ${symbol}: Fetching history... `);
+// --- RUNNER ---
+async function fetchHistory(symbol, days) {
     const limit = 1000;
     let allCandles = [];
     let endTime = Date.now();
-    const startTime = endTime - DAYS_HISTORY * 24 * 60 * 60 * 1000;
+    const startTime = endTime - days * 24 * 60 * 60 * 1000;
+    process.stdout.write(`Fetching ${symbol}... `);
 
     while (true) {
         const candles = await new Promise((resolve) => {
             binance.candlesticks(
                 symbol,
                 TIMEFRAME,
-                (error, ticks) => {
-                    if (error || !ticks) {
-                        resolve([]);
-                        return;
-                    }
+                (e, t) =>
                     resolve(
-                        ticks.map((t) => ({
-                            time: t[0],
-                            open: parseFloat(t[1]),
-                            high: parseFloat(t[2]),
-                            low: parseFloat(t[3]),
-                            close: parseFloat(t[4]),
-                            volume: parseFloat(t[5]),
-                        }))
-                    );
-                },
+                        t
+                            ? t.map((c) => ({
+                                  open: parseFloat(c[1]),
+                                  high: parseFloat(c[2]),
+                                  low: parseFloat(c[3]),
+                                  close: parseFloat(c[4]),
+                                  volume: parseFloat(c[5]),
+                                  time: c[0],
+                              }))
+                            : []
+                    ),
                 { limit, endTime }
             );
         });
-
-        if (candles.length === 0) break;
-        const validCandles = candles.filter((c) => c.time >= startTime);
-        allCandles = [...validCandles, ...allCandles];
-        if (
-            validCandles.length < candles.length ||
-            candles[0].time <= startTime
-        )
-            break;
+        if (!candles.length) break;
+        const valid = candles.filter((c) => c.time >= startTime);
+        allCandles = [...valid, ...allCandles];
+        if (valid.length < candles.length) break;
         endTime = candles[0].time - 1;
-        await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 50));
     }
-
-    // Deduplicate and sort
-    const unique = allCandles
+    console.log(`${allCandles.length} candles`);
+    return allCandles
         .sort((a, b) => a.time - b.time)
         .filter((v, i, a) => a.findIndex((t) => t.time === v.time) === i);
-    console.log(`${unique.length} candles`);
-    return unique;
 }
 
 async function run() {
-    console.log(`⚔️  STRATEGY BATTLE: Trend vs. Hybrid (${DAYS_HISTORY} Days)`);
-    console.log(
-        "---------------------------------------------------------------"
-    );
-    console.log("Symbol      | Trend Profit | Hybrid Profit | Winner");
-    console.log(
-        "---------------------------------------------------------------"
-    );
+    console.log("⚔️  STRATEGY SHOWDOWN: LEAN vs QUANT (Hybrid)");
+    const days = 180;
 
-    let trendTotal = 0;
-    let hybridTotal = 0;
+    console.log(`\nSymbol      | LEAN Profit | QUANT Profit | Winner`);
+    console.log(`-----------------------------------------------------`);
 
-    for (const sym of ASSETS_TO_TEST) {
+    for (const sym of CANDIDATES) {
         try {
-            const data = await fetchHistory(sym);
-            if (data.length < 200) continue;
+            const candles = await fetchHistory(sym, days);
+            if (candles.length < 200) continue;
 
-            const resA = runStrategyA(data); // Trend
-            const resB = runStrategyB(data); // Hybrid
+            // Pre-calculate indicators ONCE
+            const closes = candles.map((c) => c.close);
+            const highs = candles.map((c) => c.high);
+            const lows = candles.map((c) => c.low);
+            const volumes = candles.map((c) => c.volume);
 
-            trendTotal += resA.profit;
-            hybridTotal += resB.profit;
+            const indicators = {
+                closes,
+                highs,
+                lows,
+                volumes,
+                rsiArr: calculateRSI(closes),
+                adxArr: calculateADX(highs, lows, closes),
+                atrArr: calculateATR(highs, lows, closes),
+                ema50Arr: calculateEMA(closes, 50),
+                ema200Arr: calculateEMA(closes, 200),
+                volSmaArr: calculateSMA(volumes, 20),
+            };
 
-            const winner =
-                resB.profit > resA.profit
-                    ? "\x1b[32mHYBRID\x1b[0m"
-                    : "\x1b[33mTREND\x1b[0m";
-            const profitDiff = resB.profit - resA.profit;
-            const sign = profitDiff > 0 ? "+" : "";
+            const lean = runLeanStrategy(candles, indicators);
+            const quant = runQuantStrategy(candles, indicators);
+
+            const leanColor = lean.profit > 0 ? "\x1b[32m" : "\x1b[31m";
+            const quantColor = quant.profit > 0 ? "\x1b[32m" : "\x1b[31m";
+            const winner = quant.profit > lean.profit ? "QUANT 🤖" : "LEAN ⚡";
 
             console.log(
                 `${sym.padEnd(12)}| ` +
-                    `$${resA.profit.toFixed(0).padEnd(11)}| ` +
-                    `$${resB.profit.toFixed(0).padEnd(12)}| ` +
-                    `${winner} (${sign}${profitDiff.toFixed(0)})`
+                    `${leanColor}$${lean.profit
+                        .toFixed(0)
+                        .padEnd(9)}\x1b[0m| ` +
+                    `${quantColor}$${quant.profit
+                        .toFixed(0)
+                        .padEnd(10)}\x1b[0m| ` +
+                    `${winner}`
             );
         } catch (e) {
-            console.error(e.message);
+            console.error(e);
         }
     }
-
-    console.log(
-        "---------------------------------------------------------------"
-    );
-    console.log(
-        `TOTAL       | $${trendTotal.toFixed(
-            0
-        )}         | $${hybridTotal.toFixed(0)}`
-    );
-    console.log(
-        "---------------------------------------------------------------"
-    );
+    process.exit(0);
 }
 
 run();
