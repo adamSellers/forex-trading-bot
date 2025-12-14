@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - FIXED (Restored Reset Button)
+// frontend/src/components/TradingConfig.jsx - COMPLETE WITH FACTORY RESET
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -9,9 +9,9 @@ import {
 import {
   Save, Refresh, Security, AccountBalance,
   PieChart, Notifications, Delete, AddCircle, 
-  Science, Tune, SettingsRemote, Warning, RestartAlt
+  Science, Tune, SettingsRemote, Warning, RestartAlt, DeleteForever
 } from '@mui/icons-material';
-import { tradingAPI } from '../config/api';
+import { tradingAPI, managementAPI } from '../config/api'; // Added managementAPI import
 
 // --- STYLED COMPONENTS ---
 const GlassCard = styled(Box)(({ theme }) => ({
@@ -162,13 +162,25 @@ const TradingConfig = () => {
     }
   };
 
-  // --- ADDED RESET HANDLER ---
   const handleResetEngine = async () => {
-      if (!window.confirm("⚠️ ARE YOU SURE? This will wipe memory, clear PnL stats, and reset internal locks. History is preserved.")) return;
+      if (!window.confirm("⚠️ RESET MEMORY?\n\nThis wipes the engine's RAM (Panic Loops/Locks) and clears 'Active' trade flags.\nIt DOES NOT delete history.\n\nProceed?")) return;
       try {
           await tradingAPI.resetTrading();
-          alert("✅ Engine Reset Successfully");
+          alert("✅ Engine Memory Reset Successfully");
           fetchCurrentConfig();
+      } catch (e) {
+          alert(`Error: ${e.message}`);
+      }
+  };
+
+  const handleFactoryReset = async () => {
+      if (!window.confirm("☢️ NUCLEAR OPTION ☢️\n\nThis will DELETE ALL TRADE HISTORY and SIGNALS from the database.\nThis action cannot be undone.\n\nAre you sure you want to wipe everything?")) return;
+      
+      try {
+          await managementAPI.factoryReset();
+          alert("✅ System Wiped Successfully. Analytics reset to zero.");
+          // Force reload to clear any cached frontend state
+          window.location.reload(); 
       } catch (e) {
           alert(`Error: ${e.message}`);
       }
@@ -296,7 +308,7 @@ const TradingConfig = () => {
             </Stack>
         </GlassCard>
 
-        {/* DANGER ZONE - ADDED BACK */}
+        {/* DANGER ZONE */}
         <Paper 
             variant="outlined" 
             sx={{ 
@@ -310,11 +322,20 @@ const TradingConfig = () => {
             <Stack direction="row" spacing={2}>
                 <Button 
                     variant="outlined" 
-                    color="error" 
+                    color="warning" 
                     startIcon={<RestartAlt />}
                     onClick={handleResetEngine}
                 >
-                    Reset Engine Memory
+                    Reset Memory (Fix Loops)
+                </Button>
+                
+                <Button 
+                    variant="contained" 
+                    color="error" 
+                    startIcon={<DeleteForever />}
+                    onClick={handleFactoryReset}
+                >
+                    Factory Reset (Wipe Data)
                 </Button>
             </Stack>
         </Paper>

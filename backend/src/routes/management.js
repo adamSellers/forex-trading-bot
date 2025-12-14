@@ -187,5 +187,15 @@ module.exports = (tradingController) => {
         res.json(tradingController?.tradingService?.config || {});
     });
 
+    // POST /api/management/factory-reset
+    router.post("/factory-reset", async (req, res) => {
+        try {
+            const result = await tradingController.factoryReset();
+            res.json(result);
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
     return router;
 };

@@ -227,6 +227,49 @@ class EnhancedTradingController extends EventEmitter {
             throw error;
         }
     }
+    // Add to backend/src/controllers/tradingController.js
+
+    async factoryReset() {
+        logger.warn("☢️ FACTORY RESET INITIATED FROM UI");
+
+        try {
+            // 1. Stop Trading to release locks
+            await this.tradingService.stopTrading();
+
+            // 2. Clear Engine Memory
+            await this.tradingService.resetTrading();
+
+            // 3. Wipe Database Tables
+            // Access the Knex instance directly from the repository
+            const db = this.tradingService.tradeRepo.db;
+
+            // Use transactions to ensure clean wipe
+            await db.transaction(async (trx) => {
+                await trx("trades").del(); // Delete all rows
+                await trx("signals").del(); // Delete all rows
+                // Reset SQLite autoincrement counters
+                await trx.raw(
+                    "DELETE FROM sqlite_sequence WHERE name='trades'"
+                );
+                await trx.raw(
+                    "DELETE FROM sqlite_sequence WHERE name='signals'"
+                );
+            });
+
+            this.eventHistory = []; // Clear log buffer
+            logger.success(
+                "✅ Factory Reset Complete: Database & Memory Wiped."
+            );
+
+            return {
+                success: true,
+                message: "System fully reset to factory state.",
+            };
+        } catch (error) {
+            logger.error("❌ Factory Reset Failed:", error);
+            throw error;
+        }
+    }
 }
 
 module.exports = EnhancedTradingController;

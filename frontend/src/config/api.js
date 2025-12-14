@@ -1,5 +1,5 @@
-// frontend/src/config/api.js - MERGED FIX
-import { io } from "socket.io-client"; // <--- ADDED IMPORT
+// frontend/src/config/api.js - COMPLETE
+import { io } from "socket.io-client";
 
 const API_CONFIG = {
     development: {
@@ -18,15 +18,13 @@ const config = API_CONFIG[environment];
 export const API_BASE_URL = config.baseURL;
 export const SOCKET_URL = config.socketURL;
 
-// --- FIXED: Initialize and Export Socket ---
+// Initialize Socket
 export const socket = io(SOCKET_URL, {
     transports: ["websocket"],
     autoConnect: true,
     reconnection: true,
 });
-// -------------------------------------------
 
-// FIXED: ALL endpoints now have correct /api prefix
 export const API_ENDPOINTS = {
     trading: {
         status: "/api/trading/status",
@@ -52,11 +50,12 @@ export const API_ENDPOINTS = {
         health: "/api/management/health",
         system: "/api/management/system",
         logs: "/api/management/logs",
+        factoryReset: "/api/management/factory-reset", // <--- NEW ENDPOINT
     },
     health: "/api/health",
 };
 
-// Enhanced API helper function with better error handling
+// Enhanced API helper function
 export const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
 
@@ -65,13 +64,11 @@ export const apiCall = async (endpoint, options = {}) => {
             "Content-Type": "application/json",
             ...(options.headers || {}),
         },
-        method: "GET", // Default method
+        method: "GET",
         ...options,
     };
 
     try {
-        // console.log(`🔄 API Call: ${defaultOptions.method} ${url}`);
-
         const response = await fetch(url, defaultOptions);
 
         if (!response.ok) {
@@ -104,13 +101,11 @@ export const tradingAPI = {
     getStatus: () => apiCall(API_ENDPOINTS.trading.status),
     getPortfolio: () => apiCall(API_ENDPOINTS.trading.portfolio),
 
-    // Inside api.js > tradingAPI object
     getSignals: (params = {}) => {
         const query = new URLSearchParams(params).toString();
         return apiCall(
             `${API_ENDPOINTS.trading.signals}${query ? `?${query}` : ""}`
         ).then((data) => {
-            // Safety wrapper to ensure we always return an array
             if (data && Array.isArray(data.signals)) return data.signals;
             if (data && Array.isArray(data)) return data;
             return [];
@@ -170,12 +165,15 @@ export const managementAPI = {
             `${API_ENDPOINTS.management.logs}${query ? `?${query}` : ""}`
         );
     },
+    // NEW METHOD
+    factoryReset: () =>
+        apiCall(API_ENDPOINTS.management.factoryReset, { method: "POST" }),
 };
 
 export default {
     API_BASE_URL,
     SOCKET_URL,
-    socket, // <--- ADDED TO DEFAULT EXPORT
+    socket,
     API_ENDPOINTS,
     apiCall,
     tradingAPI,

@@ -29,7 +29,7 @@ const CANDIDATES = [
 // THE "GOLDEN CONFIG" (Proven Winner)
 const STRATEGY = {
     // Entry Filters
-    minAdx: 30, // Strong Trend Requirement
+    minAdx: 28, // Strong Trend Requirement
     rsiOversold: 30, // Deep Dip Requirement
     rsiOverbought: 70, // Momentum Peak Exit
 
