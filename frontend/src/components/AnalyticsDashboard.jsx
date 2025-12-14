@@ -126,7 +126,7 @@ const AnalyticsDashboard = () => {
         const [report, trades, signals] = await Promise.all([
           tradingAPI.getAnalytics(period),
           tradingAPI.getTrades({ limit: 500 }), 
-          tradingAPI.getSignals({ limit: 1000 }) 
+          tradingAPI.getSignals({ limit: 10000 }) 
         ]);
         setData({ report, trades, signals });
       } catch (err) {
