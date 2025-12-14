@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FIXED FOR FRONTEND COMPATIBILITY
+// backend/src/services/LiveTradingEngine.js - FIXED LOT_SIZE ERROR
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -33,11 +33,11 @@ class LiveTradingEngine extends EventEmitter {
             winRate: 0,
         };
 
-        logger.info("🚀 Live Engine v3.1 (Frontend Compatible) Ready");
+        logger.info("🚀 Live Engine v3.2 (LOT_SIZE Fix) Ready");
     }
 
     async initialize() {
-        // Hydrate PnL & Stats from DB so Dashboard isn't empty on restart
+        // Hydrate PnL & Stats from DB
         const allLiveTrades = await this.tradeRepo.getAllTrades("live");
         const sellTrades = allLiveTrades.filter((t) => t.side === "SELL");
 
@@ -55,8 +55,6 @@ class LiveTradingEngine extends EventEmitter {
                       this.livePortfolioState.totalTrades) *
                   100
                 : 0;
-
-        // Reset Daily PnL logic could go here (simplified for now)
     }
 
     // --- REQUIRED BY TRADING CONTROLLER/FRONTEND ---
@@ -67,7 +65,6 @@ class LiveTradingEngine extends EventEmitter {
         const openTrades = await this.tradeRepo.getOpenLiveTrades();
         const prices = this.binanceData.getAllPrices();
 
-        // Calculate Unrealized PnL & Positions
         const positions = openTrades.map((t) => {
             const curPrice = prices[t.symbol]?.price || t.entryPrice;
             const curVal = t.quantity * curPrice;
@@ -95,7 +92,6 @@ class LiveTradingEngine extends EventEmitter {
             cryptoValue: cryptoValue,
             positions: positions,
             dailyPnL: this.livePortfolioState.dailyPnL,
-            // FRONTEND EXPECTS 'performance' OBJECT
             performance: {
                 winRate: this.livePortfolioState.winRate,
                 totalTrades: this.livePortfolioState.totalTrades,
@@ -120,6 +116,14 @@ class LiveTradingEngine extends EventEmitter {
             );
 
             if (signal.signal === "BUY" && !openTrade) {
+                // SAFETY: Double-check if we actually have enough USDT before trying
+                const balance = await this.getAssetBalance("USDT");
+                if (balance < 15) {
+                    logger.error(
+                        `[LIVE] 🛑 STOPPING BUY: Insufficient USDT (${balance})`
+                    );
+                    return { success: false, reason: "Insufficient Funds" };
+                }
                 return await this.executeLiveBuy(
                     signal,
                     currentPrice,
@@ -133,6 +137,12 @@ class LiveTradingEngine extends EventEmitter {
                 );
             }
             return { success: true, action: "HOLD" };
+        } catch (error) {
+            logger.error(
+                `[LIVE] 💥 CRITICAL EXECUTION ERROR (${signal.symbol}):`,
+                error
+            );
+            return { success: false, reason: "Execution Error" };
         } finally {
             this.processingLocks.delete(signal.symbol);
         }
@@ -143,25 +153,30 @@ class LiveTradingEngine extends EventEmitter {
         const usdt =
             accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0;
 
-        // Position Sizing (Lean Logic)
+        // Position Sizing
         const stopLossDist = atrValue * this.config.stopLossATR;
         const riskAmount =
             this.config.maxCapitalAtRisk * this.config.riskPerTrade;
-        let quantity = (riskAmount / stopLossDist).toFixed(8);
+        let quantity = riskAmount / stopLossDist;
         const cost = quantity * currentPrice;
 
-        if (cost > usdt * 0.95)
-            quantity = ((usdt * 0.95) / currentPrice).toFixed(8);
+        if (cost > usdt * 0.95) quantity = (usdt * 0.95) / currentPrice;
         if (quantity * currentPrice < 10)
             return { success: false, reason: "Below Min Notional" };
 
+        // FIX: Format Quantity to correct LOT_SIZE
+        const stepSize =
+            this.binanceData.symbolInfo.get(signal.symbol)?.stepSize ||
+            "0.00000001";
+        const formattedQty = this.formatQuantity(quantity, stepSize);
+
         logger.info(
-            `[LIVE] 🛒 Buying ${signal.symbol} Qty:${quantity} @ ${currentPrice}`
+            `[LIVE] 🛒 Buying ${signal.symbol} Qty:${formattedQty} @ ${currentPrice}`
         );
         const order = await this.executeSmartOrder(
             signal.symbol,
             "BUY",
-            quantity
+            formattedQty
         );
 
         if (order.status !== "FILLED")
@@ -190,7 +205,11 @@ class LiveTradingEngine extends EventEmitter {
 
     async executeLiveSell(symbol, reason, trade) {
         const balance = await this.getAssetBalance(symbol.replace("USDT", ""));
-        const sellQty = balance;
+
+        // FIX: Format Quantity to correct LOT_SIZE for sell as well
+        const stepSize =
+            this.binanceData.symbolInfo.get(symbol)?.stepSize || "0.00000001";
+        const sellQty = this.formatQuantity(balance, stepSize);
 
         if (sellQty * this.binanceData.getCurrentPrice(symbol).price < 10) {
             logger.warn(`[LIVE] Dust balance, cannot exit ${symbol}`);
@@ -205,7 +224,6 @@ class LiveTradingEngine extends EventEmitter {
         if (order.status === "FILLED") {
             const pnl = parseFloat(order.cummulativeQuoteQty) - trade.entryCost;
 
-            // UPDATE STATS FOR FRONTEND
             this.livePortfolioState.totalPnL += pnl;
             this.livePortfolioState.dailyPnL += pnl;
             this.livePortfolioState.totalTrades++;
@@ -232,7 +250,7 @@ class LiveTradingEngine extends EventEmitter {
         const openTrades = await this.tradeRepo.getOpenLiveTrades();
         for (const trade of openTrades) {
             if (this.processingLocks.has(trade.symbol)) continue;
-            this.processingLocks.add(trade.symbol); // Lock during check
+            this.processingLocks.add(trade.symbol);
 
             try {
                 const currentPrice = priceData[trade.symbol]?.price;
@@ -261,6 +279,21 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     // --- UTILS ---
+
+    // Helper to format quantity based on stepSize
+    formatQuantity(qty, stepSize) {
+        const step = parseFloat(stepSize);
+        if (!step) return qty.toFixed(8);
+
+        // Calculate precision from step size (e.g. 0.001 -> 3 decimals)
+        const precision = Math.max(0, Math.log10(1 / step));
+
+        // Floor to the nearest step
+        const formatted = Math.floor(qty / step) * step;
+
+        return formatted.toFixed(precision);
+    }
+
     async executeSmartOrder(symbol, side, quantity) {
         try {
             const book = await binanceClient.bookTickers(symbol);
@@ -332,7 +365,6 @@ class LiveTradingEngine extends EventEmitter {
         return { isActive: true, pnl: this.livePortfolioState };
     }
 
-    // START/STOP HANDLERS
     start() {
         if (this.portfolioUpdateInterval)
             clearInterval(this.portfolioUpdateInterval);
