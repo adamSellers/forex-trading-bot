@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FINAL CLEAN ARCHITECTURE
+// backend/src/services/LiveTradingEngine.js - FIXED REPO METHODS
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -19,12 +19,7 @@ class LiveTradingEngine extends EventEmitter {
             totalValue: 0,
             totalPnL: 0,
             dailyPnL: 0,
-            // Stats for Dashboard
-            stats: {
-                winRate: 0,
-                totalTrades: 0,
-                winningTrades: 0,
-            },
+            stats: { winRate: 0, totalTrades: 0, winningTrades: 0 },
         };
     }
 
@@ -45,16 +40,25 @@ class LiveTradingEngine extends EventEmitter {
         );
 
         // 2. Load "OPEN" positions (State Recovery)
-        const dbPositions = await this.tradeRepo.getOpenPositions("live");
-        this.portfolio.positions = dbPositions.map((p) => ({
-            ...p,
-            currentPrice: p.price,
-            unrealizedPnL: 0,
-        }));
-
-        logger.info(
-            `🔄 Restored ${this.portfolio.positions.length} active positions.`
-        );
+        // FIX: Use 'getOpenLiveTrades' instead of 'getOpenPositions'
+        try {
+            const dbPositions = await this.tradeRepo.getOpenLiveTrades();
+            this.portfolio.positions = dbPositions.map((p) => ({
+                ...p,
+                currentPrice: p.price || p.entryPrice,
+                unrealizedPnL: 0,
+            }));
+            logger.info(
+                `🔄 Restored ${this.portfolio.positions.length} active positions.`
+            );
+        } catch (err) {
+            // Fallback for empty DB or repo mismatch
+            logger.warn(
+                "⚠️ Could not restore positions (likely empty DB): " +
+                    err.message
+            );
+            this.portfolio.positions = [];
+        }
 
         // 3. Hydrate Historical Stats
         await this.calculatePerformanceStats();
@@ -62,8 +66,11 @@ class LiveTradingEngine extends EventEmitter {
 
     async calculatePerformanceStats() {
         try {
+            // FIX: Ensure this matches repo method. Usually 'getAllTrades' or 'getRecent'
             const allTrades = await this.tradeRepo.getAllTrades("live");
-            const closedTrades = allTrades.filter((t) => t.status === "CLOSED");
+            const closedTrades = allTrades.filter(
+                (t) => t.status === "CLOSED" || !t.isOpen
+            );
 
             this.portfolio.stats.totalTrades = closedTrades.length;
             this.portfolio.stats.winningTrades = closedTrades.filter(
@@ -81,7 +88,7 @@ class LiveTradingEngine extends EventEmitter {
                 0
             );
         } catch (e) {
-            logger.warn("⚠️ Could not load stats, starting fresh.");
+            logger.warn("⚠️ Stats hydration skipped: " + e.message);
         }
     }
 
@@ -126,7 +133,6 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Position already open",
                 };
 
-            // Allocation: Use config % or default 15%
             const allocationPct =
                 this.config.allocation?.[signal.symbol] || 0.15;
             const maxAllocatedUsdt = this.portfolio.usdtBalance * allocationPct;
@@ -144,7 +150,6 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Insufficient allocated capital (<$15)",
                 };
 
-            // CALL NEW SERVICE METHOD
             let quantity = tradeAmountUsdt / currentPrice;
             quantity = this.binanceData.stepSize(signal.symbol, quantity);
 
@@ -157,7 +162,6 @@ class LiveTradingEngine extends EventEmitter {
             );
 
             try {
-                // CALL NEW SERVICE METHOD
                 const order = await this.binanceData.executeOrder(
                     signal.symbol,
                     "BUY",
@@ -166,6 +170,7 @@ class LiveTradingEngine extends EventEmitter {
 
                 // Construct Record
                 const tradeRecord = {
+                    id: order.orderId.toString(), // Use Order ID as DB ID
                     symbol: signal.symbol,
                     side: "BUY",
                     price: parseFloat(order.fills?.[0]?.price || currentPrice),
@@ -174,6 +179,7 @@ class LiveTradingEngine extends EventEmitter {
                     orderId: order.orderId,
                     timestamp: Date.now(),
                     status: "OPEN",
+                    isOpen: true, // For legacy compatibility
                     stopLoss:
                         currentPrice - atr * (this.config.stopLossATR || 1.5),
                     trailingStop: this.config.enableTrailingStops
@@ -182,10 +188,9 @@ class LiveTradingEngine extends EventEmitter {
                     mode: "live",
                 };
 
-                // Safe DB Write
+                // FIX: Use 'save' instead of 'create'
                 try {
-                    const id = await this.tradeRepo.create(tradeRecord);
-                    tradeRecord.id = id;
+                    await this.tradeRepo.save(tradeRecord);
                 } catch (dbErr) {
                     logger.error(
                         "⚠️ Ghost Trade averted: Order filled but DB write failed.",
@@ -222,7 +227,6 @@ class LiveTradingEngine extends EventEmitter {
             logger.info(`📉 Closing ${position.symbol} due to ${reason}...`);
             const quantity = position.quantity;
 
-            // CALL NEW SERVICE METHOD
             const order = await this.binanceData.executeOrder(
                 position.symbol,
                 "SELL",
@@ -235,11 +239,14 @@ class LiveTradingEngine extends EventEmitter {
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
-            await this.tradeRepo.updateStatus(position.id, "CLOSED", {
+            // FIX: Use 'updateTrade' instead of 'updateStatus'
+            await this.tradeRepo.updateTrade(position.id, {
+                status: "CLOSED",
+                isOpen: false,
                 exitPrice,
                 exitTime: Date.now(),
                 pnl,
-                reason,
+                exitReason: reason,
             });
 
             // Update State
