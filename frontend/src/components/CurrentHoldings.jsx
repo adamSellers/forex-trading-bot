@@ -1,8 +1,8 @@
-// frontend/src/components/CurrentHoldings.jsx - FINAL FIX
-import React, { useState } from 'react';
+// frontend/src/components/CurrentHoldings.jsx
+import React, { useState, useMemo } from 'react';
 import {
   Box, Paper, Typography, Card, CardContent, Chip, Tabs, Tab,
-  IconButton, Tooltip, Stack, LinearProgress, useTheme, alpha, Grid, Divider, Alert
+  IconButton, Tooltip, Stack, useTheme, alpha, Grid, Divider, Alert
 } from '@mui/material';
 import {
   AccountBalance, MonetizationOn, Psychology, CompareArrows, Info,
@@ -17,7 +17,15 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   const theme = useTheme();
   const isLiveMode = systemStatus?.config?.tradingMode === 'live';
   const [tabValue, setTabValue] = useState(isLiveMode ? 1 : 0);
-  const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE', 'TRUMP'];
+
+  // FIX: Dynamically derive assets from the backend config, default to major pairs if missing
+  const TRADING_ASSETS = useMemo(() => {
+      const configAssets = systemStatus?.config?.assets || [];
+      // Clean "USDT" suffix if present to match Binance balance format (e.g. "BTCUSDT" -> "BTC")
+      const cleanedAssets = configAssets.map(a => a.replace('USDT', ''));
+      // Always track USDT plus whatever the bot is configured to trade
+      return ['USDT', ...new Set(cleanedAssets)];
+  }, [systemStatus]);
 
   // --- HELPERS ---
   const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
@@ -25,9 +33,9 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   const getPaperValue = () => (portfolio?.usdtBalance || 0) + (portfolio?.cryptoValue || 0);
   
   const calculateRealValue = (balance) => {
-      if (balance.asset === 'USDT') return balance.total;
+      if (balance.asset === 'USDT') return parseFloat(balance.total);
       const p = prices[`${balance.asset}USDT`]?.price || 0;
-      return balance.total * p;
+      return parseFloat(balance.total) * p;
   };
   
   const getRealTotal = () => {
@@ -52,7 +60,6 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       return (
         <Card variant="outlined" sx={{ mb: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.4) }}>
             <CardContent sx={{ p: '12px !important' }}>
-                {/* Top Row: Main Info */}
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                     <Box display="flex" alignItems="center" gap={1.5}>
                         <Chip 
@@ -80,10 +87,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                         </Typography>
                     </Box>
                 </Box>
-
                 <Divider sx={{ my: 1, borderColor: alpha(theme.palette.divider, 0.1) }} />
-
-                {/* Bottom Row: Detailed Stats */}
                 <Grid container spacing={1}>
                     <Grid item xs={3}>
                         <Typography variant="caption" color="text.secondary" display="block">Entry</Typography>
@@ -135,7 +139,6 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                         {formatCrypto(balance.total)}
                     </Typography>
                 </Box>
-
                 {!isUsdt && (
                     <Box mt={1} display="flex" gap={2} fontSize="0.75rem" color="text.secondary">
                         <Box display="flex" alignItems="center" gap={0.5}>
@@ -175,7 +178,6 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
         
         {/* TAB 1: BOT PORTFOLIO */}
         <TabPanel value={tabValue} index={0}>
-             {/* Summary Header */}
              <Box mb={2} p={1.5} borderRadius={1} bgcolor={alpha(isLiveMode ? theme.palette.error.main : theme.palette.warning.main, 0.1)}>
                  <Grid container spacing={1} textAlign="center">
                      <Grid item xs={6}>
@@ -193,7 +195,6 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                  </Grid>
              </Box>
              
-             {/* Cash Row */}
              <Box display="flex" justifyContent="space-between" alignItems="center" p={1.5} mb={1.5} borderRadius={1} border={1} borderColor="divider">
                  <Box display="flex" alignItems="center" gap={1}>
                     <AccountBalance color="disabled" fontSize="small" />
@@ -202,7 +203,6 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                  <Typography variant="body2" fontWeight="bold">{formatCurrency(portfolio?.usdtBalance)}</Typography>
              </Box>
              
-             {/* Positions */}
              {portfolio?.positions?.map(p => (
                  <PositionRow key={p.symbol} position={p} />
              ))}
@@ -221,6 +221,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                  </Typography>
              </Box>
 
+             {/* Dynamic Filtering based on Config + USDT */}
              {account?.balances?.filter(b => TRADING_ASSETS.includes(b.asset) && (parseFloat(b.total) > 0 || b.asset === 'USDT')).map(b => (
                  <BalanceRow key={b.asset} balance={b} />
              ))}

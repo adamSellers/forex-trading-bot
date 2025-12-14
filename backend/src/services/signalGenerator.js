@@ -14,18 +14,15 @@ class SignalGenerator extends EventEmitter {
             strategy: "balanced",
             timeframe: "1h",
             signalCooldown: 60000,
-            assets: [], // Will be populated by tradingService
-
-            // --- THE WINNING "LEAN" CONFIG ---
-            minAdx: 30, // Strong Trends Only
-            rsiOversold: 30, // Deep Dips Only
-            rsiOverbought: 70, // Momentum Peak Exit
-
+            assets: [],
+            minAdx: 25,
+            rsiOversold: 35,
+            rsiOverbought: 70,
             ...config,
         };
 
         this.lastSignals = new Map();
-        logger.info(`🧠 Signal Generator v3.0 (Lean Logic) Initialized`);
+        logger.info(`🧠 Signal Generator v3.1 (Trend-Safe) Initialized`);
     }
 
     start(binanceDataService, intervalMs = 60000) {
@@ -92,23 +89,28 @@ class SignalGenerator extends EventEmitter {
                 period: 14,
             }).pop();
 
-            // 2. Logic: The "Lean" Snapback
+            // 2. Logic: Trend-Safe Snapback
             let signalType = "HOLD";
-            let reason = `Monitoring (ADX:${adx.adx.toFixed(
-                0
-            )} RSI:${rsi.toFixed(0)})`;
+            let reason = `Monitoring (ADX:${adx.adx.toFixed(0)} Dirm:${
+                adx.pdi > adx.mdi ? "UP" : "DOWN"
+            } RSI:${rsi.toFixed(0)})`;
 
-            // BUY: Strong Trend + Oversold
-            if (adx.adx > this.config.minAdx && rsi < this.config.rsiOversold) {
+            const isUptrend = adx.pdi > adx.mdi;
+            const isStrongTrend = adx.adx > this.config.minAdx;
+            const isOversold = rsi < this.config.rsiOversold;
+            const isOverbought = rsi > this.config.rsiOverbought;
+
+            // BUY: Strong Uptrend + Price Dip
+            if (isStrongTrend && isUptrend && isOversold) {
                 signalType = "BUY";
-                reason = `🔥 SNAPBACK: ADX ${adx.adx.toFixed(
+                reason = `🚀 TREND DIP: Uptrend (ADX ${adx.adx.toFixed(
                     0
-                )} > 30 + RSI ${rsi.toFixed(0)} < 30`;
+                )}) + Oversold (RSI ${rsi.toFixed(0)})`;
             }
             // SELL: Overbought (Profit Taking)
-            else if (rsi > this.config.rsiOverbought) {
+            else if (isOverbought) {
                 signalType = "SELL";
-                reason = `💰 OVERBOUGHT: RSI ${rsi.toFixed(0)} > 70`;
+                reason = `💰 PROFIT: Overbought (RSI ${rsi.toFixed(0)} > 70)`;
             }
 
             return {
@@ -118,7 +120,7 @@ class SignalGenerator extends EventEmitter {
                 message: reason,
                 timestamp: Date.now(),
                 data: { currentPrice, rsi, adx: adx.adx, atr },
-                atr, // Passing ATR for position sizing
+                atr,
             };
         } catch (error) {
             logger.error(`Calc error ${symbol}:`, error);
@@ -131,7 +133,6 @@ class SignalGenerator extends EventEmitter {
         const key = `${signal.symbol}_${signal.signal}`;
         const lastTime = this.lastSignals.get(key) || 0;
 
-        // 60s cooldown to prevent double-firing
         if (
             (signal.signal === "BUY" || signal.signal === "SELL") &&
             Date.now() - lastTime < this.config.signalCooldown
@@ -175,11 +176,9 @@ class SignalGenerator extends EventEmitter {
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
     }
-
     getStatus() {
         return { isActive: this.isRunning, config: this.config };
     }
-
     reset() {
         this.lastSignals.clear();
     }

@@ -1,412 +1,343 @@
-// backend/src/services/LiveTradingEngine.js - FIXED LOT_SIZE ERROR
+// backend/src/services/LiveTradingEngine.js - FINAL CLEAN ARCHITECTURE
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
-const PortfolioRepository = require("../repositories/portfolioRepository");
-const binanceClient = require("./binanceClient");
 
 class LiveTradingEngine extends EventEmitter {
-    constructor(config = {}, binanceDataService, riskService) {
+    constructor(config, binanceData, riskService) {
         super();
-        this.config = {
-            maxCapitalAtRisk: config.maxCapitalAtRisk || 1000,
-            riskPerTrade: config.riskPerTrade || 0.02,
-            stopLossATR: 1.5,
-            takeProfitATR: 3.0,
-            ...config,
-        };
-        this.binanceData = binanceDataService;
+        this.config = config;
+        this.binanceData = binanceData;
         this.riskService = riskService;
         this.tradeRepo = new TradeRepository();
-        this.portfolioRepo = new PortfolioRepository();
-
-        this.processingLocks = new Set();
         this.mode = "live";
 
-        // --- RESTORED STATE FOR FRONTEND ---
-        this.livePortfolioState = {
+        // State
+        this.portfolio = {
+            usdtBalance: 0,
+            positions: [],
+            totalValue: 0,
             totalPnL: 0,
             dailyPnL: 0,
-            weeklyPnL: 0,
-            totalTrades: 0,
-            winningTrades: 0,
-            winRate: 0,
+            // Stats for Dashboard
+            stats: {
+                winRate: 0,
+                totalTrades: 0,
+                winningTrades: 0,
+            },
         };
-
-        logger.info("🚀 Live Engine v3.2 (LOT_SIZE Fix) Ready");
     }
 
     async initialize() {
-        // Hydrate PnL & Stats from DB
-        const allLiveTrades = await this.tradeRepo.getAllTrades("live");
-        const sellTrades = allLiveTrades.filter((t) => t.side === "SELL");
+        logger.info("🔌 Live Trading Engine Connecting...");
 
-        this.livePortfolioState.totalPnL = sellTrades.reduce(
-            (sum, t) => sum + (t.pnl || 0),
-            0
+        // 1. Verify Binance Connection & Get Balance
+        const account = await this.binanceData.getAccountInfo();
+        if (account.error) throw new Error("Binance Connection Failed");
+
+        this.portfolio.usdtBalance = parseFloat(
+            account.balances.find((b) => b.asset === "USDT")?.free || 0
         );
-        this.livePortfolioState.totalTrades = sellTrades.length;
-        this.livePortfolioState.winningTrades = sellTrades.filter(
-            (t) => t.pnl > 0
-        ).length;
-        this.livePortfolioState.winRate =
-            this.livePortfolioState.totalTrades > 0
-                ? (this.livePortfolioState.winningTrades /
-                      this.livePortfolioState.totalTrades) *
-                  100
-                : 0;
-    }
-
-    // --- REQUIRED BY TRADING CONTROLLER/FRONTEND ---
-    async getPortfolioSummary() {
-        const accountInfo = await this.binanceData.getAccountInfo();
-        const usdt =
-            accountInfo.balances?.find((b) => b.asset === "USDT")?.free || 0;
-        const openTrades = await this.tradeRepo.getOpenLiveTrades();
-        const prices = this.binanceData.getAllPrices();
-
-        const positions = openTrades.map((t) => {
-            const curPrice = prices[t.symbol]?.price || t.entryPrice;
-            const curVal = t.quantity * curPrice;
-            return {
-                symbol: t.symbol,
-                quantity: t.quantity,
-                entryPrice: t.entryPrice,
-                currentPrice: curPrice,
-                currentValue: curVal,
-                unrealizedPnL: curVal - t.entryCost,
-                stopLoss: t.stopLoss,
-                takeProfit: t.takeProfit,
-            };
-        });
-
-        const cryptoValue = positions.reduce(
-            (sum, p) => sum + p.currentValue,
-            0
+        logger.success(
+            `✅ Live Engine Online. USDT Balance: $${this.portfolio.usdtBalance.toFixed(
+                2
+            )}`
         );
 
-        return {
-            mode: "live",
-            totalValue: parseFloat(usdt) + cryptoValue,
-            usdtBalance: parseFloat(usdt),
-            cryptoValue: cryptoValue,
-            positions: positions,
-            dailyPnL: this.livePortfolioState.dailyPnL,
-            performance: {
-                winRate: this.livePortfolioState.winRate,
-                totalTrades: this.livePortfolioState.totalTrades,
-                dailyPnL: this.livePortfolioState.dailyPnL,
-            },
-            riskStatus: this.riskService.getRiskStatus(),
-        };
+        // 2. Load "OPEN" positions (State Recovery)
+        const dbPositions = await this.tradeRepo.getOpenPositions("live");
+        this.portfolio.positions = dbPositions.map((p) => ({
+            ...p,
+            currentPrice: p.price,
+            unrealizedPnL: 0,
+        }));
+
+        logger.info(
+            `🔄 Restored ${this.portfolio.positions.length} active positions.`
+        );
+
+        // 3. Hydrate Historical Stats
+        await this.calculatePerformanceStats();
     }
 
-    async processSignal(signal, currentPrice, atrValue) {
-        if (this.processingLocks.has(signal.symbol))
-            return { success: false, reason: "Locked" };
-        this.processingLocks.add(signal.symbol);
-
+    async calculatePerformanceStats() {
         try {
-            if (this.riskService.isHalted())
-                return { success: false, reason: "Risk Halt" };
+            const allTrades = await this.tradeRepo.getAllTrades("live");
+            const closedTrades = allTrades.filter((t) => t.status === "CLOSED");
 
-            const openTrades = await this.tradeRepo.getOpenLiveTrades();
-            const openTrade = openTrades.find(
-                (t) => t.symbol === signal.symbol
+            this.portfolio.stats.totalTrades = closedTrades.length;
+            this.portfolio.stats.winningTrades = closedTrades.filter(
+                (t) => t.pnl > 0
+            ).length;
+            this.portfolio.stats.winRate =
+                this.portfolio.stats.totalTrades > 0
+                    ? (this.portfolio.stats.winningTrades /
+                          this.portfolio.stats.totalTrades) *
+                      100
+                    : 0;
+
+            this.portfolio.totalPnL = closedTrades.reduce(
+                (acc, t) => acc + (t.pnl || 0),
+                0
+            );
+        } catch (e) {
+            logger.warn("⚠️ Could not load stats, starting fresh.");
+        }
+    }
+
+    async start() {
+        logger.info("🟢 Live Trading STARTED");
+        const prices = this.binanceData.getAllPrices();
+        this.updatePortfolioValue(prices);
+    }
+
+    async stop() {
+        logger.info("🔴 Live Trading STOPPED");
+    }
+
+    // --- CORE TRADING LOGIC ---
+
+    async processSignal(signal, currentPrice, atr) {
+        if (signal.signal !== "BUY" && signal.signal !== "SELL")
+            return { success: false, action: "NONE" };
+
+        // 1. Global Risk Check
+        if (
+            this.riskService &&
+            !this.riskService.checkRiskLimits(this.getPortfolioSummary())
+        ) {
+            return {
+                success: false,
+                action: "SKIP",
+                reason: "Global Risk Halt Active",
+            };
+        }
+
+        const openPosition = this.portfolio.positions.find(
+            (p) => p.symbol === signal.symbol
+        );
+
+        // --- BUY SIGNAL ---
+        if (signal.signal === "BUY") {
+            if (openPosition)
+                return {
+                    success: false,
+                    action: "SKIP",
+                    reason: "Position already open",
+                };
+
+            // Allocation: Use config % or default 15%
+            const allocationPct =
+                this.config.allocation?.[signal.symbol] || 0.15;
+            const maxAllocatedUsdt = this.portfolio.usdtBalance * allocationPct;
+
+            // Cap at Max Risk Capital
+            const tradeAmountUsdt = Math.min(
+                maxAllocatedUsdt,
+                this.config.maxCapitalAtRisk || 999999
             );
 
-            if (signal.signal === "BUY" && !openTrade) {
-                // SAFETY: Double-check if we actually have enough USDT before trying
-                const balance = await this.getAssetBalance("USDT");
-                if (balance < 15) {
-                    logger.error(
-                        `[LIVE] 🛑 STOPPING BUY: Insufficient USDT (${balance})`
-                    );
-                    return { success: false, reason: "Insufficient Funds" };
-                }
-                return await this.executeLiveBuy(
-                    signal,
-                    currentPrice,
-                    atrValue
-                );
-            } else if (signal.signal === "SELL" && openTrade) {
-                return await this.executeLiveSell(
+            if (tradeAmountUsdt < 15)
+                return {
+                    success: false,
+                    action: "SKIP",
+                    reason: "Insufficient allocated capital (<$15)",
+                };
+
+            // CALL NEW SERVICE METHOD
+            let quantity = tradeAmountUsdt / currentPrice;
+            quantity = this.binanceData.stepSize(signal.symbol, quantity);
+
+            logger.info(
+                `⚖️ Sizing: Bal $${this.portfolio.usdtBalance.toFixed(2)} * ${
+                    allocationPct * 100
+                }% = $${tradeAmountUsdt.toFixed(2)} -> ${quantity} ${
+                    signal.symbol
+                }`
+            );
+
+            try {
+                // CALL NEW SERVICE METHOD
+                const order = await this.binanceData.executeOrder(
                     signal.symbol,
-                    "SIGNAL_EXIT",
-                    openTrade
+                    "BUY",
+                    quantity
                 );
+
+                // Construct Record
+                const tradeRecord = {
+                    symbol: signal.symbol,
+                    side: "BUY",
+                    price: parseFloat(order.fills?.[0]?.price || currentPrice),
+                    quantity: parseFloat(order.executedQty),
+                    usdtCost: parseFloat(order.cummulativeQuoteQty),
+                    orderId: order.orderId,
+                    timestamp: Date.now(),
+                    status: "OPEN",
+                    stopLoss:
+                        currentPrice - atr * (this.config.stopLossATR || 1.5),
+                    trailingStop: this.config.enableTrailingStops
+                        ? currentPrice * (1 - this.config.trailingStopPercent)
+                        : null,
+                    mode: "live",
+                };
+
+                // Safe DB Write
+                try {
+                    const id = await this.tradeRepo.create(tradeRecord);
+                    tradeRecord.id = id;
+                } catch (dbErr) {
+                    logger.error(
+                        "⚠️ Ghost Trade averted: Order filled but DB write failed.",
+                        dbErr.message
+                    );
+                }
+
+                // Update Local State
+                this.portfolio.positions.push(tradeRecord);
+                this.portfolio.usdtBalance -= tradeRecord.usdtCost;
+
+                this.emit("tradeExecuted", tradeRecord);
+                return { success: true, action: "BUY", order };
+            } catch (err) {
+                logger.error("❌ Buy Execution Failed:", err.message);
+                return { success: false, action: "ERROR", reason: err.message };
             }
-            return { success: true, action: "HOLD" };
-        } catch (error) {
-            logger.error(
-                `[LIVE] 💥 CRITICAL EXECUTION ERROR (${signal.symbol}):`,
-                error
+        }
+
+        // --- SELL SIGNAL ---
+        if (signal.signal === "SELL" && openPosition) {
+            return await this.closePosition(
+                openPosition,
+                currentPrice,
+                "SIGNAL_EXIT"
             );
-            return { success: false, reason: "Execution Error" };
-        } finally {
-            this.processingLocks.delete(signal.symbol);
-        }
-    }
-
-    async executeLiveBuy(signal, currentPrice, atrValue) {
-        const accountInfo = await this.binanceData.getAccountInfo();
-        const usdt =
-            accountInfo.balances.find((b) => b.asset === "USDT")?.free || 0;
-
-        // Position Sizing
-        const stopLossDist = atrValue * this.config.stopLossATR;
-        const riskAmount =
-            this.config.maxCapitalAtRisk * this.config.riskPerTrade;
-        let quantity = riskAmount / stopLossDist;
-        const cost = quantity * currentPrice;
-
-        if (cost > usdt * 0.95) quantity = (usdt * 0.95) / currentPrice;
-        if (quantity * currentPrice < 10)
-            return { success: false, reason: "Below Min Notional" };
-
-        // FIX: Format Quantity to correct LOT_SIZE
-        const stepSize =
-            this.binanceData.symbolInfo.get(signal.symbol)?.stepSize ||
-            "0.00000001";
-        const formattedQty = this.formatQuantity(quantity, stepSize);
-
-        logger.info(
-            `[LIVE] 🛒 Buying ${signal.symbol} Qty:${formattedQty} @ ${currentPrice}`
-        );
-        const order = await this.executeSmartOrder(
-            signal.symbol,
-            "BUY",
-            formattedQty
-        );
-
-        if (order.status !== "FILLED")
-            return { success: false, reason: "Order Not Filled" };
-
-        const { avgPrice } = await this._parseOrderFills(order.fills);
-
-        const trade = {
-            id: order.orderId.toString(),
-            symbol: signal.symbol,
-            side: "BUY",
-            quantity: parseFloat(order.executedQty),
-            entryPrice: avgPrice || currentPrice,
-            stopLoss: currentPrice - stopLossDist,
-            takeProfit: currentPrice + atrValue * this.config.takeProfitATR,
-            isOpen: true,
-            timestamp: Date.now(),
-            entryCost: parseFloat(order.cummulativeQuoteQty),
-            mode: "live",
-        };
-
-        await this.tradeRepo.save(trade);
-        this.emit("tradeExecuted", trade);
-        return { success: true, trade };
-    }
-
-    async executeLiveSell(symbol, reason, trade) {
-        const balance = await this.getAssetBalance(symbol.replace("USDT", ""));
-
-        // FIX: Format Quantity to correct LOT_SIZE for sell as well
-        const stepSize =
-            this.binanceData.symbolInfo.get(symbol)?.stepSize || "0.00000001";
-        const sellQty = this.formatQuantity(balance, stepSize);
-
-        if (sellQty * this.binanceData.getCurrentPrice(symbol).price < 10) {
-            logger.warn(`[LIVE] Dust balance, cannot exit ${symbol}`);
-            return { success: false, reason: "Dust Balance" };
         }
 
-        logger.info(
-            `[LIVE] 📉 Selling ${symbol} (FULL EXIT) | Reason: ${reason}`
-        );
-        const order = await this.executeSmartOrder(symbol, "SELL", sellQty);
+        return { success: false, action: "NONE" };
+    }
 
-        if (order.status === "FILLED") {
-            const pnl = parseFloat(order.cummulativeQuoteQty) - trade.entryCost;
+    async closePosition(position, currentPrice, reason) {
+        try {
+            logger.info(`📉 Closing ${position.symbol} due to ${reason}...`);
+            const quantity = position.quantity;
 
-            this.livePortfolioState.totalPnL += pnl;
-            this.livePortfolioState.dailyPnL += pnl;
-            this.livePortfolioState.totalTrades++;
-            if (pnl > 0) this.livePortfolioState.winningTrades++;
-            this.livePortfolioState.winRate =
-                (this.livePortfolioState.winningTrades /
-                    this.livePortfolioState.totalTrades) *
-                100;
+            // CALL NEW SERVICE METHOD
+            const order = await this.binanceData.executeOrder(
+                position.symbol,
+                "SELL",
+                quantity
+            );
 
-            await this.tradeRepo.updateTrade(trade.id, {
-                isOpen: false,
-                exitReason: reason,
-                pnl: pnl,
-                pnlPercent: (pnl / trade.entryCost) * 100,
+            const exitPrice = parseFloat(
+                order.fills?.[0]?.price || currentPrice
+            );
+            const usdtReceived = parseFloat(order.cummulativeQuoteQty);
+            const pnl = usdtReceived - position.usdtCost;
+
+            await this.tradeRepo.updateStatus(position.id, "CLOSED", {
+                exitPrice,
+                exitTime: Date.now(),
+                pnl,
+                reason,
             });
 
-            this.emit("tradeExecuted", { symbol, side: "SELL", pnl, reason });
-            return { success: true };
-        }
-        return { success: false, reason: "Order Fail" };
-    }
-
-    async updatePortfolioValue(priceData) {
-        const openTrades = await this.tradeRepo.getOpenLiveTrades();
-        for (const trade of openTrades) {
-            if (this.processingLocks.has(trade.symbol)) continue;
-            this.processingLocks.add(trade.symbol);
-
-            try {
-                const currentPrice = priceData[trade.symbol]?.price;
-                if (!currentPrice) continue;
-
-                if (currentPrice <= trade.stopLoss) {
-                    await this.executeLiveSell(
-                        trade.symbol,
-                        "STOP_LOSS",
-                        trade
-                    );
-                } else if (currentPrice >= trade.takeProfit) {
-                    logger.success(`🎯 TP HIT for ${trade.symbol}! Full Exit.`);
-                    await this.executeLiveSell(
-                        trade.symbol,
-                        "TAKE_PROFIT",
-                        trade
-                    );
-                }
-            } catch (e) {
-                logger.error(`Portfolio Error ${trade.symbol}`, e);
-            } finally {
-                this.processingLocks.delete(trade.symbol);
-            }
-        }
-    }
-
-    // --- UTILS ---
-
-    // Helper to format quantity based on stepSize
-    formatQuantity(qty, stepSize) {
-        const step = parseFloat(stepSize);
-        if (!step) return qty.toFixed(8);
-
-        // Calculate precision from step size (e.g. 0.001 -> 3 decimals)
-        const precision = Math.max(0, Math.log10(1 / step));
-
-        // Floor to the nearest step
-        const formatted = Math.floor(qty / step) * step;
-
-        return formatted.toFixed(precision);
-    }
-
-    async executeSmartOrder(symbol, side, quantity) {
-        try {
-            const book = await binanceClient.bookTickers(symbol);
-            const price =
-                side === "BUY"
-                    ? parseFloat(book.bidPrice)
-                    : parseFloat(book.askPrice);
-            let order;
-            try {
-                order = await new Promise((resolve, reject) => {
-                    const cb = (e, r) => (e ? reject(e) : resolve(r));
-                    if (side === "BUY")
-                        binanceClient.buy(
-                            symbol,
-                            quantity,
-                            price,
-                            { type: "LIMIT" },
-                            cb
-                        );
-                    else
-                        binanceClient.sell(
-                            symbol,
-                            quantity,
-                            price,
-                            { type: "LIMIT" },
-                            cb
-                        );
-                });
-            } catch (e) {
-                return await binanceClient[
-                    side === "BUY" ? "marketBuy" : "marketSell"
-                ](symbol, quantity);
-            }
-            await new Promise((r) => setTimeout(r, 5000));
-            const status = await new Promise((res, rej) =>
-                binanceClient.orderStatus(symbol, order.orderId, (e, s) =>
-                    e ? rej(e) : res(s)
-                )
+            // Update State
+            this.portfolio.positions = this.portfolio.positions.filter(
+                (p) => p.symbol !== position.symbol
             );
-            if (status.status === "FILLED") return status;
-            try {
-                await binanceClient.cancel(symbol, order.orderId);
-            } catch (e) {}
-            return await binanceClient[
-                side === "BUY" ? "marketBuy" : "marketSell"
-            ](symbol, quantity);
-        } catch (e) {
-            throw e;
+            this.portfolio.usdtBalance += usdtReceived;
+            this.portfolio.dailyPnL += pnl;
+            this.portfolio.totalPnL += pnl;
+
+            // Update Stats
+            this.portfolio.stats.totalTrades++;
+            if (pnl > 0) this.portfolio.stats.winningTrades++;
+            this.portfolio.stats.winRate =
+                (this.portfolio.stats.winningTrades /
+                    this.portfolio.stats.totalTrades) *
+                100;
+
+            const tradeRecord = {
+                ...position,
+                side: "SELL",
+                status: "CLOSED",
+                pnl,
+                exitPrice,
+                reason,
+            };
+            this.emit("tradeExecuted", tradeRecord);
+
+            logger.info(`✅ Sold ${position.symbol}. PnL: $${pnl.toFixed(2)}`);
+            return { success: true, action: "SELL", order };
+        } catch (err) {
+            logger.error(`❌ Failed to close ${position.symbol}:`, err.message);
+            return { success: false, action: "ERROR", reason: err.message };
         }
     }
 
-    async getAssetBalance(asset) {
-        const info = await this.binanceData.getAccountInfo();
-        return info.balances?.find((b) => b.asset === asset)?.free || 0;
+    updatePortfolioValue(allPrices) {
+        if (!allPrices) return;
+
+        let totalCryptoValue = 0;
+        let unrealizedPnL = 0;
+
+        this.portfolio.positions.forEach((pos) => {
+            const currentPrice = allPrices[pos.symbol];
+            if (!currentPrice) return;
+
+            const currentValue = pos.quantity * currentPrice;
+            const posPnL = currentValue - pos.usdtCost;
+
+            pos.currentPrice = currentPrice;
+            pos.unrealizedPnL = posPnL;
+            totalCryptoValue += currentValue;
+            unrealizedPnL += posPnL;
+
+            this.checkExitConditions(pos, currentPrice);
+        });
+
+        this.portfolio.totalValue =
+            this.portfolio.usdtBalance + totalCryptoValue;
+        this.emit("portfolioUpdated", this.getPortfolioSummary());
     }
 
-    async _parseOrderFills(fills) {
-        if (!fills || !fills.length) return { avgPrice: 0 };
-        let totalQty = 0,
-            totalQuote = 0;
-        for (const fill of fills) {
-            totalQty += parseFloat(fill.qty);
-            totalQuote += parseFloat(fill.price) * parseFloat(fill.qty);
+    checkExitConditions(position, currentPrice) {
+        // Hard Stop
+        if (position.stopLoss && currentPrice <= position.stopLoss) {
+            this.closePosition(position, currentPrice, "STOP_LOSS");
+            return;
         }
-        return { avgPrice: totalQty ? totalQuote / totalQty : 0 };
+        // Trailing Stop
+        if (this.config.enableTrailingStops && position.trailingStop) {
+            const trailingPercent = this.config.trailingStopPercent || 0.03;
+            const newStop = currentPrice * (1 - trailingPercent);
+            if (newStop > position.trailingStop)
+                position.trailingStop = newStop;
+            if (currentPrice <= position.trailingStop) {
+                this.closePosition(position, currentPrice, "TRAILING_STOP");
+                return;
+            }
+        }
+    }
+
+    getPortfolioSummary() {
+        return {
+            ...this.portfolio,
+            cryptoValue: this.portfolio.totalValue - this.portfolio.usdtBalance,
+            dailyPnL: this.portfolio.dailyPnL,
+            performance: {
+                winRate: this.portfolio.stats.winRate,
+                totalTrades: this.portfolio.stats.totalTrades,
+                dailyPnL: this.portfolio.dailyPnL,
+            },
+            riskStatus: this.riskService.getRiskStatus(this.portfolio),
+            timestamp: Date.now(),
+        };
     }
 
     getStatus() {
-        return { isActive: true, pnl: this.livePortfolioState };
-    }
-
-    start() {
-        if (this.portfolioUpdateInterval)
-            clearInterval(this.portfolioUpdateInterval);
-        this.portfolioUpdateInterval = setInterval(() => {
-            this.updatePortfolioValue(this.binanceData.getAllPrices());
-        }, 2000);
-    }
-    stop() {
-        clearInterval(this.portfolioUpdateInterval);
-    }
-    updateConfig(c) {
-        this.config = { ...this.config, ...c };
-    }
-
-    // --- RESET & RECOVERY ---
-    async reset() {
-        logger.warn("⚠️ ENGINE RESET TRIGGERED.");
-
-        // 1. Unlock everything
-        this.processingLocks.clear();
-
-        // 2. Reset Memory State
-        this.livePortfolioState = {
-            totalPnL: 0,
-            dailyPnL: 0,
-            weeklyPnL: 0,
-            totalTrades: 0,
-            winningTrades: 0,
-            winRate: 0,
-        };
-
-        // 3. Close open trades in DB (Safety Measure)
-        // If we reset, we assume we want a clean slate.
-        const openTrades = await this.tradeRepo.getOpenLiveTrades();
-        for (const t of openTrades) {
-            await this.tradeRepo.updateTrade(t.id, {
-                isOpen: false,
-                exitReason: "MANUAL_RESET",
-            });
-        }
-
-        logger.success("✅ Engine State Wiped.");
+        return { mode: "live", active: true };
     }
 }
 
