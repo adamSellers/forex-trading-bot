@@ -1,15 +1,15 @@
-// frontend/src/components/TradingConfig.jsx - FULL WIDTH LAYOUT FIX
+// frontend/src/components/TradingConfig.jsx - FIXED (Restored Reset Button)
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
   InputLabel, Select, MenuItem, Alert, InputAdornment,
   IconButton, Container, Stack, Divider, Chip, Tabs, Tab,
-  List, ListItem, Avatar, Grid, styled, alpha, useTheme
+  List, ListItem, Avatar, Grid, styled, alpha, useTheme, Paper
 } from '@mui/material';
 import {
   Save, Refresh, Security, AccountBalance,
   PieChart, Notifications, Delete, AddCircle, 
-  Science, Tune, SettingsRemote
+  Science, Tune, SettingsRemote, Warning, RestartAlt
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
@@ -162,6 +162,17 @@ const TradingConfig = () => {
     }
   };
 
+  const handleResetEngine = async () => {
+      if (!window.confirm("⚠️ ARE YOU SURE? This will wipe memory, clear PnL stats, and reset internal locks. History is preserved.")) return;
+      try {
+          await tradingAPI.resetTrading();
+          alert("✅ Engine Reset Successfully");
+          fetchCurrentConfig();
+      } catch (e) {
+          alert(`Error: ${e.message}`);
+      }
+  };
+
   const updateConfig = (key, value) => { setConfig((prev) => ({ ...prev, [key]: value })); };
 
   const handleAddAsset = () => {
@@ -283,6 +294,29 @@ const TradingConfig = () => {
                 />
             </Stack>
         </GlassCard>
+
+        {/* DANGER ZONE */}
+        <Paper 
+            variant="outlined" 
+            sx={{ 
+                p: 3, 
+                borderColor: 'error.main', 
+                bgcolor: alpha(theme.palette.error.main, 0.05),
+                borderStyle: 'dashed'
+            }}
+        >
+            <SectionHeader icon={<Warning />} title="Danger Zone" subtitle="Irreversible actions" />
+            <Stack direction="row" spacing={2}>
+                <Button 
+                    variant="outlined" 
+                    color="error" 
+                    startIcon={<RestartAlt />}
+                    onClick={handleResetEngine}
+                >
+                    Reset Engine Memory
+                </Button>
+            </Stack>
+        </Paper>
     </Stack>
   );
 
