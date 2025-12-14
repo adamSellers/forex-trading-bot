@@ -2,7 +2,7 @@
 const logger = require("../utils/logger");
 const { EventEmitter } = require("events");
 const SignalGenerator = require("../services/signalGenerator");
-const { db } = require("../config/database"); // <--- FIX: Direct DB Import
+const { db } = require("../../config/database"); // <--- FIX: Direct DB Import
 
 class EnhancedTradingController extends EventEmitter {
     constructor(tradingService, io) {
