@@ -2,6 +2,7 @@
 const logger = require("../utils/logger");
 const { EventEmitter } = require("events");
 const SignalGenerator = require("../services/signalGenerator");
+const { db } = require("../config/database"); // <--- FIX: Direct DB Import
 
 class EnhancedTradingController extends EventEmitter {
     constructor(tradingService, io) {
@@ -66,8 +67,6 @@ class EnhancedTradingController extends EventEmitter {
     async getTrades(query = {}) {
         return await this.tradingService.getTrades(query);
     }
-
-    // --- FIXED: Restored missing data getters ---
 
     async getSignals(query = {}) {
         return await this.tradingService.getSignals(query);
@@ -136,9 +135,6 @@ class EnhancedTradingController extends EventEmitter {
                 throw new Error("Binance Data Service not available");
 
             const limit = days * 24;
-            // Ensure we use the correct service method for history
-            // If getBacktestCandles doesn't exist on BinanceDataService, we might need to fallback
-            // But assuming the architecture supports it:
             const candles =
                 (await binanceData.getCandles(symbol, "1h", limit)) || [];
 
@@ -227,7 +223,8 @@ class EnhancedTradingController extends EventEmitter {
             throw error;
         }
     }
-    // Add to backend/src/controllers/tradingController.js
+
+    // --- FACTORY RESET ---
 
     async factoryReset() {
         logger.warn("☢️ FACTORY RESET INITIATED FROM UI");
@@ -239,21 +236,35 @@ class EnhancedTradingController extends EventEmitter {
             // 2. Clear Engine Memory
             await this.tradingService.resetTrading();
 
-            // 3. Wipe Database Tables
-            // Access the Knex instance directly from the repository
-            const db = this.tradingService.tradeRepo.db;
-
-            // Use transactions to ensure clean wipe
+            // 3. Wipe Database Tables using imported DB instance
             await db.transaction(async (trx) => {
-                await trx("trades").del(); // Delete all rows
-                await trx("signals").del(); // Delete all rows
-                // Reset SQLite autoincrement counters
-                await trx.raw(
-                    "DELETE FROM sqlite_sequence WHERE name='trades'"
-                );
-                await trx.raw(
-                    "DELETE FROM sqlite_sequence WHERE name='signals'"
-                );
+                // Delete data from all system tables
+                await trx("trades").del();
+                await trx("signals").del();
+                await trx("portfolio").del();
+                await trx("performance").del();
+                await trx("live_portfolio_snapshots").del();
+
+                // Reset SQLite autoincrement sequences (if using SQLite)
+                // We wrap this in a try-catch in case you switch to Postgres/MySQL later
+                try {
+                    const tables = [
+                        "trades",
+                        "signals",
+                        "portfolio",
+                        "performance",
+                        "live_portfolio_snapshots",
+                    ];
+                    for (const table of tables) {
+                        await trx.raw(
+                            "DELETE FROM sqlite_sequence WHERE name=?",
+                            [table]
+                        );
+                    }
+                } catch (e) {
+                    // Ignore sequence reset errors (likely different DB dialect)
+                    logger.warn("Skipped sequence reset (non-SQLite DB?)");
+                }
             });
 
             this.eventHistory = []; // Clear log buffer
