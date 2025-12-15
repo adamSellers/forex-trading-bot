@@ -1,4 +1,4 @@
-// frontend/src/components/AnalyticsDashboard.jsx - FINAL CONSISTENT LAYOUT
+// frontend/src/components/AnalyticsDashboard.jsx - IMPROVED LABELS
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Typography, Box, CircularProgress, Alert,
@@ -15,7 +15,7 @@ import {
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
-// --- STYLED COMPONENTS (Shared with TradingDashboard) ---
+// --- STYLED COMPONENTS ---
 const GlassCard = styled(Paper)(({ theme }) => ({
   background: alpha(theme.palette.background.paper, 0.05),
   backdropFilter: 'blur(10px)',
@@ -159,7 +159,7 @@ const AnalyticsDashboard = () => {
         return { date: new Date(t.timestamp), pnl: runningPnL };
     });
 
-    // 3. Filter Efficiency
+    // 3. Filter Efficiency (IMPROVED LABELS)
     const signalStats = { executed: 0, blockedADX: 0, blockedRSI: 0, blockedOther: 0 };
     signals.forEach(s => {
         const msg = (s.message || "").toLowerCase();
@@ -169,10 +169,11 @@ const AnalyticsDashboard = () => {
         else signalStats.blockedOther++;
     });
 
+    // RENAMED LABELS HERE
     const filterPieData = [
-        { id: 0, value: signalStats.executed, label: 'Executed', color: theme.palette.success.main },
-        { id: 1, value: signalStats.blockedADX, label: 'Blocked (ADX)', color: theme.palette.warning.main },
-        { id: 2, value: signalStats.blockedRSI, label: 'Blocked (RSI)', color: theme.palette.info.main },
+        { id: 0, value: signalStats.executed, label: 'Triggered (Buy/Sell)', color: theme.palette.success.main },
+        { id: 1, value: signalStats.blockedADX, label: 'Filtered (Choppy)', color: theme.palette.warning.main },
+        { id: 2, value: signalStats.blockedRSI, label: 'Filtered (Overbought)', color: theme.palette.info.main },
         { id: 3, value: signalStats.blockedOther, label: 'Wait/Hold', color: theme.palette.grey[800] },
     ].filter(d => d.value > 0);
 
@@ -240,13 +241,13 @@ const AnalyticsDashboard = () => {
         </ToggleButtonGroup>
       </Box>
 
-      {/* 1. KPI Cards - Flex Strip */}
+      {/* 1. KPI Cards */}
       <Box display="flex" gap={2} mb={2} sx={{ overflowX: 'auto', pb: 0.5 }}>
         <Box flex={1} minWidth={220}>
             <MetricCard 
                 title="Net Profit" 
                 value={`$${tradingStats.totalPnL?.toFixed(2) || '0.00'}`} 
-                subtitle={`${tradingStats.totalTrades || 0} Trades Executed`}
+                subtitle={`${tradingStats.totalTrades || 0} Trades Filled`}
                 color={tradingStats.totalPnL >= 0 ? 'success.main' : 'error.main'}
                 icon={<ShowChart fontSize="small" />}
             />
@@ -262,9 +263,9 @@ const AnalyticsDashboard = () => {
         </Box>
         <Box flex={1} minWidth={220}>
             <MetricCard 
-                title="Signal Efficiency" 
+                title="Signal Quality" 
                 value={efficiency.signalQuality || 'N/A'} 
-                subtitle={`${efficiency.conversionRate || '0%'} Execution Rate`}
+                subtitle={`${efficiency.conversionRate || '0%'} Fill Rate`}
                 color="info.main"
                 icon={<FilterAlt fontSize="small" />}
             />
@@ -280,10 +281,10 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 2. Main Charts Row - Flexbox (Fixed consistency with Trading Dashboard) */}
+      {/* 2. Main Charts Row */}
       <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={2} mb={2} sx={{ minHeight: 420 }}>
         
-        {/* Growth Curve - Fluid Width */}
+        {/* Growth Curve */}
         <Box flex={1} minWidth={0}>
           <GlassCard sx={{ p: 2, height: '100%' }}>
             <Box mb={2} display="flex" alignItems="center" gap={1}>
@@ -320,7 +321,7 @@ const AnalyticsDashboard = () => {
           </GlassCard>
         </Box>
 
-        {/* Filter Efficiency - Fixed/Smaller Width like Sidebar */}
+        {/* Filter Efficiency */}
         <Box flex={{ xs: 1, lg: '0 0 35%' }} minWidth={{ lg: 350 }}>
           <GlassCard sx={{ p: 2, height: '100%' }}>
             <Box mb={2} display="flex" alignItems="center" gap={1}>
@@ -356,9 +357,8 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 3. Secondary Stats Row - Flexbox */}
+      {/* 3. Secondary Stats Row (Rest of component unchanged) */}
       <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} mb={2} sx={{ minHeight: 350 }}>
-        
         {/* Trend Strength */}
         <Box flex={1}>
           <GlassCard sx={{ p: 3, height: '100%' }}>
@@ -441,7 +441,7 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 4. Asset Table Row - Full Width */}
+      {/* 4. Asset Table Row */}
       <Box width="100%">
           <GlassCard sx={{ p: 0, overflow: 'hidden' }}>
             <Box p={2} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
