@@ -1,13 +1,12 @@
-// frontend/src/components/TradingSignals.jsx - DATA GRID LAYOUT
+// frontend/src/components/TradingSignals.jsx - FILTERED BY PORTFOLIO
 import React, { useMemo } from 'react';
 import { 
     Typography, Box, LinearProgress, Stack, Avatar, 
     useTheme, alpha, Chip, styled, Table, TableBody, 
-    TableCell, TableContainer, TableHead, TableRow, Paper
+    TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import { 
-    TrendingUp, TrendingDown, Timeline, Radar, 
-    AutoGraph, AccessTime, Tag
+    TrendingUp, TrendingDown, Timeline, Radar 
 } from '@mui/icons-material';
 
 // --- STYLED COMPONENTS ---
@@ -19,7 +18,6 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
         backgroundColor: alpha(theme.palette.primary.main, 0.05),
         cursor: 'default'
     },
-    // Hide last border
     '&:last-child td, &:last-child th': {
         border: 0,
     },
@@ -30,7 +28,7 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
     height: 40,
     borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
     fontSize: '0.8rem',
-    fontFamily: '"Roboto Mono", monospace', // Tech font for data
+    fontFamily: '"Roboto Mono", monospace',
 }));
 
 const HeaderCell = styled(TableCell)(({ theme }) => ({
@@ -54,6 +52,19 @@ const MonoText = styled(Typography)(({ theme, color }) => ({
 
 const TradingSignals = ({ signals, systemStatus, compact = false }) => {
   const theme = useTheme();
+
+  // --- LOGIC: Filter Signals by Portfolio Config ---
+  const filteredSignals = useMemo(() => {
+      // If signals are empty or config isn't loaded, return as is (or empty)
+      if (!signals) return [];
+      if (!systemStatus?.config?.assets) return signals;
+
+      // Create a Set for O(1) lookup of active assets
+      const activeAssets = new Set(systemStatus.config.assets);
+
+      // Only show signals that are in the user's whitelist
+      return signals.filter(s => activeAssets.has(s.symbol));
+  }, [signals, systemStatus]);
 
   // --- LOGIC: Signal Meta ---
   const getSignalMeta = (signalType) => {
@@ -80,8 +91,8 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
 
   // --- RENDERERS ---
 
-  // 1. EMPTY STATE
-  if (!signals || signals.length === 0) {
+  // 1. EMPTY STATE (Using filtered list)
+  if (filteredSignals.length === 0) {
       return (
         <Box 
             height="100%" 
@@ -93,8 +104,12 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
             p={4}
         >
             <Radar sx={{ fontSize: 48, opacity: 0.2, mb: 2, animation: 'pulse 2s infinite' }} />
-            <Typography variant="body2" fontWeight="bold">NEURAL NET SCANNING</Typography>
-            <Typography variant="caption" sx={{ opacity: 0.6 }}>Waiting for market triggers...</Typography>
+            <Typography variant="body2" fontWeight="bold">NO ACTIVE SIGNALS</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                {signals && signals.length > 0 
+                    ? "Signals exist but match no active assets." 
+                    : "Scanning portfolio assets..."}
+            </Typography>
             
             {dataStatus && dataStatus.percent < 100 && (
                 <Box width="100%" maxWidth={200} mt={3}>
@@ -113,7 +128,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
   if (compact) {
       return (
         <Stack spacing={0} sx={{ height: '100%', overflowY: 'auto' }}>
-            {signals.map((signal, index) => {
+            {filteredSignals.map((signal, index) => {
                 const { color, icon } = getSignalMeta(signal.signal);
                 const paletteColor = theme.palette[color];
                 
@@ -186,7 +201,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                 </TableRow>
             </TableHead>
             <TableBody>
-                {signals.map((signal, index) => {
+                {filteredSignals.map((signal, index) => {
                      const { color, icon } = getSignalMeta(signal.signal);
                      const paletteColor = theme.palette[color];
 
