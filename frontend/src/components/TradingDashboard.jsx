@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - LIVE ONLY
+// frontend/src/components/TradingDashboard.jsx - FIXED ASSET VISIBILITY
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container, Typography, Button, Chip,
@@ -170,10 +170,10 @@ const TradingDashboard = () => {
 
   const signalsToRender = useMemo(() => Array.from(latestSignals.values()).sort((a, b) => b.timestamp - a.timestamp), [latestSignals]);
   
+  // FIX: Show ALL assets in the config, even if allocation is 0% (Watched Assets)
   const activeChartAssets = useMemo(() => {
-    if (!systemStatus?.config) return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
-    const { assets = [], allocation = {} } = systemStatus.config;
-    return Object.keys(allocation).length === 0 ? assets : assets.filter(s => (allocation[s] || 0) > 0);
+    if (!systemStatus?.config?.assets) return ['BTCUSDT', 'ETHUSDT'];
+    return systemStatus.config.assets; 
   }, [systemStatus]);
 
   const StatCard = ({ title, value, subValue, icon, color }) => (
