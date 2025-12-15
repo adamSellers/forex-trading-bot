@@ -1,4 +1,4 @@
-// frontend/src/components/CurrentHoldings.jsx - LIVE ONLY
+// frontend/src/components/CurrentHoldings.jsx - FIXED ENTRY & RESTORED STOP LOSS
 import React, { useMemo } from 'react';
 import {
   Box, Paper, Typography, Card, CardContent, Chip, 
@@ -9,12 +9,14 @@ import { AccountBalance, Info, Lock, LockOpen } from '@mui/icons-material';
 const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   const theme = useTheme();
 
+  // Determine active assets from config + USDT
   const TRADING_ASSETS = useMemo(() => {
       const configAssets = systemStatus?.config?.assets || [];
       const cleanedAssets = configAssets.map(a => a.replace('USDT', ''));
       return ['USDT', ...new Set(cleanedAssets)];
   }, [systemStatus]);
 
+  // Helpers
   const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
   const formatCrypto = (val) => parseFloat(val || 0).toFixed(4);
   
@@ -24,6 +26,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       return parseFloat(balance.total) * p;
   };
 
+  // --- 1. BOT POSITION ROW (Active Trades) ---
   const PositionRow = ({ position }) => {
       const asset = position.symbol.replace('USDT', '');
       const pnl = position.unrealizedPnL || 0;
@@ -33,9 +36,10 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       return (
         <Card variant="outlined" sx={{ mb: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.4) }}>
             <CardContent sx={{ p: '12px !important' }}>
+                {/* Header: Asset + Qty + PnL */}
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                     <Box display="flex" alignItems="center" gap={1.5}>
-                        <Chip label={asset} color="error" size="small" sx={{ fontWeight: 'bold' }} />
+                        <Chip label={asset} color={isPositive ? "success" : "default"} size="small" sx={{ fontWeight: 'bold' }} />
                         <Typography variant="body2" fontWeight="bold">{formatCrypto(position.quantity)} units</Typography>
                     </Box>
                     <Box textAlign="right">
@@ -45,15 +49,26 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                         <Typography variant="caption" color="text.secondary">Unrealized</Typography>
                     </Box>
                 </Box>
+                
                 <Divider sx={{ my: 1, borderColor: alpha(theme.palette.divider, 0.1) }} />
+                
+                {/* Data Grid: Entry, Current, Stop Loss */}
                 <Grid container spacing={1}>
-                    <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary">Entry: </Typography>
-                        <Typography variant="caption" fontWeight="bold">{formatCurrency(position.avgPrice)}</Typography>
+                    <Grid item xs={4}>
+                        <Typography variant="caption" color="text.secondary" display="block">Entry</Typography>
+                        {/* FIX: Using position.price instead of position.avgPrice */}
+                        <Typography variant="caption" fontWeight="bold">{formatCurrency(position.price)}</Typography>
                     </Grid>
-                    <Grid item xs={6} textAlign="right">
-                        <Typography variant="caption" color="text.secondary">Current: </Typography>
+                    <Grid item xs={4} textAlign="center">
+                        <Typography variant="caption" color="text.secondary" display="block">Current</Typography>
                         <Typography variant="caption" fontWeight="bold">{formatCurrency(curPrice)}</Typography>
+                    </Grid>
+                    <Grid item xs={4} textAlign="right">
+                        <Typography variant="caption" color="text.secondary" display="block">Stop Loss</Typography>
+                        {/* FIX: Explicitly showing Stop Loss */}
+                        <Typography variant="caption" fontWeight="bold" color="error.main">
+                            {position.stopLoss ? formatCurrency(position.stopLoss) : '---'}
+                        </Typography>
                     </Grid>
                 </Grid>
             </CardContent>
@@ -61,6 +76,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       );
   };
 
+  // --- 2. WALLET BALANCE ROW (Binance Funds) ---
   const BalanceRow = ({ balance }) => {
       const value = calculateRealValue(balance);
       const isUsdt = balance.asset === 'USDT';
@@ -88,13 +104,24 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       </Box>
 
       <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
-         <Typography variant="overline" color="text.secondary" sx={{ mb: 1, display: 'block' }}>BOT POSITIONS</Typography>
+         <Typography variant="overline" color="text.secondary" sx={{ mb: 1, display: 'block', letterSpacing: 1, fontWeight: 'bold' }}>
+            BOT POSITIONS
+         </Typography>
+         
          {portfolio?.positions?.map(p => <PositionRow key={p.symbol} position={p} />)}
-         {!portfolio?.positions?.length && <Typography variant="caption" display="block" sx={{ mb: 2, fontStyle: 'italic' }}>No active trades.</Typography>}
+         
+         {!portfolio?.positions?.length && (
+            <Typography variant="caption" display="block" sx={{ mb: 3, fontStyle: 'italic', color: 'text.secondary' }}>
+                No active trades running.
+            </Typography>
+         )}
 
          <Divider sx={{ my: 2 }} />
 
-         <Typography variant="overline" color="text.secondary" sx={{ mb: 1, display: 'block' }}>WALLET BALANCES</Typography>
+         <Typography variant="overline" color="text.secondary" sx={{ mb: 1, display: 'block', letterSpacing: 1, fontWeight: 'bold' }}>
+            WALLET BALANCES
+         </Typography>
+         
          {account?.balances?.filter(b => TRADING_ASSETS.includes(b.asset) && parseFloat(b.total) > 0).map(b => (
              <BalanceRow key={b.asset} balance={b} />
          ))}
