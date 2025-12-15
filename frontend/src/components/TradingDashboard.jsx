@@ -1,32 +1,29 @@
-// frontend/src/components/TradingDashboard.jsx - EXPANDED DATA TERMINAL (520px)
+// frontend/src/components/TradingDashboard.jsx - LIVE ONLY
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  Container, Paper, Typography, Button, Chip,
+  Container, Typography, Button, Chip,
   FormControl, Select, MenuItem, IconButton, Box,
   Stack, Avatar, LinearProgress, useTheme, alpha,
-  Tooltip, Alert, Tabs, Tab, Badge, Divider, styled
+  Tooltip, Alert, Tabs, Tab, Badge, Divider, styled, Paper
 } from '@mui/material';
 import {
   PlayArrow, Stop, Refresh,
   AccountBalanceWallet, History, Bolt,
   ShowChart, Timeline, ReceiptLong, Radar, PieChart,
-  Circle, SignalCellularAlt
+  SignalCellularAlt
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
 import { SOCKET_URL, tradingAPI } from '../config/api';
 
-// Sub-components
 import CurrentHoldings from './CurrentHoldings';
 import LivePrices from './LivePrices';
 import TradingSignals from './TradingSignals'; 
 import RecentTrades from './RecentTrades';
 import LivePriceChart from './LivePriceChart';
 
-// --- CONSTANTS ---
 const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
-const SIDEBAR_WIDTH = 340; // Fixed width for the sidebar
+const SIDEBAR_WIDTH = 340; 
 
-// --- STYLED COMPONENTS ---
 const GlassCard = styled(Paper)(({ theme }) => ({
   background: alpha(theme.palette.background.paper, 0.05),
   backdropFilter: 'blur(10px)',
@@ -52,7 +49,6 @@ const MetricValue = styled(Typography)(() => ({
 const TradingDashboard = () => {
   const theme = useTheme();
   
-  // --- STATE ---
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
@@ -62,7 +58,6 @@ const TradingDashboard = () => {
   const [tradingEnabled, setTradingEnabled] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState('balanced');
   
-  // UI State
   const [activeTab, setActiveTab] = useState(0); 
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -77,7 +72,6 @@ const TradingDashboard = () => {
     return () => { isMountedRef.current = false; if (socketRef.current) socketRef.current.disconnect(); };
   }, []);
 
-  // --- LOGIC: Signal Merging ---
   const updateSignalState = useCallback((newSignals) => {
     if (!newSignals) return;
     const signalArray = Array.isArray(newSignals) ? newSignals : [newSignals];
@@ -97,7 +91,6 @@ const TradingDashboard = () => {
     });
   }, []);
 
-  // --- LOGIC: Data Fetching ---
   const fetchInitialData = useCallback(async () => {
     if (!isMountedRef.current) return;
     try {
@@ -143,7 +136,6 @@ const TradingDashboard = () => {
     }
   }, [updateSignalState]);
 
-  // --- LOGIC: Websockets ---
   useEffect(() => {
     const socketUrl = SOCKET_URL || window.location.origin;
     socketRef.current = io(socketUrl, { transports: ['websocket', 'polling'], upgrade: true, reconnection: true });
@@ -162,7 +154,6 @@ const TradingDashboard = () => {
     return () => socket.disconnect();
   }, [fetchInitialData, updateSignalState]);
 
-  // --- HANDLERS ---
   const handleToggleTrading = async () => {
     try {
       tradingEnabled ? await tradingAPI.stopTrading() : await tradingAPI.startTrading();
@@ -177,9 +168,7 @@ const TradingDashboard = () => {
       catch (err) { setError(err.message); }
   };
 
-  // --- DERIVED DATA ---
   const signalsToRender = useMemo(() => Array.from(latestSignals.values()).sort((a, b) => b.timestamp - a.timestamp), [latestSignals]);
-  const isLiveMode = systemStatus?.config?.tradingMode === 'live';
   
   const activeChartAssets = useMemo(() => {
     if (!systemStatus?.config) return ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'];
@@ -187,7 +176,6 @@ const TradingDashboard = () => {
     return Object.keys(allocation).length === 0 ? assets : assets.filter(s => (allocation[s] || 0) > 0);
   }, [systemStatus]);
 
-  // --- RENDER HELPERS ---
   const StatCard = ({ title, value, subValue, icon, color }) => (
     <GlassCard elevation={0}>
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
@@ -212,7 +200,6 @@ const TradingDashboard = () => {
             
             {subValue && (
                 <Box mt={1} display="flex" alignItems="center" gap={0.5}>
-                    <Circle sx={{ width: 8, height: 8, color: subValue.includes('+') ? 'success.main' : (subValue.includes('0.0%') ? 'text.secondary' : 'error.main') }} />
                     <Typography variant="caption" sx={{ 
                         color: subValue.includes('+') ? 'success.main' : 'text.secondary', 
                         fontWeight: 'bold',
@@ -231,7 +218,7 @@ const TradingDashboard = () => {
   return (
     <Container maxWidth={false} sx={{ py: 2, height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         
-        {/* --- 1. HEADER & CONTROLS --- */}
+        {/* HEADER */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} px={1} flexShrink={0}>
             <Box display="flex" alignItems="center" gap={2}>
                  <Box display="flex" flexDirection="column">
@@ -239,29 +226,19 @@ const TradingDashboard = () => {
                         CRYPTO<span style={{ color: theme.palette.primary.main }}>TREND</span>
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 2 }}>
-                        TERMINAL V1.0
+                        LIVE TERMINAL
                     </Typography>
                  </Box>
                  
                 <Divider orientation="vertical" flexItem sx={{ height: 30, alignSelf: 'center', mx: 1 }} />
                 
-                <Stack direction="row" spacing={1}>
-                    <Chip 
-                        icon={<SignalCellularAlt fontSize="small" />}
-                        label={isLiveMode ? "LIVE NET" : "PAPER TRADING"} 
-                        size="small" 
-                        color={isLiveMode ? "error" : "info"} 
-                        variant={isLiveMode ? "filled" : "outlined"}
-                        sx={{ fontWeight: 'bold', borderRadius: 1 }}
-                    />
-                    <Chip 
-                        label={connectionStatus === 'connected' ? 'SYSTEM ONLINE' : 'OFFLINE'} 
-                        size="small" 
-                        color={connectionStatus === 'connected' ? 'success' : 'default'} 
-                        variant="outlined"
-                        sx={{ fontWeight: 'bold', borderRadius: 1, borderColor: connectionStatus === 'connected' ? alpha(theme.palette.success.main, 0.5) : undefined }}
-                    />
-                </Stack>
+                <Chip 
+                    label={connectionStatus === 'connected' ? 'SYSTEM ONLINE' : 'OFFLINE'} 
+                    size="small" 
+                    color={connectionStatus === 'connected' ? 'success' : 'default'} 
+                    variant="outlined"
+                    sx={{ fontWeight: 'bold', borderRadius: 1 }}
+                />
             </Box>
 
             <Stack direction="row" spacing={2} alignItems="center">
@@ -275,23 +252,15 @@ const TradingDashboard = () => {
                     </IconButton>
                  </Tooltip>
                  
-                 {/* STRATEGY SELECTOR - LOCKED WHEN TRADING IS ACTIVE */}
                  <FormControl size="small">
                     <Select 
                         value={selectedStrategy} 
                         onChange={handleStrategyChange} 
                         disabled={tradingEnabled}
-                        sx={{ 
-                            height: 32, 
-                            fontSize: '0.8rem', 
-                            minWidth: 140, 
-                            bgcolor: alpha(theme.palette.background.paper, 0.1),
-                            '&:hover': { bgcolor: alpha(theme.palette.background.paper, 0.2) } 
-                        }}
+                        sx={{ height: 32, fontSize: '0.8rem', minWidth: 140, bgcolor: alpha(theme.palette.background.paper, 0.1) }}
                     >
-                        <MenuItem value="conservative">🛡️ Conservative</MenuItem>
+                        <MenuItem value="supertrend_momentum">⚡ SuperTrend</MenuItem>
                         <MenuItem value="balanced">⚖️ Balanced</MenuItem>
-                        <MenuItem value="responsive">⚡ Responsive</MenuItem>
                     </Select>
                  </FormControl>
 
@@ -301,7 +270,7 @@ const TradingDashboard = () => {
                     onClick={handleToggleTrading}
                     startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
                     size="small"
-                    sx={{ px: 3, fontWeight: 'bold', boxShadow: tradingEnabled ? `0 0 15px ${theme.palette.error.main}` : 'none' }}
+                    sx={{ px: 3, fontWeight: 'bold' }}
                  >
                     {tradingEnabled ? "STOP ENGINE" : "START ENGINE"}
                  </Button>
@@ -310,15 +279,15 @@ const TradingDashboard = () => {
 
         {error && <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>{error}</Alert>}
 
-        {/* --- 2. KPI STRIP (ROW 1) --- */}
+        {/* KPI STRIP */}
         <Box display="flex" gap={2} mb={2} flexShrink={0} sx={{ overflowX: 'auto', pb: 0.5 }}>
             <Box flex={1} minWidth={200}><StatCard title="Total Equity" value={`$${(portfolio?.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} subValue={`${(portfolio?.usdtBalance || 0).toFixed(2)} USDT Available`} icon={<AccountBalanceWallet fontSize="small" />} color={theme.palette.primary.main} /></Box>
-            <Box flex={1} minWidth={200}><StatCard title="24h PnL" value={`$${(portfolio?.dailyPnL || 0).toFixed(2)}`} subValue={portfolio?.dailyPnL > 0 ? "+2.4%" : "0.0%"} icon={<ShowChart fontSize="small" />} color={portfolio?.dailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main} /></Box>
+            <Box flex={1} minWidth={200}><StatCard title="24h PnL" value={`$${(portfolio?.dailyPnL || 0).toFixed(2)}`} subValue={portfolio?.dailyPnL > 0 ? "+ Profit" : "Flat"} icon={<ShowChart fontSize="small" />} color={portfolio?.dailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main} /></Box>
             <Box flex={1} minWidth={200}><StatCard title="Active Positions" value={portfolio?.positions?.length || 0} subValue={`${signalsToRender.length} Signals Active`} icon={<Bolt fontSize="small" />} color={theme.palette.warning.main} /></Box>
-            <Box flex={1} minWidth={200}><StatCard title="Win Rate" value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`} subValue={`${portfolio?.performance?.totalTrades || 0} Trades Executed`} icon={<History fontSize="small" />} color={theme.palette.info.main} /></Box>
+            <Box flex={1} minWidth={200}><StatCard title="Win Rate" value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`} subValue={`${portfolio?.performance?.totalTrades || 0} Trades`} icon={<History fontSize="small" />} color={theme.palette.info.main} /></Box>
         </Box>
 
-        {/* --- 3. DATA TERMINAL (ROW 2 - INCREASED HEIGHT to 520px) --- */}
+        {/* DATA TERMINAL */}
         <GlassCard sx={{ flexGrow: 0, height: 520, flexShrink: 0, mb: 2 }}>
             <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.background.paper, 0.02) }}>
                 <Tabs 
@@ -328,31 +297,16 @@ const TradingDashboard = () => {
                     indicatorColor="primary"
                     sx={{ minHeight: 40 }}
                 >
-                    <Tab 
-                        icon={<PieChart fontSize="small" />} iconPosition="start" 
-                        label="HOLDINGS" sx={{ minHeight: 40, fontWeight: 'bold' }} 
-                    />
-                    <Tab 
-                        icon={<Radar fontSize="small" />} iconPosition="start" 
-                        label={<Badge badgeContent={signalsToRender.length} color="error" variant="dot" sx={{ pl: 1 }}>SIGNALS</Badge>} 
-                        sx={{ minHeight: 40, fontWeight: 'bold' }} 
-                    />
-                    <Tab 
-                        icon={<ReceiptLong fontSize="small" />} iconPosition="start" 
-                        label="HISTORY" sx={{ minHeight: 40, fontWeight: 'bold' }} 
-                    />
+                    <Tab icon={<PieChart fontSize="small" />} iconPosition="start" label="HOLDINGS" sx={{ minHeight: 40, fontWeight: 'bold' }} />
+                    <Tab icon={<Radar fontSize="small" />} iconPosition="start" label={<Badge badgeContent={signalsToRender.length} color="error" variant="dot" sx={{ pl: 1 }}>SIGNALS</Badge>} sx={{ minHeight: 40, fontWeight: 'bold' }} />
+                    <Tab icon={<ReceiptLong fontSize="small" />} iconPosition="start" label="HISTORY" sx={{ minHeight: 40, fontWeight: 'bold' }} />
                 </Tabs>
             </Box>
             
             <Box sx={{ flexGrow: 1, overflow: 'hidden', position: 'relative' }}>
                 {activeTab === 0 && (
                     <Box height="100%" sx={{ overflowY: 'auto' }}>
-                         <CurrentHoldings 
-                            account={account} 
-                            prices={prices} 
-                            portfolio={portfolio} 
-                            systemStatus={systemStatus} 
-                         />
+                         <CurrentHoldings account={account} prices={prices} portfolio={portfolio} systemStatus={systemStatus} />
                     </Box>
                 )}
                 {activeTab === 1 && (
@@ -368,10 +322,8 @@ const TradingDashboard = () => {
             </Box>
         </GlassCard>
 
-        {/* --- 4. MAIN WORKSPACE (ROW 3 - Flex Grow) --- */}
+        {/* CHART & SIDEBAR */}
         <Box sx={{ display: 'flex', gap: 2, flexGrow: 1, minHeight: 0 }}>
-            
-            {/* A. Chart Area - FLUID GROW */}
             <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <GlassCard>
                     <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
@@ -384,7 +336,6 @@ const TradingDashboard = () => {
                 </GlassCard>
             </Box>
 
-            {/* B. Watchlist Sidebar - FIXED WIDTH */}
             <Box sx={{ width: SIDEBAR_WIDTH, flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
                 <GlassCard>
                     <Box p={1.5} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>

@@ -1,495 +1,109 @@
-// frontend/src/components/PortfolioOverview.jsx - ENHANCED with Clear Status Indicators
+// frontend/src/components/PortfolioOverview.jsx - LINT FIX (Removed unused prop)
 import React from 'react';
+import { Box, Paper, Typography, Card, CardContent, Chip, Alert, Divider } from '@mui/material';
 import {
-  Box,
-  Grid,
-  Paper,
-  Typography,
-  Card,
-  CardContent,
-  Chip,
-  Alert,
-  Divider
-} from '@mui/material';
-import {
-  Psychology,
-  AccountBalance,
-  TrendingUp,
-  MonetizationOn,
-  Security, // Keep for risk
-  PlayArrow,
-  Pause,
-  Cloud,
-  CloudOff,
-  MoneyOff,
-  CheckCircle,
-  Warning,
-  Info, // Keep for info
-  DataUsage
+  AccountBalance, TrendingUp, MonetizationOn, Security, PlayArrow, Pause
 } from '@mui/icons-material';
 
-// Moved MetricCard outside the component for performance and clarity
 const MetricCard = ({ title, value, subtitle, color = 'text.primary', icon }) => (
-  <Card 
-    variant="outlined" 
-    sx={{
-      height: '100%',
-      width: '100%',
-      minWidth: 0,
-    }}
-  >
-    <CardContent sx={{
-      textAlign: 'center',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100%',
-      p: 2,
-      '&:last-child': {
-        pb: 2
-      }
-    }}>
-      {icon && (
-        <Box display="flex"
-          justifyContent="center"
-          mb={0.5}
-        >
-          {icon}
-        </Box>
-      )}
-      <Typography 
-        color="textSecondary" 
-        gutterBottom 
-        variant="body2" 
-        sx={{ 
-          fontWeight: 500,
-          fontSize: '0.75rem',
-          mb: 0.5
-        }}
-      >
-        {title}
-      </Typography>
-      <Typography 
-        variant="h6" 
-        sx={{ 
-          color, 
-          fontWeight: 600, 
-          mb: 0.25,
-          fontSize: '1rem',
-          lineHeight: 1.2,
-          wordBreak: 'break-word'
-        }}
-      >
-        {value}
-      </Typography>
-      {subtitle && (
-        <Typography 
-          variant="caption" 
-          color="textSecondary"
-          sx={{ fontSize: '0.7rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}
-        >
-          {subtitle}
-        </Typography>
-      )}
+  <Card variant="outlined" sx={{ height: '100%', width: '100%', minWidth: 0 }}>
+    <CardContent sx={{ textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', p: 2, '&:last-child': { pb: 2 } }}>
+      {icon && <Box display="flex" justifyContent="center" mb={0.5}>{icon}</Box>}
+      <Typography color="textSecondary" gutterBottom variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem', mb: 0.5 }}>{title}</Typography>
+      <Typography variant="h6" sx={{ color, fontWeight: 600, mb: 0.25, fontSize: '1rem', lineHeight: 1.2, wordBreak: 'break-word' }}>{value}</Typography>
+      {subtitle && <Typography variant="caption" color="textSecondary" sx={{ fontSize: '0.7rem' }}>{subtitle}</Typography>}
     </CardContent>
   </Card>
 );
 
-const PortfolioOverview = ({ account, prices, portfolio, systemStatus }) => {
-  // Define our trading assets to filter the real portfolio view
-  const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'DOGE', 'TRUMP'];
+// Removed 'systemStatus' from destructuring as it is no longer used
+const PortfolioOverview = ({ account, prices, portfolio }) => {
+  const TRADING_ASSETS = ['USDT', 'BTC', 'ETH', 'BNB', 'SHIB', 'SOL', 'DOT']; 
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(value || 0);
-  };
+  const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+  const formatUSDT = (val) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val || 0) + ' USDT';
+  const formatPercent = (val) => `${(val || 0).toFixed(2)}%`;
 
-  const formatUSDT = (value) => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value || 0) + ' USDT';
-  };
-
-  const formatPercent = (value) => {
-    return `${(value || 0).toFixed(2)}%`;
-  };
-
-  const calculateAssetValue = (balance, prices) => {
+  const calculateAssetValue = (balance) => {
     if (!balance || !prices) return 0;
-    if (balance.asset === 'USDT') return balance.total;
+    if (balance.asset === 'USDT') return parseFloat(balance.total);
     const symbol = `${balance.asset}USDT`;
     const price = prices[symbol]?.price || 0;
-    return balance.total * price;
+    return parseFloat(balance.total) * price;
   };
 
   const getTotalPortfolioValue = () => {
-    if (!account?.balances || !prices) return 0;
+    if (!account?.balances) return 0;
     return account.balances
-      .filter(balance => TRADING_ASSETS.includes(balance.asset))
-      .reduce((total, balance) => total + calculateAssetValue(balance, prices), 0);
+      .filter(balance => TRADING_ASSETS.includes(balance.asset) || balance.asset === 'USDT')
+      .reduce((total, balance) => total + calculateAssetValue(balance), 0);
   };
 
   const getUSDTBalance = () => {
     if (!account?.balances) return 0;
-    const usdtBalance = account.balances.find(b => b.asset === 'USDT');
-    return usdtBalance?.total || 0;
+    return parseFloat(account.balances.find(b => b.asset === 'USDT')?.total || 0);
   };
 
-  const getCryptoValue = () => {
-    if (!account?.balances || !prices) return 0;
-    return account.balances
-      .filter(balance => TRADING_ASSETS.includes(balance.asset) && balance.asset !== 'USDT')
-      .reduce((total, balance) => total + calculateAssetValue(balance, prices), 0);
-  };
-
-  const getAssetAllocation = () => {
-    const totalValue = getTotalPortfolioValue();
-    if (totalValue === 0) return { usdt: 100, crypto: 0 };
-    
-    const usdtValue = getUSDTBalance();
-    const cryptoValue = getCryptoValue();
-    
-    return {
-      usdt: (usdtValue / totalValue) * 100,
-      crypto: (cryptoValue / totalValue) * 100
-    };
-  };
-
-  const totalUnrealizedPnL = portfolio?.positions?.reduce(
-    (sum, pos) => sum + (pos.unrealizedPnL || 0),
-    0
-  );
-
-  const allocation = getAssetAllocation();  
-  // FIX: Use systemStatus as the primary source of truth for the configured mode.
-  const isLiveMode = systemStatus?.config?.tradingMode === 'live';
-  const dataMode = systemStatus?.services?.binanceData?.useFallback ? 'Fallback' : 'Live Binance API';
-
-  // NEW: Calculate the conceptual portfolio value for the bot to avoid confusion.
-  // This value represents the bot's performance, independent of external deposits/withdrawals.
-  const conceptualPortfolioValue = React.useMemo(() => {
-    if (isLiveMode) {
-      const initialCapital = systemStatus?.config?.maxCapitalAtRisk || 0;
-      const totalRealizedPnL = portfolio?.totalPnL || 0;
-      return initialCapital + totalRealizedPnL + (totalUnrealizedPnL || 0);
-    }
-    // For paper trading, totalValue is already the conceptual value.
-    return portfolio?.totalValue || 0;
-  }, [portfolio, systemStatus, isLiveMode, totalUnrealizedPnL]);
+  const totalUnrealizedPnL = portfolio?.positions?.reduce((sum, pos) => sum + (pos.unrealizedPnL || 0), 0);
 
   return (
-    <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <Paper sx={{ p: 3, boxSizing: 'border-box', height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Typography variant="h6">
-          Portfolio Overview
-        </Typography>
-        
-        {/* Enhanced Status Indicators */}
+        <Typography variant="h6">Portfolio Overview</Typography>
       </Box>
 
-      {/* System Status Alert */}
-      {isLiveMode ? (
-        <Alert severity="success" icon={<MonetizationOn />} sx={{ mb: 2 }}>
-          <Typography variant="body2" fontWeight="bold">
-            LIVE TRADING MODE
-          </Typography>
-          <Typography variant="caption" display="block">
-            The bot is executing trades with real funds on your Binance account.
-          </Typography>
-        </Alert>
-      ) : (
-        <Alert severity="warning" icon={<Psychology />} sx={{ mb: 2 }}>
-          <Typography variant="body2" fontWeight="bold">
-            PAPER TRADING MODE
-          </Typography>
-          <Typography variant="caption" display="block">
-            The system is in simulation mode. No real funds are at risk.
-          </Typography>
-        </Alert>
-      )}
+      <Alert severity="success" icon={<MonetizationOn />} sx={{ mb: 2 }}>
+          <Typography variant="body2" fontWeight="bold">LIVE TRADING ACTIVE</Typography>
+          <Typography variant="caption" display="block">The bot is executing trades on your Binance account.</Typography>
+      </Alert>
       
-      {/* Portfolio Value Section */}
+      {/* Wallet Section */}
       <Box sx={{ width: '100%' }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           <AccountBalance sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Real Portfolio Value
+          Binance Wallet
         </Typography>
         
-        <Box
-          display="grid"
-          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
-          gap={2}
-          sx={{ mb: 2 }}
-        >
-            <MetricCard
-              title="Total Real Value"
-              value={formatCurrency(getTotalPortfolioValue())}
-              subtitle="From Binance Account"
-              color="success.main"
-              icon={<AccountBalance fontSize="small" color="success" />}
-            />
-            <MetricCard
-              title="USDT Balance"
-              value={formatUSDT(getUSDTBalance())}
-              subtitle="Available Cash"
-              color="primary.main"
-            />
-            <MetricCard
-              title="Crypto Value"
-              value={formatCurrency(getCryptoValue())}
-              subtitle="Holdings Value"
-              color="info.main"
-            />
-            <MetricCard
-              title="Cash Allocation"
-              value={formatPercent(allocation.usdt)}
-              subtitle={`${formatPercent(allocation.crypto)} Crypto`}
-              color="text.primary"
-            />
+        <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)' }} gap={2} sx={{ mb: 2 }}>
+            <MetricCard title="Total Real Value" value={formatCurrency(getTotalPortfolioValue())} subtitle="Binance Assets" color="success.main" icon={<AccountBalance fontSize="small" color="success" />} />
+            <MetricCard title="USDT Available" value={formatUSDT(getUSDTBalance())} subtitle="Dry Powder" color="primary.main" />
         </Box>
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Paper Trading Section */}
+        {/* Bot Performance */}
         <Typography variant="h6" sx={{ mb: 2 }}>
-          {isLiveMode 
-            ? <TrendingUp sx={{ mr: 1, verticalAlign: 'middle', color: 'success.main' }} /> 
-            : <Psychology sx={{ mr: 1, verticalAlign: 'middle', color: 'warning.main' }} />
-          }
-          {isLiveMode ? 'Live Trading Performance' : 'Paper Trading Performance'}
+          <TrendingUp sx={{ mr: 1, verticalAlign: 'middle', color: 'success.main' }} />
+          Bot Performance
         </Typography>
         
-        <Box
-          display="grid"
-          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' }}
-          gap={2}
-          sx={{ mb: 2 }}
-        > 
-            <MetricCard
-              title={isLiveMode ? "Bot's Portfolio" : "Virtual Portfolio"}
-              value={formatCurrency(conceptualPortfolioValue)}
-              subtitle={isLiveMode ? "Initial Capital + P&L" : "Simulated Value"}
-              color={isLiveMode ? "success.main" : "warning.main"}
-              icon={isLiveMode ? <TrendingUp fontSize="small" color="success" /> : <Psychology fontSize="small" color="warning" />}
-            />
-            <MetricCard
-              title={isLiveMode ? "Realized P&L" : "Virtual P&L"}
-              value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`}
-              subtitle={`${formatPercent(portfolio?.totalPnLPercent || 0)} Return`}
-              color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'}
-            />
-            <MetricCard
-              title="Unrealized P&L"
-              value={`${(totalUnrealizedPnL || 0) >= 0 ? '+' : ''}${formatUSDT(totalUnrealizedPnL || 0)}`}
-              subtitle="From open positions"
-              color={(totalUnrealizedPnL || 0) >= 0 ? 'success.main' : 'error.main'}
-            />
-            <MetricCard
-              title={isLiveMode ? "Live Positions" : "Virtual Positions"}
-              value={portfolio?.positionCount || 0}
-              subtitle="Open Positions"
-              color={isLiveMode ? "success.main" : "warning.main"}
-            />
-            <MetricCard
-              title="Win Rate"
-              value={formatPercent(portfolio?.performance?.winRate || 0)}
-              subtitle="Successful Trades"
-              color={portfolio?.performance?.winRate > 50 ? 'success.main' : 'text.primary'}
-            />
+        <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }} gap={2} sx={{ mb: 2 }}> 
+            <MetricCard title="Realized P&L" value={`${portfolio?.totalPnL >= 0 ? '+' : ''}${formatUSDT(portfolio?.totalPnL || 0)}`} subtitle="Locked In" color={portfolio?.totalPnL >= 0 ? 'success.main' : 'error.main'} />
+            <MetricCard title="Unrealized P&L" value={`${(totalUnrealizedPnL || 0) >= 0 ? '+' : ''}${formatUSDT(totalUnrealizedPnL || 0)}`} subtitle="Open Positions" color={(totalUnrealizedPnL || 0) >= 0 ? 'success.main' : 'error.main'} />
+            <MetricCard title="Win Rate" value={formatPercent(portfolio?.performance?.winRate || 0)} subtitle="Success Ratio" color="text.primary" />
+            <MetricCard title="Open Trades" value={portfolio?.positions?.length || 0} subtitle="Active" color="text.primary" />
         </Box>
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Risk Management Section */}
+        {/* Risk Status */}
         <Typography variant="h6" sx={{ mb: 2 }}>
           <Security sx={{ mr: 1, verticalAlign: 'middle' }} />
-          Risk Management Status
+          Risk Status
         </Typography>
         
-        <Box
-          display="grid"
-          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
-          gap={2}
-          sx={{ mb: 2 }}
-        >
-            <MetricCard
-              title="Daily Risk Used"
-              value={`${formatUSDT(portfolio?.riskStatus?.dailyLossUsed || 0)}`}
-              subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.dailyLossLimit || 100)}`}
-              color={portfolio?.riskStatus?.dailyLossUsed > (portfolio?.riskStatus?.dailyLossLimit * 0.8) ? 'error.main' : 'success.main'}
-            />
-            <MetricCard
-              title="Weekly Risk Used"
-              value={`${formatUSDT(portfolio?.riskStatus?.weeklyLossUsed || 0)}`}
-              subtitle={`/ ${formatUSDT(portfolio?.riskStatus?.weeklyLossLimit || 250)}`}
-              color={portfolio?.riskStatus?.weeklyLossUsed > (portfolio?.riskStatus?.weeklyLossLimit * 0.8) ? 'error.main' : 'success.main'}
-            />
-            <MetricCard
-              title="Max Drawdown"
-              value={formatPercent(portfolio?.performance?.maxDrawdown || 0)}
-              subtitle="Peak to Trough"
-              color={portfolio?.performance?.maxDrawdown > 15 ? 'error.main' : 'success.main'}
-            />
-            <Card 
-              variant="outlined" 
-              sx={{ 
-                height: 100,
-                display: 'flex', 
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 0
-              }}
-            >
-              <CardContent sx={{ 
-                width: '100%', 
-                textAlign: 'center', 
-                py: 1.5,
-                px: 1,
-                '&:last-child': { pb: 1.5 }
-              }}>
+        <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)' }} gap={2} sx={{ mb: 2 }}>
+            <MetricCard title="Max Drawdown" value={formatPercent(portfolio?.performance?.maxDrawdown || 0)} subtitle="Peak Risk" color="error.main" />
+            
+            <Card variant="outlined" sx={{ height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                 <Box display="flex" justifyContent="center" mb={0.5}>
-                  {portfolio?.riskStatus?.isHalted ? 
-                    <Pause fontSize="small" color="error" /> : 
-                    <PlayArrow fontSize="small" color="success" />
-                  }
+                  {portfolio?.riskStatus?.isHalted ? <Pause fontSize="small" color="error" /> : <PlayArrow fontSize="small" color="success" />}
                 </Box>
-                <Typography 
-                  color="textSecondary" 
-                  gutterBottom 
-                  variant="body2" 
-                  sx={{ 
-                    fontWeight: 500,
-                    fontSize: '0.75rem',
-                    mb: 0.5
-                  }}
-                >
-                  Trading Status
-                </Typography>
-                <Chip
-                  label={portfolio?.riskStatus?.isHalted ? 'HALTED' : 'ACTIVE'}
-                  color={portfolio?.riskStatus?.isHalted ? 'error' : 'success'}
-                  size="small"
-                  sx={{ mb: 0.5 }}
-                />
-                {portfolio?.riskStatus?.haltReason && (
-                  <Typography 
-                    variant="caption" 
-                    color="error" 
-                    sx={{ 
-                      display: 'block',
-                      fontSize: '0.7rem',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}
-                  >
-                    {portfolio.riskStatus.haltReason}
-                  </Typography>
-                )}
+                <Typography color="textSecondary" gutterBottom variant="body2" sx={{ fontWeight: 500, fontSize: '0.75rem', mb: 0.5 }}>Status</Typography>
+                <Chip label={portfolio?.riskStatus?.isHalted ? 'HALTED' : 'ACTIVE'} color={portfolio?.riskStatus?.isHalted ? 'error' : 'success'} size="small" />
               </CardContent>
             </Card>
-        </Box>
-
-        {/* Performance Metrics */}
-        <Box
-          display="grid"
-          gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
-          gap={2}
-          sx={{ mb: 2 }}
-        >
-            <MetricCard
-              title="Profit Factor"
-              value={portfolio?.performance?.profitFactor?.toFixed(2) || '0.00'}
-              subtitle="Gross Profit/Loss"
-            />
-            <MetricCard
-              title="Sharpe Ratio"
-              value={portfolio?.performance?.sharpeRatio?.toFixed(2) || '0.00'}
-              subtitle="Risk-Adj Return"
-            />
-            <MetricCard
-              title="Avg Win"
-              value={formatUSDT(portfolio?.performance?.avgWin || 0)}
-              subtitle="Per Winning Trade"
-              color="success.main"
-            />
-            <MetricCard
-              title="Avg Loss"
-              value={formatUSDT(portfolio?.performance?.avgLoss || 0)}
-              subtitle="Per Losing Trade"
-              color="error.main"
-            />
-        </Box>
-
-        {/* Enhanced Account Status */}
-        <Box display="flex" justifyContent="center" mt={2}>
-          <Card variant="outlined" sx={{ px: 3, py: 1.5, backgroundColor: 'action.hover', width: '100%' }}>
-            <Box 
-              display="grid"
-              gridTemplateColumns={{ xs: '1fr', md: '1fr auto 1fr auto 1fr' }}
-              gap={2}
-              alignItems="center"
-            >
-              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
-                <AccountBalance color="success" />
-                <Typography variant="body2" fontWeight="bold">
-                  Real Account: {account?.accountType || 'SPOT'}
-                </Typography>
-                <Chip 
-                  size="small"
-                  label={account?.canTrade ? 'Trading Enabled' : 'Read-Only'} 
-                  color={account?.canTrade ? 'success' : 'warning'}
-                  variant="outlined"
-                />
-              </Box>
-              <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
-              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
-                {isLiveMode ? (
-                  <>
-                    <MonetizationOn color="error" />
-                    <Typography variant="body2" fontWeight="bold">
-                      Mode: Live Trading
-                    </Typography>
-                    <Chip 
-                      size="small" 
-                      label="Real Money Risk" 
-                      color="error"
-                      variant="outlined"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <Psychology color="warning" />
-                    <Typography variant="body2" fontWeight="bold">
-                      Mode: Paper Trading
-                    </Typography>
-                    <Chip 
-                      size="small" 
-                      label="No Real Money Risk" 
-                      color="success"
-                      variant="outlined"
-                    />
-                  </>
-                )}
-              </Box>
-              <Divider orientation="vertical" flexItem sx={{ display: { xs: 'none', md: 'block' } }} />
-              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap" justifyContent="center">
-                <DataUsage color="info" />
-                <Typography variant="body2" fontWeight="bold">
-                  Data: {dataMode}
-                </Typography>
-                <Chip 
-                  size="small" 
-                  label="Live Prices" 
-                  color="info"
-                  variant="outlined"
-                />
-              </Box>
-            </Box>
-          </Card>
         </Box>
       </Box>
     </Paper>

@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - ETH MOMENTUM EDITION
+// frontend/src/components/TradingConfig.jsx - LIVE ONLY
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -13,7 +13,6 @@ import {
 } from '@mui/icons-material';
 import { tradingAPI, managementAPI } from '../config/api';
 
-// --- STYLED COMPONENTS ---
 const GlassCard = styled(Box)(({ theme }) => ({
   background: alpha(theme.palette.background.paper, 0.05),
   backdropFilter: 'blur(10px)',
@@ -42,7 +41,6 @@ const SectionHeader = ({ icon, title, subtitle }) => {
     );
 };
 
-// --- SUPPORTED ASSETS ---
 const SUPPORTED_ASSETS = [
   "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", 
   "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "SHIBUSDT", 
@@ -51,30 +49,21 @@ const SUPPORTED_ASSETS = [
   "FETUSDT", "WIFUSDT"
 ].sort();
 
-// 🏆 NEW DEFAULTS (Based on Grid Search)
 const DEFAULT_CONFIG = {
     maxCapitalAtRisk: 1000,
-    tradingMode: 'paper',
-    enableTrading: false,
+    enableTrading: false, // Kill Switch
     riskPerTrade: 0.98,
-    maxDailyLoss: 5.0,
     minOrderSize: 10,
-    
     strategy: 'supertrend_momentum',
     timeframe: '1h',
     signalCooldown: 60,
-    
-    // Updated Filters
     enableAdxFilter: true,
-    minAdx: 20, // Lowered from 28
+    minAdx: 20, 
     enableRsiFilter: true,
     rsiOverbought: 75,
     rsiOversold: 30,
-    
-    // Updated Stop Loss
     stopLossType: 'FIXED',
-    stopLossPercent: 0.05, // 5% Hard Stop
-    
+    stopLossPercent: 0.05, 
     assets: [], 
     allocation: {}, 
     enableEmailAlerts: false,
@@ -94,30 +83,24 @@ const TradingConfig = () => {
   const [success, setSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // --- DATA FETCHING ---
   const fetchCurrentConfig = useCallback(async () => {
     try {
       setLoading(true);
       const data = await tradingAPI.getStatus();
-      
       if (data.config) {
         const fetchedConfig = {
           ...DEFAULT_CONFIG,
           ...data.config,
-          // Normalize values for UI
           riskPerTrade: (data.config.riskPerTrade) || 0.98,
-          stopLossPercent: (data.config.stopLossPercent * 100) || 5.0, // Default 5%
+          stopLossPercent: (data.config.stopLossPercent * 100) || 5.0,
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
           allocation: { ...data.config.allocation }
         };
-        
-        // Ensure allocation is 0-100 for sliders
         Object.keys(fetchedConfig.allocation).forEach(key => {
             if (fetchedConfig.allocation[key] <= 1) {
                 fetchedConfig.allocation[key] = Math.round(fetchedConfig.allocation[key] * 100);
             }
         });
-
         if (!fetchedConfig.assets) fetchedConfig.assets = [];
         setConfig(fetchedConfig);
         setOriginalConfig(fetchedConfig);
@@ -132,7 +115,6 @@ const TradingConfig = () => {
   useEffect(() => { fetchCurrentConfig(); }, [fetchCurrentConfig]);
   useEffect(() => { setHasChanges(JSON.stringify(config) !== JSON.stringify(originalConfig)); }, [config, originalConfig]);
 
-  // --- HANDLERS ---
   const handleSaveConfig = async () => {
     setSaving(true);
     setError(null);
@@ -143,12 +125,10 @@ const TradingConfig = () => {
         signalCooldown: config.signalCooldown * 1000,
         allocation: {}
       };
-
       config.assets.forEach(asset => {
           const alloc = config.allocation[asset] || 0;
           configToSave.allocation[asset] = alloc > 0 ? alloc / 100 : 0;
       });
-
       await tradingAPI.updateConfig(configToSave);
       setOriginalConfig(config);
       setSuccess(true);
@@ -172,7 +152,6 @@ const TradingConfig = () => {
 
   const updateConfig = (key, value) => { setConfig((prev) => ({ ...prev, [key]: value })); };
 
-  // --- PORTFOLIO LOGIC ---
   const handleAddAsset = () => {
       if (!newAsset || config.assets.includes(newAsset)) return;
       setConfig(prev => ({
@@ -193,45 +172,13 @@ const TradingConfig = () => {
   };
 
   const updateAllocation = (asset, val) => {
-      setConfig(prev => ({ 
-          ...prev, 
-          allocation: { ...prev.allocation, [asset]: val } 
-      }));
+      setConfig(prev => ({ ...prev, allocation: { ...prev.allocation, [asset]: val } }));
   };
 
   const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.allocation[asset] || 0), 0);
 
-  // --- RENDER SECTIONS ---
-
   const renderGeneralSettings = () => (
     <Stack spacing={3}>
-        <Box 
-            sx={{ 
-                p: 3, borderRadius: 2, border: 1,
-                borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main',
-                bgcolor: alpha(config.tradingMode === 'live' ? theme.palette.error.main : theme.palette.warning.main, 0.05),
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-            }}
-        >
-            <Box>
-                <Typography variant="h6" fontWeight="bold" color={config.tradingMode === 'live' ? 'error.main' : 'warning.main'}>
-                    {config.tradingMode === 'live' ? "⚠️ LIVE ENVIRONMENT" : "🧪 PAPER ENVIRONMENT"}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                    {config.tradingMode === 'live' ? "Real funds at risk." : "Virtual simulation mode."}
-                </Typography>
-            </Box>
-            <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="button" color="text.disabled">PAPER</Typography>
-                <Switch
-                    checked={config.tradingMode === 'live'}
-                    onChange={(e) => updateConfig('tradingMode', e.target.checked ? 'live' : 'paper')}
-                    color="error"
-                />
-                <Typography variant="button" color="error">LIVE</Typography>
-            </Stack>
-        </Box>
-
         <GlassCard>
             <SectionHeader icon={<SettingsRemote />} title="System Controls" subtitle="Global limits and switches" />
             <Grid container spacing={3} alignItems="center">
@@ -266,6 +213,7 @@ const TradingConfig = () => {
     </Stack>
   );
 
+  // Strategy, Risk, and Portfolio render functions are largely the same, just keeping them in context
   const renderStrategySettings = () => (
     <Stack spacing={3}>
         <GlassCard>
@@ -284,7 +232,7 @@ const TradingConfig = () => {
                      <FormControl fullWidth>
                         <InputLabel>Timeframe</InputLabel>
                         <Select value={config.timeframe} label="Timeframe" onChange={(e) => updateConfig('timeframe', e.target.value)}>
-                            <MenuItem value="1h">1 Hour (Recommended)</MenuItem>
+                            <MenuItem value="1h">1 Hour</MenuItem>
                             <MenuItem value="4h">4 Hours</MenuItem>
                         </Select>
                     </FormControl>
@@ -300,28 +248,17 @@ const TradingConfig = () => {
                     <Switch size="small" checked={config.enableAdxFilter} onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)} />
                 </Box>
                 <Box px={2} display="flex" alignItems="center" gap={2}>
-                    <Slider 
-                        value={config.minAdx} min={10} max={50} 
-                        onChange={(_, v) => updateConfig('minAdx', v)} 
-                        disabled={!config.enableAdxFilter} 
-                        sx={{ flexGrow: 1 }}
-                    />
+                    <Slider value={config.minAdx} min={10} max={50} onChange={(_, v) => updateConfig('minAdx', v)} disabled={!config.enableAdxFilter} sx={{ flexGrow: 1 }} />
                     <Typography fontFamily="monospace" fontWeight="bold" sx={{ minWidth: 30 }}>{config.minAdx}</Typography>
                 </Box>
             </Box>
-            
             <Divider sx={{ my: 3 }} />
-
             <Box>
                 <Box display="flex" justifyContent="space-between" mb={2}>
                     <Typography fontWeight="bold">RSI Ceiling (Overbought)</Typography>
                     <Switch size="small" checked={config.enableRsiFilter} onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)} />
                 </Box>
-                <TextField 
-                    fullWidth label="Max RSI" type="number" 
-                    value={config.rsiOverbought} onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))} 
-                    size="small" 
-                />
+                <TextField fullWidth label="Max RSI" type="number" value={config.rsiOverbought} onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))} size="small" />
             </Box>
         </GlassCard>
     </Stack>
@@ -335,23 +272,11 @@ const TradingConfig = () => {
                 <Grid item xs={12}>
                      <Typography gutterBottom variant="subtitle2" color="text.secondary">RISK FACTOR</Typography>
                      <Stack direction="row" spacing={2} alignItems="center">
-                        <Slider 
-                            value={config.riskPerTrade} min={0.1} max={1.0} step={0.01} 
-                            onChange={(_, v) => updateConfig('riskPerTrade', v)} 
-                            valueLabelDisplay="auto"
-                            sx={{ flexGrow: 1 }}
-                        />
-                        <Chip 
-                            label={`${(config.riskPerTrade * 100).toFixed(0)}%`} 
-                            color={config.riskPerTrade > 0.9 ? "error" : "primary"} 
-                            variant="outlined" 
-                        />
+                        <Slider value={config.riskPerTrade} min={0.1} max={1.0} step={0.01} onChange={(_, v) => updateConfig('riskPerTrade', v)} valueLabelDisplay="auto" sx={{ flexGrow: 1 }} />
+                        <Chip label={`${(config.riskPerTrade * 100).toFixed(0)}%`} color={config.riskPerTrade > 0.9 ? "error" : "primary"} variant="outlined" />
                      </Stack>
-                     <Typography variant="caption" color="text.secondary">
-                         Multiplier for position sizing. (e.g., 98% of allocated funds per trade).
-                     </Typography>
+                     <Typography variant="caption" color="text.secondary">Percentage of allocated funds to use per trade.</Typography>
                 </Grid>
-
                 <Grid item xs={12} md={6}>
                     <FormControl fullWidth>
                         <InputLabel>Stop Loss Type</InputLabel>
@@ -362,12 +287,7 @@ const TradingConfig = () => {
                     </FormControl>
                 </Grid>
                  <Grid item xs={12} md={6}>
-                    <TextField 
-                        fullWidth label="Stop Loss Distance" type="number" 
-                        value={config.stopLossPercent} 
-                        onChange={(e) => updateConfig('stopLossPercent', parseFloat(e.target.value))} 
-                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} 
-                    />
+                    <TextField fullWidth label="Stop Loss Distance" type="number" value={config.stopLossPercent} onChange={(e) => updateConfig('stopLossPercent', parseFloat(e.target.value))} InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} />
                 </Grid>
             </Grid>
         </GlassCard>
@@ -379,70 +299,36 @@ const TradingConfig = () => {
          <GlassCard>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={2} mb={3}>
                  <SectionHeader icon={<PieChart />} title="Asset Allocation" subtitle="Manage active pairs and capital limits" />
-                 <Chip 
-                    label={`Total Allocation: ${totalAllocation}%`} 
-                    color={totalAllocation > 100 ? "error" : totalAllocation === 100 ? "success" : "default"}
-                    variant={totalAllocation === 100 ? "filled" : "outlined"}
-                 />
+                 <Chip label={`Total Allocation: ${totalAllocation}%`} color={totalAllocation > 100 ? "error" : totalAllocation === 100 ? "success" : "default"} variant={totalAllocation === 100 ? "filled" : "outlined"} />
             </Stack>
-
             <Box display="flex" gap={2} mb={3} p={2} bgcolor={alpha(theme.palette.background.paper, 0.3)} borderRadius={2}>
                 <FormControl size="small" fullWidth>
                     <InputLabel>Add Asset</InputLabel>
                     <Select value={newAsset} label="Add Asset" onChange={(e) => setNewAsset(e.target.value)}>
-                        {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
-                            <MenuItem key={asset} value={asset}>{asset}</MenuItem>
-                        ))}
+                        {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (<MenuItem key={asset} value={asset}>{asset}</MenuItem>))}
                     </Select>
                 </FormControl>
                 <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />}>ADD</Button>
             </Box>
-
             <List disablePadding>
                 {config.assets.map((asset) => (
-                    <ListItem 
-                        key={asset} 
-                        sx={{ 
-                            borderBottom: 1, borderColor: 'divider', py: 2,
-                            flexWrap: 'wrap',
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
-                        }}
-                    >
+                    <ListItem key={asset} sx={{ borderBottom: 1, borderColor: 'divider', py: 2, flexWrap: 'wrap', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) } }}>
                          <Box display="flex" alignItems="center" width={{ xs: '100%', sm: '20%' }}>
-                            <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                {asset.substring(0,3)}
-                            </Avatar>
+                            <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', fontSize: '0.75rem', fontWeight: 'bold' }}>{asset.substring(0,3)}</Avatar>
                             <Typography fontWeight="bold">{asset}</Typography>
                          </Box>
-
                          <Box sx={{ flexGrow: 1, mx: { xs: 0, sm: 4 }, my: { xs: 2, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}>
                              <Stack direction="row" spacing={2} alignItems="center">
-                                <Slider 
-                                    value={config.allocation[asset] || 0} 
-                                    onChange={(_, v) => updateAllocation(asset, v)}
-                                    min={0} max={100} step={5}
-                                    sx={{ flexGrow: 1 }}
-                                />
+                                <Slider value={config.allocation[asset] || 0} onChange={(_, v) => updateAllocation(asset, v)} min={0} max={100} step={5} sx={{ flexGrow: 1 }} />
                              </Stack>
                          </Box>
-
                          <Box display="flex" alignItems="center" gap={2} width={{ xs: '100%', sm: 'auto' }} justifyContent="flex-end">
-                             <TextField 
-                                size="small" type="number" 
-                                value={config.allocation[asset] || 0} 
-                                onChange={(e) => updateAllocation(asset, parseFloat(e.target.value))}
-                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                                sx={{ width: 100 }}
-                             />
-                             <IconButton color="error" onClick={() => handleRemoveAsset(asset)}>
-                                 <Delete />
-                             </IconButton>
+                             <TextField size="small" type="number" value={config.allocation[asset] || 0} onChange={(e) => updateAllocation(asset, parseFloat(e.target.value))} InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} sx={{ width: 100 }} />
+                             <IconButton color="error" onClick={() => handleRemoveAsset(asset)}><Delete /></IconButton>
                          </Box>
                     </ListItem>
                 ))}
-                {config.assets.length === 0 && (
-                    <Alert severity="info">No assets configured. Add assets to begin.</Alert>
-                )}
+                {config.assets.length === 0 && <Alert severity="info">No assets configured. Add assets to begin.</Alert>}
             </List>
          </GlassCard>
     </Stack>
@@ -454,24 +340,16 @@ const TradingConfig = () => {
     <Container maxWidth={false} sx={{ py: 2 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
             <Box>
-                <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
-                    SYSTEM <span style={{ color: theme.palette.primary.main }}>CONFIG</span>
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-                    CUSTOM PORTFOLIO SETUP
-                </Typography>
+                <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>SYSTEM <span style={{ color: theme.palette.primary.main }}>CONFIG</span></Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>LIVE TRADING PARAMETERS</Typography>
             </Box>
             <Stack direction="row" spacing={2}>
                 <Button startIcon={<Refresh />} onClick={fetchCurrentConfig} color="inherit">Revert</Button>
-                <Button variant="contained" startIcon={<Save />} onClick={handleSaveConfig} disabled={!hasChanges || saving} size="large" sx={{ px: 4 }}>
-                    {saving ? 'Saving...' : 'Save Changes'}
-                </Button>
+                <Button variant="contained" startIcon={<Save />} onClick={handleSaveConfig} disabled={!hasChanges || saving} size="large" sx={{ px: 4 }}>{saving ? 'Saving...' : 'Save Changes'}</Button>
             </Stack>
         </Box>
-
         {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 3 }}>Configuration Saved!</Alert>}
-
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
             <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} textColor="primary" indicatorColor="primary">
                 <Tab icon={<AccountBalance fontSize="small" />} iconPosition="start" label="General" sx={{ minHeight: 60 }} />
@@ -480,7 +358,6 @@ const TradingConfig = () => {
                 <Tab icon={<PieChart fontSize="small" />} iconPosition="start" label="Portfolio" sx={{ minHeight: 60 }} />
             </Tabs>
         </Box>
-
         <Box sx={{ minHeight: 400 }}>
             {activeTab === 0 && renderGeneralSettings()}
             {activeTab === 1 && renderStrategySettings()}

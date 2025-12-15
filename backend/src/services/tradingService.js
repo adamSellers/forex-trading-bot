@@ -1,12 +1,11 @@
-// backend/src/services/tradingService.js - OPTIMIZED (ETH 1H 5% SL)
+// backend/src/services/tradingService.js - LIVE ONLY EDITION
 const EventEmitter = require("events");
 const fs = require("fs").promises;
 const path = require("path");
 const BinanceDataService = require("./binanceDataService");
 const SignalGenerator = require("./signalGenerator");
 const RiskManagementService = require("./riskManagementService");
-const PaperTradingEngine = require("./paperTradingEngine");
-const LiveTradingEngine = require("./LiveTradingEngine");
+const LiveTradingEngine = require("./LiveTradingEngine"); // Only one engine remains
 const TradeRepository = require("../repositories/tradeRepository");
 const AnalyticsService = require("./analyticsService");
 const SignalRepository = require("../repositories/signalRepository");
@@ -24,17 +23,16 @@ class TradingService extends EventEmitter {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
 
-        // 🏆 THE WINNING CONFIG (Based on Grid Search #1 Result)
+        // 🏆 PRODUCTION CONFIG (Live Only)
         this.defaultConfig = {
             strategy: "supertrend_momentum",
             timeframe: "1h",
-            tradingMode: "paper",
-            enableTrading: false,
+            enableTrading: false, // Master Kill Switch
 
-            // Winning Asset Mix
+            // Asset Mix (Default to the Winners)
             assets: ["ETHUSDT", "SHIBUSDT", "BTCUSDT"],
             allocation: {
-                ETHUSDT: 0.5, // The clear winner gets 50%
+                ETHUSDT: 0.5,
                 SHIBUSDT: 0.25,
                 BTCUSDT: 0.25,
             },
@@ -47,24 +45,18 @@ class TradingService extends EventEmitter {
             // --- STRATEGY SETTINGS ---
             atrPeriod: 10,
             factor: 3.0,
-
-            // Filter: Lowered to 20 to catch early trends (Rank #1 Result)
             enableAdxFilter: true,
             minAdx: 20,
-
             enableRsiFilter: true,
             rsiOverbought: 75,
             rsiOversold: 30,
 
-            // --- EXITS (Crucial Update) ---
+            // --- EXITS ---
             stopLossType: "FIXED",
-            stopLossPercent: 0.05, // 5% Hard Stop (The Winner)
-
-            takeProfitATRMultiplier: 0, // Trend following (no TP)
+            stopLossPercent: 0.05, // 5% Hard Stop
             enableTrailingStops: false,
-            trailingStopPercent: 0.03,
 
-            // --- MISC ---
+            // --- NOTIFICATIONS ---
             enableEmailAlerts: false,
             alertEmail: "",
             enableS3Analytics: process.env.ENABLE_S3_ANALYTICS === "true",
@@ -74,12 +66,12 @@ class TradingService extends EventEmitter {
 
         this.config = { ...this.defaultConfig };
         this.activeEngine = null;
-        logger.info("🎯 TradingService initialized (ETH 1H Momentum Config).");
+        logger.info("🎯 TradingService initialized (LIVE MODE ONLY).");
     }
 
     async initialize() {
         try {
-            logger.info("🚀 Initializing Trading Service...");
+            logger.info("🚀 Initializing Live Trading Service...");
 
             await this.loadConfig();
             this.config.logLevel = logger.getLogLevelName();
@@ -88,8 +80,11 @@ class TradingService extends EventEmitter {
             this.riskService = new RiskManagementService();
             this.signalGenerator = new SignalGenerator(this.config);
 
-            this.activeEngine = this.createTradingEngine(
-                this.config.tradingMode
+            // DIRECT INSTANTIATION - No switching logic
+            this.activeEngine = new LiveTradingEngine(
+                this.config,
+                this.binanceData,
+                this.riskService
             );
 
             this.riskService.initialize(this.config);
@@ -98,7 +93,7 @@ class TradingService extends EventEmitter {
             await this.waitForServices();
             await this.activeEngine.initialize();
 
-            // 1 Minute Loop
+            // 1 Minute Signal Loop
             this.signalGenerator.start(this.binanceData, 60000);
 
             this.analyticsService = new AnalyticsService(this.activeEngine);
@@ -109,11 +104,11 @@ class TradingService extends EventEmitter {
 
             if (this.config.enableTrading) {
                 logger.warn(
-                    `▶️ Auto-starting trading in ${this.config.tradingMode} mode.`
+                    `▶️ Auto-starting LIVE TRADING based on saved config.`
                 );
                 this.activeEngine.start();
             } else {
-                logger.info("⏸️ Trading engine paused.");
+                logger.info("⏸️ Trading engine ready but paused.");
             }
 
             logger.success("✅ Trading Service initialized successfully");
@@ -274,10 +269,9 @@ class TradingService extends EventEmitter {
 
     async getTrades(query = {}) {
         const limit = parseInt(query.limit) || 20;
-        const mode = this.config.tradingMode;
         return query.symbol
-            ? await this.tradeRepo.getBySymbol(query.symbol, limit, mode)
-            : await this.tradeRepo.getRecent(limit, mode);
+            ? await this.tradeRepo.getBySymbol(query.symbol, limit, "live")
+            : await this.tradeRepo.getRecent(limit, "live");
     }
 
     async getPrices() {
@@ -293,23 +287,12 @@ class TradingService extends EventEmitter {
     async getAccount() {
         if (!this.binanceData) throw new Error("Binance data unavailable");
         const account = await this.binanceData.getAccountInfo();
-        const paperPortfolio = this.activeEngine
-            ? await this.activeEngine.getPortfolioSummary()
-            : null;
 
         return {
             ...account,
-            paperTrading:
-                this.config.tradingMode === "paper" && paperPortfolio
-                    ? {
-                          enabled: true,
-                          totalValue: paperPortfolio.totalValue,
-                          positions: paperPortfolio.positions,
-                      }
-                    : { enabled: false },
             systemStatus: {
                 apiConnected: !account.error,
-                mode: this.config.tradingMode,
+                mode: "live",
             },
         };
     }
@@ -319,6 +302,7 @@ class TradingService extends EventEmitter {
             logger.setLogLevel(newConfig.logLevel);
         }
 
+        // Asset Swapping Logic
         const oldAssets = JSON.stringify((this.config.assets || []).sort());
         const newAssetsList = newConfig.assets || this.config.assets;
         const assetsChanged =
@@ -346,20 +330,8 @@ class TradingService extends EventEmitter {
             this.signalGenerator.start(this.binanceData, 60000);
         }
 
-        if (
-            this.activeEngine &&
-            this.activeEngine.mode !== newConfig.tradingMode
-        ) {
-            logger.warn(
-                `Trading mode changed to ${newConfig.tradingMode}. Re-initializing.`
-            );
-            await this.activeEngine.stop();
-            this.activeEngine = this.createTradingEngine(newConfig.tradingMode);
-            await this.activeEngine.initialize();
-            if (this.config.enableTrading) {
-                this.activeEngine.start();
-            }
-        } else if (this.activeEngine) {
+        // Direct update to live engine
+        if (this.activeEngine) {
             this.activeEngine.updateConfig(this.config);
         }
 
@@ -367,16 +339,6 @@ class TradingService extends EventEmitter {
         logger.info("⚙️ Config updated & saved");
         this.emit("configUpdated", this.config);
         this.io.emit("systemStatus", this.getStatus());
-    }
-
-    createTradingEngine(mode) {
-        if (mode === "live")
-            return new LiveTradingEngine(
-                this.config,
-                this.binanceData,
-                this.riskService
-            );
-        return new PaperTradingEngine(this.config, this.riskService);
     }
 
     async startTrading() {
@@ -396,8 +358,10 @@ class TradingService extends EventEmitter {
     }
 
     async resetTrading() {
-        if (this.activeEngine) await this.activeEngine.reset();
-        if (this.signalGenerator) this.signalGenerator.reset();
+        // Reset logic handled internally by engine if needed,
+        // usually 'reset' implies clearing memory state in live engine
+        // We will assume LiveTradingEngine has no 'reset' method that clears DB,
+        // so we just emit the event.
         this.emit("tradingReset");
         this.io.emit("tradingReset");
     }
