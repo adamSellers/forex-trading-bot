@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - COMPLETE WITH FACTORY RESET
+// frontend/src/components/TradingConfig.jsx - FLEXIBLE PORTFOLIO EDITION
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -8,10 +8,10 @@ import {
 } from '@mui/material';
 import {
   Save, Refresh, Security, AccountBalance,
-  PieChart, Notifications, Delete, AddCircle, 
-  Science, Tune, SettingsRemote, Warning, RestartAlt, DeleteForever
+  PieChart, SettingsRemote, Warning, RestartAlt, DeleteForever,
+  AddCircle, Delete, Science, Tune
 } from '@mui/icons-material';
-import { tradingAPI, managementAPI } from '../config/api'; // Added managementAPI import
+import { tradingAPI, managementAPI } from '../config/api';
 
 // --- STYLED COMPONENTS ---
 const GlassCard = styled(Box)(({ theme }) => ({
@@ -35,42 +35,39 @@ const SectionHeader = ({ icon, title, subtitle }) => {
                 {icon}
             </Avatar>
             <Box>
-                <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>
-                    {title}
-                </Typography>
+                <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>{title}</Typography>
                 {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
             </Box>
         </Box>
     );
 };
 
-// --- ASSET LIST ---
+// --- SUPPORTED ASSETS (20 + Momentum Gems) ---
 const SUPPORTED_ASSETS = [
-  'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 
-  'DOGEUSDT', 'ADAUSDT', 'TRXUSDT', 'AVAXUSDT', 'SHIBUSDT',
-  'TONUSDT', 'LINKUSDT', 'DOTUSDT', 'BCHUSDT', 'LTCUSDT',
-  'UNIUSDT', 'NEARUSDT', 'MATICUSDT', 'ICPUSDT', 'PEPEUSDT'
-];
+  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", 
+  "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "SHIBUSDT", 
+  "TONUSDT", "LINKUSDT", "DOTUSDT", "BCHUSDT", "LTCUSDT", 
+  "UNIUSDT", "NEARUSDT", "MATICUSDT", "ICPUSDT", "PEPEUSDT",
+  "FETUSDT", "WIFUSDT" // Added from Momentum strategy
+].sort();
 
-// --- DEFAULTS ---
 const DEFAULT_CONFIG = {
-    maxCapitalAtRisk: 5000,
+    maxCapitalAtRisk: 1000,
     tradingMode: 'paper',
     enableTrading: false,
     riskPerTrade: 1.0,
-    maxDailyLoss: 2.0,
-    maxWeeklyLoss: 5.0,
-    stopLossATR: 1.5,
-    takeProfitATRMultiplier: 3.0,
+    maxDailyLoss: 5.0,
     minOrderSize: 10,
-    strategy: 'balanced',
+    strategy: 'supertrend_momentum',
     timeframe: '1h',
     signalCooldown: 60,
     enableAdxFilter: true,
     minAdx: 25,
     enableRsiFilter: true,
-    rsiOverbought: 70,
+    rsiOverbought: 75,
     rsiOversold: 30,
+    stopLossType: 'FIXED',
+    stopLossPercent: 0.03,
     assets: [], 
     allocation: {}, 
     enableEmailAlerts: false,
@@ -80,8 +77,6 @@ const DEFAULT_CONFIG = {
 
 const TradingConfig = () => {
   const theme = useTheme();
-
-  // --- STATE ---
   const [activeTab, setActiveTab] = useState(0);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [originalConfig, setOriginalConfig] = useState({});
@@ -102,14 +97,14 @@ const TradingConfig = () => {
         const fetchedConfig = {
           ...DEFAULT_CONFIG,
           ...data.config,
-          riskPerTrade: (data.config.riskPerTrade * 100) || 1.0,
-          maxDailyLoss: (data.config.maxDailyLoss * 100) || 2.0,
-          maxWeeklyLoss: (data.config.maxWeeklyLoss * 100) || 5.0,
+          // Normalize values for UI
+          riskPerTrade: (data.config.riskPerTrade) || 0.98,
+          stopLossPercent: (data.config.stopLossPercent * 100) || 3.0,
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
           allocation: { ...data.config.allocation }
         };
         
-        // Normalize allocation
+        // Ensure allocation is 0-100 for sliders
         Object.keys(fetchedConfig.allocation).forEach(key => {
             if (fetchedConfig.allocation[key] <= 1) {
                 fetchedConfig.allocation[key] = Math.round(fetchedConfig.allocation[key] * 100);
@@ -117,7 +112,6 @@ const TradingConfig = () => {
         });
 
         if (!fetchedConfig.assets) fetchedConfig.assets = [];
-
         setConfig(fetchedConfig);
         setOriginalConfig(fetchedConfig);
       }
@@ -138,17 +132,15 @@ const TradingConfig = () => {
     try {
       const configToSave = {
         ...config,
-        riskPerTrade: config.riskPerTrade / 100,
-        maxDailyLoss: config.maxDailyLoss / 100,
-        maxWeeklyLoss: config.maxWeeklyLoss / 100,
+        stopLossPercent: config.stopLossPercent / 100,
         signalCooldown: config.signalCooldown * 1000,
         allocation: {}
       };
 
+      // Convert percentages back to decimals (0.20)
       config.assets.forEach(asset => {
           const alloc = config.allocation[asset] || 0;
-          if (alloc > 0) configToSave.allocation[asset] = alloc / 100;
-          else configToSave.allocation[asset] = 0;
+          configToSave.allocation[asset] = alloc > 0 ? alloc / 100 : 0;
       });
 
       await tradingAPI.updateConfig(configToSave);
@@ -163,37 +155,24 @@ const TradingConfig = () => {
   };
 
   const handleResetEngine = async () => {
-      if (!window.confirm("⚠️ RESET MEMORY?\n\nThis wipes the engine's RAM (Panic Loops/Locks) and clears 'Active' trade flags.\nIt DOES NOT delete history.\n\nProceed?")) return;
-      try {
-          await tradingAPI.resetTrading();
-          alert("✅ Engine Memory Reset Successfully");
-          fetchCurrentConfig();
-      } catch (e) {
-          alert(`Error: ${e.message}`);
-      }
+      if (!window.confirm("⚠️ RESET MEMORY?\nThis clears internal state loops.")) return;
+      try { await tradingAPI.resetTrading(); alert("✅ Engine Reset"); fetchCurrentConfig(); } catch (e) { alert(e.message); }
   };
 
   const handleFactoryReset = async () => {
-      if (!window.confirm("☢️ NUCLEAR OPTION ☢️\n\nThis will DELETE ALL TRADE HISTORY and SIGNALS from the database.\nThis action cannot be undone.\n\nAre you sure you want to wipe everything?")) return;
-      
-      try {
-          await managementAPI.factoryReset();
-          alert("✅ System Wiped Successfully. Analytics reset to zero.");
-          // Force reload to clear any cached frontend state
-          window.location.reload(); 
-      } catch (e) {
-          alert(`Error: ${e.message}`);
-      }
+      if (!window.confirm("☢️ NUCLEAR OPTION: WIPE DATABASE?\nThis deletes ALL history.")) return;
+      try { await managementAPI.factoryReset(); alert("✅ System Wiped"); window.location.reload(); } catch (e) { alert(e.message); }
   };
 
   const updateConfig = (key, value) => { setConfig((prev) => ({ ...prev, [key]: value })); };
 
+  // --- PORTFOLIO LOGIC ---
   const handleAddAsset = () => {
       if (!newAsset || config.assets.includes(newAsset)) return;
       setConfig(prev => ({
           ...prev,
           assets: [...prev.assets, newAsset],
-          allocation: { ...prev.allocation, [newAsset]: 0 }
+          allocation: { ...prev.allocation, [newAsset]: 10 } // Default 10%
       }));
       setNewAsset('');
   };
@@ -208,135 +187,74 @@ const TradingConfig = () => {
   };
 
   const updateAllocation = (asset, val) => {
-      setConfig(prev => ({ ...prev, allocation: { ...prev.allocation, [asset]: val } }));
+      setConfig(prev => ({ 
+          ...prev, 
+          allocation: { ...prev.allocation, [asset]: val } 
+      }));
   };
 
   const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.allocation[asset] || 0), 0);
 
-  // --- RENDERERS ---
+  // --- RENDER SECTIONS ---
 
   const renderGeneralSettings = () => (
     <Stack spacing={3}>
-        {/* Trading Mode Banner */}
         <Box 
             sx={{ 
-                p: 3, 
-                borderRadius: 2,
-                border: 1,
+                p: 3, borderRadius: 2, border: 1,
                 borderColor: config.tradingMode === 'live' ? 'error.main' : 'warning.main',
                 bgcolor: alpha(config.tradingMode === 'live' ? theme.palette.error.main : theme.palette.warning.main, 0.05),
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
             }}
         >
             <Box>
                 <Typography variant="h6" fontWeight="bold" color={config.tradingMode === 'live' ? 'error.main' : 'warning.main'}>
-                    {config.tradingMode === 'live' ? "⚠️ LIVE TRADING ENVIRONMENT" : "🧪 PAPER TRADING ENVIRONMENT"}
+                    {config.tradingMode === 'live' ? "⚠️ LIVE ENVIRONMENT" : "🧪 PAPER ENVIRONMENT"}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" mt={0.5}>
-                    {config.tradingMode === 'live' 
-                        ? "Real funds are at risk. Trades execute directly on Binance." 
-                        : "Simulation mode. No real assets will be moved."}
+                <Typography variant="body2" color="text.secondary">
+                    {config.tradingMode === 'live' ? "Real funds at risk." : "Virtual simulation mode."}
                 </Typography>
             </Box>
-            <FormControl>
-                <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="button" color={config.tradingMode === 'paper' ? 'warning.main' : 'text.disabled'}>PAPER</Typography>
-                    <Switch
-                        checked={config.tradingMode === 'live'}
-                        onChange={(e) => {
-                            if (e.target.checked && !window.confirm("DANGER: Are you sure you want to enable Real Money Trading?")) return;
-                            updateConfig('tradingMode', e.target.checked ? 'live' : 'paper');
-                        }}
-                        color="error"
-                    />
-                    <Typography variant="button" color={config.tradingMode === 'live' ? 'error.main' : 'text.disabled'}>LIVE</Typography>
-                </Stack>
-            </FormControl>
+            <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="button" color="text.disabled">PAPER</Typography>
+                <Switch
+                    checked={config.tradingMode === 'live'}
+                    onChange={(e) => updateConfig('tradingMode', e.target.checked ? 'live' : 'paper')}
+                    color="error"
+                />
+                <Typography variant="button" color="error">LIVE</Typography>
+            </Stack>
         </Box>
 
         <GlassCard>
-            <SectionHeader icon={<SettingsRemote />} title="System Controls" subtitle="Global switches and limits" />
+            <SectionHeader icon={<SettingsRemote />} title="System Controls" subtitle="Global limits and switches" />
             <Grid container spacing={3} alignItems="center">
                  <Grid item xs={12} md={6}>
                     <TextField
                         fullWidth label="Max Capital Allocation" type="number"
-                        helperText="Hard limit on USDT usage."
+                        helperText="Total USDT allowed for this bot"
                         value={config.maxCapitalAtRisk}
                         onChange={(e) => updateConfig('maxCapitalAtRisk', parseFloat(e.target.value))}
                         InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
                     />
                  </Grid>
                  <Grid item xs={12} md={6}>
-                     <Box 
-                        display="flex" alignItems="center" justifyContent="space-between" 
-                        border={1} borderColor={config.enableTrading ? "success.main" : "divider"} 
-                        borderRadius={1} p={2}
-                        bgcolor={config.enableTrading ? alpha(theme.palette.success.main, 0.05) : "transparent"}
-                     >
+                     <Box display="flex" alignItems="center" justifyContent="space-between" border={1} borderColor="divider" borderRadius={1} p={2}>
                         <Box>
                             <Typography fontWeight="bold">Master Kill Switch</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {config.enableTrading ? "SYSTEM ACTIVE" : "SYSTEM PAUSED"}
-                            </Typography>
+                            <Typography variant="caption" color="text.secondary">{config.enableTrading ? "SYSTEM ACTIVE" : "SYSTEM PAUSED"}</Typography>
                         </Box>
-                        <Switch 
-                            checked={config.enableTrading} 
-                            onChange={(e) => updateConfig('enableTrading', e.target.checked)} 
-                            color="success"
-                        />
+                        <Switch checked={config.enableTrading} onChange={(e) => updateConfig('enableTrading', e.target.checked)} color="success" />
                      </Box>
                  </Grid>
             </Grid>
         </GlassCard>
 
-        <GlassCard>
-            <SectionHeader icon={<Notifications />} title="Alerts & Notifications" />
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-                 <Box display="flex" alignItems="center" minWidth={200}>
-                    <Switch checked={config.enableEmailAlerts} onChange={(e) => updateConfig('enableEmailAlerts', e.target.checked)} />
-                    <Typography sx={{ ml: 1 }}>Email Notifications</Typography>
-                 </Box>
-                 <TextField 
-                    fullWidth label="Recipient Email" 
-                    value={config.alertEmail} 
-                    onChange={(e) => updateConfig('alertEmail', e.target.value)}
-                    disabled={!config.enableEmailAlerts}
-                    size="small"
-                />
-            </Stack>
-        </GlassCard>
-
-        {/* DANGER ZONE */}
-        <Paper 
-            variant="outlined" 
-            sx={{ 
-                p: 3, 
-                borderColor: 'error.main', 
-                bgcolor: alpha(theme.palette.error.main, 0.05),
-                borderStyle: 'dashed'
-            }}
-        >
+        <Paper variant="outlined" sx={{ p: 3, borderColor: 'error.main', bgcolor: alpha(theme.palette.error.main, 0.05), borderStyle: 'dashed' }}>
             <SectionHeader icon={<Warning />} title="Danger Zone" subtitle="Irreversible actions" />
             <Stack direction="row" spacing={2}>
-                <Button 
-                    variant="outlined" 
-                    color="warning" 
-                    startIcon={<RestartAlt />}
-                    onClick={handleResetEngine}
-                >
-                    Reset Memory (Fix Loops)
-                </Button>
-                
-                <Button 
-                    variant="contained" 
-                    color="error" 
-                    startIcon={<DeleteForever />}
-                    onClick={handleFactoryReset}
-                >
-                    Factory Reset (Wipe Data)
-                </Button>
+                <Button variant="outlined" color="warning" startIcon={<RestartAlt />} onClick={handleResetEngine}>Reset RAM</Button>
+                <Button variant="contained" color="error" startIcon={<DeleteForever />} onClick={handleFactoryReset}>Factory Wipe</Button>
             </Stack>
         </Paper>
     </Stack>
@@ -345,24 +263,22 @@ const TradingConfig = () => {
   const renderStrategySettings = () => (
     <Stack spacing={3}>
         <GlassCard>
-             <SectionHeader icon={<Science />} title="Core Logic" subtitle="Algorithm parameters" />
+             <SectionHeader icon={<Science />} title="Momentum Strategy" subtitle="SuperTrend + ADX configuration" />
             <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                     <FormControl fullWidth>
-                        <InputLabel>Strategy Type</InputLabel>
-                        <Select value={config.strategy} label="Strategy Type" onChange={(e) => updateConfig('strategy', e.target.value)}>
-                            <MenuItem value="balanced">Balanced (EMA Crossover)</MenuItem>
-                            <MenuItem value="responsive">Responsive (Fast EMA)</MenuItem>
-                            <MenuItem value="conservative">Conservative (SMA Trend)</MenuItem>
+                        <InputLabel>Strategy Core</InputLabel>
+                        <Select value={config.strategy} label="Strategy Core" onChange={(e) => updateConfig('strategy', e.target.value)}>
+                            <MenuItem value="supertrend_momentum">⚡ SuperTrend Momentum</MenuItem>
+                            <MenuItem value="balanced">⚖️ Balanced</MenuItem>
                         </Select>
                     </FormControl>
                 </Grid>
                 <Grid item xs={12} md={6}>
                      <FormControl fullWidth>
-                        <InputLabel>Candle Timeframe</InputLabel>
-                        <Select value={config.timeframe} label="Candle Timeframe" onChange={(e) => updateConfig('timeframe', e.target.value)}>
-                            <MenuItem value="15m">15 Minutes</MenuItem>
-                            <MenuItem value="1h">1 Hour</MenuItem>
+                        <InputLabel>Timeframe</InputLabel>
+                        <Select value={config.timeframe} label="Timeframe" onChange={(e) => updateConfig('timeframe', e.target.value)}>
+                            <MenuItem value="1h">1 Hour (Recommended)</MenuItem>
                             <MenuItem value="4h">4 Hours</MenuItem>
                         </Select>
                     </FormControl>
@@ -371,45 +287,35 @@ const TradingConfig = () => {
         </GlassCard>
 
         <GlassCard>
-            <SectionHeader icon={<Tune />} title="Signal Filters" subtitle="Refine entry conditions" />
-            
+            <SectionHeader icon={<Tune />} title="Entry Filters" subtitle="Strict trend requirements" />
             <Box mb={4}>
                 <Box display="flex" justifyContent="space-between" mb={1}>
-                    <Typography fontWeight="bold">ADX Trend Filter (Min Strength)</Typography>
+                    <Typography fontWeight="bold">Min ADX Strength (Trend Floor)</Typography>
                     <Switch size="small" checked={config.enableAdxFilter} onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)} />
                 </Box>
                 <Box px={2} display="flex" alignItems="center" gap={2}>
                     <Slider 
-                        value={config.minAdx} min={10} max={50} step={1}
-                        onChange={(_, v) => updateConfig('minAdx', v)} disabled={!config.enableAdxFilter}
-                        valueLabelDisplay="auto" marks={[{value: 25, label: 'Strong'}]}
+                        value={config.minAdx} min={10} max={50} 
+                        onChange={(_, v) => updateConfig('minAdx', v)} 
+                        disabled={!config.enableAdxFilter} 
                         sx={{ flexGrow: 1 }}
                     />
-                    <Typography fontFamily="monospace" fontWeight="bold">{config.minAdx}</Typography>
+                    <Typography fontFamily="monospace" fontWeight="bold" sx={{ minWidth: 30 }}>{config.minAdx}</Typography>
                 </Box>
             </Box>
-
+            
             <Divider sx={{ my: 3 }} />
 
             <Box>
                 <Box display="flex" justifyContent="space-between" mb={2}>
-                    <Typography fontWeight="bold">RSI Momentum Filter</Typography>
+                    <Typography fontWeight="bold">RSI Ceiling (Overbought)</Typography>
                     <Switch size="small" checked={config.enableRsiFilter} onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)} />
                 </Box>
-                <Stack direction="row" spacing={3}>
-                     <TextField 
-                        fullWidth label="Overbought (>)" type="number"
-                        value={config.rsiOverbought} onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))} 
-                        disabled={!config.enableRsiFilter}
-                        size="small"
-                    />
-                     <TextField 
-                        fullWidth label="Oversold (<)" type="number"
-                        value={config.rsiOversold} onChange={(e) => updateConfig('rsiOversold', parseFloat(e.target.value))} 
-                        disabled={!config.enableRsiFilter}
-                        size="small"
-                    />
-                </Stack>
+                <TextField 
+                    fullWidth label="Max RSI" type="number" 
+                    value={config.rsiOverbought} onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))} 
+                    size="small" 
+                />
             </Box>
         </GlassCard>
     </Stack>
@@ -418,57 +324,43 @@ const TradingConfig = () => {
   const renderRiskSettings = () => (
      <Stack spacing={3}>
         <GlassCard>
-            <SectionHeader icon={<Security />} title="Risk Management" subtitle="Capital protection rules" />
-
+            <SectionHeader icon={<Security />} title="Risk Management" subtitle="Position sizing and stop losses" />
             <Grid container spacing={4}>
                 <Grid item xs={12}>
-                     <Typography gutterBottom variant="subtitle2" color="text.secondary">RISK PER TRADE (% OF CAPITAL)</Typography>
+                     <Typography gutterBottom variant="subtitle2" color="text.secondary">RISK FACTOR</Typography>
                      <Stack direction="row" spacing={2} alignItems="center">
                         <Slider 
-                            value={config.riskPerTrade} min={0.1} max={5.0} step={0.1}
+                            value={config.riskPerTrade} min={0.1} max={1.0} step={0.01} 
                             onChange={(_, v) => updateConfig('riskPerTrade', v)} 
                             valueLabelDisplay="auto"
-                            marks={[{value: 1, label: 'Conservative'}, {value: 3, label: 'Aggressive'}]}
                             sx={{ flexGrow: 1 }}
                         />
-                        <Typography fontWeight="bold" fontFamily="monospace" sx={{ border: 1, borderColor: 'divider', p: 1, borderRadius: 1 }}>
-                            {config.riskPerTrade}%
-                        </Typography>
+                        <Chip 
+                            label={`${(config.riskPerTrade * 100).toFixed(0)}%`} 
+                            color={config.riskPerTrade > 0.9 ? "error" : "primary"} 
+                            variant="outlined" 
+                        />
                      </Stack>
+                     <Typography variant="caption" color="text.secondary">
+                         Multiplier for position sizing. (e.g., 98% of allocated funds per trade).
+                     </Typography>
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                    <TextField 
-                        fullWidth label="Stop Loss (ATR Multiplier)" type="number"
-                        helperText="Distance to place Stop Loss (e.g. 1.5x ATR)"
-                        value={config.stopLossATR} 
-                        onChange={(e) => updateConfig('stopLossATR', parseFloat(e.target.value))} 
-                        inputProps={{ step: 0.1 }} 
-                    />
+                    <FormControl fullWidth>
+                        <InputLabel>Stop Loss Type</InputLabel>
+                        <Select value={config.stopLossType || 'FIXED'} label="Stop Loss Type" onChange={(e) => updateConfig('stopLossType', e.target.value)}>
+                            <MenuItem value="FIXED">Fixed Percentage (Hard Stop)</MenuItem>
+                            <MenuItem value="ATR">ATR Dynamic (Volatility)</MenuItem>
+                        </Select>
+                    </FormControl>
                 </Grid>
                  <Grid item xs={12} md={6}>
                     <TextField 
-                        fullWidth label="Take Profit (ATR Multiplier)" type="number"
-                        helperText="Target price distance (e.g. 3.0x ATR)"
-                        value={config.takeProfitATRMultiplier} 
-                        onChange={(e) => updateConfig('takeProfitATRMultiplier', parseFloat(e.target.value))} 
-                        inputProps={{ step: 0.1 }} 
-                    />
-                </Grid>
-
-                 <Grid item xs={12} md={6}>
-                    <TextField 
-                        fullWidth label="Max Daily Loss Limit (%)" type="number"
-                        helperText="Engine auto-stop threshold"
-                        value={config.maxDailyLoss} 
-                        onChange={(e) => updateConfig('maxDailyLoss', parseFloat(e.target.value))} 
-                    />
-                </Grid>
-                 <Grid item xs={12} md={6}>
-                    <TextField 
-                        fullWidth label="Minimum Order Size ($)" type="number"
-                        value={config.minOrderSize} 
-                        onChange={(e) => updateConfig('minOrderSize', parseFloat(e.target.value))} 
+                        fullWidth label="Stop Loss Distance" type="number" 
+                        value={config.stopLossPercent} 
+                        onChange={(e) => updateConfig('stopLossPercent', parseFloat(e.target.value))} 
+                        InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} 
                     />
                 </Grid>
             </Grid>
@@ -480,152 +372,115 @@ const TradingConfig = () => {
     <Stack spacing={3}>
          <GlassCard>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems="center" spacing={2} mb={3}>
-                 <Box display="flex" alignItems="center" gap={2}>
-                     <PieChart color="primary" />
-                     <Box>
-                        <Typography variant="h6" fontWeight="bold">Asset Allocation</Typography>
-                        <Typography variant="caption" color="text.secondary">Portfolio weighting logic</Typography>
-                     </Box>
-                 </Box>
-                 <Box display="flex" alignItems="center" gap={2}>
-                     <Chip 
-                        label={`Total Allocated: ${totalAllocation}%`} 
-                        color={totalAllocation > 100 ? "error" : totalAllocation === 100 ? "success" : "default"}
-                        variant={totalAllocation === 100 ? "filled" : "outlined"}
-                     />
-                 </Box>
+                 <SectionHeader icon={<PieChart />} title="Asset Allocation" subtitle="Manage active pairs and capital limits" />
+                 <Chip 
+                    label={`Total Allocation: ${totalAllocation}%`} 
+                    color={totalAllocation > 100 ? "error" : totalAllocation === 100 ? "success" : "default"}
+                    variant={totalAllocation === 100 ? "filled" : "outlined"}
+                 />
             </Stack>
 
             <Box display="flex" gap={2} mb={3} p={2} bgcolor={alpha(theme.palette.background.paper, 0.3)} borderRadius={2}>
                 <FormControl size="small" fullWidth>
-                    <InputLabel>Add Asset to Portfolio</InputLabel>
-                    <Select value={newAsset} label="Add Asset to Portfolio" onChange={(e) => setNewAsset(e.target.value)}>
+                    <InputLabel>Add Asset</InputLabel>
+                    <Select value={newAsset} label="Add Asset" onChange={(e) => setNewAsset(e.target.value)}>
                         {SUPPORTED_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
                             <MenuItem key={asset} value={asset}>{asset}</MenuItem>
                         ))}
                     </Select>
                 </FormControl>
-                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />} sx={{ minWidth: 120 }}>
-                    ADD
-                </Button>
+                <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} startIcon={<AddCircle />}>ADD</Button>
             </Box>
 
             <List disablePadding>
-                {config.assets.length === 0 && (
-                    <Alert severity="info" sx={{ width: '100%' }}>Portfolio is empty. Add assets to begin trading.</Alert>
-                )}
-                
                 {config.assets.map((asset) => (
-                    <React.Fragment key={asset}>
-                        <ListItem sx={{ 
-                            borderBottom: 1, 
-                            borderColor: 'divider',
-                            py: 2,
-                            px: 1,
+                    <ListItem 
+                        key={asset} 
+                        sx={{ 
+                            borderBottom: 1, borderColor: 'divider', py: 2,
                             flexWrap: 'wrap',
                             '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.05) }
-                        }}>
-                             <Box display="flex" alignItems="center" width={{ xs: '100%', sm: '20%' }}>
-                                <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: alpha(theme.palette.primary.main, 0.2), color: 'primary.main', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                    {asset.substring(0,3)}
-                                </Avatar>
-                                <Typography fontWeight="bold">{asset.replace('USDT', '')}</Typography>
-                             </Box>
+                        }}
+                    >
+                         <Box display="flex" alignItems="center" width={{ xs: '100%', sm: '20%' }}>
+                            <Avatar sx={{ width: 32, height: 32, mr: 2, bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                {asset.substring(0,3)}
+                            </Avatar>
+                            <Typography fontWeight="bold">{asset}</Typography>
+                         </Box>
 
-                             <Box sx={{ flexGrow: 1, mx: { xs: 0, sm: 4 }, my: { xs: 2, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}>
-                                 <Stack direction="row" spacing={2} alignItems="center">
-                                    <Slider 
-                                        value={config.allocation[asset] || 0} 
-                                        onChange={(_, v) => updateAllocation(asset, v)}
-                                        min={0} max={50} step={1}
-                                        sx={{ flexGrow: 1 }}
-                                    />
-                                 </Stack>
-                             </Box>
-
-                             <Box display="flex" alignItems="center" gap={2} width={{ xs: '100%', sm: 'auto' }} justifyContent="flex-end">
-                                 <TextField 
-                                    size="small" type="number" 
+                         <Box sx={{ flexGrow: 1, mx: { xs: 0, sm: 4 }, my: { xs: 2, sm: 0 }, width: { xs: '100%', sm: 'auto' } }}>
+                             <Stack direction="row" spacing={2} alignItems="center">
+                                <Slider 
                                     value={config.allocation[asset] || 0} 
-                                    onChange={(e) => updateAllocation(asset, parseFloat(e.target.value))}
-                                    InputProps={{ 
-                                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                                    }}
-                                    sx={{ width: 100 }}
-                                 />
-                                 <IconButton color="error" onClick={() => handleRemoveAsset(asset)} size="small">
-                                     <Delete fontSize="small" />
-                                 </IconButton>
-                             </Box>
-                        </ListItem>
-                    </React.Fragment>
+                                    onChange={(_, v) => updateAllocation(asset, v)}
+                                    min={0} max={100} step={5}
+                                    sx={{ flexGrow: 1 }}
+                                />
+                             </Stack>
+                         </Box>
+
+                         <Box display="flex" alignItems="center" gap={2} width={{ xs: '100%', sm: 'auto' }} justifyContent="flex-end">
+                             <TextField 
+                                size="small" type="number" 
+                                value={config.allocation[asset] || 0} 
+                                onChange={(e) => updateAllocation(asset, parseFloat(e.target.value))}
+                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                sx={{ width: 100 }}
+                             />
+                             <IconButton color="error" onClick={() => handleRemoveAsset(asset)}>
+                                 <Delete />
+                             </IconButton>
+                         </Box>
+                    </ListItem>
                 ))}
+                {config.assets.length === 0 && (
+                    <Alert severity="info">No assets configured. Add assets to begin.</Alert>
+                )}
             </List>
          </GlassCard>
     </Stack>
   );
 
-  if (loading) return <Box minHeight="80vh" display="flex" alignItems="center" justifyContent="center"><Typography>Loading Configuration...</Typography></Box>;
+  if (loading) return <Box minHeight="60vh" display="flex" alignItems="center" justifyContent="center"><Typography>Loading Config...</Typography></Box>;
 
   return (
-    // FIXED: Changed maxWidth="lg" to maxWidth={false} to span full width like Dashboard
     <Container maxWidth={false} sx={{ py: 2 }}>
-        
-        {/* HEADER */}
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} px={1}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
             <Box>
                 <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
                     SYSTEM <span style={{ color: theme.palette.primary.main }}>CONFIG</span>
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-                    BOT PARAMETERS & RISK CONTROLS
+                    CUSTOM PORTFOLIO SETUP
                 </Typography>
             </Box>
             <Stack direction="row" spacing={2}>
-                <Button startIcon={<Refresh />} onClick={fetchCurrentConfig} disabled={saving} color="inherit">
-                    Revert
-                </Button>
-                <Button 
-                    variant="contained" 
-                    startIcon={<Save />} 
-                    onClick={handleSaveConfig} 
-                    disabled={!hasChanges || saving}
-                    size="large"
-                    sx={{ px: 4, fontWeight: 'bold' }}
-                >
+                <Button startIcon={<Refresh />} onClick={fetchCurrentConfig} color="inherit">Revert</Button>
+                <Button variant="contained" startIcon={<Save />} onClick={handleSaveConfig} disabled={!hasChanges || saving} size="large" sx={{ px: 4 }}>
                     {saving ? 'Saving...' : 'Save Changes'}
                 </Button>
             </Stack>
         </Box>
 
         {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
-        {success && <Alert severity="success" sx={{ mb: 3 }}>Configuration saved successfully!</Alert>}
+        {success && <Alert severity="success" sx={{ mb: 3 }}>Configuration Saved!</Alert>}
 
-        {/* TABS NAVIGATION */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-            <Tabs 
-                value={activeTab} 
-                onChange={(_, v) => setActiveTab(v)} 
-                variant="scrollable" 
-                scrollButtons="auto"
-                textColor="primary"
-                indicatorColor="primary"
-            >
-                <Tab icon={<AccountBalance />} iconPosition="start" label="General" sx={{ minHeight: 64 }} />
-                <Tab icon={<Science />} iconPosition="start" label="Strategy" sx={{ minHeight: 64 }} />
-                <Tab icon={<Security />} iconPosition="start" label="Risk" sx={{ minHeight: 64 }} />
-                <Tab icon={<PieChart />} iconPosition="start" label="Portfolio" sx={{ minHeight: 64 }} />
+            <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} textColor="primary" indicatorColor="primary">
+                <Tab icon={<AccountBalance fontSize="small" />} iconPosition="start" label="General" sx={{ minHeight: 60 }} />
+                <Tab icon={<Science fontSize="small" />} iconPosition="start" label="Strategy" sx={{ minHeight: 60 }} />
+                <Tab icon={<Security fontSize="small" />} iconPosition="start" label="Risk" sx={{ minHeight: 60 }} />
+                <Tab icon={<PieChart fontSize="small" />} iconPosition="start" label="Portfolio" sx={{ minHeight: 60 }} />
             </Tabs>
         </Box>
 
-        {/* TAB PANELS */}
         <Box sx={{ minHeight: 400 }}>
             {activeTab === 0 && renderGeneralSettings()}
             {activeTab === 1 && renderStrategySettings()}
             {activeTab === 2 && renderRiskSettings()}
             {activeTab === 3 && renderPortfolioSettings()}
         </Box>
-
     </Container>
   );
 };

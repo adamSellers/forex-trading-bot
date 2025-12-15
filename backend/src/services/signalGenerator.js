@@ -1,4 +1,4 @@
-// backend/src/services/signalGenerator.js
+// backend/src/services/signalGenerator.js - SUPERTREND MOMENTUM EDITION
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const { RSI, ADX, ATR } = require("technicalindicators");
@@ -11,18 +11,21 @@ class SignalGenerator extends EventEmitter {
         this.binanceDataService = null;
 
         this.config = {
-            strategy: "balanced",
+            strategy: "supertrend_momentum",
             timeframe: "1h",
             signalCooldown: 60000,
             assets: [],
-            minAdx: 25,
-            rsiOversold: 35,
-            rsiOverbought: 70,
+            minAdx: 28,
+            rsiOverbought: 75,
+            atrPeriod: 10,
+            factor: 3,
             ...config,
         };
 
         this.lastSignals = new Map();
-        logger.info(`🧠 Signal Generator v3.1 (Trend-Safe) Initialized`);
+        logger.info(
+            `🧠 Signal Generator v4.0 (SuperTrend Momentum) Initialized`
+        );
     }
 
     start(binanceDataService, intervalMs = 60000) {
@@ -57,70 +60,139 @@ class SignalGenerator extends EventEmitter {
         }
     }
 
-    prepareInputData(candles) {
-        return {
-            high: candles.map((c) => c.high),
-            low: candles.map((c) => c.low),
-            close: candles.map((c) => c.close),
-        };
+    // --- PORTED MATH: EXACT REPLICA OF OPTIMIZE-STRATEGY.JS ---
+    calculateSuperTrend(highs, lows, closes, period = 10, factor = 3) {
+        let tr = [highs[0] - lows[0]];
+        let atr = [tr[0]];
+        for (let i = 1; i < closes.length; i++) {
+            let hl = highs[i] - lows[i];
+            let hc = Math.abs(highs[i] - closes[i - 1]);
+            let lc = Math.abs(lows[i] - closes[i - 1]);
+            tr.push(Math.max(hl, hc, lc));
+            atr.push((atr[i - 1] * (period - 1) + tr[i]) / period);
+        }
+
+        let upperBand = [],
+            lowerBand = [],
+            superTrend = [],
+            direction = [];
+        let basicUpper = (highs[0] + lows[0]) / 2 + factor * atr[0];
+        let basicLower = (highs[0] + lows[0]) / 2 - factor * atr[0];
+
+        upperBand.push(basicUpper);
+        lowerBand.push(basicLower);
+        superTrend.push(basicUpper);
+        direction.push(1);
+
+        for (let i = 1; i < closes.length; i++) {
+            let currBasicUpper = (highs[i] + lows[i]) / 2 + factor * atr[i];
+            let currBasicLower = (highs[i] + lows[i]) / 2 - factor * atr[i];
+
+            let prevFinalUpper = upperBand[i - 1];
+            let prevFinalLower = lowerBand[i - 1];
+            let prevClose = closes[i - 1];
+
+            let finalUpper =
+                currBasicUpper < prevFinalUpper || prevClose > prevFinalUpper
+                    ? currBasicUpper
+                    : prevFinalUpper;
+            let finalLower =
+                currBasicLower > prevFinalLower || prevClose < prevFinalLower
+                    ? currBasicLower
+                    : prevFinalLower;
+
+            upperBand.push(finalUpper);
+            lowerBand.push(finalLower);
+
+            let prevDir = direction[i - 1];
+            let currentDir = prevDir;
+
+            if (prevDir === 1 && closes[i] < lowerBand[i - 1]) currentDir = -1;
+            else if (prevDir === -1 && closes[i] > upperBand[i - 1])
+                currentDir = 1;
+
+            direction.push(currentDir);
+            superTrend.push(currentDir === 1 ? finalLower : finalUpper);
+        }
+
+        return { superTrend, direction };
     }
 
     async generateSignal(symbol, candles, currentPrice) {
         try {
             if (!candles || candles.length < 200) return null;
 
-            const input = this.prepareInputData(candles);
+            const highs = candles.map((c) => c.high);
+            const lows = candles.map((c) => c.low);
+            const closes = candles.map((c) => c.close);
 
-            // 1. Core Indicators
-            const rsi = RSI.calculate({
-                values: input.close,
+            // 1. Calculate Indicators
+            const stData = this.calculateSuperTrend(
+                highs,
+                lows,
+                closes,
+                this.config.atrPeriod || 10,
+                this.config.factor || 3
+            );
+
+            // Use completed candle for signal stability
+            const idx = closes.length - 1;
+            const currentDir = stData.direction[idx];
+            const prevDir = stData.direction[idx - 1];
+
+            const rsiVal = RSI.calculate({ values: closes, period: 14 }).pop();
+            const adxVal = ADX.calculate({
+                high: highs,
+                low: lows,
+                close: closes,
                 period: 14,
             }).pop();
-            const adx = ADX.calculate({
-                high: input.high,
-                low: input.low,
-                close: input.close,
-                period: 14,
-            }).pop();
-            const atr = ATR.calculate({
-                high: input.high,
-                low: input.low,
-                close: input.close,
+            const atrVal = ATR.calculate({
+                high: highs,
+                low: lows,
+                close: closes,
                 period: 14,
             }).pop();
 
-            // 2. Logic: Trend-Safe Snapback
+            // 2. Logic: Trend Flip
             let signalType = "HOLD";
-            let reason = `Monitoring (ADX:${adx.adx.toFixed(0)} Dirm:${
-                adx.pdi > adx.mdi ? "UP" : "DOWN"
-            } RSI:${rsi.toFixed(0)})`;
+            let reason = `ST:${
+                currentDir === 1 ? "GREEN" : "RED"
+            } ADX:${adxVal.adx.toFixed(1)} RSI:${rsiVal.toFixed(1)}`;
 
-            const isUptrend = adx.pdi > adx.mdi;
-            const isStrongTrend = adx.adx > this.config.minAdx;
-            const isOversold = rsi < this.config.rsiOversold;
-            const isOverbought = rsi > this.config.rsiOverbought;
+            // BUY: Green Flip + Strict Filters
+            if (prevDir === -1 && currentDir === 1) {
+                const adxOk = adxVal.adx > (this.config.minAdx || 28);
+                const rsiOk = rsiVal < (this.config.rsiOverbought || 75);
 
-            // BUY: Strong Uptrend + Price Dip
-            if (isStrongTrend && isUptrend && isOversold) {
-                signalType = "BUY";
-                reason = `🚀 TREND DIP: Uptrend (ADX ${adx.adx.toFixed(
-                    0
-                )}) + Oversold (RSI ${rsi.toFixed(0)})`;
+                if (adxOk && rsiOk) {
+                    signalType = "BUY";
+                    reason = `🚀 BUY: ST Flip | ADX ${adxVal.adx.toFixed(
+                        1
+                    )} > 28 | RSI ${rsiVal.toFixed(1)} < 75`;
+                } else {
+                    reason = `⚠️ FILTERED: ST Flip but ADX/RSI weak`;
+                }
             }
-            // SELL: Overbought (Profit Taking)
-            else if (isOverbought) {
+            // SELL: Red Flip
+            else if (prevDir === 1 && currentDir === -1) {
                 signalType = "SELL";
-                reason = `💰 PROFIT: Overbought (RSI ${rsi.toFixed(0)} > 70)`;
+                reason = `📉 SELL: ST Flip to Red`;
             }
 
             return {
                 symbol,
                 signal: signalType,
-                strength: adx.adx,
+                strength: adxVal.adx,
                 message: reason,
                 timestamp: Date.now(),
-                data: { currentPrice, rsi, adx: adx.adx, atr },
-                atr,
+                data: {
+                    currentPrice,
+                    rsi: rsiVal,
+                    adx: adxVal.adx,
+                    stDirection: currentDir,
+                },
+                atr: atrVal,
             };
         } catch (error) {
             logger.error(`Calc error ${symbol}:`, error);

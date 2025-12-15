@@ -1,6 +1,6 @@
-// backend/src/services/tradingService.js - COMPLETE (Original Comments + Dynamic Assets)
+// backend/src/services/tradingService.js - UPDATED FOR MOMENTUM STRATEGY
 const EventEmitter = require("events");
-const fs = require("fs").promises; // Use Promise API for async file ops
+const fs = require("fs").promises;
 const path = require("path");
 const BinanceDataService = require("./binanceDataService");
 const SignalGenerator = require("./signalGenerator");
@@ -24,75 +24,86 @@ class TradingService extends EventEmitter {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
 
-        // 1. Hardcoded Defaults (The "Golden Config" - BTC/ETH/BNB/DOGE)
+        // 1. GOLDEN CONFIG (SuperTrend Momentum 1H)
         this.defaultConfig = {
-            strategy: "balanced",
+            strategy: "supertrend_momentum",
             timeframe: "1h",
-            tradingMode: "live",
+            tradingMode: "paper", // Default to paper for safety
             enableTrading: false,
-            // Watch everything, but only trade the winners
-            assets: ["BTCUSDT", "ETHUSDT", "BNBUSDT", "DOGEUSDT", "TRUMPUSDT"],
-            timeframes: ["1h", "4h", "1d"],
-            maxCapitalAtRisk: 120,
-            riskPerTrade: 0.02,
-            maxDailyLoss: 0.05,
-            maxWeeklyLoss: 0.1,
 
-            // --- ALLOCATION (Optimized Mix) ---
+            // 🏆 THE WINNING WHITELIST (Strict Enforcement)
+            assets: [
+                "NEARUSDT",
+                "FETUSDT",
+                "WIFUSDT",
+                "SHIBUSDT",
+                "ETHUSDT",
+                "PEPEUSDT",
+            ],
+            timeframes: ["1h"], // Only 1h needed
+
+            // --- RISK & ALLOCATION ---
+            maxCapitalAtRisk: 1000,
+            riskPerTrade: 0.98, // 98% Compound Mode (Aggressive)
+            minOrderSize: 10,
+
+            // Allocation: Set to 100% per asset since we only take one trade at a time per asset
             allocation: {
-                BTCUSDT: 0.3, // Core
-                ETHUSDT: 0.3, // Core
-                BNBUSDT: 0.2, // Utility
-                DOGEUSDT: 0.2, // The "Good" Meme (Proven Profitable)
-                TRUMPUSDT: 0.0, // The "Bad" Meme (Banned)
+                NEARUSDT: 1.0,
+                FETUSDT: 1.0,
+                WIFUSDT: 1.0,
+                SHIBUSDT: 1.0,
+                ETHUSDT: 1.0,
+                PEPEUSDT: 1.0,
             },
 
-            // --- STRATEGY SETTINGS (Verified $157 Profit) ---
+            // --- STRATEGY SETTINGS (Verified Backtest 4.4) ---
+            // SuperTrend
+            atrPeriod: 10,
+            factor: 3.0,
+
+            // Filters
             enableAdxFilter: true,
-            minAdx: 30, // Strict Trend Entry
+            minAdx: 28, // Strict trend floor
 
             enableRsiFilter: true,
-            rsiOverbought: 70,
+            rsiOverbought: 75, // Cap tops
             rsiOversold: 30,
 
-            stopLossATR: 1.5, // Tight risk management
-            takeProfitATRMultiplier: 3.0, // High reward targeting
-            enableTrailingStops: true,
+            // Exits
+            stopLossType: "FIXED", // New Flag
+            stopLossPercent: 0.03, // 3% Hard Stop
+
+            takeProfitATRMultiplier: 0, // 0 = Disable TP, let trend run
+            enableTrailingStops: false, // Backtest used simple trend flip exit
             trailingStopPercent: 0.03,
 
             // Notification Defaults
             enableEmailAlerts: false,
             alertEmail: "",
 
-            // S3 Config
+            // S3
             enableS3Analytics: process.env.ENABLE_S3_ANALYTICS === "true",
             enableS3SignalLogging:
                 process.env.ENABLE_S3_SIGNAL_LOGGING === "true",
         };
 
-        // Initialize config with defaults temporarily
         this.config = { ...this.defaultConfig };
-
         this.activeEngine = null;
-        logger.info("🎯 TradingService initialized.");
+        logger.info("🎯 TradingService initialized (Momentum 1H Config).");
     }
 
     async initialize() {
         try {
             logger.info("🚀 Initializing Trading Service...");
 
-            // 2. LOAD PERSISTED CONFIG (The "User Settings")
             await this.loadConfig();
-
-            // Ensure log level is set correctly
             this.config.logLevel = logger.getLogLevelName();
 
-            // Initialize core services
             this.binanceData = new BinanceDataService(this.config);
             this.riskService = new RiskManagementService();
             this.signalGenerator = new SignalGenerator(this.config);
 
-            // ** THE ENGINE SWITCH **
             this.activeEngine = this.createTradingEngine(
                 this.config.tradingMode
             );
@@ -103,6 +114,7 @@ class TradingService extends EventEmitter {
             await this.waitForServices();
             await this.activeEngine.initialize();
 
+            // 1 Minute Loop
             this.signalGenerator.start(this.binanceData, 60000);
 
             this.analyticsService = new AnalyticsService(this.activeEngine);
@@ -111,16 +123,13 @@ class TradingService extends EventEmitter {
             this.setupServiceEvents();
             this.isActive = true;
 
-            // Start the engine if trading was enabled in the saved config
             if (this.config.enableTrading) {
                 logger.warn(
-                    `▶️ Auto-starting trading in ${this.config.tradingMode} mode based on saved config.`
+                    `▶️ Auto-starting trading in ${this.config.tradingMode} mode.`
                 );
                 this.activeEngine.start();
             } else {
-                logger.info(
-                    "⏸️ Trading engine ready but paused (waiting for start command)."
-                );
+                logger.info("⏸️ Trading engine paused.");
             }
 
             logger.success("✅ Trading Service initialized successfully");
@@ -130,21 +139,12 @@ class TradingService extends EventEmitter {
         }
     }
 
-    // --- PERSISTENCE METHODS ---
-
     async loadConfig() {
         try {
             const data = await fs.readFile(CONFIG_FILE, "utf8");
             const savedConfig = JSON.parse(data);
-
-            // Merge: Defaults < Saved.
-            // This ensures new fields added to defaults in code updates still appear,
-            // but don't overwrite user's saved preferences.
-            this.config = {
-                ...this.defaultConfig,
-                ...savedConfig,
-            };
-            logger.success("💾 Loaded persistent configuration from disk.");
+            this.config = { ...this.defaultConfig, ...savedConfig };
+            logger.success("💾 Loaded persistent configuration.");
         } catch (error) {
             if (error.code === "ENOENT") {
                 logger.info("📄 No config file found. Using defaults.");
@@ -156,7 +156,6 @@ class TradingService extends EventEmitter {
 
     async saveConfig() {
         try {
-            // Save the current config to disk
             await fs.writeFile(
                 CONFIG_FILE,
                 JSON.stringify(this.config, null, 2)
@@ -166,8 +165,6 @@ class TradingService extends EventEmitter {
             logger.error("❌ Failed to save configuration persistence:", error);
         }
     }
-
-    // ---------------------------
 
     async waitForServices() {
         return new Promise((resolve, reject) => {
@@ -204,8 +201,6 @@ class TradingService extends EventEmitter {
             try {
                 this.emit("tradeExecuted", trade);
                 this.io.emit("tradeExecuted", trade);
-
-                // Email Notification Hook
                 if (this.config.enableEmailAlerts) {
                     emailService.sendTradeAlert(trade, this.config.alertEmail);
                 }
@@ -257,9 +252,7 @@ class TradingService extends EventEmitter {
                     );
                     if (result.success) {
                         logger.info(
-                            `🎯 Action: ${result.action || "NONE"} (${
-                                result.reason
-                            })`
+                            `🎯 Action: ${result.action} (${result.reason})`
                         );
                     }
                 }
@@ -269,10 +262,9 @@ class TradingService extends EventEmitter {
         }
     }
 
-    // =================== API METHODS ===================
+    // --- API METHODS ---
 
     getStatus() {
-        // Get status from sub-services
         const bdStatus = this.binanceData?.getServiceStatus() || {};
         const engineStatus = this.activeEngine?.getStatus() || {};
         const signalStatus = this.signalGenerator?.getStatus() || {};
@@ -285,10 +277,6 @@ class TradingService extends EventEmitter {
                 engine: engineStatus,
                 signalGenerator: signalStatus,
             },
-            candleCount: bdStatus.candleCount || 0,
-            activeSignals: signalStatus.activeSignals || [],
-            // --------------------------------------------
-
             timestamp: Date.now(),
         };
     }
@@ -347,42 +335,33 @@ class TradingService extends EventEmitter {
             logger.setLogLevel(newConfig.logLevel);
         }
 
-        // [NEW] 1. Detect if ASSETS changed
         const oldAssets = JSON.stringify((this.config.assets || []).sort());
         const newAssetsList = newConfig.assets || this.config.assets;
         const assetsChanged =
             oldAssets !== JSON.stringify(newAssetsList.sort());
 
-        // Update memory config
         this.config = { ...this.config, ...newConfig };
 
-        // Propagate to sub-services
         if (this.signalGenerator)
             this.signalGenerator.updateConfig(this.config);
         if (this.riskService) this.riskService.updateConfig(this.config);
         if (this.analyticsService)
             this.analyticsService.updateConfig(this.config);
 
-        // [NEW] 2. Handle Asset Swapping (Re-init Binance Service)
         if (assetsChanged && this.binanceData) {
             logger.warn("🔄 Asset list changed. Restarting Data Service...");
-            this.binanceData.removeAllListeners(); // Prevent memory leaks
-
-            // Re-create service with new config
+            this.binanceData.removeAllListeners();
             this.binanceData = new BinanceDataService(this.config);
             this.binanceData.initialize();
 
-            // Re-bind listeners
             this.binanceData.on("priceUpdate", (priceData) => {
                 const allPrices = this.binanceData.getAllPrices();
                 this.activeEngine.updatePortfolioValue(allPrices);
                 this.io.emit("priceUpdate", priceData);
             });
-            // Update Signal Generator reference
             this.signalGenerator.start(this.binanceData, 60000);
         }
 
-        // Handle Engine Switching
         if (
             this.activeEngine &&
             this.activeEngine.mode !== newConfig.tradingMode
@@ -400,9 +379,7 @@ class TradingService extends EventEmitter {
             this.activeEngine.updateConfig(this.config);
         }
 
-        // 3. SAVE TO DISK
         await this.saveConfig();
-
         logger.info("⚙️ Config updated & saved");
         this.emit("configUpdated", this.config);
         this.io.emit("systemStatus", this.getStatus());
@@ -420,7 +397,7 @@ class TradingService extends EventEmitter {
 
     async startTrading() {
         this.config.enableTrading = true;
-        await this.saveConfig(); // Persist state
+        await this.saveConfig();
         if (this.activeEngine) await this.activeEngine.start();
         this.emit("tradingStarted");
         this.io.emit("tradingStarted");
@@ -428,7 +405,7 @@ class TradingService extends EventEmitter {
 
     async stopTrading() {
         this.config.enableTrading = false;
-        await this.saveConfig(); // Persist state
+        await this.saveConfig();
         if (this.activeEngine) await this.activeEngine.stop();
         this.emit("tradingStopped");
         this.io.emit("tradingStopped");

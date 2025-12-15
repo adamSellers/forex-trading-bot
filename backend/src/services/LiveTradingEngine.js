@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FIXED REPO METHODS
+// backend/src/services/LiveTradingEngine.js - FIXED STOP LOSS LOGIC
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -12,7 +12,6 @@ class LiveTradingEngine extends EventEmitter {
         this.tradeRepo = new TradeRepository();
         this.mode = "live";
 
-        // State
         this.portfolio = {
             usdtBalance: 0,
             positions: [],
@@ -25,8 +24,6 @@ class LiveTradingEngine extends EventEmitter {
 
     async initialize() {
         logger.info("🔌 Live Trading Engine Connecting...");
-
-        // 1. Verify Binance Connection & Get Balance
         const account = await this.binanceData.getAccountInfo();
         if (account.error) throw new Error("Binance Connection Failed");
 
@@ -39,8 +36,6 @@ class LiveTradingEngine extends EventEmitter {
             )}`
         );
 
-        // 2. Load "OPEN" positions (State Recovery)
-        // FIX: Use 'getOpenLiveTrades' instead of 'getOpenPositions'
         try {
             const dbPositions = await this.tradeRepo.getOpenLiveTrades();
             this.portfolio.positions = dbPositions.map((p) => ({
@@ -52,7 +47,6 @@ class LiveTradingEngine extends EventEmitter {
                 `🔄 Restored ${this.portfolio.positions.length} active positions.`
             );
         } catch (err) {
-            // Fallback for empty DB or repo mismatch
             logger.warn(
                 "⚠️ Could not restore positions (likely empty DB): " +
                     err.message
@@ -60,13 +54,11 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.positions = [];
         }
 
-        // 3. Hydrate Historical Stats
         await this.calculatePerformanceStats();
     }
 
     async calculatePerformanceStats() {
         try {
-            // FIX: Ensure this matches repo method. Usually 'getAllTrades' or 'getRecent'
             const allTrades = await this.tradeRepo.getAllTrades("live");
             const closedTrades = allTrades.filter(
                 (t) => t.status === "CLOSED" || !t.isOpen
@@ -108,7 +100,6 @@ class LiveTradingEngine extends EventEmitter {
         if (signal.signal !== "BUY" && signal.signal !== "SELL")
             return { success: false, action: "NONE" };
 
-        // 1. Global Risk Check
         if (
             this.riskService &&
             !this.riskService.checkRiskLimits(this.getPortfolioSummary())
@@ -133,32 +124,32 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Position already open",
                 };
 
+            // Dynamic Sizing based on Whitelist
             const allocationPct =
                 this.config.allocation?.[signal.symbol] || 0.15;
             const maxAllocatedUsdt = this.portfolio.usdtBalance * allocationPct;
 
-            // Cap at Max Risk Capital
+            // Risk sizing (Max Risk per trade config)
+            const riskRatio = this.config.riskPerTrade || 0.98; // Default to 98% if not set
             const tradeAmountUsdt = Math.min(
-                maxAllocatedUsdt,
+                maxAllocatedUsdt * riskRatio,
                 this.config.maxCapitalAtRisk || 999999
             );
 
-            if (tradeAmountUsdt < 15)
+            if (tradeAmountUsdt < (this.config.minOrderSize || 15))
                 return {
                     success: false,
                     action: "SKIP",
-                    reason: "Insufficient allocated capital (<$15)",
+                    reason: "Insufficient allocated capital",
                 };
 
             let quantity = tradeAmountUsdt / currentPrice;
             quantity = this.binanceData.stepSize(signal.symbol, quantity);
 
             logger.info(
-                `⚖️ Sizing: Bal $${this.portfolio.usdtBalance.toFixed(2)} * ${
-                    allocationPct * 100
-                }% = $${tradeAmountUsdt.toFixed(2)} -> ${quantity} ${
+                `⚖️ Sizing: ${quantity} ${
                     signal.symbol
-                }`
+                } ($${tradeAmountUsdt.toFixed(2)})`
             );
 
             try {
@@ -168,9 +159,20 @@ class LiveTradingEngine extends EventEmitter {
                     quantity
                 );
 
-                // Construct Record
+                // --- STOP LOSS CALCULATION ---
+                let stopLossPrice;
+                if (this.config.stopLossType === "FIXED") {
+                    stopLossPrice =
+                        currentPrice *
+                        (1 - (this.config.stopLossPercent || 0.03));
+                } else {
+                    stopLossPrice =
+                        currentPrice -
+                        (atr || 0) * (this.config.stopLossATR || 1.5);
+                }
+
                 const tradeRecord = {
-                    id: order.orderId.toString(), // Use Order ID as DB ID
+                    id: order.orderId.toString(),
                     symbol: signal.symbol,
                     side: "BUY",
                     price: parseFloat(order.fills?.[0]?.price || currentPrice),
@@ -179,26 +181,18 @@ class LiveTradingEngine extends EventEmitter {
                     orderId: order.orderId,
                     timestamp: Date.now(),
                     status: "OPEN",
-                    isOpen: true, // For legacy compatibility
-                    stopLoss:
-                        currentPrice - atr * (this.config.stopLossATR || 1.5),
+                    isOpen: true,
+                    stopLoss: stopLossPrice,
                     trailingStop: this.config.enableTrailingStops
                         ? currentPrice * (1 - this.config.trailingStopPercent)
                         : null,
                     mode: "live",
                 };
 
-                // FIX: Use 'save' instead of 'create'
                 try {
                     await this.tradeRepo.save(tradeRecord);
-                } catch (dbErr) {
-                    logger.error(
-                        "⚠️ Ghost Trade averted: Order filled but DB write failed.",
-                        dbErr.message
-                    );
-                }
+                } catch (dbErr) {}
 
-                // Update Local State
                 this.portfolio.positions.push(tradeRecord);
                 this.portfolio.usdtBalance -= tradeRecord.usdtCost;
 
@@ -226,7 +220,6 @@ class LiveTradingEngine extends EventEmitter {
         try {
             logger.info(`📉 Closing ${position.symbol} due to ${reason}...`);
             const quantity = position.quantity;
-
             const order = await this.binanceData.executeOrder(
                 position.symbol,
                 "SELL",
@@ -239,7 +232,6 @@ class LiveTradingEngine extends EventEmitter {
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
-            // FIX: Use 'updateTrade' instead of 'updateStatus'
             await this.tradeRepo.updateTrade(position.id, {
                 status: "CLOSED",
                 isOpen: false,
@@ -249,7 +241,6 @@ class LiveTradingEngine extends EventEmitter {
                 exitReason: reason,
             });
 
-            // Update State
             this.portfolio.positions = this.portfolio.positions.filter(
                 (p) => p.symbol !== position.symbol
             );
@@ -257,7 +248,6 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.dailyPnL += pnl;
             this.portfolio.totalPnL += pnl;
 
-            // Update Stats
             this.portfolio.stats.totalTrades++;
             if (pnl > 0) this.portfolio.stats.winningTrades++;
             this.portfolio.stats.winRate =
@@ -290,7 +280,7 @@ class LiveTradingEngine extends EventEmitter {
         let unrealizedPnL = 0;
 
         this.portfolio.positions.forEach((pos) => {
-            const currentPrice = allPrices[pos.symbol];
+            const currentPrice = allPrices[pos.symbol]?.price; // FIX: Access .price property
             if (!currentPrice) return;
 
             const currentValue = pos.quantity * currentPrice;
@@ -310,12 +300,10 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     checkExitConditions(position, currentPrice) {
-        // Hard Stop
         if (position.stopLoss && currentPrice <= position.stopLoss) {
             this.closePosition(position, currentPrice, "STOP_LOSS");
             return;
         }
-        // Trailing Stop
         if (this.config.enableTrailingStops && position.trailingStop) {
             const trailingPercent = this.config.trailingStopPercent || 0.03;
             const newStop = currentPrice * (1 - trailingPercent);
