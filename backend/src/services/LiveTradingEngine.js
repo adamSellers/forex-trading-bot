@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FIXED STOP LOSS LOGIC
+// backend/src/services/LiveTradingEngine.js - FIXED MISSING METHOD
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -56,6 +56,13 @@ class LiveTradingEngine extends EventEmitter {
 
         await this.calculatePerformanceStats();
     }
+
+    // --- NEW METHOD TO FIX CRASH ---
+    updateConfig(config) {
+        this.config = config;
+        logger.info("🔁 Live Engine Config Updated");
+    }
+    // -------------------------------
 
     async calculatePerformanceStats() {
         try {
@@ -130,13 +137,13 @@ class LiveTradingEngine extends EventEmitter {
             const maxAllocatedUsdt = this.portfolio.usdtBalance * allocationPct;
 
             // Risk sizing (Max Risk per trade config)
-            const riskRatio = this.config.riskPerTrade || 0.98; // Default to 98% if not set
+            const riskRatio = this.config.riskPerTrade || 0.98;
             const tradeAmountUsdt = Math.min(
                 maxAllocatedUsdt * riskRatio,
                 this.config.maxCapitalAtRisk || 999999
             );
 
-            if (tradeAmountUsdt < (this.config.minOrderSize || 15))
+            if (tradeAmountUsdt < (this.config.minOrderSize || 10))
                 return {
                     success: false,
                     action: "SKIP",
@@ -280,7 +287,7 @@ class LiveTradingEngine extends EventEmitter {
         let unrealizedPnL = 0;
 
         this.portfolio.positions.forEach((pos) => {
-            const currentPrice = allPrices[pos.symbol]?.price; // FIX: Access .price property
+            const currentPrice = allPrices[pos.symbol]?.price;
             if (!currentPrice) return;
 
             const currentValue = pos.quantity * currentPrice;

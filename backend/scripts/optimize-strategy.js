@@ -10,24 +10,24 @@ const fs = require("fs");
 const PORTFOLIO = [
     "BTCUSDT",
     "ETHUSDT",
-    "BNBUSDT",
-    "SOLUSDT",
-    "XRPUSDT",
-    "DOGEUSDT",
-    "ADAUSDT",
-    "TRXUSDT",
-    "AVAXUSDT",
-    "SHIBUSDT",
-    "TONUSDT",
-    "LINKUSDT",
-    "DOTUSDT",
-    "BCHUSDT",
-    "LTCUSDT",
-    "UNIUSDT",
+    //"BNBUSDT",
+    //"SOLUSDT",
+    //"XRPUSDT",
+    //"DOGEUSDT",
+    //"ADAUSDT",
+    //"TRXUSDT",
+    //"AVAXUSDT",
+    //"SHIBUSDT",
+    //"TONUSDT",
+    //"LINKUSDT",
+    //"DOTUSDT",
+    //"BCHUSDT",
+    //"LTCUSDT",
+    //"UNIUSDT",
     "NEARUSDT",
-    "MATICUSDT",
-    "ICPUSDT",
-    "PEPEUSDT",
+    //"MATICUSDT",
+    //"ICPUSDT",
+    //"PEPEUSDT",
 ];
 
 // Testing 3m, 6m, 1y (Focus on recent history where these memes actually existed)
@@ -39,9 +39,9 @@ const STRATEGY = {
     timeframe: "1h",
     atrPeriod: 10,
     factor: 3.0,
-    minAdx: 28, // 🏆 Restored to 28
+    minAdx: 20, // 🏆 Restored to 28
     maxRsi: 75, // 🛡️ Restored RSI Filter
-    stopLossPct: 0.02222, // 3% Hard Stop
+    stopLossPct: 0.05, // 3% Hard Stop
 };
 
 const binance = new Binance().options({ family: 4, log: () => {} });

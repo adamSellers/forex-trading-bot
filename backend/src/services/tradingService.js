@@ -1,4 +1,4 @@
-// backend/src/services/tradingService.js - UPDATED FOR MOMENTUM STRATEGY
+// backend/src/services/tradingService.js - OPTIMIZED (ETH 1H 5% SL)
 const EventEmitter = require("events");
 const fs = require("fs").promises;
 const path = require("path");
@@ -24,65 +24,49 @@ class TradingService extends EventEmitter {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
 
-        // 1. GOLDEN CONFIG (SuperTrend Momentum 1H)
+        // 🏆 THE WINNING CONFIG (Based on Grid Search #1 Result)
         this.defaultConfig = {
             strategy: "supertrend_momentum",
             timeframe: "1h",
-            tradingMode: "paper", // Default to paper for safety
+            tradingMode: "paper",
             enableTrading: false,
 
-            // 🏆 THE WINNING WHITELIST (Strict Enforcement)
-            assets: [
-                "NEARUSDT",
-                "FETUSDT",
-                "WIFUSDT",
-                "SHIBUSDT",
-                "ETHUSDT",
-                "PEPEUSDT",
-            ],
-            timeframes: ["1h"], // Only 1h needed
-
-            // --- RISK & ALLOCATION ---
-            maxCapitalAtRisk: 1000,
-            riskPerTrade: 0.98, // 98% Compound Mode (Aggressive)
-            minOrderSize: 10,
-
-            // Allocation: Set to 100% per asset since we only take one trade at a time per asset
+            // Winning Asset Mix
+            assets: ["ETHUSDT", "SHIBUSDT", "BTCUSDT"],
             allocation: {
-                NEARUSDT: 1.0,
-                FETUSDT: 1.0,
-                WIFUSDT: 1.0,
-                SHIBUSDT: 1.0,
-                ETHUSDT: 1.0,
-                PEPEUSDT: 1.0,
+                ETHUSDT: 0.5, // The clear winner gets 50%
+                SHIBUSDT: 0.25,
+                BTCUSDT: 0.25,
             },
 
-            // --- STRATEGY SETTINGS (Verified Backtest 4.4) ---
-            // SuperTrend
+            // --- RISK ---
+            maxCapitalAtRisk: 1000,
+            riskPerTrade: 0.98, // 98% (Aggressive compounding)
+            minOrderSize: 10,
+
+            // --- STRATEGY SETTINGS ---
             atrPeriod: 10,
             factor: 3.0,
 
-            // Filters
+            // Filter: Lowered to 20 to catch early trends (Rank #1 Result)
             enableAdxFilter: true,
-            minAdx: 28, // Strict trend floor
+            minAdx: 20,
 
             enableRsiFilter: true,
-            rsiOverbought: 75, // Cap tops
+            rsiOverbought: 75,
             rsiOversold: 30,
 
-            // Exits
-            stopLossType: "FIXED", // New Flag
-            stopLossPercent: 0.03, // 3% Hard Stop
+            // --- EXITS (Crucial Update) ---
+            stopLossType: "FIXED",
+            stopLossPercent: 0.05, // 5% Hard Stop (The Winner)
 
-            takeProfitATRMultiplier: 0, // 0 = Disable TP, let trend run
-            enableTrailingStops: false, // Backtest used simple trend flip exit
+            takeProfitATRMultiplier: 0, // Trend following (no TP)
+            enableTrailingStops: false,
             trailingStopPercent: 0.03,
 
-            // Notification Defaults
+            // --- MISC ---
             enableEmailAlerts: false,
             alertEmail: "",
-
-            // S3
             enableS3Analytics: process.env.ENABLE_S3_ANALYTICS === "true",
             enableS3SignalLogging:
                 process.env.ENABLE_S3_SIGNAL_LOGGING === "true",
@@ -90,7 +74,7 @@ class TradingService extends EventEmitter {
 
         this.config = { ...this.defaultConfig };
         this.activeEngine = null;
-        logger.info("🎯 TradingService initialized (Momentum 1H Config).");
+        logger.info("🎯 TradingService initialized (ETH 1H Momentum Config).");
     }
 
     async initialize() {

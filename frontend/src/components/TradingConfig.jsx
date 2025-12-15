@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - FLEXIBLE PORTFOLIO EDITION
+// frontend/src/components/TradingConfig.jsx - ETH MOMENTUM EDITION
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -42,32 +42,39 @@ const SectionHeader = ({ icon, title, subtitle }) => {
     );
 };
 
-// --- SUPPORTED ASSETS (20 + Momentum Gems) ---
+// --- SUPPORTED ASSETS ---
 const SUPPORTED_ASSETS = [
   "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", 
   "DOGEUSDT", "ADAUSDT", "TRXUSDT", "AVAXUSDT", "SHIBUSDT", 
   "TONUSDT", "LINKUSDT", "DOTUSDT", "BCHUSDT", "LTCUSDT", 
   "UNIUSDT", "NEARUSDT", "MATICUSDT", "ICPUSDT", "PEPEUSDT",
-  "FETUSDT", "WIFUSDT" // Added from Momentum strategy
+  "FETUSDT", "WIFUSDT"
 ].sort();
 
+// 🏆 NEW DEFAULTS (Based on Grid Search)
 const DEFAULT_CONFIG = {
     maxCapitalAtRisk: 1000,
     tradingMode: 'paper',
     enableTrading: false,
-    riskPerTrade: 1.0,
+    riskPerTrade: 0.98,
     maxDailyLoss: 5.0,
     minOrderSize: 10,
+    
     strategy: 'supertrend_momentum',
     timeframe: '1h',
     signalCooldown: 60,
+    
+    // Updated Filters
     enableAdxFilter: true,
-    minAdx: 25,
+    minAdx: 20, // Lowered from 28
     enableRsiFilter: true,
     rsiOverbought: 75,
     rsiOversold: 30,
+    
+    // Updated Stop Loss
     stopLossType: 'FIXED',
-    stopLossPercent: 0.03,
+    stopLossPercent: 0.05, // 5% Hard Stop
+    
     assets: [], 
     allocation: {}, 
     enableEmailAlerts: false,
@@ -99,7 +106,7 @@ const TradingConfig = () => {
           ...data.config,
           // Normalize values for UI
           riskPerTrade: (data.config.riskPerTrade) || 0.98,
-          stopLossPercent: (data.config.stopLossPercent * 100) || 3.0,
+          stopLossPercent: (data.config.stopLossPercent * 100) || 5.0, // Default 5%
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
           allocation: { ...data.config.allocation }
         };
@@ -137,7 +144,6 @@ const TradingConfig = () => {
         allocation: {}
       };
 
-      // Convert percentages back to decimals (0.20)
       config.assets.forEach(asset => {
           const alloc = config.allocation[asset] || 0;
           configToSave.allocation[asset] = alloc > 0 ? alloc / 100 : 0;
@@ -172,7 +178,7 @@ const TradingConfig = () => {
       setConfig(prev => ({
           ...prev,
           assets: [...prev.assets, newAsset],
-          allocation: { ...prev.allocation, [newAsset]: 10 } // Default 10%
+          allocation: { ...prev.allocation, [newAsset]: 10 } 
       }));
       setNewAsset('');
   };
