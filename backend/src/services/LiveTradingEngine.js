@@ -227,27 +227,36 @@ class LiveTradingEngine extends EventEmitter {
         try {
             logger.info(`📉 Closing ${position.symbol} due to ${reason}...`);
             const quantity = position.quantity;
+
+            // 1. EXECUTE ORDER
+            // We expect this to work. If it fails (network), the main catch block handles it
+            // and we retry cleanly in the next cycle.
             const order = await this.binanceData.executeOrder(
                 position.symbol,
                 "SELL",
                 quantity
             );
 
+            // 2. PARSE RESULT
+            // Standard safety check: If 'fills' is missing (rare but possible), fallback to currentPrice
             const exitPrice = parseFloat(
                 order.fills?.[0]?.price || currentPrice
             );
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
+            // 3. UPDATE DATABASE
+            // FIX: Removed 'status: "CLOSED"' because that column does not exist.
+            // We use 'is_open: false' which matches your schema.
             await this.tradeRepo.updateTrade(position.id, {
-                status: "CLOSED",
-                isOpen: false,
+                is_open: false, // Matches DB Schema
                 exitPrice,
                 exitTime: Date.now(),
                 pnl,
                 exitReason: reason,
             });
 
+            // 4. UPDATE MEMORY
             this.portfolio.positions = this.portfolio.positions.filter(
                 (p) => p.symbol !== position.symbol
             );
@@ -255,6 +264,7 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.dailyPnL += pnl;
             this.portfolio.totalPnL += pnl;
 
+            // 5. UPDATE STATS
             this.portfolio.stats.totalTrades++;
             if (pnl > 0) this.portfolio.stats.winningTrades++;
             this.portfolio.stats.winRate =
@@ -265,7 +275,7 @@ class LiveTradingEngine extends EventEmitter {
             const tradeRecord = {
                 ...position,
                 side: "SELL",
-                status: "CLOSED",
+                status: "CLOSED", // Keeping 'status' here is fine for the UI event, just not for the DB
                 pnl,
                 exitPrice,
                 reason,
