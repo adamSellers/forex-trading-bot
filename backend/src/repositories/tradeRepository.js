@@ -13,7 +13,7 @@ class TradeRepository {
             quantity: record.quantity,
             price: record.price,
             pnl: record.pnl,
-            feeUsdtValue: record.fee_usdt_value, // NEW: Map fee value
+            feeUsdtValue: record.fee_usdt_value,
             pnlPercent: record.pnl_percent,
             signal: record.signal,
             signalStrength: record.signal_strength,
@@ -33,7 +33,6 @@ class TradeRepository {
             trailingStopPercent: record.trailing_stop_percent,
         };
 
-        // Correctly assign cost/received based on trade side
         if (trade.side === "BUY") {
             trade.usdtCost = record.total_value;
         } else {
@@ -51,7 +50,7 @@ class TradeRepository {
                 quantity: trade.quantity,
                 price: trade.price,
                 total_value: trade.usdtCost || trade.usdtReceived || 0,
-                fee_usdt_value: trade.feeUsdtValue || 0, // NEW: Save fee value
+                fee_usdt_value: trade.feeUsdtValue || 0,
                 pnl: trade.pnl || 0,
                 pnl_percent: trade.pnlPercent || 0,
                 signal: trade.signal,
@@ -64,7 +63,7 @@ class TradeRepository {
                 entry_price: trade.entryPrice || null,
                 exit_reason: trade.exitReason || "UNKNOWN",
                 timestamp: new Date(trade.timestamp),
-                mode: trade.mode || "paper", // Add mode, default to paper
+                mode: trade.mode || "live", // <--- FIX: Default to LIVE
                 is_open: trade.isOpen || false,
                 take_profit_price: trade.takeProfitPrice || null,
                 trailing_stop_price: trade.trailingStopPrice || null,
@@ -80,7 +79,8 @@ class TradeRepository {
         }
     }
 
-    async getRecent(limit = 20, mode = null) {
+    // <--- FIX: Default to "live" in all fetch methods to ignore old paper data
+    async getRecent(limit = 20, mode = "live") {
         try {
             let query = db("trades").orderBy("timestamp", "desc").limit(limit);
             if (mode) query = query.where("mode", mode);
@@ -92,7 +92,7 @@ class TradeRepository {
         }
     }
 
-    async getBySymbol(symbol, limit = 50, mode = null) {
+    async getBySymbol(symbol, limit = 50, mode = "live") {
         try {
             let query = db("trades")
                 .where("symbol", symbol)
@@ -109,7 +109,7 @@ class TradeRepository {
         }
     }
 
-    async getTradesSince(cutoffTime, mode = null) {
+    async getTradesSince(cutoffTime, mode = "live") {
         try {
             let query = db("trades").where("timestamp", ">=", cutoffTime);
             if (mode) {
@@ -123,9 +123,8 @@ class TradeRepository {
         }
     }
 
-    async getAllTrades(mode = null) {
+    async getAllTrades(mode = "live") {
         try {
-            // Returns all trades, ordered by time, for full recalculation
             let query = db("trades").orderBy("timestamp", "asc");
             if (mode) query = query.where("mode", mode);
             const records = await query;
@@ -150,8 +149,8 @@ class TradeRepository {
 
     async updateTrade(tradeId, updates) {
         try {
-            // Knex requires snake_case for column names
             const dbUpdates = { ...updates };
+            // Snake_case mapping
             if (dbUpdates.takeProfitPrice) {
                 dbUpdates.take_profit_price = dbUpdates.takeProfitPrice;
                 delete dbUpdates.takeProfitPrice;
@@ -173,19 +172,19 @@ class TradeRepository {
                 delete dbUpdates.trailingStopPercent;
             }
 
+            // SAFETY: Remove 'status' if accidentally passed, as it crashes the DB
+            if (dbUpdates.status) delete dbUpdates.status;
+
             await db("trades").where("trade_id", tradeId).update(dbUpdates);
-            // FIX: Make this log more specific to reduce noise and add clarity.
-            // It's primarily used for trailing stop updates.
-            logger.debug(`Trade ${tradeId} updated in database.`, {
-                updates: dbUpdates,
-            });
+            logger.debug(`Trade ${tradeId} updated in database.`);
         } catch (error) {
             logger.error(`Error updating trade ${tradeId}:`, error);
             throw error;
         }
     }
 
-    async getPerformanceMetrics(period = "30d", mode = "paper") {
+    // <--- FIX: Changed default from "paper" to "live"
+    async getPerformanceMetrics(period = "30d", mode = "live") {
         try {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = new Date(Date.now() - periodMs);

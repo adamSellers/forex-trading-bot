@@ -1,8 +1,7 @@
 // backend/src/services/analyticsService.js
 const TradeRepository = require("../repositories/tradeRepository");
 const SignalRepository = require("../repositories/signalRepository");
-const LiveTradingEngine = require("./LiveTradingEngine");
-const awsS3Utils = require("../utils/awsS3Utils"); // NEW: Import S3 utilities
+const awsS3Utils = require("../utils/awsS3Utils");
 const logger = require("../utils/logger");
 const UPLOAD_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -10,10 +9,10 @@ class AnalyticsService {
     constructor(tradingEngine) {
         this.tradeRepo = new TradeRepository();
         this.signalRepo = new SignalRepository();
-        this.tradingEngine = tradingEngine; // NEW: Store the passed trading engine
-        this.config = tradingEngine.config; // NEW: Store a reference to the engine's config
+        this.tradingEngine = tradingEngine;
+        this.config = tradingEngine.config;
 
-        // NEW: Buffer for S3 signal logs to reduce PUT requests
+        // Buffer for S3 signal logs to reduce PUT requests
         this.signalLogBuffer = [];
         this.signalLogUploadInterval = 15 * 60 * 1000; // Upload every 15 minutes
         this.signalLogScheduler = null;
@@ -22,19 +21,20 @@ class AnalyticsService {
     async getPerformanceAnalytics(period = "30d") {
         try {
             logger.debug(
-                "Generating performance analytics for period:",
+                "Generating performance analytics (LIVE) for period:",
                 period
             );
 
             const [tradeMetrics, signalStats] = await Promise.all([
-                this.tradeRepo.getPerformanceMetrics(period),
+                // FIX: Explicitly request 'live' mode to ignore old paper data
+                this.tradeRepo.getPerformanceMetrics(period, "live"),
                 this.signalRepo.getSignalStats(period),
             ]);
 
             const analytics = {
                 period,
                 timestamp: Date.now(),
-                trading: tradeMetrics, // OLD: Basic Trade Metrics
+                trading: tradeMetrics,
                 signals: signalStats,
                 efficiency: this.calculateEfficiency(tradeMetrics, signalStats),
             };
@@ -94,7 +94,8 @@ class AnalyticsService {
 
             for (const asset of assets) {
                 const [trades, signals] = await Promise.all([
-                    this.tradeRepo.getBySymbol(asset, 100),
+                    // FIX: Explicitly request 'live' mode
+                    this.tradeRepo.getBySymbol(asset, 100, "live"),
                     this.signalRepo.getBySymbol(asset, 100),
                 ]);
 
@@ -213,7 +214,7 @@ class AnalyticsService {
     }
 
     /**
-     * NEW: Uploads the performance report to S3.
+     * Uploads the performance report to S3.
      */
     async uploadPerformanceReportToS3() {
         if (process.env.ENABLE_S3_ANALYTICS !== "true") {
@@ -224,19 +225,13 @@ class AnalyticsService {
         try {
             logger.info("Generating and uploading performance report to S3...");
 
-            // 1. Get the full, live portfolio summary from the active engine.
-            // This is much richer than just the performanceMetrics object.
             const report = await this.tradingEngine.getPortfolioSummary();
-
-            // 2. Add a top-level timestamp for the report generation time.
             report.reportGeneratedAt = new Date().toISOString();
 
-            // 3. Define the S3 key (filename)
             const s3Key = `performance-report-${
                 new Date().toISOString().split("T")[0]
             }.json`;
 
-            // 4. Upload to S3
             const uploadResult = await awsS3Utils.uploadJsonToS3(
                 process.env.S3_BUCKET_NAME,
                 s3Key,
@@ -254,7 +249,7 @@ class AnalyticsService {
     }
 
     /**
-     * NEW: Schedules the upload of the performance report to S3.
+     * Schedules the upload of the performance report to S3.
      */
     startS3UploadScheduler() {
         if (process.env.ENABLE_S3_ANALYTICS !== "true") {
@@ -269,7 +264,6 @@ class AnalyticsService {
         );
         setInterval(() => this.uploadPerformanceReportToS3(), UPLOAD_INTERVAL);
 
-        // NEW: Start the signal log batch uploader
         if (this.config.enableS3SignalLogging) {
             logger.info(
                 `Starting S3 signal log batch uploader. Interval: ${
@@ -284,26 +278,18 @@ class AnalyticsService {
         this.uploadPerformanceReportToS3(); // Initial upload
     }
 
-    /**
-     * NEW: Allows the service to receive config updates from the TradingService.
-     * @param {object} newConfig The new configuration object.
-     */
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
     }
 
     /**
-     * REFACTORED: Buffers a raw signal for batch upload instead of uploading immediately.
-     * @param {object} signal - The signal object from the SignalGenerator.
-     * @param {number} currentPrice - The price of the asset at the time of the signal.
+     * Buffers a raw signal for batch upload.
      */
     bufferSignalForS3(signal, currentPrice) {
-        // This feature is controlled by a separate environment variable
         if (!this.config.enableS3SignalLogging) {
             return;
         }
 
-        // Construct the data payload and add it to the buffer.
         const signalData = {
             timestamp: new Date().toISOString(),
             price: currentPrice,
@@ -316,7 +302,7 @@ class AnalyticsService {
     }
 
     /**
-     * NEW: Uploads the buffered signals to S3 as a single batch file.
+     * Uploads the buffered signals to S3 as a single batch file.
      */
     async uploadSignalLogBatchToS3() {
         if (this.signalLogBuffer.length === 0) {
@@ -326,7 +312,6 @@ class AnalyticsService {
             return;
         }
 
-        // Create a copy and clear the buffer immediately to prevent race conditions
         const batchToUpload = [...this.signalLogBuffer];
         this.signalLogBuffer = [];
 
@@ -336,8 +321,8 @@ class AnalyticsService {
 
         try {
             const date = new Date();
-            const dateString = date.toISOString().split("T")[0]; // YYYY-MM-DD
-            const timeString = date.toISOString().replace(/:/g, "-"); // YYYY-MM-DDTHH-mm-ss.sssZ
+            const dateString = date.toISOString().split("T")[0];
+            const timeString = date.toISOString().replace(/:/g, "-");
             const s3Key = `signal-log/${dateString}/signals_${timeString}.json`;
 
             const bucketName =
@@ -347,7 +332,7 @@ class AnalyticsService {
             const uploadResult = await awsS3Utils.uploadJsonToS3(
                 bucketName,
                 s3Key,
-                batchToUpload // Upload the entire array
+                batchToUpload
             );
 
             if (uploadResult) {
@@ -357,7 +342,6 @@ class AnalyticsService {
             }
         } catch (error) {
             logger.error("Error logging signal to S3:", error);
-            // If upload fails, add the data back to the buffer to retry on the next cycle
             this.signalLogBuffer.unshift(...batchToUpload);
         }
     }
