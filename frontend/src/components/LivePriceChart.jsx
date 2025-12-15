@@ -1,4 +1,4 @@
-// frontend/src/components/LivePriceChart.jsx - SEAMLESS INTEGRATION
+// frontend/src/components/LivePriceChart.jsx - ADDED SUPERTREND
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
@@ -6,10 +6,65 @@ import {
 } from '@mui/material';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, Legend, Area
+  ResponsiveContainer, Legend
 } from 'recharts';
 import { tradingAPI } from '../config/api';
 import { calculateEMA } from '../utils/indicators';
+
+// --- SUPERTREND CALCULATION (Client-Side) ---
+const calculateSuperTrend = (candles, period = 10, factor = 3) => {
+    if (!candles || candles.length < period) return [];
+
+    let tr = [candles[0].high - candles[0].low];
+    let atr = [tr[0]];
+    let st = [];
+    let ub = [];
+    let lb = [];
+    let dir = []; // 1 = Up, -1 = Down
+
+    // 1. Calculate ATR & Basic Bands
+    for(let i = 1; i < candles.length; i++) {
+        const c = candles[i];
+        const p = candles[i-1];
+        const hl = c.high - c.low;
+        const hc = Math.abs(c.high - p.close);
+        const lc = Math.abs(c.low - p.close);
+        tr.push(Math.max(hl, hc, lc));
+        atr.push((atr[i-1] * (period - 1) + tr[i]) / period);
+    }
+
+    // 2. Calculate Final Bands & Trend
+    let basicUpper = (candles[0].high + candles[0].low) / 2 + factor * atr[0];
+    let basicLower = (candles[0].high + candles[0].low) / 2 - factor * atr[0];
+    
+    ub.push(basicUpper);
+    lb.push(basicLower);
+    st.push(basicUpper);
+    dir.push(1);
+
+    for(let i = 1; i < candles.length; i++) {
+        let c = candles[i];
+        let p = candles[i-1];
+        
+        let bu = (c.high + c.low) / 2 + factor * atr[i];
+        let bl = (c.high + c.low) / 2 - factor * atr[i];
+
+        let fu = (bu < ub[i-1] || p.close > ub[i-1]) ? bu : ub[i-1];
+        let fl = (bl > lb[i-1] || p.close < lb[i-1]) ? bl : lb[i-1];
+
+        ub.push(fu);
+        lb.push(fl);
+
+        let d = dir[i-1];
+        if (d === 1 && c.close < lb[i-1]) d = -1;
+        else if (d === -1 && c.close > ub[i-1]) d = 1;
+        
+        dir.push(d);
+        st.push(d === 1 ? fl : fu);
+    }
+
+    return st.map((val, i) => ({ value: val, direction: dir[i] }));
+};
 
 const useChartData = (asset, timeframe) => {
     const [data, setData] = useState([]);
@@ -20,16 +75,25 @@ const useChartData = (asset, timeframe) => {
         try {
             if (!isBackground) setLoading(true);
             const response = await tradingAPI.getCandles(asset, timeframe);
+            
             if (response?.candles?.length > 0) {
-                const closes = response.candles.map(c => c.close);
-                const fastMA = calculateEMA(closes, 20);
-                const slowMA = calculateEMA(closes, 50);
-                const processed = response.candles.map((c, i) => ({
+                const candles = response.candles;
+                const closes = candles.map(c => c.close);
+                
+                // Indicators
+                const fastMA = calculateEMA(closes, 20); // EMA 20 (Purple)
+                const slowMA = calculateEMA(closes, 50); // EMA 50 (Green)
+                const stData = calculateSuperTrend(candles, 10, 3); // SuperTrend(10,3)
+
+                const processed = candles.map((c, i) => ({
                     ...c,
                     time: c.openTime, 
                     fastMA: fastMA[i],
-                    slowMA: slowMA[i]
+                    slowMA: slowMA[i],
+                    stValue: stData[i]?.value,
+                    stDir: stData[i]?.direction // 1 (Green) or -1 (Red)
                 }));
+                
                 setData(processed);
                 setError(null);
             }
@@ -51,13 +115,14 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
   const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'BTCUSDT');
   const [timeframe, setTimeframe] = useState('1h');
   
+  // Ensure selected asset is valid if list changes
   useEffect(() => {
       if (assets.length > 0 && !assets.includes(selectedAsset)) setSelectedAsset(assets[0]);
   }, [assets, selectedAsset]);
   
   const { data: chartData, setData: setChartData, loading, error } = useChartData(selectedAsset, timeframe);
 
-  // Live Update Logic
+  // Live Candle Update (Ticker)
   useEffect(() => {
     const livePrice = prices[selectedAsset]?.price;
     if (livePrice && chartData.length > 0) {
@@ -67,6 +132,11 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
         last.close = livePrice;
         last.high = Math.max(last.high, livePrice);
         last.low = Math.min(last.low, livePrice);
+        
+        // Recalculate SuperTrend for live candle? 
+        // NOTE: Keeping it static on last closed candle is safer for visuals to avoid repainting flicker,
+        // but updating the Price line is essential.
+        
         newData[newData.length - 1] = last;
         return newData;
       });
@@ -80,21 +150,22 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
     const change = last.close - first.close;
     return {
         current: last.close,
-        high: Math.max(...chartData.map(c => c.high)),
-        low: Math.min(...chartData.map(c => c.low)),
         change: change,
-        pct: (change / first.close) * 100
+        pct: (change / first.close) * 100,
+        trend: last.stDir === 1 ? 'BULLISH' : 'BEARISH'
     };
   }, [chartData]);
 
+  // --- TOOLTIP RENDERER ---
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload?.[0]) {
       const d = payload[0].payload;
+      const isBullish = d.stDir === 1;
       return (
         <Box sx={{ 
-            p: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.9), 
+            p: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.95), 
             border: 1, borderColor: 'divider', borderRadius: 1,
-            boxShadow: theme.shadows[4]
+            boxShadow: theme.shadows[4], minWidth: 150
         }}>
           <Typography variant="caption" color="text.secondary">
             {new Date(d.time).toLocaleString()}
@@ -102,29 +173,57 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
           <Typography variant="h6" color="primary.main" fontWeight="bold">
             ${d.close.toFixed(2)}
           </Typography>
-          <Grid container spacing={1} sx={{ mt: 0.5, fontSize: 11 }}>
-             <Grid item xs={6} color="#8884d8">EMA(20): ${d.fastMA?.toFixed(2)}</Grid>
-             <Grid item xs={6} color="#82ca9d">EMA(50): ${d.slowMA?.toFixed(2)}</Grid>
-          </Grid>
+          
+          <Box mt={1} pt={1} borderTop={1} borderColor="divider">
+             <Grid container spacing={1} sx={{ fontSize: 11 }}>
+                 <Grid item xs={6} color="#8884d8">EMA(20): {d.fastMA?.toFixed(2)}</Grid>
+                 <Grid item xs={6} color="#82ca9d">EMA(50): {d.slowMA?.toFixed(2)}</Grid>
+                 <Grid item xs={12} sx={{ 
+                     color: isBullish ? theme.palette.success.main : theme.palette.error.main,
+                     fontWeight: 'bold', mt: 0.5
+                 }}>
+                     SuperTrend: ${d.stValue?.toFixed(2)} ({isBullish ? 'BUY' : 'SELL'})
+                 </Grid>
+             </Grid>
+          </Box>
         </Box>
       );
     }
     return null;
   };
 
+  // --- DOT RENDERER FOR SUPERTREND (Since it changes color) ---
+  // Recharts doesn't support multi-color lines natively well, so we use a dot trick or segmented lines.
+  // For simplicity and performance, we'll draw TWO lines (Up and Down) and hide nulls.
+  
   return (
     <Box height="100%" display="flex" flexDirection="column" sx={{ overflow: 'hidden' }}>
       
-      {/* HEADER CONTROLS */}
+      {/* HEADER */}
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
         {stats ? (
-            <Box>
-                <Typography variant="h5" fontWeight="bold" fontFamily="monospace">
-                    ${stats.current.toFixed(2)}
-                </Typography>
-                <Typography variant="caption" fontWeight="bold" sx={{ color: stats.change >= 0 ? 'success.main' : 'error.main' }}>
-                     {stats.change >= 0 ? '+' : ''}{stats.pct.toFixed(2)}% (24h)
-                </Typography>
+            <Box display="flex" gap={2} alignItems="center">
+                <Box>
+                    <Typography variant="h5" fontWeight="bold" fontFamily="monospace">
+                        ${stats.current.toFixed(2)}
+                    </Typography>
+                    <Typography variant="caption" fontWeight="bold" sx={{ color: stats.change >= 0 ? 'success.main' : 'error.main' }}>
+                         {stats.change >= 0 ? '+' : ''}{stats.pct.toFixed(2)}% (24h)
+                    </Typography>
+                </Box>
+                
+                {/* Trend Badge */}
+                <Box 
+                    sx={{ 
+                        px: 1, py: 0.5, borderRadius: 1, 
+                        bgcolor: alpha(stats.trend === 'BULLISH' ? theme.palette.success.main : theme.palette.error.main, 0.1),
+                        border: 1, borderColor: alpha(stats.trend === 'BULLISH' ? theme.palette.success.main : theme.palette.error.main, 0.3)
+                    }}
+                >
+                    <Typography variant="caption" fontWeight="bold" color={stats.trend === 'BULLISH' ? 'success.main' : 'error.main'}>
+                        {stats.trend} ZONE
+                    </Typography>
+                </Box>
             </Box>
         ) : <Box />}
         
@@ -149,12 +248,11 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
           >
             <ToggleButton value="1h" sx={{ px: 1 }}>1H</ToggleButton>
             <ToggleButton value="4h" sx={{ px: 1 }}>4H</ToggleButton>
-            <ToggleButton value="1d" sx={{ px: 1 }}>1D</ToggleButton>
           </ToggleButtonGroup>
         </Box>
       </Box>
 
-      {/* CHART AREA */}
+      {/* CHART */}
       <Box flexGrow={1} position="relative" sx={{ minHeight: 0 }}>
         {loading && !chartData.length ? (
             <Box display="flex" alignItems="center" justifyContent="center" height="100%">
@@ -179,6 +277,7 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                         fontSize={11}
                         tickLine={false}
                         axisLine={false}
+                        minTickGap={30}
                     />
                     <YAxis 
                         domain={['auto', 'auto']}
@@ -188,37 +287,48 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                         tickLine={false}
                         axisLine={false}
                     />
-                    <Tooltip content={<CustomTooltip />} cursor={{ stroke: theme.palette.text.secondary, strokeDasharray: '4 4' }} />
+                    <Tooltip content={<CustomTooltip />} />
                     <Legend verticalAlign="top" iconType="circle" height={30} />
                     
+                    {/* Price Line */}
                     <Line 
                         type="monotone" 
                         dataKey="close" 
                         stroke={theme.palette.primary.main} 
-                        strokeWidth={3} 
+                        strokeWidth={2} 
                         dot={false} 
                         name="Price"
-                        activeDot={{ r: 6, strokeWidth: 0 }}
-                        animationDuration={1000}
+                        activeDot={{ r: 5 }}
+                        animationDuration={500}
+                    />
+
+                    {/* EMA Lines */}
+                    <Line type="monotone" dataKey="fastMA" stroke="#8884d8" strokeWidth={1} dot={false} name="EMA 20" strokeOpacity={0.5} />
+                    <Line type="monotone" dataKey="slowMA" stroke="#82ca9d" strokeWidth={1} dot={false} name="EMA 50" strokeOpacity={0.5} />
+
+                    {/* SuperTrend Lines (Split into Green/Red for color change) */}
+                    {/* We render simple dots or a line. Since recharts lines are single color, 
+                        we can use two lines: one filtering positive, one negative. */}
+                    
+                    <Line 
+                        type="step" 
+                        dataKey={(d) => d.stDir === 1 ? d.stValue : null} 
+                        stroke={theme.palette.success.main} 
+                        strokeWidth={2} 
+                        dot={false} 
+                        connectNulls={false}
+                        name="SuperTrend (Bull)" 
                     />
                     <Line 
-                        type="monotone" 
-                        dataKey="fastMA" 
-                        stroke="#8884d8" 
-                        strokeWidth={1} 
+                        type="step" 
+                        dataKey={(d) => d.stDir === -1 ? d.stValue : null} 
+                        stroke={theme.palette.error.main} 
+                        strokeWidth={2} 
                         dot={false} 
-                        name="EMA 20" 
-                        strokeOpacity={0.7}
+                        connectNulls={false}
+                        name="SuperTrend (Bear)" 
                     />
-                    <Line 
-                        type="monotone" 
-                        dataKey="slowMA" 
-                        stroke="#82ca9d" 
-                        strokeWidth={1} 
-                        dot={false} 
-                        name="EMA 50"
-                        strokeOpacity={0.7}
-                    />
+
                 </LineChart>
             </ResponsiveContainer>
         )}
