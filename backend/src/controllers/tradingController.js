@@ -80,6 +80,14 @@ class EnhancedTradingController extends EventEmitter {
         return await this.tradingService.getAccount();
     }
 
+    async manualCloseTrade(tradeId) {
+        logger.info(
+            `👮 Controller: Manual Close requested for Trade ID ${tradeId}`
+        );
+        const result = await this.tradingService.manualCloseTrade(tradeId);
+        return { success: true, result };
+    }
+
     // Helper for the "Combined View" widget
     async getCombinedHoldings() {
         const account = await this.getAccount();

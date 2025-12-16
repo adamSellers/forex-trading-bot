@@ -113,6 +113,18 @@ module.exports = (tradingController) => {
 
     // ================== ENHANCED ROUTES ==================
 
+    // POST /api/trading/close/:id - Force close a position by Trade ID
+    router.post("/close/:id", async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await tradingController.manualCloseTrade(id);
+            res.json(result);
+        } catch (error) {
+            console.error("Manual close error:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // GET /api/trading/holdings - Get combined real + paper holdings
     router.get("/holdings", async (req, res) => {
         try {

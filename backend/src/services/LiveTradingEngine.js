@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FIXED MISSING METHOD
+// backend/src/services/LiveTradingEngine.js - FIXED ALLOCATION & ADDED FORCE CLOSE
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -57,12 +57,10 @@ class LiveTradingEngine extends EventEmitter {
         await this.calculatePerformanceStats();
     }
 
-    // --- NEW METHOD TO FIX CRASH ---
     updateConfig(config) {
         this.config = config;
         logger.info("🔁 Live Engine Config Updated");
     }
-    // -------------------------------
 
     async calculatePerformanceStats() {
         try {
@@ -101,6 +99,35 @@ class LiveTradingEngine extends EventEmitter {
         logger.info("🔴 Live Trading STOPPED");
     }
 
+    // --- NEW: FORCE CLOSE METHOD ---
+    async forceClosePosition(tradeId) {
+        // We check both 'id' and 'trade_id' to be safe
+        const position = this.portfolio.positions.find(
+            (p) =>
+                p.id == tradeId || p.trade_id == tradeId || p.orderId == tradeId
+        );
+
+        if (!position) {
+            throw new Error(
+                `Position ${tradeId} not found in active portfolio.`
+            );
+        }
+
+        const priceData = this.binanceData.getCurrentPrice(position.symbol);
+        if (!priceData || !priceData.price) {
+            throw new Error(`Current price unavailable for ${position.symbol}`);
+        }
+
+        logger.warn(
+            `🚨 MANUAL FORCE CLOSE triggered for ${position.symbol} (ID: ${tradeId})`
+        );
+        return await this.closePosition(
+            position,
+            priceData.price,
+            "MANUAL_FORCE"
+        );
+    }
+
     // --- CORE TRADING LOGIC ---
 
     async processSignal(signal, currentPrice, atr) {
@@ -131,9 +158,19 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Position already open",
                 };
 
-            // Dynamic Sizing based on Whitelist
+            // FIX: Use Nullish Coalescing (??) instead of OR (||)
+            // This ensures that if the user set 0%, it is respected and not overwritten by the default.
             const allocationPct =
-                this.config.allocation?.[signal.symbol] || 0.15;
+                this.config.allocation?.[signal.symbol] ?? 0.15;
+
+            if (allocationPct === 0) {
+                return {
+                    success: false,
+                    action: "SKIP",
+                    reason: `Allocation set to 0% for ${signal.symbol}`,
+                };
+            }
+
             const maxAllocatedUsdt = this.portfolio.usdtBalance * allocationPct;
 
             // Risk sizing (Max Risk per trade config)
@@ -147,7 +184,9 @@ class LiveTradingEngine extends EventEmitter {
                 return {
                     success: false,
                     action: "SKIP",
-                    reason: "Insufficient allocated capital",
+                    reason: `Insufficient allocated capital ($${tradeAmountUsdt.toFixed(
+                        2
+                    )})`,
                 };
 
             let quantity = tradeAmountUsdt / currentPrice;
@@ -229,8 +268,6 @@ class LiveTradingEngine extends EventEmitter {
             const quantity = position.quantity;
 
             // 1. EXECUTE ORDER
-            // We expect this to work. If it fails (network), the main catch block handles it
-            // and we retry cleanly in the next cycle.
             const order = await this.binanceData.executeOrder(
                 position.symbol,
                 "SELL",
@@ -238,7 +275,6 @@ class LiveTradingEngine extends EventEmitter {
             );
 
             // 2. PARSE RESULT
-            // Standard safety check: If 'fills' is missing (rare but possible), fallback to currentPrice
             const exitPrice = parseFloat(
                 order.fills?.[0]?.price || currentPrice
             );
@@ -246,10 +282,8 @@ class LiveTradingEngine extends EventEmitter {
             const pnl = usdtReceived - position.usdtCost;
 
             // 3. UPDATE DATABASE
-            // FIX: Removed 'status: "CLOSED"' because that column does not exist.
-            // We use 'is_open: false' which matches your schema.
             await this.tradeRepo.updateTrade(position.id, {
-                is_open: false, // Matches DB Schema
+                is_open: false,
                 exitPrice,
                 exitTime: Date.now(),
                 pnl,
@@ -275,7 +309,7 @@ class LiveTradingEngine extends EventEmitter {
             const tradeRecord = {
                 ...position,
                 side: "SELL",
-                status: "CLOSED", // Keeping 'status' here is fine for the UI event, just not for the DB
+                status: "CLOSED",
                 pnl,
                 exitPrice,
                 reason,

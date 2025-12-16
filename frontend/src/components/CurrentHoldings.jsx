@@ -1,10 +1,11 @@
-// frontend/src/components/CurrentHoldings.jsx - FIXED ENTRY & RESTORED STOP LOSS
-import React, { useMemo } from 'react';
+// frontend/src/components/CurrentHoldings.jsx - ADDED FORCE SELL
+import React, { useMemo, useState } from 'react';
 import {
   Box, Paper, Typography, Card, CardContent, Chip, 
-  IconButton, Tooltip, useTheme, alpha, Grid, Divider
+  IconButton, Tooltip, useTheme, alpha, Grid, Divider, Button, CircularProgress
 } from '@mui/material';
-import { AccountBalance, Info, Lock, LockOpen } from '@mui/icons-material';
+import { AccountBalance, Info, Warning } from '@mui/icons-material';
+import { apiCall } from '../config/api'; // Import generic API caller
 
 const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   const theme = useTheme();
@@ -32,6 +33,20 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       const pnl = position.unrealizedPnL || 0;
       const isPositive = pnl >= 0;
       const curPrice = prices[position.symbol]?.price || 0;
+      const [closing, setClosing] = useState(false);
+
+      const handleForceClose = async () => {
+          if (!window.confirm(`⚠️ FORCE SELL ${asset}?\nThis will immediately sell the position at market price.`)) return;
+          setClosing(true);
+          try {
+              // Call the new route we created
+              await apiCall(`/api/trading/close/${position.id || position.trade_id}`, { method: 'POST' });
+              // The UI will update automatically via the socket 'portfolioUpdated' event
+          } catch (e) {
+              alert(`Close Failed: ${e.message}`);
+              setClosing(false);
+          }
+      };
 
       return (
         <Card variant="outlined" sx={{ mb: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.4) }}>
@@ -52,23 +67,34 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                 
                 <Divider sx={{ my: 1, borderColor: alpha(theme.palette.divider, 0.1) }} />
                 
-                {/* Data Grid: Entry, Current, Stop Loss */}
-                <Grid container spacing={1}>
-                    <Grid item xs={4}>
+                {/* Data Grid */}
+                <Grid container spacing={1} alignItems="center">
+                    <Grid item xs={3}>
                         <Typography variant="caption" color="text.secondary" display="block">Entry</Typography>
-                        {/* FIX: Using position.price instead of position.avgPrice */}
                         <Typography variant="caption" fontWeight="bold">{formatCurrency(position.price)}</Typography>
                     </Grid>
-                    <Grid item xs={4} textAlign="center">
+                    <Grid item xs={3} textAlign="center">
                         <Typography variant="caption" color="text.secondary" display="block">Current</Typography>
                         <Typography variant="caption" fontWeight="bold">{formatCurrency(curPrice)}</Typography>
                     </Grid>
-                    <Grid item xs={4} textAlign="right">
+                    <Grid item xs={3} textAlign="center">
                         <Typography variant="caption" color="text.secondary" display="block">Stop Loss</Typography>
-                        {/* FIX: Explicitly showing Stop Loss */}
                         <Typography variant="caption" fontWeight="bold" color="error.main">
                             {position.stopLoss ? formatCurrency(position.stopLoss) : '---'}
                         </Typography>
+                    </Grid>
+                    {/* NEW: FORCE EXIT BUTTON */}
+                    <Grid item xs={3} textAlign="right">
+                        <Button 
+                            variant="contained" 
+                            color="error" 
+                            size="small" 
+                            onClick={handleForceClose}
+                            disabled={closing}
+                            sx={{ minWidth: 30, px: 1, py: 0.5, fontSize: '0.65rem', fontWeight: 'bold' }}
+                        >
+                            {closing ? <CircularProgress size={14} color="inherit" /> : 'EXIT'}
+                        </Button>
                     </Grid>
                 </Grid>
             </CardContent>

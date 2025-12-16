@@ -135,6 +135,13 @@ class TradingService extends EventEmitter {
         }
     }
 
+    async manualCloseTrade(tradeId) {
+        if (!this.activeEngine) {
+            throw new Error("Trading Engine is not active.");
+        }
+        return await this.activeEngine.forceClosePosition(tradeId);
+    }
+
     async saveConfig() {
         try {
             await fs.writeFile(
