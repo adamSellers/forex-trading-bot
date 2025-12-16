@@ -1,35 +1,41 @@
 # Crypto Trend Trading Bot (V2 Smart Engine)
 
-A production-ready, full-stack cryptocurrency trend-following bot with live/paper trading engines, advanced risk management, and a self-optimizing portfolio manager.
+A production-ready, full-stack cryptocurrency trend-following bot built for the Raspberry Pi 5. It features a robust **Live Trading Engine**, advanced risk management with "Zombie Position" protection, and a real-time React Dashboard for full control.
 
-![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
+![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)  
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)  
 ![Node.js Version](https://img.shields.io/badge/node-v22%2B-green.svg)
 
 ![Dashboard Screenshot](docs/dashboard-preview.png)
 
-This project is a sophisticated trend-following system designed for the Raspberry Pi 5. It features a **React Dashboard** for real-time control and a **Node.js Backend** that executes a momentum-based strategy (ADX + EMA + RSI). Unlike static bots, this system allows for **Dynamic Asset Rotation**, letting you swap underperforming coins for trending winners instantly without downtime.
+This project is a sophisticated trend-following system executing a **SuperTrend + ADX Momentum** strategy. It is designed for "set and forget" operation with built-in fail-safes against network outages and API drift. Unlike static bots, this system allows for **Dynamic Asset Allocation**, letting you rebalance your portfolio on the fly via the UI.
 
 ## ✨ Key Features
 
--   **Dual Trading Modes**:
-    -   **Live Trading**: Real-money execution on Binance with "Ghost Trade" protection.
-    -   **Paper Trading**: Zero-risk simulation with persistent P&L tracking.
--   **Dynamic Asset Management**:
-    -   **Hot-Swapping**: Add or remove trading pairs (e.g., swap BTC for SOL) instantly via the UI.
-    -   **Zero-Downtime**: The backend automatically restarts data streams when the portfolio changes.
-    -   **Fine-Grained Control**: Adjust capital allocation per asset (e.g., 35% NEAR, 10% BTC) with 1% precision.
--   **🧠 AI Portfolio Optimizer**:
-    -   **Backtesting Engine**: Built-in script analyzes the last 180 days of market data across 20+ top assets.
-    -   **Regime Detection**: Identifies which coins are trending vs. chopping to avoid "Regime Bias."
-    -   **Strategy Showdown**: Compares your current portfolio against a mathematically optimized one to show potential ROI improvements.
--   **Advanced Risk Engine**:
-    -   **Volatility Sizing**: Uses ATR (Average True Range) to calculate stop losses and position sizes dynamically.
-    -   **Trend Filtering**: ADX > 30 filter prevents trading during choppy/sideways markets.
-    -   **Trailing Stops**: Locks in profits automatically as the price moves in your favor.
--   **Production-Grade Security**:
-    -   **Encrypted Secrets**: API keys are AES-256 encrypted at rest.
-    -   **Dashboard Auth**: Secure interface for monitoring and configuration.
+-   **🛡️ Robust Live Engine**:
+
+    -   **"Zombie Killer" Logic**: Automatically detects and repairs database/exchange mismatches (e.g., trades sold during a network timeout).
+    -   **Atomic Execution**: Ensures local database state always matches Binance reality to prevent "death loops."
+    -   **Force Exit**: Manual override button to panic-sell individual positions instantly.
+
+-   **⚡ Dynamic Asset Management**:
+
+    -   **Live Rebalancing**: Adjust capital allocation per asset (e.g., 0% BNB, 50% ETH) instantly without restarting.
+    -   **Watchlist Mode**: Assets set to 0% allocation are tracked for signals but not traded.
+    -   **Allocation Validation**: Prevents buying assets with 0% assigned capital (Nullish Coalescing fix).
+
+-   **📈 Momentum Strategy (SuperTrend)**:
+
+    -   **Trend Following**: Enters when SuperTrend flips GREEN.
+    -   **Filters**:
+        -   **ADX > 25**: Ensures the trend has sufficient strength.
+        -   **RSI < 75**: Prevents buying at the absolute top (overbought filter).
+    -   **Risk Management**: Fixed % Stop Loss or ATR-based Trailing Stops.
+
+-   **📊 Real-Time Dashboard**:
+    -   **System Health**: Monitors CPU/RAM, API Latency, and Service Uptime.
+    -   **Live Telemetry**: WebSocket feeds for price updates, PnL tracking, and trade history.
+    -   **Notification Center**: Built-in Email Alert configuration (Gmail/SMTP).
 
 ## 🚀 Getting Started
 
@@ -39,99 +45,78 @@ This project is a sophisticated trend-following system designed for the Raspberr
 # Clone the repository
 git clone [https://github.com/yourusername/crypto-trend-bot.git](https://github.com/yourusername/crypto-trend-bot.git)
 cd crypto-trend-bot
-
-# Run the automated setup (installs dependencies & sets up environment)
-./scripts/clean-install.sh
 ```
 
-2. Secure Configuration
-   Generate your encrypted secrets file. You will need your Binance API Key and Secret.
+# Run the automated production installer
 
 ```bash
+./clean-install.sh
+```
 
+### **2. Secure Configuration**
+
+Generate your encrypted secrets file. You will need your Binance API Key and Secret.
+
+```bash
 
 ./scripts/setup-secrets.sh
 ```
 
-3. Launch
+### **3. Launch**
 
 ```bash
-
-
-# Start the full stack (Backend + Frontend)
-npm run start
+# Start the full stack (Backend + Frontend) via PM2
+pm2 start ecosystem.config.js --env production
 ```
 
-Access the dashboard at http://localhost:5173.
+Access the dashboard at http://your-pi-ip:3000.
 
-### 🧠 Using the Portfolio Optimizer
+##
 
-Don't guess which coins to trade. Let the data decide.
-The included optimizer script backtests your strategy against the Top 20 assets on Binance to find the highest probability setups for the current market cycle.
-How to Run
+**🏗 System Architecture**
 
-```bash
+The application follows a Service-Oriented Architecture (SOA) optimized for reliability.
 
+Code snippet
 
-node backend/scripts/optimize-strategy.js
-```
+graph TD  
+ A[React Dashboard] <-->|Socket.IO| B(TradingController)  
+ B --> C{TradingService}  
+ C --> D[BinanceDataService]  
+ C --> E[LiveTradingEngine]  
+ C --> F[SignalGenerator]  
+ E -->|Executes| G[Binance API]  
+ E -->|Persists| H[(SQLite DB)]  
+ F -->|Feeds| E  
+ D -->|Feeds| F
 
-#### What It Does
+## **🛠 Configuration Guide**
 
-Prompts for a timeframe (recommended: 180 days).
-Fetches high-resolution candle data for 20+ liquid assets (BTC, ETH, SOL, NEAR, PEPE, etc.).
-Simulates your exact trading strategy (ADX > 30, TP 3.0 ATR) on every candle.
-Ranks assets by Win Rate, ROI, and Stability.
-Outputs a JSON block of the perfect portfolio allocation.
-
-#### Example Output
-
-## 🏆 ASSET PERFORMANCE RANKING (180 Days)
-
-## Symbol | Profit ($) | Return (%) | Win Rate | Trades
-
-NEARUSDT | $242.98 | 24.3% | 67% | 12
-LTCUSDT | $148.57 | 14.9% | 48% | 23
-...
-
-## ⚖️ STRATEGY SHOWDOWN ($10,000 Portfolio)
-
-## Strategy | Net Profit | Total ROI | Avg Win Rate
-
-Current (PRD) | $471.32 | 4.71% | 43.0%
-Optimized | $1615.33 | 16.15% | 55.0%
-
-Workflow: Copy the recommended JSON output, go to the Configuration tab in the dashboard, and adjust your Portfolio Composition to match the winners.
-🏗 System Architecture
-The application follows a Service-Oriented Architecture (SOA) optimized for the Raspberry Pi 5.
-
-```Code snippet
-graph TD
-    A[React Frontend] -->|Socket.IO| B(TradingController)
-    B --> C{TradingService}
-    C --> D[BinanceData]
-    C --> E[Trading Engine]
-    C --> F[Risk Management]
-    C --> G[SignalGenerator]
-    H[Optimizer Script] -.->|Updates| I[Config JSON]
-    I --> C
-```
-
-#### 🛠 Strategy: "The Golden Config"
+### **1. The Strategy (SuperTrend Momentum)**
 
 The bot uses a "Momentum Sniper" strategy tuned for trending markets.
-Entry:
-Price crosses 20/50 EMA (Trend Change).
-AND ADX > 25 (Trend Strength is verified).
-AND RSI < 30 (Pullback entry for Longs).
-Exit:
-Take Profit: 3.0x ATR (Ride the wave).
-Stop Loss: 1.5x ATR (Cut losers fast).
-Trailing Stop: Activates after 1.5% profit to lock in gains.
-⚠️ Disclaimer
-USE AT YOUR OWN RISK.
-Cryptocurrency trading involves significant risk of financial loss. The "Optimizer" uses historical data, which is not a guarantee of future performance. Always test with Paper Trading mode before risking real capital.
 
-```
+-   **Entry:** SuperTrend (10, 3) flips **GREEN** + ADX > 20.
+-   **Exit:** SuperTrend flips **RED** OR Stop Loss hit.
+-   **Filters:** RSI < 75 (Avoid FOMO buying).
 
-```
+### **2. Allocation Logic**
+
+Control how much capital goes to each asset via the **Portfolio Tab**.
+
+-   **Example:**
+    -   Total Capital: $1,000
+    -   ETH Allocation: 50% ($500 max position)
+    -   SOL Allocation: 50% ($500 max position)
+    -   BNB Allocation: 0% (Watch only, no buys)
+
+### **3. Notifications**
+
+Enable email alerts in the **Notifications Tab** to receive real-time buy/sell reports. Requires a Gmail App Password.
+
+##
+
+**⚠️ Disclaimer**
+
+USE AT YOUR OWN RISK.  
+Cryptocurrency trading involves significant risk of financial loss. This software is provided "as is" with no warranty. The authors are not responsible for any financial losses incurred while using this bot. Always start with small capital to verify stability.
