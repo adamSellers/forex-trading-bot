@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - LIVE ONLY
+// frontend/src/components/TradingConfig.jsx - ADDED NOTIFICATIONS TAB
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -9,7 +9,7 @@ import {
 import {
   Save, Refresh, Security, AccountBalance,
   PieChart, SettingsRemote, Warning, RestartAlt, DeleteForever,
-  AddCircle, Delete, Science, Tune
+  AddCircle, Delete, Science, Tune, Email // <--- Added Email Icon
 } from '@mui/icons-material';
 import { tradingAPI, managementAPI } from '../config/api';
 
@@ -213,7 +213,6 @@ const TradingConfig = () => {
     </Stack>
   );
 
-  // Strategy, Risk, and Portfolio render functions are largely the same, just keeping them in context
   const renderStrategySettings = () => (
     <Stack spacing={3}>
         <GlassCard>
@@ -334,6 +333,37 @@ const TradingConfig = () => {
     </Stack>
   );
 
+  // --- NEW: NOTIFICATIONS RENDER ---
+  const renderNotificationSettings = () => (
+      <Stack spacing={3}>
+          <GlassCard>
+              <SectionHeader icon={<Email />} title="Notifications" subtitle="Alerts and Reporting" />
+              <Grid container spacing={3}>
+                  <Grid item xs={12}>
+                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} border={1} borderColor="divider" borderRadius={1} p={2}>
+                          <Box>
+                              <Typography fontWeight="bold">Email Alerts</Typography>
+                              <Typography variant="caption" color="text.secondary">Receive instant trade notifications</Typography>
+                          </Box>
+                          <Switch checked={config.enableEmailAlerts} onChange={(e) => updateConfig('enableEmailAlerts', e.target.checked)} />
+                       </Box>
+                  </Grid>
+                  <Grid item xs={12}>
+                      <TextField
+                          fullWidth
+                          label="Alert Email Address"
+                          value={config.alertEmail}
+                          onChange={(e) => updateConfig('alertEmail', e.target.value)}
+                          disabled={!config.enableEmailAlerts}
+                          helperText="Recipient for buy/sell notifications"
+                          placeholder="you@example.com"
+                      />
+                  </Grid>
+              </Grid>
+          </GlassCard>
+      </Stack>
+  );
+
   if (loading) return <Box minHeight="60vh" display="flex" alignItems="center" justifyContent="center"><Typography>Loading Config...</Typography></Box>;
 
   return (
@@ -356,6 +386,8 @@ const TradingConfig = () => {
                 <Tab icon={<Science fontSize="small" />} iconPosition="start" label="Strategy" sx={{ minHeight: 60 }} />
                 <Tab icon={<Security fontSize="small" />} iconPosition="start" label="Risk" sx={{ minHeight: 60 }} />
                 <Tab icon={<PieChart fontSize="small" />} iconPosition="start" label="Portfolio" sx={{ minHeight: 60 }} />
+                {/* ADDED: Notifications Tab */}
+                <Tab icon={<Email fontSize="small" />} iconPosition="start" label="Notifications" sx={{ minHeight: 60 }} />
             </Tabs>
         </Box>
         <Box sx={{ minHeight: 400 }}>
@@ -363,6 +395,8 @@ const TradingConfig = () => {
             {activeTab === 1 && renderStrategySettings()}
             {activeTab === 2 && renderRiskSettings()}
             {activeTab === 3 && renderPortfolioSettings()}
+            {/* ADDED: Render logic */}
+            {activeTab === 4 && renderNotificationSettings()}
         </Box>
     </Container>
   );
