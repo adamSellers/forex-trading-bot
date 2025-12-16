@@ -47,7 +47,20 @@ class BinanceDataService extends EventEmitter {
             this.emit("serviceReady");
             logger.success("✅ Binance Data Service Ready.");
         } catch (error) {
-            logger.error("❌ Data Service Initialization Failed:", error);
+            // --- DEBUG FIX START ---
+            let msg = error.message || "Unknown Error";
+            // Check if it's a Binance API response error (often in 'body')
+            if (error.body) {
+                try {
+                    const parsed = JSON.parse(error.body);
+                    msg = `API Error ${parsed.code}: ${parsed.msg}`;
+                } catch (e) {
+                    msg = `Raw API Body: ${error.body}`;
+                }
+            }
+            logger.error(`❌ Data Service Initialization Failed: ${msg}`);
+            // --- DEBUG FIX END ---
+
             this.emit("serviceError", error);
         }
     }
