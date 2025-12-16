@@ -10,6 +10,9 @@ class SignalGenerator extends EventEmitter {
         this.signalInterval = null;
         this.binanceDataService = null;
 
+        // FIXED: Initialize storage for the dashboard "Candidate Signals" tile
+        this.latestSignals = [];
+
         this.config = {
             strategy: "supertrend_momentum",
             timeframe: "1h",
@@ -51,6 +54,10 @@ class SignalGenerator extends EventEmitter {
             const signals = await this.generateAllSignals(
                 this.binanceDataService
             );
+
+            // FIXED: Store signals so the System Health dashboard can see them
+            this.latestSignals = signals;
+
             if (signals.length > 0) {
                 this.emit("allSignalsGenerated", signals);
                 signals.forEach((s) => this.emit("signalGenerated", s));
@@ -248,11 +255,19 @@ class SignalGenerator extends EventEmitter {
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
     }
+
     getStatus() {
-        return { isActive: this.isRunning, config: this.config };
+        return {
+            isActive: this.isRunning,
+            config: this.config,
+            // FIXED: Expose the latest signals for the dashboard
+            activeSignals: this.latestSignals || [],
+        };
     }
+
     reset() {
         this.lastSignals.clear();
+        this.latestSignals = [];
     }
 }
 
