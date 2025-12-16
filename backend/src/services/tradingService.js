@@ -26,6 +26,7 @@ class TradingService extends EventEmitter {
         // 🏆 PRODUCTION CONFIG (Live Only)
         this.defaultConfig = {
             strategy: "supertrend_momentum",
+            tradingMode: "live",
             timeframe: "1h", // Keep for Strategy logic
             timeframes: ["1h"], // <--- ADD THIS for Data Service
             enableTrading: false, // Master Kill Switch

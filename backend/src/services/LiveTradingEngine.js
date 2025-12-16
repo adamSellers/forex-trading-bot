@@ -349,7 +349,11 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     getStatus() {
-        return { mode: "live", active: true };
+        return {
+            mode: "live",
+            isActive: true,
+            positions: this.portfolio.positions.length,
+        };
     }
 }
 

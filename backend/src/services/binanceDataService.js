@@ -249,8 +249,12 @@ class BinanceDataService extends EventEmitter {
         }
     }
     getServiceStatus() {
-        return { ready: this.isReady, candleCount: 1500 };
-    } // Simplified
+        return {
+            ready: this.isReady,
+            candleCount: 1500,
+            prices: Object.keys(this.priceCache || {}).length,
+        };
+    }
 }
 
 module.exports = BinanceDataService;
