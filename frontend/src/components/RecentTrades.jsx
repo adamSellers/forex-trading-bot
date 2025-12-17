@@ -1,8 +1,8 @@
-// frontend/src/components/RecentTrades.jsx - EXECUTION FEED STYLE
+// frontend/src/components/RecentTrades.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Typography, Chip, Box, Stack, useTheme, alpha } from '@mui/material';
-import { TrendingUp, TrendingDown, ReceiptLong } from '@mui/icons-material';
+import { TrendingUp, TrendingDown, ReceiptLong, CheckCircle } from '@mui/icons-material';
 
 const RecentTrades = ({ trades }) => {
   const theme = useTheme();
@@ -35,13 +35,25 @@ const RecentTrades = ({ trades }) => {
         {trades.slice(0, 20).map((trade, index) => {
             if (!trade || typeof trade !== 'object') return null;
 
-            const side = trade.side || 'UNKNOWN';
+            // --- LOGIC FIX START ---
+            // Detect if the trade is actually closed, even if DB says "side: BUY"
+            const isClosed = trade.status === 'CLOSED' || (trade.pnl !== undefined && trade.pnl !== null && trade.pnl !== 0);
+            
+            // If it's closed, we treat it as a realized gain/loss event
+            // If it's open, we check the side (usually BUY)
+            const isBuyEntry = !isClosed && (trade.side === 'BUY');
+            
             const symbol = String(trade.symbol || 'N/A').replace('USDT', '');
-            const price = Number(trade.price || 0);
+            const price = Number(trade.exitPrice || trade.price || 0); // Prefer exit price if closed
             const pnl = Number(trade.pnl || 0);
-            const isBuy = side === 'BUY';
-            const color = isBuy ? theme.palette.success.main : theme.palette.error.main;
+
+            // Determine Color: Green if Active Buy OR Positive PnL. Red if Negative PnL.
+            let color = theme.palette.text.primary;
+            if (isBuyEntry) color = theme.palette.success.main;
+            else if (isClosed) color = pnl >= 0 ? theme.palette.success.main : theme.palette.error.main;
+
             const uniqueKey = trade.id || `${symbol}-${trade.timestamp}-${index}`;
+            // --- LOGIC FIX END ---
 
             return (
               <Box 
@@ -60,13 +72,14 @@ const RecentTrades = ({ trades }) => {
                 {/* Left: Icon & Symbol */}
                 <Box display="flex" alignItems="center" gap={1.5}>
                     <Box sx={{ color: color, display: 'flex' }}>
-                        {isBuy ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />}
+                        {isBuyEntry ? <TrendingUp fontSize="small" /> : 
+                         isClosed ? <CheckCircle fontSize="small" /> : <TrendingDown fontSize="small" />}
                     </Box>
                     <Box>
                         <Box display="flex" alignItems="center" gap={1}>
                             <Typography variant="body2" fontWeight="bold">{symbol}</Typography>
                             <Chip 
-                                label={side} 
+                                label={isClosed ? "CLOSED" : trade.side} 
                                 size="small" 
                                 sx={{ 
                                     height: 16, 
@@ -86,10 +99,10 @@ const RecentTrades = ({ trades }) => {
                 {/* Right: Value & PnL */}
                 <Box textAlign="right">
                     <Typography variant="body2" fontWeight="500">
-                        ${isBuy ? formatUSDT(trade.usdtCost) : formatUSDT(trade.usdtReceived)}
+                        ${formatUSDT(isClosed ? trade.usdtReceived : trade.usdtCost)}
                     </Typography>
                     
-                    {!isBuy && (
+                    {isClosed ? (
                         <Typography 
                             variant="caption" 
                             fontWeight="bold"
@@ -97,8 +110,7 @@ const RecentTrades = ({ trades }) => {
                         >
                             {pnl >= 0 ? '+' : ''}{formatUSDT(pnl)} PnL
                         </Typography>
-                    )}
-                    {isBuy && (
+                    ) : (
                         <Typography variant="caption" color="text.secondary">
                             ENTRY
                         </Typography>
