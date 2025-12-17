@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FIXED ALLOCATION & ADDED FORCE CLOSE
+// backend/src/services/LiveTradingEngine.js - FIXED SCHEMA & ALLOCATION
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -65,8 +65,9 @@ class LiveTradingEngine extends EventEmitter {
     async calculatePerformanceStats() {
         try {
             const allTrades = await this.tradeRepo.getAllTrades("live");
+            // Count trades that are closed OR have PnL (completed)
             const closedTrades = allTrades.filter(
-                (t) => t.status === "CLOSED" || !t.isOpen
+                (t) => t.pnl !== null && t.pnl !== undefined
             );
 
             this.portfolio.stats.totalTrades = closedTrades.length;
@@ -99,9 +100,8 @@ class LiveTradingEngine extends EventEmitter {
         logger.info("🔴 Live Trading STOPPED");
     }
 
-    // --- NEW: FORCE CLOSE METHOD ---
+    // --- FORCE CLOSE METHOD ---
     async forceClosePosition(tradeId) {
-        // We check both 'id' and 'trade_id' to be safe
         const position = this.portfolio.positions.find(
             (p) =>
                 p.id == tradeId || p.trade_id == tradeId || p.orderId == tradeId
@@ -158,8 +158,7 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Position already open",
                 };
 
-            // FIX: Use Nullish Coalescing (??) instead of OR (||)
-            // This ensures that if the user set 0%, it is respected and not overwritten by the default.
+            // Use Nullish Coalescing (??) to respect 0% allocation
             const allocationPct =
                 this.config.allocation?.[signal.symbol] ?? 0.15;
 
@@ -172,8 +171,6 @@ class LiveTradingEngine extends EventEmitter {
             }
 
             const maxAllocatedUsdt = this.portfolio.usdtBalance * allocationPct;
-
-            // Risk sizing (Max Risk per trade config)
             const riskRatio = this.config.riskPerTrade || 0.98;
             const tradeAmountUsdt = Math.min(
                 maxAllocatedUsdt * riskRatio,
@@ -226,18 +223,25 @@ class LiveTradingEngine extends EventEmitter {
                     usdtCost: parseFloat(order.cummulativeQuoteQty),
                     orderId: order.orderId,
                     timestamp: Date.now(),
-                    status: "OPEN",
-                    isOpen: true,
+
+                    // --- FIXED DB COLUMNS ---
+                    isOpen: true, // Maps to is_open
+                    mode: "live", // Explicitly set live mode
                     stopLoss: stopLossPrice,
                     trailingStop: this.config.enableTrailingStops
                         ? currentPrice * (1 - this.config.trailingStopPercent)
                         : null,
-                    mode: "live",
                 };
 
+                // Save to DB (using try-catch but LOGGING error this time)
                 try {
                     await this.tradeRepo.save(tradeRecord);
-                } catch (dbErr) {}
+                } catch (dbErr) {
+                    logger.error(
+                        "❌ CRITICAL: Failed to save trade to DB!",
+                        dbErr
+                    );
+                }
 
                 this.portfolio.positions.push(tradeRecord);
                 this.portfolio.usdtBalance -= tradeRecord.usdtCost;
@@ -267,31 +271,28 @@ class LiveTradingEngine extends EventEmitter {
             logger.info(`📉 Closing ${position.symbol} due to ${reason}...`);
             const quantity = position.quantity;
 
-            // 1. EXECUTE ORDER
             const order = await this.binanceData.executeOrder(
                 position.symbol,
                 "SELL",
                 quantity
             );
 
-            // 2. PARSE RESULT
             const exitPrice = parseFloat(
                 order.fills?.[0]?.price || currentPrice
             );
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
-            // 3. UPDATE DATABASE (FIXED MAPPING)
-            // We map internal variables to snake_case columns
+            // Update DB
             await this.tradeRepo.updateTrade(position.id, {
-                is_open: false,
-                exit_price: exitPrice, // ✅ Matches DB Column
-                exit_time: Date.now(), // ✅ Matches DB Column
-                pnl: pnl, // Matches DB Column
-                exit_reason: reason, // ✅ Matches DB Column (renamed from exitReason)
+                isOpen: false, // Fixed column mapping (was is_open/status)
+                exitPrice,
+                exitTime: Date.now(),
+                pnl,
+                exitReason: reason,
             });
 
-            // 4. UPDATE MEMORY
+            // Update Memory
             this.portfolio.positions = this.portfolio.positions.filter(
                 (p) => p.symbol !== position.symbol
             );
@@ -299,7 +300,7 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.dailyPnL += pnl;
             this.portfolio.totalPnL += pnl;
 
-            // 5. UPDATE STATS
+            // Update Stats
             this.portfolio.stats.totalTrades++;
             if (pnl > 0) this.portfolio.stats.winningTrades++;
             this.portfolio.stats.winRate =
@@ -310,7 +311,7 @@ class LiveTradingEngine extends EventEmitter {
             const tradeRecord = {
                 ...position,
                 side: "SELL",
-                status: "CLOSED",
+                status: "CLOSED", // Virtual field for Frontend UI
                 pnl,
                 exitPrice,
                 reason,

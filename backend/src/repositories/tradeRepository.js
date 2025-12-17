@@ -1,4 +1,4 @@
-// backend/src/repositories/tradeRepository.js
+// backend/src/repositories/tradeRepository.js - FIXED ANALYTICS & LIVE DEFAULT
 const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
@@ -26,7 +26,7 @@ class TradeRepository {
             timestamp: record.timestamp,
             entryPrice: record.entry_price,
             mode: record.mode,
-            isOpen: record.is_open,
+            isOpen: Boolean(record.is_open),
             takeProfitPrice: record.take_profit_price,
             trailingStopPrice: record.trailing_stop_price,
             highestPrice: record.highest_price,
@@ -63,7 +63,7 @@ class TradeRepository {
                 entry_price: trade.entryPrice || null,
                 exit_reason: trade.exitReason || "UNKNOWN",
                 timestamp: new Date(trade.timestamp),
-                mode: trade.mode || "live", // <--- FIX: Default to LIVE
+                mode: trade.mode || "live", // Default to LIVE
                 is_open: trade.isOpen || false,
                 take_profit_price: trade.takeProfitPrice || null,
                 trailing_stop_price: trade.trailingStopPrice || null,
@@ -79,7 +79,6 @@ class TradeRepository {
         }
     }
 
-    // <--- FIX: Default to "live" in all fetch methods to ignore old paper data
     async getRecent(limit = 20, mode = "live") {
         try {
             let query = db("trades").orderBy("timestamp", "desc").limit(limit);
@@ -97,10 +96,7 @@ class TradeRepository {
             let query = db("trades")
                 .where("symbol", symbol)
                 .orderBy("timestamp", "desc");
-
-            if (mode) {
-                query = query.where("mode", mode);
-            }
+            if (mode) query = query.where("mode", mode);
             const records = await query.limit(limit);
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
@@ -112,9 +108,7 @@ class TradeRepository {
     async getTradesSince(cutoffTime, mode = "live") {
         try {
             let query = db("trades").where("timestamp", ">=", cutoffTime);
-            if (mode) {
-                query = query.where("mode", mode);
-            }
+            if (mode) query = query.where("mode", mode);
             const records = await query.orderBy("timestamp", "desc");
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
@@ -130,7 +124,7 @@ class TradeRepository {
             const records = await query;
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
-            logger.error("Error getting all trades for recalculation:", error);
+            logger.error("Error getting all trades:", error);
             throw error;
         }
     }
@@ -150,29 +144,13 @@ class TradeRepository {
     async updateTrade(tradeId, updates) {
         try {
             const dbUpdates = { ...updates };
-            // Snake_case mapping
-            if (dbUpdates.takeProfitPrice) {
-                dbUpdates.take_profit_price = dbUpdates.takeProfitPrice;
-                delete dbUpdates.takeProfitPrice;
-            }
-            if (dbUpdates.trailingStopPrice) {
-                dbUpdates.trailing_stop_price = dbUpdates.trailingStopPrice;
-                delete dbUpdates.trailingStopPrice;
-            }
-            if (dbUpdates.highestPrice) {
-                dbUpdates.highest_price = dbUpdates.highestPrice;
-                delete dbUpdates.highestPrice;
-            }
+            // Map camelCase to snake_case
             if (dbUpdates.isOpen !== undefined) {
                 dbUpdates.is_open = dbUpdates.isOpen;
                 delete dbUpdates.isOpen;
             }
-            if (dbUpdates.trailingStopPercent !== undefined) {
-                dbUpdates.trailing_stop_percent = dbUpdates.trailingStopPercent;
-                delete dbUpdates.trailingStopPercent;
-            }
-
-            // SAFETY: Remove 'status' if accidentally passed, as it crashes the DB
+            if (dbUpdates.exitPrice) delete dbUpdates.exitPrice; // handled by raw updates usually, but safe to keep
+            // Clean up status if accidental
             if (dbUpdates.status) delete dbUpdates.status;
 
             await db("trades").where("trade_id", tradeId).update(dbUpdates);
@@ -183,16 +161,18 @@ class TradeRepository {
         }
     }
 
-    // <--- FIX: Changed default from "paper" to "live"
     async getPerformanceMetrics(period = "30d", mode = "live") {
         try {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = new Date(Date.now() - periodMs);
 
+            // FIX: Look for trades that are closed OR have PnL (Completed Trades)
             const trades = await db("trades")
                 .where("timestamp", ">=", cutoffTime)
                 .where("mode", mode)
-                .where("side", "SELL")
+                .where((builder) => {
+                    builder.where("is_open", false).orWhereNotNull("pnl");
+                })
                 .orderBy("timestamp", "desc");
 
             return this.calculateMetrics(trades);
@@ -215,11 +195,20 @@ class TradeRepository {
     calculateMetrics(trades) {
         if (!trades.length) return null;
 
-        const winningTrades = trades.filter((t) => t.pnl > 0);
-        const losingTrades = trades.filter((t) => t.pnl < 0);
+        const completedTrades = trades.filter(
+            (t) => t.pnl !== null && t.pnl !== undefined
+        );
+        const winningTrades = completedTrades.filter((t) => t.pnl > 0);
+        const losingTrades = completedTrades.filter((t) => t.pnl < 0);
 
-        const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-        const winRate = (winningTrades.length / trades.length) * 100;
+        const totalPnL = completedTrades.reduce(
+            (sum, t) => sum + (t.pnl || 0),
+            0
+        );
+        const winRate =
+            completedTrades.length > 0
+                ? (winningTrades.length / completedTrades.length) * 100
+                : 0;
 
         const avgWin =
             winningTrades.length > 0
@@ -236,7 +225,7 @@ class TradeRepository {
                 : 0;
 
         return {
-            totalTrades: trades.length,
+            totalTrades: completedTrades.length,
             winningTrades: winningTrades.length,
             losingTrades: losingTrades.length,
             winRate,
