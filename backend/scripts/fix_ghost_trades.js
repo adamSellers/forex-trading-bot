@@ -1,6 +1,6 @@
 // backend/scripts/fix_ghost_trade.js
 require("dotenv").config();
-const { db } = require("../../config/database");
+const { db } = require("../config/database");
 const logger = require("../src/utils/logger");
 
 // The specific trade ID that failed to close in the DB
