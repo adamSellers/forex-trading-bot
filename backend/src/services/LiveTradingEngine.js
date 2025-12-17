@@ -281,13 +281,14 @@ class LiveTradingEngine extends EventEmitter {
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
-            // 3. UPDATE DATABASE
+            // 3. UPDATE DATABASE (FIXED MAPPING)
+            // We map internal variables to snake_case columns
             await this.tradeRepo.updateTrade(position.id, {
                 is_open: false,
-                exitPrice,
-                exitTime: Date.now(),
-                pnl,
-                exitReason: reason,
+                exit_price: exitPrice, // ✅ Matches DB Column
+                exit_time: Date.now(), // ✅ Matches DB Column
+                pnl: pnl, // Matches DB Column
+                exit_reason: reason, // ✅ Matches DB Column (renamed from exitReason)
             });
 
             // 4. UPDATE MEMORY
