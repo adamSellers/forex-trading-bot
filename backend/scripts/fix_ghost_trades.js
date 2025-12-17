@@ -1,7 +1,7 @@
 // backend/scripts/fix_ghost_trades.js
 // require("dotenv").config(); // Uncomment if you use .env variables for DB path
 const path = require("path");
-const { db } = require("../src/config/database"); // Adjust path if needed
+const { db } = require("../config/database"); // Adjust path if needed
 
 // The specific trade ID that failed to close in the DB
 const TARGET_TRADE_ID = "10533349787";
