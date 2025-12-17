@@ -263,11 +263,12 @@ const TradingConfig = () => {
     </Stack>
   );
 
-  const renderRiskSettings = () => (
+const renderRiskSettings = () => (
      <Stack spacing={3}>
         <GlassCard>
             <SectionHeader icon={<Security />} title="Risk Management" subtitle="Position sizing and stop losses" />
             <Grid container spacing={4}>
+                {/* Position Sizing */}
                 <Grid item xs={12}>
                      <Typography gutterBottom variant="subtitle2" color="text.secondary">RISK FACTOR</Typography>
                      <Stack direction="row" spacing={2} alignItems="center">
@@ -276,6 +277,8 @@ const TradingConfig = () => {
                      </Stack>
                      <Typography variant="caption" color="text.secondary">Percentage of allocated funds to use per trade.</Typography>
                 </Grid>
+
+                {/* Hard Stop Loss */}
                 <Grid item xs={12} md={6}>
                     <FormControl fullWidth>
                         <InputLabel>Stop Loss Type</InputLabel>
@@ -287,6 +290,36 @@ const TradingConfig = () => {
                 </Grid>
                  <Grid item xs={12} md={6}>
                     <TextField fullWidth label="Stop Loss Distance" type="number" value={config.stopLossPercent} onChange={(e) => updateConfig('stopLossPercent', parseFloat(e.target.value))} InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} />
+                </Grid>
+
+                {/* --- NEW: TRAILING STOP SECTION --- */}
+                <Grid item xs={12}>
+                    <Divider sx={{ my: 1 }} />
+                </Grid>
+                <Grid item xs={12}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Box>
+                            <Typography fontWeight="bold">Trailing Stop-Loss</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                Dynamically follows price up. Locks in profits.
+                            </Typography>
+                        </Box>
+                        <Switch 
+                            checked={config.enableTrailingStops || false} 
+                            onChange={(e) => updateConfig('enableTrailingStops', e.target.checked)} 
+                        />
+                    </Box>
+                    <Stack direction="row" spacing={2} alignItems="center" sx={{ opacity: config.enableTrailingStops ? 1 : 0.5, pointerEvents: config.enableTrailingStops ? 'auto' : 'none' }}>
+                        <Typography variant="caption" sx={{ minWidth: 60 }}>Distance:</Typography>
+                        <Slider
+                            value={config.trailingStopPercent ? config.trailingStopPercent * 100 : 3.0} // Convert decimal to % for display
+                            min={0.5} max={10.0} step={0.1}
+                            onChange={(_, v) => updateConfig('trailingStopPercent', v / 100)} // Store as decimal (0.03)
+                            valueLabelDisplay="auto"
+                            sx={{ flexGrow: 1 }}
+                        />
+                        <Chip label={`${(config.trailingStopPercent ? config.trailingStopPercent * 100 : 3.0).toFixed(1)}%`} size="small" />
+                    </Stack>
                 </Grid>
             </Grid>
         </GlassCard>
