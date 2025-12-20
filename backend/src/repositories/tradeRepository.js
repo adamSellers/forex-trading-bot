@@ -1,4 +1,4 @@
-// backend/src/repositories/tradeRepository.js - FIXED ANALYTICS & LIVE DEFAULT
+// backend/src/repositories/tradeRepository.js - FINAL PRODUCTION VERSION
 const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
@@ -31,6 +31,9 @@ class TradeRepository {
             trailingStopPrice: record.trailing_stop_price,
             highestPrice: record.highest_price,
             trailingStopPercent: record.trailing_stop_percent,
+            // Map Exit Fields back to CamelCase for App
+            exitPrice: record.exit_price,
+            exitTime: record.exit_time,
         };
 
         if (trade.side === "BUY") {
@@ -63,7 +66,7 @@ class TradeRepository {
                 entry_price: trade.entryPrice || null,
                 exit_reason: trade.exitReason || "UNKNOWN",
                 timestamp: new Date(trade.timestamp),
-                mode: trade.mode || "live", // Default to LIVE
+                mode: trade.mode || "live", // <--- FORCE LIVE MODE
                 is_open: trade.isOpen || false,
                 take_profit_price: trade.takeProfitPrice || null,
                 trailing_stop_price: trade.trailingStopPrice || null,
@@ -96,7 +99,10 @@ class TradeRepository {
             let query = db("trades")
                 .where("symbol", symbol)
                 .orderBy("timestamp", "desc");
-            if (mode) query = query.where("mode", mode);
+
+            if (mode) {
+                query = query.where("mode", mode);
+            }
             const records = await query.limit(limit);
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
@@ -108,7 +114,9 @@ class TradeRepository {
     async getTradesSince(cutoffTime, mode = "live") {
         try {
             let query = db("trades").where("timestamp", ">=", cutoffTime);
-            if (mode) query = query.where("mode", mode);
+            if (mode) {
+                query = query.where("mode", mode);
+            }
             const records = await query.orderBy("timestamp", "desc");
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
@@ -124,7 +132,7 @@ class TradeRepository {
             const records = await query;
             return records.map((record) => this._mapToTradeObject(record));
         } catch (error) {
-            logger.error("Error getting all trades:", error);
+            logger.error("Error getting all trades for recalculation:", error);
             throw error;
         }
     }
@@ -144,13 +152,40 @@ class TradeRepository {
     async updateTrade(tradeId, updates) {
         try {
             const dbUpdates = { ...updates };
-            // Map camelCase to snake_case
+
+            // --- CRITICAL FIX: MAP CAMELCASE TO SNAKE_CASE ---
             if (dbUpdates.isOpen !== undefined) {
                 dbUpdates.is_open = dbUpdates.isOpen;
                 delete dbUpdates.isOpen;
             }
-            if (dbUpdates.exitPrice) delete dbUpdates.exitPrice; // handled by raw updates usually, but safe to keep
-            // Clean up status if accidental
+            if (dbUpdates.exitPrice !== undefined) {
+                dbUpdates.exit_price = dbUpdates.exitPrice;
+                delete dbUpdates.exitPrice;
+            }
+            if (dbUpdates.exitTime !== undefined) {
+                dbUpdates.exit_time = dbUpdates.exitTime;
+                delete dbUpdates.exitTime;
+            }
+            // ------------------------------------------------
+
+            if (dbUpdates.takeProfitPrice) {
+                dbUpdates.take_profit_price = dbUpdates.takeProfitPrice;
+                delete dbUpdates.takeProfitPrice;
+            }
+            if (dbUpdates.trailingStopPrice) {
+                dbUpdates.trailing_stop_price = dbUpdates.trailingStopPrice;
+                delete dbUpdates.trailingStopPrice;
+            }
+            if (dbUpdates.highestPrice) {
+                dbUpdates.highest_price = dbUpdates.highestPrice;
+                delete dbUpdates.highestPrice;
+            }
+            if (dbUpdates.trailingStopPercent !== undefined) {
+                dbUpdates.trailing_stop_percent = dbUpdates.trailingStopPercent;
+                delete dbUpdates.trailingStopPercent;
+            }
+
+            // SAFETY: Remove 'status' if accidentally passed
             if (dbUpdates.status) delete dbUpdates.status;
 
             await db("trades").where("trade_id", tradeId).update(dbUpdates);
@@ -166,7 +201,7 @@ class TradeRepository {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = new Date(Date.now() - periodMs);
 
-            // FIX: Look for trades that are closed OR have PnL (Completed Trades)
+            // Fetch completed trades (Closed OR has PnL)
             const trades = await db("trades")
                 .where("timestamp", ">=", cutoffTime)
                 .where("mode", mode)
