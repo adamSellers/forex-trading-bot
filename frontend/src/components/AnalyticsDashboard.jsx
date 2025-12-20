@@ -148,22 +148,34 @@ const AnalyticsDashboard = () => {
     const tradingStats = report.summary?.trading || {};
     const efficiency = report.summary?.efficiency || {};
     
-    // 2. P&L Curve (FIXED: Filter by completion, not side label)
+    // 2. P&L Curve & Stats (HARDENED: Parse Floats & Filter Closed)
     const sortedTrades = [...trades]
-        .filter(t => t.pnl !== null && t.pnl !== undefined) 
+        .filter(t => (t.pnl !== null && t.pnl !== undefined) && (!t.isOpen && t.is_open !== 1)) // Exclude open ETH
+        .map(t => ({
+            ...t,
+            // FORCE number parsing to prevent "0-0.14" string concatenation errors
+            pnl: parseFloat(t.pnl),
+            signalStrength: parseFloat(t.signalStrength || 0)
+        }))
         .sort((a, b) => new Date(a.exitTime || a.timestamp) - new Date(b.exitTime || b.timestamp));
     
-    // 2a. Local Calculation (Ensures KPI cards light up immediately)
+    // 2a. Local Calculation (Math is now safe)
     const localStats = {
         totalPnL: sortedTrades.reduce((acc, t) => acc + (t.pnl || 0), 0),
         totalTrades: sortedTrades.length,
         wins: sortedTrades.filter(t => t.pnl > 0).length,
         losses: sortedTrades.filter(t => t.pnl <= 0).length,
     };
+
     localStats.winRate = localStats.totalTrades > 0 ? (localStats.wins / localStats.totalTrades) * 100 : 0;
-    localStats.avgWin = localStats.wins > 0 ? sortedTrades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0) / localStats.wins : 0;
-    localStats.avgLoss = localStats.losses > 0 ? sortedTrades.filter(t => t.pnl <= 0).reduce((acc, t) => acc + t.pnl, 0) / localStats.losses : 0;
-    localStats.profitFactor = localStats.losses > 0 ? (Math.abs(sortedTrades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0)) / Math.abs(sortedTrades.filter(t => t.pnl < 0).reduce((acc, t) => acc + t.pnl, 0))) : 999;
+    
+    // Calculate Averages safely
+    const grossWin = sortedTrades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0);
+    const grossLoss = Math.abs(sortedTrades.filter(t => t.pnl <= 0).reduce((acc, t) => acc + t.pnl, 0));
+    
+    localStats.avgWin = localStats.wins > 0 ? grossWin / localStats.wins : 0;
+    localStats.avgLoss = localStats.losses > 0 ? -grossLoss / localStats.losses : 0; // Negative value for display
+    localStats.profitFactor = grossLoss === 0 ? (grossWin > 0 ? 999 : 0) : grossWin / grossLoss;
 
     let runningPnL = 0;
     const pnlCurve = sortedTrades.map(t => {
