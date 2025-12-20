@@ -1,4 +1,4 @@
-// backend/src/repositories/tradeRepository.js - FINAL PRODUCTION VERSION
+// backend/src/repositories/tradeRepository.js - FIXED TIMESTAMP TYPES
 const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
@@ -65,8 +65,9 @@ class TradeRepository {
                 holding_period: trade.holdingPeriod || null,
                 entry_price: trade.entryPrice || null,
                 exit_reason: trade.exitReason || "UNKNOWN",
-                timestamp: new Date(trade.timestamp),
-                mode: trade.mode || "live", // <--- FORCE LIVE MODE
+                // FIX: Force timestamp to Integer (milliseconds)
+                timestamp: new Date(trade.timestamp).getTime(),
+                mode: trade.mode || "live",
                 is_open: trade.isOpen || false,
                 take_profit_price: trade.takeProfitPrice || null,
                 trailing_stop_price: trade.trailingStopPrice || null,
@@ -113,7 +114,11 @@ class TradeRepository {
 
     async getTradesSince(cutoffTime, mode = "live") {
         try {
-            let query = db("trades").where("timestamp", ">=", cutoffTime);
+            // FIX: Ensure cutoffTime is a Number (Integer) for comparison
+            const timestamp =
+                cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
+
+            let query = db("trades").where("timestamp", ">=", timestamp);
             if (mode) {
                 query = query.where("mode", mode);
             }
@@ -153,7 +158,7 @@ class TradeRepository {
         try {
             const dbUpdates = { ...updates };
 
-            // --- CRITICAL FIX: MAP CAMELCASE TO SNAKE_CASE ---
+            // Map camelCase to snake_case
             if (dbUpdates.isOpen !== undefined) {
                 dbUpdates.is_open = dbUpdates.isOpen;
                 delete dbUpdates.isOpen;
@@ -166,8 +171,6 @@ class TradeRepository {
                 dbUpdates.exit_time = dbUpdates.exitTime;
                 delete dbUpdates.exitTime;
             }
-            // ------------------------------------------------
-
             if (dbUpdates.takeProfitPrice) {
                 dbUpdates.take_profit_price = dbUpdates.takeProfitPrice;
                 delete dbUpdates.takeProfitPrice;
@@ -199,9 +202,9 @@ class TradeRepository {
     async getPerformanceMetrics(period = "30d", mode = "live") {
         try {
             const periodMs = this.parsePeriod(period);
-            const cutoffTime = new Date(Date.now() - periodMs);
+            // FIX: Use Number (Date.now()) instead of Date Object for cutoff
+            const cutoffTime = Date.now() - periodMs;
 
-            // Fetch completed trades (Closed OR has PnL)
             const trades = await db("trades")
                 .where("timestamp", ">=", cutoffTime)
                 .where("mode", mode)
