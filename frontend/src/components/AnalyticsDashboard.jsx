@@ -148,11 +148,23 @@ const AnalyticsDashboard = () => {
     const tradingStats = report.summary?.trading || {};
     const efficiency = report.summary?.efficiency || {};
     
-    // 2. P&L Curve
+    // 2. P&L Curve (FIXED: Filter by completion, not side label)
     const sortedTrades = [...trades]
-        .filter(t => t.side === 'SELL')
-        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        .filter(t => t.pnl !== null && t.pnl !== undefined) 
+        .sort((a, b) => new Date(a.exitTime || a.timestamp) - new Date(b.exitTime || b.timestamp));
     
+    // 2a. Local Calculation (Ensures KPI cards light up immediately)
+    const localStats = {
+        totalPnL: sortedTrades.reduce((acc, t) => acc + (t.pnl || 0), 0),
+        totalTrades: sortedTrades.length,
+        wins: sortedTrades.filter(t => t.pnl > 0).length,
+        losses: sortedTrades.filter(t => t.pnl <= 0).length,
+    };
+    localStats.winRate = localStats.totalTrades > 0 ? (localStats.wins / localStats.totalTrades) * 100 : 0;
+    localStats.avgWin = localStats.wins > 0 ? sortedTrades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0) / localStats.wins : 0;
+    localStats.avgLoss = localStats.losses > 0 ? sortedTrades.filter(t => t.pnl <= 0).reduce((acc, t) => acc + t.pnl, 0) / localStats.losses : 0;
+    localStats.profitFactor = localStats.losses > 0 ? (Math.abs(sortedTrades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0)) / Math.abs(sortedTrades.filter(t => t.pnl < 0).reduce((acc, t) => acc + t.pnl, 0))) : 999;
+
     let runningPnL = 0;
     const pnlCurve = sortedTrades.map(t => {
         runningPnL += (t.pnl || 0);
