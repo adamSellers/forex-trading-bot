@@ -140,28 +140,30 @@ const AnalyticsDashboard = () => {
   }, [period]);
 
   // --- Metrics Calculation ---
+// --- Metrics Calculation ---
   const metrics = useMemo(() => {
     if (!data) return null;
     const { report, trades, signals } = data;
 
-    // 1. Overview
-    const tradingStats = report.summary?.trading || {};
-    const efficiency = report.summary?.efficiency || {};
-    
-    // 2. P&L Curve & Stats (HARDENED: Parse Floats & Filter Closed)
+    // 1. Filter Completed Trades (Robust)
     const sortedTrades = [...trades]
-        .filter(t => (t.pnl !== null && t.pnl !== undefined) && (!t.isOpen && t.is_open !== 1)) // Exclude open ETH
+        .filter(t => {
+            // Must have a PnL value and NOT be open
+            const hasPnL = t.pnl !== null && t.pnl !== undefined;
+            const isClosed = !t.isOpen && t.is_open !== 1 && t.status !== 'OPEN';
+            return hasPnL && isClosed;
+        })
         .map(t => ({
             ...t,
-            // FORCE number parsing to prevent "0-0.14" string concatenation errors
-            pnl: parseFloat(t.pnl),
-            signalStrength: parseFloat(t.signalStrength || 0)
+            // FORCE number conversion for math safety
+            pnl: Number(t.pnl), 
+            exitTime: new Date(t.exitTime || t.timestamp)
         }))
-        .sort((a, b) => new Date(a.exitTime || a.timestamp) - new Date(b.exitTime || b.timestamp));
-    
-    // 2a. Local Calculation (Math is now safe)
+        .sort((a, b) => a.exitTime - b.exitTime);
+
+    // 2. Local Stats Calculation (Frontend Source of Truth)
     const localStats = {
-        totalPnL: sortedTrades.reduce((acc, t) => acc + (t.pnl || 0), 0),
+        totalPnL: sortedTrades.reduce((acc, t) => acc + t.pnl, 0),
         totalTrades: sortedTrades.length,
         wins: sortedTrades.filter(t => t.pnl > 0).length,
         losses: sortedTrades.filter(t => t.pnl <= 0).length,
@@ -169,21 +171,46 @@ const AnalyticsDashboard = () => {
 
     localStats.winRate = localStats.totalTrades > 0 ? (localStats.wins / localStats.totalTrades) * 100 : 0;
     
-    // Calculate Averages safely
     const grossWin = sortedTrades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0);
     const grossLoss = Math.abs(sortedTrades.filter(t => t.pnl <= 0).reduce((acc, t) => acc + t.pnl, 0));
     
     localStats.avgWin = localStats.wins > 0 ? grossWin / localStats.wins : 0;
-    localStats.avgLoss = localStats.losses > 0 ? -grossLoss / localStats.losses : 0; // Negative value for display
+    localStats.avgLoss = localStats.losses > 0 ? -grossLoss / localStats.losses : 0; 
     localStats.profitFactor = grossLoss === 0 ? (grossWin > 0 ? 999 : 0) : grossWin / grossLoss;
 
-    let runningPnL = 0;
-    const pnlCurve = sortedTrades.map(t => {
-        runningPnL += (t.pnl || 0);
-        return { date: new Date(t.timestamp), pnl: runningPnL };
+    // 3. Asset Performance (Frontend Calculation)
+    const localAssetStats = {};
+    sortedTrades.forEach(t => {
+        if (!localAssetStats[t.symbol]) {
+            localAssetStats[t.symbol] = { 
+                performance: { totalTrades: 0, totalPnL: 0, wins: 0, bestTrade: -Infinity, worstTrade: Infinity } 
+            };
+        }
+        const stats = localAssetStats[t.symbol].performance;
+        stats.totalTrades++;
+        stats.totalPnL += t.pnl;
+        if (t.pnl > 0) stats.wins++;
+        stats.bestTrade = Math.max(stats.bestTrade, t.pnl);
+        stats.worstTrade = Math.min(stats.worstTrade, t.pnl);
     });
 
-    // 3. Filter Efficiency (IMPROVED LABELS)
+    // Calculate Win Rates for Assets
+    Object.values(localAssetStats).forEach(item => {
+        item.performance.winRate = (item.performance.wins / item.performance.totalTrades) * 100;
+    });
+
+    // 4. Merge Data for Display
+    const tradingStats = { ...(report.summary?.trading || {}), ...localStats };
+    const efficiency = report.summary?.efficiency || {};
+    
+    // P&L Curve
+    let runningPnL = 0;
+    const pnlCurve = sortedTrades.map(t => {
+        runningPnL += t.pnl;
+        return { date: t.exitTime, pnl: runningPnL };
+    });
+
+    // Filter Efficiency
     const signalStats = { executed: 0, blockedADX: 0, blockedRSI: 0, blockedOther: 0 };
     signals.forEach(s => {
         const msg = (s.message || "").toLowerCase();
@@ -193,21 +220,14 @@ const AnalyticsDashboard = () => {
         else signalStats.blockedOther++;
     });
 
-    // RENAMED LABELS HERE
     const filterPieData = [
-        { id: 0, value: signalStats.executed, label: 'Triggered (Buy/Sell)', color: theme.palette.success.main },
+        { id: 0, value: signalStats.executed, label: 'Triggered', color: theme.palette.success.main },
         { id: 1, value: signalStats.blockedADX, label: 'Filtered (Choppy)', color: theme.palette.warning.main },
         { id: 2, value: signalStats.blockedRSI, label: 'Filtered (Overbought)', color: theme.palette.info.main },
         { id: 3, value: signalStats.blockedOther, label: 'Wait/Hold', color: theme.palette.grey[800] },
     ].filter(d => d.value > 0);
 
-    // 4. ADX Stats
-    const wins = sortedTrades.filter(t => t.pnl > 0);
-    const losses = sortedTrades.filter(t => t.pnl <= 0);
-    const avgAdxWin = wins.reduce((sum, t) => sum + (t.signalStrength || 0), 0) / (wins.length || 1);
-    const avgAdxLoss = losses.reduce((sum, t) => sum + (t.signalStrength || 0), 0) / (losses.length || 1);
-
-    // 5. Exit Reasons
+    // Exit Reasons
     const exitReasons = sortedTrades.reduce((acc, t) => {
         const reason = t.exitReason || 'Unknown';
         acc[reason] = (acc[reason] || 0) + 1;
@@ -219,7 +239,9 @@ const AnalyticsDashboard = () => {
 
     return {
         tradingStats, efficiency, pnlCurve, filterPieData, 
-        adxStats: { avgAdxWin, avgAdxLoss }, exitPieData, assetStats: report.assets || {}
+        adxStats: { avgAdxWin: 0, avgAdxLoss: 0 }, 
+        exitPieData, 
+        assetStats: localAssetStats // Use Frontend calculated assets
     };
   }, [data, theme]);
 
