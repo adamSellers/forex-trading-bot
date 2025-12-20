@@ -336,6 +336,7 @@ class TradingService extends EventEmitter {
                 this.activeEngine.updatePortfolioValue(allPrices);
                 this.io.emit("priceUpdate", priceData);
             });
+            this.signalGenerator.stop();
             this.signalGenerator.start(this.binanceData, 60000);
         }
 
