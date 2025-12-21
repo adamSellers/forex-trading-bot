@@ -200,7 +200,10 @@ const AnalyticsDashboard = () => {
     });
 
     // 4. Merge Data for Display
-    const tradingStats = { ...(report.summary?.trading || {}), ...localStats };
+const tradingStats = {
+        ...(report.summary?.trading || {}), // Backend provides Sharpe here now
+        ...localStats 
+    };
     const efficiency = report.summary?.efficiency || {};
     
     // P&L Curve
@@ -318,11 +321,11 @@ const AnalyticsDashboard = () => {
         </Box>
         <Box flex={1} minWidth={220}>
             <MetricCard 
-                title="Avg. PnL" 
-                value={`$${tradingStats.avgWin?.toFixed(2) || '0.00'}`} 
-                subtitle={`Avg Loss: $${tradingStats.avgLoss?.toFixed(2) || '0.00'}`}
-                color="warning.main"
-                icon={<MonetizationOn fontSize="small" />}
+                title="Sharpe Ratio" 
+                value={tradingStats.sharpeRatio?.toFixed(2) || '0.00'} 
+                subtitle={tradingStats.sharpeRatio > 1 ? "Excellent Risk/Reward" : "Risk Analysis"}
+                color={tradingStats.sharpeRatio > 1 ? "success.main" : "warning.main"}
+                icon={<Insights fontSize="small" />}
             />
         </Box>
       </Box>
@@ -530,8 +533,11 @@ const AnalyticsDashboard = () => {
                                         <StyledTableCell align="right" sx={{ color: perf.totalPnL >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
                                             {perf.totalPnL >= 0 ? "+" : ""}{perf.totalPnL?.toFixed(2)}
                                         </StyledTableCell>
-                                        <StyledTableCell align="right" sx={{ color: 'success.light' }}>
-                                            +${perf.bestTrade?.toFixed(2)}
+                                        <StyledTableCell align="right" sx={{ 
+                                            color: perf.bestTrade >= 0 ? 'success.light' : 'error.light',
+                                            fontWeight: 'bold' 
+                                        }}>
+                                            {perf.bestTrade > 0 ? "+" : ""}${perf.bestTrade?.toFixed(2)}
                                         </StyledTableCell>
                                         <StyledTableCell align="right" sx={{ color: 'error.light' }}>
                                             ${perf.worstTrade?.toFixed(2)}

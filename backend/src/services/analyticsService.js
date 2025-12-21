@@ -47,56 +47,40 @@ class AnalyticsService {
      * New Method: Calculates Advanced Stats (Sharpe, Volatility) for the /performance route.
      * Replaces manual math previously done in trading.js routes.
      */
-    async getDetailedPerformance(period = "30d") {
+    async getPerformanceAnalytics(period = "30d") {
         try {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = Date.now() - periodMs;
 
-            // Fetch raw trades to calculate standard deviation/holding period
-            const trades = await this.tradeRepo.getTradesSince(
-                cutoffTime,
-                "live"
-            );
+            // 1. Fetch Basic Metrics & Signals
+            const [tradeMetrics, signalStats, trades] = await Promise.all([
+                this.tradeRepo.getPerformanceMetrics(period, "live"),
+                this.signalRepo.getSignalStats(period),
+                this.tradeRepo.getTradesSince(cutoffTime, "live"),
+            ]);
 
-            // Filter strictly for CLOSED trades
+            // 2. Calculate Advanced Metrics (Sharpe, Volatility)
+            // Filter strictly for CLOSED trades for accurate math
             const completedTrades = trades.filter(
                 (t) => t.pnl !== null && t.pnl !== undefined && !t.isOpen
             );
-
-            // Get basic metrics from repo
-            const metrics =
-                (await this.tradeRepo.calculateMetrics(completedTrades)) || {};
-
-            // Calculate Advanced Metrics
             const tradeReturns = completedTrades.map((t) => t.pnlPercent || 0);
-            const tradingFrequency = this.calculateTradingFrequency(
+            const freq = this.calculateTradingFrequency(
                 completedTrades,
                 period
             );
 
+            const advancedMetrics = {
+                sharpeRatio: this.calculateSharpeRatio(tradeReturns, freq),
+                volatility: this.calculateVolatility(tradeReturns, freq),
+            };
+
             return {
-                ...metrics,
-                sharpeRatio: this.calculateSharpeRatio(
-                    tradeReturns,
-                    tradingFrequency
-                ),
-                volatility: this.calculateVolatility(
-                    tradeReturns,
-                    tradingFrequency
-                ),
-                avgHoldingPeriod:
-                    this.calculateAvgHoldingPeriod(completedTrades),
-                tradingFrequency,
-                totalReturn: metrics.totalPnL || 0,
-                // Pass through best/worst from repo logic or calculate if missing
-                bestTrade:
-                    metrics.avgWin > 0
-                        ? Math.max(...completedTrades.map((t) => t.pnl))
-                        : 0,
-                worstTrade:
-                    metrics.avgLoss > 0
-                        ? Math.min(...completedTrades.map((t) => t.pnl))
-                        : 0,
+                period,
+                timestamp: Date.now(),
+                trading: { ...tradeMetrics, ...advancedMetrics }, // Merge Sharpe into trading stats
+                signals: signalStats,
+                efficiency: this.calculateEfficiency(tradeMetrics, signalStats),
             };
         } catch (error) {
             logger.error("Error generating detailed performance:", error);
