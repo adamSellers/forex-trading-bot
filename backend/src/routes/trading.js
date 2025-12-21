@@ -160,66 +160,32 @@ module.exports = (tradingController) => {
 
     router.get("/analytics", async (req, res) => {
         try {
-            const { period = "7d" } = req.query;
-            if (!tradingController.tradingService?.activeEngine) {
+            const { period = "30d" } = req.query;
+            const analyticsService =
+                tradingController.tradingService?.analyticsService;
+
+            if (!analyticsService) {
                 return res
-                    .status(400)
-                    .json({ error: "Services not initialized" });
+                    .status(503)
+                    .json({ error: "Analytics Service not ready" });
             }
 
-            const periodMs = parsePeriod(period);
-            const cutoffTime = Date.now() - periodMs;
-
-            const trades =
-                await tradingController.tradingService.tradeRepo.getTradesSince(
-                    cutoffTime
-                );
-            const signals =
-                await tradingController.tradingService.signalRepo.getSignalsSince(
-                    cutoffTime
-                );
-
-            // FIX: Identify Completed Trades
-            const completedTrades = trades.filter(
-                (t) =>
-                    t.status === "CLOSED" ||
-                    (t.pnl !== null && t.pnl !== undefined && t.pnl !== 0)
+            // Delegate to the trade repository
+            const report = await analyticsService.getPerformanceAnalytics(
+                period
             );
 
-            const totalPnL = completedTrades.reduce(
-                (sum, t) => sum + (t.pnl || 0),
-                0
-            );
-            const winCount = completedTrades.filter((t) => t.pnl > 0).length;
+            // Add asset breakdown which the service also provides
+            const assets = await analyticsService.getAssetAnalytics();
 
-            const analytics = {
-                period,
-                timeRange: {
-                    start: new Date(cutoffTime).toISOString(),
-                    end: new Date().toISOString(),
+            res.json({
+                ...report,
+                summary: {
+                    trading: report.trading,
+                    efficiency: report.efficiency,
                 },
-                overview: {
-                    totalTrades: completedTrades.length,
-                    totalSignals: signals.length,
-                    signalToTradeRatio:
-                        completedTrades.length / (signals.length || 1),
-                    profitableTrades: winCount,
-                    totalPnL: totalPnL,
-                    winRate:
-                        completedTrades.length > 0
-                            ? (winCount / completedTrades.length) * 100
-                            : 0,
-                    avgWin: calculateAvgWin(completedTrades),
-                    avgLoss: calculateAvgLoss(completedTrades),
-                    profitFactor: calculateProfitFactor(completedTrades),
-                },
-                assetAnalysis: analyzeByAsset(trades, signals),
-                strategyAnalysis: analyzeByStrategy(signals),
-                timeAnalysis: analyzeByTime(trades, signals),
-                exitReasonAnalysis: analyzeExitReasons(trades),
-            };
-
-            res.json(analytics);
+                assets: assets,
+            });
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
