@@ -1,4 +1,4 @@
-// frontend/src/components/TradingConfig.jsx - ADDED NOTIFICATIONS TAB
+// frontend/src/components/TradingConfig.jsx - ADDED TRAILING STOP DEFAULTS
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
@@ -9,7 +9,7 @@ import {
 import {
   Save, Refresh, Security, AccountBalance,
   PieChart, SettingsRemote, Warning, RestartAlt, DeleteForever,
-  AddCircle, Delete, Science, Tune, Email // <--- Added Email Icon
+  AddCircle, Delete, Science, Tune, Email
 } from '@mui/icons-material';
 import { tradingAPI, managementAPI } from '../config/api';
 
@@ -64,6 +64,11 @@ const DEFAULT_CONFIG = {
     rsiOversold: 30,
     stopLossType: 'FIXED',
     stopLossPercent: 0.05, 
+    
+    // --- FIX: Explicit Trailing Stop Defaults ---
+    enableTrailingStops: false,
+    trailingStopPercent: 0.03, // 3% default
+
     assets: [], 
     allocation: {}, 
     enableEmailAlerts: false,
@@ -93,6 +98,10 @@ const TradingConfig = () => {
           ...data.config,
           riskPerTrade: (data.config.riskPerTrade) || 0.98,
           stopLossPercent: (data.config.stopLossPercent * 100) || 5.0,
+          
+          // --- FIX: Ensure incoming value is safe ---
+          trailingStopPercent: data.config.trailingStopPercent || 0.03,
+          
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
           allocation: { ...data.config.allocation }
         };
@@ -292,7 +301,7 @@ const renderRiskSettings = () => (
                     <TextField fullWidth label="Stop Loss Distance" type="number" value={config.stopLossPercent} onChange={(e) => updateConfig('stopLossPercent', parseFloat(e.target.value))} InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }} />
                 </Grid>
 
-                {/* --- NEW: TRAILING STOP SECTION --- */}
+                {/* --- TRAILING STOP SECTION --- */}
                 <Grid item xs={12}>
                     <Divider sx={{ my: 1 }} />
                 </Grid>
@@ -366,7 +375,6 @@ const renderRiskSettings = () => (
     </Stack>
   );
 
-  // --- NEW: NOTIFICATIONS RENDER ---
   const renderNotificationSettings = () => (
       <Stack spacing={3}>
           <GlassCard>
@@ -419,7 +427,6 @@ const renderRiskSettings = () => (
                 <Tab icon={<Science fontSize="small" />} iconPosition="start" label="Strategy" sx={{ minHeight: 60 }} />
                 <Tab icon={<Security fontSize="small" />} iconPosition="start" label="Risk" sx={{ minHeight: 60 }} />
                 <Tab icon={<PieChart fontSize="small" />} iconPosition="start" label="Portfolio" sx={{ minHeight: 60 }} />
-                {/* ADDED: Notifications Tab */}
                 <Tab icon={<Email fontSize="small" />} iconPosition="start" label="Notifications" sx={{ minHeight: 60 }} />
             </Tabs>
         </Box>
@@ -428,7 +435,6 @@ const renderRiskSettings = () => (
             {activeTab === 1 && renderStrategySettings()}
             {activeTab === 2 && renderRiskSettings()}
             {activeTab === 3 && renderPortfolioSettings()}
-            {/* ADDED: Render logic */}
             {activeTab === 4 && renderNotificationSettings()}
         </Box>
     </Container>

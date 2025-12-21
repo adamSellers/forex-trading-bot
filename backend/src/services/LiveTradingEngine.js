@@ -42,6 +42,8 @@ class LiveTradingEngine extends EventEmitter {
                 ...p,
                 currentPrice: p.price || p.entryPrice,
                 unrealizedPnL: 0,
+                // FIX: Ensure we read the correct column from DB on restart
+                trailingStopPrice: p.trailing_stop_price || p.trailingStopPrice,
             }));
             logger.info(
                 `🔄 Restored ${this.portfolio.positions.length} active positions.`
@@ -65,7 +67,6 @@ class LiveTradingEngine extends EventEmitter {
     async calculatePerformanceStats() {
         try {
             const allTrades = await this.tradeRepo.getAllTrades("live");
-            // Count trades that are closed OR have PnL (completed)
             const closedTrades = allTrades.filter(
                 (t) => t.pnl !== null && t.pnl !== undefined
             );
@@ -100,7 +101,6 @@ class LiveTradingEngine extends EventEmitter {
         logger.info("🔴 Live Trading STOPPED");
     }
 
-    // --- FORCE CLOSE METHOD ---
     async forceClosePosition(tradeId) {
         const position = this.portfolio.positions.find(
             (p) =>
@@ -127,8 +127,6 @@ class LiveTradingEngine extends EventEmitter {
             "MANUAL_FORCE"
         );
     }
-
-    // --- CORE TRADING LOGIC ---
 
     async processSignal(signal, currentPrice, atr) {
         if (signal.signal !== "BUY" && signal.signal !== "SELL")
@@ -158,7 +156,6 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Position already open",
                 };
 
-            // Use Nullish Coalescing (??) to respect 0% allocation
             const allocationPct =
                 this.config.allocation?.[signal.symbol] ?? 0.15;
 
@@ -202,17 +199,20 @@ class LiveTradingEngine extends EventEmitter {
                     quantity
                 );
 
-                // --- STOP LOSS CALCULATION ---
                 let stopLossPrice;
                 if (this.config.stopLossType === "FIXED") {
                     stopLossPrice =
                         currentPrice *
-                        (1 - (this.config.stopLossPercent || 0.03));
+                        (1 - (this.config.stopLossPercent || 0.05));
                 } else {
                     stopLossPrice =
                         currentPrice -
                         (atr || 0) * (this.config.stopLossATR || 1.5);
                 }
+
+                // FIX: Define Fallback Distance (Default 3%)
+                const trailingStopDist =
+                    this.config.trailingStopPercent || 0.03;
 
                 const tradeRecord = {
                     id: order.orderId.toString(),
@@ -224,20 +224,20 @@ class LiveTradingEngine extends EventEmitter {
                     orderId: order.orderId,
                     timestamp: Date.now(),
 
-                    // --- CAPTURE SIGNAL DATA
-                    signal: signal.signal, // e.g. "BUY"
-                    signalStrength: signal.strength, // e.g. 32.5 (ADX)
-                    atr: signal.atr || atr, // Capture Volatility
+                    signal: signal.signal,
+                    signalStrength: signal.strength,
+                    atr: signal.atr || atr,
 
-                    isOpen: true, // Maps to is_open
+                    isOpen: true,
                     mode: "live",
                     stopLoss: stopLossPrice,
-                    trailingStop: this.config.enableTrailingStops
-                        ? currentPrice * (1 - this.config.trailingStopPercent)
+
+                    // FIX: Use correct DB column name & safe calculation
+                    trailingStopPrice: this.config.enableTrailingStops
+                        ? currentPrice * (1 - trailingStopDist)
                         : null,
                 };
 
-                // Save to DB
                 try {
                     await this.tradeRepo.save(tradeRecord);
                 } catch (dbErr) {
@@ -287,16 +287,14 @@ class LiveTradingEngine extends EventEmitter {
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
-            // Update DB
             await this.tradeRepo.updateTrade(position.id, {
-                isOpen: false, // Fixed column mapping (was is_open/status)
+                isOpen: false,
                 exitPrice,
                 exitTime: Date.now(),
                 pnl,
                 exitReason: reason,
             });
 
-            // Update Memory
             this.portfolio.positions = this.portfolio.positions.filter(
                 (p) => p.symbol !== position.symbol
             );
@@ -304,7 +302,6 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.dailyPnL += pnl;
             this.portfolio.totalPnL += pnl;
 
-            // Update Stats
             this.portfolio.stats.totalTrades++;
             if (pnl > 0) this.portfolio.stats.winningTrades++;
             this.portfolio.stats.winRate =
@@ -315,7 +312,7 @@ class LiveTradingEngine extends EventEmitter {
             const tradeRecord = {
                 ...position,
                 side: "SELL",
-                status: "CLOSED", // Virtual field for Frontend UI
+                status: "CLOSED",
                 pnl,
                 exitPrice,
                 reason,
@@ -361,12 +358,31 @@ class LiveTradingEngine extends EventEmitter {
             this.closePosition(position, currentPrice, "STOP_LOSS");
             return;
         }
-        if (this.config.enableTrailingStops && position.trailingStop) {
+
+        // FIX: Trailing Stop Logic using correct property name
+        if (
+            this.config.enableTrailingStops &&
+            (position.trailingStopPrice || position.trailing_stop_price)
+        ) {
+            // Normalize property access
+            let currentTrailingStop =
+                position.trailingStopPrice || position.trailing_stop_price;
+
             const trailingPercent = this.config.trailingStopPercent || 0.03;
             const newStop = currentPrice * (1 - trailingPercent);
-            if (newStop > position.trailingStop)
-                position.trailingStop = newStop;
-            if (currentPrice <= position.trailingStop) {
+
+            // Ratchet up only
+            if (newStop > currentTrailingStop) {
+                position.trailingStopPrice = newStop;
+                // Update DB asynchronously so we don't block the loop
+                this.tradeRepo
+                    .updateTrade(position.id, { trailingStopPrice: newStop })
+                    .catch((e) => logger.error("Failed to update TS:", e));
+            }
+
+            // Check Exit
+            // Use the updated value
+            if (currentPrice <= position.trailingStopPrice) {
                 this.closePosition(position, currentPrice, "TRAILING_STOP");
                 return;
             }
