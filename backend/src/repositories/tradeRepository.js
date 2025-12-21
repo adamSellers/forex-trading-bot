@@ -233,9 +233,14 @@ class TradeRepository {
     calculateMetrics(trades) {
         if (!trades.length) return null;
 
+        // FIX: Strictly exclude Open positions (isOpen=true) to prevent skewing stats
         const completedTrades = trades.filter(
-            (t) => t.pnl !== null && t.pnl !== undefined
+            (t) => t.pnl !== null && t.pnl !== undefined && !t.isOpen
         );
+
+        // If no closed trades exist, return null so UI shows "N/A" instead of 0s
+        if (completedTrades.length === 0) return null;
+
         const winningTrades = completedTrades.filter((t) => t.pnl > 0);
         const losingTrades = completedTrades.filter((t) => t.pnl < 0);
 
