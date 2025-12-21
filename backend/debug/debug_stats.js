@@ -1,6 +1,6 @@
 // debug_stats.js
-const TradeRepository = require("./src/repositories/tradeRepository");
-const SignalRepository = require("./src/repositories/signalRepository");
+const TradeRepository = require("../src/repositories/tradeRepository");
+const SignalRepository = require("../src/repositories/signalRepository");
 
 async function runDebug() {
     try {
