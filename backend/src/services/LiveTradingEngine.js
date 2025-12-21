@@ -224,16 +224,20 @@ class LiveTradingEngine extends EventEmitter {
                     orderId: order.orderId,
                     timestamp: Date.now(),
 
-                    // --- FIXED DB COLUMNS ---
+                    // --- CAPTURE SIGNAL DATA
+                    signal: signal.signal, // e.g. "BUY"
+                    signalStrength: signal.strength, // e.g. 32.5 (ADX)
+                    atr: signal.atr || atr, // Capture Volatility
+
                     isOpen: true, // Maps to is_open
-                    mode: "live", // Explicitly set live mode
+                    mode: "live",
                     stopLoss: stopLossPrice,
                     trailingStop: this.config.enableTrailingStops
                         ? currentPrice * (1 - this.config.trailingStopPercent)
                         : null,
                 };
 
-                // Save to DB (using try-catch but LOGGING error this time)
+                // Save to DB
                 try {
                     await this.tradeRepo.save(tradeRecord);
                 } catch (dbErr) {
