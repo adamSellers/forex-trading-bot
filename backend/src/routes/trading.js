@@ -1,10 +1,15 @@
-// backend/src/routes/trading.js - LIVE PRODUCTION (NO PAPER)
+// backend/src/routes/trading.js - COMPLETE & CLEANED
 const express = require("express");
 const router = express.Router();
 
-const CRYPTO_TRADING_DAYS_PER_YEAR = 365;
-
 module.exports = (tradingController) => {
+    // --- HELPER TO GET SERVICE ---
+    const getAnalytics = () => {
+        const service = tradingController.tradingService?.analyticsService;
+        if (!service) throw new Error("Analytics Service not ready");
+        return service;
+    };
+
     // --- SYSTEM & STATUS ---
     router.get("/status", async (req, res) => {
         try {
@@ -99,101 +104,40 @@ module.exports = (tradingController) => {
         }
     });
 
-    // --- ANALYTICS (FIXED) ---
+    // --- ANALYTICS (UNIFIED) ---
+
+    // 1. Detailed Performance Stats (Sharpe, Volatility, etc.)
     router.get("/performance", async (req, res) => {
         try {
             const { period = "30d" } = req.query;
-            const engine = tradingController.tradingService?.activeEngine;
-
-            if (!engine)
-                return res
-                    .status(400)
-                    .json({ error: "Trading engine not initialized" });
-
-            const periodMs = parsePeriod(period);
-            const cutoffTime = new Date(Date.now() - periodMs);
-
-            const trades =
-                await tradingController.tradingService.tradeRepo.getTradesSince(
-                    cutoffTime,
-                    "live"
-                );
-            const portfolio = await engine.getPortfolioSummary();
-
-            // FIX: Filter for completed trades
-            const completedTrades = trades.filter(
-                (t) =>
-                    t.status === "CLOSED" ||
-                    (t.pnl !== null && t.pnl !== undefined)
-            );
-
-            const tradeReturns = getTradeReturns(completedTrades);
-            const tradingFrequency = calculateTradingFrequency(
-                completedTrades,
-                period
-            );
-
-            const performance = {
-                ...portfolio.performance,
-                sharpeRatio: calculateSharpeRatio(
-                    tradeReturns,
-                    tradingFrequency
-                ),
-                volatility: calculateVolatility(tradeReturns, tradingFrequency),
-                totalReturn: portfolio.totalPnLPercent,
-                totalTrades: completedTrades.length,
-                avgHoldingPeriod: calculateAvgHoldingPeriod(completedTrades),
-                bestTrade: getBestTrade(completedTrades),
-                worstTrade: getWorstTrade(completedTrades),
-                tradingFrequency,
-                calculationNotes: {
-                    tradingDaysPerYear: CRYPTO_TRADING_DAYS_PER_YEAR,
-                    note: "Crypto markets trade 365 days/year, 24/7",
-                },
-            };
-
-            res.json(performance);
+            const stats = await getAnalytics().getDetailedPerformance(period);
+            res.json(stats);
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
     });
 
-    // --- ANALYTICS ROUTE ---
+    // 2. General Analytics Dashboard (Summary + Assets)
     router.get("/analytics", async (req, res) => {
         try {
             const { period = "30d" } = req.query;
-            const analyticsService =
-                tradingController.tradingService?.analyticsService;
+            const service = getAnalytics();
 
-            // Guard: Service availability
-            if (!analyticsService) {
-                return res
-                    .status(503)
-                    .json({ error: "Analytics Service not ready" });
-            }
+            // Delegate all logic to service
+            const report = await service.getPerformanceAnalytics(period);
+            const assets = await service.getAssetAnalytics();
 
-            // 1. Get Core Performance (Uses tradeRepository.calculateMetrics)
-            const report = await analyticsService.getPerformanceAnalytics(
-                period
-            );
-
-            // 2. Get Asset Breakdown
-            // This provides the per-coin stats for the bottom table.
-            const assets = await analyticsService.getAssetAnalytics();
-
-            // 3. Structure for Frontend (Matches AnalyticsDashboard.jsx expectations)
             res.json({
                 date: new Date().toISOString().split("T")[0],
                 period: report.period,
                 summary: {
-                    trading: report.trading, // Contains winRate, totalPnL, profitFactor
-                    efficiency: report.efficiency, // Contains signalQuality, fillRate
+                    trading: report.trading,
+                    efficiency: report.efficiency,
                     signals: report.signals,
                 },
-                assets: assets, // Contains per-asset win rates and PnL
+                assets: assets,
             });
         } catch (error) {
-            console.error("Analytics Route Error:", error);
             res.status(500).json({ error: error.message });
         }
     });
@@ -270,115 +214,6 @@ module.exports = (tradingController) => {
             res.status(500).json({ error: error.message });
         }
     });
-
-    // --- HELPERS (Collapsed for brevity - use standard logic) ---
-    function parsePeriod(p) {
-        const m = {
-            "1h": 3600000,
-            "24h": 86400000,
-            "7d": 604800000,
-            "30d": 2592000000,
-        };
-        return m[p] || m["7d"];
-    }
-    function getTradeReturns(t) {
-        return t.map((x) => x.pnlPercent || 0);
-    }
-    function calculateTradingFrequency(t, p) {
-        if (t.length < 2) return 0;
-        const d = { "1h": 1 / 24, "24h": 1, "7d": 7, "30d": 30 }[p] || 30;
-        return t.length / d;
-    }
-    function calculateSharpeRatio(r, f) {
-        if (r.length < 2) return 0;
-        const avg = r.reduce((a, b) => a + b, 0) / r.length;
-        const std = Math.sqrt(
-            r.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / (r.length - 1)
-        );
-        return std === 0 ? 0 : (avg / std) * Math.sqrt(f * 365);
-    }
-    function calculateVolatility(r, f) {
-        if (r.length < 2) return 0;
-        const avg = r.reduce((a, b) => a + b, 0) / r.length;
-        const std = Math.sqrt(
-            r.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / (r.length - 1)
-        );
-        return std * Math.sqrt(f * 365);
-    }
-    function calculateAvgHoldingPeriod(t) {
-        const v = t.filter((x) => x.holdingPeriod);
-        return v.length
-            ? v.reduce((a, b) => a + b.holdingPeriod, 0) / v.length
-            : 0;
-    }
-    function getBestTrade(t) {
-        return t.length
-            ? t.reduce((a, b) => (b.pnl > (a.pnl || -Infinity) ? b : a), {})
-            : null;
-    }
-    function getWorstTrade(t) {
-        return t.length
-            ? t.reduce((a, b) => (b.pnl < (a.pnl || Infinity) ? b : a), {})
-            : null;
-    }
-    function calculateProfitFactor(t) {
-        const w = t.filter((x) => x.pnl > 0).reduce((a, b) => a + b.pnl, 0);
-        const l = Math.abs(
-            t.filter((x) => x.pnl < 0).reduce((a, b) => a + b.pnl, 0)
-        );
-        return l === 0 ? (w > 0 ? 999 : 0) : Number((w / l).toFixed(2));
-    }
-    function calculateAvgWin(t) {
-        const w = t.filter((x) => x.pnl > 0);
-        return w.length ? w.reduce((a, b) => a + b.pnl, 0) / w.length : 0;
-    }
-    function calculateAvgLoss(t) {
-        const l = t.filter((x) => x.pnl < 0);
-        return l.length ? l.reduce((a, b) => a + b.pnl, 0) / l.length : 0;
-    }
-    function analyzeByAsset(trades, signals) {
-        const assets = [
-            ...new Set([
-                ...trades.map((t) => t.symbol),
-                ...signals.map((s) => s.symbol),
-            ]),
-        ];
-        const analysis = {};
-        assets.forEach((asset) => {
-            const completed = trades.filter(
-                (t) =>
-                    t.symbol === asset &&
-                    (t.status === "CLOSED" ||
-                        (t.pnl !== null && t.pnl !== undefined))
-            );
-            const sigs = signals.filter((s) => s.symbol === asset);
-            const wins = completed.filter((t) => t.pnl > 0).length;
-            analysis[asset] = {
-                totalTrades: completed.length,
-                totalSignals: sigs.length,
-                pnl: completed.reduce((a, b) => a + (b.pnl || 0), 0),
-                winRate: completed.length ? (wins / completed.length) * 100 : 0,
-                bestTrade: Math.max(...completed.map((t) => t.pnl || 0), 0),
-                worstTrade: Math.min(...completed.map((t) => t.pnl || 0), 0),
-            };
-        });
-        return analysis;
-    }
-    function analyzeByStrategy(s) {
-        return {};
-    } // Simplified
-    function analyzeExitReasons(t) {
-        const c = t.filter((x) => x.status === "CLOSED" || x.pnl !== null);
-        const a = {};
-        c.forEach((x) => {
-            const r = x.exitReason || "UNKNOWN";
-            a[r] = (a[r] || 0) + 1;
-        });
-        return a;
-    }
-    function analyzeByTime(t, s) {
-        return { hourlyDistribution: [], dailyDistribution: [] };
-    } // Simplified
 
     return router;
 };

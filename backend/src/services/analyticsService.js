@@ -1,10 +1,11 @@
-// backend/src/services/analyticsService.js - LIVE PRODUCTION
+// backend/src/services/analyticsService.js - COMPLETE & UNIFIED
 const TradeRepository = require("../repositories/tradeRepository");
 const SignalRepository = require("../repositories/signalRepository");
 const awsS3Utils = require("../utils/awsS3Utils");
 const logger = require("../utils/logger");
 
 const UPLOAD_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+const CRYPTO_TRADING_DAYS_PER_YEAR = 365;
 
 class AnalyticsService {
     constructor(tradingEngine) {
@@ -20,8 +21,7 @@ class AnalyticsService {
     }
 
     /**
-     * Generates aggregated performance stats for the Dashboard.
-     * CRITICAL FIX: Ensures we look for closed trades, not just "SELL" sides.
+     * Core Method: Generates aggregated performance stats for Dashboard & Reporting.
      */
     async getPerformanceAnalytics(period = "30d") {
         try {
@@ -43,33 +43,65 @@ class AnalyticsService {
         }
     }
 
-    calculateEfficiency(tradeMetrics, signalStats) {
-        if (!tradeMetrics || !signalStats) return null;
+    /**
+     * New Method: Calculates Advanced Stats (Sharpe, Volatility) for the /performance route.
+     * Replaces manual math previously done in trading.js routes.
+     */
+    async getDetailedPerformance(period = "30d") {
+        try {
+            const periodMs = this.parsePeriod(period);
+            const cutoffTime = Date.now() - periodMs;
 
-        const signalToTradeRatio =
-            signalStats.total > 0
-                ? tradeMetrics.totalTrades / signalStats.total
-                : 0;
+            // Fetch raw trades to calculate standard deviation/holding period
+            const trades = await this.tradeRepo.getTradesSince(
+                cutoffTime,
+                "live"
+            );
 
-        return {
-            signalToTradeRatio,
-            conversionRate: (signalToTradeRatio * 100).toFixed(1) + "%",
-            // Simplified: defaults to 30 days if not specified
-            avgTradesPerDay: (tradeMetrics.totalTrades / 30).toFixed(2),
-            signalQuality: this.assessSignalQuality(tradeMetrics, signalStats),
-        };
-    }
+            // Filter strictly for CLOSED trades
+            const completedTrades = trades.filter(
+                (t) => t.pnl !== null && t.pnl !== undefined && !t.isOpen
+            );
 
-    assessSignalQuality(tradeMetrics, signalStats) {
-        if (!tradeMetrics || !signalStats) return "Unknown";
+            // Get basic metrics from repo
+            const metrics =
+                (await this.tradeRepo.calculateMetrics(completedTrades)) || {};
 
-        const winRate = tradeMetrics.winRate || 0;
-        const avgStrength = signalStats.averageStrength || 0;
+            // Calculate Advanced Metrics
+            const tradeReturns = completedTrades.map((t) => t.pnlPercent || 0);
+            const tradingFrequency = this.calculateTradingFrequency(
+                completedTrades,
+                period
+            );
 
-        if (winRate > 60 && avgStrength > 2.0) return "Excellent";
-        if (winRate > 45 && avgStrength > 1.5) return "Good";
-        if (winRate > 35 && avgStrength > 1.0) return "Fair";
-        return "Poor";
+            return {
+                ...metrics,
+                sharpeRatio: this.calculateSharpeRatio(
+                    tradeReturns,
+                    tradingFrequency
+                ),
+                volatility: this.calculateVolatility(
+                    tradeReturns,
+                    tradingFrequency
+                ),
+                avgHoldingPeriod:
+                    this.calculateAvgHoldingPeriod(completedTrades),
+                tradingFrequency,
+                totalReturn: metrics.totalPnL || 0,
+                // Pass through best/worst from repo logic or calculate if missing
+                bestTrade:
+                    metrics.avgWin > 0
+                        ? Math.max(...completedTrades.map((t) => t.pnl))
+                        : 0,
+                worstTrade:
+                    metrics.avgLoss > 0
+                        ? Math.min(...completedTrades.map((t) => t.pnl))
+                        : 0,
+            };
+        } catch (error) {
+            logger.error("Error generating detailed performance:", error);
+            throw error;
+        }
     }
 
     async getAssetAnalytics() {
@@ -99,13 +131,77 @@ class AnalyticsService {
         }
     }
 
+    // --- MATH HELPERS (Moved from Routes) ---
+
+    calculateSharpeRatio(returns, frequency) {
+        if (returns.length < 2) return 0;
+        const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const std = Math.sqrt(
+            returns.reduce((a, b) => a + Math.pow(b - avg, 2), 0) /
+                (returns.length - 1)
+        );
+        return std === 0
+            ? 0
+            : (avg / std) * Math.sqrt(frequency * CRYPTO_TRADING_DAYS_PER_YEAR);
+    }
+
+    calculateVolatility(returns, frequency) {
+        if (returns.length < 2) return 0;
+        const avg = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const std = Math.sqrt(
+            returns.reduce((a, b) => a + Math.pow(b - avg, 2), 0) /
+                (returns.length - 1)
+        );
+        return std * Math.sqrt(frequency * CRYPTO_TRADING_DAYS_PER_YEAR);
+    }
+
+    calculateTradingFrequency(trades, period) {
+        if (trades.length < 2) return 0;
+        const days =
+            { "1h": 1 / 24, "24h": 1, "7d": 7, "30d": 30 }[period] || 30;
+        return trades.length / days;
+    }
+
+    calculateAvgHoldingPeriod(trades) {
+        const valid = trades.filter((x) => x.holdingPeriod);
+        return valid.length
+            ? valid.reduce((a, b) => a + b.holdingPeriod, 0) / valid.length
+            : 0;
+    }
+
+    calculateEfficiency(tradeMetrics, signalStats) {
+        if (!tradeMetrics || !signalStats) return null;
+
+        const signalToTradeRatio =
+            signalStats.total > 0
+                ? tradeMetrics.totalTrades / signalStats.total
+                : 0;
+
+        return {
+            signalToTradeRatio,
+            conversionRate: (signalToTradeRatio * 100).toFixed(1) + "%",
+            avgTradesPerDay: (tradeMetrics.totalTrades / 30).toFixed(2),
+            signalQuality: this.assessSignalQuality(tradeMetrics, signalStats),
+        };
+    }
+
+    assessSignalQuality(tradeMetrics, signalStats) {
+        if (!tradeMetrics || !signalStats) return "Unknown";
+
+        const winRate = tradeMetrics.winRate || 0;
+        const avgStrength = signalStats.averageStrength || 0;
+
+        if (winRate > 60 && avgStrength > 2.0) return "Excellent";
+        if (winRate > 45 && avgStrength > 1.5) return "Good";
+        if (winRate > 35 && avgStrength > 1.0) return "Fair";
+        return "Poor";
+    }
+
     calculateAssetPerformance(trades) {
         if (!trades || !trades.length) return null;
 
-        // --- FIX: Filter for CLOSED trades (Phantom Sell Fix) ---
         const completedTrades = trades.filter(
-            (t) =>
-                t.status === "CLOSED" || (t.pnl !== null && t.pnl !== undefined)
+            (t) => t.pnl !== null && t.pnl !== undefined && !t.isOpen
         );
 
         if (!completedTrades.length) return null;
@@ -139,52 +235,14 @@ class AnalyticsService {
         return distribution;
     }
 
-    async generateDailyReport() {
-        try {
-            const [analytics, assetAnalytics] = await Promise.all([
-                this.getPerformanceAnalytics("1d"),
-                this.getAssetAnalytics(),
-            ]);
-
-            return {
-                date: new Date().toISOString().split("T")[0],
-                summary: analytics,
-                assets: assetAnalytics,
-                recommendations: this.generateRecommendations(
-                    analytics,
-                    assetAnalytics
-                ),
-            };
-        } catch (error) {
-            logger.error("Error generating daily report:", error);
-            throw error;
-        }
-    }
-
-    generateRecommendations(analytics, assetAnalytics) {
-        const recommendations = [];
-
-        if (analytics.trading && analytics.trading.winRate < 40) {
-            recommendations.push({
-                type: "warning",
-                message:
-                    "Win rate below 40%. Consider adjusting strategy parameters.",
-                priority: "high",
-            });
-        }
-
-        // Alert on heavy asset losses
-        Object.entries(assetAnalytics).forEach(([asset, data]) => {
-            if (data.performance && data.performance.totalPnL < -50) {
-                recommendations.push({
-                    type: "warning",
-                    message: `${asset} showing significant losses. Review allocation.`,
-                    priority: "high",
-                });
-            }
-        });
-
-        return recommendations;
+    parsePeriod(p) {
+        const m = {
+            "1h": 3600000,
+            "24h": 86400000,
+            "7d": 604800000,
+            "30d": 2592000000,
+        };
+        return m[p] || m["30d"];
     }
 
     // --- S3 INTEGRATION ---
@@ -227,7 +285,6 @@ class AnalyticsService {
                 this.signalLogUploadInterval
             );
         }
-        // Initial upload on boot
         this.uploadPerformanceReportToS3();
     }
 
@@ -239,7 +296,6 @@ class AnalyticsService {
 
     bufferSignalForS3(signal, currentPrice) {
         if (!this.config.enableS3SignalLogging) return;
-
         this.signalLogBuffer.push({
             timestamp: new Date().toISOString(),
             price: currentPrice,
@@ -249,9 +305,8 @@ class AnalyticsService {
 
     async uploadSignalLogBatchToS3() {
         if (this.signalLogBuffer.length === 0) return;
-
         const batchToUpload = [...this.signalLogBuffer];
-        this.signalLogBuffer = []; // Clear buffer immediately
+        this.signalLogBuffer = [];
 
         try {
             const date = new Date();
@@ -259,7 +314,6 @@ class AnalyticsService {
             const timeStr = date.toISOString().replace(/:/g, "-");
             const s3Key = `signal-log/${dateStr}/signals_${timeStr}.json`;
 
-            // Simplified: Always use primary bucket
             await awsS3Utils.uploadJsonToS3(
                 process.env.S3_BUCKET_NAME,
                 s3Key,
@@ -268,7 +322,6 @@ class AnalyticsService {
             logger.info(`S3: Uploaded ${batchToUpload.length} signals.`);
         } catch (error) {
             logger.error("S3 Signal Upload Error:", error);
-            // Re-queue signals on failure
             this.signalLogBuffer.unshift(...batchToUpload);
         }
     }
