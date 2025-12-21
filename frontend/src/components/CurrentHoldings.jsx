@@ -1,11 +1,11 @@
-// frontend/src/components/CurrentHoldings.jsx - ADDED FORCE SELL
+// frontend/src/components/CurrentHoldings.jsx - ADDED TRAILING STOP VISIBILITY
 import React, { useMemo, useState } from 'react';
 import {
   Box, Paper, Typography, Card, CardContent, Chip, 
   IconButton, Tooltip, useTheme, alpha, Grid, Divider, Button, CircularProgress
 } from '@mui/material';
-import { AccountBalance, Info, Warning } from '@mui/icons-material';
-import { apiCall } from '../config/api'; // Import generic API caller
+import { AccountBalance, Info, Warning, TrendingUp } from '@mui/icons-material'; // Added TrendingUp icon
+import { apiCall } from '../config/api'; 
 
 const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   const theme = useTheme();
@@ -35,13 +35,20 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       const curPrice = prices[position.symbol]?.price || 0;
       const [closing, setClosing] = useState(false);
 
+      // --- LOGIC: Determine Active Stop ---
+      // We look for trailingStopPrice first (as it moves up), falling back to fixed stopLoss
+      const trailingStop = position.trailingStopPrice || position.trailing_stop_price;
+      const hasTrailing = trailingStop && trailingStop > 0;
+      
+      const displayStop = hasTrailing ? trailingStop : position.stopLoss;
+      const stopLabel = hasTrailing ? "Trailing Stop" : "Stop Loss";
+      const stopColor = hasTrailing ? "warning.main" : "error.main"; // Orange for trailing, Red for fixed
+
       const handleForceClose = async () => {
           if (!window.confirm(`⚠️ FORCE SELL ${asset}?\nThis will immediately sell the position at market price.`)) return;
           setClosing(true);
           try {
-              // Call the new route we created
               await apiCall(`/api/trading/close/${position.id || position.trade_id}`, { method: 'POST' });
-              // The UI will update automatically via the socket 'portfolioUpdated' event
           } catch (e) {
               alert(`Close Failed: ${e.message}`);
               setClosing(false);
@@ -77,13 +84,24 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                         <Typography variant="caption" color="text.secondary" display="block">Current</Typography>
                         <Typography variant="caption" fontWeight="bold">{formatCurrency(curPrice)}</Typography>
                     </Grid>
+                    
+                    {/* --- IMPROVED STOP LOSS COLUMN --- */}
                     <Grid item xs={3} textAlign="center">
-                        <Typography variant="caption" color="text.secondary" display="block">Stop Loss</Typography>
-                        <Typography variant="caption" fontWeight="bold" color="error.main">
-                            {position.stopLoss ? formatCurrency(position.stopLoss) : '---'}
-                        </Typography>
+                        <Tooltip title={hasTrailing ? `Trailing Stop Active (${formatCurrency(trailingStop)})` : "Fixed Stop Loss"}>
+                            <Box>
+                                <Box display="flex" alignItems="center" justifyContent="center" gap={0.5}>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                        {stopLabel}
+                                    </Typography>
+                                    {hasTrailing && <TrendingUp fontSize="inherit" color="warning" sx={{ fontSize: 10 }} />}
+                                </Box>
+                                <Typography variant="caption" fontWeight="bold" sx={{ color: stopColor }}>
+                                    {displayStop ? formatCurrency(displayStop) : '---'}
+                                </Typography>
+                            </Box>
+                        </Tooltip>
                     </Grid>
-                    {/* NEW: FORCE EXIT BUTTON */}
+
                     <Grid item xs={3} textAlign="right">
                         <Button 
                             variant="contained" 
@@ -102,7 +120,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       );
   };
 
-  // --- 2. WALLET BALANCE ROW (Binance Funds) ---
+  // --- 2. WALLET BALANCE ROW ---
   const BalanceRow = ({ balance }) => {
       const value = calculateRealValue(balance);
       const isUsdt = balance.asset === 'USDT';
