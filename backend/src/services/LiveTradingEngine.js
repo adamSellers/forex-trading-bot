@@ -288,11 +288,11 @@ class LiveTradingEngine extends EventEmitter {
             const pnl = usdtReceived - position.usdtCost;
 
             await this.tradeRepo.updateTrade(position.id, {
-                isOpen: false,
-                exitPrice,
-                exitTime: Date.now(),
+                is_open: false,
+                exit_price,
+                exit_time: Date.now(),
                 pnl,
-                exitReason: reason,
+                exit_reason: reason,
             });
 
             this.portfolio.positions = this.portfolio.positions.filter(
