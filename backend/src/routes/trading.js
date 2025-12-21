@@ -158,35 +158,42 @@ module.exports = (tradingController) => {
         }
     });
 
+    // --- ANALYTICS ROUTE ---
     router.get("/analytics", async (req, res) => {
         try {
             const { period = "30d" } = req.query;
             const analyticsService =
                 tradingController.tradingService?.analyticsService;
 
+            // Guard: Service availability
             if (!analyticsService) {
                 return res
                     .status(503)
                     .json({ error: "Analytics Service not ready" });
             }
 
-            // Delegate to the trade repository
+            // 1. Get Core Performance (Uses tradeRepository.calculateMetrics)
             const report = await analyticsService.getPerformanceAnalytics(
                 period
             );
 
-            // Add asset breakdown which the service also provides
+            // 2. Get Asset Breakdown
+            // This provides the per-coin stats for the bottom table.
             const assets = await analyticsService.getAssetAnalytics();
 
+            // 3. Structure for Frontend (Matches AnalyticsDashboard.jsx expectations)
             res.json({
-                ...report,
+                date: new Date().toISOString().split("T")[0],
+                period: report.period,
                 summary: {
-                    trading: report.trading,
-                    efficiency: report.efficiency,
+                    trading: report.trading, // Contains winRate, totalPnL, profitFactor
+                    efficiency: report.efficiency, // Contains signalQuality, fillRate
+                    signals: report.signals,
                 },
-                assets: assets,
+                assets: assets, // Contains per-asset win rates and PnL
             });
         } catch (error) {
+            console.error("Analytics Route Error:", error);
             res.status(500).json({ error: error.message });
         }
     });
