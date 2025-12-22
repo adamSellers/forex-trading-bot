@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FIXED SCHEMA & ALLOCATION
+// backend/src/services/LiveTradingEngine.js - ADDED FEE TRACKING
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -18,6 +18,7 @@ class LiveTradingEngine extends EventEmitter {
             totalValue: 0,
             totalPnL: 0,
             dailyPnL: 0,
+            totalFees: 0, // [NEW] Track cumulative fees in memory
             stats: { winRate: 0, totalTrades: 0, winningTrades: 0 },
         };
     }
@@ -42,7 +43,6 @@ class LiveTradingEngine extends EventEmitter {
                 ...p,
                 currentPrice: p.price || p.entryPrice,
                 unrealizedPnL: 0,
-                // FIX: Ensure we read the correct column from DB on restart
                 trailingStopPrice: p.trailing_stop_price || p.trailingStopPrice,
             }));
             logger.info(
@@ -62,6 +62,38 @@ class LiveTradingEngine extends EventEmitter {
     updateConfig(config) {
         this.config = config;
         logger.info("🔁 Live Engine Config Updated");
+    }
+
+    // [NEW] Helper to parse commission from Binance response
+    calculateOrderFee(order) {
+        let totalUsdtFee = 0;
+        try {
+            if (order && order.fills && Array.isArray(order.fills)) {
+                for (const fill of order.fills) {
+                    const feeAmount = parseFloat(fill.commission);
+                    const asset = fill.commissionAsset;
+
+                    if (asset === "USDT") {
+                        totalUsdtFee += feeAmount;
+                    } else if (asset === "BNB") {
+                        // Get real-time BNB price for conversion
+                        const bnbPrice =
+                            this.binanceData.getCurrentPrice("BNBUSDT")
+                                ?.price || 0;
+                        totalUsdtFee += feeAmount * bnbPrice;
+                    } else {
+                        // Fallback for asset-based fees (rare if paying in BNB)
+                        const assetPrice =
+                            this.binanceData.getCurrentPrice(`${asset}USDT`)
+                                ?.price || 0;
+                        totalUsdtFee += feeAmount * assetPrice;
+                    }
+                }
+            }
+        } catch (e) {
+            logger.warn("⚠️ Failed to calc fees: " + e.message);
+        }
+        return totalUsdtFee;
     }
 
     async calculatePerformanceStats() {
@@ -84,6 +116,12 @@ class LiveTradingEngine extends EventEmitter {
 
             this.portfolio.totalPnL = closedTrades.reduce(
                 (acc, t) => acc + (t.pnl || 0),
+                0
+            );
+
+            // [NEW] Hydrate historical fees
+            this.portfolio.totalFees = allTrades.reduce(
+                (acc, t) => acc + (t.fee_usdt_value || 0),
                 0
             );
         } catch (e) {
@@ -147,7 +185,6 @@ class LiveTradingEngine extends EventEmitter {
             (p) => p.symbol === signal.symbol
         );
 
-        // --- BUY SIGNAL ---
         if (signal.signal === "BUY") {
             if (openPosition)
                 return {
@@ -199,6 +236,9 @@ class LiveTradingEngine extends EventEmitter {
                     quantity
                 );
 
+                // [NEW] Capture Entry Fee
+                const entryFee = this.calculateOrderFee(order);
+
                 let stopLossPrice;
                 if (this.config.stopLossType === "FIXED") {
                     stopLossPrice =
@@ -210,7 +250,6 @@ class LiveTradingEngine extends EventEmitter {
                         (atr || 0) * (this.config.stopLossATR || 1.5);
                 }
 
-                // FIX: Define Fallback Distance (Default 3%)
                 const trailingStopDist =
                     this.config.trailingStopPercent || 0.03;
 
@@ -232,10 +271,12 @@ class LiveTradingEngine extends EventEmitter {
                     mode: "live",
                     stopLoss: stopLossPrice,
 
-                    // FIX: Use correct DB column name & safe calculation
                     trailingStopPrice: this.config.enableTrailingStops
                         ? currentPrice * (1 - trailingStopDist)
                         : null,
+
+                    // [NEW] Store the fee
+                    fee_usdt_value: entryFee,
                 };
 
                 try {
@@ -250,6 +291,9 @@ class LiveTradingEngine extends EventEmitter {
                 this.portfolio.positions.push(tradeRecord);
                 this.portfolio.usdtBalance -= tradeRecord.usdtCost;
 
+                // [NEW] Update memory stats
+                this.portfolio.totalFees += entryFee;
+
                 this.emit("tradeExecuted", tradeRecord);
                 return { success: true, action: "BUY", order };
             } catch (err) {
@@ -258,7 +302,6 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
 
-        // --- SELL SIGNAL ---
         if (signal.signal === "SELL" && openPosition) {
             return await this.closePosition(
                 openPosition,
@@ -281,18 +324,26 @@ class LiveTradingEngine extends EventEmitter {
                 quantity
             );
 
+            // [NEW] Capture Exit Fee
+            const exitFee = this.calculateOrderFee(order);
+
             const exitPrice = parseFloat(
                 order.fills?.[0]?.price || currentPrice
             );
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
+            // Calculate total fee for this trade (Entry + Exit)
+            const totalTradeFee = (position.fee_usdt_value || 0) + exitFee;
+
             await this.tradeRepo.updateTrade(position.id, {
-                is_open: false,
-                exit_price,
+                is_open: 0,
+                exit_price: exitPrice,
                 exit_time: Date.now(),
-                pnl,
+                pnl: pnl,
                 exit_reason: reason,
+                // [NEW] Update DB with cumulative fee
+                fee_usdt_value: totalTradeFee,
             });
 
             this.portfolio.positions = this.portfolio.positions.filter(
@@ -301,6 +352,9 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.usdtBalance += usdtReceived;
             this.portfolio.dailyPnL += pnl;
             this.portfolio.totalPnL += pnl;
+
+            // [NEW] Update memory stats
+            this.portfolio.totalFees += exitFee;
 
             this.portfolio.stats.totalTrades++;
             if (pnl > 0) this.portfolio.stats.winningTrades++;
@@ -316,10 +370,15 @@ class LiveTradingEngine extends EventEmitter {
                 pnl,
                 exitPrice,
                 reason,
+                fee_usdt_value: totalTradeFee, // Pass to frontend
             };
             this.emit("tradeExecuted", tradeRecord);
 
-            logger.info(`✅ Sold ${position.symbol}. PnL: $${pnl.toFixed(2)}`);
+            logger.info(
+                `✅ Sold ${position.symbol}. PnL: $${pnl.toFixed(
+                    2
+                )} (Fees: $${totalTradeFee.toFixed(3)})`
+            );
             return { success: true, action: "SELL", order };
         } catch (err) {
             logger.error(`❌ Failed to close ${position.symbol}:`, err.message);
@@ -359,29 +418,23 @@ class LiveTradingEngine extends EventEmitter {
             return;
         }
 
-        // FIX: Trailing Stop Logic using correct property name
         if (
             this.config.enableTrailingStops &&
             (position.trailingStopPrice || position.trailing_stop_price)
         ) {
-            // Normalize property access
             let currentTrailingStop =
                 position.trailingStopPrice || position.trailing_stop_price;
 
             const trailingPercent = this.config.trailingStopPercent || 0.03;
             const newStop = currentPrice * (1 - trailingPercent);
 
-            // Ratchet up only
             if (newStop > currentTrailingStop) {
                 position.trailingStopPrice = newStop;
-                // Update DB asynchronously so we don't block the loop
                 this.tradeRepo
                     .updateTrade(position.id, { trailingStopPrice: newStop })
                     .catch((e) => logger.error("Failed to update TS:", e));
             }
 
-            // Check Exit
-            // Use the updated value
             if (currentPrice <= position.trailingStopPrice) {
                 this.closePosition(position, currentPrice, "TRAILING_STOP");
                 return;
@@ -394,6 +447,8 @@ class LiveTradingEngine extends EventEmitter {
             ...this.portfolio,
             cryptoValue: this.portfolio.totalValue - this.portfolio.usdtBalance,
             dailyPnL: this.portfolio.dailyPnL,
+            // [NEW] Send fee stat to Frontend
+            totalFees: this.portfolio.totalFees,
             performance: {
                 winRate: this.portfolio.stats.winRate,
                 totalTrades: this.portfolio.stats.totalTrades,
