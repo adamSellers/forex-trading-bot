@@ -15,7 +15,13 @@ const { initializeDatabase } = require("./config/database"); // Import the initi
 const TradingController = require("./src/controllers/tradingController"); // This is now the bridge
 const tradingRoutes = require("./src/routes/trading");
 const managementRoutes = require("./src/routes/management");
-const backtestRoutes = require("./src/routes/backtestRoutes");
+
+// --- CHANGE 1: REMOVED HTTP ROUTE ---
+// const backtestRoutes = require("./src/routes/backtestRoutes"); // <--- DELETED (Replaced by Socket)
+
+// --- CHANGE 2: ADDED SOCKET HANDLER ---
+const labSocket = require("./src/socket/labSocket"); // <--- NEW IMPORT
+
 const ErrorHandler = require("./src/middleware/errorHandler");
 const logger = require("./src/utils/logger");
 
@@ -56,7 +62,9 @@ const tradingController = new TradingController(tradingService, io); // Pass ser
 // API Routes - must be defined before the SPA catch-all
 app.use("/api/trading", tradingRoutes(tradingController));
 app.use("/api/management", managementRoutes(tradingController));
-app.use("/api/backtest", backtestRoutes);
+
+// --- CHANGE 1: REMOVED HTTP ROUTE ---
+// app.use("/api/backtest", backtestRoutes); // <--- DELETED (We use Sockets now)
 
 // In production, serve the built frontend application
 if (process.env.NODE_ENV === "production") {
@@ -82,6 +90,9 @@ io.on("connection", (socket) => {
     logger.info(
         `Client connected: ${socket.id} from origin: ${socket.handshake.headers.origin}`
     );
+
+    // --- CHANGE 2: REGISTER LAB HANDLER ---
+    labSocket(io, socket); // <--- HOOK UP THE NEW MODULE
 
     socket.on("disconnect", () => {
         logger.info(`Client disconnected: ${socket.id}`);
