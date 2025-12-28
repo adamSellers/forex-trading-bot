@@ -1,4 +1,4 @@
-// frontend/src/components/RecentTrades.jsx
+// frontend/src/components/RecentTrades.jsx - FIXED OPEN TRADE STATUS
 import React from 'react';
 import PropTypes from 'prop-types';
 import { 
@@ -8,10 +8,10 @@ import {
 } from '@mui/material';
 import { 
     TrendingUp, TrendingDown, ReceiptLong, CheckCircle, 
-    Cancel, Flag, AccessTime 
+    AccessTime 
 } from '@mui/icons-material';
 
-// --- STYLED COMPONENTS (Matching TradingSignals style) ---
+// --- STYLED COMPONENTS ---
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
     '&:nth-of-type(odd)': {
         backgroundColor: alpha(theme.palette.action.hover, 0.05),
@@ -60,6 +60,17 @@ const RecentTrades = ({ trades }) => {
       return num < 1 ? num.toFixed(5) : num.toFixed(2);
   };
 
+  // --- HELPERS ---
+  const getReasonColor = (reason) => {
+      if (!reason) return 'default';
+      const r = reason.toUpperCase();
+      if (r.includes('STOP')) return 'error';      // Stop Loss
+      if (r.includes('TAKE')) return 'success';    // Take Profit
+      if (r.includes('TREND')) return 'warning';   // Trend Flip
+      if (r.includes('MANUAL')) return 'info';     // Manual Close
+      return 'default';
+  };
+
   // --- LOADING STATE ---
   if (!Array.isArray(trades)) {
     return (
@@ -79,17 +90,6 @@ const RecentTrades = ({ trades }) => {
       );
   }
 
-  // --- HELPERS ---
-  const getReasonColor = (reason) => {
-      if (!reason) return 'default';
-      const r = reason.toUpperCase();
-      if (r.includes('STOP')) return 'error';      // Stop Loss
-      if (r.includes('TAKE')) return 'success';    // Take Profit
-      if (r.includes('TREND')) return 'warning';   // Trend Flip
-      if (r.includes('MANUAL')) return 'info';     // Manual Close
-      return 'default';
-  };
-
   return (
     <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
         <Table stickyHeader size="small">
@@ -108,15 +108,24 @@ const RecentTrades = ({ trades }) => {
                 {trades.slice(0, 50).map((trade, index) => {
                     if (!trade) return null;
 
-                    // Data Normalization
-                    const isClosed = trade.status === 'CLOSED' || (trade.pnl !== undefined && trade.pnl !== null);
+                    // --- LOGIC FIX: Better Detection of Open Trades ---
+                    // The DB defaults PnL to 0, so checking PnL !== null is insufficient.
+                    // We must check status strings or existence of exit time.
+                    const isOpen = 
+                        trade.status === 'OPEN' || 
+                        trade.is_open === 1 || 
+                        trade.is_open === true ||
+                        !trade.exitTime; // If no exit time, it's definitely open.
+
+                    const isClosed = !isOpen;
+                    
                     const symbol = (trade.symbol || '---').replace('USDT', '');
-                    const entryPrice = trade.entryPrice || trade.price; // Fallback to 'price' if entryPrice missing
+                    const entryPrice = trade.entryPrice || trade.price; 
                     const exitPrice = trade.exitPrice;
                     const pnl = Number(trade.pnl || 0);
                     const isWin = pnl >= 0;
-                    const exitReason = trade.exitReason || trade.exit_reason; // Handle camel or snake case
-                    const timestamp = new Date(trade.exitTime || trade.timestamp);
+                    const exitReason = trade.exitReason || trade.exit_reason; 
+                    const timestamp = new Date(isOpen ? (trade.timestamp || Date.now()) : (trade.exitTime || trade.timestamp));
 
                     return (
                         <StyledTableRow key={trade.id || index}>
@@ -127,12 +136,12 @@ const RecentTrades = ({ trades }) => {
                                         variant="rounded"
                                         sx={{ 
                                             width: 24, height: 24, 
-                                            bgcolor: alpha(isWin ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                                            color: isWin ? 'success.main' : 'error.main',
-                                            border: `1px solid ${alpha(isWin ? theme.palette.success.main : theme.palette.error.main, 0.2)}`
+                                            bgcolor: alpha(isOpen ? theme.palette.primary.main : (isWin ? theme.palette.success.main : theme.palette.error.main), 0.1),
+                                            color: isOpen ? 'primary.main' : (isWin ? 'success.main' : 'error.main'),
+                                            border: `1px solid ${alpha(isOpen ? theme.palette.primary.main : (isWin ? theme.palette.success.main : theme.palette.error.main), 0.2)}`
                                         }}
                                     >
-                                        {isClosed ? (isWin ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />) : <AccessTime fontSize="small" />}
+                                        {isOpen ? <AccessTime fontSize="small" /> : (isWin ? <TrendingUp fontSize="small" /> : <TrendingDown fontSize="small" />)}
                                     </Avatar>
                                     <Typography variant="body2" fontWeight="bold">{symbol}</Typography>
                                 </Box>
@@ -141,10 +150,10 @@ const RecentTrades = ({ trades }) => {
                             {/* 2. STATUS */}
                             <StyledTableCell>
                                 <Chip 
-                                    label={isClosed ? "CLOSED" : "OPEN"} 
+                                    label={isOpen ? "OPEN" : "CLOSED"} 
                                     size="small" 
-                                    color={isClosed ? "default" : "primary"}
-                                    variant={isClosed ? "outlined" : "filled"}
+                                    color={isOpen ? "primary" : "default"}
+                                    variant={isOpen ? "filled" : "outlined"}
                                     sx={{ height: 20, fontSize: '0.65rem', fontWeight: 'bold' }}
                                 />
                             </StyledTableCell>
@@ -154,14 +163,14 @@ const RecentTrades = ({ trades }) => {
                                 ${formatPrice(entryPrice)}
                             </StyledTableCell>
 
-                            {/* 4. EXIT */}
+                            {/* 4. EXIT PRICE */}
                             <StyledTableCell align="right" sx={{ color: 'text.secondary' }}>
-                                {exitPrice ? `$${formatPrice(exitPrice)}` : '-'}
+                                {isClosed && exitPrice ? `$${formatPrice(exitPrice)}` : '-'}
                             </StyledTableCell>
 
                             {/* 5. REASON */}
                             <StyledTableCell align="center">
-                                {exitReason ? (
+                                {isClosed && exitReason ? (
                                     <Chip 
                                         label={exitReason.replace(/_/g, ' ')} 
                                         size="small" 
@@ -169,7 +178,7 @@ const RecentTrades = ({ trades }) => {
                                         sx={{ height: 20, fontSize: '0.65rem', fontWeight: 'bold' }}
                                     />
                                 ) : (
-                                    <Typography variant="caption" color="text.disabled">-</Typography>
+                                    <Typography variant="caption" color="text.disabled">{isOpen ? "ACTIVE" : "-"}</Typography>
                                 )}
                             </StyledTableCell>
 
@@ -184,13 +193,12 @@ const RecentTrades = ({ trades }) => {
                                         >
                                             {isWin ? '+' : ''}{formatUSDT(pnl)}
                                         </Typography>
-                                        {/* Optional % if available, otherwise calculate approx */}
                                         <Typography variant="caption" sx={{ color: isWin ? 'success.main' : 'error.main', opacity: 0.7 }}>
                                             {entryPrice ? `${((pnl / (entryPrice * trade.quantity)) * 100).toFixed(2)}%` : ''}
                                         </Typography>
                                     </Box>
                                 ) : (
-                                    <Typography variant="caption" color="text.secondary">Active</Typography>
+                                    <Typography variant="caption" color="text.secondary" fontWeight="bold">---</Typography>
                                 )}
                             </StyledTableCell>
 
