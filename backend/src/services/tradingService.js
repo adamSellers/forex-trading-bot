@@ -175,7 +175,8 @@ class TradingService extends EventEmitter {
         this.signalGenerator.on("signalGenerated", async (signal) => {
             try {
                 await this.handleSignal(signal);
-                this.emit("signalGenerated", signal);
+                this.emit("signalGenerated", signal); // emit to backend
+                this.io.emit("signalGenerated", signal); // emit to frontend
             } catch (error) {
                 logger.error("Error handling signal:", error);
             }
