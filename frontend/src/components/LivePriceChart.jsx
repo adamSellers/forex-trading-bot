@@ -113,7 +113,9 @@ const useChartData = (asset, timeframe) => {
 const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'] }) => {
   const theme = useTheme();
   const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'BTCUSDT');
-  const [timeframe, setTimeframe] = useState('1h');
+  
+  // UPDATED: Default timeframe set to '15m'
+  const [timeframe, setTimeframe] = useState('15m');
   
   // Ensure selected asset is valid if list changes
   useEffect(() => {
