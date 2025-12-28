@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - FIXED ASSET VISIBILITY
+// frontend/src/components/TradingDashboard.jsx - FIXED 24H PNL CALCULATION
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container, Typography, Button, Chip,
@@ -170,11 +170,29 @@ const TradingDashboard = () => {
 
   const signalsToRender = useMemo(() => Array.from(latestSignals.values()).sort((a, b) => b.timestamp - a.timestamp), [latestSignals]);
   
-  // FIX: Show ALL assets in the config, even if allocation is 0% (Watched Assets)
   const activeChartAssets = useMemo(() => {
     if (!systemStatus?.config?.assets) return ['BTCUSDT', 'ETHUSDT'];
     return systemStatus.config.assets; 
   }, [systemStatus]);
+
+  // --- NEW: Calculate 24h PnL Locally from Trades ---
+  const calculatedDailyPnL = useMemo(() => {
+    if (!trades || trades.length === 0) return 0;
+    
+    // 24 hours ago in ms
+    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    
+    return trades
+        .filter(t => {
+            // Must have a PnL value and exit time
+            const exitTime = new Date(t.exitTime || t.timestamp).getTime();
+            const hasPnL = t.pnl !== null && t.pnl !== undefined && !isNaN(Number(t.pnl));
+            const isClosed = !t.isOpen && t.status !== 'OPEN'; // Double check status
+            
+            return hasPnL && isClosed && exitTime > oneDayAgo;
+        })
+        .reduce((sum, t) => sum + Number(t.pnl), 0);
+  }, [trades]);
 
   const StatCard = ({ title, value, subValue, icon, color }) => (
     <GlassCard elevation={0}>
@@ -201,7 +219,7 @@ const TradingDashboard = () => {
             {subValue && (
                 <Box mt={1} display="flex" alignItems="center" gap={0.5}>
                     <Typography variant="caption" sx={{ 
-                        color: subValue.includes('+') ? 'success.main' : 'text.secondary', 
+                        color: subValue.includes('+') ? 'success.main' : subValue.includes('Flat') ? 'text.secondary' : 'error.main', 
                         fontWeight: 'bold',
                         fontFamily: 'monospace'
                     }}>
@@ -282,7 +300,18 @@ const TradingDashboard = () => {
         {/* KPI STRIP */}
         <Box display="flex" gap={2} mb={2} flexShrink={0} sx={{ overflowX: 'auto', pb: 0.5 }}>
             <Box flex={1} minWidth={200}><StatCard title="Total Equity" value={`$${(portfolio?.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`} subValue={`${(portfolio?.usdtBalance || 0).toFixed(2)} USDT Available`} icon={<AccountBalanceWallet fontSize="small" />} color={theme.palette.primary.main} /></Box>
-            <Box flex={1} minWidth={200}><StatCard title="24h PnL" value={`$${(portfolio?.dailyPnL || 0).toFixed(2)}`} subValue={portfolio?.dailyPnL > 0 ? "+ Profit" : "Flat"} icon={<ShowChart fontSize="small" />} color={portfolio?.dailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main} /></Box>
+            
+            {/* UPDATED: Uses Calculated Daily PnL */}
+            <Box flex={1} minWidth={200}>
+                <StatCard 
+                    title="24h PnL" 
+                    value={`$${calculatedDailyPnL.toFixed(2)}`} 
+                    subValue={calculatedDailyPnL > 0 ? "+ Profit" : calculatedDailyPnL < 0 ? "- Loss" : "Flat"} 
+                    icon={<ShowChart fontSize="small" />} 
+                    color={calculatedDailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main} 
+                />
+            </Box>
+            
             <Box flex={1} minWidth={200}><StatCard title="Active Positions" value={portfolio?.positions?.length || 0} subValue={`${signalsToRender.length} Signals Active`} icon={<Bolt fontSize="small" />} color={theme.palette.warning.main} /></Box>
             <Box flex={1} minWidth={200}><StatCard title="Win Rate" value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`} subValue={`${portfolio?.performance?.totalTrades || 0} Trades`} icon={<History fontSize="small" />} color={theme.palette.info.main} /></Box>
         </Box>
