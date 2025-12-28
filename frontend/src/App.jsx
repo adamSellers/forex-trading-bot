@@ -1,4 +1,4 @@
-// frontend/src/App.jsx - ADDED STRATEGY LAB TAB
+// frontend/src/App.jsx - FIXED: Keep Tabs Alive in Background
 import React, { useState } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import {
@@ -20,7 +20,7 @@ import {
   Assessment,
   MonitorHeart, 
   Article, 
-  Science // <--- NEW ICON
+  Science 
 } from '@mui/icons-material';
 
 // Components
@@ -29,10 +29,13 @@ import TradingConfig from './components/TradingConfig';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import SystemHealth from './components/SystemHealth'; 
 import SystemLogs from './components/SystemLogs'; 
-import BacktestLab from './components/BacktestLab'; // <--- NEW IMPORT
+import BacktestLab from './components/BacktestLab';
 import ErrorBoundary from './components/ErrorBoundary';
 import { tradingTheme } from './theme/tradingTheme';
 
+// --- FIXED TABPANEL ---
+// Prevents components from unmounting when switching tabs.
+// Crucial for keeping the Backtest Socket connection alive in the background.
 function TabPanel({ children, value, index, ...other }) {
   return (
     <div
@@ -41,8 +44,11 @@ function TabPanel({ children, value, index, ...other }) {
       id={`trading-tabpanel-${index}`}
       aria-labelledby={`trading-tab-${index}`}
       {...other}
+      // Use CSS to hide content instead of removing from DOM
+      style={{ display: value === index ? 'block' : 'none' }} 
     >
-      {value === index && children}
+      {/* Always render children to maintain state/sockets */}
+      {children} 
     </div>
   );
 }
@@ -104,7 +110,6 @@ const AppContent = () => {
               id="trading-tab-4"
               aria-controls="trading-tabpanel-4"
             />
-            {/* NEW TAB: STRATEGY LAB */}
             <Tab
               icon={<Science />}
               label="Strategy Lab"
@@ -117,6 +122,9 @@ const AppContent = () => {
         {/* Main Content Area */}
         <Box component="main" sx={{ flexGrow: 1, bgcolor: 'background.default', py: 3 }}>
           <Container maxWidth="xl">
+            {/* Note: We render ALL panels once. 
+               The TabPanel 'hidden' logic handles visibility.
+            */}
             <TabPanel value={currentTab} index={0}>
               <ErrorBoundary>
                 <TradingDashboard />

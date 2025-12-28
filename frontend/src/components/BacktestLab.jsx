@@ -1,5 +1,5 @@
 // frontend/src/components/BacktestLab.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     Box, Typography, Grid, Paper, TextField, Button, 
     LinearProgress, Alert, useTheme, InputAdornment,
