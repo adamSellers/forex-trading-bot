@@ -122,3 +122,8 @@ CLAUDE.md
 backend/data/historical
 backend/data/backtests
 binance_orders/
+
+# --- Local Analysis & Shadow Lab (NEW) ---
+backend/backtest_lab/data
+backend/backtest_lab/downloads
+

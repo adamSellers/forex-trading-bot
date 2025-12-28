@@ -27,16 +27,17 @@ class TradingService extends EventEmitter {
         this.defaultConfig = {
             strategy: "supertrend_momentum",
             tradingMode: "live",
-            timeframe: "1h", // Keep for Strategy logic
-            timeframes: ["1h"], // <--- ADD THIS for Data Service
+            timeframe: "15m", // Keep for Strategy logic
+            timeframes: ["15m"], // <--- ADD THIS for Data Service
             enableTrading: false, // Master Kill Switch
 
             // Asset Mix (Default to the Winners)
-            assets: ["ETHUSDT", "SHIBUSDT", "BTCUSDT"],
+            assets: ["ETHUSDT", "XRPUSDT", "BNBUSDT", "NEARUSDT"],
             allocation: {
-                ETHUSDT: 0.5,
-                SHIBUSDT: 0.25,
-                BTCUSDT: 0.25,
+                ETHUSDT: 0.3,
+                XRPUSDT: 0.3,
+                NEARUSDT: 0.2,
+                BNBUSDT: 0.2,
             },
 
             // --- RISK ---
@@ -48,14 +49,14 @@ class TradingService extends EventEmitter {
             atrPeriod: 10,
             factor: 3.0,
             enableAdxFilter: true,
-            minAdx: 20,
+            minAdx: 25,
             enableRsiFilter: true,
             rsiOverbought: 75,
             rsiOversold: 30,
 
             // --- EXITS ---
             stopLossType: "FIXED",
-            stopLossPercent: 0.05, // 5% Hard Stop
+            stopLossPercent: 0.02, // 2% Hard Stop
             enableTrailingStops: false,
 
             // --- NOTIFICATIONS ---

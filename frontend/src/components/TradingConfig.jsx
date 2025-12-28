@@ -51,23 +51,23 @@ const SUPPORTED_ASSETS = [
 
 const DEFAULT_CONFIG = {
     maxCapitalAtRisk: 1000,
-    enableTrading: false, // Kill Switch
+    enableTrading: false,
     riskPerTrade: 0.98,
     minOrderSize: 10,
     strategy: 'supertrend_momentum',
-    timeframe: '1h',
+    timeframe: '15m',        // <--- CHANGED: 1h to 15m
     signalCooldown: 60,
     enableAdxFilter: true,
-    minAdx: 20, 
+    minAdx: 25,              // <--- CHANGED: 20 to 25
     enableRsiFilter: true,
     rsiOverbought: 75,
     rsiOversold: 30,
     stopLossType: 'FIXED',
-    stopLossPercent: 0.05, 
+    stopLossPercent: 0.02,   // <--- CHANGED: 0.05 to 0.02 (2%)
     
-    // --- FIX: Explicit Trailing Stop Defaults ---
-    enableTrailingStops: false,
-    trailingStopPercent: 0.03, // 3% default
+    // Trailing Stop Defaults
+    enableTrailingStops: false, // Verified False
+    trailingStopPercent: 0.03,
 
     assets: [], 
     allocation: {}, 
@@ -97,7 +97,7 @@ const TradingConfig = () => {
           ...DEFAULT_CONFIG,
           ...data.config,
           riskPerTrade: (data.config.riskPerTrade) || 0.98,
-          stopLossPercent: (data.config.stopLossPercent * 100) || 5.0,
+          stopLossPercent: (data.config.stopLossPercent * 100) || 2.0,
           
           // --- FIX: Ensure incoming value is safe ---
           trailingStopPercent: data.config.trailingStopPercent || 0.03,
@@ -240,6 +240,7 @@ const TradingConfig = () => {
                      <FormControl fullWidth>
                         <InputLabel>Timeframe</InputLabel>
                         <Select value={config.timeframe} label="Timeframe" onChange={(e) => updateConfig('timeframe', e.target.value)}>
+                            <MenuItem value="15m">15 Minutes</MenuItem>
                             <MenuItem value="1h">1 Hour</MenuItem>
                             <MenuItem value="4h">4 Hours</MenuItem>
                         </Select>
