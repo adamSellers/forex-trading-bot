@@ -91,7 +91,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
               else if (data.direction !== undefined) trendDir = data.direction;
               else if (data.trend !== undefined) trendDir = data.trend;
           }
-      } catch (e) { 
+      } catch  { 
           // console.warn("Parse Error:", e);
       }
 

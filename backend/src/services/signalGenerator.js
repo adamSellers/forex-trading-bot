@@ -1,4 +1,4 @@
-// backend/src/services/signalGenerator.js - SUPERTREND MOMENTUM EDITION
+// backend/src/services/signalGenerator.js - HYBRID COMPATIBILITY FIX
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const { RSI, ADX, ATR } = require("technicalindicators");
@@ -9,8 +9,6 @@ class SignalGenerator extends EventEmitter {
         this.isRunning = false;
         this.signalInterval = null;
         this.binanceDataService = null;
-
-        // FIXED: Initialize storage for the dashboard "Candidate Signals" tile
         this.latestSignals = [];
 
         this.config = {
@@ -27,7 +25,7 @@ class SignalGenerator extends EventEmitter {
 
         this.lastSignals = new Map();
         logger.info(
-            `🧠 Signal Generator v4.0 (SuperTrend Momentum) Initialized`
+            `🧠 Signal Generator v4.2 (Hybrid Compatibility) Initialized`
         );
     }
 
@@ -55,7 +53,6 @@ class SignalGenerator extends EventEmitter {
                 this.binanceDataService
             );
 
-            // FIXED: Store signals so the System Health dashboard can see them
             this.latestSignals = signals;
 
             if (signals.length > 0) {
@@ -67,7 +64,6 @@ class SignalGenerator extends EventEmitter {
         }
     }
 
-    // --- PORTED MATH: EXACT REPLICA OF OPTIMIZE-STRATEGY.JS ---
     calculateSuperTrend(highs, lows, closes, period = 10, factor = 3) {
         let tr = [highs[0] - lows[0]];
         let atr = [tr[0]];
@@ -142,7 +138,6 @@ class SignalGenerator extends EventEmitter {
                 this.config.factor || 3
             );
 
-            // Use completed candle for signal stability
             const idx = closes.length - 1;
             const currentDir = stData.direction[idx];
             const prevDir = stData.direction[idx - 1];
@@ -167,7 +162,6 @@ class SignalGenerator extends EventEmitter {
                 currentDir === 1 ? "GREEN" : "RED"
             } ADX:${adxVal.adx.toFixed(1)} RSI:${rsiVal.toFixed(1)}`;
 
-            // BUY: Green Flip + Strict Filters
             if (prevDir === -1 && currentDir === 1) {
                 const adxOk = adxVal.adx > (this.config.minAdx || 28);
                 const rsiOk = rsiVal < (this.config.rsiOverbought || 75);
@@ -176,13 +170,9 @@ class SignalGenerator extends EventEmitter {
                     signalType = "BUY";
                     reason = `🚀 BUY: ST Flip | ADX ${adxVal.adx.toFixed(
                         1
-                    )} > 28 | RSI ${rsiVal.toFixed(1)} < 75`;
-                } else {
-                    reason = `⚠️ FILTERED: ST Flip but ADX/RSI weak`;
+                    )} > 28`;
                 }
-            }
-            // SELL: Red Flip
-            else if (prevDir === 1 && currentDir === -1) {
+            } else if (prevDir === 1 && currentDir === -1) {
                 signalType = "SELL";
                 reason = `📉 SELL: ST Flip to Red`;
             }
@@ -193,13 +183,24 @@ class SignalGenerator extends EventEmitter {
                 strength: adxVal.adx,
                 message: reason,
                 timestamp: Date.now(),
+                atr: atrVal,
+                currentPrice: currentPrice,
+
+                // --- 1. NEW STRUCTURE (For Database & Dashboard) ---
+                trend: {
+                    currentPrice,
+                    rsi: rsiVal,
+                    adx: adxVal.adx,
+                    supertrend_direction: currentDir,
+                },
+
+                // --- 2. OLD STRUCTURE (For Trading Engine Compatibility) ---
                 data: {
                     currentPrice,
                     rsi: rsiVal,
                     adx: adxVal.adx,
                     stDirection: currentDir,
                 },
-                atr: atrVal,
             };
         } catch (error) {
             logger.error(`Calc error ${symbol}:`, error);
@@ -212,6 +213,7 @@ class SignalGenerator extends EventEmitter {
         const key = `${signal.symbol}_${signal.signal}`;
         const lastTime = this.lastSignals.get(key) || 0;
 
+        // Rate limit ONLY active Buy/Sell signals, allow HOLDs to update UI
         if (
             (signal.signal === "BUY" || signal.signal === "SELL") &&
             Date.now() - lastTime < this.config.signalCooldown
@@ -233,17 +235,21 @@ class SignalGenerator extends EventEmitter {
         const signals = [];
         for (const asset of this.config.assets) {
             try {
-                const candles = binanceDataService.getCandles(
-                    asset,
-                    this.config.timeframe
-                );
+                // Fetch Timeframe from config (default 15m)
+                const tf = this.config.timeframe || "15m";
+                const candles = binanceDataService.getCandles(asset, tf);
                 const priceData = binanceDataService.getCurrentPrice(asset);
+
                 if (candles.length && priceData) {
                     let signal = await this.generateSignal(
                         asset,
                         candles,
                         priceData.price
                     );
+
+                    // Attach timeframe for frontend
+                    if (signal) signal.timeframe = tf;
+
                     signal = this.validateSignal(signal);
                     if (signal) signals.push(signal);
                 }
@@ -260,7 +266,6 @@ class SignalGenerator extends EventEmitter {
         return {
             isActive: this.isRunning,
             config: this.config,
-            // FIXED: Expose the latest signals for the dashboard
             activeSignals: this.latestSignals || [],
         };
     }
