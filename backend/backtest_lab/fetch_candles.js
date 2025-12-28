@@ -6,7 +6,7 @@ const https = require("https");
 // --- CONFIGURATION ---
 const SYMBOLS = ["BTCUSDT", "BNBUSDT", "NEARUSDT", "XRPUSDT", "ETHUSDT"];
 const INTERVAL = "15m";
-const DAYS = 30; // Target: 30 Days of history
+const DAYS = 120; // Target: 30 Days of history
 const OUTPUT_DIR = path.join(__dirname, "data", "candles");
 
 // Ensure output dir exists
