@@ -1,3 +1,4 @@
+// frontend/src/components/SignalsWidget.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Paper, Box, Typography, Chip, Alert, CircularProgress } from '@mui/material';
 import { io } from 'socket.io-client';
@@ -6,7 +7,7 @@ import SignalCard from './SignalCard';
 import { AllInclusive, CheckCircleOutline, ErrorOutline } from '@mui/icons-material';
 
 const SignalsWidget = () => {
-    // THE FIX: Use a Map to store only the latest signal for each symbol
+    // FIX: Map key is now `${symbol}_${timeframe}` to support multiple timeframes per asset
     const [latestSignals, setLatestSignals] = useState(new Map());
     const [status, setStatus] = useState({ loading: true, message: 'Initializing...' });
     const [totalSignalCount, setTotalSignalCount] = useState(0);
@@ -20,10 +21,15 @@ const SignalsWidget = () => {
                 const newMap = new Map(prevMap);
                 signals.forEach(signal => {
                     if (signal && signal.symbol) {
-                        // Only update if the new signal is more recent
-                        const existing = newMap.get(signal.symbol);
+                        // Create unique key based on symbol AND timeframe
+                        // fallback to '1h' if timeframe is missing to maintain legacy compatibility
+                        const tf = signal.timeframe || '1h';
+                        const key = `${signal.symbol}_${tf}`;
+
+                        const existing = newMap.get(key);
+                        // Update if new signal is newer than existing one for this specific timeframe
                         if (!existing || new Date(signal.timestamp) >= new Date(existing.timestamp)) {
-                            newMap.set(signal.symbol, signal);
+                            newMap.set(key, signal);
                         }
                     }
                 });
@@ -74,9 +80,13 @@ const SignalsWidget = () => {
         };
     }, []);
 
-    // Memoize the sorted array of signals to prevent re-sorting on every render
+    // Memoize and sort: Alphabetical by Symbol, then by Timeframe
     const signalsToRender = useMemo(() => {
-        return Array.from(latestSignals.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+        return Array.from(latestSignals.values()).sort((a, b) => {
+            const symbolComp = a.symbol.localeCompare(b.symbol);
+            if (symbolComp !== 0) return symbolComp;
+            return (a.timeframe || '').localeCompare(b.timeframe || '');
+        });
     }, [latestSignals]);
 
     return (
@@ -109,7 +119,10 @@ const SignalsWidget = () => {
             {signalsToRender.length > 0 && (
                 <Box sx={{ p: 2, maxHeight: '400px', overflowY: 'auto' }}>
                     {signalsToRender.map(signal => (
-                        <SignalCard key={signal.symbol} signal={signal} />
+                        <SignalCard 
+                            key={`${signal.symbol}_${signal.timeframe || '1h'}_${signal.timestamp}`} 
+                            signal={signal} 
+                        />
                     ))}
                 </Box>
             )}

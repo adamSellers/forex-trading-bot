@@ -1,4 +1,4 @@
-// frontend/src/components/LivePriceChart.jsx - ADDED SUPERTREND
+// frontend/src/components/LivePriceChart.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
@@ -133,10 +133,6 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
         last.high = Math.max(last.high, livePrice);
         last.low = Math.min(last.low, livePrice);
         
-        // Recalculate SuperTrend for live candle? 
-        // NOTE: Keeping it static on last closed candle is safer for visuals to avoid repainting flicker,
-        // but updating the Price line is essential.
-        
         newData[newData.length - 1] = last;
         return newData;
       });
@@ -192,10 +188,6 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
     return null;
   };
 
-  // --- DOT RENDERER FOR SUPERTREND (Since it changes color) ---
-  // Recharts doesn't support multi-color lines natively well, so we use a dot trick or segmented lines.
-  // For simplicity and performance, we'll draw TWO lines (Up and Down) and hide nulls.
-  
   return (
     <Box height="100%" display="flex" flexDirection="column" sx={{ overflow: 'hidden' }}>
       
@@ -239,6 +231,7 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
             </Select>
           </FormControl>
 
+          {/* UPDATED: Added 15m Toggle */}
           <ToggleButtonGroup
             value={timeframe}
             exclusive
@@ -246,6 +239,7 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
             size="small"
             sx={{ height: 32 }}
           >
+            <ToggleButton value="15m" sx={{ px: 1 }}>15M</ToggleButton>
             <ToggleButton value="1h" sx={{ px: 1 }}>1H</ToggleButton>
             <ToggleButton value="4h" sx={{ px: 1 }}>4H</ToggleButton>
           </ToggleButtonGroup>
@@ -306,10 +300,7 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                     <Line type="monotone" dataKey="fastMA" stroke="#8884d8" strokeWidth={1} dot={false} name="EMA 20" strokeOpacity={0.5} />
                     <Line type="monotone" dataKey="slowMA" stroke="#82ca9d" strokeWidth={1} dot={false} name="EMA 50" strokeOpacity={0.5} />
 
-                    {/* SuperTrend Lines (Split into Green/Red for color change) */}
-                    {/* We render simple dots or a line. Since recharts lines are single color, 
-                        we can use two lines: one filtering positive, one negative. */}
-                    
+                    {/* SuperTrend Lines */}
                     <Line 
                         type="step" 
                         dataKey={(d) => d.stDir === 1 ? d.stValue : null} 
