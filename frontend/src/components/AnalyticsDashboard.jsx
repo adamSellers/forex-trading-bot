@@ -1,4 +1,4 @@
-// frontend/src/components/AnalyticsDashboard.jsx - IMPROVED LABELS
+// frontend/src/components/AnalyticsDashboard.jsx - FIXED ASSET TABLE & ADX STATS
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Typography, Box, CircularProgress, Alert,
@@ -139,7 +139,7 @@ const AnalyticsDashboard = () => {
     loadData();
   }, [period]);
 
-// --- Metrics Calculation ---
+  // --- Metrics Calculation ---
   const metrics = useMemo(() => {
     if (!data) return null;
     const { report, trades, signals } = data;
@@ -154,7 +154,6 @@ const AnalyticsDashboard = () => {
         .map(t => ({
             ...t,
             pnl: Number(t.pnl), 
-            // Ensure signalStrength is a number (DB field is signal_strength or signalStrength)
             strength: Number(t.signalStrength || t.signal_strength || 0),
             exitTime: new Date(t.exitTime || t.timestamp)
         }))
@@ -187,7 +186,6 @@ const AnalyticsDashboard = () => {
     const avgAdxLoss = lossTrades.length > 0 
         ? lossTrades.reduce((sum, t) => sum + t.strength, 0) / lossTrades.length 
         : 0;
-    // --------------------------------
 
     // 3. Asset Performance
     const localAssetStats = {};
@@ -249,7 +247,7 @@ const AnalyticsDashboard = () => {
 
     return {
         tradingStats, efficiency, pnlCurve, filterPieData, 
-        adxStats: { avgAdxWin, avgAdxLoss }, // <--- NOW USING CALCULATED VALUES
+        adxStats: { avgAdxWin, avgAdxLoss }, 
         exitPieData, 
         assetStats: localAssetStats 
     };
@@ -413,7 +411,7 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 3. Secondary Stats Row (Rest of component unchanged) */}
+      {/* 3. Secondary Stats Row */}
       <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} mb={2} sx={{ minHeight: 350 }}>
         {/* Trend Strength */}
         <Box flex={1}>
@@ -497,7 +495,7 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 4. Asset Table Row */}
+      {/* 4. Asset Table Row - FIXED COLOR LOGIC */}
       <Box width="100%">
           <GlassCard sx={{ p: 0, overflow: 'hidden' }}>
             <Box p={2} borderBottom={1} borderColor="divider" display="flex" alignItems="center" gap={1}>
@@ -540,15 +538,23 @@ const AnalyticsDashboard = () => {
                                         <StyledTableCell align="right" sx={{ color: perf.totalPnL >= 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
                                             {perf.totalPnL >= 0 ? "+" : ""}{perf.totalPnL?.toFixed(2)}
                                         </StyledTableCell>
+                                        
+                                        {/* FIXED BEST TRADE COLOR */}
                                         <StyledTableCell align="right" sx={{ 
                                             color: perf.bestTrade >= 0 ? 'success.light' : 'error.light',
                                             fontWeight: 'bold' 
                                         }}>
                                             {perf.bestTrade > 0 ? "+" : ""}${perf.bestTrade?.toFixed(2)}
                                         </StyledTableCell>
-                                        <StyledTableCell align="right" sx={{ color: 'error.light' }}>
-                                            ${perf.worstTrade?.toFixed(2)}
+
+                                        {/* FIXED WORST TRADE COLOR */}
+                                        <StyledTableCell align="right" sx={{ 
+                                            color: perf.worstTrade >= 0 ? 'success.light' : 'error.light',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            {perf.worstTrade > 0 ? "+" : ""}${perf.worstTrade?.toFixed(2)}
                                         </StyledTableCell>
+
                                     </TableRow>
                                 );
                             })}
