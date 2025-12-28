@@ -3,10 +3,7 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 
 // SAFETY: Point explicitly to the LAB data
-const DB_PATH = path.join(
-    __dirname,
-    "../../../backtest_lab/data/market_data.db"
-);
+const DB_PATH = path.join(__dirname, "../../backtest_lab/data/market_data.db");
 
 // Open DB Connection inside the worker process
 const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
