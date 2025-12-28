@@ -16,27 +16,33 @@ The command center for real-time monitoring.
 -   **Start/Stop Engine**: The big button in the header.
     -   **GREEN (START)**: Connects to Binance, loads wallet balances, and starts processing signals.
     -   **RED (STOP)**: Disconnects from Binance. No new trades will be taken, but open positions remain in the database.
--   **Live Markets**: Sidebar showing the assets you are currently watching.
--   **Force Refresh**: Use the sync icon if the data looks stale (older than 1 minute).
+-   **24h PnL**: Real-time calculation of your Net Profit/Loss over the last 24 hours.
+-   **Live Chart**: Displays real-time price action with EMA(20/50) and SuperTrend overlay. Defaults to **15m** timeframe (switchable to 1H/4H).
 
-### 2. Holdings Tab (Active Management)
+### 2. Holdings & Signals Tabs
 
-Manage your open positions and wallet.
+-   **Holdings**: Manage your open positions.
+    -   **EXIT Button (Red)**: **Emergency Use Only**. Immediately sells the asset at market price and removes it from the database. Use this if a trade is stuck.
+-   **Signals**: Live feed of strategy decisions.
+    -   **Trend / RSI Column**: Shows the market context for every signal.
+        -   **BULLISH/BEARISH**: The current SuperTrend direction.
+        -   **RSI Value**: Color-coded (Red > 70 is Overbought, Green < 30 is Oversold).
+    -   **Strength (ADX)**: Shows the power of the current trend (Values > 25 are strong).
 
--   **Bot Positions**: Trades currently managed by the strategy.
-    -   **Entry**: The price you bought at.
-    -   **Current**: Real-time market price.
-    -   **Stop Loss**: The "hard stop" price stored in the database.
-    -   **EXIT Button (Red)**: **Emergency Use Only**. Immediately sells the asset at market price and removes it from the database database. Use this if a trade is stuck or you want to manual panic-sell.
--   **Wallet Balances**: Your actual assets on Binance.
+### 3. History Tab
 
-### 3. Analytics Tab
+A detailed ledger of all closed trades.
+
+-   **Table View**: Shows Asset, Entry Price, Exit Price, and Realized PnL.
+-   **Exit Reason**: Tags indicate _why_ a trade closed (e.g., `STOP LOSS`, `TREND FLIP`, `TAKE PROFIT`).
+
+### 4. Analytics Tab
 
 Visual performance tracking.
 
 -   **Equity Curve**: Visualizes your PnL growth over time.
--   **Signal Quality**: Shows how many signals resulted in profitable trades.
--   **Filter Efficiency**: A donut chart showing _why_ trades were skipped (e.g., "Choppy Market" means ADX was too low).
+-   **Trend Strength Analysis**: Compares the average ADX of your winning trades vs. losing trades. Green (Winners) should be higher than Red (Losers).
+-   **Asset Performance**: Breakdown of Win Rate, Best Trade, and Worst Trade per coin.
 
 ---
 
@@ -48,35 +54,34 @@ All settings are applied **instantly** when you click "Save Changes". No restart
 
 Control _what_ the bot trades and _how much_ money it uses.
 
--   **Add Asset**: Select a pair (e.g., `SOLUSDT`) to add it to your list.
+-   **Add Asset**: Select a pair (e.g., `NEARUSDT`) to add it to your list.
 -   **Allocation Sliders**:
     -   **0%**: **Watchlist Mode**. The bot tracks the price and signals but **will NOT trade**.
     -   **>0%**: **Active Trading**. The bot will use up to this % of your total capital for this specific asset.
-    -   _Example_: If Total Capital = $1000 and ETH = 50%, the bot will buy up to $500 worth of ETH.
+    -   _Recommendation_: Set 3 assets to **30%** each to allow them to trade simultaneously.
 
 ### 🧠 Strategy Tab (The Brain)
 
 Fine-tune the "SuperTrend Momentum" logic.
 
--   **Timeframe**: The candle size used for decisions (Default: `1h`).
--   **Min ADX Strength**: (Default: `20`). The "Trend Floor".
-    -   _Higher (e.g., 30)_ = Fewer trades, only catches strong trends.
-    -   _Lower (e.g., 15)_ = More trades, but higher risk of "chop" (fakeouts).
--   **RSI Ceiling**: (Default: `75`).
+-   **Timeframe**: The candle size used for decisions (Default: `15m`).
+    -   `15m` is recommended for catching intraday volatility.
+-   **Min ADX Strength**: (Default: `25`). The "Trend Floor".
+    -   Ensures you don't buy into choppy/sideways markets.
+-   **RSI Ceiling**: (Default: `70`).
     -   Prevents buying when an asset is already "overbought" (too expensive too fast).
 
 ### 🛡️ Risk Tab (Safety)
 
--   **Risk Factor**: (Default: `0.98` or 98%). How much of the _allocated_ capital to use per trade.
+-   **Risk Factor**: (Default: `0.98` or 98%). How much of the _allocated_ slice to use per trade.
 -   **Stop Loss Type**:
-    -   **FIXED**: Hard % drop (e.g., 5%). Simple and safe.
-    -   **ATR**: Volatility-based. Adapts to the market (wider stop in volatile markets, tighter in calm ones).
+    -   **FIXED**: Hard % drop (Default: `2%`). Simple and safe protection against sudden dumps.
+    -   **ATR**: Volatility-based. Adapts to the market.
 
 ### 🔔 Notifications Tab
 
 -   **Enable Email Alerts**: Toggle ON to receive real-time emails for every Buy and Sell.
 -   **Alert Email**: Enter your destination address (e.g., your personal Gmail).
--   **Sender Config**: The _sending_ email credentials (SMTP) were configured during installation via `./scripts/setup-secrets.sh`. To change the sender, you must re-run the secrets setup script.
 
 ---
 
@@ -114,6 +119,6 @@ If the database is corrupted or you want a fresh start:
 | Issue                      | Likely Cause                                   | Fix                                                                                                                          |
 | :------------------------- | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
 | **"System Offline"**       | Backend crash or PM2 stopped                   | SSH in and run `pm2 restart crypto-trend-bot`                                                                                |
-| **No Trades Taking Place** | Allocation is 0% or ADX is too low             | Check **Portfolio Tab** (ensure >0%) and **Strategy Tab** (lower Min ADX)                                                    |
+| **No Trades Taking Place** | Allocation is 0% or ADX is too low             | Check **Portfolio Tab** (ensure >0%) and **Strategy Tab** (lower Min ADX to 20 or 25)                                        |
 | **"Insufficient Balance"** | Binance wallet empty or funds locked in orders | Check Binance "Open Orders" or deposit USDT                                                                                  |
 | **Email Alerts Failing**   | Feature disabled or credentials invalid        | 1. Toggle "Enable Email Alerts" in Config.<br>2. If that fails, re-run `./scripts/setup-secrets.sh` to verify SMTP password. |
