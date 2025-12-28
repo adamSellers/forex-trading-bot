@@ -15,6 +15,7 @@ const { initializeDatabase } = require("./config/database"); // Import the initi
 const TradingController = require("./src/controllers/tradingController"); // This is now the bridge
 const tradingRoutes = require("./src/routes/trading");
 const managementRoutes = require("./src/routes/management");
+const backtestRoutes = require("./src/routes/backtestRoutes");
 const ErrorHandler = require("./src/middleware/errorHandler");
 const logger = require("./src/utils/logger");
 
@@ -55,6 +56,7 @@ const tradingController = new TradingController(tradingService, io); // Pass ser
 // API Routes - must be defined before the SPA catch-all
 app.use("/api/trading", tradingRoutes(tradingController));
 app.use("/api/management", managementRoutes(tradingController));
+app.use("/api/backtest", backtestRoutes);
 
 // In production, serve the built frontend application
 if (process.env.NODE_ENV === "production") {
