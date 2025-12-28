@@ -1,4 +1,4 @@
-// frontend/src/components/TradingSignals.jsx - RESTORED HEALTH BAR + NEW RSI COLUMN
+// frontend/src/components/TradingSignals.jsx - ROBUST TREND PARSING
 import React, { useMemo } from 'react';
 import { 
     Typography, Box, LinearProgress, Stack, Avatar, 
@@ -73,28 +73,40 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
   const getTrendContext = (signal) => {
       let rsiVal = null;
       let trendDir = null;
+      
       try {
           if (signal.trend_data) {
               const data = typeof signal.trend_data === 'string' 
                   ? JSON.parse(signal.trend_data) 
                   : signal.trend_data;
-              if (data.rsi) rsiVal = parseFloat(data.rsi).toFixed(1);
-              if (data.supertrend_direction) trendDir = data.supertrend_direction;
-          }
-      } catch  { /* ignore parse errors */ }
+              
+              // DEBUG: Check console if fields are still missing
+              // console.log(`Trend Data for ${signal.symbol}:`, data);
 
-      // Infer trend if data missing
-      const isBullish = trendDir === 1 || (signal.signal || '').includes('BUY');
-      const isBearish = trendDir === -1 || (signal.signal || '').includes('SELL');
+              // 1. Extract RSI
+              if (data.rsi !== undefined) rsiVal = parseFloat(data.rsi).toFixed(1);
+              
+              // 2. Extract Trend Direction (Handle multiple property names)
+              if (data.supertrend_direction !== undefined) trendDir = data.supertrend_direction;
+              else if (data.direction !== undefined) trendDir = data.direction;
+              else if (data.trend !== undefined) trendDir = data.trend;
+          }
+      } catch (e) { 
+          // console.warn("Parse Error:", e);
+      }
+
+      // 3. Determine Bias
+      // Note: Using == loose equality to match "1" (string) or 1 (number)
+      const isBullish = trendDir == 1 || (signal.signal || '').includes('BUY');
+      const isBearish = trendDir == -1 || (signal.signal || '').includes('SELL');
 
       return { rsiVal, isBullish, isBearish };
   };
 
-  // --- LOGIC: System Health (RESTORED) ---
+  // --- LOGIC: System Health ---
   const dataStatus = useMemo(() => {
       if (!systemStatus?.services?.binanceData) return null;
       const { candleCount: totalCandles = 0 } = systemStatus.services.binanceData;
-      // Target is approx 1000 candles * 3 timeframes (15m, 1h, 4h) per asset
       const target = 3000; 
       const percent = Math.min((totalCandles / target) * 100, 100);
       return { totalCandles, percent };
@@ -102,7 +114,6 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
 
   // --- RENDERERS ---
 
-  // 1. EMPTY STATE (With Restored Progress Bar)
   if (filteredSignals.length === 0) {
       return (
         <Box 
@@ -117,7 +128,6 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                     : "Scanning portfolio assets..."}
             </Typography>
             
-            {/* RESTORED: Data Training Progress */}
             {dataStatus && dataStatus.percent < 100 && (
                 <Box width="100%" maxWidth={200} mt={3}>
                     <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -131,7 +141,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       );
   }
 
-  // 2. COMPACT VIEW (Sidebar)
+  // COMPACT VIEW
   if (compact) {
       return (
         <Stack spacing={0} sx={{ height: '100%', overflowY: 'auto' }}>
@@ -166,7 +176,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       );
   }
 
-  // 3. FULL TABLE VIEW
+  // FULL TABLE VIEW
   return (
     <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
         <Table stickyHeader size="small">
@@ -218,7 +228,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                                   </Box>
                               </StyledTableCell>
 
-                             {/* Trend / RSI (Replaces Price) */}
+                             {/* Trend / RSI */}
                               <StyledTableCell align="center">
                                   <Box display="flex" flexDirection="column" alignItems="center">
                                       <Typography 
