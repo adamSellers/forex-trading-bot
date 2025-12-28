@@ -139,7 +139,6 @@ const AnalyticsDashboard = () => {
     loadData();
   }, [period]);
 
-  // --- Metrics Calculation ---
 // --- Metrics Calculation ---
   const metrics = useMemo(() => {
     if (!data) return null;
@@ -148,20 +147,20 @@ const AnalyticsDashboard = () => {
     // 1. Filter Completed Trades (Robust)
     const sortedTrades = [...trades]
         .filter(t => {
-            // Must have a PnL value and NOT be open
             const hasPnL = t.pnl !== null && t.pnl !== undefined;
             const isClosed = !t.isOpen && t.is_open !== 1 && t.status !== 'OPEN';
             return hasPnL && isClosed;
         })
         .map(t => ({
             ...t,
-            // FORCE number conversion for math safety
             pnl: Number(t.pnl), 
+            // Ensure signalStrength is a number (DB field is signal_strength or signalStrength)
+            strength: Number(t.signalStrength || t.signal_strength || 0),
             exitTime: new Date(t.exitTime || t.timestamp)
         }))
         .sort((a, b) => a.exitTime - b.exitTime);
 
-    // 2. Local Stats Calculation (Frontend Source of Truth)
+    // 2. Local Stats Calculation
     const localStats = {
         totalPnL: sortedTrades.reduce((acc, t) => acc + t.pnl, 0),
         totalTrades: sortedTrades.length,
@@ -173,12 +172,24 @@ const AnalyticsDashboard = () => {
     
     const grossWin = sortedTrades.filter(t => t.pnl > 0).reduce((acc, t) => acc + t.pnl, 0);
     const grossLoss = Math.abs(sortedTrades.filter(t => t.pnl <= 0).reduce((acc, t) => acc + t.pnl, 0));
-    
+    localStats.profitFactor = grossLoss === 0 ? (grossWin > 0 ? 999 : 0) : grossWin / grossLoss;
     localStats.avgWin = localStats.wins > 0 ? grossWin / localStats.wins : 0;
     localStats.avgLoss = localStats.losses > 0 ? -grossLoss / localStats.losses : 0; 
-    localStats.profitFactor = grossLoss === 0 ? (grossWin > 0 ? 999 : 0) : grossWin / grossLoss;
 
-    // 3. Asset Performance (Frontend Calculation)
+    // --- NEW: Calculate ADX Stats ---
+    const winTrades = sortedTrades.filter(t => t.pnl > 0 && t.strength > 0);
+    const lossTrades = sortedTrades.filter(t => t.pnl <= 0 && t.strength > 0);
+
+    const avgAdxWin = winTrades.length > 0 
+        ? winTrades.reduce((sum, t) => sum + t.strength, 0) / winTrades.length 
+        : 0;
+        
+    const avgAdxLoss = lossTrades.length > 0 
+        ? lossTrades.reduce((sum, t) => sum + t.strength, 0) / lossTrades.length 
+        : 0;
+    // --------------------------------
+
+    // 3. Asset Performance
     const localAssetStats = {};
     sortedTrades.forEach(t => {
         if (!localAssetStats[t.symbol]) {
@@ -194,16 +205,12 @@ const AnalyticsDashboard = () => {
         stats.worstTrade = Math.min(stats.worstTrade, t.pnl);
     });
 
-    // Calculate Win Rates for Assets
     Object.values(localAssetStats).forEach(item => {
         item.performance.winRate = (item.performance.wins / item.performance.totalTrades) * 100;
     });
 
-    // 4. Merge Data for Display
-const tradingStats = {
-        ...(report.summary?.trading || {}), // Backend provides Sharpe here now
-        ...localStats 
-    };
+    // 4. Merge Data
+    const tradingStats = { ...(report.summary?.trading || {}), ...localStats };
     const efficiency = report.summary?.efficiency || {};
     
     // P&L Curve
@@ -242,9 +249,9 @@ const tradingStats = {
 
     return {
         tradingStats, efficiency, pnlCurve, filterPieData, 
-        adxStats: { avgAdxWin: 0, avgAdxLoss: 0 }, 
+        adxStats: { avgAdxWin, avgAdxLoss }, // <--- NOW USING CALCULATED VALUES
         exitPieData, 
-        assetStats: localAssetStats // Use Frontend calculated assets
+        assetStats: localAssetStats 
     };
   }, [data, theme]);
 
