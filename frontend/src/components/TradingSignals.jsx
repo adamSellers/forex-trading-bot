@@ -1,4 +1,4 @@
-// frontend/src/components/TradingSignals.jsx - FILTERED BY PORTFOLIO
+// frontend/src/components/TradingSignals.jsx - RESTORED HEALTH BAR + NEW RSI COLUMN
 import React, { useMemo } from 'react';
 import { 
     Typography, Box, LinearProgress, Stack, Avatar, 
@@ -6,7 +6,7 @@ import {
     TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
 import { 
-    TrendingUp, TrendingDown, Timeline, Radar 
+    TrendingUp, TrendingDown, Timeline, Radar, ShowChart 
 } from '@mui/icons-material';
 
 // --- STYLED COMPONENTS ---
@@ -55,14 +55,9 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
 
   // --- LOGIC: Filter Signals by Portfolio Config ---
   const filteredSignals = useMemo(() => {
-      // If signals are empty or config isn't loaded, return as is (or empty)
       if (!signals) return [];
       if (!systemStatus?.config?.assets) return signals;
-
-      // Create a Set for O(1) lookup of active assets
       const activeAssets = new Set(systemStatus.config.assets);
-
-      // Only show signals that are in the user's whitelist
       return signals.filter(s => activeAssets.has(s.symbol));
   }, [signals, systemStatus]);
 
@@ -74,34 +69,45 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
     return { color: 'info', icon: <Timeline fontSize="small" /> }; 
   };
 
-  // --- LOGIC: System Health ---
+  // --- LOGIC: Parse Trend Data (RSI/Direction) ---
+  const getTrendContext = (signal) => {
+      let rsiVal = null;
+      let trendDir = null;
+      try {
+          if (signal.trend_data) {
+              const data = typeof signal.trend_data === 'string' 
+                  ? JSON.parse(signal.trend_data) 
+                  : signal.trend_data;
+              if (data.rsi) rsiVal = parseFloat(data.rsi).toFixed(1);
+              if (data.supertrend_direction) trendDir = data.supertrend_direction;
+          }
+      } catch  { /* ignore parse errors */ }
+
+      // Infer trend if data missing
+      const isBullish = trendDir === 1 || (signal.signal || '').includes('BUY');
+      const isBearish = trendDir === -1 || (signal.signal || '').includes('SELL');
+
+      return { rsiVal, isBullish, isBearish };
+  };
+
+  // --- LOGIC: System Health (RESTORED) ---
   const dataStatus = useMemo(() => {
       if (!systemStatus?.services?.binanceData) return null;
       const { candleCount: totalCandles = 0 } = systemStatus.services.binanceData;
+      // Target is approx 1000 candles * 3 timeframes (15m, 1h, 4h) per asset
       const target = 3000; 
       const percent = Math.min((totalCandles / target) * 100, 100);
-      
-      let phase = 'building';
-      if (percent > 90) phase = 'optimal';
-      else if (percent > 50) phase = 'good';
-      else if (percent > 20) phase = 'minimal';
-
-      return { totalCandles, percent, phase };
+      return { totalCandles, percent };
   }, [systemStatus]);
 
   // --- RENDERERS ---
 
-  // 1. EMPTY STATE (Using filtered list)
+  // 1. EMPTY STATE (With Restored Progress Bar)
   if (filteredSignals.length === 0) {
       return (
         <Box 
-            height="100%" 
-            display="flex" 
-            flexDirection="column" 
-            alignItems="center" 
-            justifyContent="center" 
-            color="text.secondary"
-            p={4}
+            height="100%" display="flex" flexDirection="column" 
+            alignItems="center" justifyContent="center" color="text.secondary" p={4}
         >
             <Radar sx={{ fontSize: 48, opacity: 0.2, mb: 2, animation: 'pulse 2s infinite' }} />
             <Typography variant="body2" fontWeight="bold">NO ACTIVE SIGNALS</Typography>
@@ -111,6 +117,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                     : "Scanning portfolio assets..."}
             </Typography>
             
+            {/* RESTORED: Data Training Progress */}
             {dataStatus && dataStatus.percent < 100 && (
                 <Box width="100%" maxWidth={200} mt={3}>
                     <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -124,60 +131,33 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       );
   }
 
-  // 2. COMPACT VIEW (Sidebar / List)
+  // 2. COMPACT VIEW (Sidebar)
   if (compact) {
       return (
         <Stack spacing={0} sx={{ height: '100%', overflowY: 'auto' }}>
             {filteredSignals.map((signal, index) => {
                 const { color, icon } = getSignalMeta(signal.signal);
                 const paletteColor = theme.palette[color];
-                
                 return (
                     <Box 
                         key={`${signal.symbol}-${index}`}
                         sx={{
                             p: 1.5,
                             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.05) }
                         }}
                     >
                          <Box display="flex" alignItems="center" gap={1.5}>
-                             <Avatar 
-                                variant="rounded" 
-                                sx={{ 
-                                    width: 28, height: 28, 
-                                    bgcolor: alpha(paletteColor.main, 0.1), 
-                                    color: paletteColor.main,
-                                    border: `1px solid ${alpha(paletteColor.main, 0.2)}`
-                                }}
-                            >
-                                {icon}
-                            </Avatar>
+                             <Avatar variant="rounded" sx={{ width: 28, height: 28, bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main, border: `1px solid ${alpha(paletteColor.main, 0.2)}` }}>{icon}</Avatar>
                             <Box>
-                                <Typography variant="body2" fontWeight="bold">
-                                    {signal.symbol.replace('USDT', '')}
-                                </Typography>
-                                <MonoText sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
-                                     {new Date(signal.timestamp).toLocaleTimeString([], { hour12: false })}
-                                </MonoText>
+                                <Typography variant="body2" fontWeight="bold">{signal.symbol.replace('USDT', '')}</Typography>
+                                <MonoText sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>{new Date(signal.timestamp).toLocaleTimeString([], { hour12: false })}</MonoText>
                             </Box>
                          </Box>
-                         
                          <Box textAlign="right">
-                             <Chip 
-                                label={signal.signal?.split('_')[0]} 
-                                size="small" 
-                                sx={{ 
-                                    height: 18, fontSize: '0.65rem', fontWeight: 'bold', 
-                                    bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main 
-                                }}
-                            />
-                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.7rem' }}>
-                                ADX: {signal.strength?.toFixed(0)}
-                            </Typography>
+                             <Chip label={signal.signal?.split('_')[0]} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 'bold', bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main }} />
+                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.7rem' }}>ADX: {signal.strength?.toFixed(0)}</Typography>
                          </Box>
                     </Box>
                 );
@@ -186,7 +166,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       );
   }
 
-  // 3. FULL TABLE VIEW (Dashboard Bottom Panel)
+  // 3. FULL TABLE VIEW
   return (
     <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
         <Table stickyHeader size="small">
@@ -196,7 +176,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                     <HeaderCell>Time</HeaderCell>
                     <HeaderCell>Signal Type</HeaderCell>
                     <HeaderCell align="right">Strength (ADX)</HeaderCell>
-                    <HeaderCell align="right">Price</HeaderCell>
+                    <HeaderCell align="center">Trend / RSI</HeaderCell>
                     <HeaderCell align="center">Status</HeaderCell>
                 </TableRow>
             </TableHead>
@@ -204,25 +184,15 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                 {filteredSignals.map((signal, index) => {
                      const { color, icon } = getSignalMeta(signal.signal);
                      const paletteColor = theme.palette[color];
+                     const { rsiVal, isBullish, isBearish } = getTrendContext(signal);
 
                      return (
                          <StyledTableRow key={`${signal.symbol}-${index}`}>
                              {/* Symbol */}
                              <StyledTableCell>
                                  <Box display="flex" alignItems="center" gap={1}>
-                                    <Avatar 
-                                        variant="rounded" 
-                                        sx={{ 
-                                            width: 24, height: 24, 
-                                            bgcolor: alpha(paletteColor.main, 0.1), 
-                                            color: paletteColor.main
-                                        }}
-                                    >
-                                        {icon}
-                                    </Avatar>
-                                    <Typography variant="body2" fontWeight="bold">
-                                        {signal.symbol.replace('USDT', '')}
-                                    </Typography>
+                                    <Avatar variant="rounded" sx={{ width: 24, height: 24, bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main }}>{icon}</Avatar>
+                                    <Typography variant="body2" fontWeight="bold">{signal.symbol.replace('USDT', '')}</Typography>
                                  </Box>
                              </StyledTableCell>
 
@@ -236,33 +206,45 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                                  <Chip 
                                     label={signal.signal?.replace(/_/g, ' ') || 'UNKNOWN'} 
                                     size="small" 
-                                    sx={{ 
-                                        height: 20, 
-                                        fontSize: '0.7rem', 
-                                        fontWeight: 'bold',
-                                        bgcolor: alpha(paletteColor.main, 0.1),
-                                        color: paletteColor.main,
-                                        border: `1px solid ${alpha(paletteColor.main, 0.2)}`
-                                    }} 
+                                    sx={{ height: 20, fontSize: '0.7rem', fontWeight: 'bold', bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main, border: `1px solid ${alpha(paletteColor.main, 0.2)}` }} 
                                 />
                              </StyledTableCell>
 
                              {/* Strength */}
                              <StyledTableCell align="right">
                                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                                     <LinearProgress 
-                                        variant="determinate" 
-                                        value={Math.min((signal.strength || 0) * 2, 100)} 
-                                        sx={{ width: 50, height: 4, borderRadius: 2 }}
-                                        color={signal.strength > 25 ? "primary" : "secondary"}
-                                      />
+                                     <LinearProgress variant="determinate" value={Math.min((signal.strength || 0) * 2, 100)} sx={{ width: 50, height: 4, borderRadius: 2 }} color={signal.strength > 25 ? "primary" : "secondary"} />
                                       <MonoText>{signal.strength?.toFixed(1)}</MonoText>
                                   </Box>
                               </StyledTableCell>
 
-                             {/* Price */}
-                              <StyledTableCell align="right">
-                                  <MonoText>${signal.currentPrice?.toFixed(2) || '---'}</MonoText>
+                             {/* Trend / RSI (Replaces Price) */}
+                              <StyledTableCell align="center">
+                                  <Box display="flex" flexDirection="column" alignItems="center">
+                                      <Typography 
+                                          variant="caption" 
+                                          sx={{ 
+                                              color: isBullish ? 'success.main' : isBearish ? 'error.main' : 'text.disabled',
+                                              fontWeight: 'bold', fontSize: '0.7rem', letterSpacing: 0.5
+                                          }}
+                                      >
+                                          {isBullish ? 'BULLISH' : isBearish ? 'BEARISH' : '-'}
+                                      </Typography>
+                                      {rsiVal && (
+                                          <Box display="flex" alignItems="center" gap={0.5} mt={0.2}>
+                                              <ShowChart sx={{ fontSize: 10, color: 'text.secondary' }} />
+                                              <Typography 
+                                                variant="caption" 
+                                                sx={{ 
+                                                    fontSize: '0.65rem', fontFamily: 'monospace',
+                                                    color: rsiVal > 70 ? 'error.main' : rsiVal < 30 ? 'success.main' : 'text.secondary'
+                                                }}
+                                              >
+                                                RSI: {rsiVal}
+                                              </Typography>
+                                          </Box>
+                                      )}
+                                  </Box>
                               </StyledTableCell>
 
                              {/* Status */}
