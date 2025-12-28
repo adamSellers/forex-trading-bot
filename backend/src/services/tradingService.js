@@ -28,7 +28,7 @@ class TradingService extends EventEmitter {
             strategy: "supertrend_momentum",
             tradingMode: "live",
             timeframe: "15m", // Keep for Strategy logic
-            timeframes: ["15m", "1hr", "4hr"], // <--- ADD THIS for Data Service
+            timeframes: ["15m", "1h", "4h"], // <--- ADD THIS for Data Service
             enableTrading: false, // Master Kill Switch
 
             // Asset Mix (Default to the Winners)
