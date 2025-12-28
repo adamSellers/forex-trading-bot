@@ -1,4 +1,4 @@
-// frontend/src/App.jsx - Refactored for better layout and responsiveness
+// frontend/src/App.jsx - ADDED STRATEGY LAB TAB
 import React, { useState } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import {
@@ -16,16 +16,20 @@ import {
 import {
   Dashboard,
   Settings,
-  TrendingUp, // This is the logo icon
+  TrendingUp, 
   Assessment,
-  MonitorHeart, // New icon for health
-  Article, // New icon for logs
+  MonitorHeart, 
+  Article, 
+  Science // <--- NEW ICON
 } from '@mui/icons-material';
+
+// Components
 import TradingDashboard from './components/TradingDashboard';
 import TradingConfig from './components/TradingConfig';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
-import SystemHealth from './components/SystemHealth'; // New import
-import SystemLogs from './components/SystemLogs'; // New import for logs
+import SystemHealth from './components/SystemHealth'; 
+import SystemLogs from './components/SystemLogs'; 
+import BacktestLab from './components/BacktestLab'; // <--- NEW IMPORT
 import ErrorBoundary from './components/ErrorBoundary';
 import { tradingTheme } from './theme/tradingTheme';
 
@@ -100,6 +104,13 @@ const AppContent = () => {
               id="trading-tab-4"
               aria-controls="trading-tabpanel-4"
             />
+            {/* NEW TAB: STRATEGY LAB */}
+            <Tab
+              icon={<Science />}
+              label="Strategy Lab"
+              id="trading-tab-5"
+              aria-controls="trading-tabpanel-5"
+            />
           </Tabs>
         </Box>
 
@@ -135,6 +146,12 @@ const AppContent = () => {
                 <SystemLogs />
               </ErrorBoundary>
             </TabPanel>
+
+            <TabPanel value={currentTab} index={5}>
+              <ErrorBoundary>
+                <BacktestLab />
+              </ErrorBoundary>
+            </TabPanel>
           </Container>
         </Box>
     </Box>
@@ -149,6 +166,5 @@ function App() {
     </ThemeProvider>
   );
 }
-
 
 export default App;
