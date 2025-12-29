@@ -1,410 +1,129 @@
 // frontend/src/components/BacktestLab.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-    Box, Typography, Grid, Button, Slider, TextField,
-    LinearProgress, Alert, useTheme, Stack, Chip, 
-    MenuItem, Select, FormControl, InputLabel,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Divider, alpha, Tooltip, IconButton, Avatar, styled, InputAdornment,
-    List, ListItem, AlertTitle, Switch
-} from '@mui/material';
-import { 
-    Science, PlayArrow, BarChart, Restore, PieChart, 
-    Tune, Delete, AddCircle, Memory, Timer, Storage, Warning,
-    FlashOn, Security
-} from '@mui/icons-material';
-import { LineChart } from '@mui/x-charts';
+import { Box, Typography, Grid, Alert, AlertTitle, useTheme } from '@mui/material';
 import { socket } from '../config/api';
 
-// --- STYLED COMPONENTS ---
-const GlassCard = styled(Box)(({ theme }) => ({
-  background: alpha(theme.palette.background.paper, 0.05),
-  backdropFilter: 'blur(10px)',
-  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-  borderRadius: theme.shape.borderRadius * 2,
-  boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-  padding: theme.spacing(3),
-  transition: 'border-color 0.3s ease',
-  height: '100%',
-  '&:hover': {
-    borderColor: alpha(theme.palette.primary.main, 0.3),
-  }
-}));
-
-const SectionHeader = ({ icon, title, subtitle }) => {
-    const theme = useTheme();
-    return (
-        <Box display="flex" alignItems="center" gap={2} mb={3}>
-            <Avatar variant="rounded" sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
-                {icon}
-            </Avatar>
-            <Box>
-                <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>{title}</Typography>
-                {subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography>}
-            </Box>
-        </Box>
-    );
-};
-
-// --- CONSTANTS ---
-const AVAILABLE_ASSETS = [
-    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 
-    'NEARUSDT', 'SOLUSDT', 'ADAUSDT', 'DOGEUSDT', 'MATICUSDT'
-];
+// --- SUB-COMPONENTS ---
+import LabControls from './lab/LabControls';
+import SimulationReport from './lab/SimulationReport';
+import OptimizationReport from './lab/OptimizationReport';
+import { LoadingState, EmptyState } from './lab/LabStates';
 
 const BacktestLab = () => {
     const theme = useTheme();
     const [running, setRunning] = useState(false);
+    const [optimizing, setOptimizing] = useState(false);
     const [progress, setProgress] = useState({ percent: 0, message: '' });
+    
     const [results, setResults] = useState(null);
+    const [optimizationReport, setOptimizationReport] = useState(null);
     const [error, setError] = useState(null);
-    const [newAsset, setNewAsset] = useState('');
 
-    // Configuration State
+    // --- CONFIG STATE ---
     const [config, setConfig] = useState({
-        minAdx: 25,
-        maxRsi: 70,
-        stopLoss: 2.0,
-        riskPerTrade: 0.95,
-        balance: 1000,
-        days: 30, 
-        burstMode: false,
-        // Trailing Stop Defaults
-        enableTrailingStops: false,
-        trailingStopPercent: 3.0,
-        assets: ['BTCUSDT', 'ETHUSDT'],
-        weights: { 'BTCUSDT': 50, 'ETHUSDT': 50 } 
+        minAdx: 25, maxRsi: 70, stopLoss: 2.0, riskPerTrade: 0.95,
+        balance: 1000, days: 30, burstMode: false,
+        assets: ['BTCUSDT', 'ETHUSDT'], weights: { 'BTCUSDT': 50, 'ETHUSDT': 50 } 
     });
 
+    // --- WEBSOCKET LISTENERS ---
     useEffect(() => {
         const onProgress = (data) => setProgress(data);
         const onComplete = (data) => {
-            setResults(data);
-            setRunning(false);
+            setResults(data); setOptimizationReport(null); setRunning(false);
             setProgress({ percent: 100, message: 'Simulation Complete' });
         };
-        const onError = (err) => {
-            setError(err.message || "An unknown error occurred");
-            setRunning(false);
+        const onOptComplete = (data) => {
+            setOptimizationReport(data); setResults(null); setOptimizing(false);
+            setProgress({ percent: 100, message: 'Optimization Complete' });
         };
+        const onError = (err) => { setError(err.message); setRunning(false); setOptimizing(false); };
 
         socket.on('simulation_progress', onProgress);
         socket.on('simulation_complete', onComplete);
         socket.on('simulation_error', onError);
+        socket.on('optimization_progress', onProgress);
+        socket.on('optimization_complete', onOptComplete);
+        socket.on('optimization_error', onError);
 
         return () => {
             socket.off('simulation_progress', onProgress);
             socket.off('simulation_complete', onComplete);
             socket.off('simulation_error', onError);
+            socket.off('optimization_progress', onProgress);
+            socket.off('optimization_complete', onOptComplete);
+            socket.off('optimization_error', onError);
         };
     }, []);
 
-    // --- SMART ERROR PARSER ---
-    const getHelpfulError = (errMsg) => {
-        if (!errMsg) return null;
-        if (errMsg.includes("Memory") || errMsg.includes("SIGKILL") || errMsg.includes("heap")) {
-            return {
-                title: "Out of Memory (OOM)",
-                msg: "The simulation used too much RAM for the Raspberry Pi.",
-                advice: "Try reducing the 'History Duration' (e.g. 30 days) or testing fewer assets at once.",
-                icon: <Memory fontSize="inherit" />
-            };
-        }
-        if (errMsg.includes("timed out") || errMsg.includes("limit")) {
-            return {
-                title: "Operation Timed Out",
-                msg: "Downloading or processing data took too long.",
-                advice: "If this is your first run with new assets, try running it again (data may be partially cached). Otherwise, reduce the duration slider.",
-                icon: <Timer fontSize="inherit" />
-            };
-        }
-        if (errMsg.includes("Schema") || errMsg.includes("column") || errMsg.includes("no such table")) {
-            return {
-                title: "Database Mismatch",
-                msg: "The internal database structure is outdated.",
-                advice: "Click the orange 'Restore' button below to force a rebuild.",
-                icon: <Storage fontSize="inherit" />
-            };
-        }
-        return {
-            title: "Simulation Failed",
-            msg: errMsg,
-            advice: "Check the system logs for details.",
-            icon: <Warning fontSize="inherit" />
-        };
-    };
-
     // --- HANDLERS ---
     const handleRun = (forceRebuild = false) => {
-        setRunning(true);
-        setResults(null);
-        setError(null);
+        setRunning(true); setOptimizing(false); setResults(null); setOptimizationReport(null); setError(null);
         setProgress({ percent: 0, message: forceRebuild ? 'Reinitializing Data...' : 'Initializing Worker...' });
         socket.emit('start_simulation', { ...config, forceRebuild });
     };
 
-    const updateConfig = (field, val) => {
-        setConfig(prev => ({ ...prev, [field]: val }));
+    const handleOptimize = () => {
+        setOptimizing(true); setRunning(false); setResults(null); setOptimizationReport(null); setError(null);
+        setProgress({ percent: 0, message: 'Booting Genetic Screener...' });
+        socket.emit('start_optimization', { ...config });
     };
 
-    const handleAddAsset = () => {
-        if (!newAsset || config.assets.includes(newAsset)) return;
-        const updatedAssets = [...config.assets, newAsset];
-        const newWeight = parseFloat((100 / updatedAssets.length).toFixed(1));
-        const updatedWeights = {};
-        updatedAssets.forEach(a => { updatedWeights[a] = newWeight; });
-        setConfig(prev => ({ ...prev, assets: updatedAssets, weights: updatedWeights }));
-        setNewAsset('');
+    const applyOptimizedConfig = () => {
+        if (!optimizationReport) return;
+        const newAssets = optimizationReport.optimizedPortfolio.assets;
+        const weight = parseFloat((100 / newAssets.length).toFixed(1));
+        const newWeights = {};
+        newAssets.forEach(a => newWeights[a] = weight);
+        setConfig(prev => ({ ...prev, assets: newAssets, weights: newWeights }));
     };
 
-    const handleRemoveAsset = (assetToRemove) => {
-        const updatedAssets = config.assets.filter(a => a !== assetToRemove);
-        const updatedWeights = { ...config.weights };
-        delete updatedWeights[assetToRemove];
-        setConfig(prev => ({ ...prev, assets: updatedAssets, weights: updatedWeights }));
+    // --- HELPERS FOR CONTROLS ---
+    const updateConfig = (f, v) => setConfig(p => ({ ...p, [f]: v }));
+    const updateWeight = (a, v) => setConfig(p => ({ ...p, weights: { ...p.weights, [a]: parseFloat(v) || 0 } }));
+    
+    const addAsset = (a) => {
+        if (!a || config.assets.includes(a)) return;
+        const newAssets = [...config.assets, a];
+        const w = parseFloat((100 / newAssets.length).toFixed(1));
+        const newWeights = {}; newAssets.forEach(as => newWeights[as] = w);
+        setConfig(p => ({ ...p, assets: newAssets, weights: newWeights }));
     };
 
-    const updateWeight = (asset, val) => {
-        let numericVal = parseFloat(val);
-        // Allow empty string to let user type, default to 0 only on NaN if strictly needed
-        if (val === '') numericVal = 0; 
-        setConfig(prev => ({
-            ...prev,
-            weights: { ...prev.weights, [asset]: numericVal }
-        }));
+    const removeAsset = (a) => {
+        const newAssets = config.assets.filter(as => as !== a);
+        const newWeights = { ...config.weights }; delete newWeights[a];
+        setConfig(p => ({ ...p, assets: newAssets, weights: newWeights }));
     };
-
-    const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.weights[asset] || 0), 0);
-
-    // --- RENDER HELPERS ---
-    const renderControls = () => (
-        <Stack spacing={3} height="100%">
-            {/* 1. PORTFOLIO CONFIG */}
-            <GlassCard>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                    <SectionHeader icon={<PieChart />} title="Portfolio Mix" subtitle="Asset selection & weighting" />
-                    <Chip 
-                        label={`Total: ${totalAllocation.toFixed(0)}%`} 
-                        color={Math.abs(totalAllocation - 100) < 1 ? "success" : "warning"} 
-                        variant="outlined" size="small"
-                    />
-                </Stack>
-                
-                <Box display="flex" gap={1} mb={2} p={1.5} bgcolor={alpha(theme.palette.background.paper, 0.3)} borderRadius={2}>
-                    <FormControl size="small" fullWidth>
-                        <InputLabel>Add Asset</InputLabel>
-                        <Select value={newAsset} label="Add Asset" onChange={(e) => setNewAsset(e.target.value)}>
-                            {AVAILABLE_ASSETS.filter(a => !config.assets.includes(a)).map(asset => (
-                                <MenuItem key={asset} value={asset}>{asset}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                    <Button variant="contained" onClick={handleAddAsset} disabled={!newAsset} size="small"><AddCircle /></Button>
-                </Box>
-
-                <List disablePadding sx={{ maxHeight: 250, overflowY: 'auto' }}>
-                    {config.assets.map((asset) => (
-                        <ListItem key={asset} sx={{ borderBottom: 1, borderColor: 'divider', px: 0, py: 1 }}>
-                            <Box display="flex" alignItems="center" width="100%">
-                                <Avatar sx={{ width: 24, height: 24, mr: 1, fontSize: '0.6rem', bgcolor: 'primary.main' }}>{asset.substring(0,1)}</Avatar>
-                                <Typography variant="body2" fontWeight="bold" sx={{ minWidth: 60 }}>{asset.replace('USDT','')}</Typography>
-                                <Slider 
-                                    value={config.weights[asset] || 0} 
-                                    onChange={(_, v) => updateWeight(asset, v)} 
-                                    min={0} max={100} step={5} 
-                                    size="small"
-                                    sx={{ mx: 2, flexGrow: 1 }} 
-                                />
-                                <TextField 
-                                    size="small" type="number" 
-                                    value={config.weights[asset]} // Removed || 0 to allow typing
-                                    onChange={(e) => updateWeight(asset, e.target.value)} 
-                                    InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                                    sx={{ width: 90 }} 
-                                />
-                                <IconButton size="small" color="error" onClick={() => handleRemoveAsset(asset)}><Delete fontSize="small" /></IconButton>
-                            </Box>
-                        </ListItem>
-                    ))}
-                </List>
-            </GlassCard>
-
-            {/* 2. STRATEGY PARAMS */}
-            <GlassCard>
-                <SectionHeader icon={<Tune />} title="Strategy Params" subtitle="SuperTrend + ADX Logic" />
-                <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                        <TextField 
-                            label="Min ADX" type="number" fullWidth size="small"
-                            value={config.minAdx} onChange={(e) => updateConfig('minAdx', e.target.value)} 
-                        />
-                    </Grid>
-                    <Grid item xs={6}>
-                        <TextField 
-                            label="Max RSI" type="number" fullWidth size="small"
-                            value={config.maxRsi} onChange={(e) => updateConfig('maxRsi', e.target.value)} 
-                        />
-                    </Grid>
-                    {/* BURST MODE SWITCH */}
-                    <Grid item xs={12}>
-                        <Box 
-                            display="flex" alignItems="center" justifyContent="space-between" 
-                            p={1} border={1} borderColor="divider" borderRadius={1}
-                            bgcolor={config.burstMode ? alpha(theme.palette.warning.main, 0.1) : 'transparent'}
-                        >
-                            <Box display="flex" alignItems="center" gap={1}>
-                                <FlashOn fontSize="small" color={config.burstMode ? "warning" : "disabled"} />
-                                <Box>
-                                    <Typography variant="body2" fontWeight="bold">Burst Mode</Typography>
-                                    <Typography variant="caption" color="text.secondary">Enter early if RSI &gt; 50</Typography>
-                                </Box>
-                            </Box>
-                            <Switch checked={config.burstMode} onChange={(e) => updateConfig('burstMode', e.target.checked)} color="warning" />
-                        </Box>
-                    </Grid>
-                    
-                    {/* TRAILING STOP SECTION */}
-                    <Grid item xs={12}>
-                        <Divider sx={{ my: 1 }} />
-                    </Grid>
-                    <Grid item xs={12}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                            <Box display="flex" alignItems="center" gap={1}>
-                                <Security fontSize="small" color="primary" />
-                                <Typography variant="body2" fontWeight="bold">Trailing Stop</Typography>
-                            </Box>
-                            <Switch 
-                                checked={config.enableTrailingStops} 
-                                onChange={(e) => updateConfig('enableTrailingStops', e.target.checked)} 
-                            />
-                        </Box>
-                        <Stack direction="row" spacing={2} alignItems="center" sx={{ opacity: config.enableTrailingStops ? 1 : 0.5, pointerEvents: config.enableTrailingStops ? 'auto' : 'none' }}>
-                            <Slider
-                                value={config.trailingStopPercent}
-                                min={0.5} max={10.0} step={0.1}
-                                onChange={(_, v) => updateConfig('trailingStopPercent', v)}
-                                valueLabelDisplay="auto"
-                                sx={{ flexGrow: 1 }}
-                            />
-                            <Chip label={`${config.trailingStopPercent}%`} size="small" />
-                        </Stack>
-                    </Grid>
-
-                    <Grid item xs={12}>
-                        <Typography variant="caption" gutterBottom>Hard Stop Loss ({config.stopLoss}%)</Typography>
-                        <Slider 
-                            value={parseFloat(config.stopLoss)} 
-                            min={0.5} max={10} step={0.1}
-                            onChange={(_, v) => updateConfig('stopLoss', v)} 
-                        />
-                    </Grid>
-                </Grid>
-            </GlassCard>
-
-             {/* 3. SIMULATION SETTINGS */}
-             <GlassCard>
-                <SectionHeader icon={<Science />} title="Simulation" subtitle="Environment settings" />
-                <Box mb={2}>
-                    <Typography variant="caption" gutterBottom>Duration: {config.days} Days</Typography>
-                    <Slider 
-                        value={config.days} min={7} max={120} 
-                        onChange={(_, v) => updateConfig('days', v)} 
-                    />
-                </Box>
-                <TextField 
-                    label="Start Balance ($)" type="number" fullWidth size="small"
-                    value={config.balance} onChange={(e) => updateConfig('balance', e.target.value)} 
-                />
-            </GlassCard>
-
-            <Stack direction="row" spacing={1}>
-                <Button 
-                    variant="contained" size="large" onClick={() => handleRun(false)} disabled={running}
-                    startIcon={!running && <PlayArrow />}
-                    sx={{ py: 1.5, fontWeight: 'bold', flexGrow: 1 }}
-                    color={running ? "secondary" : "primary"}
-                >
-                    {running ? "RUNNING..." : "RUN TEST"}
-                </Button>
-                <Tooltip title="Force Rebuild DB (Fixes Schema/Missing Data)">
-                    <Button variant="outlined" color="warning" onClick={() => handleRun(true)} disabled={running}><Restore /></Button>
-                </Tooltip>
-            </Stack>
-        </Stack>
-    );
 
     return (
         <Box p={3} height="100%" display="flex" flexDirection="column" sx={{ overflowY: 'auto' }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
-                    <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
-                        STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span>
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-                        ISOLATED SIMULATION ENVIRONMENT • 15M TIMEFRAME
-                    </Typography>
+                    <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span></Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>ISOLATED SIMULATION ENVIRONMENT • 15M TIMEFRAME</Typography>
                 </Box>
             </Box>
+
             <Grid container spacing={3}>
-                <Grid item xs={12} md={4} lg={3}>{renderControls()}</Grid>
+                <Grid item xs={12} md={4} lg={3}>
+                    <LabControls 
+                        config={config} updateConfig={updateConfig} updateWeight={updateWeight}
+                        addAsset={addAsset} removeAsset={removeAsset}
+                        onRun={handleRun} onOptimize={handleOptimize}
+                        running={running} optimizing={optimizing}
+                    />
+                </Grid>
                 <Grid item xs={12} md={8} lg={9}>
-                     <GlassCard>
-                        {error && (() => {
-                            const errInfo = getHelpfulError(error);
-                            return (
-                                <Alert severity="error" icon={errInfo.icon} sx={{ mb: 2 }}>
-                                    <AlertTitle>{errInfo.title}</AlertTitle>
-                                    {errInfo.msg}
-                                </Alert>
-                            );
-                        })()}
-                        {running && (
-                            <Box sx={{ width: '100%', mb: 4, mt: 2 }}>
-                                <LinearProgress variant="determinate" value={progress.percent} />
-                                <Typography align="center" variant="caption">{progress.message}</Typography>
-                            </Box>
-                        )}
-                        {!results && !running && (
-                            <Box height="100%" display="flex" alignItems="center" justifyContent="center" flexDirection="column" opacity={0.3} minHeight={400}>
-                                <Science sx={{ fontSize: 100, mb: 2 }} />
-                                <Typography variant="h5" fontWeight="bold">READY TO SIMULATE</Typography>
-                            </Box>
-                        )}
-                        {results && (
-                            <Box>
-                                <Grid container spacing={2} mb={4}>
-                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">NET PnL</Typography><Typography variant="h4" color={results.stats.netProfit>0?"success.main":"error.main"}>${results.stats.netProfit.toFixed(2)}</Typography></Box></Grid>
-                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">WIN RATE</Typography><Typography variant="h4">{results.stats.winRate.toFixed(1)}%</Typography></Box></Grid>
-                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">TRADES</Typography><Typography variant="h4">{results.stats.totalTrades}</Typography></Box></Grid>
-                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">EQUITY</Typography><Typography variant="h4">${results.stats.finalBalance.toFixed(0)}</Typography></Box></Grid>
-                                </Grid>
-                                <Box flexGrow={1} minHeight={300} mb={3}>
-                                    {results.equityCurve.length > 0 ? (
-                                        <LineChart
-                                            xAxis={[{ data: results.equityCurve.map((_, i) => i), label: 'Time', tickLabelStyle: { fontSize: 0 } }]}
-                                            series={[{ data: results.equityCurve.map(d => d.value), area: true, showMark: false, color: theme.palette.primary.main }]}
-                                            height={300}
-                                        />
-                                    ) : <Alert severity="warning">No trades executed.</Alert>}
-                                </Box>
-                                <TableContainer component={Box} sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}>
-                                    <Table size="small">
-                                        <TableHead><TableRow><TableCell>Asset</TableCell><TableCell align="right">Trades</TableCell><TableCell align="right">Win %</TableCell><TableCell align="right">PnL</TableCell></TableRow></TableHead>
-                                        <TableBody>
-                                            {results.stats.assetStats.map((stat) => (
-                                                <TableRow key={stat.symbol}>
-                                                    <TableCell fontWeight="bold">{stat.symbol}</TableCell>
-                                                    <TableCell align="right">{stat.trades}</TableCell>
-                                                    <TableCell align="right">{stat.trades > 0 ? ((stat.wins/stat.trades)*100).toFixed(0) : 0}%</TableCell>
-                                                    <TableCell align="right" sx={{ color: stat.pnl > 0 ? 'success.main' : 'error.main' }}>{stat.pnl.toFixed(2)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            </Box>
-                        )}
-                    </GlassCard>
+                     {error && <Alert severity="error" sx={{ mb: 2 }}><AlertTitle>Error</AlertTitle>{error}</Alert>}
+                     
+                     {(running || optimizing) && <LoadingState message={progress.message} percent={progress.percent} isOptimizing={optimizing} />}
+                     
+                     {!running && !optimizing && !results && !optimizationReport && <EmptyState />}
+                     
+                     {results && !optimizing && <SimulationReport results={results} />}
+                     
+                     {optimizationReport && !running && <OptimizationReport report={optimizationReport} onApply={applyOptimizedConfig} />}
                 </Grid>
             </Grid>
         </Box>
