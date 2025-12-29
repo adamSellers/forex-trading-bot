@@ -48,10 +48,17 @@ const LabControls = ({
         setNewAsset('');
     };
 
+    // Helper to allow empty string while typing
+    const handleInputChange = (asset, value) => {
+        // If empty, pass as is (or 0) depending on parent logic, 
+        // but here we just pass the raw value to the update handler.
+        updateWeight(asset, value);
+    };
+
     return (
-        <Stack spacing={2} pb={4}> {/* Removed fixed height to prevent clipping */}
+        <Stack spacing={2} pb={4}> 
             
-            {/* 1. ACTIONS (Moved to top for better UX, or keep at bottom? Keeping order but making distinct) */}
+            {/* 1. ACTIONS */}
             <Stack spacing={1}>
                 <Box display="flex" gap={1}>
                     <Button 
@@ -93,13 +100,14 @@ const LabControls = ({
             </Stack>
 
             {/* 2. PORTFOLIO MIX */}
-            <GlassCard sx={{ p: 2 }}> {/* Reduced padding */}
+            <GlassCard sx={{ p: 2 }}> 
                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                     <SectionHeader icon={<PieChart />} title="Portfolio" subtitle="Asset Mix" />
                     <Chip 
-                        label={`${totalAllocation.toFixed(0)}%`} 
+                        label={`${totalAllocation.toFixed(0)}% TOTAL`} 
                         color={Math.abs(totalAllocation - 100) < 1 ? "success" : "warning"} 
-                        variant="outlined" size="small"
+                        variant={Math.abs(totalAllocation - 100) < 1 ? "filled" : "outlined"}
+                        size="small"
                         sx={{ height: 24, fontSize: '0.75rem', fontWeight: 'bold' }}
                     />
                 </Stack>
@@ -118,29 +126,49 @@ const LabControls = ({
 
                 <List disablePadding sx={{ maxHeight: 220, overflowY: 'auto', pr: 0.5 }}>
                     {config.assets.map((asset) => (
-                        <ListItem key={asset} sx={{ borderBottom: 1, borderColor: 'divider', px: 0, py: 1 }}>
-                            <Box display="flex" alignItems="center" width="100%" gap={1}>
-                                <Avatar sx={{ width: 24, height: 24, fontSize: '0.6rem', bgcolor: 'primary.main' }}>{asset.substring(0,1)}</Avatar>
-                                <Typography variant="caption" fontWeight="bold" sx={{ minWidth: 45 }}>{asset.replace('USDT','')}</Typography>
+                        <ListItem key={asset} sx={{ borderBottom: 1, borderColor: 'divider', px: 0, py: 1.5 }}>
+                            <Box display="flex" alignItems="center" width="100%" gap={1.5}>
+                                {/* Asset Icon & Name */}
+                                <Box display="flex" alignItems="center" gap={1} minWidth={70}>
+                                    <Avatar sx={{ width: 28, height: 28, fontSize: '0.7rem', bgcolor: 'primary.main', fontWeight: 'bold' }}>{asset.substring(0,1)}</Avatar>
+                                    <Typography variant="body2" fontWeight="bold">{asset.replace('USDT','')}</Typography>
+                                </Box>
                                 
+                                {/* Slider */}
                                 <Slider 
                                     value={config.weights[asset] || 0} 
                                     onChange={(_, v) => updateWeight(asset, v)} 
-                                    min={0} max={100} step={5} size="small" 
+                                    min={0} max={100} step={1} size="small" 
                                     sx={{ flexGrow: 1, mx: 1 }} 
                                 />
                                 
+                                {/* Numeric Input - ENLARGED & STYLED */}
                                 <TextField 
-                                    size="small" type="number" 
+                                    size="small" 
+                                    type="number" 
                                     value={config.weights[asset]} 
-                                    onChange={(e) => updateWeight(asset, e.target.value)} 
+                                    onChange={(e) => handleInputChange(asset, e.target.value)} 
                                     InputProps={{ 
-                                        endAdornment: <InputAdornment position="end" sx={{mr:-1}}><Typography variant="caption">%</Typography></InputAdornment>,
-                                        style: { fontSize: '0.75rem', padding: 0 }
+                                        endAdornment: <InputAdornment position="end"><Typography variant="body2" color="text.secondary">%</Typography></InputAdornment>,
                                     }} 
-                                    sx={{ width: 60 }} 
+                                    sx={{ 
+                                        width: 85,
+                                        '& .MuiOutlinedInput-root': {
+                                            bgcolor: alpha(theme.palette.background.paper, 0.2), // Darker bg for input feel
+                                            fontSize: '0.9rem', // Readable font size
+                                            fontWeight: 'bold',
+                                            paddingRight: 1
+                                        },
+                                        '& input': {
+                                            textAlign: 'center',
+                                            padding: '6px 0 6px 6px'
+                                        }
+                                    }} 
                                 />
-                                <IconButton size="small" color="error" onClick={() => removeAsset(asset)} sx={{ p: 0.5 }}><Delete fontSize="small" /></IconButton>
+                                
+                                <IconButton size="small" color="error" onClick={() => removeAsset(asset)} sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}>
+                                    <Delete fontSize="small" />
+                                </IconButton>
                             </Box>
                         </ListItem>
                     ))}
@@ -152,10 +180,10 @@ const LabControls = ({
                 <SectionHeader icon={<Tune />} title="Parameters" subtitle="Entry Logic" />
                 <Grid container spacing={2}>
                     <Grid item xs={6}>
-                        <TextField label="Min ADX" type="number" fullWidth size="small" value={config.minAdx} onChange={(e) => updateConfig('minAdx', e.target.value)} InputProps={{ style: { fontSize: '0.8rem' } }} />
+                        <TextField label="Min ADX" type="number" fullWidth size="small" value={config.minAdx} onChange={(e) => updateConfig('minAdx', e.target.value)} />
                     </Grid>
                     <Grid item xs={6}>
-                        <TextField label="Max RSI" type="number" fullWidth size="small" value={config.maxRsi} onChange={(e) => updateConfig('maxRsi', e.target.value)} InputProps={{ style: { fontSize: '0.8rem' } }} />
+                        <TextField label="Max RSI" type="number" fullWidth size="small" value={config.maxRsi} onChange={(e) => updateConfig('maxRsi', e.target.value)} />
                     </Grid>
                     <Grid item xs={12}>
                         <Box display="flex" alignItems="center" justifyContent="space-between" p={1} border={1} borderColor="divider" borderRadius={1} bgcolor={config.burstMode ? alpha(theme.palette.warning.main, 0.1) : 'transparent'}>
@@ -183,7 +211,7 @@ const LabControls = ({
                     <Typography variant="caption" gutterBottom>Duration: {config.days} Days</Typography>
                     <Slider value={config.days} min={7} max={120} onChange={(_, v) => updateConfig('days', v)} size="small" />
                 </Box>
-                <TextField label="Start Balance ($)" type="number" fullWidth size="small" value={config.balance} onChange={(e) => updateConfig('balance', e.target.value)} InputProps={{ style: { fontSize: '0.8rem' } }} />
+                <TextField label="Start Balance ($)" type="number" fullWidth size="small" value={config.balance} onChange={(e) => updateConfig('balance', e.target.value)} />
             </GlassCard>
 
         </Stack>
