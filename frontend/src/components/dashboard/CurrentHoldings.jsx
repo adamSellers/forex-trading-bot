@@ -5,7 +5,7 @@ import {
   IconButton, Tooltip, useTheme, alpha, Grid, Divider, Button, CircularProgress
 } from '@mui/material';
 import { AccountBalance, Info, Warning, TrendingUp } from '@mui/icons-material'; // Added TrendingUp icon
-import { apiCall } from '../config/api'; 
+import { apiCall } from '../../config/api'; 
 
 const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
   const theme = useTheme();

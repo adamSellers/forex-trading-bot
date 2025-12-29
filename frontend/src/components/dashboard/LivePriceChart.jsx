@@ -8,8 +8,8 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, Legend
 } from 'recharts';
-import { tradingAPI } from '../config/api';
-import { calculateEMA } from '../utils/indicators';
+import { tradingAPI } from '../../config/api';
+import { calculateEMA } from '../../utils/indicators';
 
 // --- SUPERTREND CALCULATION (Client-Side) ---
 const calculateSuperTrend = (candles, period = 10, factor = 3) => {

@@ -7,7 +7,7 @@ import {
 import { 
   PieChart, Visibility, TrendingUp, TrendingDown 
 } from '@mui/icons-material';
-import { tradingAPI, socket } from '../config/api';
+import { tradingAPI, socket } from '../../config/api';
 
 // --- STYLED COMPONENTS ---
 const TickerRow = styled(Box)(({ theme, active }) => ({
