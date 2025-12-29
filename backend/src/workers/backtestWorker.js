@@ -1,4 +1,4 @@
-// backend/src/workers/backtestWorker.js
+// backend/src/workers/backtestWorker.js - WITH BURST MODE SWITCH
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
@@ -96,7 +96,7 @@ function runChildScript(scriptPath, actionName) {
             }
         });
 
-        // FIXED: Catch Signals (like OOM Kill)
+        // Catch Signals (like OOM Kill)
         child.on("close", (code, signal) => {
             if (code === 0) return resolve();
             if (signal)
@@ -131,6 +131,9 @@ async function runSimulation(db, config) {
                     : ["BTCUSDT", "ETHUSDT"],
             days: parseInt(config.days) || 30,
             weights: config.weights || {},
+            // [NEW] Toggle Switch
+            burst_mode:
+                config.burstMode === true || config.burstMode === "true",
         };
 
         const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
@@ -177,7 +180,9 @@ async function runSimulation(db, config) {
             if (process.send)
                 process.send({
                     type: "progress",
-                    message: `Simulating...`,
+                    message: `Simulating... (Burst Mode: ${
+                        STRATEGY.burst_mode ? "ON" : "OFF"
+                    })`,
                     percent: 25,
                 });
 
@@ -276,17 +281,33 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // --- ENTRIES ---
+        // --- ENTRIES (CONDITIONAL LOGIC) ---
         if (!positions[sym]) {
             const trendFlipGreen =
                 prevCandle.supertrend_direction === -1 &&
                 candle.supertrend_direction === 1;
 
             if (trendFlipGreen) {
-                if (
-                    candle.adx >= strategy.min_adx &&
-                    candle.rsi <= strategy.max_rsi
-                ) {
+                // 1. Standard Condition
+                const isStandardTrend = candle.adx >= strategy.min_adx;
+
+                // 2. Burst Condition (Early Entry on High RSI)
+                const isBurstMove = candle.adx >= 15 && candle.rsi > 50;
+
+                // 3. Decide Entry Based on Switch
+                let entrySignal = false;
+                if (strategy.burst_mode) {
+                    // Burst Mode ON: Accept Standard OR Burst
+                    entrySignal = isStandardTrend || isBurstMove;
+                } else {
+                    // Burst Mode OFF: Strict Standard only
+                    entrySignal = isStandardTrend;
+                }
+
+                // 4. Safety Filter (RSI Ceiling)
+                const isSafeRsi = candle.rsi <= strategy.max_rsi;
+
+                if (entrySignal && isSafeRsi) {
                     const weight = normalizedWeights[sym];
                     const investAmount =
                         balance * weight * strategy.trade_size_pct;
@@ -382,3 +403,5 @@ async function executeStrategy(rows, strategy) {
         equityCurve,
     };
 }
+
+module.exports = { runSimulation };

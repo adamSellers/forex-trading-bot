@@ -6,11 +6,12 @@ import {
     MenuItem, Select, FormControl, InputLabel,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Divider, alpha, Tooltip, IconButton, Avatar, styled, InputAdornment,
-    List, ListItem, AlertTitle
+    List, ListItem, AlertTitle, Switch, FormControlLabel // <--- ADDED Switch, FormControlLabel
 } from '@mui/material';
 import { 
     Science, PlayArrow, BarChart, Restore, PieChart, 
-    Tune, Delete, AddCircle, Memory, Timer, Storage, Warning // <--- FIXED: Added Warning import
+    Tune, Delete, AddCircle, Memory, Timer, Storage, Warning,
+    FlashOn // <--- ADDED FlashOn Icon
 } from '@mui/icons-material';
 import { LineChart } from '@mui/x-charts';
 import { socket } from '../config/api';
@@ -67,6 +68,7 @@ const BacktestLab = () => {
         riskPerTrade: 0.95,
         balance: 1000,
         days: 30, 
+        burstMode: false, // <--- NEW STATE
         assets: ['BTCUSDT', 'ETHUSDT'],
         weights: { 'BTCUSDT': 50, 'ETHUSDT': 50 } 
     });
@@ -253,6 +255,33 @@ const BacktestLab = () => {
                             value={config.maxRsi} onChange={(e) => updateConfig('maxRsi', e.target.value)} 
                         />
                     </Grid>
+                    {/* --- NEW BURST MODE SWITCH --- */}
+                    <Grid item xs={12}>
+                        <Box 
+                            display="flex" alignItems="center" justifyContent="space-between" 
+                            p={1} border={1} borderColor="divider" borderRadius={1}
+                            bgcolor={config.burstMode ? alpha(theme.palette.warning.main, 0.1) : 'transparent'}
+                        >
+                            <Box display="flex" alignItems="center" gap={1}>
+                                <FlashOn 
+                                    fontSize="small" 
+                                    color={config.burstMode ? "warning" : "disabled"} 
+                                />
+                                <Box>
+                                    <Typography variant="body2" fontWeight="bold">Burst Mode</Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                        Enter early if RSI &gt; 50
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <Switch 
+                                checked={config.burstMode} 
+                                onChange={(e) => updateConfig('burstMode', e.target.checked)}
+                                color="warning" 
+                            />
+                        </Box>
+                    </Grid>
+                    {/* ----------------------------- */}
                     <Grid item xs={12}>
                         <Typography variant="caption" gutterBottom>Stop Loss ({config.stopLoss}%)</Typography>
                         <Slider 
