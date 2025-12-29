@@ -10,21 +10,31 @@ class BacktestEngine {
                 __dirname,
                 "../workers/backtestWorker.js"
             );
+
+            // Fork the worker process
             const worker = fork(workerPath);
             let isResolved = false;
 
-            // UPDATED: Increased timeout to 15 minutes to allow for data downloading
+            // UPDATED: Increased timeout to 45 minutes for Raspberry Pi SD Card I/O
+            const TIMEOUT_DURATION = 45 * 60 * 1000;
+
             const timeout = setTimeout(() => {
                 if (!worker.killed) {
                     logger.warn(
-                        "⚠️ Backtest Worker timed out (15m limit)! Killing process."
+                        `⚠️ Backtest Worker timed out (${
+                            TIMEOUT_DURATION / 60000
+                        }m limit)! Killing process.`
                     );
                     worker.kill();
                     reject(
-                        new Error("Simulation timed out (limit: 15 minutes)")
+                        new Error(
+                            `Simulation timed out (limit: ${
+                                TIMEOUT_DURATION / 60000
+                            } minutes)`
+                        )
                     );
                 }
-            }, 15 * 60 * 1000);
+            }, TIMEOUT_DURATION);
 
             worker.on("message", (msg) => {
                 if (msg.type === "progress") {
