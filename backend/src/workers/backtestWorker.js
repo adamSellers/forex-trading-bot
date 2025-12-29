@@ -15,7 +15,6 @@ const STALE_THRESHOLD = 24 * 60 * 60 * 1000;
 process.on("message", async (msg) => {
     if (msg.command === "start") {
         try {
-            // FIXED: Pass the forceRebuild flag from UI config
             const forceRebuild = msg.config && msg.config.forceRebuild === true;
             await ensureLabData(forceRebuild);
 
@@ -46,7 +45,6 @@ async function ensureLabData(force = false) {
         if (Date.now() - stats.mtimeMs > STALE_THRESHOLD) isStale = true;
     }
 
-    // FIXED: Added 'force' condition
     if (!dbExists || isStale || force) {
         if (process.send)
             process.send({
@@ -57,7 +55,6 @@ async function ensureLabData(force = false) {
                 percent: 0,
             });
 
-        // Clean up old file if forcing
         if (force && dbExists) {
             try {
                 fs.unlinkSync(DB_PATH);
@@ -93,9 +90,6 @@ function runChildScript(scriptPath, actionName) {
                 });
             }
         });
-        child.stderr.on("data", (data) => {
-            // Optional: Log stderr if needed
-        });
         child.on("close", (code) =>
             code === 0
                 ? resolve()
@@ -113,7 +107,6 @@ async function runSimulation(db, config) {
                 percent: 10,
             });
 
-        // 1. Parse Configuration
         const STRATEGY = {
             min_adx: parseFloat(config.minAdx) || 25,
             max_rsi: parseFloat(config.maxRsi) || 70,
@@ -123,15 +116,13 @@ async function runSimulation(db, config) {
             assets:
                 Array.isArray(config.assets) && config.assets.length > 0
                     ? config.assets
-                    : ["BTCUSDT", "ETHUSDT"], // Fallback
+                    : ["BTCUSDT", "ETHUSDT"],
             days: parseInt(config.days) || 30,
         };
 
-        // 2. Prepare Query
         const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
         const placeholders = STRATEGY.assets.map(() => "?").join(",");
 
-        // Query requests 'open'
         const query = `
             SELECT symbol, timestamp, open, high, low, close as price, 
                    adx, rsi, supertrend_direction 
@@ -150,7 +141,6 @@ async function runSimulation(db, config) {
 
         db.all(query, [...STRATEGY.assets, startTime], async (err, rows) => {
             if (err) {
-                // Self-Healing: If still broken for some reason, tell user to click button
                 if (err.message.includes("no such column")) {
                     if (process.send)
                         process.send({
@@ -198,7 +188,6 @@ async function executeStrategy(rows, strategy) {
     let tradeHistory = [];
     let equityCurve = [];
 
-    // LATEST PRICE MAP (Fixes Cross-Asset Price Contamination)
     const latestPrices = {};
     strategy.assets.forEach((asset) => (latestPrices[asset] = 0));
 
@@ -224,9 +213,7 @@ async function executeStrategy(rows, strategy) {
 
         const sym = candle.symbol;
 
-        // 1. UPDATE GLOBAL PRICE STATE
         latestPrices[sym] = candle.price;
-
         const prevCandle = previousStates[sym];
         previousStates[sym] = candle;
 
@@ -238,13 +225,10 @@ async function executeStrategy(rows, strategy) {
             let closeReason = null;
             let exitPrice = candle.price;
 
-            // Stop Loss
             if (candle.price <= pos.stopLoss) {
                 closeReason = "STOP_LOSS";
                 exitPrice = pos.stopLoss;
-            }
-            // Trend Reversal
-            else if (candle.supertrend_direction === -1) {
+            } else if (candle.supertrend_direction === -1) {
                 closeReason = "TREND_FLIP";
             }
 
@@ -281,7 +265,6 @@ async function executeStrategy(rows, strategy) {
                     candle.adx >= strategy.min_adx &&
                     candle.rsi <= strategy.max_rsi
                 ) {
-                    // DYNAMIC ALLOCATION
                     const activeAssetsCount = strategy.assets.length || 1;
                     const allocationFactor =
                         strategy.trade_size_pct / activeAssetsCount;
@@ -312,7 +295,6 @@ async function executeStrategy(rows, strategy) {
                     latestPrices[posSym] || pos.entryPrice;
                 unrealized += pos.quantity * currentMarketPrice;
             });
-
             equityCurve.push({
                 time: candle.timestamp,
                 value: balance + unrealized,
@@ -320,7 +302,32 @@ async function executeStrategy(rows, strategy) {
         }
     }
 
-    // --- 5. COMPILE STATISTICS ---
+    // --- 5. FORCE CLOSE OPEN POSITIONS (FIX) ---
+    // If the simulation ends with assets still bought, we sell them at the final known price.
+    Object.keys(positions).forEach((posSym) => {
+        const pos = positions[posSym];
+        const finalPrice = latestPrices[posSym];
+
+        const exitValue = pos.quantity * finalPrice;
+        const fee = exitValue * 0.001;
+        const netReturn = exitValue - fee;
+        const pnl = netReturn - pos.cost;
+
+        balance += netReturn;
+
+        tradeHistory.push({
+            id: tradeHistory.length + 1,
+            symbol: posSym,
+            entryPrice: pos.entryPrice,
+            exitPrice: finalPrice,
+            pnl: pnl,
+            pnlPercent: ((finalPrice - pos.entryPrice) / pos.entryPrice) * 100,
+            reason: "END_OF_SIM", // Distinct reason for these forced closes
+            time: Date.now(),
+        });
+    });
+
+    // --- 6. COMPILE STATISTICS ---
     const assetStats = {};
     strategy.assets.forEach((a) => {
         assetStats[a] = { symbol: a, trades: 0, wins: 0, pnl: 0 };
