@@ -1,4 +1,4 @@
-// backend/backtest_lab/build_15m_dataset.js - PATCHED SUPER TREND
+// backend/backtest_lab/build_15m_dataset.js
 const sqlite3 = require("sqlite3").verbose();
 const fs = require("fs");
 const path = require("path");
@@ -18,12 +18,17 @@ const db = new sqlite3.Database(DB_PATH);
 
 db.serialize(() => {
     db.run(`DROP TABLE IF EXISTS market_state_15m`);
+    // FIXED: Added open, high, low, close, volume columns
     db.run(`
         CREATE TABLE market_state_15m (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp INTEGER,
             symbol TEXT,
-            price REAL,
+            open REAL,
+            high REAL,
+            low REAL,
+            close REAL,
+            volume REAL,
             supertrend_direction INTEGER,
             supertrend_value REAL,
             atr REAL,
@@ -49,19 +54,12 @@ function calculateSuperTrend(candles, period, multiplier) {
     };
     const atr = TI.ATR.calculate(input);
 
-    // Arrays to hold calculated values
-    // Align ATR: TI.ATR returns array shorter by (period).
-    // We offset indices by 'period' to match candles.
-
     let superTrend = new Array(candles.length).fill(null);
     let directions = new Array(candles.length).fill(null); // 1 = Green, -1 = Red
-
     let finalUpperBand = new Array(candles.length).fill(0);
     let finalLowerBand = new Array(candles.length).fill(0);
 
     for (let i = 0; i < candles.length; i++) {
-        // Skip until we have a valid ATR value
-        // atr[0] corresponds to candle[period]
         let atrIndex = i - period;
         if (atrIndex < 0) continue;
 
@@ -71,16 +69,13 @@ function calculateSuperTrend(candles, period, multiplier) {
         const c = candles[i].close;
         const prevClose = candles[i - 1].close;
 
-        // 1. Basic Bands
         const basicUpper = (h + l) / 2 + multiplier * currentAtr;
         const basicLower = (h + l) / 2 - multiplier * currentAtr;
 
-        // 2. Recursive Final Bands (The Logic Fix)
-        // If it's the very first calculated bar, initialize strictly
         if (i === period) {
             finalUpperBand[i] = basicUpper;
             finalLowerBand[i] = basicLower;
-            directions[i] = 1; // Default start
+            directions[i] = 1;
             superTrend[i] = basicLower;
             continue;
         }
@@ -88,30 +83,24 @@ function calculateSuperTrend(candles, period, multiplier) {
         const prevFinalUpper = finalUpperBand[i - 1];
         const prevFinalLower = finalLowerBand[i - 1];
 
-        // Final Upper: Keep previous if price didn't break it
         if (basicUpper < prevFinalUpper || prevClose > prevFinalUpper) {
             finalUpperBand[i] = basicUpper;
         } else {
             finalUpperBand[i] = prevFinalUpper;
         }
 
-        // Final Lower: Keep previous if price didn't break it
         if (basicLower > prevFinalLower || prevClose < prevFinalLower) {
             finalLowerBand[i] = basicLower;
         } else {
             finalLowerBand[i] = prevFinalLower;
         }
 
-        // 3. Direction Flip
         let prevDir = directions[i - 1];
         let currDir = prevDir;
 
-        // If currently Green (1), and price closes below Lower Band -> Flip Red (-1)
         if (prevDir === 1 && c < finalLowerBand[i]) {
             currDir = -1;
-        }
-        // If currently Red (-1), and price closes above Upper Band -> Flip Green (1)
-        else if (prevDir === -1 && c > finalUpperBand[i]) {
+        } else if (prevDir === -1 && c > finalUpperBand[i]) {
             currDir = 1;
         }
 
@@ -119,15 +108,12 @@ function calculateSuperTrend(candles, period, multiplier) {
         superTrend[i] = currDir === 1 ? finalLowerBand[i] : finalUpperBand[i];
     }
 
-    // Align ATR for return
-    // We map the ATR array back to full length with nulls at start
     const fullAtr = new Array(period).fill(null).concat(atr);
-
     return { superTrend, directions, atr: fullAtr };
 }
 
 async function processFiles() {
-    console.log("⚙️  Processing 15m Candle Data (Patched SuperTrend)...");
+    console.log("⚙️  Processing 15m Candle Data (Full OHLC)...");
 
     if (!fs.existsSync(INPUT_DIR)) {
         console.error(`❌ Error: Candle directory not found: ${INPUT_DIR}`);
@@ -137,9 +123,10 @@ async function processFiles() {
     const files = fs.readdirSync(INPUT_DIR).filter((f) => f.endsWith(".json"));
 
     db.run("BEGIN TRANSACTION");
+    // FIXED: Query matches new schema
     const stmt = db.prepare(`
-        INSERT INTO market_state_15m (timestamp, symbol, price, supertrend_direction, supertrend_value, atr, rsi, adx)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO market_state_15m (timestamp, symbol, open, high, low, close, volume, supertrend_direction, supertrend_value, atr, rsi, adx)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     let totalRows = 0;
@@ -150,7 +137,7 @@ async function processFiles() {
 
         const rawData = JSON.parse(fs.readFileSync(path.join(INPUT_DIR, file)));
 
-        // Calculate Indicators
+        // Indicators
         const rsiInput = {
             values: rawData.map((c) => c.close),
             period: RSI_PERIOD,
@@ -172,8 +159,6 @@ async function processFiles() {
         );
 
         let fileRows = 0;
-
-        // Alignment Logic
         const rsiOffset = rawData.length - rsiValues.length;
         const adxOffset = rawData.length - adxValues.length;
 
@@ -186,12 +171,16 @@ async function processFiles() {
             const stVal = stResult.superTrend[i];
             const atrVal = stResult.atr[i];
 
-            // Strict Filter
             if (rsi != null && adx != null && stDir != null) {
+                // FIXED: Insert full OHLC data
                 stmt.run(
                     rawData[i].timestamp,
                     symbol,
+                    rawData[i].open,
+                    rawData[i].high,
+                    rawData[i].low,
                     rawData[i].close,
+                    rawData[i].volume,
                     stDir,
                     stVal,
                     atrVal || 0,

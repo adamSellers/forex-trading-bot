@@ -118,7 +118,8 @@ async function runSimulation(db, config) {
         const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
         const placeholders = STRATEGY.assets.map(() => "?").join(",");
 
-        // Use a covering index if available in your schema, otherwise standard select
+        // FIXED QUERY: Mapped 'close' to 'price' to match existing logic
+        // Also explicitly selecting open/high/low/close now that they exist
         const query = `
             SELECT symbol, timestamp, open, high, low, close as price, 
                    adx, rsi, supertrend_direction 
@@ -171,17 +172,15 @@ async function runSimulation(db, config) {
 
 async function executeStrategy(rows, strategy) {
     let balance = strategy.initial_balance;
-    let positions = {}; // Format: { "BTCUSDT": { entryPrice, quantity, cost, stopLoss } }
+    let positions = {};
     let tradeHistory = [];
     let equityCurve = [];
 
-    // --- FIX: PRICE CONTAMINATION ---
-    // We maintain a map of the LATEST known price for EVERY asset.
-    // When calculating equity, we look up the price here, not from the current loop iterator.
+    // LATEST PRICE MAP (Fixes Cross-Asset Price Contamination)
     const latestPrices = {};
     strategy.assets.forEach((asset) => (latestPrices[asset] = 0));
 
-    const previousStates = {}; // For detecting trend flips
+    const previousStates = {};
     const totalCandles = rows.length;
     let processedCount = 0;
 
@@ -198,21 +197,17 @@ async function executeStrategy(rows, strategy) {
                 )}%)`,
                 percent: pct,
             });
-            // Yield to event loop to prevent blocking
             await new Promise((r) => setImmediate(r));
         }
 
         const sym = candle.symbol;
 
         // 1. UPDATE GLOBAL PRICE STATE
-        // This is crucial. We update the price for *this* symbol,
-        // but other symbols retain their last known price in `latestPrices`.
-        latestPrices[sym] = candle.price;
+        latestPrices[sym] = candle.price; // Note: candle.price is 'close' due to SQL alias
 
         const prevCandle = previousStates[sym];
         previousStates[sym] = candle;
 
-        // Skip first candle for this asset (need previous state for trend flip)
         if (!prevCandle) continue;
 
         // --- 2. MANAGE EXITS ---
@@ -221,19 +216,19 @@ async function executeStrategy(rows, strategy) {
             let closeReason = null;
             let exitPrice = candle.price;
 
-            // Stop Loss Logic
+            // Stop Loss
             if (candle.price <= pos.stopLoss) {
                 closeReason = "STOP_LOSS";
-                exitPrice = pos.stopLoss; // Assume filled exactly at SL (slippage ignored for simplicity)
+                exitPrice = pos.stopLoss;
             }
-            // Trend Reversal Logic
+            // Trend Reversal
             else if (candle.supertrend_direction === -1) {
                 closeReason = "TREND_FLIP";
             }
 
             if (closeReason) {
                 const exitValue = pos.quantity * exitPrice;
-                const fee = exitValue * 0.001; // 0.1% Fee
+                const fee = exitValue * 0.001;
                 const netReturn = exitValue - fee;
                 const pnl = netReturn - pos.cost;
                 balance += netReturn;
@@ -266,17 +261,11 @@ async function executeStrategy(rows, strategy) {
                     candle.rsi <= strategy.max_rsi
                 ) {
                     // DYNAMIC ALLOCATION
-                    // If user selected 5 assets, we risk max 1/5th of the configured trade size per asset.
-                    // This prevents the first alphabetical asset (e.g., ADA) from eating all capital.
                     const activeAssetsCount = strategy.assets.length || 1;
                     const allocationFactor =
                         strategy.trade_size_pct / activeAssetsCount;
-
-                    // We base allocation on CURRENT balance to allow compounding,
-                    // but could be Initial Balance for safer sizing.
                     const investAmount = balance * allocationFactor;
 
-                    // Minimum trade size sanity check ($10)
                     if (investAmount > 10) {
                         const fee = investAmount * 0.001;
                         const netInvest = investAmount - fee;
@@ -294,22 +283,12 @@ async function executeStrategy(rows, strategy) {
         }
 
         // --- 4. CALCULATE EQUITY ---
-        // We assume 15m candles. Recording equity every single row (for every asset) is too much data.
-        // We record roughly once per logical "hour" (4 candles * num_assets).
         if (Math.random() > 0.95) {
             let unrealized = 0;
-
-            // Loop through ALL currently open positions
             Object.keys(positions).forEach((posSym) => {
                 const pos = positions[posSym];
-
-                // SAFE PRICE LOOKUP
-                // We use latestPrices[posSym]. If that asset hasn't traded yet in this loop
-                // (rare, but possible at start), use entry price.
-                // NEVER use 'candle.price' here directly, as 'candle' is only for 'sym'.
                 const currentMarketPrice =
                     latestPrices[posSym] || pos.entryPrice;
-
                 unrealized += pos.quantity * currentMarketPrice;
             });
 
@@ -335,7 +314,6 @@ async function executeStrategy(rows, strategy) {
 
     tradeHistory.forEach((t) => {
         if (!assetStats[t.symbol]) {
-            // Handle edge case if asset was traded but not in initial list
             assetStats[t.symbol] = {
                 symbol: t.symbol,
                 trades: 0,
@@ -357,13 +335,13 @@ async function executeStrategy(rows, strategy) {
     return {
         stats: {
             initialBalance: strategy.initial_balance,
-            finalBalance: balance, // Note: Does not include unrealized PnL of open positions at end
+            finalBalance: balance,
             netProfit: balance - strategy.initial_balance,
             totalTrades: tradeHistory.length,
             winRate: winRate,
             assetStats: Object.values(assetStats).sort((a, b) => b.pnl - a.pnl),
         },
-        trades: tradeHistory.reverse().slice(0, 500), // Limit payload size
+        trades: tradeHistory.reverse().slice(0, 500),
         equityCurve,
     };
 }
