@@ -1,6 +1,6 @@
 // frontend/src/components/BacktestLab.jsx
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Grid, Alert, AlertTitle, useTheme } from '@mui/material';
+import { Box, Typography, Grid, Alert, AlertTitle, useTheme, Container } from '@mui/material';
 import { socket } from '../config/api';
 
 // --- SUB-COMPONENTS ---
@@ -97,7 +97,14 @@ const BacktestLab = () => {
     };
 
     return (
-        <Box p={3} height="100%" display="flex" flexDirection="column" sx={{ overflowY: 'auto' }}>
+        <Box 
+            p={3} 
+            height="100%" 
+            width="100%" 
+            display="flex" 
+            flexDirection="column" 
+            sx={{ overflowY: 'auto', overflowX: 'hidden' }}
+        >
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
                     <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span></Typography>
@@ -105,8 +112,8 @@ const BacktestLab = () => {
                 </Box>
             </Box>
 
-            <Grid container spacing={3}>
-                <Grid item xs={12} md={4} lg={3}>
+            <Grid container spacing={3} sx={{ width: '100%', m: 0 }}>
+                <Grid item xs={12} md={4} lg={3} sx={{ pl: '0 !important', pt: '0 !important' }}>
                     <LabControls 
                         config={config} updateConfig={updateConfig} updateWeight={updateWeight}
                         addAsset={addAsset} removeAsset={removeAsset}
@@ -114,7 +121,8 @@ const BacktestLab = () => {
                         running={running} optimizing={optimizing}
                     />
                 </Grid>
-                <Grid item xs={12} md={8} lg={9}>
+                
+                <Grid item xs={12} md={8} lg={9} sx={{ pt: '0 !important' }}>
                      {error && <Alert severity="error" sx={{ mb: 2 }}><AlertTitle>Error</AlertTitle>{error}</Alert>}
                      
                      {(running || optimizing) && <LoadingState message={progress.message} percent={progress.percent} isOptimizing={optimizing} />}
