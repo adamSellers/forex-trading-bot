@@ -1,17 +1,42 @@
 // backend/src/workers/backtestWorker.js
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
+const fs = require("fs");
 
-// SAFETY: Point explicitly to the LAB data
-const DB_PATH = path.join(__dirname, "../../backtest_lab/data/market_data.db");
+// --- DEBUG PATH LOGIC ---
+// We define the target relative to this worker file
+// Trying to go from backend/src/workers -> backend/backtest_lab/data/market_data.db
+const RELATIVE_PATH = "../../../backtest_lab/data/market_data.db";
+const DB_PATH = path.resolve(__dirname, RELATIVE_PATH);
+
+console.log(`\n👷 WORKER DIAGNOSTICS:`);
+console.log(`   1. Worker Location: ${__dirname}`);
+console.log(`   2. Target DB Path:  ${DB_PATH}`);
+console.log(
+    `   3. File Exists?     ${fs.existsSync(DB_PATH) ? "✅ YES" : "❌ NO"}`
+);
+
+// Check parent folder contents if file is missing to help debug
+if (!fs.existsSync(DB_PATH)) {
+    const parentDir = path.dirname(DB_PATH);
+    console.log(`   4. Parent Dir (${parentDir}) contents:`);
+    if (fs.existsSync(parentDir)) {
+        console.log(`      ${fs.readdirSync(parentDir).join("\n      ")}`);
+    } else {
+        console.log(`      ❌ Parent directory does not exist!`);
+    }
+}
 
 // Open DB Connection inside the worker process
 const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
     if (err) {
-        process.send({
-            type: "error",
-            error: `Worker DB Connection Error: ${err.message}`,
-        });
+        // Send explicit error payload back to parent
+        const errorMsg = `Worker DB Error: ${err.message} (Tried: ${DB_PATH})`;
+        console.error(`   ❌ ${errorMsg}`);
+
+        if (process.send) {
+            process.send({ type: "error", error: errorMsg });
+        }
         process.exit(1);
     }
 });
@@ -25,11 +50,12 @@ process.on("message", (msg) => {
 
 async function runSimulation(config) {
     try {
-        process.send({
-            type: "progress",
-            message: "Initializing Worker...",
-            percent: 5,
-        });
+        if (process.send)
+            process.send({
+                type: "progress",
+                message: "Initializing Worker...",
+                percent: 5,
+            });
 
         const STRATEGY = {
             min_adx: parseFloat(config.minAdx) || 25,
@@ -46,41 +72,45 @@ async function runSimulation(config) {
         const placeholders = STRATEGY.assets.map(() => "?").join(",");
         const query = `SELECT * FROM market_state_15m WHERE symbol IN (${placeholders}) ORDER BY timestamp ASC`;
 
-        process.send({
-            type: "progress",
-            message: "Fetching Data...",
-            percent: 10,
-        });
+        if (process.send)
+            process.send({
+                type: "progress",
+                message: "Fetching Data...",
+                percent: 10,
+            });
 
         db.all(query, STRATEGY.assets, async (err, rows) => {
             if (err) {
-                process.send({ type: "error", error: err.message });
+                if (process.send)
+                    process.send({ type: "error", error: err.message });
                 process.exit(1);
             }
 
             if (!rows || rows.length === 0) {
-                process.send({
-                    type: "error",
-                    error: "No historical data found.",
-                });
+                if (process.send)
+                    process.send({
+                        type: "error",
+                        error: "No historical data found. Have you run the fetch scripts?",
+                    });
                 process.exit(0);
             }
 
-            process.send({
-                type: "progress",
-                message: `Processing ${rows.length} candles...`,
-                percent: 20,
-            });
+            if (process.send)
+                process.send({
+                    type: "progress",
+                    message: `Processing ${rows.length} candles...`,
+                    percent: 20,
+                });
 
             // Run Logic
             const results = await executeStrategy(rows, STRATEGY);
 
             // Send final results
-            process.send({ type: "result", data: results });
+            if (process.send) process.send({ type: "result", data: results });
             process.exit(0); // Mission complete
         });
     } catch (error) {
-        process.send({ type: "error", error: error.message });
+        if (process.send) process.send({ type: "error", error: error.message });
         process.exit(1);
     }
 }
@@ -101,14 +131,15 @@ async function executeStrategy(rows, strategy) {
         // Report progress back to parent every ~5000 candles
         if (processedCount % 5000 === 0) {
             const pct = 20 + Math.round((processedCount / totalCandles) * 70);
-            process.send({
-                type: "progress",
-                message: `Simulating... (${Math.round(
-                    (processedCount / totalCandles) * 100
-                )}%)`,
-                percent: pct,
-            });
-
+            if (process.send) {
+                process.send({
+                    type: "progress",
+                    message: `Simulating... (${Math.round(
+                        (processedCount / totalCandles) * 100
+                    )}%)`,
+                    percent: pct,
+                });
+            }
             // Important: Yield to event loop to allow IPC message sending
             await new Promise((r) => setImmediate(r));
         }
@@ -194,11 +225,12 @@ async function executeStrategy(rows, strategy) {
         }
     }
 
-    process.send({
-        type: "progress",
-        message: "Compiling Results...",
-        percent: 95,
-    });
+    if (process.send)
+        process.send({
+            type: "progress",
+            message: "Compiling Results...",
+            percent: 95,
+        });
 
     const winningTrades = tradeHistory.filter((t) => t.pnl > 0);
     const winRate =
