@@ -12,6 +12,9 @@ const BUILD_SCRIPT = path.join(LAB_DIR, "build_15m_dataset.js");
 
 const STALE_THRESHOLD = 24 * 60 * 60 * 1000;
 
+// Default weights if none provided
+const ASSET_WEIGHTS = { ETHUSDT: 0.3, XRPUSDT: 0.3, BNBUSDT: 0.2 };
+
 process.on("message", async (msg) => {
     if (msg.command === "start") {
         try {
@@ -76,11 +79,34 @@ async function ensureLabData(force = false) {
 function runChildScript(scriptPath, actionName) {
     return new Promise((resolve, reject) => {
         const child = spawn("node", [scriptPath]);
-        child.on("close", (code) =>
-            code === 0
-                ? resolve()
-                : reject(new Error(`${actionName} failed: ${code}`))
-        );
+
+        // Log stdout to help debug
+        child.stdout.on("data", (data) => {
+            const line = data.toString().trim();
+            if (
+                line &&
+                process.send &&
+                (line.includes("Downloading") || line.includes("Processing"))
+            ) {
+                process.send({
+                    type: "progress",
+                    message: `${actionName}: ${line.substring(0, 30)}...`,
+                    percent: 5,
+                });
+            }
+        });
+
+        // FIXED: Catch Signals (like OOM Kill)
+        child.on("close", (code, signal) => {
+            if (code === 0) return resolve();
+            if (signal)
+                return reject(
+                    new Error(
+                        `${actionName} killed by signal: ${signal} (Likely Out of Memory)`
+                    )
+                );
+            reject(new Error(`${actionName} failed with code: ${code}`));
+        });
     });
 }
 
@@ -104,7 +130,7 @@ async function runSimulation(db, config) {
                     ? config.assets
                     : ["BTCUSDT", "ETHUSDT"],
             days: parseInt(config.days) || 30,
-            weights: config.weights || {}, // Passed from Frontend
+            weights: config.weights || {},
         };
 
         const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
@@ -171,27 +197,21 @@ async function executeStrategy(rows, strategy) {
     let tradeHistory = [];
     let equityCurve = [];
 
-    // --- 1. DYNAMIC ALLOCATION WEIGHTS ---
-    // Calculate total weight (sum of percentages from UI)
+    // --- DYNAMIC ALLOCATION WEIGHTS ---
     let totalWeightInput = 0;
     strategy.assets.forEach((asset) => {
         totalWeightInput += strategy.weights[asset] || 0;
     });
-
-    // Handle case where weights are missing or zero
     if (totalWeightInput === 0) {
         strategy.assets.forEach((asset) => {
             strategy.weights[asset] = 100 / strategy.assets.length;
             totalWeightInput += strategy.weights[asset];
         });
     }
-
-    // Normalize: e.g. User inputs 50 and 50 (Total 100) -> 0.5 and 0.5
-    // User inputs 30 and 30 (Total 60) -> 0.5 and 0.5 (Normalized relative to each other)
     const normalizedWeights = {};
     strategy.assets.forEach((asset) => {
-        const raw = strategy.weights[asset] || 0;
-        normalizedWeights[asset] = raw / totalWeightInput;
+        normalizedWeights[asset] =
+            (strategy.weights[asset] || 0) / totalWeightInput;
     });
 
     const latestPrices = {};
@@ -267,10 +287,6 @@ async function executeStrategy(rows, strategy) {
                     candle.adx >= strategy.min_adx &&
                     candle.rsi <= strategy.max_rsi
                 ) {
-                    // 🎯 DYNAMIC SIZING
-                    // We risk 'trade_size_pct' of the TOTAL balance,
-                    // distributed according to the asset's weight.
-                    // Example: Balance $1000, Risk 95%, Weight 0.5 -> Invest $475
                     const weight = normalizedWeights[sym];
                     const investAmount =
                         balance * weight * strategy.trade_size_pct;

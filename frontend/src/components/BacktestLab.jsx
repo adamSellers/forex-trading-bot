@@ -6,16 +6,16 @@ import {
     MenuItem, Select, FormControl, InputLabel,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Divider, alpha, Tooltip, IconButton, Avatar, styled, InputAdornment,
-    List, ListItem
+    List, ListItem, AlertTitle
 } from '@mui/material';
 import { 
     Science, PlayArrow, BarChart, Restore, PieChart, 
-    Tune, Security, Delete, AddCircle, Warning
+    Tune, Delete, AddCircle, Memory, Timer, Storage, Warning // <--- FIXED: Added Warning import
 } from '@mui/icons-material';
 import { LineChart } from '@mui/x-charts';
 import { socket } from '../config/api';
 
-// --- STYLED COMPONENTS (MATCHING PRODUCTION CONFIG) ---
+// --- STYLED COMPONENTS ---
 const GlassCard = styled(Box)(({ theme }) => ({
   background: alpha(theme.palette.background.paper, 0.05),
   backdropFilter: 'blur(10px)',
@@ -94,6 +94,42 @@ const BacktestLab = () => {
         };
     }, []);
 
+    // --- SMART ERROR PARSER ---
+    const getHelpfulError = (errMsg) => {
+        if (!errMsg) return null;
+        
+        if (errMsg.includes("Memory") || errMsg.includes("SIGKILL") || errMsg.includes("heap")) {
+            return {
+                title: "Out of Memory (OOM)",
+                msg: "The simulation used too much RAM for the Raspberry Pi.",
+                advice: "Try reducing the 'History Duration' (e.g. 30 days) or testing fewer assets at once.",
+                icon: <Memory fontSize="inherit" />
+            };
+        }
+        if (errMsg.includes("timed out") || errMsg.includes("limit")) {
+            return {
+                title: "Operation Timed Out",
+                msg: "Downloading or processing data took too long.",
+                advice: "If this is your first run with new assets, try running it again (data may be partially cached). Otherwise, reduce the duration slider.",
+                icon: <Timer fontSize="inherit" />
+            };
+        }
+        if (errMsg.includes("Schema") || errMsg.includes("column") || errMsg.includes("no such table")) {
+            return {
+                title: "Database Mismatch",
+                msg: "The internal database structure is outdated.",
+                advice: "Click the orange 'Restore' button below to force a rebuild.",
+                icon: <Storage fontSize="inherit" />
+            };
+        }
+        return {
+            title: "Simulation Failed",
+            msg: errMsg,
+            advice: "Check the system logs for details.",
+            icon: <Warning fontSize="inherit" />
+        };
+    };
+
     // --- HANDLERS ---
 
     const handleRun = (forceRebuild = false) => {
@@ -111,13 +147,12 @@ const BacktestLab = () => {
     const handleAddAsset = () => {
         if (!newAsset || config.assets.includes(newAsset)) return;
         
-        // Add asset and give it a default weight (will need rebalancing)
         const updatedAssets = [...config.assets, newAsset];
         const newWeight = parseFloat((100 / updatedAssets.length).toFixed(1));
         const updatedWeights = {};
         
         updatedAssets.forEach(a => {
-            updatedWeights[a] = newWeight; // naive rebalance for UX start
+            updatedWeights[a] = newWeight; 
         });
 
         setConfig(prev => ({
@@ -257,7 +292,7 @@ const BacktestLab = () => {
                 >
                     {running ? "RUNNING..." : "RUN TEST"}
                 </Button>
-                <Tooltip title="Force Rebuild DB">
+                <Tooltip title="Force Rebuild DB (Fixes Schema/Missing Data)">
                     <Button variant="outlined" color="warning" onClick={() => handleRun(true)} disabled={running}>
                         <Restore />
                     </Button>
@@ -278,7 +313,6 @@ const BacktestLab = () => {
                         ISOLATED SIMULATION ENVIRONMENT • 15M TIMEFRAME
                     </Typography>
                 </Box>
-                {/* Optional Top Right Stats or Info can go here */}
             </Box>
 
             {/* MAIN GRID */}
@@ -292,7 +326,27 @@ const BacktestLab = () => {
                 {/* RIGHT: RESULTS */}
                 <Grid item xs={12} md={8} lg={9}>
                      <GlassCard>
-                        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                        {/* SMART ERROR DISPLAY */}
+                        {error && (() => {
+                            const errInfo = getHelpfulError(error);
+                            return (
+                                <Alert 
+                                    severity="error" 
+                                    icon={errInfo.icon}
+                                    sx={{ mb: 2, alignItems: 'center' }}
+                                >
+                                    <AlertTitle sx={{ fontWeight: 'bold' }}>{errInfo.title}</AlertTitle>
+                                    <Typography variant="body2" sx={{ mb: 1 }}>{errInfo.msg}</Typography>
+                                    <Chip 
+                                        label={errInfo.advice} 
+                                        color="error" 
+                                        variant="outlined" 
+                                        size="small" 
+                                        sx={{ fontWeight: 'bold' }} 
+                                    />
+                                </Alert>
+                            );
+                        })()}
                         
                         {running && (
                             <Box sx={{ width: '100%', mb: 4, mt: 2 }}>

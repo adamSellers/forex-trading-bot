@@ -1,4 +1,4 @@
-// backend/backtest_lab/build_15m_dataset.js
+// backend/backtest_lab/build_15m_dataset.js - MEMORY OPTIMIZED FOR PI
 const sqlite3 = require("sqlite3").verbose();
 const fs = require("fs");
 const path = require("path");
@@ -18,7 +18,6 @@ const db = new sqlite3.Database(DB_PATH);
 
 db.serialize(() => {
     db.run(`DROP TABLE IF EXISTS market_state_15m`);
-    // FIXED: Added open, high, low, close, volume columns
     db.run(`
         CREATE TABLE market_state_15m (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +43,7 @@ db.serialize(() => {
     );
 });
 
-// --- HELPER: Corrected SuperTrend Logic ---
+// --- HELPER: SuperTrend Logic ---
 function calculateSuperTrend(candles, period, multiplier) {
     const input = {
         high: candles.map((c) => c.high),
@@ -55,7 +54,7 @@ function calculateSuperTrend(candles, period, multiplier) {
     const atr = TI.ATR.calculate(input);
 
     let superTrend = new Array(candles.length).fill(null);
-    let directions = new Array(candles.length).fill(null); // 1 = Green, -1 = Red
+    let directions = new Array(candles.length).fill(null);
     let finalUpperBand = new Array(candles.length).fill(0);
     let finalLowerBand = new Array(candles.length).fill(0);
 
@@ -112,8 +111,18 @@ function calculateSuperTrend(candles, period, multiplier) {
     return { superTrend, directions, atr: fullAtr };
 }
 
+// Helper to wrap db.run in Promise
+function dbRun(query, params = []) {
+    return new Promise((resolve, reject) => {
+        db.run(query, params, function (err) {
+            if (err) reject(err);
+            else resolve(this);
+        });
+    });
+}
+
 async function processFiles() {
-    console.log("⚙️  Processing 15m Candle Data (Full OHLC)...");
+    console.log("⚙️  Processing 15m Candle Data (Optimized for Pi)...");
 
     if (!fs.existsSync(INPUT_DIR)) {
         console.error(`❌ Error: Candle directory not found: ${INPUT_DIR}`);
@@ -121,23 +130,21 @@ async function processFiles() {
     }
 
     const files = fs.readdirSync(INPUT_DIR).filter((f) => f.endsWith(".json"));
-
-    db.run("BEGIN TRANSACTION");
-    // FIXED: Query matches new schema
-    const stmt = db.prepare(`
-        INSERT INTO market_state_15m (timestamp, symbol, open, high, low, close, volume, supertrend_direction, supertrend_value, atr, rsi, adx)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
     let totalRows = 0;
+
+    // Reuse the statement, but commit per file
+    // Note: We cannot reuse `stmt` across transactions easily in node-sqlite3 without careful management.
+    // To be safe and simple on memory, we will prepare/finalize inside the loop or use direct runs
+    // inside a transaction. Let's use a prepared statement but commit frequently.
 
     for (const file of files) {
         const symbol = file.split("_")[0];
         console.log(`📊 Processing ${symbol}...`);
 
-        const rawData = JSON.parse(fs.readFileSync(path.join(INPUT_DIR, file)));
+        // 1. Read File
+        let rawData = JSON.parse(fs.readFileSync(path.join(INPUT_DIR, file)));
 
-        // Indicators
+        // 2. Calc Indicators (Heavy CPU)
         const rsiInput = {
             values: rawData.map((c) => c.close),
             period: RSI_PERIOD,
@@ -151,12 +158,19 @@ async function processFiles() {
             period: ADX_PERIOD,
         };
         const adxValues = TI.ADX.calculate(adxInput);
-
         const stResult = calculateSuperTrend(
             rawData,
             ATR_PERIOD,
             ST_MULTIPLIER
         );
+
+        // 3. Begin Transaction for THIS file only
+        await dbRun("BEGIN TRANSACTION");
+
+        const stmt = db.prepare(`
+            INSERT INTO market_state_15m (timestamp, symbol, open, high, low, close, volume, supertrend_direction, supertrend_value, atr, rsi, adx)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
         let fileRows = 0;
         const rsiOffset = rawData.length - rsiValues.length;
@@ -166,13 +180,11 @@ async function processFiles() {
             const rsi = i >= rsiOffset ? rsiValues[i - rsiOffset] : null;
             const adxObj = i >= adxOffset ? adxValues[i - adxOffset] : null;
             const adx = adxObj ? adxObj.adx : null;
-
             const stDir = stResult.directions[i];
             const stVal = stResult.superTrend[i];
             const atrVal = stResult.atr[i];
 
             if (rsi != null && adx != null && stDir != null) {
-                // FIXED: Insert full OHLC data
                 stmt.run(
                     rawData[i].timestamp,
                     symbol,
@@ -191,16 +203,18 @@ async function processFiles() {
                 totalRows++;
             }
         }
-        console.log(`   -> Added ${fileRows} valid signals.`);
+
+        stmt.finalize(); // Clean up statement
+        await dbRun("COMMIT"); // Save to disk immediately
+
+        console.log(`   -> Committed ${fileRows} signals.`);
+
+        // Free Memory
+        rawData = null;
     }
 
-    stmt.finalize();
-    db.run("END TRANSACTION", () => {
-        console.log(
-            `\n✅ Database Rebuilt! Total Valid 15m Signals: ${totalRows}`
-        );
-        db.close();
-    });
+    console.log(`\n✅ Database Rebuilt! Total Valid 15m Signals: ${totalRows}`);
+    db.close();
 }
 
 processFiles();
