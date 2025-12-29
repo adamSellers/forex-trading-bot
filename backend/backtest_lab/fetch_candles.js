@@ -2,12 +2,22 @@
 const axios = require("axios");
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
+const fs = require("fs"); // <--- Required
 
 // --- CONFIGURATION ---
 const DAYS_TO_FETCH = 120;
 const TIMEFRAME = "15m";
-const DB_PATH = path.join(__dirname, "data/market_data.db");
-const BATCH_DELAY_MS = 300; // Slower pacing for Raspberry Pi
+
+// Define the Data Directory and DB Path explicitly
+const DATA_DIR = path.join(__dirname, "data");
+const DB_PATH = path.join(DATA_DIR, "market_data.db");
+const BATCH_DELAY_MS = 300;
+
+// --- 0. ENSURE DIRECTORY EXISTS (The Fix) ---
+if (!fs.existsSync(DATA_DIR)) {
+    console.log(`📁 Creating missing data directory: ${DATA_DIR}`);
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 const PAIRS = [
     "BTCUSDT",
@@ -29,9 +39,9 @@ const PAIRS = [
 
 const db = new sqlite3.Database(DB_PATH);
 
-// --- 1. SETUP DB (Enable WAL Mode for Concurrency) ---
+// --- 1. SETUP DB ---
 db.serialize(() => {
-    db.run("PRAGMA journal_mode = WAL;"); // <--- CRITICAL FIX FOR LOCKS
+    db.run("PRAGMA journal_mode = WAL;");
     db.run("PRAGMA synchronous = NORMAL;");
 
     db.run(`
@@ -120,10 +130,8 @@ async function syncPair(symbol) {
         const lastCandleTime = candles[candles.length - 1][0];
         currentStartTime = lastCandleTime + 1;
 
-        // Explicit cleanup for GC
         candles = null;
 
-        // Slower delay to prevent SD Card choke
         await sleep(BATCH_DELAY_MS);
 
         if (lastCandleTime >= endNow - 60000) break;
@@ -135,7 +143,7 @@ async function syncPair(symbol) {
     console.log(`🚀 STARTING DOWNLOAD (${DAYS_TO_FETCH} Days)`);
     for (const pair of PAIRS) {
         await syncPair(pair);
-        global.gc && global.gc(); // Trigger GC if exposed
+        global.gc && global.gc();
     }
     console.log("🏁 DOWNLOAD COMPLETE");
     db.close();
