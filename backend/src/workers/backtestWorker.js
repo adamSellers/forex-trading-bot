@@ -1,4 +1,4 @@
-// backend/src/workers/backtestWorker.js - TRAILING STOP & BURST MODE SUPPORT
+// backend/src/workers/backtestWorker.js - FIXED POSITION SIZING
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
@@ -212,7 +212,6 @@ async function executeStrategy(rows, strategy) {
             let closeReason = null;
             let exitPrice = candle.price;
 
-            // 1. Update Highest Price for Trailing Stop
             if (candle.price > pos.highestPrice) {
                 pos.highestPrice = candle.price;
                 if (strategy.enable_trailing) {
@@ -221,21 +220,16 @@ async function executeStrategy(rows, strategy) {
                 }
             }
 
-            // 2. Check Hard Stop
             if (candle.price <= pos.stopLoss) {
                 closeReason = "STOP_LOSS";
                 exitPrice = pos.stopLoss;
-            }
-            // 3. Check Trailing Stop
-            else if (
+            } else if (
                 strategy.enable_trailing &&
                 candle.price <= pos.trailingStopPrice
             ) {
                 closeReason = "TRAILING_STOP";
                 exitPrice = pos.trailingStopPrice;
-            }
-            // 4. Check Trend Flip
-            else if (candle.supertrend_direction === -1) {
+            } else if (candle.supertrend_direction === -1) {
                 closeReason = "TREND_FLIP";
             }
 
@@ -260,7 +254,7 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // --- ENTRIES ---
+        // --- ENTRIES (FIXED SIZING) ---
         if (!positions[sym]) {
             const trendFlipGreen =
                 prevCandle.supertrend_direction === -1 &&
@@ -269,17 +263,35 @@ async function executeStrategy(rows, strategy) {
             if (trendFlipGreen) {
                 const isStandard = candle.adx >= strategy.min_adx;
                 const isBurst = candle.adx >= 15 && candle.rsi > 50;
-
-                // Switch Logic: If Burst Mode ON, accept either. Else, strict.
                 const entrySignal = strategy.burst_mode
                     ? isStandard || isBurst
                     : isStandard;
                 const isSafeRsi = candle.rsi <= strategy.max_rsi;
 
                 if (entrySignal && isSafeRsi) {
+                    // --- 🐛 SIZING FIX START ---
+
+                    // 1. Calculate Total Equity (Cash + Value of all open positions)
+                    let currentEquity = balance;
+                    Object.keys(positions).forEach((pKey) => {
+                        const p = positions[pKey];
+                        // Use latest known price for that asset, or entry if price missing
+                        const val =
+                            p.quantity * (latestPrices[pKey] || p.entryPrice);
+                        currentEquity += val;
+                    });
+
+                    // 2. Calculate Target Allocation based on EQUITY, not just Cash
                     const weight = normalizedWeights[sym];
-                    const investAmount =
-                        balance * weight * strategy.trade_size_pct;
+                    let investAmount =
+                        currentEquity * weight * strategy.trade_size_pct;
+
+                    // 3. Cap at available cash (cannot spend what we don't have)
+                    if (investAmount > balance) {
+                        investAmount = balance * 0.99; // 99% of cash to leave dust room
+                    }
+
+                    // --- 🐛 SIZING FIX END ---
 
                     if (investAmount > 10) {
                         const fee = investAmount * 0.001;
@@ -290,7 +302,6 @@ async function executeStrategy(rows, strategy) {
                             cost: investAmount,
                             stopLoss:
                                 candle.price * (1 - strategy.stop_loss_pct),
-                            // Trailing Stop Init
                             highestPrice: candle.price,
                             trailingStopPrice:
                                 candle.price * (1 - strategy.trailing_pct),
@@ -301,7 +312,6 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // Equity Curve Sampling
         if (Math.random() > 0.95) {
             let unrealized = 0;
             Object.keys(positions).forEach(
@@ -317,7 +327,6 @@ async function executeStrategy(rows, strategy) {
         }
     }
 
-    // Close remaining positions
     Object.keys(positions).forEach((posSym) => {
         const pos = positions[posSym];
         const finalPrice = latestPrices[posSym];
@@ -335,7 +344,6 @@ async function executeStrategy(rows, strategy) {
         });
     });
 
-    // Stats Calc
     const assetStats = {};
     strategy.assets.forEach(
         (a) => (assetStats[a] = { symbol: a, trades: 0, wins: 0, pnl: 0 })
