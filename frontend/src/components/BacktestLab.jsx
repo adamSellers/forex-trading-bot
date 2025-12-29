@@ -6,12 +6,12 @@ import {
     MenuItem, Select, FormControl, InputLabel,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Divider, alpha, Tooltip, IconButton, Avatar, styled, InputAdornment,
-    List, ListItem, AlertTitle, Switch, FormControlLabel // <--- ADDED Switch, FormControlLabel
+    List, ListItem, AlertTitle, Switch
 } from '@mui/material';
 import { 
     Science, PlayArrow, BarChart, Restore, PieChart, 
     Tune, Delete, AddCircle, Memory, Timer, Storage, Warning,
-    FlashOn // <--- ADDED FlashOn Icon
+    FlashOn, Security
 } from '@mui/icons-material';
 import { LineChart } from '@mui/x-charts';
 import { socket } from '../config/api';
@@ -68,7 +68,10 @@ const BacktestLab = () => {
         riskPerTrade: 0.95,
         balance: 1000,
         days: 30, 
-        burstMode: false, // <--- NEW STATE
+        burstMode: false,
+        // Trailing Stop Defaults
+        enableTrailingStops: false,
+        trailingStopPercent: 3.0,
         assets: ['BTCUSDT', 'ETHUSDT'],
         weights: { 'BTCUSDT': 50, 'ETHUSDT': 50 } 
     });
@@ -99,7 +102,6 @@ const BacktestLab = () => {
     // --- SMART ERROR PARSER ---
     const getHelpfulError = (errMsg) => {
         if (!errMsg) return null;
-        
         if (errMsg.includes("Memory") || errMsg.includes("SIGKILL") || errMsg.includes("heap")) {
             return {
                 title: "Out of Memory (OOM)",
@@ -133,7 +135,6 @@ const BacktestLab = () => {
     };
 
     // --- HANDLERS ---
-
     const handleRun = (forceRebuild = false) => {
         setRunning(true);
         setResults(null);
@@ -148,20 +149,11 @@ const BacktestLab = () => {
 
     const handleAddAsset = () => {
         if (!newAsset || config.assets.includes(newAsset)) return;
-        
         const updatedAssets = [...config.assets, newAsset];
         const newWeight = parseFloat((100 / updatedAssets.length).toFixed(1));
         const updatedWeights = {};
-        
-        updatedAssets.forEach(a => {
-            updatedWeights[a] = newWeight; 
-        });
-
-        setConfig(prev => ({
-            ...prev,
-            assets: updatedAssets,
-            weights: updatedWeights
-        }));
+        updatedAssets.forEach(a => { updatedWeights[a] = newWeight; });
+        setConfig(prev => ({ ...prev, assets: updatedAssets, weights: updatedWeights }));
         setNewAsset('');
     };
 
@@ -169,22 +161,22 @@ const BacktestLab = () => {
         const updatedAssets = config.assets.filter(a => a !== assetToRemove);
         const updatedWeights = { ...config.weights };
         delete updatedWeights[assetToRemove];
-        
         setConfig(prev => ({ ...prev, assets: updatedAssets, weights: updatedWeights }));
     };
 
     const updateWeight = (asset, val) => {
+        let numericVal = parseFloat(val);
+        // Allow empty string to let user type, default to 0 only on NaN if strictly needed
+        if (val === '') numericVal = 0; 
         setConfig(prev => ({
             ...prev,
-            weights: { ...prev.weights, [asset]: parseFloat(val) || 0 }
+            weights: { ...prev.weights, [asset]: numericVal }
         }));
     };
 
     const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.weights[asset] || 0), 0);
 
-
     // --- RENDER HELPERS ---
-
     const renderControls = () => (
         <Stack spacing={3} height="100%">
             {/* 1. PORTFOLIO CONFIG */}
@@ -194,8 +186,7 @@ const BacktestLab = () => {
                     <Chip 
                         label={`Total: ${totalAllocation.toFixed(0)}%`} 
                         color={Math.abs(totalAllocation - 100) < 1 ? "success" : "warning"} 
-                        variant="outlined" 
-                        size="small"
+                        variant="outlined" size="small"
                     />
                 </Stack>
                 
@@ -226,16 +217,15 @@ const BacktestLab = () => {
                                 />
                                 <TextField 
                                     size="small" type="number" 
-                                    value={config.weights[asset] || 0} 
+                                    value={config.weights[asset]} // Removed || 0 to allow typing
                                     onChange={(e) => updateWeight(asset, e.target.value)} 
-                                    InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment>, style: { fontSize: '0.8rem' } }} 
-                                    sx={{ width: 75 }} 
+                                    InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                    sx={{ width: 90 }} 
                                 />
                                 <IconButton size="small" color="error" onClick={() => handleRemoveAsset(asset)}><Delete fontSize="small" /></IconButton>
                             </Box>
                         </ListItem>
                     ))}
-                    {config.assets.length === 0 && <Typography variant="caption" color="text.secondary" align="center" display="block" py={2}>No assets selected</Typography>}
                 </List>
             </GlassCard>
 
@@ -255,7 +245,7 @@ const BacktestLab = () => {
                             value={config.maxRsi} onChange={(e) => updateConfig('maxRsi', e.target.value)} 
                         />
                     </Grid>
-                    {/* --- NEW BURST MODE SWITCH --- */}
+                    {/* BURST MODE SWITCH */}
                     <Grid item xs={12}>
                         <Box 
                             display="flex" alignItems="center" justifyContent="space-between" 
@@ -263,32 +253,49 @@ const BacktestLab = () => {
                             bgcolor={config.burstMode ? alpha(theme.palette.warning.main, 0.1) : 'transparent'}
                         >
                             <Box display="flex" alignItems="center" gap={1}>
-                                <FlashOn 
-                                    fontSize="small" 
-                                    color={config.burstMode ? "warning" : "disabled"} 
-                                />
+                                <FlashOn fontSize="small" color={config.burstMode ? "warning" : "disabled"} />
                                 <Box>
                                     <Typography variant="body2" fontWeight="bold">Burst Mode</Typography>
-                                    <Typography variant="caption" color="text.secondary" display="block">
-                                        Enter early if RSI &gt; 50
-                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">Enter early if RSI &gt; 50</Typography>
                                 </Box>
                             </Box>
-                            <Switch 
-                                checked={config.burstMode} 
-                                onChange={(e) => updateConfig('burstMode', e.target.checked)}
-                                color="warning" 
-                            />
+                            <Switch checked={config.burstMode} onChange={(e) => updateConfig('burstMode', e.target.checked)} color="warning" />
                         </Box>
                     </Grid>
-                    {/* ----------------------------- */}
+                    
+                    {/* TRAILING STOP SECTION */}
                     <Grid item xs={12}>
-                        <Typography variant="caption" gutterBottom>Stop Loss ({config.stopLoss}%)</Typography>
+                        <Divider sx={{ my: 1 }} />
+                    </Grid>
+                    <Grid item xs={12}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                            <Box display="flex" alignItems="center" gap={1}>
+                                <Security fontSize="small" color="primary" />
+                                <Typography variant="body2" fontWeight="bold">Trailing Stop</Typography>
+                            </Box>
+                            <Switch 
+                                checked={config.enableTrailingStops} 
+                                onChange={(e) => updateConfig('enableTrailingStops', e.target.checked)} 
+                            />
+                        </Box>
+                        <Stack direction="row" spacing={2} alignItems="center" sx={{ opacity: config.enableTrailingStops ? 1 : 0.5, pointerEvents: config.enableTrailingStops ? 'auto' : 'none' }}>
+                            <Slider
+                                value={config.trailingStopPercent}
+                                min={0.5} max={10.0} step={0.1}
+                                onChange={(_, v) => updateConfig('trailingStopPercent', v)}
+                                valueLabelDisplay="auto"
+                                sx={{ flexGrow: 1 }}
+                            />
+                            <Chip label={`${config.trailingStopPercent}%`} size="small" />
+                        </Stack>
+                    </Grid>
+
+                    <Grid item xs={12}>
+                        <Typography variant="caption" gutterBottom>Hard Stop Loss ({config.stopLoss}%)</Typography>
                         <Slider 
                             value={parseFloat(config.stopLoss)} 
                             min={0.5} max={10} step={0.1}
                             onChange={(_, v) => updateConfig('stopLoss', v)} 
-                            valueLabelDisplay="auto"
                         />
                     </Grid>
                 </Grid>
@@ -302,7 +309,6 @@ const BacktestLab = () => {
                     <Slider 
                         value={config.days} min={7} max={120} 
                         onChange={(_, v) => updateConfig('days', v)} 
-                        valueLabelDisplay="auto"
                     />
                 </Box>
                 <TextField 
@@ -311,7 +317,6 @@ const BacktestLab = () => {
                 />
             </GlassCard>
 
-            {/* ACTION BUTTONS */}
             <Stack direction="row" spacing={1}>
                 <Button 
                     variant="contained" size="large" onClick={() => handleRun(false)} disabled={running}
@@ -322,9 +327,7 @@ const BacktestLab = () => {
                     {running ? "RUNNING..." : "RUN TEST"}
                 </Button>
                 <Tooltip title="Force Rebuild DB (Fixes Schema/Missing Data)">
-                    <Button variant="outlined" color="warning" onClick={() => handleRun(true)} disabled={running}>
-                        <Restore />
-                    </Button>
+                    <Button variant="outlined" color="warning" onClick={() => handleRun(true)} disabled={running}><Restore /></Button>
                 </Tooltip>
             </Stack>
         </Stack>
@@ -332,7 +335,6 @@ const BacktestLab = () => {
 
     return (
         <Box p={3} height="100%" display="flex" flexDirection="column" sx={{ overflowY: 'auto' }}>
-            {/* PAGE HEADER */}
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
                     <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
@@ -343,148 +345,63 @@ const BacktestLab = () => {
                     </Typography>
                 </Box>
             </Box>
-
-            {/* MAIN GRID */}
             <Grid container spacing={3}>
-                
-                {/* LEFT: CONFIGURATION */}
-                <Grid item xs={12} md={4} lg={3}>
-                    {renderControls()}
-                </Grid>
-
-                {/* RIGHT: RESULTS */}
+                <Grid item xs={12} md={4} lg={3}>{renderControls()}</Grid>
                 <Grid item xs={12} md={8} lg={9}>
                      <GlassCard>
-                        {/* SMART ERROR DISPLAY */}
                         {error && (() => {
                             const errInfo = getHelpfulError(error);
                             return (
-                                <Alert 
-                                    severity="error" 
-                                    icon={errInfo.icon}
-                                    sx={{ mb: 2, alignItems: 'center' }}
-                                >
-                                    <AlertTitle sx={{ fontWeight: 'bold' }}>{errInfo.title}</AlertTitle>
-                                    <Typography variant="body2" sx={{ mb: 1 }}>{errInfo.msg}</Typography>
-                                    <Chip 
-                                        label={errInfo.advice} 
-                                        color="error" 
-                                        variant="outlined" 
-                                        size="small" 
-                                        sx={{ fontWeight: 'bold' }} 
-                                    />
+                                <Alert severity="error" icon={errInfo.icon} sx={{ mb: 2 }}>
+                                    <AlertTitle>{errInfo.title}</AlertTitle>
+                                    {errInfo.msg}
                                 </Alert>
                             );
                         })()}
-                        
                         {running && (
                             <Box sx={{ width: '100%', mb: 4, mt: 2 }}>
-                                <Box display="flex" justifyContent="space-between" mb={1}>
-                                    <Typography variant="caption" fontWeight="bold" color="primary">{progress.message}</Typography>
-                                    <Typography variant="caption" fontWeight="bold">{progress.percent}%</Typography>
-                                </Box>
-                                <LinearProgress variant="determinate" value={progress.percent} sx={{ height: 8, borderRadius: 4 }} />
+                                <LinearProgress variant="determinate" value={progress.percent} />
+                                <Typography align="center" variant="caption">{progress.message}</Typography>
                             </Box>
                         )}
-                        
-                        {!results ? (
-                            !running && (
-                                <Box height="100%" display="flex" alignItems="center" justifyContent="center" flexDirection="column" opacity={0.3} minHeight={400}>
-                                    <Science sx={{ fontSize: 100, mb: 2 }} />
-                                    <Typography variant="h5" fontWeight="bold">READY TO SIMULATE</Typography>
-                                    <Typography variant="body1">Configure your portfolio and press Run</Typography>
-                                </Box>
-                            )
-                        ) : (
-                            <Box sx={{ animation: 'fadeIn 0.5s ease-in' }}>
-                                {/* KPI CARDS */}
+                        {!results && !running && (
+                            <Box height="100%" display="flex" alignItems="center" justifyContent="center" flexDirection="column" opacity={0.3} minHeight={400}>
+                                <Science sx={{ fontSize: 100, mb: 2 }} />
+                                <Typography variant="h5" fontWeight="bold">READY TO SIMULATE</Typography>
+                            </Box>
+                        )}
+                        {results && (
+                            <Box>
                                 <Grid container spacing={2} mb={4}>
-                                    <Grid item xs={6} md={3}>
-                                        <Box p={2} bgcolor={alpha(results.stats.netProfit > 0 ? theme.palette.success.main : theme.palette.error.main, 0.1)} borderRadius={2} border={1} borderColor="divider">
-                                            <Typography variant="caption" fontWeight="bold" color="text.secondary">NET PnL</Typography>
-                                            <Typography variant="h4" fontWeight="bold" color={results.stats.netProfit > 0 ? "success.main" : "error.main"}>
-                                                {results.stats.netProfit > 0 ? "+" : ""}${results.stats.netProfit.toFixed(2)}
-                                            </Typography>
-                                        </Box>
-                                    </Grid>
-                                    <Grid item xs={6} md={3}>
-                                        <Box p={2} border={1} borderColor="divider" borderRadius={2}>
-                                            <Typography variant="caption" fontWeight="bold" color="text.secondary">WIN RATE</Typography>
-                                            <Typography variant="h4" fontWeight="bold">{results.stats.winRate.toFixed(1)}%</Typography>
-                                        </Box>
-                                    </Grid>
-                                    <Grid item xs={6} md={3}>
-                                        <Box p={2} border={1} borderColor="divider" borderRadius={2}>
-                                            <Typography variant="caption" fontWeight="bold" color="text.secondary">TRADES</Typography>
-                                            <Typography variant="h4" fontWeight="bold">{results.stats.totalTrades}</Typography>
-                                        </Box>
-                                    </Grid>
-                                    <Grid item xs={6} md={3}>
-                                        <Box p={2} border={1} borderColor="divider" borderRadius={2}>
-                                            <Typography variant="caption" fontWeight="bold" color="text.secondary">FINAL EQUITY</Typography>
-                                            <Typography variant="h4" fontWeight="bold">${results.stats.finalBalance.toFixed(0)}</Typography>
-                                        </Box>
-                                    </Grid>
+                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">NET PnL</Typography><Typography variant="h4" color={results.stats.netProfit>0?"success.main":"error.main"}>${results.stats.netProfit.toFixed(2)}</Typography></Box></Grid>
+                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">WIN RATE</Typography><Typography variant="h4">{results.stats.winRate.toFixed(1)}%</Typography></Box></Grid>
+                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">TRADES</Typography><Typography variant="h4">{results.stats.totalTrades}</Typography></Box></Grid>
+                                    <Grid item xs={6} md={3}><Box p={2} border={1} borderRadius={2} borderColor="divider"><Typography variant="caption">EQUITY</Typography><Typography variant="h4">${results.stats.finalBalance.toFixed(0)}</Typography></Box></Grid>
                                 </Grid>
-
-                                {/* CHART */}
                                 <Box flexGrow={1} minHeight={300} mb={3}>
-                                    <SectionHeader icon={<BarChart />} title="Equity Curve" subtitle="Portfolio growth over time" />
                                     {results.equityCurve.length > 0 ? (
                                         <LineChart
-                                            xAxis={[{ 
-                                                data: results.equityCurve.map((_, i) => i), 
-                                                label: 'Time (Candles)', 
-                                                tickLabelStyle: { fontSize: 0 } 
-                                            }]}
-                                            series={[{ 
-                                                data: results.equityCurve.map(d => d.value), 
-                                                area: true, 
-                                                showMark: false, 
-                                                color: theme.palette.primary.main,
-                                                curve: 'linear'
-                                            }]}
+                                            xAxis={[{ data: results.equityCurve.map((_, i) => i), label: 'Time', tickLabelStyle: { fontSize: 0 } }]}
+                                            series={[{ data: results.equityCurve.map(d => d.value), area: true, showMark: false, color: theme.palette.primary.main }]}
                                             height={300}
-                                            margin={{ left: 60, right: 20, top: 10, bottom: 30 }}
                                         />
-                                    ) : (
-                                        <Alert severity="warning">No trades executed with current parameters.</Alert>
-                                    )}
+                                    ) : <Alert severity="warning">No trades executed.</Alert>}
                                 </Box>
-
-                                {/* TABLE */}
-                                <Box>
-                                    <Typography variant="subtitle2" fontWeight="bold" gutterBottom>PERFORMANCE BY ASSET</Typography>
-                                    <TableContainer component={Box} sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}>
-                                        <Table size="small">
-                                            <TableHead>
-                                                <TableRow sx={{ bgcolor: alpha(theme.palette.action.active, 0.05) }}>
-                                                    <TableCell>Asset</TableCell>
-                                                    <TableCell align="right">Trades</TableCell>
-                                                    <TableCell align="right">Win Rate</TableCell>
-                                                    <TableCell align="right">Net PnL</TableCell>
+                                <TableContainer component={Box} sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}>
+                                    <Table size="small">
+                                        <TableHead><TableRow><TableCell>Asset</TableCell><TableCell align="right">Trades</TableCell><TableCell align="right">Win %</TableCell><TableCell align="right">PnL</TableCell></TableRow></TableHead>
+                                        <TableBody>
+                                            {results.stats.assetStats.map((stat) => (
+                                                <TableRow key={stat.symbol}>
+                                                    <TableCell fontWeight="bold">{stat.symbol}</TableCell>
+                                                    <TableCell align="right">{stat.trades}</TableCell>
+                                                    <TableCell align="right">{stat.trades > 0 ? ((stat.wins/stat.trades)*100).toFixed(0) : 0}%</TableCell>
+                                                    <TableCell align="right" sx={{ color: stat.pnl > 0 ? 'success.main' : 'error.main' }}>{stat.pnl.toFixed(2)}</TableCell>
                                                 </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-                                                {results.stats.assetStats.map((stat) => (
-                                                    <TableRow key={stat.symbol}>
-                                                        <TableCell fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                            <Avatar sx={{ width: 20, height: 20, fontSize: '0.6rem' }}>{stat.symbol[0]}</Avatar>
-                                                            {stat.symbol}
-                                                        </TableCell>
-                                                        <TableCell align="right">{stat.trades}</TableCell>
-                                                        <TableCell align="right">
-                                                            {stat.trades > 0 ? ((stat.wins/stat.trades)*100).toFixed(0) : 0}%
-                                                        </TableCell>
-                                                        <TableCell align="right" sx={{ color: stat.pnl > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
-                                                            {stat.pnl > 0 ? '+' : ''}{stat.pnl.toFixed(2)}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </TableContainer>
-                                </Box>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
                             </Box>
                         )}
                     </GlassCard>

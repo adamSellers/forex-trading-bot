@@ -1,26 +1,20 @@
-// backend/src/workers/backtestWorker.js - WITH BURST MODE SWITCH
+// backend/src/workers/backtestWorker.js - TRAILING STOP & BURST MODE SUPPORT
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 
-// PATHS
 const LAB_DIR = path.join(__dirname, "../../backtest_lab");
 const DB_PATH = path.join(LAB_DIR, "data/market_data.db");
 const FETCH_SCRIPT = path.join(LAB_DIR, "fetch_candles.js");
 const BUILD_SCRIPT = path.join(LAB_DIR, "build_15m_dataset.js");
-
 const STALE_THRESHOLD = 24 * 60 * 60 * 1000;
-
-// Default weights if none provided
-const ASSET_WEIGHTS = { ETHUSDT: 0.3, XRPUSDT: 0.3, BNBUSDT: 0.2 };
 
 process.on("message", async (msg) => {
     if (msg.command === "start") {
         try {
             const forceRebuild = msg.config && msg.config.forceRebuild === true;
             await ensureLabData(forceRebuild);
-
             const db = new sqlite3.Database(
                 DB_PATH,
                 sqlite3.OPEN_READONLY,
@@ -29,7 +23,6 @@ process.on("message", async (msg) => {
                         throw new Error(`DB Connection Failed: ${err.message}`);
                 }
             );
-
             runSimulation(db, msg.config);
         } catch (error) {
             if (process.send)
@@ -42,45 +35,32 @@ process.on("message", async (msg) => {
 async function ensureLabData(force = false) {
     const dbExists = fs.existsSync(DB_PATH);
     let isStale = false;
-
     if (dbExists) {
         const stats = fs.statSync(DB_PATH);
         if (Date.now() - stats.mtimeMs > STALE_THRESHOLD) isStale = true;
     }
-
     if (!dbExists || isStale || force) {
         if (process.send)
             process.send({
                 type: "progress",
                 message: force
-                    ? `⚠️ Force Rebuild Requested...`
-                    : `⚠️ Data Auto-Initializing...`,
+                    ? `⚠️ Force Rebuild...`
+                    : `⚠️ Auto-Initializing...`,
                 percent: 0,
             });
-
         if (force && dbExists) {
             try {
                 fs.unlinkSync(DB_PATH);
             } catch (e) {}
         }
-
         await runChildScript(FETCH_SCRIPT, "Downloading Candles");
         await runChildScript(BUILD_SCRIPT, "Building Database");
-
-        if (process.send)
-            process.send({
-                type: "progress",
-                message: "✅ Lab Ready.",
-                percent: 10,
-            });
     }
 }
 
 function runChildScript(scriptPath, actionName) {
     return new Promise((resolve, reject) => {
         const child = spawn("node", [scriptPath]);
-
-        // Log stdout to help debug
         child.stdout.on("data", (data) => {
             const line = data.toString().trim();
             if (
@@ -95,18 +75,11 @@ function runChildScript(scriptPath, actionName) {
                 });
             }
         });
-
-        // Catch Signals (like OOM Kill)
-        child.on("close", (code, signal) => {
-            if (code === 0) return resolve();
-            if (signal)
-                return reject(
-                    new Error(
-                        `${actionName} killed by signal: ${signal} (Likely Out of Memory)`
-                    )
-                );
-            reject(new Error(`${actionName} failed with code: ${code}`));
-        });
+        child.on("close", (code) =>
+            code === 0
+                ? resolve()
+                : reject(new Error(`${actionName} failed: ${code}`))
+        );
     });
 }
 
@@ -125,26 +98,30 @@ async function runSimulation(db, config) {
             stop_loss_pct: (parseFloat(config.stopLoss) || 2.0) / 100,
             initial_balance: parseFloat(config.balance) || 1000,
             trade_size_pct: parseFloat(config.riskPerTrade) || 0.95,
+
+            // Burst Mode Logic
+            burst_mode:
+                config.burstMode === true || config.burstMode === "true",
+
+            // Trailing Stop Logic
+            enable_trailing: config.enableTrailingStops === true,
+            trailing_pct: (parseFloat(config.trailingStopPercent) || 3.0) / 100,
+
             assets:
                 Array.isArray(config.assets) && config.assets.length > 0
                     ? config.assets
-                    : ["BTCUSDT", "ETHUSDT"],
+                    : ["BTCUSDT"],
             days: parseInt(config.days) || 30,
             weights: config.weights || {},
-            // [NEW] Toggle Switch
-            burst_mode:
-                config.burstMode === true || config.burstMode === "true",
         };
 
         const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
         const placeholders = STRATEGY.assets.map(() => "?").join(",");
-
         const query = `
             SELECT symbol, timestamp, open, high, low, close as price, 
                    adx, rsi, supertrend_direction 
             FROM market_state_15m 
-            WHERE symbol IN (${placeholders}) 
-            AND timestamp > ?
+            WHERE symbol IN (${placeholders}) AND timestamp > ?
             ORDER BY timestamp ASC
         `;
 
@@ -157,32 +134,19 @@ async function runSimulation(db, config) {
 
         db.all(query, [...STRATEGY.assets, startTime], async (err, rows) => {
             if (err) {
-                if (err.message.includes("no such column")) {
-                    if (process.send)
-                        process.send({
-                            type: "error",
-                            error: "⚠️ Schema Error. Please click 'Restore'.",
-                        });
-                    process.exit(0);
-                    return;
-                }
                 if (process.send)
                     process.send({ type: "error", error: err.message });
                 process.exit(1);
             }
-
             if (!rows || rows.length === 0) {
                 if (process.send)
                     process.send({ type: "error", error: "No data found." });
                 process.exit(0);
             }
-
             if (process.send)
                 process.send({
                     type: "progress",
-                    message: `Simulating... (Burst Mode: ${
-                        STRATEGY.burst_mode ? "ON" : "OFF"
-                    })`,
+                    message: `Simulating... (Burst:${STRATEGY.burst_mode}, Trail:${STRATEGY.enable_trailing})`,
                     percent: 25,
                 });
 
@@ -202,16 +166,16 @@ async function executeStrategy(rows, strategy) {
     let tradeHistory = [];
     let equityCurve = [];
 
-    // --- DYNAMIC ALLOCATION WEIGHTS ---
+    // Normalize weights
     let totalWeightInput = 0;
     strategy.assets.forEach((asset) => {
         totalWeightInput += strategy.weights[asset] || 0;
     });
     if (totalWeightInput === 0) {
-        strategy.assets.forEach((asset) => {
-            strategy.weights[asset] = 100 / strategy.assets.length;
-            totalWeightInput += strategy.weights[asset];
-        });
+        strategy.assets.forEach(
+            (asset) => (strategy.weights[asset] = 100 / strategy.assets.length)
+        );
+        totalWeightInput = 100;
     }
     const normalizedWeights = {};
     strategy.assets.forEach((asset) => {
@@ -220,22 +184,17 @@ async function executeStrategy(rows, strategy) {
     });
 
     const latestPrices = {};
-    strategy.assets.forEach((asset) => (latestPrices[asset] = 0));
-
     const previousStates = {};
     const totalCandles = rows.length;
     let processedCount = 0;
 
     for (const candle of rows) {
         processedCount++;
-        if (processedCount % 5000 === 0 && process.send) {
-            const pct = 25 + Math.round((processedCount / totalCandles) * 70);
+        if (processedCount % 10000 === 0 && process.send) {
             process.send({
                 type: "progress",
-                message: `Simulating... (${Math.round(
-                    (processedCount / totalCandles) * 100
-                )}%)`,
-                percent: pct,
+                message: `Simulating...`,
+                percent: 25 + Math.round((processedCount / totalCandles) * 70),
             });
             await new Promise((r) => setImmediate(r));
         }
@@ -253,10 +212,30 @@ async function executeStrategy(rows, strategy) {
             let closeReason = null;
             let exitPrice = candle.price;
 
+            // 1. Update Highest Price for Trailing Stop
+            if (candle.price > pos.highestPrice) {
+                pos.highestPrice = candle.price;
+                if (strategy.enable_trailing) {
+                    pos.trailingStopPrice =
+                        pos.highestPrice * (1 - strategy.trailing_pct);
+                }
+            }
+
+            // 2. Check Hard Stop
             if (candle.price <= pos.stopLoss) {
                 closeReason = "STOP_LOSS";
                 exitPrice = pos.stopLoss;
-            } else if (candle.supertrend_direction === -1) {
+            }
+            // 3. Check Trailing Stop
+            else if (
+                strategy.enable_trailing &&
+                candle.price <= pos.trailingStopPrice
+            ) {
+                closeReason = "TRAILING_STOP";
+                exitPrice = pos.trailingStopPrice;
+            }
+            // 4. Check Trend Flip
+            else if (candle.supertrend_direction === -1) {
                 closeReason = "TREND_FLIP";
             }
 
@@ -281,30 +260,20 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // --- ENTRIES (CONDITIONAL LOGIC) ---
+        // --- ENTRIES ---
         if (!positions[sym]) {
             const trendFlipGreen =
                 prevCandle.supertrend_direction === -1 &&
                 candle.supertrend_direction === 1;
 
             if (trendFlipGreen) {
-                // 1. Standard Condition
-                const isStandardTrend = candle.adx >= strategy.min_adx;
+                const isStandard = candle.adx >= strategy.min_adx;
+                const isBurst = candle.adx >= 15 && candle.rsi > 50;
 
-                // 2. Burst Condition (Early Entry on High RSI)
-                const isBurstMove = candle.adx >= 15 && candle.rsi > 50;
-
-                // 3. Decide Entry Based on Switch
-                let entrySignal = false;
-                if (strategy.burst_mode) {
-                    // Burst Mode ON: Accept Standard OR Burst
-                    entrySignal = isStandardTrend || isBurstMove;
-                } else {
-                    // Burst Mode OFF: Strict Standard only
-                    entrySignal = isStandardTrend;
-                }
-
-                // 4. Safety Filter (RSI Ceiling)
+                // Switch Logic: If Burst Mode ON, accept either. Else, strict.
+                const entrySignal = strategy.burst_mode
+                    ? isStandard || isBurst
+                    : isStandard;
                 const isSafeRsi = candle.rsi <= strategy.max_rsi;
 
                 if (entrySignal && isSafeRsi) {
@@ -321,6 +290,10 @@ async function executeStrategy(rows, strategy) {
                             cost: investAmount,
                             stopLoss:
                                 candle.price * (1 - strategy.stop_loss_pct),
+                            // Trailing Stop Init
+                            highestPrice: candle.price,
+                            trailingStopPrice:
+                                candle.price * (1 - strategy.trailing_pct),
                         };
                         balance -= investAmount;
                     }
@@ -328,15 +301,15 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // --- EQUITY ---
+        // Equity Curve Sampling
         if (Math.random() > 0.95) {
             let unrealized = 0;
-            Object.keys(positions).forEach((posSym) => {
-                const pos = positions[posSym];
-                const currentMarketPrice =
-                    latestPrices[posSym] || pos.entryPrice;
-                unrealized += pos.quantity * currentMarketPrice;
-            });
+            Object.keys(positions).forEach(
+                (p) =>
+                    (unrealized +=
+                        positions[p].quantity *
+                        (latestPrices[p] || positions[p].entryPrice))
+            );
             equityCurve.push({
                 time: candle.timestamp,
                 value: balance + unrealized,
@@ -344,33 +317,29 @@ async function executeStrategy(rows, strategy) {
         }
     }
 
-    // --- FORCE CLOSE ---
+    // Close remaining positions
     Object.keys(positions).forEach((posSym) => {
         const pos = positions[posSym];
         const finalPrice = latestPrices[posSym];
         const exitValue = pos.quantity * finalPrice;
-        const fee = exitValue * 0.001;
-        const netReturn = exitValue - fee;
-        balance += netReturn;
-
+        balance += exitValue - exitValue * 0.001;
         tradeHistory.push({
-            id: tradeHistory.length + 1,
+            id: tradeHistory.length,
             symbol: posSym,
             entryPrice: pos.entryPrice,
             exitPrice: finalPrice,
-            pnl: netReturn - pos.cost,
+            pnl: exitValue - exitValue * 0.001 - pos.cost,
             pnlPercent: ((finalPrice - pos.entryPrice) / pos.entryPrice) * 100,
             reason: "END_OF_SIM",
             time: Date.now(),
         });
     });
 
-    // --- STATS ---
+    // Stats Calc
     const assetStats = {};
-    strategy.assets.forEach((a) => {
-        assetStats[a] = { symbol: a, trades: 0, wins: 0, pnl: 0 };
-    });
-
+    strategy.assets.forEach(
+        (a) => (assetStats[a] = { symbol: a, trades: 0, wins: 0, pnl: 0 })
+    );
     tradeHistory.forEach((t) => {
         if (!assetStats[t.symbol])
             assetStats[t.symbol] = {
@@ -396,7 +365,7 @@ async function executeStrategy(rows, strategy) {
             finalBalance: balance,
             netProfit: balance - strategy.initial_balance,
             totalTrades: tradeHistory.length,
-            winRate: winRate,
+            winRate,
             assetStats: Object.values(assetStats).sort((a, b) => b.pnl - a.pnl),
         },
         trades: tradeHistory.reverse().slice(0, 500),
