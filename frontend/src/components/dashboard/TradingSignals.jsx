@@ -1,4 +1,4 @@
-// frontend/src/components/TradingSignals.jsx - ROBUST TREND PARSING
+// frontend/src/components/dashboard/TradingSignals.jsx
 import React, { useMemo } from 'react';
 import { 
     Typography, Box, LinearProgress, Stack, Avatar, 
@@ -54,12 +54,19 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
   const theme = useTheme();
 
   // --- LOGIC: Filter Signals by Portfolio Config ---
+  // FIXED: Added defensive checks and ensured dependency tracking works
   const filteredSignals = useMemo(() => {
-      if (!signals) return [];
+      if (!signals || !Array.isArray(signals)) return [];
+      
+      // If config hasn't loaded yet, show all to be safe, or empty if prefer strictness
       if (!systemStatus?.config?.assets) return signals;
+      
       const activeAssets = new Set(systemStatus.config.assets);
-      return signals.filter(s => activeAssets.has(s.symbol));
-  }, [signals, systemStatus]);
+      // Sort by timestamp descending to ensure newest are always first
+      return signals
+          .filter(s => activeAssets.has(s.symbol))
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  }, [signals, systemStatus]); // signals is now a new array ref from parent every update
 
   // --- LOGIC: Signal Meta ---
   const getSignalMeta = (signalType) => {
@@ -75,28 +82,23 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       let trendDir = null;
       
       try {
-          if (signal.trend_data) {
-              const data = typeof signal.trend_data === 'string' 
-                  ? JSON.parse(signal.trend_data) 
-                  : signal.trend_data;
-              
-              // DEBUG: Check console if fields are still missing
-              // console.log(`Trend Data for ${signal.symbol}:`, data);
+          // Handle both stringified JSON and pre-parsed objects
+          const data = typeof signal.trend_data === 'string' 
+              ? JSON.parse(signal.trend_data) 
+              : (signal.trend_data || signal.trend || {}); // Fallback to 'trend' prop if exists
 
-              // 1. Extract RSI
-              if (data.rsi !== undefined) rsiVal = parseFloat(data.rsi).toFixed(1);
-              
-              // 2. Extract Trend Direction (Handle multiple property names)
-              if (data.supertrend_direction !== undefined) trendDir = data.supertrend_direction;
-              else if (data.direction !== undefined) trendDir = data.direction;
-              else if (data.trend !== undefined) trendDir = data.trend;
-          }
-      } catch  { 
-          // console.warn("Parse Error:", e);
+          // 1. Extract RSI (Prioritize 'rsi' key)
+          if (data.rsi !== undefined) rsiVal = parseFloat(data.rsi).toFixed(1);
+          
+          // 2. Extract Trend Direction
+          if (data.supertrend_direction !== undefined) trendDir = data.supertrend_direction;
+          else if (data.direction !== undefined) trendDir = data.direction;
+          else if (signal.stDirection !== undefined) trendDir = signal.stDirection; // Fallback to root prop
+      } catch (e) { 
+          console.warn(`Trend Parse Error (${signal.symbol}):`, e);
       }
 
       // 3. Determine Bias
-      // Note: Using == loose equality to match "1" (string) or 1 (number)
       const isBullish = trendDir == 1 || (signal.signal || '').includes('BUY');
       const isBearish = trendDir == -1 || (signal.signal || '').includes('SELL');
 
@@ -145,12 +147,13 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
   if (compact) {
       return (
         <Stack spacing={0} sx={{ height: '100%', overflowY: 'auto' }}>
-            {filteredSignals.map((signal, index) => {
+            {filteredSignals.map((signal) => {
                 const { color, icon } = getSignalMeta(signal.signal);
                 const paletteColor = theme.palette[color];
+                // Unique key includes timestamp to force re-render on update
                 return (
                     <Box 
-                        key={`${signal.symbol}-${index}`}
+                        key={`${signal.symbol}-${signal.timestamp}`}
                         sx={{
                             p: 1.5,
                             borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
@@ -191,13 +194,14 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                 </TableRow>
             </TableHead>
             <TableBody>
-                {filteredSignals.map((signal, index) => {
+                {filteredSignals.map((signal) => {
                      const { color, icon } = getSignalMeta(signal.signal);
                      const paletteColor = theme.palette[color];
                      const { rsiVal, isBullish, isBearish } = getTrendContext(signal);
 
+                     // FIXED: Key includes timestamp to force update when same symbol gets new signal
                      return (
-                         <StyledTableRow key={`${signal.symbol}-${index}`}>
+                         <StyledTableRow key={`${signal.symbol}-${signal.timestamp}`}>
                              {/* Symbol */}
                              <StyledTableCell>
                                  <Box display="flex" alignItems="center" gap={1}>
@@ -259,7 +263,8 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
 
                              {/* Status */}
                               <StyledTableCell align="center">
-                                  {signal.isNew ? (
+                                  {/* Using a timestamp check to determine 'newness' within last minute */}
+                                  {Date.now() - new Date(signal.timestamp).getTime() < 60000 ? (
                                       <Chip label="NEW" color="error" size="small" sx={{ height: 16, fontSize: '0.6rem' }} />
                                   ) : (
                                       <Typography variant="caption" color="text.secondary">LOGGED</Typography>
