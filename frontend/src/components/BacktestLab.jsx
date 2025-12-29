@@ -2,19 +2,21 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Box, Typography, Grid, Paper, TextField, Button, 
-    LinearProgress, Alert, useTheme, InputAdornment,
-    Divider, Stack, Chip, alpha, MenuItem, Select,
-    FormControl, InputLabel, Slider, Table, TableBody,
-    TableCell, TableContainer, TableHead, TableRow
+    LinearProgress, Alert, useTheme, Stack, Chip, 
+    MenuItem, Select, FormControl, InputLabel, Slider, 
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Divider, alpha
 } from '@mui/material';
 import { 
-    Science, PlayArrow, TrendingUp, History,
-    AttachMoney, BarChart, CalendarToday
+    Science, PlayArrow, BarChart
 } from '@mui/icons-material';
 import { LineChart } from '@mui/x-charts';
 import { socket } from '../config/api';
 
-const AVAILABLE_ASSETS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'NEARUSDT', 'SOLUSDT', 'ADAUSDT'];
+const AVAILABLE_ASSETS = [
+    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 
+    'NEARUSDT', 'SOLUSDT', 'ADAUSDT', 'DOGEUSDT', 'MATICUSDT'
+];
 
 const BacktestLab = () => {
     const theme = useTheme();
@@ -23,31 +25,39 @@ const BacktestLab = () => {
     const [results, setResults] = useState(null);
     const [error, setError] = useState(null);
 
+    // Configuration State
     const [config, setConfig] = useState({
         minAdx: 25,
         maxRsi: 70,
         stopLoss: 2.0,
         riskPerTrade: 0.95,
         balance: 1000,
-        days: 30, // New Time Filter
-        assets: ['BTCUSDT', 'ETHUSDT'] // Default Selection
+        days: 30, 
+        assets: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'] 
     });
 
     useEffect(() => {
-        socket.on('simulation_progress', setProgress);
-        socket.on('simulation_complete', (data) => {
+        // Socket Event Listeners
+        const onProgress = (data) => setProgress(data);
+        const onComplete = (data) => {
             setResults(data);
             setRunning(false);
-            setProgress({ percent: 100, message: 'Complete' });
-        });
-        socket.on('simulation_error', (err) => {
-            setError(err.message);
+            setProgress({ percent: 100, message: 'Simulation Complete' });
+        };
+        const onError = (err) => {
+            setError(err.message || "An unknown error occurred");
             setRunning(false);
-        });
+        };
+
+        socket.on('simulation_progress', onProgress);
+        socket.on('simulation_complete', onComplete);
+        socket.on('simulation_error', onError);
+
+        // Cleanup
         return () => {
-            socket.off('simulation_progress');
-            socket.off('simulation_complete');
-            socket.off('simulation_error');
+            socket.off('simulation_progress', onProgress);
+            socket.off('simulation_complete', onComplete);
+            socket.off('simulation_error', onError);
         };
     }, []);
 
@@ -55,7 +65,9 @@ const BacktestLab = () => {
         setRunning(true);
         setResults(null);
         setError(null);
-        setProgress({ percent: 0, message: 'Initializing...' });
+        setProgress({ percent: 0, message: 'Initializing Worker...' });
+        
+        // Emit configuration to server -> triggers worker
         socket.emit('start_simulation', config);
     };
 
@@ -65,6 +77,7 @@ const BacktestLab = () => {
 
     return (
         <Box p={3} height="100%" display="flex" flexDirection="column" gap={3} sx={{ overflowY: 'auto' }}>
+            {/* Header */}
             <Box display="flex" alignItems="center" gap={2}>
                 <Science fontSize="large" color="primary" />
                 <Box>
@@ -79,7 +92,7 @@ const BacktestLab = () => {
 
             <Grid container spacing={3} sx={{ flexGrow: 1 }}>
                 
-                {/* LEFT: Controls */}
+                {/* LEFT COLUMN: Controls */}
                 <Grid item xs={12} md={4} lg={3}>
                     <Paper sx={{ p: 3, height: '100%', borderRadius: 4 }}>
                         <Typography variant="subtitle2" fontWeight="bold" gutterBottom color="text.secondary">
@@ -87,10 +100,11 @@ const BacktestLab = () => {
                         </Typography>
                         
                         <Stack spacing={3} mt={3}>
-                            {/* ASSET SELECTOR */}
-                            <FormControl size="small">
-                                <InputLabel>Assets to Test</InputLabel>
+                            {/* 1. ASSET SELECTOR */}
+                            <FormControl size="small" fullWidth>
+                                <InputLabel id="asset-select-label">Assets to Test</InputLabel>
                                 <Select
+                                    labelId="asset-select-label"
                                     multiple
                                     value={config.assets}
                                     onChange={(e) => handleChange('assets', e.target.value)}
@@ -109,72 +123,101 @@ const BacktestLab = () => {
                                 </Select>
                             </FormControl>
 
-                            {/* DAYS SLIDER */}
+                            {/* 2. DAYS SLIDER */}
                             <Box>
-                                <Typography variant="caption" gutterBottom>Duration: {config.days} Days</Typography>
+                                <Typography variant="caption" gutterBottom>
+                                    History Duration: <strong>{config.days} Days</strong>
+                                </Typography>
                                 <Slider 
-                                    value={config.days} 
-                                    min={7} max={120} 
+                                    value={typeof config.days === 'number' ? config.days : 30}
+                                    min={7} 
+                                    max={120} 
                                     onChange={(e, v) => handleChange('days', v)} 
-                                    valueLabelDisplay="auto" 
+                                    valueLabelDisplay="auto"
+                                    size="small"
                                 />
                             </Box>
 
                             <Divider />
 
+                            {/* 3. STRATEGY PARAMS */}
                             <TextField 
-                                label="Min ADX" type="number" value={config.minAdx}
-                                onChange={(e) => handleChange('minAdx', e.target.value)} size="small"
+                                label="Min ADX Threshold" type="number" 
+                                value={config.minAdx}
+                                onChange={(e) => handleChange('minAdx', e.target.value)} 
+                                size="small"
+                                InputProps={{ inputProps: { min: 0, max: 100 } }}
                             />
                              <TextField 
-                                label="Max RSI" type="number" value={config.maxRsi}
-                                onChange={(e) => handleChange('maxRsi', e.target.value)} size="small"
+                                label="Max RSI Ceiling" type="number" 
+                                value={config.maxRsi}
+                                onChange={(e) => handleChange('maxRsi', e.target.value)} 
+                                size="small"
+                                InputProps={{ inputProps: { min: 0, max: 100 } }}
                             />
                              <TextField 
-                                label="Stop Loss %" type="number" value={config.stopLoss}
-                                onChange={(e) => handleChange('stopLoss', e.target.value)} size="small"
+                                label="Stop Loss (%)" type="number" 
+                                value={config.stopLoss}
+                                onChange={(e) => handleChange('stopLoss', e.target.value)} 
+                                size="small"
                             />
                              <TextField 
-                                label="Start Balance" type="number" value={config.balance}
-                                onChange={(e) => handleChange('balance', e.target.value)} size="small"
+                                label="Start Balance ($)" type="number" 
+                                value={config.balance}
+                                onChange={(e) => handleChange('balance', e.target.value)} 
+                                size="small"
                             />
 
                             <Button 
                                 variant="contained" size="large" onClick={handleRun} disabled={running}
                                 startIcon={!running && <PlayArrow />}
-                                sx={{ py: 1.5, fontWeight: 'bold' }}
+                                sx={{ py: 1.5, fontWeight: 'bold', mt: 2 }}
                                 color={running ? "secondary" : "primary"}
                             >
-                                {running ? "RUNNING..." : "RUN TEST"}
+                                {running ? "SIMULATING..." : "RUN TEST"}
                             </Button>
                         </Stack>
                     </Paper>
                 </Grid>
 
-                {/* RIGHT: Results */}
+                {/* RIGHT COLUMN: Results */}
                 <Grid item xs={12} md={8} lg={9}>
                     <Paper sx={{ p: 3, height: '100%', minHeight: 600, borderRadius: 4, display: 'flex', flexDirection: 'column' }}>
+                        
+                        {/* Error Handling */}
                         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                         
+                        {/* Progress Bar */}
                         {running && (
                             <Box sx={{ width: '100%', mb: 4, mt: 2 }}>
                                 <Box display="flex" justifyContent="space-between" mb={1}>
-                                    <Typography variant="caption" fontWeight="bold" color="primary">{progress.message}</Typography>
-                                    <Typography variant="caption" fontWeight="bold">{progress.percent}%</Typography>
+                                    <Typography variant="caption" fontWeight="bold" color="primary">
+                                        {progress.message}
+                                    </Typography>
+                                    <Typography variant="caption" fontWeight="bold">
+                                        {progress.percent}%
+                                    </Typography>
                                 </Box>
-                                <LinearProgress variant="determinate" value={progress.percent} sx={{ height: 8, borderRadius: 4 }} />
+                                <LinearProgress 
+                                    variant="determinate" 
+                                    value={progress.percent} 
+                                    sx={{ height: 8, borderRadius: 4 }} 
+                                />
                             </Box>
                         )}
                         
+                        {/* Empty State */}
                         {!results ? (
                             !running && (
                                 <Box flexGrow={1} display="flex" alignItems="center" justifyContent="center" flexDirection="column" opacity={0.3}>
                                     <Science sx={{ fontSize: 80, mb: 2 }} />
                                     <Typography variant="h6" fontWeight="bold">READY TO SIMULATE</Typography>
+                                    <Typography variant="body2">Select assets and click Run Test</Typography>
                                 </Box>
                             )
                         ) : (
-                            <>
+                            // Results View
+                            <Box sx={{ animation: 'fadeIn 0.5s ease-in' }}>
                                 {/* KPI Grid */}
                                 <Grid container spacing={2} mb={4}>
                                     <Grid item xs={6} md={3}>
@@ -210,12 +253,25 @@ const BacktestLab = () => {
                                     <Typography variant="subtitle2" fontWeight="bold" gutterBottom display="flex" alignItems="center" gap={1}>
                                         <BarChart fontSize="small" color="primary" /> EQUITY GROWTH
                                     </Typography>
-                                    <LineChart
-                                        xAxis={[{ data: results.equityCurve.map((_, i) => i), label: 'Time', tickLabelStyle: { fontSize: 0 } }]}
-                                        series={[{ data: results.equityCurve.map(d => d.value), area: true, showMark: false, color: theme.palette.primary.main }]}
-                                        height={250}
-                                        margin={{ left: 50, right: 20, top: 10, bottom: 20 }}
-                                    />
+                                    {results.equityCurve.length > 0 ? (
+                                        <LineChart
+                                            xAxis={[{ 
+                                                data: results.equityCurve.map((_, i) => i), 
+                                                label: 'Time (Candles)', 
+                                                tickLabelStyle: { fontSize: 0 } 
+                                            }]}
+                                            series={[{ 
+                                                data: results.equityCurve.map(d => d.value), 
+                                                area: true, 
+                                                showMark: false, 
+                                                color: theme.palette.primary.main 
+                                            }]}
+                                            height={250}
+                                            margin={{ left: 50, right: 20, top: 10, bottom: 20 }}
+                                        />
+                                    ) : (
+                                        <Typography variant="body2" color="text.secondary">No trades were executed in this period.</Typography>
+                                    )}
                                 </Box>
 
                                 {/* Asset Breakdown Table */}
@@ -244,11 +300,16 @@ const BacktestLab = () => {
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
+                                                {results.stats.assetStats.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} align="center">No trades found</TableCell>
+                                                    </TableRow>
+                                                )}
                                             </TableBody>
                                         </Table>
                                     </TableContainer>
                                 </Box>
-                            </>
+                            </Box>
                         )}
                     </Paper>
                 </Grid>
