@@ -1,4 +1,4 @@
-// backend/src/workers/backtestWorker.js - FIXED POSITION SIZING
+// backend/src/workers/backtestWorker.js - PROMISIFIED FOR OPTIMIZER
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
@@ -10,11 +10,13 @@ const FETCH_SCRIPT = path.join(LAB_DIR, "fetch_candles.js");
 const BUILD_SCRIPT = path.join(LAB_DIR, "build_15m_dataset.js");
 const STALE_THRESHOLD = 24 * 60 * 60 * 1000;
 
+// --- WORKER ENTRY POINT ---
 process.on("message", async (msg) => {
     if (msg.command === "start") {
         try {
             const forceRebuild = msg.config && msg.config.forceRebuild === true;
             await ensureLabData(forceRebuild);
+
             const db = new sqlite3.Database(
                 DB_PATH,
                 sqlite3.OPEN_READONLY,
@@ -23,7 +25,14 @@ process.on("message", async (msg) => {
                         throw new Error(`DB Connection Failed: ${err.message}`);
                 }
             );
-            runSimulation(db, msg.config);
+
+            // Run and Wait
+            const results = await runSimulation(db, msg.config);
+
+            // Send Results & Exit
+            if (process.send) process.send({ type: "result", data: results });
+            db.close();
+            process.exit(0);
         } catch (error) {
             if (process.send)
                 process.send({ type: "error", error: error.message });
@@ -32,6 +41,7 @@ process.on("message", async (msg) => {
     }
 });
 
+// --- HELPER: DATA SYNC ---
 async function ensureLabData(force = false) {
     const dbExists = fs.existsSync(DB_PATH);
     let isStale = false;
@@ -83,81 +93,94 @@ function runChildScript(scriptPath, actionName) {
     });
 }
 
-async function runSimulation(db, config) {
-    try {
-        if (process.send)
-            process.send({
-                type: "progress",
-                message: "Initializing...",
-                percent: 10,
-            });
-
-        const STRATEGY = {
-            min_adx: parseFloat(config.minAdx) || 25,
-            max_rsi: parseFloat(config.maxRsi) || 70,
-            stop_loss_pct: (parseFloat(config.stopLoss) || 2.0) / 100,
-            initial_balance: parseFloat(config.balance) || 1000,
-            trade_size_pct: parseFloat(config.riskPerTrade) || 0.95,
-
-            // Burst Mode Logic
-            burst_mode:
-                config.burstMode === true || config.burstMode === "true",
-
-            // Trailing Stop Logic
-            enable_trailing: config.enableTrailingStops === true,
-            trailing_pct: (parseFloat(config.trailingStopPercent) || 3.0) / 100,
-
-            assets:
-                Array.isArray(config.assets) && config.assets.length > 0
-                    ? config.assets
-                    : ["BTCUSDT"],
-            days: parseInt(config.days) || 30,
-            weights: config.weights || {},
-        };
-
-        const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
-        const placeholders = STRATEGY.assets.map(() => "?").join(",");
-        const query = `
-            SELECT symbol, timestamp, open, high, low, close as price, 
-                   adx, rsi, supertrend_direction 
-            FROM market_state_15m 
-            WHERE symbol IN (${placeholders}) AND timestamp > ?
-            ORDER BY timestamp ASC
-        `;
-
-        if (process.send)
-            process.send({
-                type: "progress",
-                message: "Fetching Data...",
-                percent: 15,
-            });
-
-        db.all(query, [...STRATEGY.assets, startTime], async (err, rows) => {
-            if (err) {
-                if (process.send)
-                    process.send({ type: "error", error: err.message });
-                process.exit(1);
-            }
-            if (!rows || rows.length === 0) {
-                if (process.send)
-                    process.send({ type: "error", error: "No data found." });
-                process.exit(0);
-            }
+// --- CORE LOGIC: PROMISIFIED ---
+function runSimulation(db, config) {
+    return new Promise((resolve, reject) => {
+        try {
             if (process.send)
                 process.send({
                     type: "progress",
-                    message: `Simulating... (Burst:${STRATEGY.burst_mode}, Trail:${STRATEGY.enable_trailing})`,
-                    percent: 25,
+                    message: "Initializing...",
+                    percent: 10,
                 });
 
-            const results = await executeStrategy(rows, STRATEGY);
-            if (process.send) process.send({ type: "result", data: results });
-            process.exit(0);
-        });
-    } catch (error) {
-        if (process.send) process.send({ type: "error", error: error.message });
-        process.exit(1);
-    }
+            const STRATEGY = {
+                min_adx: parseFloat(config.minAdx) || 25,
+                max_rsi: parseFloat(config.maxRsi) || 70,
+                stop_loss_pct: (parseFloat(config.stopLoss) || 2.0) / 100,
+                initial_balance: parseFloat(config.balance) || 1000,
+                trade_size_pct: parseFloat(config.riskPerTrade) || 0.95,
+
+                burst_mode:
+                    config.burstMode === true || config.burstMode === "true",
+
+                enable_trailing: config.enableTrailingStops === true,
+                trailing_pct:
+                    (parseFloat(config.trailingStopPercent) || 3.0) / 100,
+
+                assets:
+                    Array.isArray(config.assets) && config.assets.length > 0
+                        ? config.assets
+                        : ["BTCUSDT"],
+                days: parseInt(config.days) || 30,
+                weights: config.weights || {},
+            };
+
+            const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
+            const placeholders = STRATEGY.assets.map(() => "?").join(",");
+            const query = `
+                SELECT symbol, timestamp, open, high, low, close as price, 
+                       adx, rsi, supertrend_direction 
+                FROM market_state_15m 
+                WHERE symbol IN (${placeholders}) AND timestamp > ?
+                ORDER BY timestamp ASC
+            `;
+
+            if (process.send)
+                process.send({
+                    type: "progress",
+                    message: "Fetching Data...",
+                    percent: 15,
+                });
+
+            // DB QUERY
+            db.all(
+                query,
+                [...STRATEGY.assets, startTime],
+                async (err, rows) => {
+                    if (err) return reject(err);
+
+                    if (!rows || rows.length === 0) {
+                        // Return empty result instead of throwing, so Optimizer can skip gracefully
+                        return resolve({
+                            stats: {
+                                netProfit: 0,
+                                winRate: 0,
+                                totalTrades: 0,
+                                finalBalance: STRATEGY.initial_balance,
+                                assetStats: [],
+                            },
+                            trades: [],
+                            equityCurve: [],
+                        });
+                    }
+
+                    if (process.send)
+                        process.send({
+                            type: "progress",
+                            message: `Simulating...`,
+                            percent: 25,
+                        });
+
+                    // Execute Strategy logic
+                    const results = await executeStrategy(rows, STRATEGY);
+                    resolve(results);
+                }
+            );
+        } catch (error) {
+            reject(error);
+        }
+    });
 }
 
 async function executeStrategy(rows, strategy) {
@@ -190,7 +213,8 @@ async function executeStrategy(rows, strategy) {
 
     for (const candle of rows) {
         processedCount++;
-        if (processedCount % 10000 === 0 && process.send) {
+        // Throttle progress updates to avoid flooding socket
+        if (processedCount % 15000 === 0 && process.send) {
             process.send({
                 type: "progress",
                 message: `Simulating...`,
@@ -254,7 +278,7 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // --- ENTRIES (FIXED SIZING) ---
+        // --- ENTRIES (EQUITY BASED SIZING) ---
         if (!positions[sym]) {
             const trendFlipGreen =
                 prevCandle.supertrend_direction === -1 &&
@@ -269,29 +293,24 @@ async function executeStrategy(rows, strategy) {
                 const isSafeRsi = candle.rsi <= strategy.max_rsi;
 
                 if (entrySignal && isSafeRsi) {
-                    // --- 🐛 SIZING FIX START ---
-
-                    // 1. Calculate Total Equity (Cash + Value of all open positions)
+                    // 1. Calculate Total Equity
                     let currentEquity = balance;
                     Object.keys(positions).forEach((pKey) => {
                         const p = positions[pKey];
-                        // Use latest known price for that asset, or entry if price missing
                         const val =
                             p.quantity * (latestPrices[pKey] || p.entryPrice);
                         currentEquity += val;
                     });
 
-                    // 2. Calculate Target Allocation based on EQUITY, not just Cash
+                    // 2. Target Allocation
                     const weight = normalizedWeights[sym];
                     let investAmount =
                         currentEquity * weight * strategy.trade_size_pct;
 
-                    // 3. Cap at available cash (cannot spend what we don't have)
+                    // 3. Cash Constraint
                     if (investAmount > balance) {
-                        investAmount = balance * 0.99; // 99% of cash to leave dust room
+                        investAmount = balance * 0.99;
                     }
-
-                    // --- 🐛 SIZING FIX END ---
 
                     if (investAmount > 10) {
                         const fee = investAmount * 0.001;
@@ -312,6 +331,7 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
+        // Simple equity sampling
         if (Math.random() > 0.95) {
             let unrealized = 0;
             Object.keys(positions).forEach(
