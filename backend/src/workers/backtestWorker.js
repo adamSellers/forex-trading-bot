@@ -10,13 +10,14 @@ const DB_PATH = path.join(LAB_DIR, "data/market_data.db");
 const FETCH_SCRIPT = path.join(LAB_DIR, "fetch_candles.js");
 const BUILD_SCRIPT = path.join(LAB_DIR, "build_15m_dataset.js");
 
-// Re-fetch data if DB is older than 24 hours
 const STALE_THRESHOLD = 24 * 60 * 60 * 1000;
 
 process.on("message", async (msg) => {
     if (msg.command === "start") {
         try {
-            await ensureLabData();
+            // FIXED: Pass the forceRebuild flag from UI config
+            const forceRebuild = msg.config && msg.config.forceRebuild === true;
+            await ensureLabData(forceRebuild);
 
             const db = new sqlite3.Database(
                 DB_PATH,
@@ -36,7 +37,7 @@ process.on("message", async (msg) => {
     }
 });
 
-async function ensureLabData() {
+async function ensureLabData(force = false) {
     const dbExists = fs.existsSync(DB_PATH);
     let isStale = false;
 
@@ -45,15 +46,27 @@ async function ensureLabData() {
         if (Date.now() - stats.mtimeMs > STALE_THRESHOLD) isStale = true;
     }
 
-    if (!dbExists || isStale) {
+    // FIXED: Added 'force' condition
+    if (!dbExists || isStale || force) {
         if (process.send)
             process.send({
                 type: "progress",
-                message: `⚠️ Data Missing/Stale. Auto-Initializing...`,
+                message: force
+                    ? `⚠️ Force Rebuild Requested. Initializing...`
+                    : `⚠️ Data Missing/Stale. Auto-Initializing...`,
                 percent: 0,
             });
+
+        // Clean up old file if forcing
+        if (force && dbExists) {
+            try {
+                fs.unlinkSync(DB_PATH);
+            } catch (e) {}
+        }
+
         await runChildScript(FETCH_SCRIPT, "Downloading Candles");
         await runChildScript(BUILD_SCRIPT, "Building Database");
+
         if (process.send)
             process.send({
                 type: "progress",
@@ -118,8 +131,7 @@ async function runSimulation(db, config) {
         const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
         const placeholders = STRATEGY.assets.map(() => "?").join(",");
 
-        // FIXED QUERY: Mapped 'close' to 'price' to match existing logic
-        // Also explicitly selecting open/high/low/close now that they exist
+        // Query requests 'open'
         const query = `
             SELECT symbol, timestamp, open, high, low, close as price, 
                    adx, rsi, supertrend_direction 
@@ -138,6 +150,16 @@ async function runSimulation(db, config) {
 
         db.all(query, [...STRATEGY.assets, startTime], async (err, rows) => {
             if (err) {
+                // Self-Healing: If still broken for some reason, tell user to click button
+                if (err.message.includes("no such column")) {
+                    if (process.send)
+                        process.send({
+                            type: "error",
+                            error: "⚠️ Schema Error. Please click the orange 'Restore' button to fix.",
+                        });
+                    process.exit(0);
+                    return;
+                }
                 if (process.send)
                     process.send({ type: "error", error: err.message });
                 process.exit(1);
@@ -203,7 +225,7 @@ async function executeStrategy(rows, strategy) {
         const sym = candle.symbol;
 
         // 1. UPDATE GLOBAL PRICE STATE
-        latestPrices[sym] = candle.price; // Note: candle.price is 'close' due to SQL alias
+        latestPrices[sym] = candle.price;
 
         const prevCandle = previousStates[sym];
         previousStates[sym] = candle;
@@ -250,7 +272,6 @@ async function executeStrategy(rows, strategy) {
 
         // --- 3. MANAGE ENTRIES ---
         if (!positions[sym]) {
-            // Logic: SuperTrend flips from RED (-1) to GREEN (1)
             const trendFlipGreen =
                 prevCandle.supertrend_direction === -1 &&
                 candle.supertrend_direction === 1;
@@ -298,13 +319,6 @@ async function executeStrategy(rows, strategy) {
             });
         }
     }
-
-    if (process.send)
-        process.send({
-            type: "progress",
-            message: "Compiling Final Stats...",
-            percent: 98,
-        });
 
     // --- 5. COMPILE STATISTICS ---
     const assetStats = {};

@@ -5,10 +5,10 @@ import {
     LinearProgress, Alert, useTheme, Stack, Chip, 
     MenuItem, Select, FormControl, InputLabel, Slider, 
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Divider, alpha
+    Divider, alpha, Tooltip, IconButton
 } from '@mui/material';
 import { 
-    Science, PlayArrow, BarChart
+    Science, PlayArrow, BarChart, Refresh, Restore
 } from '@mui/icons-material';
 import { LineChart } from '@mui/x-charts';
 import { socket } from '../config/api';
@@ -61,14 +61,15 @@ const BacktestLab = () => {
         };
     }, []);
 
-    const handleRun = () => {
+    const handleRun = (forceRebuild = false) => {
         setRunning(true);
         setResults(null);
         setError(null);
-        setProgress({ percent: 0, message: 'Initializing Worker...' });
+        setProgress({ percent: 0, message: forceRebuild ? 'Reinitializing Data...' : 'Initializing Worker...' });
         
         // Emit configuration to server -> triggers worker
-        socket.emit('start_simulation', config);
+        // We pass the forceRebuild flag here
+        socket.emit('start_simulation', { ...config, forceRebuild });
     };
 
     const handleChange = (field, val) => {
@@ -78,15 +79,17 @@ const BacktestLab = () => {
     return (
         <Box p={3} height="100%" display="flex" flexDirection="column" gap={3} sx={{ overflowY: 'auto' }}>
             {/* Header */}
-            <Box display="flex" alignItems="center" gap={2}>
-                <Science fontSize="large" color="primary" />
-                <Box>
-                    <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
-                        STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span>
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-                        ISOLATED SIMULATION ENVIRONMENT • 15M TIMEFRAME
-                    </Typography>
+            <Box display="flex" alignItems="center" justifyContent="space-between">
+                <Box display="flex" alignItems="center" gap={2}>
+                    <Science fontSize="large" color="primary" />
+                    <Box>
+                        <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
+                            STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span>
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                            ISOLATED SIMULATION ENVIRONMENT • 15M TIMEFRAME
+                        </Typography>
+                    </Box>
                 </Box>
             </Box>
 
@@ -168,14 +171,34 @@ const BacktestLab = () => {
                                 size="small"
                             />
 
-                            <Button 
-                                variant="contained" size="large" onClick={handleRun} disabled={running}
-                                startIcon={!running && <PlayArrow />}
-                                sx={{ py: 1.5, fontWeight: 'bold', mt: 2 }}
-                                color={running ? "secondary" : "primary"}
-                            >
-                                {running ? "SIMULATING..." : "RUN TEST"}
-                            </Button>
+                            <Stack direction="row" spacing={1} mt={2}>
+                                <Button 
+                                    variant="contained" 
+                                    size="large" 
+                                    onClick={() => handleRun(false)} 
+                                    disabled={running}
+                                    startIcon={!running && <PlayArrow />}
+                                    sx={{ py: 1.5, fontWeight: 'bold', flexGrow: 1 }}
+                                    color={running ? "secondary" : "primary"}
+                                >
+                                    {running ? "RUNNING..." : "RUN TEST"}
+                                </Button>
+                                
+                                <Tooltip title="Force Re-download & Rebuild Data">
+                                    <Button
+                                        variant="outlined"
+                                        color="warning"
+                                        onClick={() => handleRun(true)}
+                                        disabled={running}
+                                        sx={{ minWidth: 50, px: 1 }}
+                                    >
+                                        <Restore />
+                                    </Button>
+                                </Tooltip>
+                            </Stack>
+                            <Typography variant="caption" align="center" color="text.secondary">
+                                Click <Restore fontSize="inherit"/> if you see DB Errors
+                            </Typography>
                         </Stack>
                     </Paper>
                 </Grid>
