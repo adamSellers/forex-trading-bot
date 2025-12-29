@@ -2,117 +2,175 @@
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
+const { spawn } = require("child_process");
 
-// --- DEBUG PATH LOGIC ---
-// We define the target relative to this worker file
-// Trying to go from backend/src/workers -> backend/backtest_lab/data/market_data.db
-const RELATIVE_PATH = "../../../backtest_lab/data/market_data.db";
-const DB_PATH = path.resolve(__dirname, RELATIVE_PATH);
+// PATHS
+const LAB_DIR = path.join(__dirname, "../../backtest_lab");
+const DB_PATH = path.join(LAB_DIR, "data/market_data.db");
+const FETCH_SCRIPT = path.join(LAB_DIR, "fetch_candles.js");
+const BUILD_SCRIPT = path.join(LAB_DIR, "build_15m_dataset.js");
 
-console.log(`\n👷 WORKER DIAGNOSTICS:`);
-console.log(`   1. Worker Location: ${__dirname}`);
-console.log(`   2. Target DB Path:  ${DB_PATH}`);
-console.log(
-    `   3. File Exists?     ${fs.existsSync(DB_PATH) ? "✅ YES" : "❌ NO"}`
-);
+// 24 Hours in ms
+const STALE_THRESHOLD = 24 * 60 * 60 * 1000;
 
-// Check parent folder contents if file is missing to help debug
-if (!fs.existsSync(DB_PATH)) {
-    const parentDir = path.dirname(DB_PATH);
-    console.log(`   4. Parent Dir (${parentDir}) contents:`);
-    if (fs.existsSync(parentDir)) {
-        console.log(`      ${fs.readdirSync(parentDir).join("\n      ")}`);
-    } else {
-        console.log(`      ❌ Parent directory does not exist!`);
+process.on("message", async (msg) => {
+    if (msg.command === "start") {
+        try {
+            // STEP 1: Auto-Initialize Data if needed
+            await ensureLabData();
+
+            // STEP 2: Connect to DB (Now guaranteed to exist)
+            const db = new sqlite3.Database(
+                DB_PATH,
+                sqlite3.OPEN_READONLY,
+                (err) => {
+                    if (err)
+                        throw new Error(`DB Connection Failed: ${err.message}`);
+                }
+            );
+
+            // STEP 3: Run Simulation
+            runSimulation(db, msg.config);
+        } catch (error) {
+            if (process.send)
+                process.send({ type: "error", error: error.message });
+            process.exit(1);
+        }
+    }
+});
+
+/**
+ * Checks if data exists and is fresh. If not, runs the setup scripts.
+ */
+async function ensureLabData() {
+    const dbExists = fs.existsSync(DB_PATH);
+    let isStale = false;
+
+    if (dbExists) {
+        const stats = fs.statSync(DB_PATH);
+        const age = Date.now() - stats.mtimeMs;
+        if (age > STALE_THRESHOLD) isStale = true;
+    }
+
+    if (!dbExists || isStale) {
+        const reason = !dbExists ? "Missing Data" : "Stale Data (>24h)";
+        if (process.send)
+            process.send({
+                type: "progress",
+                message: `⚠️ ${reason} Detected. Auto-Initializing Lab...`,
+                percent: 0,
+            });
+
+        // 1. Run Fetch
+        await runChildScript(FETCH_SCRIPT, "Downloading Candles");
+
+        // 2. Run Build
+        await runChildScript(BUILD_SCRIPT, "Building Database");
+
+        if (process.send)
+            process.send({
+                type: "progress",
+                message: "✅ Lab Ready. Starting Simulation...",
+                percent: 10,
+            });
     }
 }
 
-// Open DB Connection inside the worker process
-const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY, (err) => {
-    if (err) {
-        // Send explicit error payload back to parent
-        const errorMsg = `Worker DB Error: ${err.message} (Tried: ${DB_PATH})`;
-        console.error(`   ❌ ${errorMsg}`);
+/**
+ * Helper to spawn a script and pipe output to the UI
+ */
+function runChildScript(scriptPath, actionName) {
+    return new Promise((resolve, reject) => {
+        const child = spawn("node", [scriptPath]);
 
-        if (process.send) {
-            process.send({ type: "error", error: errorMsg });
-        }
-        process.exit(1);
-    }
-});
-
-// Listen for the command to start
-process.on("message", (msg) => {
-    if (msg.command === "start") {
-        runSimulation(msg.config);
-    }
-});
-
-async function runSimulation(config) {
-    try {
-        if (process.send)
-            process.send({
-                type: "progress",
-                message: "Initializing Worker...",
-                percent: 5,
-            });
-
-        const STRATEGY = {
-            min_adx: parseFloat(config.minAdx) || 25,
-            max_rsi: parseFloat(config.maxRsi) || 70,
-            stop_loss_pct: (parseFloat(config.stopLoss) || 2.0) / 100,
-            initial_balance: parseFloat(config.balance) || 1000,
-            trade_size_pct: parseFloat(config.riskPerTrade) || 0.95,
-            assets:
-                Array.isArray(config.assets) && config.assets.length > 0
-                    ? config.assets
-                    : ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "NEARUSDT"],
-        };
-
-        const placeholders = STRATEGY.assets.map(() => "?").join(",");
-        const query = `SELECT * FROM market_state_15m WHERE symbol IN (${placeholders}) ORDER BY timestamp ASC`;
-
-        if (process.send)
-            process.send({
-                type: "progress",
-                message: "Fetching Data...",
-                percent: 10,
-            });
-
-        db.all(query, STRATEGY.assets, async (err, rows) => {
-            if (err) {
-                if (process.send)
-                    process.send({ type: "error", error: err.message });
-                process.exit(1);
-            }
-
-            if (!rows || rows.length === 0) {
-                if (process.send)
+        child.stdout.on("data", (data) => {
+            const line = data.toString().trim();
+            if (line && process.send) {
+                // Send specific progress updates based on script output
+                if (line.includes("Downloading")) {
                     process.send({
-                        type: "error",
-                        error: "No historical data found. Have you run the fetch scripts?",
+                        type: "progress",
+                        message: `${actionName}: ${line.substring(0, 30)}...`,
+                        percent: 5,
                     });
-                process.exit(0);
+                } else if (line.includes("Processing")) {
+                    process.send({
+                        type: "progress",
+                        message: `${actionName}: Processing Data...`,
+                        percent: 8,
+                    });
+                }
             }
+        });
 
+        child.stderr.on("data", (data) => {
+            console.error(`[${actionName} Error]: ${data}`);
+        });
+
+        child.on("close", (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`${actionName} failed with code ${code}`));
+        });
+    });
+}
+
+// ... EXISTING LOGIC BELOW (Slightly modified to accept DB instance) ...
+
+async function runSimulation(db, config) {
+    // ... [Same logic as before, just using the passed 'db' instance] ...
+    // Note: I will include the full function below for copy-paste safety
+
+    const STRATEGY = {
+        min_adx: parseFloat(config.minAdx) || 25,
+        max_rsi: parseFloat(config.maxRsi) || 70,
+        stop_loss_pct: (parseFloat(config.stopLoss) || 2.0) / 100,
+        initial_balance: parseFloat(config.balance) || 1000,
+        trade_size_pct: parseFloat(config.riskPerTrade) || 0.95,
+        assets:
+            Array.isArray(config.assets) && config.assets.length > 0
+                ? config.assets
+                : ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "NEARUSDT"],
+    };
+
+    const placeholders = STRATEGY.assets.map(() => "?").join(",");
+    const query = `SELECT * FROM market_state_15m WHERE symbol IN (${placeholders}) ORDER BY timestamp ASC`;
+
+    if (process.send)
+        process.send({
+            type: "progress",
+            message: "Loading Market Data...",
+            percent: 15,
+        });
+
+    db.all(query, STRATEGY.assets, async (err, rows) => {
+        if (err) {
+            if (process.send)
+                process.send({ type: "error", error: err.message });
+            process.exit(1);
+        }
+
+        // Final sanity check
+        if (!rows || rows.length === 0) {
             if (process.send)
                 process.send({
-                    type: "progress",
-                    message: `Processing ${rows.length} candles...`,
-                    percent: 20,
+                    type: "error",
+                    error: "Lab Initialization failed (No rows). Check logs.",
                 });
+            process.exit(1);
+        }
 
-            // Run Logic
-            const results = await executeStrategy(rows, STRATEGY);
+        if (process.send)
+            process.send({
+                type: "progress",
+                message: `Simulating ${rows.length} candles...`,
+                percent: 20,
+            });
 
-            // Send final results
-            if (process.send) process.send({ type: "result", data: results });
-            process.exit(0); // Mission complete
-        });
-    } catch (error) {
-        if (process.send) process.send({ type: "error", error: error.message });
-        process.exit(1);
-    }
+        const results = await executeStrategy(rows, STRATEGY);
+
+        if (process.send) process.send({ type: "result", data: results });
+        process.exit(0);
+    });
 }
 
 async function executeStrategy(rows, strategy) {
@@ -128,7 +186,6 @@ async function executeStrategy(rows, strategy) {
     for (const candle of rows) {
         processedCount++;
 
-        // Report progress back to parent every ~5000 candles
         if (processedCount % 5000 === 0) {
             const pct = 20 + Math.round((processedCount / totalCandles) * 70);
             if (process.send) {
@@ -140,7 +197,6 @@ async function executeStrategy(rows, strategy) {
                     percent: pct,
                 });
             }
-            // Important: Yield to event loop to allow IPC message sending
             await new Promise((r) => setImmediate(r));
         }
 
@@ -150,7 +206,7 @@ async function executeStrategy(rows, strategy) {
 
         if (!prevCandle) continue;
 
-        // 1. MANAGE EXITS
+        // 1. EXITS
         if (positions[sym]) {
             const pos = positions[sym];
             let closeReason = null;
@@ -168,7 +224,6 @@ async function executeStrategy(rows, strategy) {
                 const fee = exitValue * 0.001;
                 const netReturn = exitValue - fee;
                 const pnl = netReturn - pos.cost;
-
                 balance += netReturn;
 
                 tradeHistory.push({
@@ -180,12 +235,11 @@ async function executeStrategy(rows, strategy) {
                     reason: closeReason,
                     time: candle.timestamp,
                 });
-
                 delete positions[sym];
             }
         }
 
-        // 2. MANAGE ENTRIES
+        // 2. ENTRIES
         if (!positions[sym]) {
             const trendFlipGreen =
                 prevCandle.supertrend_direction === -1 &&

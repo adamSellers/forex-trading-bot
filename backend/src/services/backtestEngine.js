@@ -10,27 +10,22 @@ class BacktestEngine {
                 __dirname,
                 "../workers/backtestWorker.js"
             );
-
-            // SPAWN CHILD PROCESS
-            // This is the magic line. It creates a completely separate OS process.
             const worker = fork(workerPath);
-
             let isResolved = false;
 
-            // Safety Timeout: Kill worker if it hangs for > 5 minutes
+            // UPDATED: Increased timeout to 15 minutes to allow for data downloading
             const timeout = setTimeout(() => {
                 if (!worker.killed) {
                     logger.warn(
-                        "⚠️ Backtest Worker timed out! Killing process."
+                        "⚠️ Backtest Worker timed out (15m limit)! Killing process."
                     );
                     worker.kill();
                     reject(
-                        new Error("Simulation timed out (limit: 5 minutes)")
+                        new Error("Simulation timed out (limit: 15 minutes)")
                     );
                 }
-            }, 5 * 60 * 1000);
+            }, 15 * 60 * 1000);
 
-            // Listen for messages from the child
             worker.on("message", (msg) => {
                 if (msg.type === "progress") {
                     notifyProgress(msg);
@@ -45,19 +40,13 @@ class BacktestEngine {
                 }
             });
 
-            // Handle unexpected crashes (e.g., OOM)
             worker.on("exit", (code) => {
                 clearTimeout(timeout);
                 if (!isResolved && code !== 0) {
-                    reject(
-                        new Error(
-                            `Worker crashed with exit code ${code} (Likely Out of Memory)`
-                        )
-                    );
+                    reject(new Error(`Worker crashed with exit code ${code}`));
                 }
             });
 
-            // Start the job
             worker.send({ command: "start", config });
         });
     }
