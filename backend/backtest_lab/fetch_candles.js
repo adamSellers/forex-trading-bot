@@ -4,9 +4,21 @@ const path = require("path");
 const https = require("https");
 
 // --- CONFIGURATION ---
-const SYMBOLS = ["BTCUSDT", "BNBUSDT", "NEARUSDT", "XRPUSDT", "ETHUSDT"];
+// FIXED: Expanded list to match Frontend "Available Assets"
+const SYMBOLS = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "NEARUSDT",
+    "SOLUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "MATICUSDT",
+];
+
 const INTERVAL = "15m";
-const DAYS = 120; // Target: 30 Days of history
+const DAYS = 120; // Target: 120 Days of history (approx 4 months)
 const OUTPUT_DIR = path.join(__dirname, "data", "candles");
 
 // Ensure output dir exists
@@ -54,11 +66,11 @@ function fetchBatch(symbol, startTime) {
 }
 
 /**
- * Main: Loop until we have all 30 days
+ * Main: Loop until we have all requested history
  */
 async function fetchCompleteHistory(symbol) {
     const allCandles = [];
-    // Calculate start time: Current Time - 30 Days (in ms)
+    // Calculate start time: Current Time - DAYS (in ms)
     let cursorTime = Date.now() - DAYS * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
@@ -83,7 +95,7 @@ async function fetchCompleteHistory(symbol) {
             // If we got fewer than 1000, we reached the most recent data
             if (batch.length < 1000) break;
 
-            // Politeness delay
+            // Politeness delay to prevent API bans
             await new Promise((r) => setTimeout(r, 100));
         } catch (err) {
             console.error(
