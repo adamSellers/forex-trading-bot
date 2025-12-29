@@ -138,6 +138,11 @@ const TradingDashboard = () => {
         .reduce((sum, t) => sum + Number(t.pnl), 0);
   }, [trades]);
 
+  // --- UX FIX: FILTER ONLY ACTIONABLE SIGNALS FOR BADGE ---
+  const actionableSignalCount = useMemo(() => {
+      return signalsToRender.filter(s => s.signal === 'BUY' || s.signal === 'SELL').length;
+  }, [signalsToRender]);
+
   if (loading && !systemStatus) return <Box minHeight="100vh" display="flex" alignItems="center" justifyContent="center"><LinearProgress sx={{ width: 300 }} /></Box>;
 
   return (
@@ -177,7 +182,35 @@ const TradingDashboard = () => {
             <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: alpha(theme.palette.background.paper, 0.02) }}>
                 <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)} textColor="primary" indicatorColor="primary" sx={{ minHeight: 40 }}>
                     <Tab icon={<PieChart fontSize="small" />} iconPosition="start" label="HOLDINGS" sx={{ minHeight: 40, fontWeight: 'bold' }} />
-                    <Tab icon={<Radar fontSize="small" />} iconPosition="start" label={<Badge badgeContent={signalsToRender.length} color="error" variant="dot" sx={{ pl: 1 }}>SIGNALS</Badge>} sx={{ minHeight: 40, fontWeight: 'bold' }} />
+                    
+                    {/* FIXED BADGE LOGIC: Only show if there are BUY/SELL signals */}
+                    <Tab 
+                        icon={<Radar fontSize="small" />} 
+                        iconPosition="start" 
+                        label={
+                            <Badge 
+                                badgeContent={actionableSignalCount} 
+                                color="warning" 
+                                variant="dot"
+                                sx={{ 
+                                    '& .MuiBadge-badge': { 
+                                        right: -3, 
+                                        top: 3, 
+                                        animation: actionableSignalCount > 0 ? 'pulse 1.5s infinite' : 'none',
+                                        '@keyframes pulse': {
+                                            '0%': { transform: 'scale(1)', opacity: 1 },
+                                            '50%': { transform: 'scale(1.5)', opacity: 0.7 },
+                                            '100%': { transform: 'scale(1)', opacity: 1 },
+                                        }
+                                    } 
+                                }}
+                            >
+                                SIGNALS
+                            </Badge>
+                        } 
+                        sx={{ minHeight: 40, fontWeight: 'bold', pl: 1 }} 
+                    />
+                    
                     <Tab icon={<ReceiptLong fontSize="small" />} iconPosition="start" label="HISTORY" sx={{ minHeight: 40, fontWeight: 'bold' }} />
                 </Tabs>
             </Box>
