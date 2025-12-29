@@ -28,35 +28,38 @@ module.exports = (io, socket) => {
         }
     });
 
-    // --- 2. NEW: Genetic Optimization (The Screener) ---
+    // --- 2. GENETIC OPTIMIZATION (The Screener) ---
     socket.on("start_optimization", (config) => {
         const socketId = socket.id;
         logger.info(`🧬 Genetic Optimization requested by ${socketId}`);
 
-        // Path to the new worker file
+        // Path to the worker file
         const workerPath = path.join(
             __dirname,
             "../workers/optimizationWorker.js"
         );
 
-        // Spawn the worker in a separate process to prevent freezing the server
+        // Spawn worker
         const worker = fork(workerPath);
 
-        // Send the start command to the worker
+        // State flag to prevent double-messaging
+        let isTerminated = false;
+
         worker.send({ command: "start_optimization", config });
 
-        // Listen for messages from the worker
         worker.on("message", (msg) => {
+            if (isTerminated) return;
+
             try {
                 if (msg.type === "progress") {
-                    // Relay progress bar updates (e.g. "Analyzing BTC... 15%")
                     io.to(socketId).emit("optimization_progress", msg);
                 } else if (msg.type === "optimization_complete") {
-                    // Send the final "Dream Team" report
+                    isTerminated = true; // Mark as successfully handled
                     io.to(socketId).emit("optimization_complete", msg.data);
                     logger.success(`🏆 Optimization complete for ${socketId}`);
-                    worker.kill(); // Clean up memory
+                    worker.kill();
                 } else if (msg.type === "error") {
+                    isTerminated = true; // Mark as error handled
                     io.to(socketId).emit("optimization_error", {
                         message: msg.error,
                     });
@@ -70,10 +73,13 @@ module.exports = (io, socket) => {
 
         // Safety: Handle unexpected crashes
         worker.on("exit", (code) => {
-            if (code !== 0) {
-                logger.warn(`Optimization worker exited with code ${code}`);
+            // Only send "Crashed" if we haven't already handled a specific completion/error
+            if (!isTerminated && code !== 0) {
+                logger.warn(
+                    `Optimization worker exited unexpectedly with code ${code}`
+                );
                 io.to(socketId).emit("optimization_error", {
-                    message: "Worker Process Crashed",
+                    message: "Worker Process Crashed (Check System Logs)",
                 });
             }
         });
