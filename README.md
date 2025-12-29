@@ -1,6 +1,6 @@
-# Crypto Trend Trading Bot (V3.1 - Intraday Momentum)
+# Crypto Trend Trading Bot (V3.2 - AI Strategy Lab)
 
-A production-ready, full-stack cryptocurrency trend-following bot built for the Raspberry Pi. It features a robust **Live Trading Engine**, a unified **Analytics "Central Brain"**, and a real-time **React Dashboard** for full control and deep performance insights.
+A production-ready, full-stack cryptocurrency trend-following bot built for the Raspberry Pi. It features a robust **Live Trading Engine**, a unified **Analytics "Central Brain"**, and a new **AI-Powered Strategy Lab** for genetic optimization.
 
 ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)  
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)  
@@ -8,31 +8,34 @@ A production-ready, full-stack cryptocurrency trend-following bot built for the 
 
 ![Dashboard Screenshot](docs/dashboard-preview.png)
 
-This project is a sophisticated trend-following system executing a **SuperTrend + ADX Momentum** strategy. It is currently optimized for **15-minute Intraday Volatility**, allowing for faster entries and multiple concurrent positions. Unlike static bots, this system features **Dynamic Asset Allocation** and **Enterprise-Grade Analytics** (Sharpe Ratio, Volatility, Signal Quality Grading).
+This project is a sophisticated trend-following system executing a **SuperTrend + ADX Momentum** strategy. It is currently optimized for **15-minute Intraday Volatility**, allowing for faster entries and multiple concurrent positions. Unlike static bots, this system features **Dynamic Asset Allocation**, **Genetic Parameter Optimization**, and **Enterprise-Grade Analytics**.
 
 ## ✨ Key Features
 
--   **🛡️ Robust Live Engine**:
+### 🧪 AI Strategy Lab (NEW)
 
-    -   **"Zombie Killer" Logic**: Automatically detects and repairs database/exchange mismatches (e.g., trades sold during a network timeout).
-    -   **Atomic Execution**: Ensures local database state always matches Binance reality to prevent "death loops."
-    -   **Signal Data Capture**: Records ADX, RSI, and ATR values at the moment of entry for future strategy refinement.
+-   **Genetic Optimizer**: Automatically tests a "Universe" of 15+ assets against 120 days of historical data to find the highest-performing pairs.
+-   **Isolated Architecture**: Runs simulations in separate Node.js child processes (forked threads) to ensure **zero impact** on the live trading heartbeat.
+-   **"Dream Team" Construction**: Automatically ranks assets by "Signal Quality" (Profit \* Win Rate) and constructs a diversified portfolio.
+-   **One-Click Deployment**: Apply optimized asset weights directly to your live configuration instantly.
 
--   **🧠 Unified Analytics "Central Brain"**:
+### 🛡️ Robust Live Engine
 
-    -   **Trend Strength Analysis**: Compares the ADX of Winning Trades vs. Losing Trades to verify strategy health ("Optimal" vs "Inverted").
-    -   **Advanced Metrics**: Calculates **Sharpe Ratio**, **Volatility**, **Win Rate**, and **Profit Factor** in real-time.
-    -   **Signal Quality Grading**: Automatically grades strategy performance based on entry efficiency.
+-   **Equity-Based Sizing**: Calculates position size based on **Total Portfolio Value** (Cash + Crypto) rather than just available cash. This allows multiple assets to be traded at full size without "shrinking" later positions.
+-   **"Zombie Killer" Logic**: Automatically detects and repairs database/exchange mismatches (e.g., trades sold during a network timeout).
+-   **Atomic Execution**: Ensures local database state always matches Binance reality to prevent "death loops."
 
--   **📊 Enhanced Visualization**:
+### 🧠 Unified Analytics "Central Brain"
 
-    -   **Live Context**: Signals widget displays real-time **Trend Direction (Bull/Bear)** and **RSI Heatmaps** (Red > 70 / Green < 30).
-    -   **Detailed History**: Full data table showing Entry Price, Exit Price, Exit Reason, and Net PnL per trade.
-    -   **Multi-Timeframe Charts**: Default 15m view with 1H/4H toggles.
+-   **Trend Strength Analysis**: Compares the ADX of Winning Trades vs. Losing Trades to verify strategy health ("Optimal" vs "Inverted").
+-   **Advanced Metrics**: Calculates **Sharpe Ratio**, **Volatility**, **Win Rate**, and **Profit Factor** in real-time.
+-   **Signal Quality Grading**: Automatically grades strategy performance based on entry efficiency.
 
--   **⚡ Dynamic Asset Management**:
-    -   **Concurrent Execution**: Supports multiple active positions (e.g., 30% NEAR, 30% XRP, 30% BNB) simultaneously.
-    -   **Live Rebalancing**: Adjust capital allocation per asset instantly without restarting.
+### 📊 Enhanced Visualization
+
+-   **Live Context**: Signals widget displays real-time **Trend Direction (Bull/Bear)** and **RSI Heatmaps**.
+-   **Smart Notifications**: "Actionable Signals" logic filters out noise, alerting you only to BUY/SELL events (ignoring HOLDs).
+-   **Detailed History**: Full data table showing Entry Price, Exit Price, Exit Reason, and Net PnL per trade.
 
 ## 🚀 Getting Started
 
@@ -54,12 +57,14 @@ Run the automated production installer
    Generate your encrypted secrets file. You will need your Binance API Key and Secret.
 
 ```bash
+
 ./scripts/setup-secrets.sh
 ```
 
 3. Launch
 
 ```bash
+
 # Start the full stack (Backend + Frontend) via PM2
 pm2 start ecosystem.config.js --env production
 ```
@@ -68,9 +73,10 @@ Access the dashboard at http://your-pi-ip:3000.
 
 ## 🏗 System Architecture
 
-The application follows a Service-Oriented Architecture (SOA) optimized for data integrity.
+The application follows a Service-Oriented Architecture (SOA) optimized for data integrity and performance.
 
 ```mermaid
+
 graph TD
     A[React Dashboard] <-->|Socket.IO| B(TradingController)
     B --> C{TradingService}
@@ -83,33 +89,33 @@ graph TD
 
     F -->|Reads| H
     F -->|Calculates| I[Performance Metrics]
-    F -->|Uploads| J[AWS S3]
 
-    D -->|Feeds| K[SignalGenerator]
-    K -->|Triggers| E
+    subgraph "Isolated Strategy Lab"
+    L[LabSocket] -->|Forks| M[OptimizationWorker]
+    M -->|Reads| N[(Historical DB)]
+    M -->|Calculates| O[Genetic Results]
+    end
 ```
 
 ## 🛠 Configuration Guide (Recommended Setup)
 
 1. The Strategy (Intraday Momentum)
-    - The bot uses a fast-paced "Momentum Sniper" strategy tuned for 15-minute volatility.
     - Timeframe: 15m (Captures intraday pumps).
     - Entry: SuperTrend (10, 3) flips GREEN + ADX > 25.
     - Exit: SuperTrend flips RED OR Stop Loss hit.
     - Filters: RSI < 70 (Prevents buying overextended tops).
-2. Allocation Logic
-   _ Control concurrency via the System Config tab.
-   _ Total Capital: $1,000 (Example - set your own capital allocation here)
+2. Auto-Optimization Workflow
+    - Navigate to the Strategy Lab tab.
+    - Click AI Auto-Optimize.
+    - The system will download missing data and test 15 assets (BTC, ETH, SOL, NEAR, etc.).
+    - Review the "Dream Team" Report to see the optimal portfolio mix.
+    - Click Apply Recommended to update the testing portfolio to run a test for the dream team.
+3. Manual Allocation Logic
+   _ Total Capital: $1,000 (Example)
    _ Asset Allocation:
    _ NEAR: 30% ($300 max)
-   _ XRP: 30% ($300 max)
-   _ BNB: 30% ($300 max)
-   Note: This leaves 10% buffer and allows the bot to hold all 3 assets simultaneously.
-3. Analytics & Reporting
-    - The Analytics Dashboard provides a deep dive into your strategy's health:
-    - Equity Curve: Visualizes PnL growth over time.
-    - Trend Strength Analysis: Visualizes if you are "fighting the trend" (Losing ADX > Winning ADX).
-    - Exit Strategy Breakdown: Shows whether trades are closing due to Signal, Stop Loss, or Trailing Stop.
+   _ SOL: 30% ($300 max) \* BNB: 30% ($300 max)
+   Note: The new "Equity-Based Sizing" ensures the 3rd asset gets a full $300 allocation even if the first two trades are already open.
 
 ## ⚠️ Disclaimer
 

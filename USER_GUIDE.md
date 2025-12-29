@@ -1,6 +1,6 @@
-# 📘 V2 Smart Engine - User Manual
+# 📘 V3.2 Smart Engine - User Manual
 
-This guide covers the operation, configuration, and emergency procedures for the Crypto Trend Trading Bot.
+This guide covers the operation, configuration, and emergency procedures for the Crypto Trend Trading Bot (V3.2).
 
 ---
 
@@ -27,22 +27,44 @@ The command center for real-time monitoring.
     -   **Trend / RSI Column**: Shows the market context for every signal.
         -   **BULLISH/BEARISH**: The current SuperTrend direction.
         -   **RSI Value**: Color-coded (Red > 70 is Overbought, Green < 30 is Oversold).
-    -   **Strength (ADX)**: Shows the power of the current trend (Values > 25 are strong).
+    -   **Actionable Badge**: The red notification dot on the tab only appears for **BUY/SELL** signals (ignoring routine HOLDS).
 
-### 3. History Tab
-
-A detailed ledger of all closed trades.
-
--   **Table View**: Shows Asset, Entry Price, Exit Price, and Realized PnL.
--   **Exit Reason**: Tags indicate _why_ a trade closed (e.g., `STOP LOSS`, `TREND FLIP`, `TAKE PROFIT`).
-
-### 4. Analytics Tab
+### 3. Analytics Tab
 
 Visual performance tracking.
 
 -   **Equity Curve**: Visualizes your PnL growth over time.
 -   **Trend Strength Analysis**: Compares the average ADX of your winning trades vs. losing trades. Green (Winners) should be higher than Red (Losers).
 -   **Asset Performance**: Breakdown of Win Rate, Best Trade, and Worst Trade per coin.
+
+---
+
+## 🔬 Strategy Lab (AI Optimization)
+
+**NEW IN V3.2:** A dedicated sandbox for testing and optimizing your strategy using historical data.
+
+### 1. Manual Simulation
+
+Test your current settings against the last 30-120 days of market data.
+
+-   **Run Test**: Click the blue button to run a simulation.
+-   **Controls**: Use the sliders in the sidebar to adjust Stop Loss, RSI limits, and Capital.
+-   **Result**: Displays an Equity Curve and a Trade Table showing exactly where the bot would have bought and sold.
+
+### 2. AI Auto-Optimize (Genetic Screener)
+
+Let the bot find the best assets for you.
+
+1.  Click **AI AUTO-OPTIMIZE** (Orange Button).
+2.  The system will download missing data and test a "Universe" of 15 assets (BTC, ETH, SOL, NEAR, etc.).
+3.  **The Report**:
+    -   **Asset Leaderboard (Left)**: Shows how each asset performed individually ("All-In" test).
+    -   **Dream Team (Right)**: Shows the performance of the **Top 4** assets combined into a diversified portfolio.
+4.  **Apply Recommended**: Click the green button to instantly overwrite your Live Configuration with the optimized asset mix and weights.
+
+### 3. Managing Data
+
+-   **Restore DB (Orange Icon)**: Downloads fresh 15m candle data (120 days history) from Binance. Use this if your simulation data feels stale.
 
 ---
 
@@ -55,21 +77,24 @@ All settings are applied **instantly** when you click "Save Changes". No restart
 Control _what_ the bot trades and _how much_ money it uses.
 
 -   **Add Asset**: Select a pair (e.g., `NEARUSDT`) to add it to your list.
--   **Allocation Sliders**:
+-   **Allocation Inputs**:
+    -   You can now **type directly** into the percentage box (e.g., "33") or use the slider.
     -   **0%**: **Watchlist Mode**. The bot tracks the price and signals but **will NOT trade**.
-    -   **>0%**: **Active Trading**. The bot will use up to this % of your total capital for this specific asset.
-    -   _Recommendation_: Set 3 assets to **30%** each to allow them to trade simultaneously.
+    -   **>0%**: **Active Trading**. The bot will use up to this % of your total capital.
+-   **Equity-Based Sizing**:
+    -   The system now calculates trade size based on **Total Equity** (Cash + Crypto). This allows you to hold multiple positions (e.g., 3 x 30%) without the 2nd and 3rd trades being "shrunk" by a lack of available cash.
 
 ### 🧠 Strategy Tab (The Brain)
 
 Fine-tune the "SuperTrend Momentum" logic.
 
--   **Timeframe**: The candle size used for decisions (Default: `15m`).
-    -   `15m` is recommended for catching intraday volatility.
 -   **Min ADX Strength**: (Default: `25`). The "Trend Floor".
     -   Ensures you don't buy into choppy/sideways markets.
 -   **RSI Ceiling**: (Default: `70`).
     -   Prevents buying when an asset is already "overbought" (too expensive too fast).
+-   **Burst Mode**:
+    -   **Toggle ON**: Allows the bot to ignore the ADX threshold if **RSI > 50**.
+    -   _Use Case_: Catching extremely fast "pumps" that happen before the trend (ADX) fully establishes itself.
 
 ### 🛡️ Risk Tab (Safety)
 
@@ -77,11 +102,6 @@ Fine-tune the "SuperTrend Momentum" logic.
 -   **Stop Loss Type**:
     -   **FIXED**: Hard % drop (Default: `2%`). Simple and safe protection against sudden dumps.
     -   **ATR**: Volatility-based. Adapts to the market.
-
-### 🔔 Notifications Tab
-
--   **Enable Email Alerts**: Toggle ON to receive real-time emails for every Buy and Sell.
--   **Alert Email**: Enter your destination address (e.g., your personal Gmail).
 
 ---
 
@@ -111,14 +131,3 @@ If the database is corrupted or you want a fresh start:
 2.  Scroll to **Danger Zone**.
 3.  Click **Factory Wipe**.
 4.  **Warning**: This deletes ALL trade history, performance stats, and active positions from the database. It does NOT sell your assets on Binance.
-
----
-
-## 🔧 Troubleshooting
-
-| Issue                      | Likely Cause                                   | Fix                                                                                                                          |
-| :------------------------- | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
-| **"System Offline"**       | Backend crash or PM2 stopped                   | SSH in and run `pm2 restart crypto-trend-bot`                                                                                |
-| **No Trades Taking Place** | Allocation is 0% or ADX is too low             | Check **Portfolio Tab** (ensure >0%) and **Strategy Tab** (lower Min ADX to 20 or 25)                                        |
-| **"Insufficient Balance"** | Binance wallet empty or funds locked in orders | Check Binance "Open Orders" or deposit USDT                                                                                  |
-| **Email Alerts Failing**   | Feature disabled or credentials invalid        | 1. Toggle "Enable Email Alerts" in Config.<br>2. If that fails, re-run `./scripts/setup-secrets.sh` to verify SMTP password. |
