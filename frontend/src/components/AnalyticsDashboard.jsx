@@ -1,17 +1,18 @@
-// frontend/src/components/AnalyticsDashboard.jsx - FIXED ASSET TABLE & ADX STATS
+// frontend/src/components/AnalyticsDashboard.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Typography, Box, CircularProgress, Alert,
   ToggleButtonGroup, ToggleButton, Divider, useTheme, Chip, Stack,
   Paper, styled, alpha, Table, TableBody, TableCell, TableContainer, 
-  TableHead, TableRow, Avatar, LinearProgress
+  TableHead, TableRow, Avatar, LinearProgress, IconButton, Tooltip
 } from '@mui/material';
 import {
-  PieChart, LineChart
+  PieChart, LineChart, BarChart // <--- Added BarChart
 } from '@mui/x-charts';
 import {
   TrendingUp, ShowChart, Insights, FilterAlt, MonetizationOn,
-  DataUsage, DonutLarge, CalendarToday, ArrowDropUp, ArrowDropDown
+  DataUsage, DonutLarge, CalendarToday, ArrowDropUp, ArrowDropDown,
+  BarChart as BarChartIcon, Timeline // <--- Added Icons
 } from '@mui/icons-material';
 import { tradingAPI } from '../config/api';
 
@@ -112,6 +113,7 @@ const EmptyState = ({ icon, message, height = 250 }) => (
 
 const AnalyticsDashboard = () => {
   const [period, setPeriod] = useState('30d'); 
+  const [chartMode, setChartMode] = useState('cumulative'); // 'cumulative' | 'daily'
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -211,12 +213,22 @@ const AnalyticsDashboard = () => {
     const tradingStats = { ...(report.summary?.trading || {}), ...localStats };
     const efficiency = report.summary?.efficiency || {};
     
-    // P&L Curve
+    // P&L Curves
     let runningPnL = 0;
     const pnlCurve = sortedTrades.map(t => {
         runningPnL += t.pnl;
         return { date: t.exitTime, pnl: runningPnL };
     });
+
+    // Daily PnL Aggregation
+    const dailyMap = {};
+    sortedTrades.forEach(t => {
+        const dateStr = t.exitTime.toLocaleDateString();
+        dailyMap[dateStr] = (dailyMap[dateStr] || 0) + t.pnl;
+    });
+    const dailyPnL = Object.entries(dailyMap).map(([date, pnl]) => ({
+        date, pnl
+    }));
 
     // Filter Efficiency
     const signalStats = { executed: 0, blockedADX: 0, blockedRSI: 0, blockedOther: 0 };
@@ -246,7 +258,7 @@ const AnalyticsDashboard = () => {
     }));
 
     return {
-        tradingStats, efficiency, pnlCurve, filterPieData, 
+        tradingStats, efficiency, pnlCurve, dailyPnL, filterPieData, 
         adxStats: { avgAdxWin, avgAdxLoss }, 
         exitPieData, 
         assetStats: localAssetStats 
@@ -257,9 +269,14 @@ const AnalyticsDashboard = () => {
   if (error) return <Alert severity="error">Error loading analytics: {error}</Alert>;
   if (!metrics) return <Alert severity="info">No data available</Alert>;
 
-  const { tradingStats, efficiency, pnlCurve, filterPieData, adxStats, exitPieData, assetStats } = metrics;
+  const { tradingStats, efficiency, pnlCurve, dailyPnL, filterPieData, adxStats, exitPieData, assetStats } = metrics;
   
-  // Chart Color Config
+  // Format Large Numbers
+  const currencyFormatter = (value) => {
+      if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1)}k`;
+      return `$${value.toFixed(0)}`;
+  };
+
   const chartAxisSx = {
       '.MuiChartsAxis-tickLabel': { fill: theme.palette.text.secondary, fontFamily: 'monospace' },
       '.MuiChartsAxis-line': { stroke: alpha(theme.palette.divider, 0.5) },
@@ -338,36 +355,85 @@ const AnalyticsDashboard = () => {
       {/* 2. Main Charts Row */}
       <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={2} mb={2} sx={{ minHeight: 420 }}>
         
-        {/* Growth Curve */}
+        {/* Growth Curve (Dual Mode) */}
         <Box flex={1} minWidth={0}>
           <GlassCard sx={{ p: 2, height: '100%' }}>
-            <Box mb={2} display="flex" alignItems="center" gap={1}>
-                <ShowChart color="primary" fontSize="small" />
-                <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">EQUITY CURVE</Typography>
+            <Box mb={2} display="flex" alignItems="center" justifyContent="space-between">
+                <Box display="flex" alignItems="center" gap={1}>
+                    <ShowChart color="primary" fontSize="small" />
+                    <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+                        {chartMode === 'cumulative' ? 'EQUITY GROWTH ($)' : 'DAILY PnL ($)'}
+                    </Typography>
+                </Box>
+                <Box display="flex" bgcolor={alpha(theme.palette.action.active, 0.05)} borderRadius={1} p={0.5}>
+                    <Tooltip title="Cumulative Equity Line">
+                        <IconButton 
+                            size="small" 
+                            color={chartMode === 'cumulative' ? 'primary' : 'default'}
+                            onClick={() => setChartMode('cumulative')}
+                        >
+                            <Timeline fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Daily Profit/Loss Bars">
+                        <IconButton 
+                            size="small" 
+                            color={chartMode === 'daily' ? 'primary' : 'default'}
+                            onClick={() => setChartMode('daily')}
+                        >
+                            <BarChartIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                </Box>
             </Box>
+            
             <Box flexGrow={1} minHeight={0} sx={{ width: '100%', height: '100%' }}>
-                {pnlCurve.length > 1 ? (
-                    <LineChart
-                        dataset={pnlCurve}
-                        xAxis={[{ 
-                            dataKey: 'date', 
-                            scaleType: 'time', 
-                            valueFormatter: (date) => date.toLocaleDateString(),
-                            tickLabelStyle: { fill: theme.palette.text.secondary, fontSize: 10 }
-                        }]}
-                        yAxis={[{
-                            tickLabelStyle: { fill: theme.palette.text.secondary, fontSize: 10 }
-                        }]}
-                        series={[{ 
-                            dataKey: 'pnl', 
-                            area: true, 
-                            color: theme.palette.primary.main, 
-                            showMark: false,
-                            curve: 'monotoneX' 
-                        }]}
-                        grid={{ horizontal: true }}
-                        sx={chartAxisSx}
-                    />
+                {pnlCurve.length > 0 ? (
+                    chartMode === 'cumulative' ? (
+                        <LineChart
+                            dataset={pnlCurve}
+                            xAxis={[{ 
+                                dataKey: 'date', 
+                                scaleType: 'time', 
+                                valueFormatter: (date) => date.toLocaleDateString(),
+                                tickLabelStyle: { fill: theme.palette.text.secondary, fontSize: 10 }
+                            }]}
+                            yAxis={[{
+                                valueFormatter: currencyFormatter,
+                                tickLabelStyle: { fill: theme.palette.text.secondary, fontSize: 10 }
+                            }]}
+                            series={[{ 
+                                dataKey: 'pnl', 
+                                area: false, // CLEANER LOOK: No Fill
+                                color: theme.palette.primary.main, 
+                                showMark: false,
+                                curve: 'linear',
+                                width: 2
+                            }]}
+                            grid={{ horizontal: true }}
+                            sx={chartAxisSx}
+                        />
+                    ) : (
+                        <BarChart
+                            dataset={dailyPnL}
+                            xAxis={[{ 
+                                scaleType: 'band', 
+                                dataKey: 'date',
+                                tickLabelStyle: { fill: theme.palette.text.secondary, fontSize: 10 }
+                            }]}
+                            yAxis={[{
+                                valueFormatter: currencyFormatter,
+                                tickLabelStyle: { fill: theme.palette.text.secondary, fontSize: 10 }
+                            }]}
+                            series={[{ 
+                                dataKey: 'pnl', 
+                                color: theme.palette.success.main,
+                                valueFormatter: (v) => `$${v?.toFixed(2)}`
+                            }]}
+                            grid={{ horizontal: true }}
+                            sx={chartAxisSx}
+                        />
+                    )
                 ) : (
                     <EmptyState icon={<ShowChart />} message="Insufficient data to plot equity curve" />
                 )}
