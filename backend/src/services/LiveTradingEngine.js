@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - ADDED FEE TRACKING
+// backend/src/services/LiveTradingEngine.js - FIXED POSITION SIZING (EQUITY BASED)
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -18,7 +18,7 @@ class LiveTradingEngine extends EventEmitter {
             totalValue: 0,
             totalPnL: 0,
             dailyPnL: 0,
-            totalFees: 0, // [NEW] Track cumulative fees in memory
+            totalFees: 0,
             stats: { winRate: 0, totalTrades: 0, winningTrades: 0 },
         };
     }
@@ -31,6 +31,10 @@ class LiveTradingEngine extends EventEmitter {
         this.portfolio.usdtBalance = parseFloat(
             account.balances.find((b) => b.asset === "USDT")?.free || 0
         );
+
+        // Initial estimate of total value (Cash only until prices update)
+        this.portfolio.totalValue = this.portfolio.usdtBalance;
+
         logger.success(
             `✅ Live Engine Online. USDT Balance: $${this.portfolio.usdtBalance.toFixed(
                 2
@@ -64,7 +68,6 @@ class LiveTradingEngine extends EventEmitter {
         logger.info("🔁 Live Engine Config Updated");
     }
 
-    // [NEW] Helper to parse commission from Binance response
     calculateOrderFee(order) {
         let totalUsdtFee = 0;
         try {
@@ -76,13 +79,11 @@ class LiveTradingEngine extends EventEmitter {
                     if (asset === "USDT") {
                         totalUsdtFee += feeAmount;
                     } else if (asset === "BNB") {
-                        // Get real-time BNB price for conversion
                         const bnbPrice =
                             this.binanceData.getCurrentPrice("BNBUSDT")
                                 ?.price || 0;
                         totalUsdtFee += feeAmount * bnbPrice;
                     } else {
-                        // Fallback for asset-based fees (rare if paying in BNB)
                         const assetPrice =
                             this.binanceData.getCurrentPrice(`${asset}USDT`)
                                 ?.price || 0;
@@ -119,7 +120,6 @@ class LiveTradingEngine extends EventEmitter {
                 0
             );
 
-            // [NEW] Hydrate historical fees
             this.portfolio.totalFees = allTrades.reduce(
                 (acc, t) => acc + (t.fee_usdt_value || 0),
                 0
@@ -204,20 +204,59 @@ class LiveTradingEngine extends EventEmitter {
                 };
             }
 
-            const maxAllocatedUsdt = this.portfolio.usdtBalance * allocationPct;
+            // --- 🐛 FIXED SIZING LOGIC START ---
+
+            // 1. Base calculation on TOTAL EQUITY (Cash + Crypto), not just cash.
+            // This prevents Trade #2 from shrinking just because Trade #1 used cash.
+            const totalEquity =
+                this.portfolio.totalValue > 0
+                    ? this.portfolio.totalValue
+                    : this.portfolio.usdtBalance;
+
+            const targetPositionSize = totalEquity * allocationPct;
+
+            // 2. Apply Risk Factor
             const riskRatio = this.config.riskPerTrade || 0.98;
-            const tradeAmountUsdt = Math.min(
-                maxAllocatedUsdt * riskRatio,
+            let tradeAmountUsdt = targetPositionSize * riskRatio;
+
+            // 3. Cap at Max Capital setting
+            tradeAmountUsdt = Math.min(
+                tradeAmountUsdt,
                 this.config.maxCapitalAtRisk || 999999
             );
+
+            // 4. Check available Cash (Cannot spend what we don't have)
+            if (tradeAmountUsdt > this.portfolio.usdtBalance) {
+                // If we are cash-constrained, take what's left (minus 1% buffer)
+                // This usually happens if the portfolio is nearly fully invested.
+                const maxAvailable = this.portfolio.usdtBalance * 0.99;
+
+                if (maxAvailable < (this.config.minOrderSize || 10)) {
+                    return {
+                        success: false,
+                        action: "SKIP",
+                        reason: `Insufficient USDT ($${this.portfolio.usdtBalance.toFixed(
+                            2
+                        )}) for allocation`,
+                    };
+                }
+
+                logger.info(
+                    `⚠️ Sizing adjusted to fit cash: Target $${tradeAmountUsdt.toFixed(
+                        2
+                    )} -> Actual $${maxAvailable.toFixed(2)}`
+                );
+                tradeAmountUsdt = maxAvailable;
+            }
+            // --- 🐛 FIXED SIZING LOGIC END ---
 
             if (tradeAmountUsdt < (this.config.minOrderSize || 10))
                 return {
                     success: false,
                     action: "SKIP",
-                    reason: `Insufficient allocated capital ($${tradeAmountUsdt.toFixed(
+                    reason: `Calculated size ($${tradeAmountUsdt.toFixed(
                         2
-                    )})`,
+                    )}) below min order`,
                 };
 
             let quantity = tradeAmountUsdt / currentPrice;
@@ -236,7 +275,6 @@ class LiveTradingEngine extends EventEmitter {
                     quantity
                 );
 
-                // [NEW] Capture Entry Fee
                 const entryFee = this.calculateOrderFee(order);
 
                 let stopLossPrice;
@@ -275,7 +313,6 @@ class LiveTradingEngine extends EventEmitter {
                         ? currentPrice * (1 - trailingStopDist)
                         : null,
 
-                    // [NEW] Store the fee
                     fee_usdt_value: entryFee,
                 };
 
@@ -290,8 +327,6 @@ class LiveTradingEngine extends EventEmitter {
 
                 this.portfolio.positions.push(tradeRecord);
                 this.portfolio.usdtBalance -= tradeRecord.usdtCost;
-
-                // [NEW] Update memory stats
                 this.portfolio.totalFees += entryFee;
 
                 this.emit("tradeExecuted", tradeRecord);
@@ -324,7 +359,6 @@ class LiveTradingEngine extends EventEmitter {
                 quantity
             );
 
-            // [NEW] Capture Exit Fee
             const exitFee = this.calculateOrderFee(order);
 
             const exitPrice = parseFloat(
@@ -333,7 +367,6 @@ class LiveTradingEngine extends EventEmitter {
             const usdtReceived = parseFloat(order.cummulativeQuoteQty);
             const pnl = usdtReceived - position.usdtCost;
 
-            // Calculate total fee for this trade (Entry + Exit)
             const totalTradeFee = (position.fee_usdt_value || 0) + exitFee;
 
             await this.tradeRepo.updateTrade(position.id, {
@@ -342,7 +375,6 @@ class LiveTradingEngine extends EventEmitter {
                 exit_time: Date.now(),
                 pnl: pnl,
                 exit_reason: reason,
-                // [NEW] Update DB with cumulative fee
                 fee_usdt_value: totalTradeFee,
             });
 
@@ -352,8 +384,6 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.usdtBalance += usdtReceived;
             this.portfolio.dailyPnL += pnl;
             this.portfolio.totalPnL += pnl;
-
-            // [NEW] Update memory stats
             this.portfolio.totalFees += exitFee;
 
             this.portfolio.stats.totalTrades++;
@@ -370,7 +400,7 @@ class LiveTradingEngine extends EventEmitter {
                 pnl,
                 exitPrice,
                 reason,
-                fee_usdt_value: totalTradeFee, // Pass to frontend
+                fee_usdt_value: totalTradeFee,
             };
             this.emit("tradeExecuted", tradeRecord);
 
@@ -447,7 +477,6 @@ class LiveTradingEngine extends EventEmitter {
             ...this.portfolio,
             cryptoValue: this.portfolio.totalValue - this.portfolio.usdtBalance,
             dailyPnL: this.portfolio.dailyPnL,
-            // [NEW] Send fee stat to Frontend
             totalFees: this.portfolio.totalFees,
             performance: {
                 winRate: this.portfolio.stats.winRate,
