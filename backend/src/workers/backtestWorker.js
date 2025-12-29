@@ -50,8 +50,8 @@ async function ensureLabData(force = false) {
             process.send({
                 type: "progress",
                 message: force
-                    ? `⚠️ Force Rebuild Requested. Initializing...`
-                    : `⚠️ Data Missing/Stale. Auto-Initializing...`,
+                    ? `⚠️ Force Rebuild Requested...`
+                    : `⚠️ Data Auto-Initializing...`,
                 percent: 0,
             });
 
@@ -67,7 +67,7 @@ async function ensureLabData(force = false) {
         if (process.send)
             process.send({
                 type: "progress",
-                message: "✅ Lab Ready. Starting Simulation...",
+                message: "✅ Lab Ready.",
                 percent: 10,
             });
     }
@@ -76,20 +76,6 @@ async function ensureLabData(force = false) {
 function runChildScript(scriptPath, actionName) {
     return new Promise((resolve, reject) => {
         const child = spawn("node", [scriptPath]);
-        child.stdout.on("data", (data) => {
-            const line = data.toString().trim();
-            if (
-                line &&
-                process.send &&
-                (line.includes("Downloading") || line.includes("Processing"))
-            ) {
-                process.send({
-                    type: "progress",
-                    message: `${actionName}: ${line.substring(0, 30)}...`,
-                    percent: 5,
-                });
-            }
-        });
         child.on("close", (code) =>
             code === 0
                 ? resolve()
@@ -103,7 +89,7 @@ async function runSimulation(db, config) {
         if (process.send)
             process.send({
                 type: "progress",
-                message: "Initializing Strategy Parameters...",
+                message: "Initializing...",
                 percent: 10,
             });
 
@@ -118,6 +104,7 @@ async function runSimulation(db, config) {
                     ? config.assets
                     : ["BTCUSDT", "ETHUSDT"],
             days: parseInt(config.days) || 30,
+            weights: config.weights || {}, // Passed from Frontend
         };
 
         const startTime = Date.now() - STRATEGY.days * 24 * 60 * 60 * 1000;
@@ -135,7 +122,7 @@ async function runSimulation(db, config) {
         if (process.send)
             process.send({
                 type: "progress",
-                message: "Fetching Market Data...",
+                message: "Fetching Data...",
                 percent: 15,
             });
 
@@ -145,7 +132,7 @@ async function runSimulation(db, config) {
                     if (process.send)
                         process.send({
                             type: "error",
-                            error: "⚠️ Schema Error. Please click the orange 'Restore' button to fix.",
+                            error: "⚠️ Schema Error. Please click 'Restore'.",
                         });
                     process.exit(0);
                     return;
@@ -157,22 +144,18 @@ async function runSimulation(db, config) {
 
             if (!rows || rows.length === 0) {
                 if (process.send)
-                    process.send({
-                        type: "error",
-                        error: "No data found. Try increasing the 'Days' slider or checking DB.",
-                    });
+                    process.send({ type: "error", error: "No data found." });
                 process.exit(0);
             }
 
             if (process.send)
                 process.send({
                     type: "progress",
-                    message: `Simulating ${rows.length} candles across ${STRATEGY.assets.length} assets...`,
+                    message: `Simulating...`,
                     percent: 25,
                 });
 
             const results = await executeStrategy(rows, STRATEGY);
-
             if (process.send) process.send({ type: "result", data: results });
             process.exit(0);
         });
@@ -188,6 +171,29 @@ async function executeStrategy(rows, strategy) {
     let tradeHistory = [];
     let equityCurve = [];
 
+    // --- 1. DYNAMIC ALLOCATION WEIGHTS ---
+    // Calculate total weight (sum of percentages from UI)
+    let totalWeightInput = 0;
+    strategy.assets.forEach((asset) => {
+        totalWeightInput += strategy.weights[asset] || 0;
+    });
+
+    // Handle case where weights are missing or zero
+    if (totalWeightInput === 0) {
+        strategy.assets.forEach((asset) => {
+            strategy.weights[asset] = 100 / strategy.assets.length;
+            totalWeightInput += strategy.weights[asset];
+        });
+    }
+
+    // Normalize: e.g. User inputs 50 and 50 (Total 100) -> 0.5 and 0.5
+    // User inputs 30 and 30 (Total 60) -> 0.5 and 0.5 (Normalized relative to each other)
+    const normalizedWeights = {};
+    strategy.assets.forEach((asset) => {
+        const raw = strategy.weights[asset] || 0;
+        normalizedWeights[asset] = raw / totalWeightInput;
+    });
+
     const latestPrices = {};
     strategy.assets.forEach((asset) => (latestPrices[asset] = 0));
 
@@ -197,8 +203,6 @@ async function executeStrategy(rows, strategy) {
 
     for (const candle of rows) {
         processedCount++;
-
-        // UI Progress Update throttle
         if (processedCount % 5000 === 0 && process.send) {
             const pct = 25 + Math.round((processedCount / totalCandles) * 70);
             process.send({
@@ -212,14 +216,13 @@ async function executeStrategy(rows, strategy) {
         }
 
         const sym = candle.symbol;
-
         latestPrices[sym] = candle.price;
         const prevCandle = previousStates[sym];
         previousStates[sym] = candle;
 
         if (!prevCandle) continue;
 
-        // --- 2. MANAGE EXITS ---
+        // --- EXITS ---
         if (positions[sym]) {
             const pos = positions[sym];
             let closeReason = null;
@@ -236,7 +239,6 @@ async function executeStrategy(rows, strategy) {
                 const exitValue = pos.quantity * exitPrice;
                 const fee = exitValue * 0.001;
                 const netReturn = exitValue - fee;
-                const pnl = netReturn - pos.cost;
                 balance += netReturn;
 
                 tradeHistory.push({
@@ -244,7 +246,7 @@ async function executeStrategy(rows, strategy) {
                     symbol: sym,
                     entryPrice: pos.entryPrice,
                     exitPrice: exitPrice,
-                    pnl: pnl,
+                    pnl: netReturn - pos.cost,
                     pnlPercent:
                         ((exitPrice - pos.entryPrice) / pos.entryPrice) * 100,
                     reason: closeReason,
@@ -254,7 +256,7 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // --- 3. MANAGE ENTRIES ---
+        // --- ENTRIES ---
         if (!positions[sym]) {
             const trendFlipGreen =
                 prevCandle.supertrend_direction === -1 &&
@@ -265,10 +267,13 @@ async function executeStrategy(rows, strategy) {
                     candle.adx >= strategy.min_adx &&
                     candle.rsi <= strategy.max_rsi
                 ) {
-                    const activeAssetsCount = strategy.assets.length || 1;
-                    const allocationFactor =
-                        strategy.trade_size_pct / activeAssetsCount;
-                    const investAmount = balance * allocationFactor;
+                    // 🎯 DYNAMIC SIZING
+                    // We risk 'trade_size_pct' of the TOTAL balance,
+                    // distributed according to the asset's weight.
+                    // Example: Balance $1000, Risk 95%, Weight 0.5 -> Invest $475
+                    const weight = normalizedWeights[sym];
+                    const investAmount =
+                        balance * weight * strategy.trade_size_pct;
 
                     if (investAmount > 10) {
                         const fee = investAmount * 0.001;
@@ -286,7 +291,7 @@ async function executeStrategy(rows, strategy) {
             }
         }
 
-        // --- 4. CALCULATE EQUITY ---
+        // --- EQUITY ---
         if (Math.random() > 0.95) {
             let unrealized = 0;
             Object.keys(positions).forEach((posSym) => {
@@ -302,17 +307,13 @@ async function executeStrategy(rows, strategy) {
         }
     }
 
-    // --- 5. FORCE CLOSE OPEN POSITIONS (FIX) ---
-    // If the simulation ends with assets still bought, we sell them at the final known price.
+    // --- FORCE CLOSE ---
     Object.keys(positions).forEach((posSym) => {
         const pos = positions[posSym];
         const finalPrice = latestPrices[posSym];
-
         const exitValue = pos.quantity * finalPrice;
         const fee = exitValue * 0.001;
         const netReturn = exitValue - fee;
-        const pnl = netReturn - pos.cost;
-
         balance += netReturn;
 
         tradeHistory.push({
@@ -320,28 +321,27 @@ async function executeStrategy(rows, strategy) {
             symbol: posSym,
             entryPrice: pos.entryPrice,
             exitPrice: finalPrice,
-            pnl: pnl,
+            pnl: netReturn - pos.cost,
             pnlPercent: ((finalPrice - pos.entryPrice) / pos.entryPrice) * 100,
-            reason: "END_OF_SIM", // Distinct reason for these forced closes
+            reason: "END_OF_SIM",
             time: Date.now(),
         });
     });
 
-    // --- 6. COMPILE STATISTICS ---
+    // --- STATS ---
     const assetStats = {};
     strategy.assets.forEach((a) => {
         assetStats[a] = { symbol: a, trades: 0, wins: 0, pnl: 0 };
     });
 
     tradeHistory.forEach((t) => {
-        if (!assetStats[t.symbol]) {
+        if (!assetStats[t.symbol])
             assetStats[t.symbol] = {
                 symbol: t.symbol,
                 trades: 0,
                 wins: 0,
                 pnl: 0,
             };
-        }
         assetStats[t.symbol].trades++;
         assetStats[t.symbol].pnl += t.pnl;
         if (t.pnl > 0) assetStats[t.symbol].wins++;
