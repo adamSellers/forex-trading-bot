@@ -89,7 +89,10 @@ graph TD
 
     F -->|Reads| H
     F -->|Calculates| I[Performance Metrics]
+```
 
+```mermaid
+graph TD
     subgraph "Isolated Strategy Lab"
     L[LabSocket] -->|Forks| M[OptimizationWorker]
     M -->|Reads| N[(Historical DB)]
