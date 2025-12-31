@@ -1,15 +1,17 @@
-// frontend/src/components/TradingConfig.jsx - ADDED TRAILING STOP DEFAULTS
+// frontend/src/components/TradingConfig.jsx - V3.2.5 NEW CONFIG OPTIONS
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, TextField, Button, Slider, Switch, FormControl,
   InputLabel, Select, MenuItem, Alert, InputAdornment,
   IconButton, Container, Stack, Divider, Chip, Tabs, Tab,
-  List, ListItem, Avatar, Grid, styled, alpha, useTheme, Paper
+  List, ListItem, Avatar, Grid, styled, alpha, useTheme, Paper,
+  Tooltip, Collapse
 } from '@mui/material';
 import {
   Save, Refresh, Security, AccountBalance,
   PieChart, SettingsRemote, Warning, RestartAlt, DeleteForever,
-  AddCircle, Delete, Science, Tune, Email
+  AddCircle, Delete, Science, Tune, Email, ExpandMore, ExpandLess,
+  TrendingUp
 } from '@mui/icons-material';
 import { tradingAPI, managementAPI } from '../config/api';
 
@@ -55,19 +57,28 @@ const DEFAULT_CONFIG = {
     riskPerTrade: 0.98,
     minOrderSize: 10,
     strategy: 'supertrend_momentum',
-    timeframe: '15m',        // <--- CHANGED: 1h to 15m
+    timeframe: '15m',
     signalCooldown: 60,
     enableAdxFilter: true,
-    minAdx: 25,              // <--- CHANGED: 20 to 25
+    minAdx: 25,
     enableRsiFilter: true,
     rsiOverbought: 75,
     rsiOversold: 30,
     stopLossType: 'FIXED',
-    stopLossPercent: 0.02,   // <--- CHANGED: 0.05 to 0.02 (2%)
+    stopLossPercent: 0.02,
     
     // Trailing Stop Defaults
-    enableTrailingStops: false, // Verified False
+    enableTrailingStops: false,
     trailingStopPercent: 0.03,
+
+    // FIX #2: Exposure Cap
+    maxPortfolioExposure: 0.95,
+
+    // FIX #5: Continuation Entry Settings
+    enableContinuationEntry: true,
+    continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours in ms
+    continuationRsiThreshold: 70,
+    continuationMaxPriceDeviation: 0.03,
 
     assets: [], 
     allocation: {}, 
@@ -87,6 +98,7 @@ const TradingConfig = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showAdvancedStrategy, setShowAdvancedStrategy] = useState(false);
 
   const fetchCurrentConfig = useCallback(async () => {
     try {
@@ -98,11 +110,15 @@ const TradingConfig = () => {
           ...data.config,
           riskPerTrade: (data.config.riskPerTrade) || 0.98,
           stopLossPercent: (data.config.stopLossPercent * 100) || 2.0,
-          
-          // --- FIX: Ensure incoming value is safe ---
           trailingStopPercent: data.config.trailingStopPercent || 0.03,
-          
           signalCooldown: (data.config.signalCooldown / 1000) || 60,
+          // FIX #2: Exposure cap (already decimal)
+          maxPortfolioExposure: data.config.maxPortfolioExposure ?? 0.95,
+          // FIX #5: Continuation settings
+          enableContinuationEntry: data.config.enableContinuationEntry ?? true,
+          continuationWindowMs: data.config.continuationWindowMs ?? (4 * 60 * 60 * 1000),
+          continuationRsiThreshold: data.config.continuationRsiThreshold ?? 70,
+          continuationMaxPriceDeviation: data.config.continuationMaxPriceDeviation ?? 0.03,
           allocation: { ...data.config.allocation }
         };
         Object.keys(fetchedConfig.allocation).forEach(key => {
@@ -185,6 +201,10 @@ const TradingConfig = () => {
   };
 
   const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.allocation[asset] || 0), 0);
+
+  // Helper to convert ms to hours for display
+  const msToHours = (ms) => ms / (60 * 60 * 1000);
+  const hoursToMs = (hours) => hours * 60 * 60 * 1000;
 
   const renderGeneralSettings = () => (
     <Stack spacing={3}>
@@ -270,6 +290,117 @@ const TradingConfig = () => {
                 <TextField fullWidth label="Max RSI" type="number" value={config.rsiOverbought} onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))} size="small" />
             </Box>
         </GlassCard>
+
+        {/* FIX #5: Continuation Entry Settings */}
+        <GlassCard>
+            <Box 
+                display="flex" 
+                justifyContent="space-between" 
+                alignItems="center" 
+                onClick={() => setShowAdvancedStrategy(!showAdvancedStrategy)}
+                sx={{ cursor: 'pointer' }}
+            >
+                <SectionHeader 
+                    icon={<TrendingUp />} 
+                    title="Continuation Entry" 
+                    subtitle="Catch missed entries when RSI cools down" 
+                />
+                <IconButton size="small">
+                    {showAdvancedStrategy ? <ExpandLess /> : <ExpandMore />}
+                </IconButton>
+            </Box>
+            
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box>
+                    <Typography fontWeight="bold">Enable Continuation Entries</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        Allow late entry if RSI blocked initial flip
+                    </Typography>
+                </Box>
+                <Switch 
+                    checked={config.enableContinuationEntry ?? true} 
+                    onChange={(e) => updateConfig('enableContinuationEntry', e.target.checked)} 
+                    color="primary"
+                />
+            </Box>
+
+            <Collapse in={showAdvancedStrategy}>
+                <Box sx={{ opacity: config.enableContinuationEntry ? 1 : 0.5, pointerEvents: config.enableContinuationEntry ? 'auto' : 'none' }}>
+                    <Divider sx={{ my: 2 }} />
+                    <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                            <Tooltip title="RSI must drop below this for continuation entry (stricter than initial)">
+                                <TextField 
+                                    fullWidth 
+                                    label="Continuation RSI Threshold" 
+                                    type="number" 
+                                    value={config.continuationRsiThreshold ?? 70} 
+                                    onChange={(e) => updateConfig('continuationRsiThreshold', parseFloat(e.target.value))} 
+                                    size="small"
+                                    helperText={`Must be below ${config.rsiOverbought || 75} (initial threshold)`}
+                                    InputProps={{
+                                        endAdornment: <InputAdornment position="end">RSI</InputAdornment>
+                                    }}
+                                />
+                            </Tooltip>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <Tooltip title="How long to wait for RSI to cool down after a blocked flip">
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary" gutterBottom display="block">
+                                        Continuation Window
+                                    </Typography>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Slider
+                                            value={msToHours(config.continuationWindowMs ?? (4 * 60 * 60 * 1000))}
+                                            min={1}
+                                            max={12}
+                                            step={0.5}
+                                            onChange={(_, v) => updateConfig('continuationWindowMs', hoursToMs(v))}
+                                            sx={{ flexGrow: 1 }}
+                                        />
+                                        <Chip 
+                                            label={`${msToHours(config.continuationWindowMs ?? (4 * 60 * 60 * 1000))}h`} 
+                                            size="small" 
+                                            color="primary"
+                                            variant="outlined"
+                                        />
+                                    </Stack>
+                                </Box>
+                            </Tooltip>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Tooltip title="Cancel continuation if price moves too far from flip price">
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary" gutterBottom display="block">
+                                        Max Price Deviation from Flip
+                                    </Typography>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Slider
+                                            value={(config.continuationMaxPriceDeviation ?? 0.03) * 100}
+                                            min={1}
+                                            max={10}
+                                            step={0.5}
+                                            onChange={(_, v) => updateConfig('continuationMaxPriceDeviation', v / 100)}
+                                            sx={{ flexGrow: 1 }}
+                                        />
+                                        <Chip 
+                                            label={`${((config.continuationMaxPriceDeviation ?? 0.03) * 100).toFixed(1)}%`} 
+                                            size="small"
+                                            color={config.continuationMaxPriceDeviation > 0.05 ? "warning" : "primary"}
+                                            variant="outlined"
+                                        />
+                                    </Stack>
+                                    <Typography variant="caption" color="text.secondary">
+                                        If price moves more than this above the flip price, continuation is cancelled
+                                    </Typography>
+                                </Box>
+                            </Tooltip>
+                        </Grid>
+                    </Grid>
+                </Box>
+            </Collapse>
+        </GlassCard>
     </Stack>
   );
 
@@ -286,6 +417,31 @@ const renderRiskSettings = () => (
                         <Chip label={`${(config.riskPerTrade * 100).toFixed(0)}%`} color={config.riskPerTrade > 0.9 ? "error" : "primary"} variant="outlined" />
                      </Stack>
                      <Typography variant="caption" color="text.secondary">Percentage of allocated funds to use per trade.</Typography>
+                </Grid>
+
+                {/* FIX #2: Max Portfolio Exposure */}
+                <Grid item xs={12}>
+                    <Divider sx={{ my: 1 }} />
+                    <Typography gutterBottom variant="subtitle2" color="text.secondary">MAX PORTFOLIO EXPOSURE</Typography>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <Slider 
+                            value={(config.maxPortfolioExposure ?? 0.95) * 100} 
+                            min={50} 
+                            max={100} 
+                            step={5} 
+                            onChange={(_, v) => updateConfig('maxPortfolioExposure', v / 100)} 
+                            valueLabelDisplay="auto" 
+                            sx={{ flexGrow: 1 }} 
+                        />
+                        <Chip 
+                            label={`${((config.maxPortfolioExposure ?? 0.95) * 100).toFixed(0)}%`} 
+                            color={config.maxPortfolioExposure > 0.95 ? "warning" : "success"} 
+                            variant="outlined" 
+                        />
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                        Maximum percentage of total equity that can be in open positions. Prevents over-leveraging.
+                    </Typography>
                 </Grid>
 
                 {/* Hard Stop Loss */}
@@ -322,9 +478,9 @@ const renderRiskSettings = () => (
                     <Stack direction="row" spacing={2} alignItems="center" sx={{ opacity: config.enableTrailingStops ? 1 : 0.5, pointerEvents: config.enableTrailingStops ? 'auto' : 'none' }}>
                         <Typography variant="caption" sx={{ minWidth: 60 }}>Distance:</Typography>
                         <Slider
-                            value={config.trailingStopPercent ? config.trailingStopPercent * 100 : 3.0} // Convert decimal to % for display
+                            value={config.trailingStopPercent ? config.trailingStopPercent * 100 : 3.0}
                             min={0.5} max={10.0} step={0.1}
-                            onChange={(_, v) => updateConfig('trailingStopPercent', v / 100)} // Store as decimal (0.03)
+                            onChange={(_, v) => updateConfig('trailingStopPercent', v / 100)}
                             valueLabelDisplay="auto"
                             sx={{ flexGrow: 1 }}
                         />
@@ -343,6 +499,13 @@ const renderRiskSettings = () => (
                  <SectionHeader icon={<PieChart />} title="Asset Allocation" subtitle="Manage active pairs and capital limits" />
                  <Chip label={`Total Allocation: ${totalAllocation}%`} color={totalAllocation > 100 ? "error" : totalAllocation === 100 ? "success" : "default"} variant={totalAllocation === 100 ? "filled" : "outlined"} />
             </Stack>
+            
+            {totalAllocation > 100 && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    ⚠️ Total allocation exceeds 100%! This will cause unexpected position sizing.
+                </Alert>
+            )}
+            
             <Box display="flex" gap={2} mb={3} p={2} bgcolor={alpha(theme.palette.background.paper, 0.3)} borderRadius={2}>
                 <FormControl size="small" fullWidth>
                     <InputLabel>Add Asset</InputLabel>
