@@ -1,4 +1,4 @@
-// backend/src/repositories/tradeRepository.js - FIXED TIMESTAMP TYPES
+// backend/src/repositories/tradeRepository.js - V3.2.7 TRAILING STOP FIX
 const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
@@ -28,6 +28,7 @@ class TradeRepository {
             mode: record.mode,
             isOpen: Boolean(record.is_open),
             takeProfitPrice: record.take_profit_price,
+            // FIX #7: Use consistent camelCase for application layer
             trailingStopPrice: record.trailing_stop_price,
             highestPrice: record.highest_price,
             trailingStopPercent: record.trailing_stop_percent,
@@ -53,7 +54,7 @@ class TradeRepository {
                 quantity: trade.quantity,
                 price: trade.price,
                 total_value: trade.usdtCost || trade.usdtReceived || 0,
-                fee_usdt_value: trade.feeUsdtValue || 0,
+                fee_usdt_value: trade.feeUsdtValue || trade.fee_usdt_value || 0,
                 pnl: trade.pnl || 0,
                 pnl_percent: trade.pnlPercent || 0,
                 signal: trade.signal,
@@ -63,16 +64,17 @@ class TradeRepository {
                 stop_loss: trade.stopLoss || null,
                 entry_cost: trade.entryCost || null,
                 holding_period: trade.holdingPeriod || null,
-                entry_price: trade.entryPrice || null,
+                entry_price: trade.entryPrice || trade.price || null,
                 exit_reason: trade.exitReason || "UNKNOWN",
                 // FIX: Force timestamp to Integer (milliseconds)
                 timestamp: new Date(trade.timestamp).getTime(),
                 mode: trade.mode || "live",
                 is_open: trade.isOpen || false,
                 take_profit_price: trade.takeProfitPrice || null,
-                trailing_stop_price: trade.trailingStopPrice || null,
-                highest_price: trade.highestPrice || null,
-                trailing_stop_percent: trade.trailingStopPercent || null,
+                // FIX #7: Allow null/0 values - use !== undefined check
+                trailing_stop_price: trade.trailingStopPrice ?? null,
+                highest_price: trade.highestPrice ?? null,
+                trailing_stop_percent: trade.trailingStopPercent ?? null,
                 created_at: new Date(),
             });
 
@@ -156,43 +158,70 @@ class TradeRepository {
 
     async updateTrade(tradeId, updates) {
         try {
-            const dbUpdates = { ...updates };
+            const dbUpdates = {};
 
-            // Map camelCase to snake_case
-            if (dbUpdates.isOpen !== undefined) {
-                dbUpdates.is_open = dbUpdates.isOpen;
-                delete dbUpdates.isOpen;
+            // FIX #7: Map camelCase to snake_case with proper undefined checks
+            // Use !== undefined to allow null and 0 values to be saved
+
+            if (updates.isOpen !== undefined) {
+                dbUpdates.is_open = updates.isOpen;
             }
-            if (dbUpdates.exitPrice !== undefined) {
-                dbUpdates.exit_price = dbUpdates.exitPrice;
-                delete dbUpdates.exitPrice;
+            if (updates.exitPrice !== undefined) {
+                dbUpdates.exit_price = updates.exitPrice;
             }
-            if (dbUpdates.exitTime !== undefined) {
-                dbUpdates.exit_time = dbUpdates.exitTime;
-                delete dbUpdates.exitTime;
+            if (updates.exitTime !== undefined) {
+                dbUpdates.exit_time = updates.exitTime;
             }
-            if (dbUpdates.takeProfitPrice) {
-                dbUpdates.take_profit_price = dbUpdates.takeProfitPrice;
-                delete dbUpdates.takeProfitPrice;
+            if (updates.exitReason !== undefined) {
+                dbUpdates.exit_reason = updates.exitReason;
             }
-            if (dbUpdates.trailingStopPrice) {
-                dbUpdates.trailing_stop_price = dbUpdates.trailingStopPrice;
-                delete dbUpdates.trailingStopPrice;
+            if (updates.pnl !== undefined) {
+                dbUpdates.pnl = updates.pnl;
             }
-            if (dbUpdates.highestPrice) {
-                dbUpdates.highest_price = dbUpdates.highestPrice;
-                delete dbUpdates.highestPrice;
+            if (updates.pnlPercent !== undefined) {
+                dbUpdates.pnl_percent = updates.pnlPercent;
             }
-            if (dbUpdates.trailingStopPercent !== undefined) {
-                dbUpdates.trailing_stop_percent = dbUpdates.trailingStopPercent;
-                delete dbUpdates.trailingStopPercent;
+            if (updates.holdingPeriod !== undefined) {
+                dbUpdates.holding_period = updates.holdingPeriod;
+            }
+            if (updates.takeProfitPrice !== undefined) {
+                dbUpdates.take_profit_price = updates.takeProfitPrice;
+            }
+            // FIX #7: Use !== undefined to allow 0 and null values
+            if (updates.trailingStopPrice !== undefined) {
+                dbUpdates.trailing_stop_price = updates.trailingStopPrice;
+            }
+            // Also handle snake_case input (for consistency)
+            if (updates.trailing_stop_price !== undefined) {
+                dbUpdates.trailing_stop_price = updates.trailing_stop_price;
+            }
+            if (updates.highestPrice !== undefined) {
+                dbUpdates.highest_price = updates.highestPrice;
+            }
+            if (updates.highest_price !== undefined) {
+                dbUpdates.highest_price = updates.highest_price;
+            }
+            if (updates.trailingStopPercent !== undefined) {
+                dbUpdates.trailing_stop_percent = updates.trailingStopPercent;
             }
 
-            // SAFETY: Remove 'status' if accidentally passed
-            if (dbUpdates.status) delete dbUpdates.status;
+            // SAFETY: Remove fields that shouldn't be updated
+            delete dbUpdates.status;
+            delete dbUpdates.trade_id;
+            delete dbUpdates.symbol;
+            delete dbUpdates.side;
+
+            // Only update if we have fields to update
+            if (Object.keys(dbUpdates).length === 0) {
+                logger.debug(`No valid fields to update for trade ${tradeId}`);
+                return;
+            }
 
             await db("trades").where("trade_id", tradeId).update(dbUpdates);
-            logger.debug(`Trade ${tradeId} updated in database.`);
+            logger.debug(
+                `Trade ${tradeId} updated:`,
+                Object.keys(dbUpdates).join(", ")
+            );
         } catch (error) {
             logger.error(`Error updating trade ${tradeId}:`, error);
             throw error;
@@ -235,7 +264,7 @@ class TradeRepository {
 
         // FIX: Strictly exclude Open positions (isOpen=true) to prevent skewing stats
         const completedTrades = trades.filter(
-            (t) => t.pnl !== null && t.pnl !== undefined && !t.isOpen
+            (t) => t.pnl !== null && t.pnl !== undefined && !t.is_open
         );
 
         // If no closed trades exist, return null so UI shows "N/A" instead of 0s

@@ -126,11 +126,32 @@ class LiveTradingEngine extends EventEmitter {
                 ...p,
                 currentPrice: p.price || p.entryPrice,
                 unrealizedPnL: 0,
-                trailingStopPrice: p.trailing_stop_price || p.trailingStopPrice,
+                // FIX #7: Normalize trailing stop field names and properly restore highestPrice
+                trailingStopPrice:
+                    p.trailing_stop_price ?? p.trailingStopPrice ?? null,
+                highestPrice:
+                    p.highest_price ??
+                    p.highestPrice ??
+                    p.entryPrice ??
+                    p.price,
             }));
             logger.info(
                 `🔄 Restored ${this.portfolio.positions.length} active positions from DB.`
             );
+
+            // FIX #7: Log trailing stop status for restored positions
+            this.portfolio.positions.forEach((pos) => {
+                if (pos.trailingStopPrice) {
+                    logger.info(
+                        `   📍 ${
+                            pos.symbol
+                        }: Trailing stop at $${pos.trailingStopPrice.toFixed(
+                            4
+                        )}, ` +
+                            `high: $${pos.highestPrice?.toFixed(4) || "N/A"}`
+                    );
+                }
+            });
         } catch (err) {
             logger.warn(
                 "⚠️ Could not restore positions (likely empty DB): " +
@@ -634,9 +655,14 @@ class LiveTradingEngine extends EventEmitter {
                 isOpen: true,
                 mode: "live",
                 stopLoss: stopLossPrice,
+                // FIX #7: Properly initialize trailing stop with highestPrice
                 trailingStopPrice: this.config.enableTrailingStops
                     ? currentPrice * (1 - trailingStopDist)
                     : null,
+                highestPrice: currentPrice, // FIX #7: Track highest price from entry
+                trailingStopPercent: this.config.enableTrailingStops
+                    ? trailingStopDist
+                    : null, // Store the percent for reference
                 fee_usdt_value: entryFee,
             };
 
@@ -892,24 +918,93 @@ class LiveTradingEngine extends EventEmitter {
             return;
         }
 
-        if (
-            this.config.enableTrailingStops &&
-            (position.trailingStopPrice || position.trailing_stop_price)
-        ) {
-            let currentTrailingStop =
-                position.trailingStopPrice || position.trailing_stop_price;
-
+        // FIX #7: Improved Trailing Stop Logic with proper highestPrice tracking
+        if (this.config.enableTrailingStops) {
             const trailingPercent = this.config.trailingStopPercent || 0.03;
-            const newStop = currentPrice * (1 - trailingPercent);
 
-            if (newStop > currentTrailingStop) {
-                position.trailingStopPrice = newStop;
-                this.tradeRepo
-                    .updateTrade(position.id, { trailing_stop_price: newStop })
-                    .catch((e) => logger.error("Failed to update TS:", e));
+            // Normalize field names (handle both camelCase and snake_case from DB)
+            let currentTrailingStop =
+                position.trailingStopPrice ??
+                position.trailing_stop_price ??
+                null;
+            let highestPrice =
+                position.highestPrice ??
+                position.highest_price ??
+                position.entryPrice ??
+                position.price;
+
+            // Track highest price seen since entry
+            if (currentPrice > highestPrice) {
+                highestPrice = currentPrice;
+                position.highestPrice = highestPrice;
             }
 
-            if (currentPrice <= position.trailingStopPrice) {
+            // Calculate what trailing stop SHOULD be based on highest price
+            const calculatedStop = highestPrice * (1 - trailingPercent);
+
+            // Initialize trailing stop if it doesn't exist yet (e.g., trailing enabled after position opened)
+            if (
+                currentTrailingStop === null ||
+                currentTrailingStop === undefined
+            ) {
+                currentTrailingStop = calculatedStop;
+                position.trailingStopPrice = currentTrailingStop;
+                logger.info(
+                    `📍 ${
+                        position.symbol
+                    }: Initialized trailing stop at $${currentTrailingStop.toFixed(
+                        4
+                    )} ` +
+                        `(${(trailingPercent * 100).toFixed(
+                            1
+                        )}% below high of $${highestPrice.toFixed(4)})`
+                );
+                this.tradeRepo
+                    .updateTrade(position.id, {
+                        trailingStopPrice: currentTrailingStop,
+                        highestPrice: highestPrice,
+                    })
+                    .catch((e) =>
+                        logger.error("Failed to init trailing stop:", e)
+                    );
+            }
+            // Ratchet up trailing stop if price made new high
+            else if (calculatedStop > currentTrailingStop) {
+                const oldStop = currentTrailingStop;
+                currentTrailingStop = calculatedStop;
+                position.trailingStopPrice = currentTrailingStop;
+
+                logger.info(
+                    `📈 ${
+                        position.symbol
+                    }: Trailing stop raised $${oldStop.toFixed(
+                        4
+                    )} → $${currentTrailingStop.toFixed(4)} ` +
+                        `(new high: $${highestPrice.toFixed(4)})`
+                );
+
+                this.tradeRepo
+                    .updateTrade(position.id, {
+                        trailingStopPrice: currentTrailingStop,
+                        highestPrice: highestPrice,
+                    })
+                    .catch((e) =>
+                        logger.error("Failed to update trailing stop:", e)
+                    );
+            }
+
+            // Check if price has fallen through trailing stop
+            if (currentPrice <= currentTrailingStop) {
+                logger.info(
+                    `🛑 ${
+                        position.symbol
+                    }: TRAILING STOP triggered at $${currentPrice.toFixed(
+                        4
+                    )} ` +
+                        `(stop was $${currentTrailingStop.toFixed(
+                            4
+                        )}, high was $${highestPrice.toFixed(4)})`
+                );
                 this.closePosition(position, currentPrice, "TRAILING_STOP");
                 return;
             }
