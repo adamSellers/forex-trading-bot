@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - RACE CONDITION FIX: Queue-based Signal Processing
+// backend/src/services/LiveTradingEngine.js - V3.2.1 RACE CONDITION FIX
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -22,12 +22,16 @@ class LiveTradingEngine extends EventEmitter {
             stats: { winRate: 0, totalTrades: 0, winningTrades: 0 },
         };
 
+        // Signal queue for sequential processing
         this._signalQueue = [];
         this._processingQueue = false;
+
+        // FIX #1: Track positions currently being closed to prevent race conditions
+        this._closingPositions = new Set();
     }
 
     async initialize() {
-        logger.info("🔌 Live Trading Engine Connecting...");
+        logger.info("📌 Live Trading Engine Connecting...");
         const account = await this.binanceData.getAccountInfo();
         if (account.error) throw new Error("Binance Connection Failed");
 
@@ -141,6 +145,10 @@ class LiveTradingEngine extends EventEmitter {
         logger.info("🔴 Live Trading STOPPED");
     }
 
+    /**
+     * Force close a position manually (from UI or API)
+     * FIX #1: Added same atomic lock protection as closePosition()
+     */
     async forceClosePosition(tradeId) {
         const position = this.portfolio.positions.find(
             (p) =>
@@ -150,6 +158,17 @@ class LiveTradingEngine extends EventEmitter {
         if (!position) {
             throw new Error(
                 `Position ${tradeId} not found in active portfolio.`
+            );
+        }
+
+        // FIX #1: Check if position is already being closed
+        const lockKey = `${position.symbol}_${position.id}`;
+        if (this._closingPositions.has(lockKey)) {
+            logger.warn(
+                `⚠️ FORCE CLOSE BLOCKED: ${position.symbol} (${position.id}) is already being closed.`
+            );
+            throw new Error(
+                `Position ${position.symbol} is already being closed. Please wait.`
             );
         }
 
@@ -385,7 +404,47 @@ class LiveTradingEngine extends EventEmitter {
         return this.portfolio.usdtBalance + cryptoValue;
     }
 
+    /**
+     * Close an open position
+     * FIX #1: Added atomic lock to prevent race conditions during simultaneous exit triggers
+     */
     async closePosition(position, currentPrice, reason) {
+        // FIX #1: Create a unique lock key for this position
+        const lockKey = `${position.symbol}_${position.id}`;
+
+        // FIX #1: Check if this position is already being closed
+        if (this._closingPositions.has(lockKey)) {
+            logger.warn(
+                `⚠️ DUPLICATE CLOSE BLOCKED: ${position.symbol} (${position.id}) already closing. Reason attempted: ${reason}`
+            );
+            return {
+                success: false,
+                action: "SKIP",
+                reason: "Position already being closed",
+            };
+        }
+
+        // FIX #1: Verify position still exists in portfolio before proceeding
+        const existingPosition = this.portfolio.positions.find(
+            (p) => p.symbol === position.symbol && p.id === position.id
+        );
+        if (!existingPosition) {
+            logger.warn(
+                `⚠️ CLOSE SKIPPED: Position ${position.symbol} (${position.id}) no longer exists in portfolio.`
+            );
+            return {
+                success: false,
+                action: "SKIP",
+                reason: "Position not found in portfolio",
+            };
+        }
+
+        // FIX #1: Acquire the lock
+        this._closingPositions.add(lockKey);
+        logger.info(
+            `🔒 Lock acquired for ${position.symbol} (${position.id}). Reason: ${reason}`
+        );
+
         try {
             logger.info(`📉 Closing ${position.symbol} due to ${reason}...`);
             const quantity = position.quantity;
@@ -415,8 +474,9 @@ class LiveTradingEngine extends EventEmitter {
                 fee_usdt_value: totalTradeFee,
             });
 
+            // FIX #1: Remove position by BOTH symbol AND id for precision
             this.portfolio.positions = this.portfolio.positions.filter(
-                (p) => p.symbol !== position.symbol
+                (p) => !(p.symbol === position.symbol && p.id === position.id)
             );
             this.portfolio.usdtBalance += usdtReceived;
             this.portfolio.dailyPnL += pnl;
@@ -450,6 +510,12 @@ class LiveTradingEngine extends EventEmitter {
         } catch (err) {
             logger.error(`❌ Failed to close ${position.symbol}:`, err.message);
             return { success: false, action: "ERROR", reason: err.message };
+        } finally {
+            // FIX #1: Always release the lock, even if an error occurred
+            this._closingPositions.delete(lockKey);
+            logger.debug(
+                `🔓 Lock released for ${position.symbol} (${position.id})`
+            );
         }
     }
 
@@ -480,6 +546,12 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     checkExitConditions(position, currentPrice) {
+        // FIX #1: Skip exit checks if position is already being closed
+        const lockKey = `${position.symbol}_${position.id}`;
+        if (this._closingPositions.has(lockKey)) {
+            return;
+        }
+
         if (position.stopLoss && currentPrice <= position.stopLoss) {
             this.closePosition(position, currentPrice, "STOP_LOSS");
             return;
@@ -498,7 +570,7 @@ class LiveTradingEngine extends EventEmitter {
             if (newStop > currentTrailingStop) {
                 position.trailingStopPrice = newStop;
                 this.tradeRepo
-                    .updateTrade(position.id, { trailingStopPrice: newStop })
+                    .updateTrade(position.id, { trailing_stop_price: newStop })
                     .catch((e) => logger.error("Failed to update TS:", e));
             }
 
@@ -530,6 +602,7 @@ class LiveTradingEngine extends EventEmitter {
             mode: "live",
             isActive: true,
             positions: this.portfolio.positions.length,
+            closingPositions: this._closingPositions.size, // FIX #1: Expose for debugging
         };
     }
 }
