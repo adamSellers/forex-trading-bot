@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - V3.2.1 RACE CONDITION FIX
+// backend/src/services/LiveTradingEngine.js - V3.2.2 EXPOSURE CAP FIX
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -28,6 +28,29 @@ class LiveTradingEngine extends EventEmitter {
 
         // FIX #1: Track positions currently being closed to prevent race conditions
         this._closingPositions = new Set();
+
+        // FIX #2: Validate allocation config on construction
+        this._validateAllocationConfig();
+    }
+
+    /**
+     * FIX #2: Validate that allocation percentages don't exceed 100%
+     * Logs a warning but doesn't auto-correct (user should fix config)
+     */
+    _validateAllocationConfig() {
+        if (this.config.allocation) {
+            const totalAllocation = Object.values(
+                this.config.allocation
+            ).reduce((sum, pct) => sum + pct, 0);
+            if (totalAllocation > 1.0) {
+                logger.warn(
+                    `⚠️ ALLOCATION WARNING: Total allocation is ${(
+                        totalAllocation * 100
+                    ).toFixed(1)}% (exceeds 100%). ` +
+                        `This may cause unexpected position sizing. Please review your config.`
+                );
+            }
+        }
     }
 
     async initialize() {
@@ -71,6 +94,8 @@ class LiveTradingEngine extends EventEmitter {
 
     updateConfig(config) {
         this.config = config;
+        // FIX #2: Re-validate allocations when config updates
+        this._validateAllocationConfig();
         logger.info("🔄 Live Engine Config Updated");
     }
 
@@ -221,6 +246,25 @@ class LiveTradingEngine extends EventEmitter {
         this._processingQueue = false;
     }
 
+    /**
+     * FIX #2: Calculate current portfolio exposure (value of all open positions)
+     * Returns exposure as a decimal (0.0 to 1.0+)
+     */
+    _calculateCurrentExposure() {
+        const totalEquity = this._calculateCurrentEquity();
+        if (totalEquity <= 0) return 0;
+
+        let exposureValue = 0;
+        this.portfolio.positions.forEach((pos) => {
+            const price =
+                this.binanceData.getCurrentPrice(pos.symbol)?.price ||
+                pos.currentPrice;
+            exposureValue += pos.quantity * price;
+        });
+
+        return exposureValue / totalEquity;
+    }
+
     async _executeSignal(signal, currentPrice, atr) {
         if (signal.signal !== "BUY" && signal.signal !== "SELL")
             return { success: false, action: "NONE" };
@@ -248,6 +292,33 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Position already open",
                 };
 
+            // FIX #2: Calculate current exposure and remaining capacity
+            const maxExposure = this.config.maxPortfolioExposure ?? 0.95; // Default 95%
+            const currentExposure = this._calculateCurrentExposure();
+            const remainingExposure = Math.max(
+                0,
+                maxExposure - currentExposure
+            );
+
+            // FIX #2: Check if we've hit the exposure cap
+            if (remainingExposure <= 0.01) {
+                // Less than 1% remaining
+                logger.warn(
+                    `⚠️ EXPOSURE CAP: Cannot open ${signal.symbol}. ` +
+                        `Current exposure: ${(currentExposure * 100).toFixed(
+                            1
+                        )}%, ` +
+                        `Max: ${(maxExposure * 100).toFixed(1)}%`
+                );
+                return {
+                    success: false,
+                    action: "SKIP",
+                    reason: `Portfolio exposure cap reached (${(
+                        currentExposure * 100
+                    ).toFixed(1)}%)`,
+                };
+            }
+
             const allocationPct =
                 this.config.allocation?.[signal.symbol] ?? 0.15;
 
@@ -260,7 +331,27 @@ class LiveTradingEngine extends EventEmitter {
             }
 
             const totalEquity = this._calculateCurrentEquity();
-            const targetPositionSize = totalEquity * allocationPct;
+
+            // FIX #2: Target size is the MINIMUM of allocation % and remaining exposure capacity
+            const targetByAllocation = totalEquity * allocationPct;
+            const targetByCapacity = totalEquity * remainingExposure;
+            let targetPositionSize = Math.min(
+                targetByAllocation,
+                targetByCapacity
+            );
+
+            // Log if we're being capped by exposure limit
+            if (targetByCapacity < targetByAllocation) {
+                logger.info(
+                    `📊 ${signal.symbol}: Allocation capped by exposure limit. ` +
+                        `Wanted: $${targetByAllocation.toFixed(2)} (${(
+                            allocationPct * 100
+                        ).toFixed(1)}%), ` +
+                        `Allowed: $${targetByCapacity.toFixed(2)} (${(
+                            remainingExposure * 100
+                        ).toFixed(1)}% remaining)`
+                );
+            }
 
             const riskRatio = this.config.riskPerTrade || 0.98;
             let tradeAmountUsdt = targetPositionSize * riskRatio;
@@ -373,6 +464,15 @@ class LiveTradingEngine extends EventEmitter {
                 this.portfolio.positions.push(tradeRecord);
                 this.portfolio.usdtBalance -= tradeRecord.usdtCost;
                 this.portfolio.totalFees += entryFee;
+
+                // FIX #2: Log new exposure after trade
+                const newExposure = this._calculateCurrentExposure();
+                logger.info(
+                    `✅ BUY ${signal.symbol}: $${tradeRecord.usdtCost.toFixed(
+                        2
+                    )}. ` +
+                        `Portfolio exposure: ${(newExposure * 100).toFixed(1)}%`
+                );
 
                 this.emit("tradeExecuted", tradeRecord);
                 return { success: true, action: "BUY", order };
@@ -501,10 +601,13 @@ class LiveTradingEngine extends EventEmitter {
             };
             this.emit("tradeExecuted", tradeRecord);
 
+            // FIX #2: Log exposure after closing
+            const newExposure = this._calculateCurrentExposure();
             logger.info(
                 `✅ Sold ${position.symbol}. PnL: $${pnl.toFixed(
                     2
-                )} (Fees: $${totalTradeFee.toFixed(3)})`
+                )} (Fees: $${totalTradeFee.toFixed(3)}). ` +
+                    `Portfolio exposure: ${(newExposure * 100).toFixed(1)}%`
             );
             return { success: true, action: "SELL", order };
         } catch (err) {
@@ -582,11 +685,16 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     getPortfolioSummary() {
+        // FIX #2: Include exposure in portfolio summary
+        const currentExposure = this._calculateCurrentExposure();
+
         return {
             ...this.portfolio,
             cryptoValue: this.portfolio.totalValue - this.portfolio.usdtBalance,
             dailyPnL: this.portfolio.dailyPnL,
             totalFees: this.portfolio.totalFees,
+            exposure: currentExposure, // FIX #2: New field
+            exposurePercent: (currentExposure * 100).toFixed(1) + "%", // FIX #2: Human-readable
             performance: {
                 winRate: this.portfolio.stats.winRate,
                 totalTrades: this.portfolio.stats.totalTrades,
@@ -602,7 +710,8 @@ class LiveTradingEngine extends EventEmitter {
             mode: "live",
             isActive: true,
             positions: this.portfolio.positions.length,
-            closingPositions: this._closingPositions.size, // FIX #1: Expose for debugging
+            closingPositions: this._closingPositions.size,
+            exposure: (this._calculateCurrentExposure() * 100).toFixed(1) + "%", // FIX #2
         };
     }
 }
