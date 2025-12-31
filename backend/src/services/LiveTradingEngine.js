@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - FIXED POSITION SIZING (EQUITY BASED)
+// backend/src/services/LiveTradingEngine.js - RACE CONDITION FIX: Queue-based Signal Processing
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -21,6 +21,9 @@ class LiveTradingEngine extends EventEmitter {
             totalFees: 0,
             stats: { winRate: 0, totalTrades: 0, winningTrades: 0 },
         };
+
+        this._signalQueue = [];
+        this._processingQueue = false;
     }
 
     async initialize() {
@@ -32,7 +35,6 @@ class LiveTradingEngine extends EventEmitter {
             account.balances.find((b) => b.asset === "USDT")?.free || 0
         );
 
-        // Initial estimate of total value (Cash only until prices update)
         this.portfolio.totalValue = this.portfolio.usdtBalance;
 
         logger.success(
@@ -65,7 +67,7 @@ class LiveTradingEngine extends EventEmitter {
 
     updateConfig(config) {
         this.config = config;
-        logger.info("🔁 Live Engine Config Updated");
+        logger.info("🔄 Live Engine Config Updated");
     }
 
     calculateOrderFee(order) {
@@ -167,6 +169,40 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async processSignal(signal, currentPrice, atr) {
+        this._signalQueue.push({
+            signal,
+            currentPrice,
+            atr,
+            timestamp: Date.now(),
+        });
+
+        if (!this._processingQueue) {
+            this._processSignalQueue();
+        }
+
+        return { success: true, action: "QUEUED" };
+    }
+
+    async _processSignalQueue() {
+        this._processingQueue = true;
+
+        while (this._signalQueue.length > 0) {
+            const { signal, currentPrice, atr } = this._signalQueue.shift();
+
+            try {
+                await this._executeSignal(signal, currentPrice, atr);
+            } catch (err) {
+                logger.error(
+                    `Signal processing failed for ${signal.symbol}:`,
+                    err.message
+                );
+            }
+        }
+
+        this._processingQueue = false;
+    }
+
+    async _executeSignal(signal, currentPrice, atr) {
         if (signal.signal !== "BUY" && signal.signal !== "SELL")
             return { success: false, action: "NONE" };
 
@@ -204,69 +240,63 @@ class LiveTradingEngine extends EventEmitter {
                 };
             }
 
-            // --- 🐛 FIXED SIZING LOGIC START ---
-
-            // 1. Base calculation on TOTAL EQUITY (Cash + Crypto), not just cash.
-            // This prevents Trade #2 from shrinking just because Trade #1 used cash.
-            const totalEquity =
-                this.portfolio.totalValue > 0
-                    ? this.portfolio.totalValue
-                    : this.portfolio.usdtBalance;
-
+            const totalEquity = this._calculateCurrentEquity();
             const targetPositionSize = totalEquity * allocationPct;
 
-            // 2. Apply Risk Factor
             const riskRatio = this.config.riskPerTrade || 0.98;
             let tradeAmountUsdt = targetPositionSize * riskRatio;
 
-            // 3. Cap at Max Capital setting
             tradeAmountUsdt = Math.min(
                 tradeAmountUsdt,
                 this.config.maxCapitalAtRisk || 999999
             );
 
-            // 4. Check available Cash (Cannot spend what we don't have)
             if (tradeAmountUsdt > this.portfolio.usdtBalance) {
-                // If we are cash-constrained, take what's left (minus 1% buffer)
-                // This usually happens if the portfolio is nearly fully invested.
-                const maxAvailable = this.portfolio.usdtBalance * 0.99;
+                const discrepancy =
+                    tradeAmountUsdt - this.portfolio.usdtBalance;
+                const discrepancyPct = (discrepancy / tradeAmountUsdt) * 100;
 
-                if (maxAvailable < (this.config.minOrderSize || 10)) {
+                if (discrepancyPct > 10) {
+                    logger.error(
+                        `🚨 ALLOCATION INTEGRITY VIOLATION: Expected $${tradeAmountUsdt.toFixed(
+                            2
+                        )}, have $${this.portfolio.usdtBalance.toFixed(
+                            2
+                        )} (${discrepancyPct.toFixed(1)}% gap)`
+                    );
+                    this.emit("allocationError", {
+                        symbol: signal.symbol,
+                        expected: tradeAmountUsdt,
+                        available: this.portfolio.usdtBalance,
+                        discrepancyPct,
+                    });
                     return {
                         success: false,
-                        action: "SKIP",
-                        reason: `Insufficient USDT ($${this.portfolio.usdtBalance.toFixed(
-                            2
-                        )}) for allocation`,
+                        action: "HALT",
+                        reason: "Allocation integrity violation",
                     };
                 }
 
-                logger.info(
-                    `⚠️ Sizing adjusted to fit cash: Target $${tradeAmountUsdt.toFixed(
+                const cashAvailable = this.portfolio.usdtBalance * 0.99;
+                logger.warn(
+                    `⚠️ Cash-Constrained: Scaling ${
+                        signal.symbol
+                    } from $${tradeAmountUsdt.toFixed(
                         2
-                    )} -> Actual $${maxAvailable.toFixed(2)}`
+                    )} → $${cashAvailable.toFixed(2)}`
                 );
-                tradeAmountUsdt = maxAvailable;
+                tradeAmountUsdt = cashAvailable;
             }
-            // --- 🐛 FIXED SIZING LOGIC END ---
 
-            if (tradeAmountUsdt < (this.config.minOrderSize || 10))
+            if (tradeAmountUsdt < 10) {
                 return {
                     success: false,
                     action: "SKIP",
-                    reason: `Calculated size ($${tradeAmountUsdt.toFixed(
-                        2
-                    )}) below min order`,
+                    reason: "Trade size below minimum ($10)",
                 };
+            }
 
-            let quantity = tradeAmountUsdt / currentPrice;
-            quantity = this.binanceData.stepSize(signal.symbol, quantity);
-
-            logger.info(
-                `⚖️ Sizing: ${quantity} ${
-                    signal.symbol
-                } ($${tradeAmountUsdt.toFixed(2)})`
-            );
+            const quantity = tradeAmountUsdt / currentPrice;
 
             try {
                 const order = await this.binanceData.executeOrder(
@@ -300,19 +330,15 @@ class LiveTradingEngine extends EventEmitter {
                     usdtCost: parseFloat(order.cummulativeQuoteQty),
                     orderId: order.orderId,
                     timestamp: Date.now(),
-
                     signal: signal.signal,
                     signalStrength: signal.strength,
                     atr: signal.atr || atr,
-
                     isOpen: true,
                     mode: "live",
                     stopLoss: stopLossPrice,
-
                     trailingStopPrice: this.config.enableTrailingStops
                         ? currentPrice * (1 - trailingStopDist)
                         : null,
-
                     fee_usdt_value: entryFee,
                 };
 
@@ -346,6 +372,17 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         return { success: false, action: "NONE" };
+    }
+
+    _calculateCurrentEquity() {
+        let cryptoValue = 0;
+        this.portfolio.positions.forEach((pos) => {
+            const price =
+                this.binanceData.getCurrentPrice(pos.symbol)?.price ||
+                pos.currentPrice;
+            cryptoValue += pos.quantity * price;
+        });
+        return this.portfolio.usdtBalance + cryptoValue;
     }
 
     async closePosition(position, currentPrice, reason) {
