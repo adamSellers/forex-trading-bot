@@ -1,4 +1,4 @@
-// backend/src/services/LiveTradingEngine.js - V3.2.2 EXPOSURE CAP FIX
+// backend/src/services/LiveTradingEngine.js - V3.2.3 TRANSACTION ATOMICITY FIX
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const TradeRepository = require("../repositories/tradeRepository");
@@ -29,13 +29,15 @@ class LiveTradingEngine extends EventEmitter {
         // FIX #1: Track positions currently being closed to prevent race conditions
         this._closingPositions = new Set();
 
+        // FIX #3: Recovery queue for failed DB operations
+        this._recoveryQueue = [];
+
         // FIX #2: Validate allocation config on construction
         this._validateAllocationConfig();
     }
 
     /**
      * FIX #2: Validate that allocation percentages don't exceed 100%
-     * Logs a warning but doesn't auto-correct (user should fix config)
      */
     _validateAllocationConfig() {
         if (this.config.allocation) {
@@ -51,6 +53,54 @@ class LiveTradingEngine extends EventEmitter {
                 );
             }
         }
+    }
+
+    /**
+     * FIX #3: Retry wrapper for database operations with exponential backoff
+     */
+    async _retryDbOperation(operation, operationName, maxAttempts = 3) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                await operation();
+                return { success: true };
+            } catch (err) {
+                const delay = Math.min(100 * Math.pow(2, attempt), 2000); // 200ms, 400ms, 800ms...
+                logger.warn(
+                    `⚠️ DB ${operationName} attempt ${attempt}/${maxAttempts} failed: ${err.message}. ` +
+                        `${
+                            attempt < maxAttempts
+                                ? `Retrying in ${delay}ms...`
+                                : "Giving up."
+                        }`
+                );
+                if (attempt < maxAttempts) {
+                    await new Promise((r) => setTimeout(r, delay));
+                } else {
+                    return { success: false, error: err };
+                }
+            }
+        }
+        return { success: false, error: new Error("Max retries exceeded") };
+    }
+
+    /**
+     * FIX #3: Add trade to recovery queue for manual review
+     */
+    _addToRecoveryQueue(tradeRecord, reason) {
+        const recoveryEntry = {
+            timestamp: Date.now(),
+            reason,
+            trade: tradeRecord,
+        };
+        this._recoveryQueue.push(recoveryEntry);
+        logger.error(
+            `🚨 RECOVERY QUEUE: Added ${tradeRecord.symbol} (${tradeRecord.id}). ` +
+                `Reason: ${reason}. Queue size: ${this._recoveryQueue.length}`
+        );
+        this.emit("recoveryQueueUpdated", {
+            entry: recoveryEntry,
+            queueSize: this._recoveryQueue.length,
+        });
     }
 
     async initialize() {
@@ -79,7 +129,7 @@ class LiveTradingEngine extends EventEmitter {
                 trailingStopPrice: p.trailing_stop_price || p.trailingStopPrice,
             }));
             logger.info(
-                `🔄 Restored ${this.portfolio.positions.length} active positions.`
+                `🔄 Restored ${this.portfolio.positions.length} active positions from DB.`
             );
         } catch (err) {
             logger.warn(
@@ -89,12 +139,150 @@ class LiveTradingEngine extends EventEmitter {
             this.portfolio.positions = [];
         }
 
+        // FIX #3: Reconcile with exchange to detect orphaned positions
+        await this._reconcileWithExchange(account);
+
         await this.calculatePerformanceStats();
+    }
+
+    /**
+     * FIX #3: Reconcile local state with actual Binance holdings
+     * Detects "zombie" positions (crypto we own but isn't tracked)
+     */
+    async _reconcileWithExchange(account) {
+        logger.info("🔍 Reconciling with Binance exchange...");
+
+        if (!account || account.error || !account.balances) {
+            logger.warn("⚠️ Cannot reconcile: No account data available");
+            return;
+        }
+
+        const trackedSymbols = new Set(
+            this.portfolio.positions.map((p) => p.symbol)
+        );
+        const configuredAssets = this.config.assets || [];
+        const orphanedPositions = [];
+        const zombiePositions = [];
+
+        // Check each configured asset for untracked holdings
+        for (const symbol of configuredAssets) {
+            const baseAsset = symbol.replace("USDT", "");
+            const balance = account.balances.find((b) => b.asset === baseAsset);
+
+            if (balance && balance.total > 0) {
+                const priceData = this.binanceData.getCurrentPrice(symbol);
+                const usdtValue = priceData
+                    ? balance.total * priceData.price
+                    : 0;
+
+                // Only flag if value is significant (> $5)
+                if (usdtValue > 5) {
+                    if (!trackedSymbols.has(symbol)) {
+                        // We have crypto that's NOT in our tracked positions
+                        orphanedPositions.push({
+                            symbol,
+                            asset: baseAsset,
+                            quantity: balance.total,
+                            estimatedValue: usdtValue,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check for DB positions where we no longer hold the crypto
+        for (const position of this.portfolio.positions) {
+            const baseAsset = position.symbol.replace("USDT", "");
+            const balance = account.balances.find((b) => b.asset === baseAsset);
+
+            if (!balance || balance.total < position.quantity * 0.99) {
+                // 1% tolerance for dust
+                zombiePositions.push({
+                    dbPosition: position,
+                    actualBalance: balance?.total || 0,
+                });
+            }
+        }
+
+        // Report findings
+        if (orphanedPositions.length > 0) {
+            logger.warn(
+                `🚨 ORPHANED CRYPTO DETECTED: Found ${orphanedPositions.length} untracked position(s):`
+            );
+            for (const orphan of orphanedPositions) {
+                logger.warn(
+                    `   - ${orphan.symbol}: ${orphan.quantity.toFixed(6)} ${
+                        orphan.asset
+                    } (~$${orphan.estimatedValue.toFixed(2)})`
+                );
+
+                // Create recovery record for manual review
+                this._addToRecoveryQueue(
+                    {
+                        id: `ORPHAN_${orphan.symbol}_${Date.now()}`,
+                        symbol: orphan.symbol,
+                        quantity: orphan.quantity,
+                        side: "ORPHAN",
+                        estimatedValue: orphan.estimatedValue,
+                    },
+                    "Untracked crypto found on exchange"
+                );
+            }
+
+            this.emit("orphanedPositionsDetected", orphanedPositions);
+        }
+
+        if (zombiePositions.length > 0) {
+            logger.warn(
+                `🧟 ZOMBIE POSITIONS DETECTED: Found ${zombiePositions.length} DB record(s) without matching crypto:`
+            );
+            for (const zombie of zombiePositions) {
+                logger.warn(
+                    `   - ${
+                        zombie.dbPosition.symbol
+                    }: DB shows ${zombie.dbPosition.quantity.toFixed(6)}, ` +
+                        `Exchange has ${zombie.actualBalance.toFixed(6)}`
+                );
+
+                // Auto-fix: Mark as closed in DB if crypto is gone
+                try {
+                    logger.info(
+                        `🔧 Auto-closing zombie position ${zombie.dbPosition.symbol} in DB...`
+                    );
+                    await this.tradeRepo.updateTrade(zombie.dbPosition.id, {
+                        is_open: 0,
+                        exit_reason: "ZOMBIE_RECONCILE",
+                        exit_time: Date.now(),
+                        pnl: 0, // Unknown PnL - manual review needed
+                    });
+
+                    // Remove from in-memory positions
+                    this.portfolio.positions = this.portfolio.positions.filter(
+                        (p) => p.id !== zombie.dbPosition.id
+                    );
+
+                    logger.success(
+                        `✅ Zombie ${zombie.dbPosition.symbol} removed from tracking.`
+                    );
+                } catch (err) {
+                    logger.error(
+                        `❌ Failed to auto-fix zombie: ${err.message}`
+                    );
+                }
+            }
+
+            this.emit("zombiePositionsDetected", zombiePositions);
+        }
+
+        if (orphanedPositions.length === 0 && zombiePositions.length === 0) {
+            logger.success(
+                "✅ Reconciliation complete: DB and Exchange are in sync."
+            );
+        }
     }
 
     updateConfig(config) {
         this.config = config;
-        // FIX #2: Re-validate allocations when config updates
         this._validateAllocationConfig();
         logger.info("🔄 Live Engine Config Updated");
     }
@@ -172,7 +360,6 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Force close a position manually (from UI or API)
-     * FIX #1: Added same atomic lock protection as closePosition()
      */
     async forceClosePosition(tradeId) {
         const position = this.portfolio.positions.find(
@@ -186,7 +373,6 @@ class LiveTradingEngine extends EventEmitter {
             );
         }
 
-        // FIX #1: Check if position is already being closed
         const lockKey = `${position.symbol}_${position.id}`;
         if (this._closingPositions.has(lockKey)) {
             logger.warn(
@@ -247,8 +433,7 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     /**
-     * FIX #2: Calculate current portfolio exposure (value of all open positions)
-     * Returns exposure as a decimal (0.0 to 1.0+)
+     * FIX #2: Calculate current portfolio exposure
      */
     _calculateCurrentExposure() {
         const totalEquity = this._calculateCurrentEquity();
@@ -292,17 +477,15 @@ class LiveTradingEngine extends EventEmitter {
                     reason: "Position already open",
                 };
 
-            // FIX #2: Calculate current exposure and remaining capacity
-            const maxExposure = this.config.maxPortfolioExposure ?? 0.95; // Default 95%
+            // FIX #2: Exposure cap check
+            const maxExposure = this.config.maxPortfolioExposure ?? 0.95;
             const currentExposure = this._calculateCurrentExposure();
             const remainingExposure = Math.max(
                 0,
                 maxExposure - currentExposure
             );
 
-            // FIX #2: Check if we've hit the exposure cap
             if (remainingExposure <= 0.01) {
-                // Less than 1% remaining
                 logger.warn(
                     `⚠️ EXPOSURE CAP: Cannot open ${signal.symbol}. ` +
                         `Current exposure: ${(currentExposure * 100).toFixed(
@@ -332,7 +515,7 @@ class LiveTradingEngine extends EventEmitter {
 
             const totalEquity = this._calculateCurrentEquity();
 
-            // FIX #2: Target size is the MINIMUM of allocation % and remaining exposure capacity
+            // FIX #2: Cap by remaining exposure
             const targetByAllocation = totalEquity * allocationPct;
             const targetByCapacity = totalEquity * remainingExposure;
             let targetPositionSize = Math.min(
@@ -340,7 +523,6 @@ class LiveTradingEngine extends EventEmitter {
                 targetByCapacity
             );
 
-            // Log if we're being capped by exposure limit
             if (targetByCapacity < targetByAllocation) {
                 logger.info(
                     `📊 ${signal.symbol}: Allocation capped by exposure limit. ` +
@@ -370,9 +552,10 @@ class LiveTradingEngine extends EventEmitter {
                     logger.error(
                         `🚨 ALLOCATION INTEGRITY VIOLATION: Expected $${tradeAmountUsdt.toFixed(
                             2
-                        )}, have $${this.portfolio.usdtBalance.toFixed(
-                            2
-                        )} (${discrepancyPct.toFixed(1)}% gap)`
+                        )}, ` +
+                            `have $${this.portfolio.usdtBalance.toFixed(
+                                2
+                            )} (${discrepancyPct.toFixed(1)}% gap)`
                     );
                     this.emit("allocationError", {
                         symbol: signal.symbol,
@@ -408,78 +591,98 @@ class LiveTradingEngine extends EventEmitter {
 
             const quantity = tradeAmountUsdt / currentPrice;
 
+            // FIX #3: Execute order with proper atomicity
+            let order;
             try {
-                const order = await this.binanceData.executeOrder(
+                order = await this.binanceData.executeOrder(
                     signal.symbol,
                     "BUY",
                     quantity
                 );
-
-                const entryFee = this.calculateOrderFee(order);
-
-                let stopLossPrice;
-                if (this.config.stopLossType === "FIXED") {
-                    stopLossPrice =
-                        currentPrice *
-                        (1 - (this.config.stopLossPercent || 0.05));
-                } else {
-                    stopLossPrice =
-                        currentPrice -
-                        (atr || 0) * (this.config.stopLossATR || 1.5);
-                }
-
-                const trailingStopDist =
-                    this.config.trailingStopPercent || 0.03;
-
-                const tradeRecord = {
-                    id: order.orderId.toString(),
-                    symbol: signal.symbol,
-                    side: "BUY",
-                    price: parseFloat(order.fills?.[0]?.price || currentPrice),
-                    quantity: parseFloat(order.executedQty),
-                    usdtCost: parseFloat(order.cummulativeQuoteQty),
-                    orderId: order.orderId,
-                    timestamp: Date.now(),
-                    signal: signal.signal,
-                    signalStrength: signal.strength,
-                    atr: signal.atr || atr,
-                    isOpen: true,
-                    mode: "live",
-                    stopLoss: stopLossPrice,
-                    trailingStopPrice: this.config.enableTrailingStops
-                        ? currentPrice * (1 - trailingStopDist)
-                        : null,
-                    fee_usdt_value: entryFee,
-                };
-
-                try {
-                    await this.tradeRepo.save(tradeRecord);
-                } catch (dbErr) {
-                    logger.error(
-                        "❌ CRITICAL: Failed to save trade to DB!",
-                        dbErr
-                    );
-                }
-
-                this.portfolio.positions.push(tradeRecord);
-                this.portfolio.usdtBalance -= tradeRecord.usdtCost;
-                this.portfolio.totalFees += entryFee;
-
-                // FIX #2: Log new exposure after trade
-                const newExposure = this._calculateCurrentExposure();
-                logger.info(
-                    `✅ BUY ${signal.symbol}: $${tradeRecord.usdtCost.toFixed(
-                        2
-                    )}. ` +
-                        `Portfolio exposure: ${(newExposure * 100).toFixed(1)}%`
-                );
-
-                this.emit("tradeExecuted", tradeRecord);
-                return { success: true, action: "BUY", order };
             } catch (err) {
                 logger.error("❌ Buy Execution Failed:", err.message);
                 return { success: false, action: "ERROR", reason: err.message };
             }
+
+            // Order succeeded - now we MUST track this position
+            const entryFee = this.calculateOrderFee(order);
+
+            let stopLossPrice;
+            if (this.config.stopLossType === "FIXED") {
+                stopLossPrice =
+                    currentPrice * (1 - (this.config.stopLossPercent || 0.05));
+            } else {
+                stopLossPrice =
+                    currentPrice -
+                    (atr || 0) * (this.config.stopLossATR || 1.5);
+            }
+
+            const trailingStopDist = this.config.trailingStopPercent || 0.03;
+
+            const tradeRecord = {
+                id: order.orderId.toString(),
+                symbol: signal.symbol,
+                side: "BUY",
+                price: parseFloat(order.fills?.[0]?.price || currentPrice),
+                quantity: parseFloat(order.executedQty),
+                usdtCost: parseFloat(order.cummulativeQuoteQty),
+                orderId: order.orderId,
+                timestamp: Date.now(),
+                signal: signal.signal,
+                signalStrength: signal.strength,
+                atr: signal.atr || atr,
+                isOpen: true,
+                mode: "live",
+                stopLoss: stopLossPrice,
+                trailingStopPrice: this.config.enableTrailingStops
+                    ? currentPrice * (1 - trailingStopDist)
+                    : null,
+                fee_usdt_value: entryFee,
+            };
+
+            // FIX #3: Try to save to DB with retries
+            const dbResult = await this._retryDbOperation(
+                () => this.tradeRepo.save(tradeRecord),
+                `SAVE trade ${tradeRecord.symbol}`
+            );
+
+            if (!dbResult.success) {
+                // DB save failed after retries - add to recovery queue but keep in memory
+                logger.error(
+                    `🚨 CRITICAL: Failed to save ${signal.symbol} trade to DB after retries! ` +
+                        `Position is tracked in memory but NOT persisted. Manual intervention required.`
+                );
+                this._addToRecoveryQueue(
+                    tradeRecord,
+                    "DB save failed after 3 retries"
+                );
+            }
+
+            // Always update in-memory state (we own the crypto now)
+            this.portfolio.positions.push(tradeRecord);
+            this.portfolio.usdtBalance -= tradeRecord.usdtCost;
+            this.portfolio.totalFees += entryFee;
+
+            const newExposure = this._calculateCurrentExposure();
+            logger.info(
+                `✅ BUY ${signal.symbol}: $${tradeRecord.usdtCost.toFixed(
+                    2
+                )}. ` +
+                    `Portfolio exposure: ${(newExposure * 100).toFixed(1)}%` +
+                    `${
+                        !dbResult.success
+                            ? " ⚠️ DB SAVE FAILED - IN RECOVERY QUEUE"
+                            : ""
+                    }`
+            );
+
+            this.emit("tradeExecuted", tradeRecord);
+            return {
+                success: true,
+                action: "BUY",
+                order,
+                dbSaved: dbResult.success,
+            };
         }
 
         if (signal.signal === "SELL" && openPosition) {
@@ -506,13 +709,11 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Close an open position
-     * FIX #1: Added atomic lock to prevent race conditions during simultaneous exit triggers
+     * FIX #1: Atomic lock, FIX #3: DB retry logic
      */
     async closePosition(position, currentPrice, reason) {
-        // FIX #1: Create a unique lock key for this position
         const lockKey = `${position.symbol}_${position.id}`;
 
-        // FIX #1: Check if this position is already being closed
         if (this._closingPositions.has(lockKey)) {
             logger.warn(
                 `⚠️ DUPLICATE CLOSE BLOCKED: ${position.symbol} (${position.id}) already closing. Reason attempted: ${reason}`
@@ -524,7 +725,6 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // FIX #1: Verify position still exists in portfolio before proceeding
         const existingPosition = this.portfolio.positions.find(
             (p) => p.symbol === position.symbol && p.id === position.id
         );
@@ -539,87 +739,120 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // FIX #1: Acquire the lock
         this._closingPositions.add(lockKey);
         logger.info(
             `🔒 Lock acquired for ${position.symbol} (${position.id}). Reason: ${reason}`
         );
 
+        let order;
         try {
             logger.info(`📉 Closing ${position.symbol} due to ${reason}...`);
             const quantity = position.quantity;
 
-            const order = await this.binanceData.executeOrder(
+            // Execute SELL order first
+            order = await this.binanceData.executeOrder(
                 position.symbol,
                 "SELL",
                 quantity
             );
-
-            const exitFee = this.calculateOrderFee(order);
-
-            const exitPrice = parseFloat(
-                order.fills?.[0]?.price || currentPrice
-            );
-            const usdtReceived = parseFloat(order.cummulativeQuoteQty);
-            const pnl = usdtReceived - position.usdtCost;
-
-            const totalTradeFee = (position.fee_usdt_value || 0) + exitFee;
-
-            await this.tradeRepo.updateTrade(position.id, {
-                is_open: 0,
-                exit_price: exitPrice,
-                exit_time: Date.now(),
-                pnl: pnl,
-                exit_reason: reason,
-                fee_usdt_value: totalTradeFee,
-            });
-
-            // FIX #1: Remove position by BOTH symbol AND id for precision
-            this.portfolio.positions = this.portfolio.positions.filter(
-                (p) => !(p.symbol === position.symbol && p.id === position.id)
-            );
-            this.portfolio.usdtBalance += usdtReceived;
-            this.portfolio.dailyPnL += pnl;
-            this.portfolio.totalPnL += pnl;
-            this.portfolio.totalFees += exitFee;
-
-            this.portfolio.stats.totalTrades++;
-            if (pnl > 0) this.portfolio.stats.winningTrades++;
-            this.portfolio.stats.winRate =
-                (this.portfolio.stats.winningTrades /
-                    this.portfolio.stats.totalTrades) *
-                100;
-
-            const tradeRecord = {
-                ...position,
-                side: "SELL",
-                status: "CLOSED",
-                pnl,
-                exitPrice,
-                reason,
-                fee_usdt_value: totalTradeFee,
-            };
-            this.emit("tradeExecuted", tradeRecord);
-
-            // FIX #2: Log exposure after closing
-            const newExposure = this._calculateCurrentExposure();
-            logger.info(
-                `✅ Sold ${position.symbol}. PnL: $${pnl.toFixed(
-                    2
-                )} (Fees: $${totalTradeFee.toFixed(3)}). ` +
-                    `Portfolio exposure: ${(newExposure * 100).toFixed(1)}%`
-            );
-            return { success: true, action: "SELL", order };
         } catch (err) {
-            logger.error(`❌ Failed to close ${position.symbol}:`, err.message);
-            return { success: false, action: "ERROR", reason: err.message };
-        } finally {
-            // FIX #1: Always release the lock, even if an error occurred
+            logger.error(
+                `❌ Failed to execute SELL for ${position.symbol}:`,
+                err.message
+            );
             this._closingPositions.delete(lockKey);
-            logger.debug(
-                `🔓 Lock released for ${position.symbol} (${position.id})`
+            return { success: false, action: "ERROR", reason: err.message };
+        }
+
+        // SELL succeeded - now update records
+        const exitFee = this.calculateOrderFee(order);
+        const exitPrice = parseFloat(order.fills?.[0]?.price || currentPrice);
+        const usdtReceived = parseFloat(order.cummulativeQuoteQty);
+        const pnl = usdtReceived - position.usdtCost;
+        const totalTradeFee = (position.fee_usdt_value || 0) + exitFee;
+
+        // FIX #3: Try to update DB with retries
+        const dbResult = await this._retryDbOperation(
+            () =>
+                this.tradeRepo.updateTrade(position.id, {
+                    is_open: 0,
+                    exit_price: exitPrice,
+                    exit_time: Date.now(),
+                    pnl: pnl,
+                    exit_reason: reason,
+                    fee_usdt_value: totalTradeFee,
+                }),
+            `UPDATE trade ${position.symbol} (close)`
+        );
+
+        if (!dbResult.success) {
+            logger.error(
+                `🚨 CRITICAL: Failed to update ${position.symbol} close in DB after retries! ` +
+                    `Position will be removed from memory but DB shows it as open. Manual intervention required.`
+            );
+            this._addToRecoveryQueue(
+                {
+                    ...position,
+                    exitPrice,
+                    pnl,
+                    exitReason: reason,
+                    fee_usdt_value: totalTradeFee,
+                },
+                "DB update failed after 3 retries (SELL succeeded)"
             );
         }
+
+        // Always update in-memory state (we no longer own the crypto)
+        this.portfolio.positions = this.portfolio.positions.filter(
+            (p) => !(p.symbol === position.symbol && p.id === position.id)
+        );
+        this.portfolio.usdtBalance += usdtReceived;
+        this.portfolio.dailyPnL += pnl;
+        this.portfolio.totalPnL += pnl;
+        this.portfolio.totalFees += exitFee;
+
+        this.portfolio.stats.totalTrades++;
+        if (pnl > 0) this.portfolio.stats.winningTrades++;
+        this.portfolio.stats.winRate =
+            (this.portfolio.stats.winningTrades /
+                this.portfolio.stats.totalTrades) *
+            100;
+
+        const tradeRecord = {
+            ...position,
+            side: "SELL",
+            status: "CLOSED",
+            pnl,
+            exitPrice,
+            reason,
+            fee_usdt_value: totalTradeFee,
+        };
+        this.emit("tradeExecuted", tradeRecord);
+
+        const newExposure = this._calculateCurrentExposure();
+        logger.info(
+            `✅ Sold ${position.symbol}. PnL: $${pnl.toFixed(
+                2
+            )} (Fees: $${totalTradeFee.toFixed(3)}). ` +
+                `Portfolio exposure: ${(newExposure * 100).toFixed(1)}%` +
+                `${
+                    !dbResult.success
+                        ? " ⚠️ DB UPDATE FAILED - IN RECOVERY QUEUE"
+                        : ""
+                }`
+        );
+
+        this._closingPositions.delete(lockKey);
+        logger.debug(
+            `🔓 Lock released for ${position.symbol} (${position.id})`
+        );
+
+        return {
+            success: true,
+            action: "SELL",
+            order,
+            dbSaved: dbResult.success,
+        };
     }
 
     updatePortfolioValue(allPrices) {
@@ -649,7 +882,6 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     checkExitConditions(position, currentPrice) {
-        // FIX #1: Skip exit checks if position is already being closed
         const lockKey = `${position.symbol}_${position.id}`;
         if (this._closingPositions.has(lockKey)) {
             return;
@@ -685,7 +917,6 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     getPortfolioSummary() {
-        // FIX #2: Include exposure in portfolio summary
         const currentExposure = this._calculateCurrentExposure();
 
         return {
@@ -693,8 +924,9 @@ class LiveTradingEngine extends EventEmitter {
             cryptoValue: this.portfolio.totalValue - this.portfolio.usdtBalance,
             dailyPnL: this.portfolio.dailyPnL,
             totalFees: this.portfolio.totalFees,
-            exposure: currentExposure, // FIX #2: New field
-            exposurePercent: (currentExposure * 100).toFixed(1) + "%", // FIX #2: Human-readable
+            exposure: currentExposure,
+            exposurePercent: (currentExposure * 100).toFixed(1) + "%",
+            recoveryQueueSize: this._recoveryQueue.length, // FIX #3: Expose recovery queue
             performance: {
                 winRate: this.portfolio.stats.winRate,
                 totalTrades: this.portfolio.stats.totalTrades,
@@ -705,13 +937,87 @@ class LiveTradingEngine extends EventEmitter {
         };
     }
 
+    /**
+     * FIX #3: Get recovery queue for manual review/retry
+     */
+    getRecoveryQueue() {
+        return [...this._recoveryQueue];
+    }
+
+    /**
+     * FIX #3: Clear an item from recovery queue after manual resolution
+     */
+    clearRecoveryQueueItem(index) {
+        if (index >= 0 && index < this._recoveryQueue.length) {
+            const removed = this._recoveryQueue.splice(index, 1);
+            logger.info(
+                `🗑️ Removed item from recovery queue: ${removed[0]?.trade?.symbol}`
+            );
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * FIX #3: Retry saving all items in recovery queue
+     */
+    async retryRecoveryQueue() {
+        if (this._recoveryQueue.length === 0) {
+            logger.info("Recovery queue is empty.");
+            return { processed: 0, succeeded: 0 };
+        }
+
+        logger.info(
+            `🔄 Retrying ${this._recoveryQueue.length} items in recovery queue...`
+        );
+        let succeeded = 0;
+        const toRemove = [];
+
+        for (let i = 0; i < this._recoveryQueue.length; i++) {
+            const item = this._recoveryQueue[i];
+            try {
+                if (item.trade.side === "BUY" || item.trade.side === "ORPHAN") {
+                    await this.tradeRepo.save(item.trade);
+                } else {
+                    await this.tradeRepo.updateTrade(item.trade.id, {
+                        is_open: 0,
+                        exit_price: item.trade.exitPrice,
+                        exit_time: Date.now(),
+                        pnl: item.trade.pnl,
+                        exit_reason: item.trade.exitReason || "RECOVERY_RETRY",
+                    });
+                }
+                toRemove.push(i);
+                succeeded++;
+                logger.success(
+                    `✅ Recovery succeeded for ${item.trade.symbol}`
+                );
+            } catch (err) {
+                logger.warn(
+                    `⚠️ Recovery still failing for ${item.trade.symbol}: ${err.message}`
+                );
+            }
+        }
+
+        // Remove succeeded items (in reverse order to preserve indices)
+        for (let i = toRemove.length - 1; i >= 0; i--) {
+            this._recoveryQueue.splice(toRemove[i], 1);
+        }
+
+        return {
+            processed: toRemove.length + this._recoveryQueue.length,
+            succeeded,
+        };
+    }
+
     getStatus() {
         return {
             mode: "live",
             isActive: true,
             positions: this.portfolio.positions.length,
             closingPositions: this._closingPositions.size,
-            exposure: (this._calculateCurrentExposure() * 100).toFixed(1) + "%", // FIX #2
+            exposure: (this._calculateCurrentExposure() * 100).toFixed(1) + "%",
+            recoveryQueueSize: this._recoveryQueue.length, // FIX #3
         };
     }
 }
