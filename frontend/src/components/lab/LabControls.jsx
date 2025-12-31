@@ -1,28 +1,33 @@
-// frontend/src/components/lab/LabControls.jsx
+// frontend/src/components/lab/LabControls.jsx - V3.2.6 LIVE PARITY UPDATE
 import React, { useState } from 'react';
 import { 
     Box, Typography, Button, Slider, TextField, Stack, Chip, 
     MenuItem, Select, FormControl, InputLabel,
     IconButton, Avatar, InputAdornment, List, ListItem, 
-    Grid, Switch, Tooltip, CircularProgress, alpha, useTheme
+    Grid, Switch, Tooltip, CircularProgress, alpha, useTheme,
+    Collapse, Divider
 } from '@mui/material';
 import { 
     PieChart, Tune, Science, AddCircle, Delete, 
-    PlayArrow, AutoMode, Restore, FlashOn 
+    PlayArrow, AutoMode, Restore, FlashOn, ExpandMore, ExpandLess,
+    AttachMoney, Speed, TrendingUp, Security, Cancel
 } from '@mui/icons-material';
 import { GlassCard } from '../dashboard/Shared';
 
-const SectionHeader = ({ icon, title, subtitle }) => {
+const SectionHeader = ({ icon, title, subtitle, action }) => {
     const theme = useTheme();
     return (
-        <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-            <Avatar variant="rounded" sx={{ width: 32, height: 32, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
-                {React.cloneElement(icon, { fontSize: "small" })}
-            </Avatar>
-            <Box>
-                <Typography variant="subtitle1" fontWeight="bold" lineHeight={1.1}>{title}</Typography>
-                {subtitle && <Typography variant="caption" color="text.secondary" display="block" lineHeight={1}>{subtitle}</Typography>}
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+            <Box display="flex" alignItems="center" gap={1.5}>
+                <Avatar variant="rounded" sx={{ width: 32, height: 32, bgcolor: alpha(theme.palette.primary.main, 0.1), color: theme.palette.primary.main }}>
+                    {React.cloneElement(icon, { fontSize: "small" })}
+                </Avatar>
+                <Box>
+                    <Typography variant="subtitle1" fontWeight="bold" lineHeight={1.1}>{title}</Typography>
+                    {subtitle && <Typography variant="caption" color="text.secondary" display="block" lineHeight={1}>{subtitle}</Typography>}
+                </Box>
             </Box>
+            {action}
         </Box>
     );
 };
@@ -33,14 +38,25 @@ const AVAILABLE_ASSETS = [
     'LTCUSDT', 'SHIBUSDT'
 ];
 
+const FEE_TIERS = [
+    { value: 'vip0', label: 'VIP 0 (0.10%)' },
+    { value: 'vip1', label: 'VIP 1 (0.09%)' },
+    { value: 'vip2', label: 'VIP 2 (0.08%)' },
+    { value: 'bnb_discount', label: 'BNB Discount (0.075%)' },
+    { value: 'standard', label: 'Standard (0.10%)' },
+];
+
 const LabControls = ({ 
     config, updateConfig, updateWeight, 
     addAsset, removeAsset, 
-    onRun, onOptimize, 
+    onRun, onOptimize, onCancel,
     running, optimizing 
 }) => {
     const theme = useTheme();
     const [newAsset, setNewAsset] = useState('');
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [showRealism, setShowRealism] = useState(false);
+    
     const totalAllocation = config.assets.reduce((sum, asset) => sum + (config.weights[asset] || 0), 0);
 
     const handleAddClick = () => {
@@ -48,12 +64,13 @@ const LabControls = ({
         setNewAsset('');
     };
 
-    // Helper to allow empty string while typing
     const handleInputChange = (asset, value) => {
-        // If empty, pass as is (or 0) depending on parent logic, 
-        // but here we just pass the raw value to the update handler.
         updateWeight(asset, value);
     };
+
+    // Helper to convert ms to hours
+    const msToHours = (ms) => ms / (60 * 60 * 1000);
+    const hoursToMs = (hours) => hours * 60 * 60 * 1000;
 
     return (
         <Stack spacing={2} pb={4}> 
@@ -97,6 +114,20 @@ const LabControls = ({
                         {optimizing ? "OPTIMIZING..." : "AI AUTO-OPTIMIZE"}
                     </Button>
                 </Tooltip>
+                
+                {/* Cancel Button - Only show when running */}
+                {(running || optimizing) && (
+                    <Button 
+                        fullWidth
+                        variant="outlined" 
+                        color="error"
+                        onClick={onCancel}
+                        startIcon={<Cancel />}
+                        size="small"
+                    >
+                        CANCEL
+                    </Button>
+                )}
             </Stack>
 
             {/* 2. PORTFOLIO MIX */}
@@ -124,49 +155,31 @@ const LabControls = ({
                     <Button variant="contained" onClick={handleAddClick} disabled={!newAsset} size="small" sx={{ minWidth: 40 }}><AddCircle /></Button>
                 </Box>
 
-                <List disablePadding sx={{ maxHeight: 220, overflowY: 'auto', pr: 0.5 }}>
+                <List disablePadding sx={{ maxHeight: 180, overflowY: 'auto', pr: 0.5 }}>
                     {config.assets.map((asset) => (
-                        <ListItem key={asset} sx={{ borderBottom: 1, borderColor: 'divider', px: 0, py: 1.5 }}>
-                            <Box display="flex" alignItems="center" width="100%" gap={1.5}>
-                                {/* Asset Icon & Name */}
-                                <Box display="flex" alignItems="center" gap={1} minWidth={70}>
-                                    <Avatar sx={{ width: 28, height: 28, fontSize: '0.7rem', bgcolor: 'primary.main', fontWeight: 'bold' }}>{asset.substring(0,1)}</Avatar>
-                                    <Typography variant="body2" fontWeight="bold">{asset.replace('USDT','')}</Typography>
+                        <ListItem key={asset} sx={{ borderBottom: 1, borderColor: 'divider', px: 0, py: 1 }}>
+                            <Box display="flex" alignItems="center" width="100%" gap={1}>
+                                <Box display="flex" alignItems="center" gap={1} minWidth={60}>
+                                    <Avatar sx={{ width: 24, height: 24, fontSize: '0.65rem', bgcolor: 'primary.main', fontWeight: 'bold' }}>{asset.substring(0,1)}</Avatar>
+                                    <Typography variant="body2" fontWeight="bold" fontSize="0.75rem">{asset.replace('USDT','')}</Typography>
                                 </Box>
-                                
-                                {/* Slider */}
                                 <Slider 
                                     value={config.weights[asset] || 0} 
                                     onChange={(_, v) => updateWeight(asset, v)} 
                                     min={0} max={100} step={1} size="small" 
                                     sx={{ flexGrow: 1, mx: 1 }} 
                                 />
-                                
-                                {/* Numeric Input - ENLARGED & STYLED */}
                                 <TextField 
                                     size="small" 
                                     type="number" 
                                     value={config.weights[asset]} 
                                     onChange={(e) => handleInputChange(asset, e.target.value)} 
                                     InputProps={{ 
-                                        endAdornment: <InputAdornment position="end"><Typography variant="body2" color="text.secondary">%</Typography></InputAdornment>,
+                                        endAdornment: <InputAdornment position="end"><Typography variant="caption">%</Typography></InputAdornment>,
                                     }} 
-                                    sx={{ 
-                                        width: 85,
-                                        '& .MuiOutlinedInput-root': {
-                                            bgcolor: alpha(theme.palette.background.paper, 0.2), // Darker bg for input feel
-                                            fontSize: '0.9rem', // Readable font size
-                                            fontWeight: 'bold',
-                                            paddingRight: 1
-                                        },
-                                        '& input': {
-                                            textAlign: 'center',
-                                            padding: '6px 0 6px 6px'
-                                        }
-                                    }} 
+                                    sx={{ width: 75, '& input': { textAlign: 'center', py: 0.5, fontSize: '0.8rem' } }} 
                                 />
-                                
-                                <IconButton size="small" color="error" onClick={() => removeAsset(asset)} sx={{ opacity: 0.7, '&:hover': { opacity: 1 } }}>
+                                <IconButton size="small" color="error" onClick={() => removeAsset(asset)}>
                                     <Delete fontSize="small" />
                                 </IconButton>
                             </Box>
@@ -177,13 +190,28 @@ const LabControls = ({
 
             {/* 3. STRATEGY PARAMS */}
             <GlassCard sx={{ p: 2 }}>
-                <SectionHeader icon={<Tune />} title="Parameters" subtitle="Entry Logic" />
+                <SectionHeader icon={<Tune />} title="Entry Filters" subtitle="Signal Logic" />
                 <Grid container spacing={2}>
                     <Grid item xs={6}>
-                        <TextField label="Min ADX" type="number" fullWidth size="small" value={config.minAdx} onChange={(e) => updateConfig('minAdx', e.target.value)} />
+                        <TextField 
+                            label="Min ADX" 
+                            type="number" 
+                            fullWidth 
+                            size="small" 
+                            value={config.minAdx} 
+                            onChange={(e) => updateConfig('minAdx', e.target.value)} 
+                        />
                     </Grid>
                     <Grid item xs={6}>
-                        <TextField label="Max RSI" type="number" fullWidth size="small" value={config.maxRsi} onChange={(e) => updateConfig('maxRsi', e.target.value)} />
+                        <TextField 
+                            label="RSI Overbought" 
+                            type="number" 
+                            fullWidth 
+                            size="small" 
+                            value={config.rsiOverbought} 
+                            onChange={(e) => updateConfig('rsiOverbought', e.target.value)}
+                            helperText="Block entry above"
+                        />
                     </Grid>
                     <Grid item xs={12}>
                         <Box display="flex" alignItems="center" justifyContent="space-between" p={1} border={1} borderColor="divider" borderRadius={1} bgcolor={config.burstMode ? alpha(theme.palette.warning.main, 0.1) : 'transparent'}>
@@ -197,21 +225,265 @@ const LabControls = ({
                             <Switch size="small" checked={config.burstMode} onChange={(e) => updateConfig('burstMode', e.target.checked)} color="warning" />
                         </Box>
                     </Grid>
+                </Grid>
+                
+                {/* Continuation Entry Toggle */}
+                <Divider sx={{ my: 2 }} />
+                <Box 
+                    display="flex" 
+                    alignItems="center" 
+                    justifyContent="space-between" 
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    sx={{ cursor: 'pointer' }}
+                >
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <TrendingUp fontSize="small" color="primary" />
+                        <Box>
+                            <Typography variant="body2" fontWeight="bold" fontSize="0.8rem">Continuation Entry</Typography>
+                            <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
+                                {config.enableContinuationEntry ? 'Enabled' : 'Disabled'}
+                            </Typography>
+                        </Box>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Switch 
+                            size="small" 
+                            checked={config.enableContinuationEntry} 
+                            onChange={(e) => {
+                                e.stopPropagation();
+                                updateConfig('enableContinuationEntry', e.target.checked);
+                            }} 
+                        />
+                        {showAdvanced ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+                    </Box>
+                </Box>
+                
+                <Collapse in={showAdvanced && config.enableContinuationEntry}>
+                    <Box mt={2} pl={2} borderLeft={2} borderColor="primary.main">
+                        <Grid container spacing={2}>
+                            <Grid item xs={6}>
+                                <TextField 
+                                    label="Cont. RSI" 
+                                    type="number" 
+                                    fullWidth 
+                                    size="small" 
+                                    value={config.continuationRsiThreshold} 
+                                    onChange={(e) => updateConfig('continuationRsiThreshold', parseFloat(e.target.value))}
+                                    helperText="Must drop below"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Window</Typography>
+                                    <Stack direction="row" alignItems="center" spacing={1}>
+                                        <Slider
+                                            value={msToHours(config.continuationWindowMs || 14400000)}
+                                            min={1}
+                                            max={12}
+                                            step={0.5}
+                                            onChange={(_, v) => updateConfig('continuationWindowMs', hoursToMs(v))}
+                                            size="small"
+                                        />
+                                        <Chip label={`${msToHours(config.continuationWindowMs || 14400000)}h`} size="small" />
+                                    </Stack>
+                                </Box>
+                            </Grid>
+                            <Grid item xs={12}>
+                                <Typography variant="caption" color="text.secondary">Max Price Deviation</Typography>
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                    <Slider
+                                        value={(config.continuationMaxPriceDeviation || 0.03) * 100}
+                                        min={1}
+                                        max={10}
+                                        step={0.5}
+                                        onChange={(_, v) => updateConfig('continuationMaxPriceDeviation', v / 100)}
+                                        size="small"
+                                    />
+                                    <Chip label={`${((config.continuationMaxPriceDeviation || 0.03) * 100).toFixed(1)}%`} size="small" />
+                                </Stack>
+                            </Grid>
+                        </Grid>
+                    </Box>
+                </Collapse>
+            </GlassCard>
+
+            {/* 4. RISK MANAGEMENT */}
+            <GlassCard sx={{ p: 2 }}>
+                <SectionHeader icon={<Security />} title="Risk" subtitle="Stops & Exposure" />
+                <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Stop Type</InputLabel>
+                            <Select 
+                                value={config.stopLossType || 'FIXED'} 
+                                label="Stop Type"
+                                onChange={(e) => updateConfig('stopLossType', e.target.value)}
+                            >
+                                <MenuItem value="FIXED">Fixed %</MenuItem>
+                                <MenuItem value="ATR">ATR-Based</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={6}>
+                        {config.stopLossType === 'ATR' ? (
+                            <TextField 
+                                label="ATR Multiplier" 
+                                type="number" 
+                                fullWidth 
+                                size="small" 
+                                value={config.stopLossATR} 
+                                onChange={(e) => updateConfig('stopLossATR', parseFloat(e.target.value))}
+                                inputProps={{ step: 0.1 }}
+                            />
+                        ) : (
+                            <TextField 
+                                label="Stop Loss %" 
+                                type="number" 
+                                fullWidth 
+                                size="small" 
+                                value={config.stopLoss} 
+                                onChange={(e) => updateConfig('stopLoss', parseFloat(e.target.value))}
+                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                            />
+                        )}
+                    </Grid>
                     <Grid item xs={12}>
-                        <Typography variant="caption" gutterBottom>Hard Stop Loss ({config.stopLoss}%)</Typography>
-                        <Slider value={parseFloat(config.stopLoss)} min={0.5} max={10} step={0.1} onChange={(_, v) => updateConfig('stopLoss', v)} size="small" />
+                        <Box display="flex" alignItems="center" justifyContent="space-between" p={1} border={1} borderColor="divider" borderRadius={1}>
+                            <Box>
+                                <Typography variant="body2" fontWeight="bold" fontSize="0.8rem">Trailing Stop</Typography>
+                                <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
+                                    {config.enableTrailingStops ? `${(config.trailingStopPercent * 100).toFixed(1)}% distance` : 'Disabled'}
+                                </Typography>
+                            </Box>
+                            <Switch 
+                                size="small" 
+                                checked={config.enableTrailingStops} 
+                                onChange={(e) => updateConfig('enableTrailingStops', e.target.checked)} 
+                            />
+                        </Box>
+                        {config.enableTrailingStops && (
+                            <Slider
+                                value={config.trailingStopPercent * 100}
+                                min={0.5}
+                                max={10}
+                                step={0.1}
+                                onChange={(_, v) => updateConfig('trailingStopPercent', v / 100)}
+                                size="small"
+                                sx={{ mt: 1 }}
+                            />
+                        )}
+                    </Grid>
+                    <Grid item xs={12}>
+                        <Typography variant="caption" color="text.secondary">Max Exposure: {((config.maxPortfolioExposure || 0.95) * 100).toFixed(0)}%</Typography>
+                        <Slider
+                            value={(config.maxPortfolioExposure || 0.95) * 100}
+                            min={50}
+                            max={100}
+                            step={5}
+                            onChange={(_, v) => updateConfig('maxPortfolioExposure', v / 100)}
+                            size="small"
+                        />
                     </Grid>
                 </Grid>
             </GlassCard>
 
-            {/* 4. SIMULATION SETTINGS */}
+            {/* 5. SIMULATION REALISM */}
+            <GlassCard sx={{ p: 2 }}>
+                <Box 
+                    display="flex" 
+                    alignItems="center" 
+                    justifyContent="space-between"
+                    onClick={() => setShowRealism(!showRealism)}
+                    sx={{ cursor: 'pointer' }}
+                >
+                    <SectionHeader icon={<AttachMoney />} title="Realism" subtitle="Fees & Slippage" />
+                    {showRealism ? <ExpandLess /> : <ExpandMore />}
+                </Box>
+                
+                <Collapse in={showRealism}>
+                    <Grid container spacing={2} mt={1}>
+                        <Grid item xs={12}>
+                            <FormControl fullWidth size="small">
+                                <InputLabel>Fee Tier</InputLabel>
+                                <Select 
+                                    value={config.feeTier || 'bnb_discount'} 
+                                    label="Fee Tier"
+                                    onChange={(e) => updateConfig('feeTier', e.target.value)}
+                                >
+                                    {FEE_TIERS.map(tier => (
+                                        <MenuItem key={tier.value} value={tier.value}>{tier.label}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Box display="flex" alignItems="center" justifyContent="space-between" p={1} border={1} borderColor="divider" borderRadius={1}>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Speed fontSize="small" color={config.enableSlippage ? "primary" : "disabled"} />
+                                    <Box>
+                                        <Typography variant="body2" fontWeight="bold" fontSize="0.8rem">Slippage</Typography>
+                                        <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
+                                            {config.enableSlippage ? `Up to ${(config.slippagePct * 100).toFixed(2)}%` : 'Disabled'}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                                <Switch 
+                                    size="small" 
+                                    checked={config.enableSlippage} 
+                                    onChange={(e) => updateConfig('enableSlippage', e.target.checked)} 
+                                />
+                            </Box>
+                        </Grid>
+                        {config.enableSlippage && (
+                            <Grid item xs={12}>
+                                <Typography variant="caption" color="text.secondary">Max Slippage</Typography>
+                                <Slider
+                                    value={config.slippagePct * 100}
+                                    min={0.01}
+                                    max={0.2}
+                                    step={0.01}
+                                    onChange={(_, v) => updateConfig('slippagePct', v / 100)}
+                                    size="small"
+                                    valueLabelDisplay="auto"
+                                    valueLabelFormat={(v) => `${v.toFixed(2)}%`}
+                                />
+                            </Grid>
+                        )}
+                    </Grid>
+                </Collapse>
+            </GlassCard>
+
+            {/* 6. SIMULATION SETTINGS */}
             <GlassCard sx={{ p: 2 }}>
                 <SectionHeader icon={<Science />} title="Environment" subtitle="Sim Settings" />
                 <Box mb={2}>
                     <Typography variant="caption" gutterBottom>Duration: {config.days} Days</Typography>
                     <Slider value={config.days} min={7} max={120} onChange={(_, v) => updateConfig('days', v)} size="small" />
                 </Box>
-                <TextField label="Start Balance ($)" type="number" fullWidth size="small" value={config.balance} onChange={(e) => updateConfig('balance', e.target.value)} />
+                <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                        <TextField 
+                            label="Balance" 
+                            type="number" 
+                            fullWidth 
+                            size="small" 
+                            value={config.balance} 
+                            onChange={(e) => updateConfig('balance', e.target.value)}
+                            InputProps={{ startAdornment: <InputAdornment position="start">$</InputAdornment> }}
+                        />
+                    </Grid>
+                    <Grid item xs={6}>
+                        <TextField 
+                            label="Risk/Trade" 
+                            type="number" 
+                            fullWidth 
+                            size="small" 
+                            value={(config.riskPerTrade * 100).toFixed(0)} 
+                            onChange={(e) => updateConfig('riskPerTrade', parseFloat(e.target.value) / 100)}
+                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                        />
+                    </Grid>
+                </Grid>
             </GlassCard>
 
         </Stack>

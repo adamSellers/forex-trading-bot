@@ -1,10 +1,13 @@
-// frontend/src/components/lab/LabStates.jsx
+// frontend/src/components/lab/LabStates.jsx - V3.2.6 UPDATE
 import React from 'react';
-import { Box, Typography, LinearProgress, CircularProgress, Avatar, Stack, alpha, useTheme } from '@mui/material';
-import { Science, AutoMode, Memory, HourglassEmpty } from '@mui/icons-material';
+import { 
+    Box, Typography, LinearProgress, CircularProgress, Avatar, 
+    Stack, alpha, useTheme, Button 
+} from '@mui/material';
+import { Science, AutoMode, Memory, Cancel } from '@mui/icons-material';
 import { GlassCard } from '../dashboard/Shared';
 
-export const LoadingState = ({ message, percent, isOptimizing }) => {
+export const LoadingState = ({ message, percent, isOptimizing, onCancel }) => {
     const theme = useTheme();
     const activeColor = isOptimizing ? theme.palette.secondary.main : theme.palette.primary.main;
 
@@ -37,7 +40,11 @@ export const LoadingState = ({ message, percent, isOptimizing }) => {
                         border: `1px solid ${alpha(activeColor, 0.3)}`
                     }}
                 >
-                    {isOptimizing ? <AutoMode fontSize="large" sx={{ animation: 'spin 4s linear infinite' }} /> : <Science fontSize="large" />}
+                    {isOptimizing ? (
+                        <AutoMode fontSize="large" sx={{ animation: 'spin 4s linear infinite' }} />
+                    ) : (
+                        <Science fontSize="large" />
+                    )}
                 </Avatar>
             </Box>
 
@@ -97,6 +104,20 @@ export const LoadingState = ({ message, percent, isOptimizing }) => {
                 </Stack>
             )}
 
+            {/* 6. Cancel Button */}
+            {onCancel && (
+                <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    startIcon={<Cancel />}
+                    onClick={onCancel}
+                    sx={{ mt: 3 }}
+                >
+                    Cancel
+                </Button>
+            )}
+
         </GlassCard>
     );
 };
@@ -107,8 +128,11 @@ export const EmptyState = () => {
         <GlassCard sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, opacity: 0.6 }}>
             <Science sx={{ fontSize: 80, mb: 2, color: theme.palette.text.disabled }} />
             <Typography variant="h5" fontWeight="900" color="text.secondary">READY TO SIMULATE</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: 'center', maxWidth: 400 }}>
                 Configure parameters manually or use <Box component="span" fontWeight="bold" color="secondary.main">Auto-Optimize</Box>
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, opacity: 0.7 }}>
+                v3.2.6 • Live Parity Mode • Fees & Slippage Simulation
             </Typography>
         </GlassCard>
     );

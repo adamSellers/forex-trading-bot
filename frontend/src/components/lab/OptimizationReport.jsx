@@ -1,11 +1,14 @@
-// frontend/src/components/lab/OptimizationReport.jsx
+// frontend/src/components/lab/OptimizationReport.jsx - V3.2.6 UPDATE
 import React from 'react';
 import { 
     Box, Typography, Grid, Button, Table, TableBody, TableCell, 
     TableContainer, TableHead, TableRow, Avatar, Chip, 
     useTheme, alpha, Tooltip, Stack 
 } from '@mui/material';
-import { EmojiEvents, CheckCircle, Info, PieChart } from '@mui/icons-material';
+import { 
+    EmojiEvents, CheckCircle, Info, PieChart, 
+    AttachMoney, Repeat, TrendingUp 
+} from '@mui/icons-material';
 import { LineChart } from '@mui/x-charts';
 import { GlassCard } from '../dashboard/Shared';
 
@@ -16,6 +19,9 @@ const OptimizationReport = ({ report, onApply }) => {
     // Calculate the split percentage (e.g., 4 assets = 25%)
     const assetCount = optimizedPortfolio.assets.length;
     const splitPercent = Math.round(100 / Math.max(assetCount, 1));
+    
+    // Check if we have new stats (V3.2.6)
+    const hasNewStats = optimizedPortfolio.stats.totalFees !== undefined;
 
     return (
         <GlassCard>
@@ -27,7 +33,10 @@ const OptimizationReport = ({ report, onApply }) => {
                     </Avatar>
                     <Box>
                         <Typography variant="h6" fontWeight="bold" lineHeight={1.2}>GENETIC OPTIMIZATION REPORT</Typography>
-                        <Typography variant="caption" color="text.secondary">Found {rankedAssets.length} profitable candidates from universe</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            Found {rankedAssets.length} profitable candidates from universe
+                            {hasNewStats && ' • Live Parity Mode'}
+                        </Typography>
                     </Box>
                 </Box>
                 <Button 
@@ -73,7 +82,9 @@ const OptimizationReport = ({ report, onApply }) => {
                                         <TableCell sx={{ fontWeight: 'bold' }}>#{idx + 1}</TableCell>
                                         <TableCell sx={{ fontWeight: 'bold' }}>{row.symbol.replace('USDT','')}</TableCell>
                                         <TableCell align="right">{row.score.toFixed(1)}</TableCell>
-                                        <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'bold' }}>${row.pnl.toFixed(0)}</TableCell>
+                                        <TableCell align="right" sx={{ color: row.pnl > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+                                            ${row.pnl.toFixed(0)}
+                                        </TableCell>
                                         <TableCell align="right">{row.winRate.toFixed(0)}%</TableCell>
                                     </TableRow>
                                 ))}
@@ -110,6 +121,34 @@ const OptimizationReport = ({ report, onApply }) => {
                                     {optimizedPortfolio.stats.winRate.toFixed(1)}%
                                 </Typography>
                             </Grid>
+                            
+                            {/* New Stats Row (V3.2.6) */}
+                            {hasNewStats && (
+                                <>
+                                    <Grid item xs={6}>
+                                        <Stack direction="row" alignItems="center" gap={0.5}>
+                                            <AttachMoney fontSize="small" color="action" />
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary">Total Fees</Typography>
+                                                <Typography variant="body1" fontWeight="bold">
+                                                    ${optimizedPortfolio.stats.totalFees?.toFixed(2) || '0.00'}
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Stack direction="row" alignItems="center" gap={0.5}>
+                                            <Repeat fontSize="small" color="action" />
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary">Continuation</Typography>
+                                                <Typography variant="body1" fontWeight="bold">
+                                                    {optimizedPortfolio.stats.continuationTrades || 0} trades
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Grid>
+                                </>
+                            )}
                             
                             <Grid item xs={12}>
                                 <Stack direction="row" spacing={1} alignItems="center" mb={1}>
@@ -150,6 +189,42 @@ const OptimizationReport = ({ report, onApply }) => {
                     </Box>
                 </Grid>
             </Grid>
+            
+            {/* Config Used Badge */}
+            {report.configUsed && (
+                <Box mt={3} pt={2} borderTop={1} borderColor="divider">
+                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                        <Typography variant="caption" color="text.secondary">Simulation Config:</Typography>
+                        {report.configUsed.feeTier && (
+                            <Chip 
+                                icon={<AttachMoney sx={{ fontSize: '14px !important' }} />}
+                                label={report.configUsed.feeTier.replace('_', ' ')}
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 22 }}
+                            />
+                        )}
+                        {report.configUsed.slippageEnabled && (
+                            <Chip 
+                                label={`Slippage: ${(report.configUsed.slippagePct * 100).toFixed(2)}%`}
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 22 }}
+                            />
+                        )}
+                        {report.configUsed.continuationEnabled && (
+                            <Chip 
+                                icon={<Repeat sx={{ fontSize: '14px !important' }} />}
+                                label="Continuation ON"
+                                size="small"
+                                color="info"
+                                variant="outlined"
+                                sx={{ height: 22 }}
+                            />
+                        )}
+                    </Stack>
+                </Box>
+            )}
         </GlassCard>
     );
 };

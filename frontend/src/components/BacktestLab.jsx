@@ -1,6 +1,6 @@
-// frontend/src/components/BacktestLab.jsx
+// frontend/src/components/BacktestLab.jsx - V3.2.6 LIVE PARITY UPDATE
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Grid, Alert, AlertTitle, useTheme, Container } from '@mui/material';
+import { Box, Typography, Grid, Alert, AlertTitle, useTheme } from '@mui/material';
 import { socket } from '../config/api';
 
 // --- SUB-COMPONENTS ---
@@ -19,25 +19,68 @@ const BacktestLab = () => {
     const [optimizationReport, setOptimizationReport] = useState(null);
     const [error, setError] = useState(null);
 
-    // --- CONFIG STATE ---
+    // --- CONFIG STATE (V3.2.6 - Matches Live Trading) ---
     const [config, setConfig] = useState({
-        minAdx: 25, maxRsi: 70, stopLoss: 2.0, riskPerTrade: 0.95,
-        balance: 1000, days: 30, burstMode: false,
-        assets: ['BTCUSDT', 'ETHUSDT'], weights: { 'BTCUSDT': 50, 'ETHUSDT': 50 } 
+        // Entry Filters (match signalGenerator.js)
+        minAdx: 25,
+        rsiOverbought: 75,  // FIX: Was maxRsi: 70
+        
+        // Position Sizing (match LiveTradingEngine.js)
+        balance: 1000,
+        riskPerTrade: 0.98,  // FIX: Was 0.95
+        
+        // Stop Loss
+        stopLossType: 'FIXED',
+        stopLoss: 2.0,
+        stopLossATR: 1.5,
+        
+        // Trailing Stops
+        enableTrailingStops: false,
+        trailingStopPercent: 0.03,
+        
+        // FIX #6: Exposure Cap (NEW)
+        maxPortfolioExposure: 0.95,
+        
+        // FIX #6: Continuation Entry (NEW)
+        enableContinuationEntry: true,
+        continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
+        continuationRsiThreshold: 70,
+        continuationMaxPriceDeviation: 0.03,
+        
+        // FIX #6: Fee & Slippage Simulation (NEW)
+        feeTier: 'bnb_discount',
+        enableSlippage: true,
+        slippagePct: 0.0005,  // 0.05%
+        
+        // Simulation Settings
+        days: 30,
+        burstMode: false,
+        
+        // Portfolio
+        assets: ['BTCUSDT', 'ETHUSDT'],
+        weights: { 'BTCUSDT': 50, 'ETHUSDT': 50 }
     });
 
     // --- WEBSOCKET LISTENERS ---
     useEffect(() => {
         const onProgress = (data) => setProgress(data);
         const onComplete = (data) => {
-            setResults(data); setOptimizationReport(null); setRunning(false);
+            setResults(data);
+            setOptimizationReport(null);
+            setRunning(false);
             setProgress({ percent: 100, message: 'Simulation Complete' });
         };
         const onOptComplete = (data) => {
-            setOptimizationReport(data); setResults(null); setOptimizing(false);
+            setOptimizationReport(data);
+            setResults(null);
+            setOptimizing(false);
             setProgress({ percent: 100, message: 'Optimization Complete' });
         };
-        const onError = (err) => { setError(err.message); setRunning(false); setOptimizing(false); };
+        const onError = (err) => {
+            setError(err.message);
+            setRunning(false);
+            setOptimizing(false);
+        };
 
         socket.on('simulation_progress', onProgress);
         socket.on('simulation_complete', onComplete);
@@ -58,15 +101,30 @@ const BacktestLab = () => {
 
     // --- HANDLERS ---
     const handleRun = (forceRebuild = false) => {
-        setRunning(true); setOptimizing(false); setResults(null); setOptimizationReport(null); setError(null);
+        setRunning(true);
+        setOptimizing(false);
+        setResults(null);
+        setOptimizationReport(null);
+        setError(null);
         setProgress({ percent: 0, message: forceRebuild ? 'Reinitializing Data...' : 'Initializing Worker...' });
         socket.emit('start_simulation', { ...config, forceRebuild });
     };
 
     const handleOptimize = () => {
-        setOptimizing(true); setRunning(false); setResults(null); setOptimizationReport(null); setError(null);
+        setOptimizing(true);
+        setRunning(false);
+        setResults(null);
+        setOptimizationReport(null);
+        setError(null);
         setProgress({ percent: 0, message: 'Booting Genetic Screener...' });
         socket.emit('start_optimization', { ...config });
+    };
+    
+    const handleCancel = () => {
+        socket.emit('cancel_optimization');
+        setOptimizing(false);
+        setRunning(false);
+        setProgress({ percent: 0, message: '' });
     };
 
     const applyOptimizedConfig = () => {
@@ -86,13 +144,15 @@ const BacktestLab = () => {
         if (!a || config.assets.includes(a)) return;
         const newAssets = [...config.assets, a];
         const w = parseFloat((100 / newAssets.length).toFixed(1));
-        const newWeights = {}; newAssets.forEach(as => newWeights[as] = w);
+        const newWeights = {};
+        newAssets.forEach(as => newWeights[as] = w);
         setConfig(p => ({ ...p, assets: newAssets, weights: newWeights }));
     };
 
     const removeAsset = (a) => {
         const newAssets = config.assets.filter(as => as !== a);
-        const newWeights = { ...config.weights }; delete newWeights[a];
+        const newWeights = { ...config.weights };
+        delete newWeights[a];
         setConfig(p => ({ ...p, assets: newAssets, weights: newWeights }));
     };
 
@@ -107,31 +167,55 @@ const BacktestLab = () => {
         >
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
                 <Box>
-                    <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span></Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>ISOLATED SIMULATION ENVIRONMENT • 15M TIMEFRAME</Typography>
+                    <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
+                        STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
+                        ISOLATED SIMULATION • LIVE PARITY MODE • 15M TIMEFRAME
+                    </Typography>
                 </Box>
             </Box>
 
             <Grid container spacing={3} sx={{ width: '100%', m: 0 }}>
                 <Grid item xs={12} md={4} lg={3} sx={{ pl: '0 !important', pt: '0 !important' }}>
                     <LabControls 
-                        config={config} updateConfig={updateConfig} updateWeight={updateWeight}
-                        addAsset={addAsset} removeAsset={removeAsset}
-                        onRun={handleRun} onOptimize={handleOptimize}
-                        running={running} optimizing={optimizing}
+                        config={config}
+                        updateConfig={updateConfig}
+                        updateWeight={updateWeight}
+                        addAsset={addAsset}
+                        removeAsset={removeAsset}
+                        onRun={handleRun}
+                        onOptimize={handleOptimize}
+                        onCancel={handleCancel}
+                        running={running}
+                        optimizing={optimizing}
                     />
                 </Grid>
                 
                 <Grid item xs={12} md={8} lg={9} sx={{ pt: '0 !important' }}>
-                     {error && <Alert severity="error" sx={{ mb: 2 }}><AlertTitle>Error</AlertTitle>{error}</Alert>}
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                            <AlertTitle>Error</AlertTitle>
+                            {error}
+                        </Alert>
+                    )}
                      
-                     {(running || optimizing) && <LoadingState message={progress.message} percent={progress.percent} isOptimizing={optimizing} />}
+                    {(running || optimizing) && (
+                        <LoadingState 
+                            message={progress.message} 
+                            percent={progress.percent} 
+                            isOptimizing={optimizing}
+                            onCancel={handleCancel}
+                        />
+                    )}
                      
-                     {!running && !optimizing && !results && !optimizationReport && <EmptyState />}
+                    {!running && !optimizing && !results && !optimizationReport && <EmptyState />}
                      
-                     {results && !optimizing && <SimulationReport results={results} />}
+                    {results && !optimizing && <SimulationReport results={results} />}
                      
-                     {optimizationReport && !running && <OptimizationReport report={optimizationReport} onApply={applyOptimizedConfig} />}
+                    {optimizationReport && !running && (
+                        <OptimizationReport report={optimizationReport} onApply={applyOptimizedConfig} />
+                    )}
                 </Grid>
             </Grid>
         </Box>
