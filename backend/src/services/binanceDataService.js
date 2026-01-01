@@ -206,9 +206,9 @@ class BinanceDataService extends EventEmitter {
             };
 
             if (side === "BUY") {
-                this.client.marketBuy(symbol, quantity, callback);
+                this.client.marketBuy(symbol, formattedQty, callback);
             } else {
-                this.client.marketSell(symbol, quantity, callback);
+                this.client.marketSell(symbol, formattedQty, callback);
             }
         });
     }
