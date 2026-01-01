@@ -184,17 +184,17 @@ class BinanceDataService extends EventEmitter {
         return (Math.floor(quantity / step) * step).toFixed(precision);
     }
 
-    // 2. Execution Wrapper
     async executeOrder(symbol, side, quantity) {
         return new Promise((resolve, reject) => {
-            const formattedQty = this.stepSize(symbol, quantity);
-            logger.info(`⚡ API EXECUTION: ${side} ${quantity} ${symbol}`);
+            // FIX: Apply stepSize precision to avoid "too much precision" error
+            const formattedQty = parseFloat(this.stepSize(symbol, quantity));
+            logger.info(
+                `⚡ API EXECUTION: ${side} ${formattedQty} ${symbol} (raw: ${quantity})`
+            );
 
             // Simple Market Order for Reliability
-            // (Limit orders can get stuck or expire, Market guarantees entry for this strategy)
             const callback = (error, response) => {
                 if (error) {
-                    // Extract clean error message from Binance JSON
                     const msg = error.body
                         ? JSON.parse(error.body).msg
                         : error.message;
