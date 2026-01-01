@@ -187,6 +187,7 @@ class BinanceDataService extends EventEmitter {
     // 2. Execution Wrapper
     async executeOrder(symbol, side, quantity) {
         return new Promise((resolve, reject) => {
+            const formattedQty = this.stepSize(symbol, quantity);
             logger.info(`⚡ API EXECUTION: ${side} ${quantity} ${symbol}`);
 
             // Simple Market Order for Reliability
