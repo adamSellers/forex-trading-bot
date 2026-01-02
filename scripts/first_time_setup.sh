@@ -10,7 +10,7 @@ set -e
 APP_NAME="forex-backend"
 PROJECT_DIR="/opt/forex-trading-bot"
 PROJECT_USER=$(whoami)
-REPO_URL="git@github.com:adamSellers/forex-trend-bot.git"
+REPO_URL="git@github.com:adamSellers/forex-trading-bot.git"
 BRANCH="main"
 
 # --- Colors ---
