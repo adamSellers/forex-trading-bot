@@ -1,19 +1,29 @@
 # Forex Trend-Following Trading Bot
 
-A professional Forex trading bot using the **SuperTrend + ADX Momentum** strategy, built for deployment on a Raspberry Pi alongside an existing crypto trading bot. Features a real-time React dashboard, comprehensive analytics, and integration with Oanda's REST v20 API.
+A professional Forex trading bot using the **SuperTrend + ADX Momentum** strategy, built for deployment on a Raspberry Pi alongside an existing crypto trading bot. Features a real-time React dashboard, comprehensive analytics, live trading engine, and integration with Oanda's REST v20 API.
 
-![Status](https://img.shields.io/badge/Phase%201-Complete-success) ![Status](https://img.shields.io/badge/Phase%202-In%20Progress-yellow) ![Node](https://img.shields.io/badge/Node-18%2B-green) ![License](https://img.shields.io/badge/License-MIT-blue)
+![Status](https://img.shields.io/badge/Phase%202-Complete-success) ![Status](https://img.shields.io/badge/Phase%203-In%20Progress-yellow) ![Node](https://img.shields.io/badge/Node-18%2B-green) ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ---
 
 ## 🎯 Features
 
-### Trading
+### Trading Engine
 
+-   **LiveTradingEngine**: Fully automated trade execution based on signals
 -   **SuperTrend + ADX Strategy**: Trend-following approach optimized for Forex markets
 -   **Multiple Pairs**: AUD/USD, EUR/USD, GBP/USD, USD/JPY
 -   **Oanda Integration**: Live trading via REST v20 API (ASIC regulated)
--   **Risk Management**: Pip-based stops, ATR-based position sizing, leverage limits
+-   **Paper & Live Modes**: Test strategies without risking real capital
+
+### Risk Management
+
+-   **ATR-Based Stop Loss**: Dynamic stops that adapt to market volatility
+-   **Trailing Stops**: Lock in profits as price moves in your favor
+-   **Risk-Based Position Sizing**: Consistent risk per trade (default 2%)
+-   **Leverage Limits**: Enforces ASIC 30:1 max (configurable, default 10:1)
+-   **Max Position Limits**: Cap on concurrent open trades
+-   **Negative Balance Protection**: ASIC-mandated retail client protection
 
 ### Dashboard
 
@@ -22,12 +32,13 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   **Portfolio Tracking**: Live positions, P/L, margin usage
 -   **Performance Analytics**: Win rate, profit factor, Sharpe ratio, equity curves
 -   **System Health**: Service status, API latency, memory monitoring
+-   **Trading Sessions**: Visual session indicators with best trading windows
 
 ### Architecture
 
 -   **Backend**: Node.js + Express + Socket.IO
 -   **Frontend**: React 18 + Material UI + Recharts
--   **Database**: SQLite via better-sqlite3 + Knex
+-   **Database**: SQLite via Knex.js
 -   **Deployment**: PM2 process management
 
 ---
@@ -49,21 +60,28 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] Analytics with server-side metrics
 -   [x] System health monitoring
 
-### Phase 2: Core Trading 🔄 IN PROGRESS
+### Phase 2: Core Trading ✅ COMPLETE
 
--   [ ] LiveTradingEngine implementation
--   [ ] Position sizing (risk-based + fixed units)
--   [ ] Pip-based stop loss / take profit
--   [ ] Trade execution via Oanda API
--   [ ] Trailing stop implementation
--   [ ] Trade logging to database
+-   [x] LiveTradingEngine implementation
+-   [x] Position sizing (risk-based + fixed units)
+-   [x] Pip-based stop loss calculation
+-   [x] ATR-based dynamic stop loss
+-   [x] Trade execution via Oanda API
+-   [x] Paper trading mode support
+-   [x] Trade logging to database
+-   [x] Socket broadcast of trade events
+-   [x] Engine status API endpoints
+-   [x] Graceful shutdown handling
+-   [x] Trailing stop implementation
+-   [x] Trading session filter
 
-### Phase 3: Production (Planned)
+### Phase 3: Production 🔄 IN PROGRESS
 
+-   [x] Live trading activation
+-   [x] Trading session filters
 -   [ ] PM2 deployment alongside crypto bot
--   [ ] Performance tracking
--   [ ] Error handling + recovery
--   [ ] Email notifications
+-   [ ] Email notifications for trades
+-   [ ] Extended monitoring period
 
 ### Phase 4: Backtesting (Planned)
 
@@ -92,12 +110,14 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 │       ├── services/
 │       │   ├── configService.js      # Config + persistence
 │       │   ├── OandaDataService.js   # Price/candle fetching
+│       │   ├── Oandaclient.js        # Oanda API wrapper
 │       │   ├── signalGenerator.js    # SuperTrend + ADX signals
 │       │   ├── analyticsService.js   # Performance metrics
-│       │   └── LiveTradingEngine.js  # Trade execution (Phase 2)
+│       │   └── LiveTradingEngine.js  # ✅ Trade execution engine
 │       ├── repositories/
 │       │   ├── tradeRepository.js    # Trade CRUD
-│       │   └── signalRepository.js   # Signal history
+│       │   ├── signalRepository.js   # Signal history
+│       │   └── portfolioRepository.js
 │       └── utils/
 │           └── logger.js             # Logging utility
 │
@@ -118,26 +138,13 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 │           ├── SystemHealth.jsx      # Service monitoring
 │           ├── TradingConfig.jsx     # Settings panel
 │           ├── dashboard/            # Dashboard widgets
-│           │   ├── Shared.jsx
-│           │   ├── StatCards.jsx
-│           │   ├── LivePrices.jsx
-│           │   ├── LivePriceChart.jsx
-│           │   ├── TradingSignals.jsx
-│           │   ├── CurrentHoldings.jsx
-│           │   └── RecentTrades.jsx
 │           ├── analytics/            # Analytics widgets
-│           │   ├── EquityChart.jsx
-│           │   ├── PairPerformance.jsx
-│           │   └── StrategyWidgets.jsx
 │           └── config/               # Config widgets
-│               ├── GeneralSettings.jsx
-│               ├── StrategySettings.jsx
-│               ├── RiskSettings.jsx
-│               ├── InstrumentSettings.jsx
-│               └── NotificationSettings.jsx
 │
-└── migrations/
-    └── 001_create_forex_tables.js    # Database schema
+├── migrations/
+│   └── 001_create_forex_tables.js    # Database schema
+│
+└── USER_GUIDE.md                     # Comprehensive user documentation
 ```
 
 ### Dual-Bot Deployment
@@ -205,20 +212,19 @@ cd frontend && npm run dev
 
 Open http://localhost:3100 to view the dashboard.
 
-### 5. Test Endpoints
+### 5. Enable Trading
 
 ```bash
-# Health check
-curl http://localhost:3101/api/health
+# Check engine status
+curl http://localhost:3101/api/engine/status
 
-# Live prices
-curl http://localhost:3101/api/prices
+# Enable trading (paper mode by default)
+curl -X POST http://localhost:3101/api/trading/start
 
-# Current signals
-curl http://localhost:3101/api/signals
-
-# System health
-curl http://localhost:3101/api/system/health
+# Or set to live mode first
+curl -X POST http://localhost:3101/api/config \
+  -H "Content-Type: application/json" \
+  -d '{"tradingMode": "live"}'
 ```
 
 ---
@@ -245,58 +251,107 @@ curl http://localhost:3101/api/system/health
 
 ### Trading
 
-| Method | Endpoint               | Description                 |
-| ------ | ---------------------- | --------------------------- |
-| GET    | `/api/trades`          | Trade history from database |
-| POST   | `/api/trade/close/:id` | Force close a position      |
-| POST   | `/api/trading/start`   | Enable trading engine       |
-| POST   | `/api/trading/stop`    | Disable trading engine      |
-| POST   | `/api/trading/reset`   | Reset signal generator      |
+| Method | Endpoint               | Description                   |
+| ------ | ---------------------- | ----------------------------- |
+| GET    | `/api/trades`          | Trade history from database   |
+| POST   | `/api/trade/close/:id` | Force close a position        |
+| POST   | `/api/trading/start`   | Enable trading (sets config)  |
+| POST   | `/api/trading/stop`    | Disable trading (sets config) |
+| POST   | `/api/trading/reset`   | Reset signal generator state  |
+
+### Engine Control
+
+| Method | Endpoint                     | Description                       |
+| ------ | ---------------------------- | --------------------------------- |
+| GET    | `/api/engine/status`         | Engine status, stats, open trades |
+| GET    | `/api/engine/stats`          | Detailed statistics               |
+| GET    | `/api/engine/trades`         | Open trades tracked by engine     |
+| POST   | `/api/engine/close/:tradeId` | Close specific trade via engine   |
+| POST   | `/api/engine/sync`           | Sync engine with Oanda positions  |
+| POST   | `/api/engine/reset-stats`    | Reset engine statistics           |
 
 ### Configuration
 
-| Method | Endpoint            | Description          |
-| ------ | ------------------- | -------------------- |
-| GET    | `/api/config`       | Full configuration   |
-| POST   | `/api/config`       | Update configuration |
-| POST   | `/api/config/reset` | Reset to defaults    |
+| Method | Endpoint            | Description        |
+| ------ | ------------------- | ------------------ |
+| GET    | `/api/config`       | Full config object |
+| POST   | `/api/config`       | Update config      |
+| POST   | `/api/config/reset` | Reset to defaults  |
 
 ### Analytics
 
-| Method | Endpoint                    | Description                       |
-| ------ | --------------------------- | --------------------------------- |
-| GET    | `/api/analytics?period=30d` | Comprehensive performance metrics |
+| Method | Endpoint                              | Description         |
+| ------ | ------------------------------------- | ------------------- |
+| GET    | `/api/analytics?period=30d&mode=live` | Performance metrics |
 
 ---
 
-## ⚙️ Configuration
+## 🔌 Socket.IO Events
 
-### Default Settings (`trading_config.json`)
+### Server → Client
 
-```json
+| Event             | Payload                    | Description          |
+| ----------------- | -------------------------- | -------------------- |
+| `priceUpdate`     | `{AUD_USD: {...}, ...}`    | Price updates (5s)   |
+| `signalUpdate`    | `[signals]`                | All signals batch    |
+| `signalGenerated` | `{signal}`                 | Individual signal    |
+| `configUpdate`    | `{config}`                 | Config changed       |
+| `engineStatus`    | `{isRunning, stats, ...}`  | Engine state changed |
+| `tradeOpened`     | `{tradeId, instrument...}` | Trade executed       |
+| `tradeClosed`     | `{tradeId, pnlAud, ...}`   | Trade closed         |
+
+---
+
+## ⚙️ Configuration Reference
+
+### Key Settings
+
+```javascript
 {
-    "enableTrading": false,
-    "tradingMode": "live",
-    "maxCapitalAtRisk": 500,
-    "maxOpenPositions": 2,
+  // Master Controls
+  enableTrading: false,        // Must be true to execute trades
+  tradingMode: 'paper',        // 'paper' or 'live'
 
-    "assets": ["AUD_USD", "EUR_USD", "GBP_USD", "USD_JPY"],
-    "timeframe": "15m",
+  // Position Limits
+  maxOpenPositions: 2,         // Max concurrent trades
+  maxCapitalAtRisk: 500,       // Max AUD per trade
 
-    "strategy": "supertrend_momentum",
-    "supertrendPeriod": 10,
-    "supertrendMultiplier": 3.0,
-    "minAdx": 22,
-    "rsiOverbought": 75,
-    "rsiOversold": 30,
+  // Instruments
+  assets: ['AUD_USD', 'EUR_USD'],
 
-    "riskPerTrade": 0.02,
-    "leverage": 10,
-    "stopLossType": "ATR",
-    "stopLossAtrMultiplier": 1.5,
-    "stopLossFixedPips": 30,
-    "enableTrailingStops": true,
-    "trailingStopPips": 25
+  // Strategy
+  strategy: 'supertrend_momentum',
+  timeframe: '15m',
+  supertrendPeriod: 10,
+  supertrendMultiplier: 3.0,
+  minAdx: 22,                  // Trend strength threshold
+  rsiOverbought: 75,
+  rsiOversold: 30,
+
+  // Continuation Entry
+  enableContinuationEntry: true,
+  continuationWindowMs: 14400000,  // 4 hours
+  continuationRsiThreshold: 70,
+
+  // Risk Management
+  riskPerTrade: 0.02,          // 2% account risk per trade
+  leverage: 10,
+  positionSizeMethod: 'RISK',  // 'RISK' or 'FIXED'
+  fixedPositionUnits: 1000,
+
+  // Stop Loss
+  stopLossType: 'ATR',         // 'ATR' or 'FIXED'
+  stopLossAtrMultiplier: 2.0,  // ATR × 2.0
+  stopLossPips: 30,            // For FIXED type
+
+  // Trailing Stops
+  enableTrailingStops: true,
+  trailingStopPips: 25,
+  trailingStopActivationPips: 20,
+
+  // Trading Sessions
+  enableSessionFilter: true,
+  activeSessions: ['sydney', 'tokyo', 'london', 'newyork'],
 }
 ```
 
@@ -330,10 +385,42 @@ curl http://localhost:3101/api/system/health
 
 3. **SELL Signal**:
 
-    - SuperTrend flips GREEN → RED
+    - SuperTrend flips GREEN → RED (exits long position)
 
 4. **HOLD**:
     - No conditions met
+
+### Signal Flow
+
+```
+Every 60 seconds:
+         │
+         ▼
+    SuperTrend Flipped? ──No──► HOLD
+         │ Yes
+         ▼
+    ADX ≥ 22? ──No──► REJECTED
+         │ Yes
+         ▼
+    RSI < 75? ──No──► Save as PENDING
+         │ Yes         │
+         ▼             ▼
+    ✅ BUY SIGNAL    Wait for RSI < 70
+         │             │
+         ▼             ▼
+    Execute Trade    ✅ CONTINUATION ENTRY
+```
+
+### Entry Validation
+
+Before executing a trade, the engine validates:
+
+-   `enableTrading === true`
+-   `openPositions < maxOpenPositions`
+-   Instrument is in `assets` array
+-   No existing position for this pair
+-   Signal ADX >= `minAdx`
+-   Within active trading session (if filter enabled)
 
 ### Trading Sessions (UTC)
 
@@ -347,96 +434,81 @@ curl http://localhost:3101/api/system/health
 
 ---
 
-## 🖥️ Dashboard Views
-
-### Dashboard Tab
-
--   **KPI Cards**: Balance, Daily P/L, Active Signals, Win Rate
--   **Holdings**: Open positions with live P/L
--   **Signals**: Current SuperTrend signals with ADX strength
--   **History**: Recent closed trades
--   **Chart**: Multi-pair price visualization
--   **Live Markets**: Sidebar with bid/ask/spread
-
-### Analytics Tab
-
--   **Performance KPIs**: Net profit, Win rate, Profit factor, Sharpe ratio
--   **Equity Chart**: Cumulative P/L curve + daily bars
--   **Signal Quality**: Filter breakdown (triggered vs filtered)
--   **Session Analysis**: Performance by trading session
--   **ADX Correlation**: Winner vs loser trend strength
--   **Exit Analysis**: Exit reason distribution
--   **Pair Performance**: Per-instrument breakdown
-
-### System Tab
-
--   **Status Banner**: Overall health (healthy/degraded)
--   **Service Status**: Oanda API, Data Service, Signal Generator
--   **Environment**: Uptime, Node version, platform
--   **Memory Usage**: Heap visualization
--   **Trading Telemetry**: Account balance, open positions, signal queue
--   **Raw Diagnostics**: Collapsible JSON logs
-
-### Settings Tab
-
--   **General**: Trading enable/disable, mode selection
--   **Strategy**: SuperTrend, ADX, RSI parameters
--   **Risk**: Position sizing, stop loss, trailing stops
--   **Instruments**: Active currency pairs
--   **Notifications**: Alert configuration
-
----
-
-## 🔌 Real-Time Data Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         BACKEND                                  │
-├─────────────────────────────────────────────────────────────────┤
-│  OandaDataService          SignalGenerator        ConfigService │
-│  (polls every 5s)          (runs every 60s)       (persists)    │
-│         │                        │                      │       │
-│         ▼                        ▼                      ▼       │
-│    emit('priceUpdate')    emit('signalGenerated')   emit()     │
-│         │                        │                      │       │
-│         └────────────┬───────────┴──────────────────────┘       │
-│                      ▼                                          │
-│               Socket.IO Server                                  │
-│         io.emit('priceUpdate', prices)                          │
-│         io.emit('signalUpdate', signals)                        │
-│         io.emit('configUpdate', config)                         │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-                               ▼ WebSocket
-┌─────────────────────────────────────────────────────────────────┐
-│                         FRONTEND                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  Navigation                                                     │
-│  └── [Dashboard] [Analytics] [System] [Settings]                │
-│                                                                 │
-│  TradingDashboard                                               │
-│  ├── socket.on('priceUpdate') → setPrices()                     │
-│  ├── socket.on('signalUpdate') → setLatestSignals()             │
-│  └── socket.on('configUpdate') → setSystemStatus()              │
-│                                                                 │
-│  Components read from state:                                    │
-│  ├── LivePrices ← prices                                        │
-│  ├── LivePriceChart ← prices + config.assets                    │
-│  ├── TradingSignals ← latestSignals                             │
-│  └── StatCards ← portfolio                                      │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
 ## 🛡️ Safety Features
 
--   **Leverage Cap**: Enforces ASIC 30:1 limit (defaults to 10:1)
--   **Exposure Limit**: Maximum portfolio exposure configurable
--   **Stop Loss Required**: Every trade requires a stop loss
--   **Kill Switch**: Master enable/disable in config
--   **Mode Toggle**: Live vs Paper trading
--   **Reconciliation**: Syncs with Oanda on startup
+| Feature                         | Description                                    |
+| ------------------------------- | ---------------------------------------------- |
+| **Trading Disabled by Default** | Must explicitly enable via config              |
+| **Paper Mode**                  | Test strategies without real money             |
+| **Position Limits**             | `maxOpenPositions` caps concurrent trades      |
+| **Capital Limits**              | `maxCapitalAtRisk` caps risk per trade         |
+| **Entry Validation**            | Multiple checks before every trade             |
+| **Signal Queue**                | Sequential processing prevents race conditions |
+| **Session Filter**              | Avoid low-liquidity trading periods            |
+| **ADX Filter**                  | Avoid choppy, trendless markets                |
+| **RSI Filter**                  | Avoid buying exhausted momentum                |
+| **Leverage Cap**                | Enforces ASIC 30:1 limit (default 10:1)        |
+| **Stop Loss Required**          | Every trade has a stop loss on Oanda           |
+| **Trailing Stops**              | Lock in profits automatically                  |
+| **Graceful Shutdown**           | Clean stop with 5s timeout                     |
+| **Oanda Sync**                  | Detects externally closed positions            |
+| **Negative Balance Protection** | ASIC-mandated, can't lose more than deposit    |
+
+### Emergency Stop
+
+Multiple ways to stop trading immediately:
+
+1. **Frontend**: Toggle "Enable Trading" off
+2. **API**: `curl -X POST http://localhost:3101/api/trading/stop`
+3. **Config**: Set `enableTrading: false`
+4. **Process**: Kill the backend process
+5. **Oanda**: Close positions directly in Oanda platform
+
+---
+
+## 📊 Data Logging & Analytics
+
+### What Gets Logged
+
+**Every Trade:**
+
+-   Entry/exit prices and times
+-   Position size and leverage
+-   P/L in AUD and pips
+-   Signal strength (ADX) at entry
+-   Entry type (FRESH_FLIP, CONTINUATION)
+-   Stop loss and trailing stop prices
+-   Exit reason (STOP_LOSS, TRAILING_STOP, SIGNAL, MANUAL)
+-   Holding period
+
+**Every Signal (60s):**
+
+-   Instrument and signal type
+-   ADX, RSI values
+-   SuperTrend direction
+-   ATR in pips
+-   Current price
+
+**Portfolio Snapshots:**
+
+-   Account balance and value
+-   Unrealized/realized P/L
+-   Margin usage
+-   Open positions
+
+### Analytics Available
+
+| Metric                 | Description                   |
+| ---------------------- | ----------------------------- |
+| Win Rate               | % of profitable trades        |
+| Profit Factor          | Gross wins ÷ Gross losses     |
+| Sharpe Ratio           | Risk-adjusted returns         |
+| Avg Win / Loss         | Risk:Reward achieved          |
+| Performance by Pair    | Which pairs work best         |
+| Performance by Session | Best trading times            |
+| Exit Analysis          | Why trades closed             |
+| ADX Analysis           | Performance vs trend strength |
+| Equity Curve           | Account growth visualization  |
 
 ---
 
@@ -463,12 +535,34 @@ npm run build        # Production build
 npm run preview      # Preview production build
 ```
 
-### Database
+### Database Queries
 
 ```bash
 # Direct SQLite access
-sqlite3 backend/data/trading.db ".tables"
-sqlite3 backend/data/trading.db "SELECT * FROM trades LIMIT 10;"
+sqlite3 backend/data/trading.db
+
+# View tables
+.tables
+
+# Recent trades
+SELECT * FROM trades ORDER BY entry_time DESC LIMIT 10;
+
+# Performance by pair
+SELECT
+  instrument,
+  COUNT(*) as trades,
+  ROUND(SUM(pnl_aud), 2) as total_pnl,
+  ROUND(AVG(pnl_pips), 1) as avg_pips
+FROM trades
+WHERE is_open = 0
+GROUP BY instrument;
+
+# Win rate
+SELECT
+  COUNT(*) as total,
+  SUM(CASE WHEN pnl_aud > 0 THEN 1 ELSE 0 END) as wins,
+  ROUND(SUM(CASE WHEN pnl_aud > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) as win_rate
+FROM trades WHERE is_open = 0;
 ```
 
 ---
@@ -480,11 +574,21 @@ sqlite3 backend/data/trading.db "SELECT * FROM trades LIMIT 10;"
 -   **Standard pairs** (AUD_USD, EUR_USD, GBP_USD): 1 pip = 0.0001
 -   **JPY pairs** (USD_JPY): 1 pip = 0.01
 
-### Position Sizing
+### Position Sizing (RISK Method)
 
 ```
-Units = (Account Risk $) / (Stop Loss Pips × Pip Value)
+Risk Amount = Account Balance × Risk Per Trade (e.g., 2%)
+Stop Loss Price = Stop Loss Pips × Pip Value
+Position Size = Risk Amount / Stop Loss Price
 ```
+
+### Pip Value by Position Size
+
+| Position Size | 1 Pip Worth |
+| ------------- | ----------- |
+| 1,000 units   | $0.10       |
+| 10,000 units  | $1.00       |
+| 100,000 units | $10.00      |
 
 ### Lot Sizes
 
@@ -498,35 +602,60 @@ Units = (Account Risk $) / (Stop Loss Pips × Pip Value)
 
 ## 🚨 Troubleshooting
 
-### "Cannot open database because the directory does not exist"
+### Engine not executing trades
 
-Check `NODE_ENV` in `.env`. Must be `development` for local dev.
+Check in order:
 
-### WebSocket connection failed
+1. `enableTrading` is `true`?
+2. `tradingMode` is set (`paper` or `live`)?
+3. `maxOpenPositions` not reached?
+4. Signal is `BUY`? (engine only goes long currently)
+5. Signal ADX >= `minAdx`?
+6. Instrument in `assets` array?
+7. Within active trading session?
+8. Check logs for "Entry rejected" messages
 
-Ensure backend is running on port 3101 and Socket.IO is configured.
+### "Trading engine not available" error
 
-### Config changes not reflecting
+-   Engine failed to start - check backend logs
+-   Oanda client failed to initialize - verify API key
 
-Verify `configUpdate` socket event is being emitted. Check ConfigService.
+### Trades not showing in database
+
+-   Check `tradingMode` - paper trades have `mode: 'paper'`
+-   Query with correct mode: `/api/trades?mode=paper`
+
+### Stop loss not triggering (paper mode)
+
+-   Engine must be running to monitor paper trades
+-   If engine stops, paper stop losses won't trigger
+-   Live trades have stop loss managed by Oanda server
 
 ### Signals all show HOLD
 
-No SuperTrend flip occurred. Strategy only triggers on direction changes.
-
-### JPY pairs show wrong pip values
-
-Ensure `getPipValue()` returns 0.01 for JPY pairs.
-
-### Prices not updating
-
-Check `priceUpdate` socket handler. Backend emits every 5 seconds.
+-   No SuperTrend flip occurred
+-   Strategy only triggers on direction changes
+-   Wait for trend reversal
 
 ### Oanda API errors
 
 -   Verify API key is correct
 -   Check environment (live vs practice)
 -   Confirm account ID matches
+-   Check Oanda service status
+
+### WebSocket connection failed
+
+-   Ensure backend is running on port 3101
+-   Check Socket.IO configuration
+-   Verify no firewall blocking
+
+---
+
+## 📚 Documentation
+
+-   **USER_GUIDE.md**: Comprehensive guide for traders (concepts, settings, activation)
+-   **PROJECT_INSTRUCTIONS.md**: Development reference and architecture details
 
 ---
 
@@ -536,16 +665,10 @@ MIT
 
 ---
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
----
-
 ## ⚠️ Disclaimer
 
-This software is for educational purposes only. Trading foreign exchange carries a high level of risk and may not be suitable for all investors. Past performance is not indicative of future results. Only trade with money you can afford to lose.
+This software is for educational purposes only. Trading foreign exchange carries a high level of risk and may not be suitable for all investors. The high degree of leverage can work against you as well as for you. Before deciding to trade foreign exchange, you should carefully consider your investment objectives, level of experience, and risk appetite.
+
+**Past performance is not indicative of future results. Only trade with money you can afford to lose.**
+
+Under ASIC regulation, retail clients have Negative Balance Protection - you cannot lose more than your deposited funds.
