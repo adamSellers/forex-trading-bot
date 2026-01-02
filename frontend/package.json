@@ -12,6 +12,7 @@
         "@emotion/styled": "^11.11.0",
         "@mui/icons-material": "^5.15.4",
         "@mui/material": "^5.15.4",
+        "@mui/x-charts": "^8.23.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "recharts": "^2.10.3",

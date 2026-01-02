@@ -36,8 +36,12 @@ export const API_ENDPOINTS = {
     signals: "/api/signals",
     portfolio: "/api/portfolio",
     trades: "/api/trades",
+    analytics: "/api/analytics",
     config: "/api/config",
     closePosition: "/api/trade/close", // /api/trade/close/:id
+    // System endpoints
+    systemHealth: "/api/system/health",
+    systemInfo: "/api/system/info",
 };
 
 // Enhanced API helper function
@@ -71,7 +75,7 @@ export const apiCall = async (endpoint, options = {}) => {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error(`❌ API Error: ${endpoint}:`, error.message);
+        console.error(`âŒ API Error: ${endpoint}:`, error.message);
         if (error.name === "TypeError" && error.message.includes("fetch")) {
             throw new Error(
                 `Network error: Cannot connect to server at ${url}`
@@ -118,6 +122,12 @@ export const tradingAPI = {
     // Prices
     getPrices: () => apiCall(API_ENDPOINTS.prices),
 
+    // Analytics - comprehensive performance metrics
+    getAnalytics: (period = "30d", mode = "live") => {
+        const query = new URLSearchParams({ period, mode }).toString();
+        return apiCall(`${API_ENDPOINTS.analytics}?${query}`);
+    },
+
     // Candles - /api/candles/:instrument?granularity=M15&count=100
     getCandles: (instrument, granularity = "M15", count = 100) => {
         const query = new URLSearchParams({ granularity, count }).toString();
@@ -144,6 +154,15 @@ export const tradingAPI = {
     resetTrading: () => apiCall("/api/trading/reset", { method: "POST" }),
 };
 
+// System API helper functions
+export const systemAPI = {
+    // Get comprehensive system health
+    getSystemHealth: () => apiCall(API_ENDPOINTS.systemHealth),
+
+    // Get system info (memory, environment, etc.)
+    getSystemInfo: () => apiCall(API_ENDPOINTS.systemInfo),
+};
+
 export default {
     API_BASE_URL,
     SOCKET_URL,
@@ -151,4 +170,5 @@ export default {
     API_ENDPOINTS,
     apiCall,
     tradingAPI,
+    systemAPI,
 };

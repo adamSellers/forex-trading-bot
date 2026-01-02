@@ -70,6 +70,15 @@ export const formatCurrency = (value, currency = 'AUD') => {
 };
 
 /**
+ * Currency formatter for charts (simpler format)
+ * @param {number} value - The value to format
+ */
+export const currencyFormatter = (value) => {
+  if (value === null || value === undefined || isNaN(value)) return '';
+  return `A$${value.toFixed(2)}`;
+};
+
+/**
  * Format Forex price with appropriate decimal places
  * - JPY pairs: 3 decimal places (e.g., 150.123)
  * - Standard pairs: 5 decimal places (e.g., 0.65432)
@@ -87,7 +96,7 @@ export const formatPrice = (price, instrument = '') => {
 };
 
 /**
- * Format instrument for display (AUD_USD → AUD/USD)
+ * Format instrument for display (AUD_USD â†’ AUD/USD)
  * @param {string} instrument - The instrument code
  */
 export const formatInstrument = (instrument) => {
@@ -118,8 +127,8 @@ export const calculatePips = (priceDiff, instrument) => {
 export const FOREX_INSTRUMENTS = ['AUD_USD', 'EUR_USD', 'GBP_USD', 'USD_JPY'];
 
 export const INSTRUMENT_INFO = {
-  'AUD_USD': { name: 'Australian Dollar / US Dollar', flag: '🇦🇺' },
-  'EUR_USD': { name: 'Euro / US Dollar', flag: '🇪🇺' },
-  'GBP_USD': { name: 'British Pound / US Dollar', flag: '🇬🇧' },
-  'USD_JPY': { name: 'US Dollar / Japanese Yen', flag: '🇯🇵' },
+  'AUD_USD': { name: 'Australian Dollar / US Dollar', flag: 'ðŸ‡¦ðŸ‡º' },
+  'EUR_USD': { name: 'Euro / US Dollar', flag: 'ðŸ‡ªðŸ‡º' },
+  'GBP_USD': { name: 'British Pound / US Dollar', flag: 'ðŸ‡¬ðŸ‡§' },
+  'USD_JPY': { name: 'US Dollar / Japanese Yen', flag: 'ðŸ‡¯ðŸ‡µ' },
 };

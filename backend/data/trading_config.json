@@ -5,8 +5,7 @@
     "logLevel": "info",
     "assets": [
         "AUD_USD",
-        "EUR_USD",
-        "USD_JPY"
+        "EUR_USD"
     ],
     "strategy": "supertrend_momentum",
     "timeframe": "15m",

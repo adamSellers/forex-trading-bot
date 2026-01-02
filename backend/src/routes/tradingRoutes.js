@@ -271,6 +271,29 @@ router.get("/trades", async (req, res) => {
     }
 });
 
+// Analytics - comprehensive performance metrics
+router.get("/analytics", async (req, res) => {
+    try {
+        const TradeRepository = require("../repositories/tradeRepository");
+        const SignalRepository = require("../repositories/signalRepository");
+        const AnalyticsService = require("../services/analyticsService");
+
+        const tradeRepo = new TradeRepository();
+        const signalRepo = new SignalRepository();
+        const analyticsService = new AnalyticsService(tradeRepo, signalRepo);
+
+        const period = req.query.period || "30d";
+        const mode = req.query.mode || "live";
+
+        const analytics = await analyticsService.getAnalytics(period, mode);
+
+        res.json(analytics);
+    } catch (error) {
+        console.error("Analytics error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Get config - from ConfigService
 router.get("/config", (req, res) => {
     try {
@@ -413,5 +436,162 @@ router.post("/trade/close/:id", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// ============ SYSTEM HEALTH & INFO ENDPOINTS ============
+
+// Comprehensive system health check
+router.get("/system/health", async (req, res) => {
+    try {
+        const dataService = req.app.locals.dataService;
+        const signalGenerator = req.app.locals.signalGenerator;
+        const configService = req.app.locals.configService;
+
+        const config = configService ? configService.get() : {};
+        const startTime = process.hrtime();
+
+        // Test Oanda API connectivity
+        let oandaStatus = { connected: false, latencyMs: null, error: null };
+        if (OANDA_API_KEY) {
+            try {
+                const oandaStart = Date.now();
+                await oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/summary`);
+                oandaStatus = {
+                    connected: true,
+                    latencyMs: Date.now() - oandaStart,
+                    environment: process.env.OANDA_ENVIRONMENT || "live",
+                };
+            } catch (err) {
+                oandaStatus = {
+                    connected: false,
+                    latencyMs: null,
+                    error: err.message,
+                };
+            }
+        }
+
+        // Get data service status
+        const dataServiceStatus = dataService
+            ? {
+                  isRunning: dataService.isRunning || false,
+                  instruments: dataService.instruments || [],
+                  priceCount: Object.keys(dataService.getAllPrices?.() || {})
+                      .length,
+                  lastUpdate: dataService.lastUpdate || null,
+              }
+            : { isRunning: false };
+
+        // Get signal generator status
+        const signalGenStatus = signalGenerator
+            ? {
+                  isActive: signalGenerator.isRunning || false,
+                  activeSignals: signalGenerator.latestSignals?.length || 0,
+                  pendingEntries:
+                      signalGenerator.pendingContinuationEntries?.size || 0,
+                  lastRun: signalGenerator.lastRunTime || null,
+              }
+            : { isActive: false };
+
+        // Calculate uptime
+        const uptimeSeconds = process.uptime();
+        const uptimeFormatted = formatUptime(uptimeSeconds);
+
+        // Overall status
+        const isHealthy =
+            oandaStatus.connected &&
+            dataServiceStatus.isRunning &&
+            signalGenStatus.isActive;
+
+        res.json({
+            status: isHealthy ? "healthy" : "degraded",
+            timestamp: new Date().toISOString(),
+            uptime: uptimeSeconds,
+            uptimeFormatted,
+            services: {
+                oanda: oandaStatus,
+                dataService: dataServiceStatus,
+                signalGenerator: signalGenStatus,
+                configService: {
+                    loaded: !!configService,
+                    tradingEnabled: config.enableTrading || false,
+                },
+            },
+            config: {
+                enableTrading: config.enableTrading || false,
+                tradingMode: config.tradingMode || "live",
+                assets: config.assets || [],
+                strategy: config.strategy || "supertrend_momentum",
+                timeframe: config.timeframe || "15m",
+                maxOpenPositions: config.maxOpenPositions || 2,
+            },
+            activeSignals: signalGenerator?.latestSignals || [],
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: "error",
+            error: error.message,
+            timestamp: new Date().toISOString(),
+        });
+    }
+});
+
+// System info endpoint (server details, memory, etc.)
+router.get("/system/info", (req, res) => {
+    try {
+        const memoryUsage = process.memoryUsage();
+
+        res.json({
+            server: {
+                nodeVersion: process.version,
+                platform: process.platform,
+                arch: process.arch,
+                pid: process.pid,
+                cwd: process.cwd(),
+            },
+            memory: {
+                heapUsed: memoryUsage.heapUsed,
+                heapTotal: memoryUsage.heapTotal,
+                external: memoryUsage.external,
+                rss: memoryUsage.rss,
+                formatted: {
+                    heapUsed: formatBytes(memoryUsage.heapUsed),
+                    heapTotal: formatBytes(memoryUsage.heapTotal),
+                    rss: formatBytes(memoryUsage.rss),
+                },
+            },
+            environment: {
+                nodeEnv: process.env.NODE_ENV || "development",
+                port: process.env.PORT || 3101,
+                hasApiKeys: !!process.env.OANDA_API_KEY,
+                oandaEnvironment: process.env.OANDA_ENVIRONMENT || "live",
+                accountId: OANDA_ACCOUNT_ID,
+            },
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Helper: Format bytes to human readable
+function formatBytes(bytes) {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+// Helper: Format uptime to human readable
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
+    if (minutes > 0) return `${minutes}m ${secs}s`;
+    return `${secs}s`;
+}
 
 module.exports = router;
