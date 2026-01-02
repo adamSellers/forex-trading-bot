@@ -1,38 +1,64 @@
-# ===================================================
-# scripts/logs.sh - View production logs easily
-# ===================================================
 #!/bin/bash
+# =====================================================
+# Forex Trading Bot - Log Viewer
+# Quick access to various log sources
+# =====================================================
 
-PROD_HOST="img.oakroad"
-PROD_USER="adam"
+APP_NAME="forex-backend"
+LOG_DIR="/opt/forex-trading-bot/backend/logs"
 
 case "$1" in
-    "pm2"|"")
-        echo "📋 PM2 Logs:"
-        ssh $PROD_USER@$PROD_HOST "pm2 logs img-backend --lines 50"
+    ""|"pm2")
+        echo "📋 PM2 Logs (live):"
+        pm2 logs "$APP_NAME" --lines 50
         ;;
-    "nginx")
-        echo "📋 Nginx Access Logs:"
-        ssh $PROD_USER@$PROD_HOST "sudo tail -f /var/log/nginx/access.log"
-        ;;
-    "nginx-error")
-        echo "📋 Nginx Error Logs:"
-        ssh $PROD_USER@$PROD_HOST "sudo tail -f /var/log/nginx/error.log"
+    "tail")
+        echo "📋 Following PM2 logs..."
+        pm2 logs "$APP_NAME"
         ;;
     "app")
         echo "📋 Application Logs:"
-        ssh $PROD_USER@$PROD_HOST "tail -f /opt/crypto-trading-bot/backend/logs/*.log"
+        if [ -f "$LOG_DIR/combined.log" ]; then
+            tail -100 "$LOG_DIR/combined.log"
+        else
+            echo "No combined.log found"
+        fi
         ;;
-    "system")
-        echo "📋 System Logs:"
-        ssh $PROD_USER@$PROD_HOST "journalctl -u nginx -f"
+    "error")
+        echo "📋 Error Logs:"
+        if [ -f "$LOG_DIR/error.log" ]; then
+            tail -100 "$LOG_DIR/error.log"
+        else
+            echo "No error.log found"
+        fi
+        ;;
+    "trades")
+        echo "📋 Recent Trade Activity:"
+        if [ -f "$LOG_DIR/combined.log" ]; then
+            grep -iE "(trade|signal|position|entry|exit|buy|sell)" "$LOG_DIR/combined.log" | tail -50
+        else
+            pm2 logs "$APP_NAME" --lines 200 --nostream | grep -iE "(trade|signal|position|entry|exit|buy|sell)" | tail -50
+        fi
+        ;;
+    "errors")
+        echo "📋 Recent Errors:"
+        pm2 logs "$APP_NAME" --lines 500 --nostream | grep -iE "(error|failed|exception)" | tail -30
+        ;;
+    "clear")
+        echo "🗑️  Clearing PM2 logs..."
+        pm2 flush "$APP_NAME"
+        echo "✅ Logs cleared"
         ;;
     *)
-        echo "Usage: $0 [pm2|nginx|nginx-error|app|system]"
-        echo "  pm2         - PM2 process logs (default)"
-        echo "  nginx       - Nginx access logs"
-        echo "  nginx-error - Nginx error logs"
-        echo "  app         - Application logs"
-        echo "  system      - System service logs"
+        echo "Usage: $0 [command]"
+        echo ""
+        echo "Commands:"
+        echo "  (none)  - Show last 50 lines of PM2 logs"
+        echo "  tail    - Follow PM2 logs live"
+        echo "  app     - Show application combined.log"
+        echo "  error   - Show error.log"
+        echo "  trades  - Filter for trade-related entries"
+        echo "  errors  - Filter for error entries"
+        echo "  clear   - Clear PM2 logs"
         ;;
 esac

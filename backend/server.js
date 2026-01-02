@@ -126,7 +126,7 @@ app.get("*", (req, res) => {
 // Socket.IO Connection Handling
 // ============================================
 io.on("connection", (socket) => {
-    logger.info(`ðŸ”Œ Client connected: ${socket.id}`);
+    logger.info(`Ã°Å¸â€Å’ Client connected: ${socket.id}`);
 
     // Send initial data on connect
     socket.emit("connected", {
@@ -170,7 +170,7 @@ io.on("connection", (socket) => {
 
     // Handle disconnect
     socket.on("disconnect", (reason) => {
-        logger.info(`ðŸ”Œ Client disconnected: ${socket.id} (${reason})`);
+        logger.info(`Ã°Å¸â€Å’ Client disconnected: ${socket.id} (${reason})`);
     });
 
     // Handle errors
@@ -198,7 +198,7 @@ const broadcastSignal = (signal) => {
     if (signal.signal === "BUY" || signal.signal === "SELL") {
         io.emit("tradeSignal", signal);
         logger.info(
-            `ðŸ“¡ Broadcasted trade signal: ${signal.symbol} - ${signal.signal}`
+            `Ã°Å¸â€œÂ¡ Broadcasted trade signal: ${signal.symbol} - ${signal.signal}`
         );
     }
 };
@@ -206,7 +206,9 @@ const broadcastSignal = (signal) => {
 // Broadcast trade updates
 const broadcastTrade = (trade) => {
     io.emit("tradeUpdate", trade);
-    logger.info(`ðŸ“¡ Broadcasted trade: ${trade.instrument} - ${trade.side}`);
+    logger.info(
+        `Ã°Å¸â€œÂ¡ Broadcasted trade: ${trade.instrument} - ${trade.side}`
+    );
 };
 
 // Broadcast engine status
@@ -224,7 +226,7 @@ app.locals.broadcastEngineStatus = broadcastEngineStatus;
 // Broadcast config changes
 const broadcastConfig = (config) => {
     io.emit("configUpdate", config);
-    logger.info("ðŸ“¡ Broadcasted config update");
+    logger.info("Ã°Å¸â€œÂ¡ Broadcasted config update");
 };
 app.locals.broadcastConfig = broadcastConfig;
 
@@ -233,29 +235,31 @@ configService.on("configChanged", broadcastConfig);
 
 // Listen for trading engine events
 tradingEngine.on("tradeOpened", (trade) => {
-    logger.info(`ðŸ”” Trade opened event: ${trade.instrument}`);
+    logger.info(`Ã°Å¸â€â€ Trade opened event: ${trade.instrument}`);
     broadcastEngineStatus();
 });
 
 tradingEngine.on("tradeClosed", (trade) => {
-    logger.info(`ðŸ”” Trade closed event: ${trade.instrument}`);
+    logger.info(`Ã°Å¸â€â€ Trade closed event: ${trade.instrument}`);
     broadcastEngineStatus();
 });
 
 tradingEngine.on("entryRejected", ({ signal, reason }) => {
-    logger.debug(`â¸ï¸ Entry rejected: ${signal.symbol} - ${reason}`);
+    logger.debug(`Ã¢ÂÂ¸Ã¯Â¸Â Entry rejected: ${signal.symbol} - ${reason}`);
 });
 
 // ============================================
 // Start Server
 // ============================================
 server.listen(PORT, async () => {
-    logger.success(`ðŸš€ Forex Trading Bot API running on port ${PORT}`);
+    logger.success(`Ã°Å¸Å¡â‚¬ Forex Trading Bot API running on port ${PORT}`);
     logger.info(`   Health: http://localhost:${PORT}/api/health`);
     logger.info(`   Socket.IO: ws://localhost:${PORT}`);
 
     if (!process.env.OANDA_API_KEY) {
-        logger.warn("âš ï¸  OANDA_API_KEY not set - trading features disabled");
+        logger.warn(
+            "Ã¢Å¡Â Ã¯Â¸Â  OANDA_API_KEY not set - trading features disabled"
+        );
     } else {
         const keyPreview = process.env.OANDA_API_KEY.substring(0, 4) + "...";
         logger.info(`   Oanda API Key: ${keyPreview}`);
@@ -277,20 +281,24 @@ server.listen(PORT, async () => {
             try {
                 await tradingEngine.start();
                 logger.success(
-                    "âœ… Trading engine started and listening for signals"
+                    "Ã¢Å“â€¦ Trading engine started and listening for signals"
                 );
 
                 const config = configService.get();
+
+                // Broadcast updated engine status to all connected clients
+                broadcastEngineStatus();
+
                 if (config.enableTrading) {
-                    logger.success("âœ… Live trading is ENABLED");
+                    logger.success("Ã¢Å“â€¦ Live trading is ENABLED");
                 } else {
                     logger.info(
-                        "â„¹ï¸  Trading is DISABLED - enable in settings to start trading"
+                        "Ã¢â€žÂ¹Ã¯Â¸Â  Trading is DISABLED - enable in settings to start trading"
                     );
                 }
             } catch (error) {
                 logger.error(
-                    "âŒ Failed to start trading engine:",
+                    "Ã¢ÂÅ’ Failed to start trading engine:",
                     error.message
                 );
             }
@@ -303,7 +311,9 @@ let isShuttingDown = false;
 
 const gracefulShutdown = (signal) => {
     if (isShuttingDown) {
-        logger.warn("âš ï¸ Shutdown already in progress, forcing exit...");
+        logger.warn(
+            "Ã¢Å¡Â Ã¯Â¸Â Shutdown already in progress, forcing exit..."
+        );
         process.exit(1);
     }
 
@@ -332,7 +342,7 @@ const gracefulShutdown = (signal) => {
 
     // Close HTTP server with timeout
     const forceExitTimeout = setTimeout(() => {
-        logger.warn("âš ï¸ Graceful shutdown timeout - forcing exit");
+        logger.warn("Ã¢Å¡Â Ã¯Â¸Â Graceful shutdown timeout - forcing exit");
         process.exit(1);
     }, 5000); // 5 second timeout
 
