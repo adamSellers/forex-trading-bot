@@ -37,7 +37,7 @@ class SignalGenerator extends EventEmitter {
         this._pendingEntries = new Map();
 
         logger.info(
-            `🧠 Signal Generator v4.4 (Forex) Initialized. ` +
+            `ðŸ§  Signal Generator v4.5 (Forex) Initialized. ` +
                 `ADX Threshold: ${this.config.minAdx}, ` +
                 `Continuation: ${
                     this.config.enableContinuationEntry ? "ON" : "OFF"
@@ -54,7 +54,7 @@ class SignalGenerator extends EventEmitter {
             if (this.isRunning) this.generateSignalCycle();
         }, intervalMs);
         logger.info(
-            `🚀 Signal Generator Loop Started (${intervalMs}ms interval)`
+            `ðŸš€ Signal Generator Loop Started (${intervalMs}ms interval)`
         );
     }
 
@@ -62,7 +62,7 @@ class SignalGenerator extends EventEmitter {
         this.isRunning = false;
         if (this.signalInterval) clearInterval(this.signalInterval);
         this.emit("generatorStopped");
-        logger.info("⏹️ Signal Generator stopped");
+        logger.info("â¹ï¸ Signal Generator stopped");
     }
 
     async generateSignalCycle() {
@@ -76,7 +76,7 @@ class SignalGenerator extends EventEmitter {
                 signals.forEach((s) => this.emit("signalGenerated", s));
             }
         } catch (error) {
-            logger.error("❌ Signal Cycle Error:", error);
+            logger.error("âŒ Signal Cycle Error:", error);
         }
     }
 
@@ -195,7 +195,7 @@ class SignalGenerator extends EventEmitter {
             // 2. Base state
             let signalType = "HOLD";
             let reason = `ST:${
-                currentDir === 1 ? "🟢" : "🔴"
+                currentDir === 1 ? "ðŸŸ¢" : "ðŸ”´"
             } ADX:${adxVal.toFixed(1)} RSI:${rsiVal.toFixed(
                 1
             )} ATR:${atrPips.toFixed(1)}pips`;
@@ -206,30 +206,65 @@ class SignalGenerator extends EventEmitter {
             const rsiOkForContinuation =
                 rsiVal < (this.config.continuationRsiThreshold || 70);
 
-            // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED → GREEN)
+            // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED â†’ GREEN)
             if (prevDir === -1 && currentDir === 1) {
                 if (adxOk && rsiOkForFresh) {
+                    // All conditions met - immediate entry
                     signalType = "BUY";
                     entryType = "FRESH_FLIP";
-                    reason = `🚀 BUY: ST Flip GREEN | ADX ${adxVal.toFixed(
+                    reason = `ðŸš€ BUY: ST Flip GREEN | ADX ${adxVal.toFixed(
                         1
                     )} | RSI ${rsiVal.toFixed(1)}`;
                     this._pendingEntries.delete(instrument);
                 } else if (adxOk && !rsiOkForFresh) {
+                    // ADX strong but RSI overbought - wait for RSI cooldown
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
                             flipTime: Date.now(),
                             flipPrice: currentPrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
+                            waitingFor: "RSI_COOLDOWN",
                         });
-                        reason = `⏸️ PENDING: ST Flip blocked by RSI (${rsiVal.toFixed(
+                        reason = `â¸ï¸ PENDING: ST Flip blocked by RSI (${rsiVal.toFixed(
                             1
-                        )} >= ${this.config.rsiOverbought})`;
+                        )} >= ${
+                            this.config.rsiOverbought
+                        }) - waiting for cooldown`;
+                    }
+                } else if (!adxOk && rsiOkForFresh) {
+                    // RSI OK but ADX weak - wait for ADX to strengthen
+                    if (this.config.enableContinuationEntry) {
+                        this._pendingEntries.set(instrument, {
+                            flipTime: Date.now(),
+                            flipPrice: currentPrice,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            waitingFor: "ADX_STRENGTHEN",
+                        });
+                        reason = `â¸ï¸ PENDING: ST Flip blocked by ADX (${adxVal.toFixed(
+                            1
+                        )} < ${
+                            this.config.minAdx
+                        }) - waiting for trend strength`;
+                    }
+                } else {
+                    // Both ADX weak AND RSI overbought - wait for both
+                    if (this.config.enableContinuationEntry) {
+                        this._pendingEntries.set(instrument, {
+                            flipTime: Date.now(),
+                            flipPrice: currentPrice,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            waitingFor: "BOTH",
+                        });
+                        reason = `â¸ï¸ PENDING: ST Flip blocked by ADX (${adxVal.toFixed(
+                            1
+                        )}) AND RSI (${rsiVal.toFixed(1)}) - waiting for both`;
                     }
                 }
             }
-            // 4. CONTINUATION ENTRY: RSI cooled down after pending flip
+            // 4. CONTINUATION ENTRY: Conditions improved after pending flip
             else if (
                 currentDir === 1 &&
                 this.config.enableContinuationEntry &&
@@ -242,9 +277,11 @@ class SignalGenerator extends EventEmitter {
 
                 if (ageMs > maxAgeMs) {
                     logger.info(
-                        `⏰ ${instrument}: Continuation window expired after ${(
+                        `â° ${instrument}: Continuation window expired after ${(
                             ageMs / 60000
-                        ).toFixed(0)} minutes.`
+                        ).toFixed(0)} minutes. Was waiting for: ${
+                            pending.waitingFor
+                        }`
                     );
                     this._pendingEntries.delete(instrument);
                 } else {
@@ -254,33 +291,88 @@ class SignalGenerator extends EventEmitter {
                         (currentPrice - pending.flipPrice) / pending.flipPrice;
                     const priceOk = priceDeviation <= maxDeviation;
 
-                    if (adxOk && rsiOkForContinuation && priceOk) {
-                        signalType = "BUY";
-                        entryType = "CONTINUATION";
-                        reason =
-                            `🔄 BUY: Continuation Entry | RSI cooled (${rsiVal.toFixed(
-                                1
-                            )} < ${this.config.continuationRsiThreshold}) | ` +
-                            `Price: ${(priceDeviation * 100).toFixed(
-                                1
-                            )}% from flip | Wait: ${(ageMs / 60000).toFixed(
-                                0
-                            )}min`;
-                        this._pendingEntries.delete(instrument);
-                    } else if (!priceOk) {
+                    // Check if price has moved too far - cancel regardless of type
+                    if (!priceOk) {
                         logger.info(
-                            `❌ ${instrument}: Continuation cancelled. Price moved ${(
+                            `âŒ ${instrument}: Continuation cancelled. Price moved ${(
                                 priceDeviation * 100
-                            ).toFixed(1)}%`
+                            ).toFixed(1)}% from flip price`
                         );
                         this._pendingEntries.delete(instrument);
                     }
+                    // Handle based on what we're waiting for
+                    else if (pending.waitingFor === "RSI_COOLDOWN") {
+                        // Was blocked by high RSI - check if RSI cooled down
+                        if (adxOk && rsiOkForContinuation) {
+                            signalType = "BUY";
+                            entryType = "CONTINUATION_RSI";
+                            reason =
+                                `ðŸ”„ BUY: Continuation (RSI Cooldown) | RSI ${rsiVal.toFixed(
+                                    1
+                                )} < ${
+                                    this.config.continuationRsiThreshold
+                                } | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(
+                                    1
+                                )}% from flip | ` +
+                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    } else if (pending.waitingFor === "ADX_STRENGTHEN") {
+                        // Was blocked by weak ADX - check if ADX strengthened
+                        if (adxOk && rsiOkForFresh) {
+                            signalType = "BUY";
+                            entryType = "CONTINUATION_ADX";
+                            reason =
+                                `ðŸ”„ BUY: Continuation (ADX Strengthened) | ADX ${adxVal.toFixed(
+                                    1
+                                )} >= ${this.config.minAdx} | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(
+                                    1
+                                )}% from flip | ` +
+                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    } else if (pending.waitingFor === "BOTH") {
+                        // Was blocked by both - need both to be OK
+                        if (adxOk && rsiOkForContinuation) {
+                            signalType = "BUY";
+                            entryType = "CONTINUATION_BOTH";
+                            reason =
+                                `ðŸ”„ BUY: Continuation (Both OK) | ADX ${adxVal.toFixed(
+                                    1
+                                )} RSI ${rsiVal.toFixed(1)} | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(
+                                    1
+                                )}% from flip | ` +
+                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    } else {
+                        // Legacy pending entries without waitingFor field (backwards compat)
+                        if (adxOk && rsiOkForContinuation) {
+                            signalType = "BUY";
+                            entryType = "CONTINUATION";
+                            reason =
+                                `ðŸ”„ BUY: Continuation Entry | RSI cooled (${rsiVal.toFixed(
+                                    1
+                                )} < ${
+                                    this.config.continuationRsiThreshold
+                                }) | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(
+                                    1
+                                )}% from flip | Wait: ${(ageMs / 60000).toFixed(
+                                    0
+                                )}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    }
                 }
             }
-            // 5. EXIT: SuperTrend Flip (GREEN → RED)
+            // 5. EXIT: SuperTrend Flip (GREEN â†’ RED)
             else if (prevDir === 1 && currentDir === -1) {
                 signalType = "SELL";
-                reason = `📉 SELL: ST Flip RED`;
+                reason = `ðŸ“‰ SELL: ST Flip RED`;
                 this._pendingEntries.delete(instrument);
             }
 
@@ -319,6 +411,10 @@ class SignalGenerator extends EventEmitter {
                               this._pendingEntries.get(instrument).flipTime,
                           flipPrice:
                               this._pendingEntries.get(instrument).flipPrice,
+                          flipAdx: this._pendingEntries.get(instrument).flipAdx,
+                          flipRsi: this._pendingEntries.get(instrument).flipRsi,
+                          waitingFor:
+                              this._pendingEntries.get(instrument).waitingFor,
                           ageMinutes: (
                               (Date.now() -
                                   this._pendingEntries.get(instrument)
@@ -330,7 +426,7 @@ class SignalGenerator extends EventEmitter {
             };
         } catch (error) {
             logger.error(
-                `❌ Signal calculation error for ${instrument}:`,
+                `âŒ Signal calculation error for ${instrument}:`,
                 error.message
             );
             return null;
@@ -394,7 +490,7 @@ class SignalGenerator extends EventEmitter {
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
         logger.info(
-            `🔄 Signal Generator config updated. ADX threshold: ${this.config.minAdx}`
+            `ðŸ”„ Signal Generator config updated. ADX threshold: ${this.config.minAdx}`
         );
     }
 
@@ -408,6 +504,9 @@ class SignalGenerator extends EventEmitter {
                     symbol,
                     flipTime: data.flipTime,
                     flipPrice: data.flipPrice,
+                    flipAdx: data.flipAdx,
+                    flipRsi: data.flipRsi,
+                    waitingFor: data.waitingFor || "UNKNOWN",
                     ageMinutes: ((Date.now() - data.flipTime) / 60000).toFixed(
                         0
                     ),
@@ -420,13 +519,13 @@ class SignalGenerator extends EventEmitter {
         this.lastSignals.clear();
         this.latestSignals = [];
         this._pendingEntries.clear();
-        logger.info("🔄 Signal Generator reset. Pending entries cleared.");
+        logger.info("ðŸ”„ Signal Generator reset. Pending entries cleared.");
     }
 
     clearPendingEntries() {
         const count = this._pendingEntries.size;
         this._pendingEntries.clear();
-        logger.info(`🧹 Cleared ${count} pending entries.`);
+        logger.info(`ðŸ§¹ Cleared ${count} pending entries.`);
         return count;
     }
 }
