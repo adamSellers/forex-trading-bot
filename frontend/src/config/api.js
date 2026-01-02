@@ -1,4 +1,4 @@
-// frontend/src/config/api.js - Forex Trading Bot
+// frontend/src/config/api.js - Forex Trading Bot API Client
 import { io } from "socket.io-client";
 
 const API_CONFIG = {
@@ -20,31 +20,58 @@ export const SOCKET_URL = config.socketURL;
 
 // Initialize Socket with reconnection settings
 export const socket = io(SOCKET_URL, {
-    transports: ["websocket", "polling"], // Allow fallback to polling
+    transports: ["websocket", "polling"],
     autoConnect: true,
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
 });
 
-// Endpoints matching backend tradingRoutes.js
+// API Endpoints - organized by route file
 export const API_ENDPOINTS = {
+    // systemRoutes.js
     health: "/api/health",
-    account: "/api/account",
+    systemHealth: "/api/system/health",
+    systemInfo: "/api/system/info",
+
+    // marketRoutes.js
     prices: "/api/prices",
     candles: "/api/candles", // /api/candles/:instrument
     signals: "/api/signals",
+
+    // accountRoutes.js
+    account: "/api/account",
     portfolio: "/api/portfolio",
     trades: "/api/trades",
-    analytics: "/api/analytics",
-    config: "/api/config",
     closePosition: "/api/trade/close", // /api/trade/close/:id
-    // System endpoints
-    systemHealth: "/api/system/health",
-    systemInfo: "/api/system/info",
+    tradingStart: "/api/trading/start",
+    tradingStop: "/api/trading/stop",
+    tradingReset: "/api/trading/reset",
+
+    // configRoutes.js
+    config: "/api/config",
+    configReset: "/api/config/reset",
+
+    // engineRoutes.js
+    engineStatus: "/api/engine/status",
+    engineTrades: "/api/engine/trades",
+    engineClose: "/api/engine/close", // /api/engine/close/:tradeId
+    engineSync: "/api/engine/sync",
+    engineResetStats: "/api/engine/reset-stats",
+    engineStats: "/api/engine/stats",
+    engineStart: "/api/engine/start",
+    engineStop: "/api/engine/stop",
+
+    // analyticsRoutes.js
+    analytics: "/api/analytics",
+    analyticsSummary: "/api/analytics/summary",
+    analyticsEquity: "/api/analytics/equity",
+    analyticsInstruments: "/api/analytics/instruments",
 };
 
-// Enhanced API helper function
+/**
+ * Enhanced API helper function with error handling
+ */
 export const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
 
@@ -75,7 +102,7 @@ export const apiCall = async (endpoint, options = {}) => {
         const data = await response.json();
         return data;
     } catch (error) {
-        console.error(`âŒ API Error: ${endpoint}:`, error.message);
+        console.error(`❌ API Error: ${endpoint}:`, error.message);
         if (error.name === "TypeError" && error.message.includes("fetch")) {
             throw new Error(
                 `Network error: Cannot connect to server at ${url}`
@@ -85,15 +112,24 @@ export const apiCall = async (endpoint, options = {}) => {
     }
 };
 
-// Trading API helper functions
+/**
+ * Trading API - Market data, account, trades
+ */
 export const tradingAPI = {
-    // System
+    // Health & Status
     getStatus: () => apiCall(API_ENDPOINTS.health),
     getHealth: () => apiCall(API_ENDPOINTS.health),
 
     // Account & Portfolio
     getAccount: () => apiCall(API_ENDPOINTS.account),
     getPortfolio: () => apiCall(API_ENDPOINTS.portfolio),
+
+    // Market Data
+    getPrices: () => apiCall(API_ENDPOINTS.prices),
+    getCandles: (instrument, granularity = "M15", count = 100) => {
+        const query = new URLSearchParams({ granularity, count }).toString();
+        return apiCall(`${API_ENDPOINTS.candles}/${instrument}?${query}`);
+    },
 
     // Signals
     getSignals: (params = {}) => {
@@ -107,7 +143,7 @@ export const tradingAPI = {
         });
     },
 
-    // Trades
+    // Trade History
     getTrades: (params = {}) => {
         const query = new URLSearchParams(params).toString();
         return apiCall(
@@ -119,49 +155,120 @@ export const tradingAPI = {
         });
     },
 
-    // Prices
-    getPrices: () => apiCall(API_ENDPOINTS.prices),
-
-    // Analytics - comprehensive performance metrics
-    getAnalytics: (period = "30d", mode = "live") => {
-        const query = new URLSearchParams({ period, mode }).toString();
-        return apiCall(`${API_ENDPOINTS.analytics}?${query}`);
-    },
-
-    // Candles - /api/candles/:instrument?granularity=M15&count=100
-    getCandles: (instrument, granularity = "M15", count = 100) => {
-        const query = new URLSearchParams({ granularity, count }).toString();
-        return apiCall(`${API_ENDPOINTS.candles}/${instrument}?${query}`);
-    },
-
-    // Config
-    getConfig: () => apiCall(API_ENDPOINTS.config),
-    updateConfig: (config) =>
-        apiCall(API_ENDPOINTS.config, {
-            method: "POST",
-            body: JSON.stringify(config),
-        }),
-
-    // Position Management
+    // Position Management (via Oanda directly)
     closePosition: (tradeId) =>
         apiCall(`${API_ENDPOINTS.closePosition}/${tradeId}`, {
             method: "POST",
         }),
 
-    // Trading Control (TODO: Add these routes to backend when LiveTradingEngine is built)
-    startTrading: () => apiCall("/api/trading/start", { method: "POST" }),
-    stopTrading: () => apiCall("/api/trading/stop", { method: "POST" }),
-    resetTrading: () => apiCall("/api/trading/reset", { method: "POST" }),
+    // Trading Control (enables/disables trading in config)
+    startTrading: () => apiCall(API_ENDPOINTS.tradingStart, { method: "POST" }),
+    stopTrading: () => apiCall(API_ENDPOINTS.tradingStop, { method: "POST" }),
+    resetSignals: () => apiCall(API_ENDPOINTS.tradingReset, { method: "POST" }),
 };
 
-// System API helper functions
+/**
+ * Config API - Configuration management
+ */
+export const configAPI = {
+    // Get full config
+    get: () => apiCall(API_ENDPOINTS.config),
+
+    // Update config (partial update)
+    update: (config) =>
+        apiCall(API_ENDPOINTS.config, {
+            method: "POST",
+            body: JSON.stringify(config),
+        }),
+
+    // Reset to defaults
+    reset: () => apiCall(API_ENDPOINTS.configReset, { method: "POST" }),
+
+    // Get specific config value
+    getValue: (key) => apiCall(`${API_ENDPOINTS.config}/${key}`),
+
+    // Update specific config value
+    setValue: (key, value) =>
+        apiCall(`${API_ENDPOINTS.config}/${key}`, {
+            method: "PUT",
+            body: JSON.stringify({ value }),
+        }),
+};
+
+/**
+ * Engine API - Trading engine control
+ */
+export const engineAPI = {
+    // Get engine status & stats
+    getStatus: () => apiCall(API_ENDPOINTS.engineStatus),
+    getStats: () => apiCall(API_ENDPOINTS.engineStats),
+
+    // Get open trades from engine
+    getTrades: () => apiCall(API_ENDPOINTS.engineTrades),
+
+    // Close a trade via engine
+    closeTrade: (tradeId) =>
+        apiCall(`${API_ENDPOINTS.engineClose}/${tradeId}`, { method: "POST" }),
+
+    // Sync engine with Oanda
+    sync: () => apiCall(API_ENDPOINTS.engineSync, { method: "POST" }),
+
+    // Reset engine statistics
+    resetStats: () =>
+        apiCall(API_ENDPOINTS.engineResetStats, { method: "POST" }),
+
+    // Start/stop the engine itself
+    start: () => apiCall(API_ENDPOINTS.engineStart, { method: "POST" }),
+    stop: () => apiCall(API_ENDPOINTS.engineStop, { method: "POST" }),
+};
+
+/**
+ * Analytics API - Performance metrics
+ */
+export const analyticsAPI = {
+    // Comprehensive analytics
+    get: (period = "30d", mode = "live") => {
+        const query = new URLSearchParams({ period, mode }).toString();
+        return apiCall(`${API_ENDPOINTS.analytics}?${query}`);
+    },
+
+    // Quick summary
+    getSummary: (period = "30d", mode = "live") => {
+        const query = new URLSearchParams({ period, mode }).toString();
+        return apiCall(`${API_ENDPOINTS.analyticsSummary}?${query}`);
+    },
+
+    // Equity curve data
+    getEquity: (period = "30d", mode = "live") => {
+        const query = new URLSearchParams({ period, mode }).toString();
+        return apiCall(`${API_ENDPOINTS.analyticsEquity}?${query}`);
+    },
+
+    // Per-instrument breakdown
+    getInstruments: (period = "30d", mode = "live") => {
+        const query = new URLSearchParams({ period, mode }).toString();
+        return apiCall(`${API_ENDPOINTS.analyticsInstruments}?${query}`);
+    },
+};
+
+/**
+ * System API - Health & monitoring
+ */
 export const systemAPI = {
-    // Get comprehensive system health
+    // Basic health check
+    getHealth: () => apiCall(API_ENDPOINTS.health),
+
+    // Comprehensive system health with Oanda latency
     getSystemHealth: () => apiCall(API_ENDPOINTS.systemHealth),
 
-    // Get system info (memory, environment, etc.)
+    // System info (memory, environment, etc.)
     getSystemInfo: () => apiCall(API_ENDPOINTS.systemInfo),
 };
+
+// Backwards compatibility - keep tradingAPI.getConfig/updateConfig working
+tradingAPI.getConfig = configAPI.get;
+tradingAPI.updateConfig = configAPI.update;
+tradingAPI.getAnalytics = analyticsAPI.get;
 
 export default {
     API_BASE_URL,
@@ -170,5 +277,8 @@ export default {
     API_ENDPOINTS,
     apiCall,
     tradingAPI,
+    configAPI,
+    engineAPI,
+    analyticsAPI,
     systemAPI,
 };

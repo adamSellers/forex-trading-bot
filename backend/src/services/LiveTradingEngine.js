@@ -1,376 +1,1100 @@
 // backend/src/services/LiveTradingEngine.js - Forex Live Trading Engine
 const EventEmitter = require("events");
+const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
-const TradeRepository = require("../repositories/tradeRepository");
+const oandaClient = require("./Oandaclient");
 
+/**
+ * LiveTradingEngine - Executes trades based on signals from SignalGenerator
+ *
+ * Responsibilities:
+ * - Listen for signals from SignalGenerator
+ * - Validate entry conditions (trading enabled, max positions, margin, etc.)
+ * - Calculate position size based on risk parameters
+ * - Execute trades via Oanda API
+ * - Manage stop loss, take profit, and trailing stops
+ * - Log trades to database and broadcast events via Socket.IO
+ * - Handle exit signals and position management
+ */
 class LiveTradingEngine extends EventEmitter {
-    constructor(config, dataService, riskService) {
+    constructor(options = {}) {
         super();
-        this.config = config;
-        this.dataService = dataService;
-        this.riskService = riskService;
-        this.tradeRepo = new TradeRepository();
-        this.mode = "live";
 
-        this.portfolio = {
-            balanceAud: 0,
-            positions: [],
-            totalValueAud: 0,
-            unrealizedPnLAud: 0,
-            realizedPnLAud: 0,
-            marginUsedAud: 0,
-            marginAvailableAud: 0,
-            dailyPnLAud: 0,
-            totalSwapAud: 0,
-            stats: { winRate: 0, totalTrades: 0, winningTrades: 0 },
+        // Dependencies (injected via init())
+        this.configService = null;
+        this.dataService = null;
+        this.tradeRepository = null;
+        this.signalGenerator = null;
+        this.io = null;
+
+        // Engine state
+        this.isRunning = false;
+        this.openTrades = new Map(); // tradeId -> trade object
+        this.tradeQueue = []; // Queue for sequential processing
+        this.isProcessingQueue = false;
+
+        // Position monitoring
+        this.monitorInterval = null;
+        this.monitorIntervalMs = options.monitorIntervalMs || 10000; // 10s default
+
+        // Stats
+        this.stats = {
+            tradesExecuted: 0,
+            tradesClosed: 0,
+            signalsReceived: 0,
+            signalsRejected: 0,
+            errors: 0,
+            lastSignalTime: null,
+            lastTradeTime: null,
         };
 
-        this._signalQueue = [];
-        this._processingQueue = false;
-        this._closingPositions = new Set();
-        this._recoveryQueue = [];
-        this._validateConfig();
+        logger.info("⚙️ LiveTradingEngine v1.0 initialized");
     }
 
-    _validateConfig() {
-        if (this.config.leverage && this.config.leverage > 30) {
-            logger.warn("Leverage capped at ASIC limit of 30:1");
-            this.config.leverage = 30;
-        }
+    /**
+     * Initialize with dependencies
+     */
+    init(configService, dataService, tradeRepository, signalGenerator, io) {
+        this.configService = configService;
+        this.dataService = dataService;
+        this.tradeRepository = tradeRepository;
+        this.signalGenerator = signalGenerator;
+        this.io = io;
+
+        logger.info("⚙️ LiveTradingEngine dependencies injected");
+        return this;
     }
 
-    async initialize() {
-        logger.info("Forex Live Trading Engine Connecting...");
-        const account = await this.dataService.getAccountInfo();
-        if (account.error) throw new Error("Oanda Connection Failed");
-
-        this.portfolio.balanceAud = account.balance;
-        this.portfolio.marginUsedAud = account.marginUsed;
-        this.portfolio.marginAvailableAud = account.marginAvailable;
-        this.portfolio.totalValueAud = account.balance + account.unrealizedPL;
-        logger.success(
-            "Live Engine Online. Balance: $" +
-                this.portfolio.balanceAud.toFixed(2) +
-                " AUD"
-        );
-
-        try {
-            const dbPositions = await this.tradeRepo.getOpenTrades("live");
-            this.portfolio.positions = dbPositions.map((p) => ({
-                ...p,
-                currentPrice: p.entryPrice,
-                unrealizedPnLAud: 0,
-            }));
-            logger.info(
-                "Restored " +
-                    this.portfolio.positions.length +
-                    " positions from DB."
-            );
-        } catch (err) {
-            this.portfolio.positions = [];
-        }
-        await this.calculatePerformanceStats();
-    }
-
-    updateConfig(config) {
-        this.config = config;
-        this._validateConfig();
-    }
+    /**
+     * Start the trading engine
+     */
     async start() {
-        logger.info("Live Trading STARTED");
-        this.updatePortfolioValue(this.dataService.getAllPrices());
-    }
-    async stop() {
-        logger.info("Live Trading STOPPED");
-    }
-
-    async processSignal(signal, currentPrice, atrPips) {
-        this._signalQueue.push({
-            signal,
-            currentPrice,
-            atrPips,
-            timestamp: Date.now(),
-        });
-        if (!this._processingQueue) this._processSignalQueue();
-        return { success: true, action: "QUEUED" };
-    }
-
-    async _processSignalQueue() {
-        this._processingQueue = true;
-        while (this._signalQueue.length > 0) {
-            const { signal, currentPrice, atrPips } = this._signalQueue.shift();
-            try {
-                await this._executeSignal(signal, currentPrice, atrPips);
-            } catch (err) {
-                logger.error("Signal failed:", err.message);
-            }
-        }
-        this._processingQueue = false;
-    }
-
-    _calculateCurrentEquity() {
-        let unrealizedPnL = 0;
-        this.portfolio.positions.forEach((pos) => {
-            const priceData = this.dataService.getCurrentPrice(pos.instrument);
-            if (priceData) {
-                const priceDiff =
-                    pos.side === "BUY"
-                        ? priceData.price - pos.entryPrice
-                        : pos.entryPrice - priceData.price;
-                unrealizedPnL += priceDiff * pos.units;
-            }
-        });
-        return this.portfolio.balanceAud + unrealizedPnL;
-    }
-
-    _calculateCurrentExposure() {
-        const totalEquity = this._calculateCurrentEquity();
-        if (totalEquity <= 0) return 0;
-        let exposureValue = 0;
-        this.portfolio.positions.forEach((pos) => {
-            const priceData = this.dataService.getCurrentPrice(pos.instrument);
-            if (priceData) exposureValue += pos.units * priceData.price;
-        });
-        return exposureValue / totalEquity;
-    }
-
-    async _executeSignal(signal, currentPrice, atrPips) {
-        if (signal.signal !== "BUY" && signal.signal !== "SELL")
-            return { success: false, action: "NONE" };
-        const instrument = signal.symbol;
-        const openPosition = this.portfolio.positions.find(
-            (p) => p.instrument === instrument
-        );
-
-        if (signal.signal === "BUY") {
-            if (openPosition)
-                return {
-                    success: false,
-                    action: "SKIP",
-                    reason: "Position already open",
-                };
-            const maxExposure = this.config.maxPortfolioExposure || 0.95;
-            if (this._calculateCurrentExposure() >= maxExposure)
-                return {
-                    success: false,
-                    action: "SKIP",
-                    reason: "Exposure cap",
-                };
-
-            const totalEquity = this._calculateCurrentEquity();
-            const riskPercent = this.config.riskPerTradePercent || 0.01;
-            const riskAmountAud = totalEquity * riskPercent;
-            const stopLossPips =
-                this.config.stopLossType === "ATR"
-                    ? atrPips * (this.config.stopLossATRMultiplier || 1.5)
-                    : this.config.stopLossPips || 30;
-            const pipValue = this.dataService.getPipValue(instrument);
-            const stopLossPrice = currentPrice - stopLossPips * pipValue;
-            let units = Math.floor(riskAmountAud / (stopLossPips * pipValue));
-            const maxLeverage = this.config.leverage || 10;
-            units = Math.min(units, (totalEquity * maxLeverage) / currentPrice);
-            if (units < 1)
-                return {
-                    success: false,
-                    action: "SKIP",
-                    reason: "Trade size too small",
-                };
-
-            let order;
-            try {
-                order = await this.dataService.executeOrder(
-                    instrument,
-                    "BUY",
-                    units,
-                    { stopLossPrice }
-                );
-            } catch (err) {
-                logger.error("Buy Execution Failed:", err.message);
-                return { success: false, action: "ERROR", reason: err.message };
-            }
-
-            const tradeRecord = {
-                id: order.orderId.toString(),
-                oandaTradeId: order.tradeId,
-                instrument,
-                side: "BUY",
-                units: order.executedQty,
-                entryPrice: order.price,
-                entryCostAud: units * order.price,
-                stopLossPrice,
-                atrPips,
-                signal: signal.signal,
-                signalStrength: signal.strength,
-                entryType: signal.entryType,
-                entryTime: Date.now(),
-                isOpen: true,
-                mode: "live",
-            };
-            await this.tradeRepo.save(tradeRecord).catch(() => {});
-            this.portfolio.positions.push(tradeRecord);
-            logger.forex.buy(
-                instrument,
-                tradeRecord.units,
-                order.price.toFixed(5),
-                stopLossPrice.toFixed(5),
-                null
-            );
-            this.emit("tradeExecuted", tradeRecord);
-            return { success: true, action: "BUY", order };
+        if (this.isRunning) {
+            logger.warn("⚠️ Trading engine already running");
+            return;
         }
 
-        if (signal.signal === "SELL" && openPosition) {
-            return await this.closePosition(
-                openPosition,
-                currentPrice,
-                "SIGNAL_EXIT"
+        // Verify dependencies
+        if (!this.configService || !this.dataService || !this.tradeRepository) {
+            throw new Error(
+                "Trading engine not properly initialized - missing dependencies"
             );
         }
-        return { success: false, action: "NONE" };
-    }
 
-    async closePosition(position, currentPrice, reason) {
-        const lockKey = position.instrument + "_" + position.id;
-        if (this._closingPositions.has(lockKey))
-            return { success: false, action: "SKIP" };
-        this._closingPositions.add(lockKey);
-
-        let result;
+        // Initialize Oanda client
         try {
-            result = position.oandaTradeId
-                ? await this.dataService.closeTrade(position.oandaTradeId)
-                : await this.dataService.executeOrder(
-                      position.instrument,
-                      "SELL",
-                      position.units
-                  );
-        } catch (err) {
-            this._closingPositions.delete(lockKey);
-            return { success: false, action: "ERROR", reason: err.message };
+            await oandaClient.initialize();
+        } catch (error) {
+            logger.error(
+                "❌ Failed to initialize Oanda client:",
+                error.message
+            );
+            throw error;
         }
 
-        const exitPrice = result.price || currentPrice;
-        const pipValue = this.dataService.getPipValue(position.instrument);
-        const priceDiff =
-            position.side === "BUY"
-                ? exitPrice - position.entryPrice
-                : position.entryPrice - exitPrice;
-        const pnlPips = priceDiff / pipValue;
-        const pnlAud = priceDiff * position.units;
+        this.isRunning = true;
 
-        await this.tradeRepo
-            .updateTrade(position.id, {
-                isOpen: false,
-                exitPrice,
-                exitTime: Date.now(),
-                pnlAud,
-                pnlPips,
-                exitReason: reason,
-            })
-            .catch(() => {});
-        this.portfolio.positions = this.portfolio.positions.filter(
-            (p) => p.id !== position.id
-        );
-        this.portfolio.balanceAud += position.units * exitPrice;
-        this.portfolio.dailyPnLAud += pnlAud;
-        this.portfolio.realizedPnLAud += pnlAud;
-        this.portfolio.stats.totalTrades++;
-        if (pnlAud > 0) this.portfolio.stats.winningTrades++;
-        this.portfolio.stats.winRate =
-            (this.portfolio.stats.winningTrades /
-                this.portfolio.stats.totalTrades) *
-            100;
+        // Load any existing open trades from database
+        await this.syncOpenTrades();
 
-        logger.forex.sell(
-            position.instrument,
-            position.units,
-            exitPrice.toFixed(5),
-            pnlAud
+        // Subscribe to signals from SignalGenerator
+        // Store bound handler reference so we can remove it later
+        if (this.signalGenerator) {
+            this._boundSignalHandler = this.handleSignal.bind(this);
+            this.signalGenerator.on(
+                "signalGenerated",
+                this._boundSignalHandler
+            );
+            logger.info("📡 Subscribed to signal generator events");
+        }
+
+        // Start position monitoring loop
+        this.startMonitoring();
+
+        logger.success("🚀 LiveTradingEngine started");
+        this.emit("engineStarted", { timestamp: Date.now() });
+
+        return this;
+    }
+
+    /**
+     * Stop the trading engine
+     */
+    stop() {
+        if (!this.isRunning) return;
+
+        this.isRunning = false;
+
+        // Unsubscribe from signals using stored reference
+        if (this.signalGenerator && this._boundSignalHandler) {
+            this.signalGenerator.removeListener(
+                "signalGenerated",
+                this._boundSignalHandler
+            );
+            this._boundSignalHandler = null;
+        }
+
+        // Stop monitoring
+        if (this.monitorInterval) {
+            clearInterval(this.monitorInterval);
+            this.monitorInterval = null;
+        }
+
+        logger.info("⏹️ LiveTradingEngine stopped");
+        this.emit("engineStopped", { timestamp: Date.now() });
+    }
+
+    /**
+     * Sync open trades from database with local state
+     */
+    async syncOpenTrades() {
+        try {
+            const config = this.configService.get();
+            const dbTrades = await this.tradeRepository.getOpenTrades(
+                config.tradingMode || "live"
+            );
+
+            this.openTrades.clear();
+            for (const trade of dbTrades) {
+                this.openTrades.set(trade.id, trade);
+            }
+
+            logger.info(
+                `📊 Synced ${this.openTrades.size} open trades from database`
+            );
+
+            // Also sync with Oanda to verify positions
+            await this.syncWithOanda();
+        } catch (error) {
+            logger.error("❌ Failed to sync open trades:", error.message);
+        }
+    }
+
+    /**
+     * Sync local state with actual Oanda positions
+     */
+    async syncWithOanda() {
+        try {
+            const oandaTrades = await oandaClient.getOpenTrades();
+            const oandaTradeIds = new Set(oandaTrades.trades.map((t) => t.id));
+
+            // Check for trades that closed externally (stop loss hit, etc.)
+            for (const [tradeId, trade] of this.openTrades) {
+                if (
+                    trade.oandaTradeId &&
+                    !oandaTradeIds.has(trade.oandaTradeId)
+                ) {
+                    logger.warn(
+                        `⚠️ Trade ${tradeId} closed externally on Oanda`
+                    );
+                    await this.handleExternalClose(trade);
+                }
+            }
+        } catch (error) {
+            logger.error("❌ Failed to sync with Oanda:", error.message);
+        }
+    }
+
+    /**
+     * Handle a trade that was closed externally (stop loss, take profit hit)
+     */
+    async handleExternalClose(trade) {
+        try {
+            // Get trade details from Oanda to determine exit price and reason
+            const tradeDetails = await oandaClient.getTrade(trade.oandaTradeId);
+
+            const exitPrice = parseFloat(
+                tradeDetails.trade?.averageClosePrice || trade.entryPrice
+            );
+            const exitReason = this.determineExitReason(tradeDetails);
+
+            await this.closeTrade(trade.id, exitPrice, exitReason);
+        } catch (error) {
+            // Trade might not exist anymore, mark as closed with unknown reason
+            logger.warn(
+                `⚠️ Could not get details for externally closed trade ${trade.id}`
+            );
+            await this.closeTrade(trade.id, trade.entryPrice, "EXTERNAL");
+        }
+    }
+
+    /**
+     * Determine exit reason from Oanda trade details
+     */
+    determineExitReason(tradeDetails) {
+        const state = tradeDetails.trade?.state;
+        if (state === "CLOSED") {
+            // Check if there was a stop loss or take profit order that triggered
+            // This is a simplified check - could be enhanced
+            return "EXTERNAL";
+        }
+        return "UNKNOWN";
+    }
+
+    // ==================== SIGNAL HANDLING ====================
+
+    /**
+     * Handle incoming signal from SignalGenerator
+     */
+    async handleSignal(signal) {
+        this.stats.signalsReceived++;
+        this.stats.lastSignalTime = Date.now();
+
+        logger.debug(
+            `📨 Received signal: ${signal.symbol} - ${
+                signal.signal
+            } (ADX: ${signal.strength?.toFixed(1)})`
         );
-        this.emit("tradeExecuted", {
-            ...position,
-            side: "SELL",
-            status: "CLOSED",
+
+        // Queue signal for processing
+        this.tradeQueue.push({ type: "signal", signal, timestamp: Date.now() });
+        this.processQueue();
+    }
+
+    /**
+     * Process the trade queue sequentially
+     */
+    async processQueue() {
+        if (this.isProcessingQueue || this.tradeQueue.length === 0) return;
+
+        this.isProcessingQueue = true;
+
+        while (this.tradeQueue.length > 0) {
+            const item = this.tradeQueue.shift();
+
+            try {
+                if (item.type === "signal") {
+                    await this.processSignal(item.signal);
+                }
+            } catch (error) {
+                logger.error(`❌ Queue processing error:`, error.message);
+                this.stats.errors++;
+            }
+        }
+
+        this.isProcessingQueue = false;
+    }
+
+    /**
+     * Process a signal and decide action
+     */
+    async processSignal(signal) {
+        const {
+            symbol,
+            signal: signalType,
+            strength,
+            entryType,
+            currentPrice,
+            atr,
+            atrPips,
+        } = signal;
+
+        // Get current config
+        const config = this.configService.get();
+
+        // Check if we have an open position for this instrument
+        const existingTrade = this.getOpenTradeByInstrument(symbol);
+
+        if (signalType === "BUY") {
+            // Entry signal
+            if (existingTrade) {
+                logger.debug(
+                    `⏸️ Skipping BUY for ${symbol} - already in position`
+                );
+                this.stats.signalsRejected++;
+                return;
+            }
+
+            // Validate and execute entry
+            const validation = this.validateEntry(signal, config);
+            if (!validation.valid) {
+                logger.info(
+                    `⏸️ Entry rejected for ${symbol}: ${validation.reason}`
+                );
+                this.stats.signalsRejected++;
+                this.emit("entryRejected", {
+                    signal,
+                    reason: validation.reason,
+                });
+                return;
+            }
+
+            await this.executeEntry(signal, config);
+        } else if (signalType === "SELL") {
+            // Exit signal
+            if (!existingTrade) {
+                logger.debug(
+                    `⏸️ Skipping SELL for ${symbol} - no open position`
+                );
+                return;
+            }
+
+            // Only exit if we're in a long position
+            if (existingTrade.side === "BUY") {
+                await this.executeExit(
+                    existingTrade,
+                    currentPrice,
+                    "SIGNAL_REVERSAL"
+                );
+            }
+        }
+        // HOLD signals are ignored
+    }
+
+    /**
+     * Get open trade by instrument
+     */
+    getOpenTradeByInstrument(instrument) {
+        for (const [id, trade] of this.openTrades) {
+            if (trade.instrument === instrument && trade.isOpen) {
+                return trade;
+            }
+        }
+        return null;
+    }
+
+    // ==================== ENTRY VALIDATION ====================
+
+    /**
+     * Validate entry conditions
+     */
+    validateEntry(signal, config) {
+        // 1. Trading must be enabled
+        if (!config.enableTrading) {
+            return { valid: false, reason: "Trading is disabled" };
+        }
+
+        // 2. Check instrument is in active list
+        if (!config.assets.includes(signal.symbol)) {
+            return {
+                valid: false,
+                reason: `Instrument ${signal.symbol} not in active list`,
+            };
+        }
+
+        // 3. Check max open positions
+        const openCount = this.openTrades.size;
+        if (openCount >= config.maxOpenPositions) {
+            return {
+                valid: false,
+                reason: `Max positions reached (${openCount}/${config.maxOpenPositions})`,
+            };
+        }
+
+        // 4. Not already in a position for this instrument
+        if (this.getOpenTradeByInstrument(signal.symbol)) {
+            return {
+                valid: false,
+                reason: "Already in position for this instrument",
+            };
+        }
+
+        // 5. Check minimum ADX strength
+        if (signal.strength < config.minAdx) {
+            return {
+                valid: false,
+                reason: `ADX too low (${signal.strength?.toFixed(1)} < ${
+                    config.minAdx
+                })`,
+            };
+        }
+
+        // 6. Signal must be BUY (we only go long for now)
+        if (signal.signal !== "BUY") {
+            return { valid: false, reason: "Only BUY signals are executed" };
+        }
+
+        return { valid: true };
+    }
+
+    // ==================== POSITION SIZING ====================
+
+    /**
+     * Calculate position size based on config
+     */
+    async calculatePositionSize(
+        instrument,
+        stopLossPips,
+        currentPrice,
+        config
+    ) {
+        // Get account balance from Oanda
+        let accountBalance;
+        try {
+            const accountSummary = await oandaClient.getAccountSummary();
+            accountBalance = parseFloat(accountSummary.account.balance);
+        } catch (error) {
+            logger.error("❌ Failed to get account balance:", error.message);
+            return 0;
+        }
+
+        // Determine position sizing method
+        if (config.positionSizeMethod === "FIXED") {
+            return config.fixedPositionUnits || 1000;
+        }
+
+        // Risk-based position sizing
+        const riskPercent = config.riskPerTrade || 0.02;
+        const riskAmount = accountBalance * riskPercent;
+
+        // Don't exceed max capital at risk
+        const maxRisk = Math.min(riskAmount, config.maxCapitalAtRisk || 500);
+
+        // Calculate position size
+        const pipValue = oandaClient.getPipValue(instrument);
+        const stopLossPrice = stopLossPips * pipValue;
+
+        // Position size = Risk Amount / (Stop Loss in Price × Conversion Factor)
+        // For AUD account, this is simplified - could be more precise with conversion rates
+        let units = Math.floor(maxRisk / (stopLossPrice * currentPrice));
+
+        // Apply leverage limits
+        const maxLeverage = config.leverage || 10;
+        const maxUnitsFromLeverage = Math.floor(
+            (accountBalance * maxLeverage) / currentPrice
+        );
+        units = Math.min(units, maxUnitsFromLeverage);
+
+        // Minimum units check
+        if (units < 1) {
+            logger.warn(
+                `⚠️ Calculated position size too small: ${units} units`
+            );
+            return 0;
+        }
+
+        return units;
+    }
+
+    /**
+     * Calculate stop loss price
+     */
+    calculateStopLoss(signal, config) {
+        const { currentPrice, atrPips } = signal;
+        const instrument = signal.symbol;
+        const pipValue = oandaClient.getPipValue(instrument);
+
+        let stopLossPips;
+
+        if (config.stopLossType === "ATR" && atrPips) {
+            // ATR-based stop loss
+            const multiplier = config.stopLossAtrMultiplier || 1.5;
+            stopLossPips = atrPips * multiplier;
+        } else {
+            // Fixed pip stop loss
+            stopLossPips = config.stopLossPips || 30;
+        }
+
+        // For BUY trades, stop loss is below entry
+        const stopLossPrice = currentPrice - stopLossPips * pipValue;
+
+        return {
+            stopLossPips,
+            stopLossPrice: parseFloat(stopLossPrice.toFixed(5)),
+        };
+    }
+
+    /**
+     * Calculate take profit price (optional)
+     */
+    calculateTakeProfit(signal, config, stopLossPips) {
+        if (!config.enableTakeProfit) return null;
+
+        const { currentPrice } = signal;
+        const instrument = signal.symbol;
+        const pipValue = oandaClient.getPipValue(instrument);
+
+        // Use risk-reward ratio for take profit
+        const rrRatio = config.takeProfitRatio || 2.0;
+        const takeProfitPips = stopLossPips * rrRatio;
+
+        // For BUY trades, take profit is above entry
+        const takeProfitPrice = currentPrice + takeProfitPips * pipValue;
+
+        return {
+            takeProfitPips,
+            takeProfitPrice: parseFloat(takeProfitPrice.toFixed(5)),
+        };
+    }
+
+    // ==================== TRADE EXECUTION ====================
+
+    /**
+     * Execute a trade entry
+     */
+    async executeEntry(signal, config) {
+        const { symbol, currentPrice, strength, entryType, atr, atrPips } =
+            signal;
+
+        logger.info(`🎯 Executing entry for ${symbol} at ${currentPrice}`);
+
+        // Calculate stop loss
+        const { stopLossPips, stopLossPrice } = this.calculateStopLoss(
+            signal,
+            config
+        );
+
+        // Calculate position size
+        const units = await this.calculatePositionSize(
+            symbol,
+            stopLossPips,
+            currentPrice,
+            config
+        );
+        if (units === 0) {
+            logger.warn(
+                `⚠️ Position size calculation returned 0 units - skipping trade`
+            );
+            this.emit("entryRejected", {
+                signal,
+                reason: "Position size too small",
+            });
+            return;
+        }
+
+        // Calculate take profit (optional)
+        const takeProfit = this.calculateTakeProfit(
+            signal,
+            config,
+            stopLossPips
+        );
+
+        // Calculate trailing stop distance (if enabled)
+        let trailingStopDistance = null;
+        if (config.enableTrailingStops) {
+            const pipValue = oandaClient.getPipValue(symbol);
+            trailingStopDistance = (config.trailingStopPips || 25) * pipValue;
+        }
+
+        // Get current spread for logging
+        const priceData = this.dataService.getCurrentPrice(symbol);
+        const spreadPips = priceData?.spread || 0;
+
+        // Check if paper trading mode
+        const mode = config.tradingMode || "live";
+
+        if (mode === "paper") {
+            // Paper trading - simulate the trade
+            return this.executePaperEntry(signal, config, {
+                units,
+                stopLossPrice,
+                stopLossPips,
+                takeProfitPrice: takeProfit?.takeProfitPrice,
+                spreadPips,
+            });
+        }
+
+        // Live trading - execute via Oanda
+        try {
+            const orderResult = await oandaClient.placeMarketOrder(
+                symbol,
+                units,
+                {
+                    stopLossPrice,
+                    takeProfitPrice: takeProfit?.takeProfitPrice,
+                    // Note: We don't set trailing stop on entry - manage it separately
+                }
+            );
+
+            // Extract trade details from response
+            const fillTransaction = orderResult.orderFillTransaction;
+            if (!fillTransaction) {
+                logger.error(
+                    "❌ Order placed but no fill transaction received"
+                );
+                this.emit("orderError", {
+                    signal,
+                    error: "No fill transaction",
+                });
+                return;
+            }
+
+            const oandaTradeId = fillTransaction.tradeOpened?.tradeID;
+            const fillPrice = parseFloat(fillTransaction.price);
+
+            // Create trade record
+            const trade = {
+                id: uuidv4(),
+                oandaTradeId,
+                instrument: symbol,
+                side: "BUY",
+                units,
+                entryPrice: fillPrice,
+                entryCostAud: units * fillPrice, // Simplified
+                signal: signal.signal,
+                signalStrength: strength,
+                entryType,
+                atrPips,
+                stopLossPrice,
+                takeProfitPrice: takeProfit?.takeProfitPrice,
+                trailingStopPips: config.trailingStopPips,
+                leverageUsed: config.leverage || 10,
+                marginUsedAud: (units * fillPrice) / (config.leverage || 10),
+                spreadPips,
+                entryTime: Date.now(),
+                mode: "live",
+                isOpen: true,
+            };
+
+            // Save to database
+            await this.tradeRepository.save(trade);
+
+            // Track in memory
+            this.openTrades.set(trade.id, trade);
+
+            // Update stats
+            this.stats.tradesExecuted++;
+            this.stats.lastTradeTime = Date.now();
+
+            // Broadcast trade event
+            this.broadcastTradeOpened(trade);
+
+            logger.success(
+                `✅ LIVE BUY executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}`
+            );
+
+            return trade;
+        } catch (error) {
+            logger.error(
+                `❌ Order execution failed for ${symbol}:`,
+                error.message
+            );
+            this.stats.errors++;
+            this.emit("orderError", { signal, error: error.message });
+            throw error;
+        }
+    }
+
+    /**
+     * Execute a paper trade entry (simulation)
+     */
+    async executePaperEntry(signal, config, params) {
+        const { symbol, currentPrice, strength, entryType, atrPips } = signal;
+        const {
+            units,
+            stopLossPrice,
+            stopLossPips,
+            takeProfitPrice,
+            spreadPips,
+        } = params;
+
+        // Simulate fill at current price (could add slippage simulation)
+        const fillPrice = currentPrice;
+
+        // Create trade record
+        const trade = {
+            id: uuidv4(),
+            oandaTradeId: `PAPER_${Date.now()}`,
+            instrument: symbol,
+            side: "BUY",
+            units,
+            entryPrice: fillPrice,
+            entryCostAud: units * fillPrice,
+            signal: signal.signal,
+            signalStrength: strength,
+            entryType,
+            atrPips,
+            stopLossPrice,
+            takeProfitPrice,
+            trailingStopPips: config.trailingStopPips,
+            leverageUsed: config.leverage || 10,
+            marginUsedAud: (units * fillPrice) / (config.leverage || 10),
+            spreadPips,
+            entryTime: Date.now(),
+            mode: "paper",
+            isOpen: true,
+        };
+
+        // Save to database
+        await this.tradeRepository.save(trade);
+
+        // Track in memory
+        this.openTrades.set(trade.id, trade);
+
+        // Update stats
+        this.stats.tradesExecuted++;
+        this.stats.lastTradeTime = Date.now();
+
+        // Broadcast trade event
+        this.broadcastTradeOpened(trade);
+
+        logger.success(
+            `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}`
+        );
+
+        return trade;
+    }
+
+    // ==================== TRADE EXIT ====================
+
+    /**
+     * Execute a trade exit
+     */
+    async executeExit(trade, exitPrice, reason) {
+        const config = this.configService.get();
+        const mode = config.tradingMode || "live";
+
+        logger.info(
+            `🎯 Executing exit for ${trade.instrument} at ${exitPrice} (${reason})`
+        );
+
+        if (
+            mode === "live" &&
+            trade.oandaTradeId &&
+            !trade.oandaTradeId.startsWith("PAPER_")
+        ) {
+            // Live trading - close via Oanda
+            try {
+                await oandaClient.closeTrade(trade.oandaTradeId);
+            } catch (error) {
+                // Trade might already be closed
+                logger.warn(
+                    `⚠️ Error closing trade on Oanda: ${error.message}`
+                );
+            }
+        }
+
+        // Close in our system
+        await this.closeTrade(trade.id, exitPrice, reason);
+    }
+
+    /**
+     * Close a trade and update database
+     */
+    async closeTrade(tradeId, exitPrice, exitReason) {
+        const trade = this.openTrades.get(tradeId);
+        if (!trade) {
+            logger.warn(`⚠️ Trade ${tradeId} not found in open trades`);
+            return;
+        }
+
+        // Calculate P/L
+        const pipValue = oandaClient.getPipValue(trade.instrument);
+        const priceChange = exitPrice - trade.entryPrice;
+        const pnlPips = priceChange / pipValue;
+        const pnlAud = trade.units * priceChange;
+        const pnlPercent = (priceChange / trade.entryPrice) * 100;
+
+        // Calculate holding period
+        const holdingPeriodMs = Date.now() - trade.entryTime;
+
+        // Update trade object
+        const closedTrade = {
+            ...trade,
+            exitPrice,
+            exitTime: Date.now(),
+            exitReason,
             pnlAud,
             pnlPips,
+            pnlPercent,
+            holdingPeriodMs,
+            isOpen: false,
+        };
+
+        // Update database
+        await this.tradeRepository.updateTrade(tradeId, {
             exitPrice,
+            exitTime: closedTrade.exitTime,
+            exitValueAud: trade.units * exitPrice,
+            exitReason,
+            pnlAud,
+            pnlPips,
+            pnlPercent,
+            holdingPeriodMs,
+            isOpen: false,
         });
-        this._closingPositions.delete(lockKey);
-        return { success: true, action: "SELL", pnlAud, pnlPips };
+
+        // Remove from open trades
+        this.openTrades.delete(tradeId);
+
+        // Update stats
+        this.stats.tradesClosed++;
+
+        // Broadcast trade closed event
+        this.broadcastTradeClosed(closedTrade);
+
+        const profitEmoji = pnlAud >= 0 ? "💰" : "📉";
+        logger.info(
+            `${profitEmoji} Trade closed: ${
+                trade.instrument
+            } | P/L: ${pnlAud.toFixed(2)} AUD (${pnlPips.toFixed(
+                1
+            )} pips) | Reason: ${exitReason}`
+        );
+
+        return closedTrade;
     }
 
-    updatePortfolioValue(allPrices) {
-        if (!allPrices) return;
-        let totalUnrealizedPnL = 0;
-        this.portfolio.positions.forEach((pos) => {
-            const priceData = allPrices[pos.instrument];
-            if (!priceData) return;
-            const pipValue = this.dataService.getPipValue(pos.instrument);
-            const priceDiff =
-                pos.side === "BUY"
-                    ? priceData.price - pos.entryPrice
-                    : pos.entryPrice - priceData.price;
-            pos.currentPrice = priceData.price;
-            pos.unrealizedPnLPips = priceDiff / pipValue;
-            pos.unrealizedPnLAud = priceDiff * pos.units;
-            totalUnrealizedPnL += pos.unrealizedPnLAud;
-            this.checkExitConditions(pos, priceData.price);
-        });
-        this.portfolio.unrealizedPnLAud = totalUnrealizedPnL;
-        this.portfolio.totalValueAud =
-            this.portfolio.balanceAud + totalUnrealizedPnL;
-        this.emit("portfolioUpdated", this.getPortfolioSummary());
+    // ==================== POSITION MONITORING ====================
+
+    /**
+     * Start position monitoring loop
+     */
+    startMonitoring() {
+        if (this.monitorInterval) {
+            clearInterval(this.monitorInterval);
+        }
+
+        this.monitorInterval = setInterval(() => {
+            this.monitorPositions();
+        }, this.monitorIntervalMs);
+
+        logger.info(
+            `👁️ Position monitoring started (${
+                this.monitorIntervalMs / 1000
+            }s interval)`
+        );
     }
 
-    checkExitConditions(position, currentPrice) {
-        if (this._closingPositions.has(position.instrument + "_" + position.id))
-            return;
-        if (position.stopLossPrice && currentPrice <= position.stopLossPrice) {
-            logger.info("STOP LOSS: " + position.instrument);
-            this.closePosition(position, currentPrice, "STOP_LOSS");
+    /**
+     * Monitor open positions for trailing stops and stop loss/take profit
+     */
+    async monitorPositions() {
+        if (this.openTrades.size === 0) return;
+
+        const config = this.configService.get();
+
+        for (const [tradeId, trade] of this.openTrades) {
+            try {
+                await this.checkPosition(trade, config);
+            } catch (error) {
+                logger.error(
+                    `❌ Error monitoring position ${tradeId}:`,
+                    error.message
+                );
+            }
+        }
+
+        // Sync with Oanda periodically
+        await this.syncWithOanda();
+    }
+
+    /**
+     * Check a single position for stop loss, trailing stop updates
+     */
+    async checkPosition(trade, config) {
+        const priceData = this.dataService.getCurrentPrice(trade.instrument);
+        if (!priceData) return;
+
+        const currentPrice = priceData.price;
+        const pipValue = oandaClient.getPipValue(trade.instrument);
+
+        // Check paper trade stop loss (Oanda handles live trades)
+        if (trade.mode === "paper" && trade.stopLossPrice) {
+            if (currentPrice <= trade.stopLossPrice) {
+                logger.info(
+                    `🛑 Paper trade stop loss hit for ${trade.instrument}`
+                );
+                await this.closeTrade(
+                    trade.id,
+                    trade.stopLossPrice,
+                    "STOP_LOSS"
+                );
+                return;
+            }
+        }
+
+        // Check paper trade take profit
+        if (trade.mode === "paper" && trade.takeProfitPrice) {
+            if (currentPrice >= trade.takeProfitPrice) {
+                logger.info(
+                    `🎯 Paper trade take profit hit for ${trade.instrument}`
+                );
+                await this.closeTrade(
+                    trade.id,
+                    trade.takeProfitPrice,
+                    "TAKE_PROFIT"
+                );
+                return;
+            }
+        }
+
+        // Update trailing stop if enabled
+        if (config.enableTrailingStops && trade.side === "BUY") {
+            await this.updateTrailingStop(trade, currentPrice, config);
         }
     }
 
-    async calculatePerformanceStats() {
-        try {
-            const allTrades = await this.tradeRepo.getAllTrades("live");
-            const closedTrades = allTrades.filter(
-                (t) => t.pnlAud !== null && !t.isOpen
+    /**
+     * Update trailing stop for a position
+     */
+    async updateTrailingStop(trade, currentPrice, config) {
+        const pipValue = oandaClient.getPipValue(trade.instrument);
+        const trailingPips = config.trailingStopPips || 25;
+        const activationPips = config.trailingStopActivationPips || 20;
+
+        // Check if price has moved enough to activate trailing stop
+        const profitPips = (currentPrice - trade.entryPrice) / pipValue;
+
+        if (profitPips < activationPips) {
+            return; // Not in profit enough to activate trailing
+        }
+
+        // Calculate new trailing stop price
+        const newStopLossPrice = currentPrice - trailingPips * pipValue;
+
+        // Only update if new stop is higher than current stop
+        if (
+            !trade.trailingStopPrice ||
+            newStopLossPrice > trade.trailingStopPrice
+        ) {
+            const previousStop = trade.trailingStopPrice || trade.stopLossPrice;
+
+            // Update in memory
+            trade.trailingStopPrice = newStopLossPrice;
+            trade.highestPrice = Math.max(
+                trade.highestPrice || trade.entryPrice,
+                currentPrice
             );
-            this.portfolio.stats.totalTrades = closedTrades.length;
-            this.portfolio.stats.winningTrades = closedTrades.filter(
-                (t) => t.pnlAud > 0
-            ).length;
-            this.portfolio.stats.winRate =
-                this.portfolio.stats.totalTrades > 0
-                    ? (this.portfolio.stats.winningTrades /
-                          this.portfolio.stats.totalTrades) *
-                      100
-                    : 0;
-            this.portfolio.realizedPnLAud = closedTrades.reduce(
-                (acc, t) => acc + (t.pnlAud || 0),
-                0
+
+            // Update in database
+            await this.tradeRepository.updateTrade(trade.id, {
+                trailingStopPrice: newStopLossPrice,
+                highestPrice: trade.highestPrice,
+            });
+
+            // Update Oanda stop loss (live trades only)
+            if (
+                trade.mode === "live" &&
+                !trade.oandaTradeId.startsWith("PAPER_")
+            ) {
+                try {
+                    await oandaClient.modifyTrade(trade.oandaTradeId, {
+                        stopLossPrice: newStopLossPrice,
+                    });
+                } catch (error) {
+                    logger.error(
+                        `❌ Failed to update trailing stop on Oanda:`,
+                        error.message
+                    );
+                }
+            }
+
+            logger.debug(
+                `📈 Trailing stop updated for ${
+                    trade.instrument
+                }: ${previousStop?.toFixed(5)} → ${newStopLossPrice.toFixed(5)}`
             );
-        } catch (e) {}
+        }
     }
 
-    getPortfolioSummary() {
-        return {
-            ...this.portfolio,
-            exposure: this._calculateCurrentExposure(),
-            exposurePercent:
-                (this._calculateCurrentExposure() * 100).toFixed(1) + "%",
+    // ==================== SOCKET BROADCASTING ====================
+
+    /**
+     * Broadcast trade opened event
+     */
+    broadcastTradeOpened(trade) {
+        const event = {
+            type: "tradeOpened",
+            tradeId: trade.id,
+            instrument: trade.instrument,
+            side: trade.side,
+            units: trade.units,
+            entryPrice: trade.entryPrice,
+            stopLossPrice: trade.stopLossPrice,
+            takeProfitPrice: trade.takeProfitPrice,
+            mode: trade.mode,
             timestamp: Date.now(),
         };
+
+        if (this.io) {
+            this.io.emit("tradeOpened", event);
+            this.io.emit("tradeUpdate", trade);
+        }
+
+        this.emit("tradeOpened", trade);
     }
 
-    getStatus() {
-        return {
-            mode: "live",
-            isActive: true,
-            positions: this.portfolio.positions.length,
-            exposure: (this._calculateCurrentExposure() * 100).toFixed(1) + "%",
+    /**
+     * Broadcast trade closed event
+     */
+    broadcastTradeClosed(trade) {
+        const event = {
+            type: "tradeClosed",
+            tradeId: trade.id,
+            instrument: trade.instrument,
+            exitPrice: trade.exitPrice,
+            pnlAud: trade.pnlAud,
+            pnlPips: trade.pnlPips,
+            exitReason: trade.exitReason,
+            mode: trade.mode,
+            timestamp: Date.now(),
         };
+
+        if (this.io) {
+            this.io.emit("tradeClosed", event);
+            this.io.emit("tradeUpdate", trade);
+        }
+
+        this.emit("tradeClosed", trade);
+    }
+
+    // ==================== PUBLIC METHODS ====================
+
+    /**
+     * Manually close a trade
+     */
+    async forceCloseTrade(tradeId) {
+        const trade = this.openTrades.get(tradeId);
+        if (!trade) {
+            throw new Error(`Trade ${tradeId} not found`);
+        }
+
+        const priceData = this.dataService.getCurrentPrice(trade.instrument);
+        if (!priceData) {
+            throw new Error(`No price data for ${trade.instrument}`);
+        }
+
+        await this.executeExit(trade, priceData.price, "MANUAL");
+    }
+
+    /**
+     * Get engine status
+     */
+    getStatus() {
+        const config = this.configService?.get() || {};
+
+        return {
+            isRunning: this.isRunning,
+            tradingEnabled: config.enableTrading,
+            tradingMode: config.tradingMode || "live",
+            openPositions: this.openTrades.size,
+            maxPositions: config.maxOpenPositions,
+            stats: this.stats,
+            openTrades: Array.from(this.openTrades.values()).map((t) => ({
+                id: t.id,
+                instrument: t.instrument,
+                side: t.side,
+                units: t.units,
+                entryPrice: t.entryPrice,
+                stopLossPrice: t.stopLossPrice,
+                entryTime: t.entryTime,
+                mode: t.mode,
+            })),
+        };
+    }
+
+    /**
+     * Get open trades
+     */
+    getOpenTrades() {
+        return Array.from(this.openTrades.values());
+    }
+
+    /**
+     * Reset engine statistics
+     */
+    resetStats() {
+        this.stats = {
+            tradesExecuted: 0,
+            tradesClosed: 0,
+            signalsReceived: 0,
+            signalsRejected: 0,
+            errors: 0,
+            lastSignalTime: null,
+            lastTradeTime: null,
+        };
+        logger.info("📊 Trading engine stats reset");
     }
 }
 

@@ -1,4 +1,4 @@
-// frontend/src/components/TradingDashboard.jsx - Main Trading Dashboard
+// frontend/src/components/TradingDashboard.jsx - Main Trading Dashboard with Engine Integration
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Container,
@@ -17,6 +17,7 @@ import {
   Tabs,
   Tab,
   Badge,
+  Tooltip,
 } from '@mui/material';
 import {
   PlayArrow,
@@ -25,9 +26,11 @@ import {
   Radar,
   ReceiptLong,
   Timeline,
+  Sync,
+  FiberManualRecord,
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
-import { SOCKET_URL, tradingAPI } from '../config/api';
+import { SOCKET_URL, tradingAPI, engineAPI } from '../config/api';
 
 // --- IMPORTED WIDGETS ---
 import { GlassCard, FOREX_INSTRUMENTS } from './dashboard/Shared';
@@ -46,6 +49,7 @@ const TradingDashboard = () => {
 
   // --- STATE ---
   const [systemStatus, setSystemStatus] = useState(null);
+  const [engineStatus, setEngineStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
   const [latestSignals, setLatestSignals] = useState(new Map());
@@ -95,7 +99,7 @@ const TradingDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData] =
+      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData] =
         await Promise.allSettled([
           tradingAPI.getStatus(),
           tradingAPI.getPortfolio(),
@@ -103,6 +107,7 @@ const TradingDashboard = () => {
           tradingAPI.getSignals({ limit: FETCH_LIMITS.SIGNALS }),
           tradingAPI.getPrices(),
           tradingAPI.getAccount(),
+          engineAPI.getStatus(),
         ]);
 
       if (!isMountedRef.current) return;
@@ -111,6 +116,9 @@ const TradingDashboard = () => {
         setSystemStatus(statusData.value);
         setTradingEnabled(statusData.value.config?.enableTrading || false);
         setSelectedStrategy(statusData.value.config?.strategy || 'supertrend_momentum');
+      }
+      if (engineData.status === 'fulfilled') {
+        setEngineStatus(engineData.value);
       }
       if (signalsData.status === 'fulfilled' && signalsData.value) {
         const sigs = Array.isArray(signalsData.value)
@@ -160,6 +168,7 @@ const TradingDashboard = () => {
     });
 
     socket.on('systemStatus', (s) => isMountedRef.current && setSystemStatus(s));
+    socket.on('engineStatus', (s) => isMountedRef.current && setEngineStatus(s));
     socket.on('portfolioUpdated', (d) => {
       if (isMountedRef.current) {
         setPortfolio(d);
@@ -210,6 +219,17 @@ const TradingDashboard = () => {
         setLastUpdate(Date.now());
       }
     });
+    // New: Listen for trade events from engine
+    socket.on('tradeOpened', (t) => {
+      if (isMountedRef.current) {
+        fetchInitialData(); // Refresh all data when trade opens
+      }
+    });
+    socket.on('tradeClosed', (t) => {
+      if (isMountedRef.current) {
+        fetchInitialData(); // Refresh all data when trade closes
+      }
+    });
     socket.on('configUpdate', (newConfig) => {
       if (isMountedRef.current && newConfig) {
         setSystemStatus((prev) => ({ ...prev, config: newConfig }));
@@ -245,6 +265,15 @@ const TradingDashboard = () => {
     }
   };
 
+  const handleSyncEngine = async () => {
+    try {
+      await engineAPI.sync();
+      fetchInitialData();
+    } catch (err) {
+      setError(`Sync failed: ${err.message}`);
+    }
+  };
+
   // --- MEMOIZED HELPERS ---
   const signalsToRender = useMemo(
     () =>
@@ -276,6 +305,10 @@ const TradingDashboard = () => {
     ).length;
   }, [signalsToRender]);
 
+  // Engine stats
+  const engineOpenPositions = engineStatus?.openPositions || 0;
+  const engineIsRunning = engineStatus?.isRunning || false;
+
   if (loading && !systemStatus)
     return (
       <Box
@@ -293,7 +326,7 @@ const TradingDashboard = () => {
       maxWidth={false}
       sx={{
         py: 2,
-        height: 'calc(100vh - 64px)', // Account for navigation bar
+        height: 'calc(100vh - 64px)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -335,18 +368,55 @@ const TradingDashboard = () => {
           >
             {tradingEnabled ? 'STOP ENGINE' : 'START ENGINE'}
           </Button>
+          <Tooltip title="Sync engine with Oanda">
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleSyncEngine}
+              sx={{ minWidth: 40, p: 0.5 }}
+            >
+              <Sync fontSize="small" />
+            </Button>
+          </Tooltip>
         </Stack>
 
-        <Typography
-          variant="caption"
-          sx={{
-            fontFamily: 'monospace',
-            color: 'text.secondary',
-            display: { xs: 'none', md: 'block' },
-          }}
-        >
-          Last sync: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}
-        </Typography>
+        {/* Engine Status Indicator */}
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Box display="flex" alignItems="center" gap={1}>
+            <FiberManualRecord
+              sx={{
+                fontSize: 12,
+                color: engineIsRunning ? 'success.main' : 'text.disabled',
+                animation: engineIsRunning ? 'pulse 2s infinite' : 'none',
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.5 },
+                },
+              }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              Engine: {engineIsRunning ? 'Running' : 'Stopped'}
+            </Typography>
+          </Box>
+          {engineOpenPositions > 0 && (
+            <Chip
+              label={`${engineOpenPositions} Open`}
+              size="small"
+              color="warning"
+              sx={{ height: 20, fontSize: '0.7rem' }}
+            />
+          )}
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: 'monospace',
+              color: 'text.secondary',
+              display: { xs: 'none', md: 'block' },
+            }}
+          >
+            Last sync: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}
+          </Typography>
+        </Stack>
       </Box>
 
       {error && (
@@ -360,6 +430,7 @@ const TradingDashboard = () => {
         portfolio={portfolio}
         calculatedDailyPnL={calculatedDailyPnL}
         activeSignalsCount={signalsToRender.length}
+        engineStatus={engineStatus}
       />
 
       {/* Data Terminal (Tabs) */}
@@ -427,6 +498,7 @@ const TradingDashboard = () => {
                 prices={prices}
                 portfolio={portfolio}
                 systemStatus={systemStatus}
+                engineStatus={engineStatus}
               />
             </Box>
           )}

@@ -1,18 +1,23 @@
-// frontend/src/components/dashboard/CurrentHoldings.jsx - Forex Version
+// frontend/src/components/dashboard/CurrentHoldings.jsx - With Engine Integration
 import React, { useState } from 'react';
 import {
   Box, Paper, Typography, Card, CardContent, Chip, 
-  IconButton, Tooltip, useTheme, alpha, Grid, Divider, Button, CircularProgress
+  IconButton, Tooltip, useTheme, alpha, Grid, Divider, Button, CircularProgress,
+  Stack
 } from '@mui/material';
-import { AccountBalance, Info, TrendingUp, TrendingDown } from '@mui/icons-material';
-import { tradingAPI } from '../../config/api';
+import { AccountBalance, Info, TrendingUp, TrendingDown, Engineering } from '@mui/icons-material';
+import { tradingAPI, engineAPI } from '../../config/api';
 import { formatCurrency, formatPrice, formatInstrument, INSTRUMENT_INFO } from './Shared';
 
-const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
+const CurrentHoldings = ({ account, prices, portfolio, systemStatus, engineStatus }) => {
   const theme = useTheme();
 
+  // Get engine-tracked trades
+  const engineTrades = engineStatus?.openTrades || [];
+  const hasEngineTrades = engineTrades.length > 0;
+
   // --- 1. OPEN POSITION ROW ---
-  const PositionRow = ({ position }) => {
+  const PositionRow = ({ position, isEngineTrade = false }) => {
       const instrument = position.instrument || position.symbol;
       const info = INSTRUMENT_INFO[instrument] || {};
       const pnl = position.unrealizedPL || position.unrealizedPnL || 0;
@@ -31,7 +36,13 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
           if (!window.confirm(`⚠️ CLOSE ${displayName} POSITION?\nThis will immediately close the position at market price.`)) return;
           setClosing(true);
           try {
-              await tradingAPI.closePosition(position.id);
+              if (isEngineTrade && position.id) {
+                  // Close via engine (handles both Oanda and database)
+                  await engineAPI.closeTrade(position.id);
+              } else {
+                  // Close directly via Oanda
+                  await tradingAPI.closePosition(position.id);
+              }
               // Parent will refresh via socket or polling
           } catch (e) {
               alert(`Close Failed: ${e.message}`);
@@ -57,6 +68,11 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                             size="small" 
                             sx={{ height: 20, fontSize: '0.65rem', fontWeight: 'bold' }} 
                         />
+                        {isEngineTrade && (
+                            <Tooltip title="Managed by Trading Engine">
+                                <Engineering sx={{ fontSize: 14, color: 'info.main' }} />
+                            </Tooltip>
+                        )}
                     </Box>
                     <Box textAlign="right">
                         <Typography 
@@ -116,6 +132,24 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
                         </Button>
                     </Grid>
                 </Grid>
+                
+                {/* Stop Loss / Take Profit Info (for engine trades) */}
+                {isEngineTrade && (position.stopLossPrice || position.takeProfitPrice) && (
+                    <Box mt={1} pt={1} borderTop={`1px solid ${alpha(theme.palette.divider, 0.1)}`}>
+                        <Stack direction="row" spacing={2}>
+                            {position.stopLossPrice && (
+                                <Typography variant="caption" color="error.main">
+                                    SL: {formatPrice(position.stopLossPrice, instrument)}
+                                </Typography>
+                            )}
+                            {position.takeProfitPrice && (
+                                <Typography variant="caption" color="success.main">
+                                    TP: {formatPrice(position.takeProfitPrice, instrument)}
+                                </Typography>
+                            )}
+                        </Stack>
+                    </Box>
+                )}
                 
                 {/* Margin Info */}
                 {position.marginUsed > 0 && (
@@ -178,10 +212,37 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
       );
   };
 
+  // Merge engine trades with portfolio positions (avoid duplicates)
+  const allPositions = [...(portfolio?.positions || [])];
+  
+  // Add engine trades that aren't already in portfolio (by oandaTradeId or instrument)
+  const portfolioIds = new Set(allPositions.map(p => p.id));
+  const portfolioInstruments = new Set(allPositions.map(p => p.instrument));
+  
+  engineTrades.forEach(et => {
+      // If engine trade has oandaTradeId matching portfolio, skip (already shown)
+      if (!portfolioIds.has(et.oandaTradeId) && !portfolioInstruments.has(et.instrument)) {
+          allPositions.push({ ...et, isEngineTrade: true });
+      }
+  });
+
   return (
     <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.6) }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h6" fontWeight="bold">Open Positions</Typography>
+        <Box display="flex" alignItems="center" gap={1}>
+            <Typography variant="h6" fontWeight="bold">Open Positions</Typography>
+            {hasEngineTrades && (
+                <Tooltip title="Some positions are managed by the Trading Engine">
+                    <Chip 
+                        icon={<Engineering sx={{ fontSize: 14 }} />}
+                        label="Engine"
+                        size="small"
+                        color="info"
+                        sx={{ height: 20, fontSize: '0.65rem' }}
+                    />
+                </Tooltip>
+            )}
+        </Box>
         <Tooltip title="Shows open Forex positions and account margin status">
             <IconButton size="small"><Info fontSize="small" /></IconButton>
         </Tooltip>
@@ -194,14 +255,18 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus }) => {
          <Divider sx={{ my: 2 }} />
 
          <Typography variant="overline" color="text.secondary" sx={{ mb: 1, display: 'block', letterSpacing: 1, fontWeight: 'bold' }}>
-            ACTIVE TRADES ({portfolio?.positions?.length || 0})
+            ACTIVE TRADES ({allPositions.length})
          </Typography>
          
-         {portfolio?.positions?.map(p => (
-             <PositionRow key={p.id || p.instrument} position={p} />
+         {allPositions.map(p => (
+             <PositionRow 
+                key={p.id || p.instrument} 
+                position={p} 
+                isEngineTrade={p.isEngineTrade || engineTrades.some(et => et.instrument === p.instrument)}
+             />
          ))}
          
-         {!portfolio?.positions?.length && (
+         {!allPositions.length && (
             <Box 
                 py={4} 
                 display="flex" 

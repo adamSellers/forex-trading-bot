@@ -1,4 +1,4 @@
-// backend/src/routes/tradingRoutes.js - Trading API Routes with ConfigService
+// backend/src/routes/tradingRoutes.js - Trading API Routes with Engine Support
 const express = require("express");
 const router = express.Router();
 
@@ -32,13 +32,36 @@ function getPipValue(instrument) {
     return instrument.includes("JPY") ? 0.01 : 0.0001;
 }
 
-// ============ ROUTES ============
+// Helper: Format bytes to human readable
+function formatBytes(bytes) {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+// Helper: Format uptime to human readable
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
+    if (minutes > 0) return `${minutes}m ${secs}s`;
+    return `${secs}s`;
+}
+
+// ============ HEALTH & STATUS ============
 
 // Health check - INCLUDES CONFIG for dashboard
 router.get("/health", (req, res) => {
     const dataService = req.app.locals.dataService;
     const signalGenerator = req.app.locals.signalGenerator;
     const configService = req.app.locals.configService;
+    const tradingEngine = req.app.locals.tradingEngine;
 
     const config = configService ? configService.get() : {};
 
@@ -51,10 +74,11 @@ router.get("/health", (req, res) => {
             oanda: !!OANDA_API_KEY,
             dataService: dataService?.isRunning || false,
             signalGenerator: signalGenerator?.isRunning || false,
+            tradingEngine: tradingEngine?.isRunning || false,
         },
-        // Include config for dashboard to read
         config: {
             enableTrading: config.enableTrading || false,
+            tradingMode: config.tradingMode || "live",
             assets: config.assets || [],
             strategy: config.strategy || "supertrend_momentum",
             timeframe: config.timeframe || "15m",
@@ -65,6 +89,154 @@ router.get("/health", (req, res) => {
         },
     });
 });
+
+// Comprehensive system health check
+router.get("/system/health", async (req, res) => {
+    try {
+        const dataService = req.app.locals.dataService;
+        const signalGenerator = req.app.locals.signalGenerator;
+        const configService = req.app.locals.configService;
+        const tradingEngine = req.app.locals.tradingEngine;
+
+        const config = configService ? configService.get() : {};
+
+        // Test Oanda API connectivity
+        let oandaStatus = { connected: false, latencyMs: null, error: null };
+        if (OANDA_API_KEY) {
+            try {
+                const oandaStart = Date.now();
+                await oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/summary`);
+                oandaStatus = {
+                    connected: true,
+                    latencyMs: Date.now() - oandaStart,
+                    environment: process.env.OANDA_ENVIRONMENT || "live",
+                };
+            } catch (err) {
+                oandaStatus = {
+                    connected: false,
+                    latencyMs: null,
+                    error: err.message,
+                };
+            }
+        }
+
+        // Get service statuses
+        const dataServiceStatus = dataService
+            ? {
+                  isRunning: dataService.isRunning || false,
+                  instruments: dataService.instruments || [],
+                  priceCount: Object.keys(dataService.getAllPrices?.() || {})
+                      .length,
+                  lastUpdate: dataService.lastUpdate || null,
+              }
+            : { isRunning: false };
+
+        const signalGenStatus = signalGenerator
+            ? {
+                  isActive: signalGenerator.isRunning || false,
+                  activeSignals: signalGenerator.latestSignals?.length || 0,
+                  pendingEntries: signalGenerator._pendingEntries?.size || 0,
+                  lastRun: signalGenerator.lastRunTime || null,
+              }
+            : { isActive: false };
+
+        const engineStatus = tradingEngine
+            ? {
+                  isRunning: tradingEngine.isRunning || false,
+                  openPositions: tradingEngine.openTrades?.size || 0,
+                  stats: tradingEngine.stats || {},
+              }
+            : { isRunning: false };
+
+        const uptimeSeconds = process.uptime();
+        const uptimeFormatted = formatUptime(uptimeSeconds);
+
+        const isHealthy =
+            oandaStatus.connected &&
+            dataServiceStatus.isRunning &&
+            signalGenStatus.isActive;
+
+        res.json({
+            status: isHealthy ? "healthy" : "degraded",
+            timestamp: new Date().toISOString(),
+            uptime: uptimeSeconds,
+            uptimeFormatted,
+            services: {
+                oanda: oandaStatus,
+                dataService: dataServiceStatus,
+                signalGenerator: signalGenStatus,
+                tradingEngine: engineStatus,
+                configService: {
+                    loaded: !!configService,
+                    tradingEnabled: config.enableTrading || false,
+                },
+            },
+            config: {
+                enableTrading: config.enableTrading || false,
+                tradingMode: config.tradingMode || "live",
+                assets: config.assets || [],
+                strategy: config.strategy || "supertrend_momentum",
+                timeframe: config.timeframe || "15m",
+                maxOpenPositions: config.maxOpenPositions || 2,
+            },
+            activeSignals: signalGenerator?.latestSignals || [],
+        });
+    } catch (error) {
+        res.status(500).json({
+            status: "error",
+            error: error.message,
+            timestamp: new Date().toISOString(),
+        });
+    }
+});
+
+// System info endpoint
+router.get("/system/info", (req, res) => {
+    try {
+        const memoryUsage = process.memoryUsage();
+        const tradingEngine = req.app.locals.tradingEngine;
+
+        res.json({
+            server: {
+                nodeVersion: process.version,
+                platform: process.platform,
+                arch: process.arch,
+                pid: process.pid,
+                cwd: process.cwd(),
+            },
+            memory: {
+                heapUsed: memoryUsage.heapUsed,
+                heapTotal: memoryUsage.heapTotal,
+                external: memoryUsage.external,
+                rss: memoryUsage.rss,
+                formatted: {
+                    heapUsed: formatBytes(memoryUsage.heapUsed),
+                    heapTotal: formatBytes(memoryUsage.heapTotal),
+                    rss: formatBytes(memoryUsage.rss),
+                },
+            },
+            environment: {
+                nodeEnv: process.env.NODE_ENV || "development",
+                port: process.env.PORT || 3101,
+                hasApiKeys: !!OANDA_API_KEY,
+                oandaEnvironment: process.env.OANDA_ENVIRONMENT || "live",
+                accountId: OANDA_ACCOUNT_ID,
+            },
+            tradingEngine: tradingEngine
+                ? {
+                      isRunning: tradingEngine.isRunning,
+                      openTrades: tradingEngine.openTrades?.size || 0,
+                      stats: tradingEngine.stats,
+                  }
+                : null,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ MARKET DATA ============
 
 // Account info - LIVE from Oanda
 router.get("/account", async (req, res) => {
@@ -103,7 +275,6 @@ router.get("/prices", async (req, res) => {
                 .json({ error: "Oanda API key not configured" });
         }
 
-        // Get instruments from config or query param
         const configService = req.app.locals.configService;
         const configAssets = configService?.getValue("assets") || [
             "AUD_USD",
@@ -208,6 +379,8 @@ router.get("/signals", async (req, res) => {
     }
 });
 
+// ============ PORTFOLIO & TRADES ============
+
 // Portfolio / positions
 router.get("/portfolio", async (req, res) => {
     try {
@@ -217,7 +390,6 @@ router.get("/portfolio", async (req, res) => {
                 .json({ error: "Oanda API key not configured" });
         }
 
-        // Get account and open trades
         const [accountData, tradesData] = await Promise.all([
             oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/summary`),
             oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/openTrades`),
@@ -251,11 +423,15 @@ router.get("/portfolio", async (req, res) => {
     }
 });
 
-// Trade history - from database
+// Trade history from database
 router.get("/trades", async (req, res) => {
     try {
-        const TradeRepository = require("../repositories/tradeRepository");
-        const tradeRepo = new TradeRepository();
+        let tradeRepo = req.app.locals.tradeRepository;
+
+        if (!tradeRepo) {
+            const TradeRepository = require("../repositories/tradeRepository");
+            tradeRepo = new TradeRepository();
+        }
 
         const limit = parseInt(req.query.limit) || 20;
         const mode = req.query.mode || "live";
@@ -271,7 +447,291 @@ router.get("/trades", async (req, res) => {
     }
 });
 
-// Analytics - comprehensive performance metrics
+// Force close a position via Oanda
+router.post("/trade/close/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!OANDA_API_KEY) {
+            return res
+                .status(503)
+                .json({ error: "Oanda API key not configured" });
+        }
+
+        const response = await fetch(
+            `${OANDA_BASE_URL}/v3/accounts/${OANDA_ACCOUNT_ID}/trades/${id}/close`,
+            {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${OANDA_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Failed to close trade: ${error}`);
+        }
+
+        const data = await response.json();
+
+        // Sync trading engine after manual close
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (tradingEngine) {
+            await tradingEngine.syncWithOanda();
+        }
+
+        res.json({
+            success: true,
+            message: `Position ${id} closed`,
+            orderFillTransaction: data.orderFillTransaction,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ TRADING CONTROL ============
+
+router.post("/trading/start", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (configService) {
+            configService.update({ enableTrading: true });
+        }
+
+        const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
+        if (broadcastEngineStatus) broadcastEngineStatus();
+
+        res.json({ success: true, message: "Trading enabled" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/trading/stop", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (configService) {
+            configService.update({ enableTrading: false });
+        }
+
+        const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
+        if (broadcastEngineStatus) broadcastEngineStatus();
+
+        res.json({ success: true, message: "Trading disabled" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/trading/reset", (req, res) => {
+    try {
+        const signalGenerator = req.app.locals.signalGenerator;
+        if (signalGenerator) {
+            signalGenerator.reset();
+        }
+        res.json({ success: true, message: "Signal generator reset" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ CONFIG ============
+
+router.get("/config", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (!configService) {
+            return res
+                .status(503)
+                .json({ error: "Config service not available" });
+        }
+        res.json(configService.get());
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/config", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (!configService) {
+            return res
+                .status(503)
+                .json({ error: "Config service not available" });
+        }
+
+        const updatedConfig = configService.update(req.body);
+
+        const broadcastConfig = req.app.locals.broadcastConfig;
+        if (broadcastConfig) {
+            broadcastConfig(updatedConfig);
+        }
+
+        res.json({
+            success: true,
+            config: updatedConfig,
+            message: "Configuration updated and applied to services",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/config/reset", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (!configService) {
+            return res
+                .status(503)
+                .json({ error: "Config service not available" });
+        }
+
+        const defaultConfig = configService.reset();
+
+        const broadcastConfig = req.app.locals.broadcastConfig;
+        if (broadcastConfig) {
+            broadcastConfig(defaultConfig);
+        }
+
+        res.json({
+            success: true,
+            config: defaultConfig,
+            message: "Configuration reset to defaults",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ TRADING ENGINE ============
+
+// Get engine status
+router.get("/engine/status", (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+        res.json(tradingEngine.getStatus());
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get engine stats
+router.get("/engine/stats", (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+
+        res.json({
+            isRunning: tradingEngine.isRunning,
+            stats: tradingEngine.stats,
+            openPositions: tradingEngine.openTrades?.size || 0,
+            queueLength: tradingEngine.tradeQueue?.length || 0,
+            isProcessingQueue: tradingEngine.isProcessingQueue || false,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get open trades from engine
+router.get("/engine/trades", (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+
+        res.json({
+            trades: tradingEngine.getOpenTrades(),
+            count: tradingEngine.openTrades?.size || 0,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Close a trade via engine
+router.post("/engine/close/:tradeId", async (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+
+        const { tradeId } = req.params;
+        await tradingEngine.forceCloseTrade(tradeId);
+
+        res.json({
+            success: true,
+            message: `Trade ${tradeId} closed`,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Sync engine with Oanda
+router.post("/engine/sync", async (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+
+        await tradingEngine.syncOpenTrades();
+        await tradingEngine.syncWithOanda();
+
+        res.json({
+            success: true,
+            message: "Trading engine synced with Oanda",
+            openTrades: tradingEngine.openTrades?.size || 0,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Reset engine stats
+router.post("/engine/reset-stats", (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+
+        tradingEngine.resetStats();
+
+        res.json({
+            success: true,
+            message: "Trading engine stats reset",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============ ANALYTICS ============
+
 router.get("/analytics", async (req, res) => {
     try {
         const TradeRepository = require("../repositories/tradeRepository");
@@ -293,305 +753,5 @@ router.get("/analytics", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-
-// Get config - from ConfigService
-router.get("/config", (req, res) => {
-    try {
-        const configService = req.app.locals.configService;
-        if (!configService) {
-            return res
-                .status(503)
-                .json({ error: "ConfigService not available" });
-        }
-        res.json(configService.get());
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Update config - via ConfigService (updates running services)
-router.post("/config", (req, res) => {
-    try {
-        const configService = req.app.locals.configService;
-        if (!configService) {
-            return res
-                .status(503)
-                .json({ error: "ConfigService not available" });
-        }
-
-        const updatedConfig = configService.update(req.body);
-
-        // Broadcast update to connected clients
-        const broadcastConfig = req.app.locals.broadcastConfig;
-        if (broadcastConfig) {
-            broadcastConfig(updatedConfig);
-        }
-
-        res.json({
-            success: true,
-            config: updatedConfig,
-            message: "Configuration updated and applied to services",
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Reset config to defaults
-router.post("/config/reset", (req, res) => {
-    try {
-        const configService = req.app.locals.configService;
-        if (!configService) {
-            return res
-                .status(503)
-                .json({ error: "ConfigService not available" });
-        }
-
-        const defaultConfig = configService.reset();
-
-        res.json({
-            success: true,
-            config: defaultConfig,
-            message: "Configuration reset to defaults",
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Trading control endpoints
-router.post("/trading/start", (req, res) => {
-    try {
-        const configService = req.app.locals.configService;
-        if (configService) {
-            configService.update({ enableTrading: true });
-        }
-        res.json({ success: true, message: "Trading enabled" });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-router.post("/trading/stop", (req, res) => {
-    try {
-        const configService = req.app.locals.configService;
-        if (configService) {
-            configService.update({ enableTrading: false });
-        }
-        res.json({ success: true, message: "Trading disabled" });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Reset signal generator state
-router.post("/trading/reset", (req, res) => {
-    try {
-        const signalGenerator = req.app.locals.signalGenerator;
-        if (signalGenerator) {
-            signalGenerator.reset();
-        }
-        res.json({ success: true, message: "Signal generator reset" });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Force close a position
-router.post("/trade/close/:id", async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        if (!OANDA_API_KEY) {
-            return res
-                .status(503)
-                .json({ error: "Oanda API key not configured" });
-        }
-
-        // Close trade via Oanda API
-        const response = await fetch(
-            `${OANDA_BASE_URL}/v3/accounts/${OANDA_ACCOUNT_ID}/trades/${id}/close`,
-            {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${OANDA_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`Failed to close trade: ${error}`);
-        }
-
-        const data = await response.json();
-
-        res.json({
-            success: true,
-            message: `Position ${id} closed`,
-            orderFillTransaction: data.orderFillTransaction,
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ============ SYSTEM HEALTH & INFO ENDPOINTS ============
-
-// Comprehensive system health check
-router.get("/system/health", async (req, res) => {
-    try {
-        const dataService = req.app.locals.dataService;
-        const signalGenerator = req.app.locals.signalGenerator;
-        const configService = req.app.locals.configService;
-
-        const config = configService ? configService.get() : {};
-        const startTime = process.hrtime();
-
-        // Test Oanda API connectivity
-        let oandaStatus = { connected: false, latencyMs: null, error: null };
-        if (OANDA_API_KEY) {
-            try {
-                const oandaStart = Date.now();
-                await oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/summary`);
-                oandaStatus = {
-                    connected: true,
-                    latencyMs: Date.now() - oandaStart,
-                    environment: process.env.OANDA_ENVIRONMENT || "live",
-                };
-            } catch (err) {
-                oandaStatus = {
-                    connected: false,
-                    latencyMs: null,
-                    error: err.message,
-                };
-            }
-        }
-
-        // Get data service status
-        const dataServiceStatus = dataService
-            ? {
-                  isRunning: dataService.isRunning || false,
-                  instruments: dataService.instruments || [],
-                  priceCount: Object.keys(dataService.getAllPrices?.() || {})
-                      .length,
-                  lastUpdate: dataService.lastUpdate || null,
-              }
-            : { isRunning: false };
-
-        // Get signal generator status
-        const signalGenStatus = signalGenerator
-            ? {
-                  isActive: signalGenerator.isRunning || false,
-                  activeSignals: signalGenerator.latestSignals?.length || 0,
-                  pendingEntries:
-                      signalGenerator.pendingContinuationEntries?.size || 0,
-                  lastRun: signalGenerator.lastRunTime || null,
-              }
-            : { isActive: false };
-
-        // Calculate uptime
-        const uptimeSeconds = process.uptime();
-        const uptimeFormatted = formatUptime(uptimeSeconds);
-
-        // Overall status
-        const isHealthy =
-            oandaStatus.connected &&
-            dataServiceStatus.isRunning &&
-            signalGenStatus.isActive;
-
-        res.json({
-            status: isHealthy ? "healthy" : "degraded",
-            timestamp: new Date().toISOString(),
-            uptime: uptimeSeconds,
-            uptimeFormatted,
-            services: {
-                oanda: oandaStatus,
-                dataService: dataServiceStatus,
-                signalGenerator: signalGenStatus,
-                configService: {
-                    loaded: !!configService,
-                    tradingEnabled: config.enableTrading || false,
-                },
-            },
-            config: {
-                enableTrading: config.enableTrading || false,
-                tradingMode: config.tradingMode || "live",
-                assets: config.assets || [],
-                strategy: config.strategy || "supertrend_momentum",
-                timeframe: config.timeframe || "15m",
-                maxOpenPositions: config.maxOpenPositions || 2,
-            },
-            activeSignals: signalGenerator?.latestSignals || [],
-        });
-    } catch (error) {
-        res.status(500).json({
-            status: "error",
-            error: error.message,
-            timestamp: new Date().toISOString(),
-        });
-    }
-});
-
-// System info endpoint (server details, memory, etc.)
-router.get("/system/info", (req, res) => {
-    try {
-        const memoryUsage = process.memoryUsage();
-
-        res.json({
-            server: {
-                nodeVersion: process.version,
-                platform: process.platform,
-                arch: process.arch,
-                pid: process.pid,
-                cwd: process.cwd(),
-            },
-            memory: {
-                heapUsed: memoryUsage.heapUsed,
-                heapTotal: memoryUsage.heapTotal,
-                external: memoryUsage.external,
-                rss: memoryUsage.rss,
-                formatted: {
-                    heapUsed: formatBytes(memoryUsage.heapUsed),
-                    heapTotal: formatBytes(memoryUsage.heapTotal),
-                    rss: formatBytes(memoryUsage.rss),
-                },
-            },
-            environment: {
-                nodeEnv: process.env.NODE_ENV || "development",
-                port: process.env.PORT || 3101,
-                hasApiKeys: !!process.env.OANDA_API_KEY,
-                oandaEnvironment: process.env.OANDA_ENVIRONMENT || "live",
-                accountId: OANDA_ACCOUNT_ID,
-            },
-            timestamp: new Date().toISOString(),
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Helper: Format bytes to human readable
-function formatBytes(bytes) {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-}
-
-// Helper: Format uptime to human readable
-function formatUptime(seconds) {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-
-    if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-    if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
-    if (minutes > 0) return `${minutes}m ${secs}s`;
-    return `${secs}s`;
-}
 
 module.exports = router;

@@ -1,5 +1,5 @@
 {
-    "enableTrading": false,
+    "enableTrading": true,
     "maxCapitalAtRisk": 500,
     "maxOpenPositions": 2,
     "logLevel": "info",
@@ -28,11 +28,11 @@
     "fixedPositionUnits": 1000,
     "stopLossType": "ATR",
     "stopLossPips": 30,
-    "stopLossAtrMultiplier": 1.5,
+    "stopLossAtrMultiplier": 2,
     "enableTrailingStops": true,
     "trailingStopPips": 25,
     "trailingStopActivationPips": 20,
-    "enableSessionFilter": false,
+    "enableSessionFilter": true,
     "activeSessions": [
         "sydney",
         "tokyo",
@@ -43,5 +43,6 @@
     "alertEmail": "",
     "maxLeverage": 30,
     "enableTakeProfit": false,
-    "takeProfitPips": 60
+    "takeProfitPips": 60,
+    "tradingMode": "live"
 }

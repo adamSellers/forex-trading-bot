@@ -1,4 +1,4 @@
-// frontend/src/components/SystemHealth.jsx - Forex Trading Bot System Health
+// frontend/src/components/SystemHealth.jsx - System Health with Trading Engine
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
@@ -40,8 +40,11 @@ import {
   Sensors,
   Router,
   Storage,
+  Engineering,
+  TrendingUp,
+  SwapHoriz,
 } from '@mui/icons-material';
-import { systemAPI, tradingAPI } from '../config/api';
+import { systemAPI, tradingAPI, engineAPI } from '../config/api';
 
 // --- STYLED COMPONENTS ---
 const GlassCard = styled(Paper)(({ theme }) => ({
@@ -78,7 +81,7 @@ const StatusDot = styled(Box)(({ theme, status }) => ({
 
 // --- HELPER COMPONENTS ---
 
-const ServiceRow = ({ name, status, latency, details }) => {
+const ServiceRow = ({ name, status, latency, details, icon }) => {
   const theme = useTheme();
 
   const isOnline =
@@ -100,9 +103,12 @@ const ServiceRow = ({ name, status, latency, details }) => {
       <Box display="flex" alignItems="center" gap={2}>
         <StatusDot status={isOnline ? 'online' : 'offline'} />
         <Box>
-          <Typography variant="body2" fontWeight="bold">
-            {name}
-          </Typography>
+          <Box display="flex" alignItems="center" gap={1}>
+            {icon}
+            <Typography variant="body2" fontWeight="bold">
+              {name}
+            </Typography>
+          </Box>
           {details && (
             <Typography variant="caption" color="text.secondary">
               {details}
@@ -177,20 +183,23 @@ const SystemHealth = () => {
   const [health, setHealth] = useState(null);
   const [systemInfo, setSystemInfo] = useState(null);
   const [account, setAccount] = useState(null);
+  const [engineStatus, setEngineStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [healthData, systemInfoData, accountData] = await Promise.all([
+      const [healthData, systemInfoData, accountData, engineData] = await Promise.all([
         systemAPI.getSystemHealth(),
         systemAPI.getSystemInfo(),
-        tradingAPI.getAccount().catch(() => null), // Don't fail if account fetch fails
+        tradingAPI.getAccount().catch(() => null),
+        engineAPI.getStatus().catch(() => null),
       ]);
       setHealth(healthData);
       setSystemInfo(systemInfoData);
       setAccount(accountData);
+      setEngineStatus(engineData);
       setError(null);
     } catch (err) {
       setError(`Failed to fetch system health: ${err.message}`);
@@ -201,7 +210,7 @@ const SystemHealth = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 15000); // Refresh every 15s
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -238,6 +247,7 @@ const SystemHealth = () => {
   const isOandaReady = services.oanda?.connected === true;
   const isDataServiceReady = services.dataService?.isRunning === true;
   const isSignalGenReady = services.signalGenerator?.isActive === true;
+  const isEngineReady = services.tradingEngine?.isRunning === true || engineStatus?.isRunning === true;
   const overallStatus = isOandaReady && isDataServiceReady && isSignalGenReady;
 
   const memoryUsage = systemInfo.memory?.formatted || {};
@@ -246,84 +256,46 @@ const SystemHealth = () => {
     : 0;
   const keysLoaded = systemInfo.environment?.hasApiKeys === true;
 
+  // Engine stats
+  const engineStats = engineStatus?.stats || {};
+  const engineOpenTrades = engineStatus?.openPositions || 0;
+
   return (
-    <Container maxWidth={false} sx={{ py: 2 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* HEADER */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4} px={1}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={4}
+      >
         <Box>
-          <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
-            SYSTEM <span style={{ color: theme.palette.primary.main }}>HEALTH</span>
+          <Typography variant="h4" fontWeight="bold" color="text.primary">
+            System Health
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-            FOREX INFRASTRUCTURE MONITORING & DIAGNOSTICS
+          <Typography variant="body2" color="text.secondary">
+            Real-time infrastructure monitoring
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={fetchData}
-          disabled={loading}
-          color="inherit"
-        >
-          {loading ? 'Scanning...' : 'Run Diagnostics'}
-        </Button>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Chip
+            icon={overallStatus ? <CheckCircle /> : <Error />}
+            label={overallStatus ? 'ALL SYSTEMS GO' : 'DEGRADED'}
+            color={overallStatus ? 'success' : 'warning'}
+            sx={{ fontWeight: 'bold', px: 1 }}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchData}
+            size="small"
+          >
+            Refresh
+          </Button>
+        </Stack>
       </Box>
 
-      {/* MAIN STATUS BANNER */}
-      <GlassCard
-        sx={{
-          p: 3,
-          mb: 3,
-          borderLeft: `6px solid ${
-            overallStatus ? theme.palette.success.main : theme.palette.error.main
-          }`,
-          background: `linear-gradient(90deg, ${alpha(
-            overallStatus ? theme.palette.success.main : theme.palette.error.main,
-            0.1
-          )} 0%, transparent 100%)`,
-        }}
-      >
-        <Box display="flex" alignItems="center" gap={3}>
-          {overallStatus ? (
-            <CheckCircle
-              color="success"
-              sx={{ fontSize: 48, filter: 'drop-shadow(0 0 10px rgba(0,255,0,0.3))' }}
-            />
-          ) : (
-            <Error
-              color="error"
-              sx={{ fontSize: 48, filter: 'drop-shadow(0 0 10px rgba(255,0,0,0.3))' }}
-            />
-          )}
-          <Box>
-            <Typography variant="h5" fontWeight="bold" letterSpacing={1}>
-              {overallStatus ? 'ALL SYSTEMS OPERATIONAL' : 'SYSTEM DEGRADED'}
-            </Typography>
-            <Stack direction="row" spacing={2} alignItems="center" mt={0.5}>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-              >
-                <SettingsInputComponent fontSize="small" />
-                {!isOandaReady
-                  ? 'Oanda API Disconnected'
-                  : !isDataServiceReady
-                  ? 'Data Service Offline'
-                  : !isSignalGenReady
-                  ? 'Signal Generator Inactive'
-                  : 'Services Nominal'}
-              </Typography>
-              <Divider orientation="vertical" flexItem />
-              <Typography variant="body2" color="text.secondary" fontFamily="monospace">
-                LAST SYNC: {new Date(health.timestamp || Date.now()).toLocaleTimeString()}
-              </Typography>
-            </Stack>
-          </Box>
-        </Box>
-      </GlassCard>
-
-      <Grid container spacing={3} alignItems="stretch">
+      <Grid container spacing={3}>
         {/* LEFT COLUMN: SERVICES & SPECS */}
         <Grid item xs={12} md={5} display="flex" flexDirection="column">
           <Stack spacing={3} sx={{ flexGrow: 1, width: '100%' }}>
@@ -347,16 +319,29 @@ const SystemHealth = () => {
                   status={services.oanda}
                   latency={services.oanda?.latencyMs}
                   details={`Environment: ${services.oanda?.environment || 'N/A'}`}
+                  icon={<SwapHoriz fontSize="small" color="action" />}
                 />
                 <ServiceRow
                   name="Price Data Stream"
                   status={services.dataService}
                   details={`${services.dataService?.priceCount || 0} instruments active`}
+                  icon={<TrendingUp fontSize="small" color="action" />}
                 />
                 <ServiceRow
                   name="Signal Generator"
                   status={services.signalGenerator}
                   details={`${services.signalGenerator?.activeSignals || 0} active signals`}
+                  icon={<Sensors fontSize="small" color="action" />}
+                />
+                <ServiceRow
+                  name="Trading Engine"
+                  status={isEngineReady}
+                  details={
+                    isEngineReady
+                      ? `${engineOpenTrades} open positions | ${engineStats.tradesExecuted || 0} trades executed`
+                      : 'Engine not running'
+                  }
+                  icon={<Engineering fontSize="small" color="action" />}
                 />
                 <ServiceRow
                   name="Config Service"
@@ -366,6 +351,7 @@ const SystemHealth = () => {
                       ? 'Trading Enabled'
                       : 'Trading Disabled'
                   }
+                  icon={<SettingsInputComponent fontSize="small" color="action" />}
                 />
               </Box>
             </GlassCard>
@@ -445,6 +431,75 @@ const SystemHealth = () => {
                 />
               </Box>
             </GlassCard>
+
+            {/* Trading Engine Stats */}
+            {engineStatus && (
+              <GlassCard sx={{ p: 3 }}>
+                <Box display="flex" alignItems="center" gap={1} mb={3}>
+                  <Engineering color="info" />
+                  <Typography variant="h6" fontWeight="bold">
+                    Trading Engine Stats
+                  </Typography>
+                  <Chip
+                    label={engineStatus.isRunning ? 'RUNNING' : 'STOPPED'}
+                    color={engineStatus.isRunning ? 'success' : 'default'}
+                    size="small"
+                    sx={{ ml: 'auto' }}
+                  />
+                </Box>
+                <Grid container spacing={2}>
+                  <Grid item xs={6} sm={4}>
+                    <MetricItem
+                      title="Signals Received"
+                      value={engineStats.signalsReceived || 0}
+                      icon={<Sensors fontSize="small" />}
+                      color="info"
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4}>
+                    <MetricItem
+                      title="Trades Executed"
+                      value={engineStats.tradesExecuted || 0}
+                      icon={<TrendingUp fontSize="small" />}
+                      color="success"
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4}>
+                    <MetricItem
+                      title="Trades Closed"
+                      value={engineStats.tradesClosed || 0}
+                      icon={<CheckCircle fontSize="small" />}
+                      color="primary"
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4}>
+                    <MetricItem
+                      title="Signals Rejected"
+                      value={engineStats.signalsRejected || 0}
+                      icon={<Error fontSize="small" />}
+                      color="warning"
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4}>
+                    <MetricItem
+                      title="Errors"
+                      value={engineStats.errors || 0}
+                      icon={<Error fontSize="small" />}
+                      color="error"
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4}>
+                    <MetricItem
+                      title="Open Positions"
+                      value={engineOpenTrades}
+                      subValue={`Max: ${health.config?.maxOpenPositions || 2}`}
+                      icon={<Router fontSize="small" />}
+                      color="info"
+                    />
+                  </Grid>
+                </Grid>
+              </GlassCard>
+            )}
 
             {/* Trading Telemetry Grid */}
             <GlassCard sx={{ p: 3, flexGrow: 1 }}>
@@ -557,7 +612,7 @@ const SystemHealth = () => {
                 color: theme.palette.text.secondary,
               }}
             >
-              {JSON.stringify({ health, systemInfo, account }, null, 2)}
+              {JSON.stringify({ health, systemInfo, account, engineStatus }, null, 2)}
             </Box>
           </AccordionDetails>
         </Accordion>
