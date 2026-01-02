@@ -5,15 +5,15 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
     plugins: [react()],
     server: {
-        port: 5173,
+        port: 3100, // Forex frontend port
         proxy: {
             "/api": {
-                target: "http://localhost:3001",
+                target: "http://localhost:3101", // Forex backend port
                 changeOrigin: true,
                 secure: false,
             },
             "/socket.io": {
-                target: "http://localhost:3001",
+                target: "http://localhost:3101",
                 changeOrigin: true,
                 ws: true,
             },
@@ -27,8 +27,6 @@ export default defineConfig({
         // Increase the chunk size warning limit to reduce log spam
         chunkSizeWarningLimit: 1600,
         rollupOptions: {
-            // Keep existing exclusion of server-side SDKs
-            external: ["@aws-sdk/client-s3"],
             output: {
                 // OPTIMIZATION: Split vendor chunks to reduce per-file memory pressure
                 manualChunks: (id) => {

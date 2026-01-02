@@ -1,76 +1,22 @@
 {
-    "name": "crypto-trend-bot",
+    "name": "forex-trading-bot",
     "version": "1.0.0",
-    "description": "Cryptocurrency trend trading bot with React dashboard and Node.js backend",
-    "main": "index.js",
+    "description": "Forex trend-following trading bot",
     "private": true,
-    "workspaces": [
-        "backend",
-        "frontend"
-    ],
     "scripts": {
-        "setup": "npm install && npm run install:backend && npm run install:frontend",
-        "install:backend": "npm install --prefix backend",
-        "install:frontend": "npm install --prefix frontend",
-        "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+        "install:all": "cd backend && npm install && cd ../frontend && npm install",
+        "dev": "concurrently -n backend,frontend -c blue,green \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+        "start": "concurrently -n backend,frontend -c blue,green \"cd backend && npm start\" \"cd frontend && npm run preview\"",
         "dev:backend": "cd backend && npm run dev",
         "dev:frontend": "cd frontend && npm run dev",
-        "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
-        "start:backend": "cd backend && npm start",
-        "start:frontend": "cd frontend && npm run preview",
-        "build": "npm run build:frontend && npm run build:backend",
-        "build:frontend": "cd frontend && npm run build",
-        "build:backend": "echo \"Backend build complete\"",
-        "serve": "cd backend && npm start",
-        "clean": "rm -rf node_modules backend/node_modules frontend/node_modules",
-        "clean:setup": "npm run clean && npm run setup",
-        "test": "npm run test:backend && npm run test:frontend",
-        "test:backend": "cd backend && npm test",
-        "test:frontend": "cd frontend && npm test",
+        "build": "cd frontend && npm run build",
         "db:migrate": "cd backend && npm run db:migrate",
-        "db:seed": "cd backend && npm run db:seed",
-        "lint": "npm run lint:backend && npm run lint:frontend",
-        "lint:backend": "cd backend && npm run lint",
-        "lint:frontend": "cd frontend && npm run lint",
-        "deploy": "./scripts/deploy.sh",
-        "deploy:check": "./scripts/deploy-check.sh",
-        "rollback": "./scripts/rollback.sh",
-        "update": "./scripts/update.sh",
-        "backup": "./scripts/backup.sh",
-        "monitor": "./scripts/monitor.sh",
-        "logs": "./scripts/logs.sh",
-        "dev-setup": "./scripts/dev-setup.sh",
-        "status": "./scripts/status.sh",
-        "setup:secrets": "./scripts/setup-secrets.sh",
-        "backtest:fetch": "node scripts/fetch-historical-data.js",
-        "backtest:run": "node scripts/run-backtest.js"
+        "test:connection": "node scripts/testConnection.js"
     },
     "devDependencies": {
-        "concurrently": "^8.2.2",
-        "dotenv": "^16.4.5",
-        "node-binance-api": "^0.13.1"
+        "concurrently": "^8.2.2"
     },
     "engines": {
-        "node": ">=16.0.0",
-        "npm": ">=8.0.0"
-    },
-    "keywords": [
-        "cryptocurrency",
-        "trading",
-        "bot",
-        "react",
-        "nodejs",
-        "binance",
-        "technical-analysis"
-    ],
-    "author": "Adam Sellers",
-    "license": "MIT",
-    "repository": {
-        "type": "git",
-        "url": "git@github.com:adamSellers/crypto-trading-bot.git"
-    },
-    "bugs": {
-        "url": "https://github.com/adamSellers/crypto-trend-bot/issues"
-    },
-    "homepage": "https://github.com/adamSellers/crypto-trend-bot#readme"
+        "node": ">=18.0.0"
+    }
 }

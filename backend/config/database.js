@@ -1,45 +1,36 @@
-// backend/config/database.js - Fixed exports
+// backend/config/database.js - Database Connection
 const knex = require("knex");
 const path = require("path");
 
+// Determine database path based on environment
+const dbPath =
+    process.env.NODE_ENV === "production"
+        ? "/opt/forex-trading-bot/data/trading.db"
+        : path.join(__dirname, "../data/trading.db");
+
+console.log("DATABASE DEBUG:");
+console.log("  __dirname:", __dirname);
+console.log("  dbPath:", dbPath);
+console.log("  exists:", require("fs").existsSync(dbPath));
+console.log("  dir exists:", require("fs").existsSync(path.dirname(dbPath)));
+
 // Database configuration
 const config = {
-    client: "sqlite3",
+    client: "better-sqlite3",
     connection: {
-        filename: path.join(__dirname, "../../data/trading.db"),
+        filename: dbPath,
     },
     useNullAsDefault: true,
-    migrations: {
-        directory: path.join(__dirname, "../migrations"),
+    pool: {
+        afterCreate: (conn, cb) => {
+            conn.pragma("journal_mode = WAL");
+            conn.pragma("busy_timeout = 30000");
+            cb();
+        },
     },
 };
 
-// Create and initialize the database connection
+// Create database connection
 const db = knex(config);
 
-// This function will now only run migrations, which is the correct way.
-async function initializeDatabase() {
-    try {
-        console.log("🚀 Running database migrations...");
-        await db.migrate.latest();
-        console.log("✅ Database schema is up to date.");
-    } catch (error) {
-        console.error("❌ Database initialization error:", error);
-        throw error;
-    }
-}
-
-// Test database connection
-db.raw("SELECT 1")
-    .then(() => {
-        console.log("✅ Database connection established");
-    })
-    .catch((error) => {
-        console.error("❌ Database connection failed:", error);
-    });
-
-// Export both the db connection and the initializer function
-module.exports = {
-    db,
-    initializeDatabase,
-};
+module.exports = { db };

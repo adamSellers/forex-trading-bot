@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
 import { SOCKET_URL, tradingAPI } from '../config/api';
 
 // --- IMPORTED WIDGETS ---
-import { GlassCard } from './dashboard/Shared';
+import { GlassCard, FOREX_INSTRUMENTS } from './dashboard/Shared';
 import { DashboardStats } from './dashboard/StatCards';
 import CurrentHoldings from './dashboard/CurrentHoldings';
 import LivePrices from './dashboard/LivePrices';
@@ -89,7 +89,14 @@ const TradingDashboard = () => {
           const t = tradesData.value.trades || tradesData.value;
           if (Array.isArray(t)) setTrades(t);
       }
-      if (pricesData.status === 'fulfilled' && pricesData.value?.prices) setPrices(pricesData.value.prices);
+      if (pricesData.status === 'fulfilled' && pricesData.value?.prices) {
+          // Convert prices array to object keyed by instrument
+          const pricesObj = {};
+          pricesData.value.prices.forEach(p => {
+            pricesObj[p.instrument] = { ...p, price: p.mid, symbol: p.instrument };
+          });
+          setPrices(pricesObj);
+      }
       if (accountData.status === 'fulfilled') setAccount(accountData.value);
 
       setLoading(false); setLastUpdate(Date.now());
@@ -109,7 +116,12 @@ const TradingDashboard = () => {
     
     socket.on('systemStatus', (s) => isMountedRef.current && setSystemStatus(s));
     socket.on('portfolioUpdated', (d) => { if(isMountedRef.current) { setPortfolio(d); setLastUpdate(Date.now()); }});
-    socket.on('priceUpdate', (d) => { if(isMountedRef.current) { setPrices(p => ({ ...p, [d.symbol]: d })); }});
+    socket.on('priceUpdate', (d) => { 
+      if(isMountedRef.current) { 
+        const key = d.instrument || d.symbol;
+        setPrices(p => ({ ...p, [key]: { ...d, price: d.mid || d.price, symbol: key } })); 
+      }
+    });
     socket.on('signalGenerated', (d) => { if(isMountedRef.current) { updateSignalState(d); setLastUpdate(Date.now()); }});
     socket.on('tradeExecuted', (t) => { if(isMountedRef.current) { setTrades(prev => [t, ...prev].slice(0, FETCH_LIMITS.TRADES)); setLastUpdate(Date.now()); }});
 
@@ -129,7 +141,7 @@ const TradingDashboard = () => {
 
   // --- MEMOIZED HELPERS ---
   const signalsToRender = useMemo(() => Array.from(latestSignals.values()).sort((a, b) => b.timestamp - a.timestamp), [latestSignals]);
-  const activeChartAssets = useMemo(() => systemStatus?.config?.assets || ['BTCUSDT', 'ETHUSDT'], [systemStatus]);
+  const activeChartAssets = useMemo(() => systemStatus?.config?.assets || FOREX_INSTRUMENTS, [systemStatus]);
   
   const calculatedDailyPnL = useMemo(() => {
     if (!trades || trades.length === 0) return 0;
@@ -152,7 +164,7 @@ const TradingDashboard = () => {
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} px={1} flexShrink={0}>
             <Box display="flex" alignItems="center" gap={2}>
                  <Box display="flex" flexDirection="column">
-                    <Typography variant="h5" fontWeight="900" sx={{ letterSpacing: -0.5, lineHeight: 1 }}>CRYPTO<span style={{ color: theme.palette.primary.main }}>TREND</span></Typography>
+                    <Typography variant="h5" fontWeight="900" sx={{ letterSpacing: -0.5, lineHeight: 1 }}>FOREX<span style={{ color: theme.palette.primary.main }}>TREND</span></Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 2 }}>LIVE TERMINAL</Typography>
                  </Box>
                 <Divider orientation="vertical" flexItem sx={{ height: 30, alignSelf: 'center', mx: 1 }} />
@@ -164,8 +176,8 @@ const TradingDashboard = () => {
                  <Tooltip title="Force Refresh"><IconButton size="small" onClick={fetchInitialData} sx={{ border: 1, borderColor: 'divider' }}><Refresh fontSize="small" /></IconButton></Tooltip>
                  <FormControl size="small">
                     <Select value={selectedStrategy} onChange={handleStrategyChange} disabled={tradingEnabled} sx={{ height: 32, fontSize: '0.8rem', minWidth: 140, bgcolor: alpha(theme.palette.background.paper, 0.1) }}>
-                        <MenuItem value="supertrend_momentum">⚡ SuperTrend</MenuItem>
-                        <MenuItem value="balanced">⚖️ Balanced</MenuItem>
+                        <MenuItem value="supertrend_momentum">âš¡ SuperTrend</MenuItem>
+                        <MenuItem value="balanced">âš–ï¸ Balanced</MenuItem>
                     </Select>
                  </FormControl>
                  <Button variant="contained" color={tradingEnabled ? "error" : "success"} onClick={handleToggleTrading} startIcon={tradingEnabled ? <Stop /> : <PlayArrow />} size="small" sx={{ px: 3, fontWeight: 'bold' }}>{tradingEnabled ? "STOP ENGINE" : "START ENGINE"}</Button>

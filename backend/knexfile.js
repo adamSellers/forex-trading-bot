@@ -1,23 +1,39 @@
+// backend/knexfile.js - Knex Configuration
 const path = require("path");
-
-// Use a consistent database name, which can be overridden by an environment variable.
-const dbName = "trading.db";
-
-const connection = {
-    filename: path.join(__dirname, "./data/", dbName),
-};
 
 module.exports = {
     development: {
-        client: "sqlite3",
-        connection,
+        client: "better-sqlite3",
+        connection: {
+            filename: path.join(__dirname, "data/trading.db"),
+        },
         useNullAsDefault: true,
-        migrations: { directory: "./migrations" },
+        migrations: {
+            directory: path.join(__dirname, "migrations"),
+        },
+        pool: {
+            afterCreate: (conn, cb) => {
+                conn.pragma("journal_mode = WAL");
+                cb();
+            },
+        },
     },
+
     production: {
-        client: "sqlite3",
-        connection,
+        client: "better-sqlite3",
+        connection: {
+            filename: "/opt/forex-trading-bot/data/trading.db",
+        },
         useNullAsDefault: true,
-        migrations: { directory: "./migrations" },
+        migrations: {
+            directory: path.join(__dirname, "migrations"),
+        },
+        pool: {
+            afterCreate: (conn, cb) => {
+                conn.pragma("journal_mode = WAL");
+                conn.pragma("busy_timeout = 30000");
+                cb();
+            },
+        },
     },
 };

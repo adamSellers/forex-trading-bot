@@ -1,14 +1,18 @@
-// frontend/src/theme/tradingTheme.js - Enhanced theme for proper grid layout
+// frontend/src/theme/tradingTheme.js - Forex Trading Theme
 import { createTheme } from "@mui/material/styles";
 
-// Asset color palette
+// Forex pair color palette
 export const assetColors = {
-    BTCUSDT: "#f7931a", // Bitcoin orange
-    ETHUSDT: "#627eea", // Ethereum blue
-    BNBUSDT: "#f3ba2f", // Binance yellow
-    DOGEUSDT: "#c3a635", // Dogecoin gold
-    TRUMPUSDT: "#00529B", // A presidential blue
-    USDT: "#26a17b", // Tether green
+    AUD_USD: "#002B7F", // Australian blue
+    EUR_USD: "#003399", // EU blue
+    GBP_USD: "#012169", // British blue
+    USD_JPY: "#BC002D", // Japanese red
+    // Base currencies
+    AUD: "#FFCD00", // Australian gold
+    USD: "#3C3B6E", // US blue
+    EUR: "#003399", // EU blue
+    GBP: "#012169", // British blue
+    JPY: "#BC002D", // Japanese red
 };
 
 // Create enhanced dark theme for trading dashboard
@@ -57,24 +61,18 @@ export const tradingTheme = createTheme({
 
     components: {
         // --- GRID FIX: First Principles Fix ---
-        // This is the correct, idiomatic way to override MUI component styles.
-        // It ensures the grid behaves like a flex container, fixing the layout.
         MuiGrid: {
             styleOverrides: {
                 container: {
-                    // By default, a Grid container is already display: flex, but user-agent
-                    // stylesheets can interfere. This ensures it's always flex.
                     display: "flex",
                     flexWrap: "wrap",
                 },
                 item: {
-                    // This ensures items don't shrink unexpectedly.
                     flexGrow: 0,
                     flexShrink: 0,
                 },
             },
         },
-        // --- End Grid Fix ---
 
         // Card styling for metrics
         MuiCard: {
@@ -84,7 +82,7 @@ export const tradingTheme = createTheme({
                     borderColor: "#333",
                     borderRadius: 8,
                     minHeight: "100px",
-                    minWidth: 0, // Allow shrinking
+                    minWidth: 0,
                     boxSizing: "border-box",
                 },
             },
@@ -200,7 +198,7 @@ export const tradingTheme = createTheme({
     },
 
     // Custom spacing scale
-    spacing: 8, // Base spacing unit
+    spacing: 8,
 
     // Typography scale
     typography: {

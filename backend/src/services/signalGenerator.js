@@ -1,4 +1,4 @@
-// backend/src/services/signalGenerator.js - V3.2.5 CONTINUATION ENTRY FIX
+// backend/src/services/signalGenerator.js - Forex SuperTrend + ADX Signal Generator
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const { RSI, ADX, ATR } = require("technicalindicators");
@@ -8,64 +8,67 @@ class SignalGenerator extends EventEmitter {
         super();
         this.isRunning = false;
         this.signalInterval = null;
-        this.binanceDataService = null;
+        this.dataService = null;
         this.latestSignals = [];
 
         this.config = {
             strategy: "supertrend_momentum",
-            timeframe: "1h",
+            timeframe: "15m",
             signalCooldown: 60000,
             assets: [],
-            minAdx: 28,
+
+            // Forex-specific: Lower ADX threshold (Forex trends show lower ADX than crypto)
+            minAdx: 22, // Lower than crypto (25-28)
             rsiOverbought: 75,
             rsiOversold: 30,
             atrPeriod: 10,
-            factor: 3,
-            // FIX #5: Continuation entry settings
+            factor: 3, // SuperTrend multiplier
+
+            // Continuation entry settings
             enableContinuationEntry: true,
             continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
-            continuationRsiThreshold: 70, // Must drop below this (stricter than initial)
-            continuationMaxPriceDeviation: 0.03, // Max 3% above flip price
+            continuationRsiThreshold: 70,
+            continuationMaxPriceDeviation: 0.02, // 2% for Forex (tighter than crypto)
+
             ...config,
         };
 
         this.lastSignals = new Map();
-
-        // FIX #5: Track pending entries (blocked by RSI at flip time)
         this._pendingEntries = new Map();
 
         logger.info(
-            `🧠 Signal Generator v4.3 (Continuation Entry) Initialized. ` +
+            `🧠 Signal Generator v4.4 (Forex) Initialized. ` +
+                `ADX Threshold: ${this.config.minAdx}, ` +
                 `Continuation: ${
                     this.config.enableContinuationEntry ? "ON" : "OFF"
                 }`
         );
     }
 
-    start(binanceDataService, intervalMs = 60000) {
+    start(dataService, intervalMs = 60000) {
         if (this.isRunning) return;
-        this.binanceDataService = binanceDataService;
+        this.dataService = dataService;
         this.isRunning = true;
         this.generateSignalCycle();
         this.signalInterval = setInterval(() => {
             if (this.isRunning) this.generateSignalCycle();
         }, intervalMs);
-        logger.info(`🚀 Generator Loop Started (${intervalMs}ms)`);
+        logger.info(
+            `🚀 Signal Generator Loop Started (${intervalMs}ms interval)`
+        );
     }
 
     stop() {
         this.isRunning = false;
         if (this.signalInterval) clearInterval(this.signalInterval);
         this.emit("generatorStopped");
+        logger.info("⏹️ Signal Generator stopped");
     }
 
     async generateSignalCycle() {
-        if (!this.binanceDataService) return;
+        if (!this.dataService) return;
         try {
-            const signals = await this.generateAllSignals(
-                this.binanceDataService
-            );
-
+            const signals = await this.generateAllSignals(this.dataService);
             this.latestSignals = signals;
 
             if (signals.length > 0) {
@@ -77,9 +80,14 @@ class SignalGenerator extends EventEmitter {
         }
     }
 
+    /**
+     * Calculate SuperTrend indicator
+     */
     calculateSuperTrend(highs, lows, closes, period = 10, factor = 3) {
+        // True Range calculation
         let tr = [highs[0] - lows[0]];
         let atr = [tr[0]];
+
         for (let i = 1; i < closes.length; i++) {
             let hl = highs[i] - lows[i];
             let hc = Math.abs(highs[i] - closes[i - 1]);
@@ -134,9 +142,17 @@ class SignalGenerator extends EventEmitter {
         return { superTrend, direction, atr };
     }
 
-    async generateSignal(symbol, candles, currentPrice) {
+    async generateSignal(instrument, candles, currentPrice) {
         try {
-            if (!candles || candles.length < 200) return null;
+            if (!candles || candles.length < 200) {
+                return {
+                    symbol: instrument,
+                    signal: "HOLD",
+                    strength: 0,
+                    message: "Insufficient data",
+                    timestamp: Date.now(),
+                };
+            }
 
             const highs = candles.map((c) => c.high);
             const lows = candles.map((c) => c.low);
@@ -171,14 +187,21 @@ class SignalGenerator extends EventEmitter {
                 period: 14,
             }).pop();
 
-            // 2. Base state description
+            // Convert ATR to pips for Forex
+            const pipValue =
+                this.dataService?.getPipValue?.(instrument) || 0.0001;
+            const atrPips = atrVal / pipValue;
+
+            // 2. Base state
             let signalType = "HOLD";
             let reason = `ST:${
                 currentDir === 1 ? "🟢" : "🔴"
-            } ADX:${adxVal.toFixed(1)} RSI:${rsiVal.toFixed(1)}`;
-            let entryType = null; // 'FRESH_FLIP' or 'CONTINUATION'
+            } ADX:${adxVal.toFixed(1)} RSI:${rsiVal.toFixed(
+                1
+            )} ATR:${atrPips.toFixed(1)}pips`;
+            let entryType = null;
 
-            const adxOk = adxVal >= (this.config.minAdx || 28);
+            const adxOk = adxVal >= (this.config.minAdx || 22);
             const rsiOkForFresh = rsiVal < (this.config.rsiOverbought || 75);
             const rsiOkForContinuation =
                 rsiVal < (this.config.continuationRsiThreshold || 70);
@@ -186,19 +209,15 @@ class SignalGenerator extends EventEmitter {
             // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED → GREEN)
             if (prevDir === -1 && currentDir === 1) {
                 if (adxOk && rsiOkForFresh) {
-                    // Perfect entry conditions
                     signalType = "BUY";
                     entryType = "FRESH_FLIP";
                     reason = `🚀 BUY: ST Flip GREEN | ADX ${adxVal.toFixed(
                         1
                     )} | RSI ${rsiVal.toFixed(1)}`;
-
-                    // Clear any pending entry for this symbol (we're entering now)
-                    this._pendingEntries.delete(symbol);
+                    this._pendingEntries.delete(instrument);
                 } else if (adxOk && !rsiOkForFresh) {
-                    // ADX is good but RSI is too high - mark as pending
                     if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(symbol, {
+                        this._pendingEntries.set(instrument, {
                             flipTime: Date.now(),
                             flipPrice: currentPrice,
                             flipAdx: adxVal,
@@ -206,44 +225,36 @@ class SignalGenerator extends EventEmitter {
                         });
                         reason = `⏸️ PENDING: ST Flip blocked by RSI (${rsiVal.toFixed(
                             1
-                        )} > ${
-                            this.config.rsiOverbought
-                        }). Watching for continuation...`;
-                        logger.info(`📋 ${symbol}: ${reason}`);
+                        )} >= ${this.config.rsiOverbought})`;
                     }
                 }
-                // If ADX is weak, we don't enter or pend - just ignore the flip
             }
-
-            // 4. CONTINUATION ENTRY: Check for pending entries that can now execute
+            // 4. CONTINUATION ENTRY: RSI cooled down after pending flip
             else if (
                 currentDir === 1 &&
                 this.config.enableContinuationEntry &&
-                this._pendingEntries.has(symbol)
+                this._pendingEntries.has(instrument)
             ) {
-                const pending = this._pendingEntries.get(symbol);
+                const pending = this._pendingEntries.get(instrument);
                 const ageMs = Date.now() - pending.flipTime;
                 const maxAgeMs =
                     this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
 
-                // Check if window has expired
                 if (ageMs > maxAgeMs) {
                     logger.info(
-                        `⏰ ${symbol}: Continuation window expired after ${(
+                        `⏰ ${instrument}: Continuation window expired after ${(
                             ageMs / 60000
-                        ).toFixed(0)} minutes. Clearing pending entry.`
+                        ).toFixed(0)} minutes.`
                     );
-                    this._pendingEntries.delete(symbol);
+                    this._pendingEntries.delete(instrument);
                 } else {
-                    // Window still open - check conditions
                     const maxDeviation =
-                        this.config.continuationMaxPriceDeviation || 0.03;
+                        this.config.continuationMaxPriceDeviation || 0.02;
                     const priceDeviation =
                         (currentPrice - pending.flipPrice) / pending.flipPrice;
                     const priceOk = priceDeviation <= maxDeviation;
 
                     if (adxOk && rsiOkForContinuation && priceOk) {
-                        // All conditions met for continuation entry!
                         signalType = "BUY";
                         entryType = "CONTINUATION";
                         reason =
@@ -252,77 +263,76 @@ class SignalGenerator extends EventEmitter {
                             )} < ${this.config.continuationRsiThreshold}) | ` +
                             `Price: ${(priceDeviation * 100).toFixed(
                                 1
-                            )}% from flip | ` +
-                            `Wait: ${(ageMs / 60000).toFixed(0)}min`;
-
-                        logger.info(`✅ ${symbol}: ${reason}`);
-                        this._pendingEntries.delete(symbol);
+                            )}% from flip | Wait: ${(ageMs / 60000).toFixed(
+                                0
+                            )}min`;
+                        this._pendingEntries.delete(instrument);
                     } else if (!priceOk) {
-                        // Price has moved too far - invalidate the pending entry
                         logger.info(
-                            `❌ ${symbol}: Continuation cancelled. Price moved ${(
+                            `❌ ${instrument}: Continuation cancelled. Price moved ${(
                                 priceDeviation * 100
-                            ).toFixed(1)}% ` +
-                                `(max ${(maxDeviation * 100).toFixed(
-                                    0
-                                )}%). Clearing pending entry.`
+                            ).toFixed(1)}%`
                         );
-                        this._pendingEntries.delete(symbol);
+                        this._pendingEntries.delete(instrument);
                     }
-                    // Otherwise, keep waiting (RSI still too high but price is ok)
                 }
             }
-
             // 5. EXIT: SuperTrend Flip (GREEN → RED)
             else if (prevDir === 1 && currentDir === -1) {
                 signalType = "SELL";
                 reason = `📉 SELL: ST Flip RED`;
-
-                // Clear any pending entry on trend reversal
-                this._pendingEntries.delete(symbol);
+                this._pendingEntries.delete(instrument);
             }
 
             return {
-                symbol,
+                symbol: instrument,
                 signal: signalType,
                 strength: adxVal,
                 message: reason,
                 timestamp: Date.now(),
                 atr: atrVal,
+                atrPips: atrPips,
                 currentPrice: currentPrice,
-                entryType, // FIX #5: Track entry type for analytics
+                entryType,
 
-                // Structure for Dashboard & Database
+                // Trend data for dashboard
                 trend: {
                     currentPrice,
                     rsi: rsiVal,
                     adx: adxVal,
                     supertrend_direction: currentDir,
+                    atrPips: atrPips,
                 },
 
-                // Structure for Trading Engine Compatibility
+                // Trading engine compatibility
                 data: {
                     currentPrice,
                     rsi: rsiVal,
                     adx: adxVal,
                     stDirection: currentDir,
+                    atrPips: atrPips,
                 },
 
-                // FIX #5: Include pending entry info if applicable
-                pendingEntry: this._pendingEntries.has(symbol)
+                pendingEntry: this._pendingEntries.has(instrument)
                     ? {
-                          flipTime: this._pendingEntries.get(symbol).flipTime,
-                          flipPrice: this._pendingEntries.get(symbol).flipPrice,
+                          flipTime:
+                              this._pendingEntries.get(instrument).flipTime,
+                          flipPrice:
+                              this._pendingEntries.get(instrument).flipPrice,
                           ageMinutes: (
                               (Date.now() -
-                                  this._pendingEntries.get(symbol).flipTime) /
+                                  this._pendingEntries.get(instrument)
+                                      .flipTime) /
                               60000
                           ).toFixed(0),
                       }
                     : null,
             };
         } catch (error) {
-            logger.error(`Calc error ${symbol}:`, error);
+            logger.error(
+                `❌ Signal calculation error for ${instrument}:`,
+                error.message
+            );
             return null;
         }
     }
@@ -332,7 +342,7 @@ class SignalGenerator extends EventEmitter {
         const key = `${signal.symbol}_${signal.signal}`;
         const lastTime = this.lastSignals.get(key) || 0;
 
-        // Rate limit ONLY active Buy/Sell signals, allow HOLDs to update UI
+        // Rate limit active signals
         if (
             (signal.signal === "BUY" || signal.signal === "SELL") &&
             Date.now() - lastTime < this.config.signalCooldown
@@ -350,30 +360,32 @@ class SignalGenerator extends EventEmitter {
         return signal;
     }
 
-    async generateAllSignals(binanceDataService) {
+    async generateAllSignals(dataService) {
         const signals = [];
-        for (const asset of this.config.assets) {
+        for (const instrument of this.config.assets) {
             try {
-                // Fetch Timeframe from config (default 15m)
                 const tf = this.config.timeframe || "15m";
-                const candles = binanceDataService.getCandles(asset, tf);
-                const priceData = binanceDataService.getCurrentPrice(asset);
+                const candles = dataService.getCandles(instrument, tf);
+                const priceData = dataService.getCurrentPrice(instrument);
 
                 if (candles.length && priceData) {
                     let signal = await this.generateSignal(
-                        asset,
+                        instrument,
                         candles,
                         priceData.price
                     );
 
-                    // Attach timeframe for frontend
-                    if (signal) signal.timeframe = tf;
-
-                    signal = this.validateSignal(signal);
-                    if (signal) signals.push(signal);
+                    if (signal) {
+                        signal.timeframe = tf;
+                        signal = this.validateSignal(signal);
+                        if (signal) signals.push(signal);
+                    }
                 }
             } catch (err) {
-                // Silently continue on individual asset errors
+                logger.error(
+                    `Signal generation error for ${instrument}:`,
+                    err.message
+                );
             }
         }
         return signals;
@@ -382,9 +394,7 @@ class SignalGenerator extends EventEmitter {
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
         logger.info(
-            `🔄 Signal Generator config updated. Continuation: ${
-                this.config.enableContinuationEntry ? "ON" : "OFF"
-            }`
+            `🔄 Signal Generator config updated. ADX threshold: ${this.config.minAdx}`
         );
     }
 
@@ -393,7 +403,6 @@ class SignalGenerator extends EventEmitter {
             isActive: this.isRunning,
             config: this.config,
             activeSignals: this.latestSignals || [],
-            // FIX #5: Expose pending entries for monitoring
             pendingEntries: Array.from(this._pendingEntries.entries()).map(
                 ([symbol, data]) => ({
                     symbol,
@@ -410,11 +419,10 @@ class SignalGenerator extends EventEmitter {
     reset() {
         this.lastSignals.clear();
         this.latestSignals = [];
-        this._pendingEntries.clear(); // FIX #5: Clear pending entries on reset
+        this._pendingEntries.clear();
         logger.info("🔄 Signal Generator reset. Pending entries cleared.");
     }
 
-    // FIX #5: Manual method to clear pending entries (useful for debugging)
     clearPendingEntries() {
         const count = this._pendingEntries.size;
         this._pendingEntries.clear();

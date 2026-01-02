@@ -1,22 +1,21 @@
-// frontend/src/components/LivePrices.jsx
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+// frontend/src/components/dashboard/LivePrices.jsx - Forex Version
+import React, { useState, useMemo } from 'react';
 import { 
   Box, Typography, Chip, Skeleton, useTheme, alpha, 
-  Divider, LinearProgress, Stack, styled, Fade
+  Stack, styled, Tooltip
 } from '@mui/material';
 import { 
-  PieChart, Visibility, TrendingUp, TrendingDown 
+  CurrencyExchange, TrendingUp, TrendingDown, SwapHoriz
 } from '@mui/icons-material';
-import { tradingAPI, socket } from '../../config/api';
+import { formatPrice, formatInstrument, INSTRUMENT_INFO } from './Shared';
 
 // --- STYLED COMPONENTS ---
-const TickerRow = styled(Box)(({ theme, active }) => ({
+const TickerRow = styled(Box)(({ theme }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: theme.spacing(1.5, 2),
   borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-  backgroundColor: active ? alpha(theme.palette.primary.main, 0.03) : 'transparent',
   transition: 'background-color 0.2s',
   '&:hover': {
     backgroundColor: alpha(theme.palette.action.hover, 0.1),
@@ -26,7 +25,6 @@ const TickerRow = styled(Box)(({ theme, active }) => ({
   }
 }));
 
-// Fixed: Removed unused 'theme' prop
 const PriceText = styled(Typography)(({ color }) => ({
   fontFamily: '"Roboto Mono", monospace',
   fontWeight: 700,
@@ -34,194 +32,130 @@ const PriceText = styled(Typography)(({ color }) => ({
   transition: 'color 0.3s ease'
 }));
 
-const AllocationBar = styled(LinearProgress)(({ theme }) => ({
-  height: 2,
-  borderRadius: 2,
-  marginTop: 4,
-  backgroundColor: alpha(theme.palette.primary.main, 0.1),
-  '& .MuiLinearProgress-bar': {
-    borderRadius: 2,
-  }
-}));
-
-const LivePrices = () => {
-  const [prices, setPrices] = useState({}); // Store as { SYMBOL: { price: Number, ... } }
-  const [prevPrices, setPrevPrices] = useState({});
-  const [allocation, setAllocation] = useState({});
-  const [loading, setLoading] = useState(true);
-  
+/**
+ * LivePrices - Forex price display component
+ * @param {Object} prices - Price data keyed by instrument (e.g., { AUD_USD: { bid, ask, mid, spread } })
+ * @param {Array} assets - List of instruments to display (e.g., ['AUD_USD', 'EUR_USD'])
+ */
+const LivePrices = ({ prices = {}, assets = [] }) => {
   const theme = useTheme();
-  
-  // Use a ref to keep track of latest prices without triggering re-renders inside socket callbacks
-  const pricesRef = useRef({});
+  const [prevPrices, setPrevPrices] = useState({});
 
-  // 1. Fetch Config for Allocations
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const status = await tradingAPI.getStatus();
-        if (status && status.config && status.config.allocation) {
-          setAllocation(status.config.allocation);
-        }
-      } catch (err) {
-        console.error("Failed to load allocation config:", err);
+  // Track price changes for color coding
+  const priceChanges = useMemo(() => {
+    const changes = {};
+    assets.forEach(instrument => {
+      const current = prices[instrument]?.mid || prices[instrument]?.price;
+      const prev = prevPrices[instrument];
+      if (current && prev) {
+        if (current > prev) changes[instrument] = 'up';
+        else if (current < prev) changes[instrument] = 'down';
       }
-    };
-    fetchConfig();
-  }, []);
+    });
+    // Update prev prices for next comparison
+    const newPrev = {};
+    assets.forEach(instrument => {
+      newPrev[instrument] = prices[instrument]?.mid || prices[instrument]?.price;
+    });
+    if (Object.keys(newPrev).length > 0) {
+      setTimeout(() => setPrevPrices(newPrev), 0);
+    }
+    return changes;
+  }, [prices, assets]);
 
-  // 2. WebSocket & Data Logic
-  useEffect(() => {
-    setLoading(true);
-
-    const parsePrice = (input) => {
-        if (typeof input === 'object' && input !== null) return parseFloat(input.price);
-        return parseFloat(input);
-    };
-
-    // A. Initial Fetch
-    const fetchInitial = async () => {
-        try {
-            const data = await tradingAPI.getPrices();
-            const initialMap = {};
-            if (data) {
-                Object.keys(data).forEach(key => {
-                    if (key !== 'symbol' && key !== 'price') {
-                        initialMap[key] = parsePrice(data[key]);
-                    }
-                });
-                setPrices(initialMap);
-                pricesRef.current = initialMap;
-                setLoading(false);
-            }
-        } catch (e) { console.error(e); }
-    };
-    fetchInitial();
-
-    // B. Socket Listener
-    const handlePriceUpdate = (data) => {
-      setLoading(false);
-      setPrevPrices(pricesRef.current);
-
-      setPrices(currentPrices => {
-          const newPrices = { ...currentPrices };
-          
-          if (data && data.symbol && data.price) {
-              newPrices[data.symbol] = parsePrice(data.price);
-          } 
-          else if (typeof data === 'object') {
-              Object.keys(data).forEach(key => {
-                  if (data[key]) newPrices[key] = parsePrice(data[key]);
-              });
-          }
-
-          pricesRef.current = newPrices;
-          return newPrices;
-      });
-    };
-
-    socket.on('priceUpdate', handlePriceUpdate);
-    return () => { socket.off('priceUpdate', handlePriceUpdate); };
-  }, []);
-
-  // 3. Separation Logic
-  const { portfolioAssets, watchlistAssets } = useMemo(() => {
-      const allSymbols = Object.keys(prices).filter(k => k !== 'symbol' && k !== 'price');
-      
-      // Sort: Allocation High -> Low, then Alphabetical
-      allSymbols.sort((a, b) => {
-          const allocA = allocation[a] || 0;
-          const allocB = allocation[b] || 0;
-          if (allocB !== allocA) return allocB - allocA;
-          return a.localeCompare(b);
-      });
-
-      const port = [];
-      const watch = [];
-
-      allSymbols.forEach(sym => {
-          if ((allocation[sym] || 0) > 0) port.push(sym);
-          else watch.push(sym);
-      });
-
-      return { portfolioAssets: port, watchlistAssets: watch };
-  }, [prices, allocation]);
-
-
-  // 4. Render Helpers
-  const RenderRow = ({ symbol, isActive }) => {
-      const price = prices[symbol];
-      const prev = prevPrices[symbol];
-      const targetWeight = allocation[symbol] || 0;
-      
-      // Color Logic
-      let color = theme.palette.text.primary;
-      
-      if (price && prev) {
-        if (price > prev) {
-            color = theme.palette.success.main;
-        } else if (price < prev) {
-            color = theme.palette.error.main;
-        }
-      }
-
-      const formattedPrice = isNaN(price) 
-        ? '---' 
-        : price < 10 
-            ? price.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 4 })
-            : price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
+  // Render a single instrument row
+  const RenderRow = ({ instrument }) => {
+    const priceData = prices[instrument];
+    const info = INSTRUMENT_INFO[instrument] || {};
+    
+    if (!priceData) {
       return (
-        <TickerRow active={isActive ? 1 : 0}>
-            <Box display="flex" flexDirection="column" width="100%">
-                <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
-                    <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2" fontWeight="700">
-                            {symbol.replace('USDT', '')}
-                        </Typography>
-                        {isActive && (
-                            <Chip 
-                                label={`${targetWeight}%`} 
-                                size="small" 
-                                color="primary" 
-                                variant="filled"
-                                sx={{ 
-                                    height: 16, 
-                                    fontSize: '0.6rem', 
-                                    fontWeight: 'bold',
-                                    borderRadius: 0.5
-                                }} 
-                            />
-                        )}
-                    </Box>
-                    
-                    <Box textAlign="right">
-                        <PriceText variant="body2" color={color}>
-                            ${formattedPrice}
-                        </PriceText>
-                    </Box>
-                </Box>
-                
-                {/* Allocation Progress Bar for Active Assets */}
-                {isActive && (
-                    <Box mt={0.5} width="100%">
-                        <AllocationBar 
-                            variant="determinate" 
-                            value={Math.min(targetWeight * 2, 100)} // Scale purely for visual
-                            color="primary"
-                        />
-                    </Box>
-                )}
-            </Box>
+        <TickerRow>
+          <Typography variant="body2" fontWeight="700">{formatInstrument(instrument)}</Typography>
+          <Typography variant="body2" color="text.secondary">---</Typography>
         </TickerRow>
       );
+    }
+
+    const mid = priceData.mid || priceData.price;
+    const bid = priceData.bid;
+    const ask = priceData.ask;
+    const spread = priceData.spread;
+    
+    // Color based on price movement
+    let color = theme.palette.text.primary;
+    let Icon = null;
+    if (priceChanges[instrument] === 'up') {
+      color = theme.palette.success.main;
+      Icon = TrendingUp;
+    } else if (priceChanges[instrument] === 'down') {
+      color = theme.palette.error.main;
+      Icon = TrendingDown;
+    }
+
+    return (
+      <TickerRow>
+        <Box display="flex" flexDirection="column" width="100%">
+          <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
+            {/* Instrument Name */}
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="body2" sx={{ fontSize: '1rem' }}>
+                {info.flag || '💱'}
+              </Typography>
+              <Box>
+                <Typography variant="body2" fontWeight="700">
+                  {formatInstrument(instrument)}
+                </Typography>
+              </Box>
+            </Box>
+            
+            {/* Price */}
+            <Box textAlign="right" display="flex" alignItems="center" gap={0.5}>
+              {Icon && <Icon sx={{ fontSize: 14, color }} />}
+              <PriceText variant="body2" color={color}>
+                {formatPrice(mid, instrument)}
+              </PriceText>
+            </Box>
+          </Box>
+          
+          {/* Bid/Ask Spread Row */}
+          <Box display="flex" justifyContent="space-between" alignItems="center" mt={0.5}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                B: {formatPrice(bid, instrument)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>
+                A: {formatPrice(ask, instrument)}
+              </Typography>
+            </Box>
+            
+            {/* Spread */}
+            <Tooltip title="Spread in pips">
+              <Chip
+                icon={<SwapHoriz sx={{ fontSize: 12 }} />}
+                label={`${spread?.toFixed(1) || '---'} pips`}
+                size="small"
+                variant="outlined"
+                sx={{ 
+                  height: 18, 
+                  fontSize: '0.65rem',
+                  '& .MuiChip-icon': { fontSize: 12, ml: 0.5 },
+                  '& .MuiChip-label': { px: 0.5 }
+                }}
+              />
+            </Tooltip>
+          </Box>
+        </Box>
+      </TickerRow>
+    );
   };
 
-  if (loading && Object.keys(prices).length === 0) {
+  // Loading state
+  if (assets.length === 0 || Object.keys(prices).length === 0) {
     return (
       <Box p={2}>
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Skeleton key={i} variant="text" height={40} sx={{ my: 1 }} />
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} variant="text" height={50} sx={{ my: 1 }} />
         ))}
       </Box>
     );
@@ -229,58 +163,30 @@ const LivePrices = () => {
 
   return (
     <Box>
-        {/* SECTION 1: ACTIVE PORTFOLIO */}
-        {portfolioAssets.length > 0 && (
-            <Box>
-                <Box 
-                    px={2} py={1} 
-                    bgcolor={alpha(theme.palette.primary.main, 0.05)} 
-                    borderBottom={`1px solid ${alpha(theme.palette.divider, 0.1)}`}
-                    display="flex" alignItems="center" gap={1}
-                >
-                    <PieChart sx={{ fontSize: 14, color: 'text.secondary' }} />
-                    <Typography variant="caption" fontWeight="bold" color="text.secondary">
-                        ALLOCATION
-                    </Typography>
-                </Box>
-                <Stack>
-                    {portfolioAssets.map(symbol => (
-                        <RenderRow key={symbol} symbol={symbol} isActive={true} />
-                    ))}
-                </Stack>
-            </Box>
-        )}
-
-        {/* SECTION 2: WATCHLIST */}
-        {watchlistAssets.length > 0 && (
-            <Box>
-                 <Box 
-                    px={2} py={1} 
-                    bgcolor={alpha(theme.palette.background.default, 0.4)} 
-                    borderBottom={`1px solid ${alpha(theme.palette.divider, 0.1)}`}
-                    borderTop={portfolioAssets.length > 0 ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : 'none'}
-                    display="flex" alignItems="center" gap={1}
-                >
-                    <Visibility sx={{ fontSize: 14, color: 'text.secondary' }} />
-                    <Typography variant="caption" fontWeight="bold" color="text.secondary">
-                        MARKET WATCH
-                    </Typography>
-                </Box>
-                <Stack>
-                    {watchlistAssets.map(symbol => (
-                        <RenderRow key={symbol} symbol={symbol} isActive={false} />
-                    ))}
-                </Stack>
-            </Box>
-        )}
-        
-        {portfolioAssets.length === 0 && watchlistAssets.length === 0 && (
-             <Box p={3} textAlign="center">
-                <Typography variant="caption" color="text.secondary">
-                    Waiting for market data...
-                </Typography>
-            </Box>
-        )}
+      {/* Header */}
+      <Box 
+        px={2} py={1} 
+        bgcolor={alpha(theme.palette.primary.main, 0.05)} 
+        borderBottom={`1px solid ${alpha(theme.palette.divider, 0.1)}`}
+        display="flex" alignItems="center" gap={1}
+      >
+        <CurrencyExchange sx={{ fontSize: 14, color: 'text.secondary' }} />
+        <Typography variant="caption" fontWeight="bold" color="text.secondary">
+          FOREX PAIRS
+        </Typography>
+        <Chip 
+          label={assets.length} 
+          size="small" 
+          sx={{ height: 16, fontSize: '0.6rem', ml: 'auto' }} 
+        />
+      </Box>
+      
+      {/* Price Rows */}
+      <Stack>
+        {assets.map(instrument => (
+          <RenderRow key={instrument} instrument={instrument} />
+        ))}
+      </Stack>
     </Box>
   );
 };

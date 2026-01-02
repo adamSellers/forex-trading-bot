@@ -1,4 +1,4 @@
-// frontend/src/components/LivePriceChart.jsx
+// frontend/src/components/dashboard/LivePriceChart.jsx - Forex Version
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { tradingAPI } from '../../config/api';
 import { calculateEMA } from '../../utils/indicators';
+import { formatPrice, formatInstrument, FOREX_INSTRUMENTS, INSTRUMENT_INFO } from './Shared';
 
 // --- SUPERTREND CALCULATION (Client-Side) ---
 const calculateSuperTrend = (candles, period = 10, factor = 3) => {
@@ -66,7 +67,14 @@ const calculateSuperTrend = (candles, period = 10, factor = 3) => {
     return st.map((val, i) => ({ value: val, direction: dir[i] }));
 };
 
-const useChartData = (asset, timeframe) => {
+// --- Oanda timeframe mapping ---
+const TIMEFRAME_MAP = {
+    'M15': { label: '15M', minutes: 15 },
+    'H1': { label: '1H', minutes: 60 },
+    'H4': { label: '4H', minutes: 240 },
+};
+
+const useChartData = (instrument, timeframe) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -74,7 +82,7 @@ const useChartData = (asset, timeframe) => {
     const fetchData = useCallback(async (isBackground = false) => {
         try {
             if (!isBackground) setLoading(true);
-            const response = await tradingAPI.getCandles(asset, timeframe);
+            const response = await tradingAPI.getCandles(instrument, timeframe, 100);
             
             if (response?.candles?.length > 0) {
                 const candles = response.candles;
@@ -87,7 +95,7 @@ const useChartData = (asset, timeframe) => {
 
                 const processed = candles.map((c, i) => ({
                     ...c,
-                    time: c.openTime, 
+                    time: new Date(c.time).getTime(), // Oanda uses ISO timestamp
                     fastMA: fastMA[i],
                     slowMA: slowMA[i],
                     stValue: stData[i]?.value,
@@ -99,7 +107,7 @@ const useChartData = (asset, timeframe) => {
             }
         } catch (err) { setError(err.message); } 
         finally { setLoading(false); }
-    }, [asset, timeframe]);
+    }, [instrument, timeframe]);
 
     useEffect(() => { setData([]); fetchData(false); }, [fetchData]);
     useEffect(() => { 
@@ -110,12 +118,13 @@ const useChartData = (asset, timeframe) => {
     return { data, setData, loading, error };
 };
 
-const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'] }) => {
+const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
   const theme = useTheme();
-  const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'BTCUSDT');
+  const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'AUD_USD');
+  const [timeframe, setTimeframe] = useState('M15'); // Oanda format
   
-  // UPDATED: Default timeframe set to '15m'
-  const [timeframe, setTimeframe] = useState('15m');
+  // Get instrument info
+  const instrumentInfo = INSTRUMENT_INFO[selectedAsset] || {};
   
   // Ensure selected asset is valid if list changes
   useEffect(() => {
@@ -126,7 +135,7 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
 
   // Live Candle Update (Ticker)
   useEffect(() => {
-    const livePrice = prices[selectedAsset]?.price;
+    const livePrice = prices[selectedAsset]?.mid || prices[selectedAsset]?.price;
     if (livePrice && chartData.length > 0) {
       setChartData(prev => {
         const newData = [...prev];
@@ -163,24 +172,24 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
         <Box sx={{ 
             p: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.95), 
             border: 1, borderColor: 'divider', borderRadius: 1,
-            boxShadow: theme.shadows[4], minWidth: 150
+            boxShadow: theme.shadows[4], minWidth: 160
         }}>
           <Typography variant="caption" color="text.secondary">
             {new Date(d.time).toLocaleString()}
           </Typography>
-          <Typography variant="h6" color="primary.main" fontWeight="bold">
-            ${d.close.toFixed(2)}
+          <Typography variant="h6" color="primary.main" fontWeight="bold" fontFamily="monospace">
+            {formatPrice(d.close, selectedAsset)}
           </Typography>
           
           <Box mt={1} pt={1} borderTop={1} borderColor="divider">
              <Grid container spacing={1} sx={{ fontSize: 11 }}>
-                 <Grid item xs={6} color="#8884d8">EMA(20): {d.fastMA?.toFixed(2)}</Grid>
-                 <Grid item xs={6} color="#82ca9d">EMA(50): {d.slowMA?.toFixed(2)}</Grid>
+                 <Grid item xs={6} color="#8884d8">EMA(20): {formatPrice(d.fastMA, selectedAsset)}</Grid>
+                 <Grid item xs={6} color="#82ca9d">EMA(50): {formatPrice(d.slowMA, selectedAsset)}</Grid>
                  <Grid item xs={12} sx={{ 
                      color: isBullish ? theme.palette.success.main : theme.palette.error.main,
                      fontWeight: 'bold', mt: 0.5
                  }}>
-                     SuperTrend: ${d.stValue?.toFixed(2)} ({isBullish ? 'BUY' : 'SELL'})
+                     SuperTrend: {formatPrice(d.stValue, selectedAsset)} ({isBullish ? 'BUY' : 'SELL'})
                  </Grid>
              </Grid>
           </Box>
@@ -190,19 +199,27 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
     return null;
   };
 
+  // Determine Y-axis decimal places based on instrument
+  const yAxisDecimals = selectedAsset.includes('JPY') ? 3 : 5;
+
   return (
     <Box height="100%" display="flex" flexDirection="column" sx={{ overflow: 'hidden' }}>
       
       {/* HEADER */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1} flexWrap="wrap" gap={1} p={1}>
         {stats ? (
             <Box display="flex" gap={2} alignItems="center">
                 <Box>
-                    <Typography variant="h5" fontWeight="bold" fontFamily="monospace">
-                        ${stats.current.toFixed(2)}
-                    </Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body1" sx={{ fontSize: '1.2rem' }}>
+                            {instrumentInfo.flag || '💱'}
+                        </Typography>
+                        <Typography variant="h5" fontWeight="bold" fontFamily="monospace">
+                            {formatPrice(stats.current, selectedAsset)}
+                        </Typography>
+                    </Box>
                     <Typography variant="caption" fontWeight="bold" sx={{ color: stats.change >= 0 ? 'success.main' : 'error.main' }}>
-                         {stats.change >= 0 ? '+' : ''}{stats.pct.toFixed(2)}% (24h)
+                         {stats.change >= 0 ? '+' : ''}{stats.pct.toFixed(3)}%
                     </Typography>
                 </Box>
                 
@@ -215,25 +232,29 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                     }}
                 >
                     <Typography variant="caption" fontWeight="bold" color={stats.trend === 'BULLISH' ? 'success.main' : 'error.main'}>
-                        {stats.trend} ZONE
+                        {stats.trend}
                     </Typography>
                 </Box>
             </Box>
         ) : <Box />}
         
         <Box display="flex" gap={1}>
-          <FormControl size="small" variant="standard" sx={{ minWidth: 100 }}>
+          <FormControl size="small" variant="standard" sx={{ minWidth: 110 }}>
             <Select 
                 value={selectedAsset} 
                 onChange={(e) => setSelectedAsset(e.target.value)}
                 disableUnderline
-                sx={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'primary.main' }}
+                sx={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'primary.main' }}
             >
-              {assets.map(a => <MenuItem key={a} value={a}>{a.replace('USDT','')}</MenuItem>)}
+              {assets.map(a => (
+                  <MenuItem key={a} value={a}>
+                      {INSTRUMENT_INFO[a]?.flag || '💱'} {formatInstrument(a)}
+                  </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
-          {/* UPDATED: Added 15m Toggle */}
+          {/* Timeframe Toggle - Oanda format */}
           <ToggleButtonGroup
             value={timeframe}
             exclusive
@@ -241,9 +262,11 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
             size="small"
             sx={{ height: 32 }}
           >
-            <ToggleButton value="15m" sx={{ px: 1 }}>15M</ToggleButton>
-            <ToggleButton value="1h" sx={{ px: 1 }}>1H</ToggleButton>
-            <ToggleButton value="4h" sx={{ px: 1 }}>4H</ToggleButton>
+            {Object.entries(TIMEFRAME_MAP).map(([key, { label }]) => (
+                <ToggleButton key={key} value={key} sx={{ px: 1, fontSize: '0.75rem' }}>
+                    {label}
+                </ToggleButton>
+            ))}
           </ToggleButtonGroup>
         </Box>
       </Box>
@@ -258,7 +281,7 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
             <Alert severity="error">{error}</Alert>
         ) : (
             <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
                     <defs>
                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.1}/>
@@ -268,23 +291,27 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                     <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.1)} vertical={false} />
                     <XAxis 
                         dataKey="time" 
-                        tickFormatter={(t) => new Date(t).getHours() + ':00'}
+                        tickFormatter={(t) => {
+                            const d = new Date(t);
+                            return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+                        }}
                         stroke={alpha(theme.palette.text.secondary, 0.5)}
-                        fontSize={11}
+                        fontSize={10}
                         tickLine={false}
                         axisLine={false}
-                        minTickGap={30}
+                        minTickGap={40}
                     />
                     <YAxis 
                         domain={['auto', 'auto']}
-                        tickFormatter={(v) => `$${v}`}
+                        tickFormatter={(v) => v.toFixed(yAxisDecimals)}
                         stroke={alpha(theme.palette.text.secondary, 0.5)}
-                        fontSize={11}
+                        fontSize={10}
                         tickLine={false}
                         axisLine={false}
+                        width={65}
                     />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend verticalAlign="top" iconType="circle" height={30} />
+                    <Legend verticalAlign="top" iconType="circle" height={25} wrapperStyle={{ fontSize: '11px' }} />
                     
                     {/* Price Line */}
                     <Line 
@@ -294,32 +321,32 @@ const LivePriceChart = ({ prices = {}, assets = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'
                         strokeWidth={2} 
                         dot={false} 
                         name="Price"
-                        activeDot={{ r: 5 }}
+                        activeDot={{ r: 4 }}
                         animationDuration={500}
                     />
 
                     {/* EMA Lines */}
-                    <Line type="monotone" dataKey="fastMA" stroke="#8884d8" strokeWidth={1} dot={false} name="EMA 20" strokeOpacity={0.5} />
-                    <Line type="monotone" dataKey="slowMA" stroke="#82ca9d" strokeWidth={1} dot={false} name="EMA 50" strokeOpacity={0.5} />
+                    <Line type="monotone" dataKey="fastMA" stroke="#8884d8" strokeWidth={1} dot={false} name="EMA 20" strokeOpacity={0.6} />
+                    <Line type="monotone" dataKey="slowMA" stroke="#82ca9d" strokeWidth={1} dot={false} name="EMA 50" strokeOpacity={0.6} />
 
                     {/* SuperTrend Lines */}
                     <Line 
-                        type="step" 
+                        type="stepAfter" 
                         dataKey={(d) => d.stDir === 1 ? d.stValue : null} 
                         stroke={theme.palette.success.main} 
                         strokeWidth={2} 
                         dot={false} 
                         connectNulls={false}
-                        name="SuperTrend (Bull)" 
+                        name="ST (Bull)" 
                     />
                     <Line 
-                        type="step" 
+                        type="stepAfter" 
                         dataKey={(d) => d.stDir === -1 ? d.stValue : null} 
                         stroke={theme.palette.error.main} 
                         strokeWidth={2} 
                         dot={false} 
                         connectNulls={false}
-                        name="SuperTrend (Bear)" 
+                        name="ST (Bear)" 
                     />
 
                 </LineChart>

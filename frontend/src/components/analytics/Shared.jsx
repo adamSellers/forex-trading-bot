@@ -1,7 +1,7 @@
-import React from 'react';
-import { Paper, Box, Typography, styled, alpha } from '@mui/material';
+import { Paper, Typography, Box, styled, alpha } from '@mui/material';
 
-// --- STYLED COMPONENTS ---
+// ============ STYLED COMPONENTS ============
+
 export const GlassCard = styled(Paper)(({ theme }) => ({
   background: alpha(theme.palette.background.paper, 0.05),
   backdropFilter: 'blur(10px)',
@@ -21,27 +21,105 @@ export const GlassCard = styled(Paper)(({ theme }) => ({
 export const MetricValue = styled(Typography)(() => ({
   fontFamily: '"Roboto Mono", monospace',
   fontWeight: 700,
-  letterSpacing: '-1px'
+  letterSpacing: '-0.5px'
 }));
 
-// --- UTILITIES ---
-export const currencyFormatter = (value) => {
-    if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1)}k`;
-    return `$${value.toFixed(0)}`;
+// ============ REUSABLE COMPONENTS ============
+
+/**
+ * Empty state display for when there's no data
+ */
+export const EmptyState = ({ icon, message, subMessage }) => (
+  <Box
+    height="100%"
+    display="flex"
+    flexDirection="column"
+    alignItems="center"
+    justifyContent="center"
+    color="text.secondary"
+    p={4}
+  >
+    <Box sx={{ opacity: 0.2, mb: 2 }}>{icon}</Box>
+    <Typography variant="body2" fontWeight="bold">
+      {message}
+    </Typography>
+    {subMessage && (
+      <Typography variant="caption" sx={{ opacity: 0.6, mt: 0.5 }}>
+        {subMessage}
+      </Typography>
+    )}
+  </Box>
+);
+
+// ============ FOREX UTILITY FUNCTIONS ============
+
+/**
+ * Format currency value (AUD base currency)
+ * @param {number} value - The value to format
+ * @param {string} currency - Currency code (default: 'AUD')
+ */
+export const formatCurrency = (value, currency = 'AUD') => {
+  if (value === null || value === undefined || isNaN(value)) return '---';
+  
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 };
 
-// --- SHARED COMPONENTS ---
-export const EmptyState = ({ icon, message, height = 250 }) => (
-    <Box 
-        display="flex" 
-        flexDirection="column" 
-        alignItems="center" 
-        justifyContent="center" 
-        height={height}
-        color="text.secondary"
-        sx={{ opacity: 0.6 }}
-    >
-        {React.cloneElement(icon, { sx: { fontSize: 48, mb: 2, opacity: 0.5 } })}
-        <Typography variant="button" color="text.secondary">{message}</Typography>
-    </Box>
-);
+/**
+ * Format Forex price with appropriate decimal places
+ * - JPY pairs: 3 decimal places (e.g., 150.123)
+ * - Standard pairs: 5 decimal places (e.g., 0.65432)
+ * @param {number} price - The price to format
+ * @param {string} instrument - The instrument (e.g., 'AUD_USD', 'USD_JPY')
+ */
+export const formatPrice = (price, instrument = '') => {
+  if (price === null || price === undefined || isNaN(price)) return '---';
+  
+  // JPY pairs use fewer decimal places
+  const isJpyPair = instrument.includes('JPY');
+  const decimals = isJpyPair ? 3 : 5;
+  
+  return parseFloat(price).toFixed(decimals);
+};
+
+/**
+ * Format instrument for display (AUD_USD → AUD/USD)
+ * @param {string} instrument - The instrument code
+ */
+export const formatInstrument = (instrument) => {
+  if (!instrument) return '---';
+  return instrument.replace('_', '/');
+};
+
+/**
+ * Get pip value for an instrument
+ * @param {string} instrument - The instrument code
+ */
+export const getPipValue = (instrument) => {
+  return instrument?.includes('JPY') ? 0.01 : 0.0001;
+};
+
+/**
+ * Calculate pips from price difference
+ * @param {number} priceDiff - Price difference
+ * @param {string} instrument - The instrument code
+ */
+export const calculatePips = (priceDiff, instrument) => {
+  const pipValue = getPipValue(instrument);
+  return priceDiff / pipValue;
+};
+
+// ============ CONSTANTS ============
+
+export const FOREX_INSTRUMENTS = ['AUD_USD', 'EUR_USD', 'GBP_USD', 'USD_JPY'];
+
+export const INSTRUMENT_INFO = {
+  'AUD_USD': { name: 'Australian Dollar / US Dollar', flag: '🇦🇺' },
+  'EUR_USD': { name: 'Euro / US Dollar', flag: '🇪🇺' },
+  'GBP_USD': { name: 'British Pound / US Dollar', flag: '🇬🇧' },
+  'USD_JPY': { name: 'US Dollar / Japanese Yen', flag: '🇯🇵' },
+};

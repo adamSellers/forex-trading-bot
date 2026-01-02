@@ -1,4 +1,4 @@
-// frontend/src/components/dashboard/TradingSignals.jsx
+// frontend/src/components/dashboard/TradingSignals.jsx - Forex Version
 import React, { useMemo } from 'react';
 import { 
     Typography, Box, LinearProgress, Stack, Avatar, 
@@ -8,6 +8,7 @@ import {
 import { 
     TrendingUp, TrendingDown, Timeline, Radar, ShowChart 
 } from '@mui/icons-material';
+import { formatInstrument, INSTRUMENT_INFO } from './Shared';
 
 // --- STYLED COMPONENTS ---
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
@@ -105,11 +106,11 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       return { rsiVal, isBullish, isBearish };
   };
 
-  // --- LOGIC: System Health ---
+  // --- LOGIC: System Health (Oanda data service) ---
   const dataStatus = useMemo(() => {
-      if (!systemStatus?.services?.binanceData) return null;
-      const { candleCount: totalCandles = 0 } = systemStatus.services.binanceData;
-      const target = 3000; 
+      if (!systemStatus?.services?.dataService) return null;
+      const { candleCount: totalCandles = 0 } = systemStatus.services.dataService;
+      const target = 800; // 200 candles × 4 pairs
       const percent = Math.min((totalCandles / target) * 100, 100);
       return { totalCandles, percent };
   }, [systemStatus]);
@@ -150,6 +151,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
             {filteredSignals.map((signal) => {
                 const { color, icon } = getSignalMeta(signal.signal);
                 const paletteColor = theme.palette[color];
+                const info = INSTRUMENT_INFO[signal.symbol] || {};
                 // Unique key includes timestamp to force re-render on update
                 return (
                     <Box 
@@ -164,7 +166,9 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                          <Box display="flex" alignItems="center" gap={1.5}>
                              <Avatar variant="rounded" sx={{ width: 28, height: 28, bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main, border: `1px solid ${alpha(paletteColor.main, 0.2)}` }}>{icon}</Avatar>
                             <Box>
-                                <Typography variant="body2" fontWeight="bold">{signal.symbol.replace('USDT', '')}</Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                    {info.flag || '💱'} {formatInstrument(signal.symbol)}
+                                </Typography>
                                 <MonoText sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>{new Date(signal.timestamp).toLocaleTimeString([], { hour12: false })}</MonoText>
                             </Box>
                          </Box>
@@ -185,7 +189,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
         <Table stickyHeader size="small">
             <TableHead>
                 <TableRow>
-                    <HeaderCell>Symbol</HeaderCell>
+                    <HeaderCell>Pair</HeaderCell>
                     <HeaderCell>Time</HeaderCell>
                     <HeaderCell>Signal Type</HeaderCell>
                     <HeaderCell align="right">Strength (ADX)</HeaderCell>
@@ -198,15 +202,17 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                      const { color, icon } = getSignalMeta(signal.signal);
                      const paletteColor = theme.palette[color];
                      const { rsiVal, isBullish, isBearish } = getTrendContext(signal);
+                     const info = INSTRUMENT_INFO[signal.symbol] || {};
 
                      // FIXED: Key includes timestamp to force update when same symbol gets new signal
                      return (
                          <StyledTableRow key={`${signal.symbol}-${signal.timestamp}`}>
-                             {/* Symbol */}
+                             {/* Pair */}
                              <StyledTableCell>
                                  <Box display="flex" alignItems="center" gap={1}>
                                     <Avatar variant="rounded" sx={{ width: 24, height: 24, bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main }}>{icon}</Avatar>
-                                    <Typography variant="body2" fontWeight="bold">{signal.symbol.replace('USDT', '')}</Typography>
+                                    <Typography variant="body2" sx={{ fontSize: '0.9rem' }}>{info.flag || '💱'}</Typography>
+                                    <Typography variant="body2" fontWeight="bold">{formatInstrument(signal.symbol)}</Typography>
                                  </Box>
                              </StyledTableCell>
 
@@ -227,7 +233,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                              {/* Strength */}
                              <StyledTableCell align="right">
                                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                                     <LinearProgress variant="determinate" value={Math.min((signal.strength || 0) * 2, 100)} sx={{ width: 50, height: 4, borderRadius: 2 }} color={signal.strength > 25 ? "primary" : "secondary"} />
+                                     <LinearProgress variant="determinate" value={Math.min((signal.strength || 0) * 2, 100)} sx={{ width: 50, height: 4, borderRadius: 2 }} color={signal.strength > 22 ? "primary" : "secondary"} />
                                       <MonoText>{signal.strength?.toFixed(1)}</MonoText>
                                   </Box>
                               </StyledTableCell>

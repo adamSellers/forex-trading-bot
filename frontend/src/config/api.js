@@ -1,10 +1,10 @@
-// frontend/src/config/api.js - COMPLETE
+// frontend/src/config/api.js - Forex Trading Bot
 import { io } from "socket.io-client";
 
 const API_CONFIG = {
     development: {
-        baseURL: "http://localhost:3001",
-        socketURL: "http://localhost:3001",
+        baseURL: "http://localhost:3101", // Forex bot backend port
+        socketURL: "http://localhost:3101",
     },
     production: {
         baseURL: "", // Same origin in production (nginx proxy)
@@ -25,34 +25,17 @@ export const socket = io(SOCKET_URL, {
     reconnection: true,
 });
 
+// Endpoints matching backend tradingRoutes.js
 export const API_ENDPOINTS = {
-    trading: {
-        status: "/api/trading/status",
-        portfolio: "/api/trading/portfolio",
-        signals: "/api/trading/signals",
-        trades: "/api/trading/trades",
-        prices: "/api/trading/prices",
-        account: "/api/trading/account",
-        config: "/api/trading/config",
-        start: "/api/trading/start",
-        stop: "/api/trading/stop",
-        reset: "/api/trading/reset",
-        holdings: "/api/trading/holdings",
-        comparison: "/api/trading/comparison",
-        riskStatus: "/api/trading/risk-status",
-        performance: "/api/trading/performance",
-        analytics: "/api/trading/analytics",
-        candles: "/api/trading/candles",
-        paperStats: "/api/trading/paper-stats",
-        testSignal: "/api/trading/test-signal",
-    },
-    management: {
-        health: "/api/management/health",
-        system: "/api/management/system",
-        logs: "/api/management/logs",
-        factoryReset: "/api/management/factory-reset", // <--- NEW ENDPOINT
-    },
     health: "/api/health",
+    account: "/api/account",
+    prices: "/api/prices",
+    candles: "/api/candles", // /api/candles/:instrument
+    signals: "/api/signals",
+    portfolio: "/api/portfolio",
+    trades: "/api/trades",
+    config: "/api/config",
+    closePosition: "/api/trade/close", // /api/trade/close/:id
 };
 
 // Enhanced API helper function
@@ -96,15 +79,21 @@ export const apiCall = async (endpoint, options = {}) => {
     }
 };
 
-// Specific API helper functions
+// Trading API helper functions
 export const tradingAPI = {
-    getStatus: () => apiCall(API_ENDPOINTS.trading.status),
-    getPortfolio: () => apiCall(API_ENDPOINTS.trading.portfolio),
+    // System
+    getStatus: () => apiCall(API_ENDPOINTS.health),
+    getHealth: () => apiCall(API_ENDPOINTS.health),
 
+    // Account & Portfolio
+    getAccount: () => apiCall(API_ENDPOINTS.account),
+    getPortfolio: () => apiCall(API_ENDPOINTS.portfolio),
+
+    // Signals
     getSignals: (params = {}) => {
         const query = new URLSearchParams(params).toString();
         return apiCall(
-            `${API_ENDPOINTS.trading.signals}${query ? `?${query}` : ""}`
+            `${API_ENDPOINTS.signals}${query ? `?${query}` : ""}`
         ).then((data) => {
             if (data && Array.isArray(data.signals)) return data.signals;
             if (data && Array.isArray(data)) return data;
@@ -112,10 +101,11 @@ export const tradingAPI = {
         });
     },
 
+    // Trades
     getTrades: (params = {}) => {
         const query = new URLSearchParams(params).toString();
         return apiCall(
-            `${API_ENDPOINTS.trading.trades}${query ? `?${query}` : ""}`
+            `${API_ENDPOINTS.trades}${query ? `?${query}` : ""}`
         ).then((data) => {
             if (data && Array.isArray(data.trades)) return data.trades;
             if (data && Array.isArray(data)) return data;
@@ -123,51 +113,32 @@ export const tradingAPI = {
         });
     },
 
-    getPrices: () => apiCall(API_ENDPOINTS.trading.prices),
-    getAccount: () => apiCall(API_ENDPOINTS.trading.account),
+    // Prices
+    getPrices: () => apiCall(API_ENDPOINTS.prices),
 
-    startTrading: () =>
-        apiCall(API_ENDPOINTS.trading.start, { method: "POST" }),
-    stopTrading: () => apiCall(API_ENDPOINTS.trading.stop, { method: "POST" }),
-    resetTrading: () =>
-        apiCall(API_ENDPOINTS.trading.reset, { method: "POST" }),
+    // Candles - /api/candles/:instrument?granularity=M15&count=100
+    getCandles: (instrument, granularity = "M15", count = 100) => {
+        const query = new URLSearchParams({ granularity, count }).toString();
+        return apiCall(`${API_ENDPOINTS.candles}/${instrument}?${query}`);
+    },
 
+    // Config
+    getConfig: () => apiCall(API_ENDPOINTS.config),
     updateConfig: (config) =>
-        apiCall(API_ENDPOINTS.trading.config, {
+        apiCall(API_ENDPOINTS.config, {
             method: "POST",
             body: JSON.stringify(config),
         }),
 
-    testSignal: (signalData) =>
-        apiCall(API_ENDPOINTS.trading.testSignal, {
+    // Position Management
+    closePosition: (tradeId) =>
+        apiCall(`${API_ENDPOINTS.closePosition}/${tradeId}`, {
             method: "POST",
-            body: JSON.stringify(signalData),
         }),
 
-    getAnalytics: (period = "7d") => {
-        const query = new URLSearchParams({ period }).toString();
-        return apiCall(`${API_ENDPOINTS.trading.analytics}?${query}`);
-    },
-
-    getCandles: (symbol, timeframe) => {
-        const endpoint = `${API_ENDPOINTS.trading.candles}/${symbol}/${timeframe}`;
-        return apiCall(endpoint);
-    },
-};
-
-export const managementAPI = {
-    getHealth: () => apiCall(API_ENDPOINTS.health),
-    getSystemHealth: () => apiCall(API_ENDPOINTS.management.health),
-    getSystemInfo: () => apiCall(API_ENDPOINTS.management.system),
-    getLogs: (params = {}) => {
-        const query = new URLSearchParams(params).toString();
-        return apiCall(
-            `${API_ENDPOINTS.management.logs}${query ? `?${query}` : ""}`
-        );
-    },
-    // NEW METHOD
-    factoryReset: () =>
-        apiCall(API_ENDPOINTS.management.factoryReset, { method: "POST" }),
+    // Trading Control (TODO: Add these routes to backend when LiveTradingEngine is built)
+    startTrading: () => apiCall("/api/trading/start", { method: "POST" }),
+    stopTrading: () => apiCall("/api/trading/stop", { method: "POST" }),
 };
 
 export default {
@@ -177,5 +148,4 @@ export default {
     API_ENDPOINTS,
     apiCall,
     tradingAPI,
-    managementAPI,
 };

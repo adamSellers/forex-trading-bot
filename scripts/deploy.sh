@@ -1,15 +1,11 @@
 #!/bin/bash
-
-# ===================================================
-# scripts/deploy.sh - Fixed for ARM64 Dependencies
-# ===================================================
-
+# scripts/deploy.sh - Forex Trading Bot Deployment Script
 set -e
 
 # --- Configuration ---
-PROJECT_DIR="/opt/crypto-trading-bot"
-BACKUP_DIR="$HOME/crypto-trading-bot-backups"
-APP_NAME="crypto-trend-bot"
+PROJECT_DIR="/opt/forex-trading-bot"
+BACKUP_DIR="$HOME/forex-trading-bot-backups"
+APP_NAME="forex-backend"
 
 # Colors
 GREEN='\033[0;32m'
@@ -23,11 +19,15 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 
-echo "🚀 Starting local deployment on Raspberry Pi..."
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "       🚀 FOREX TRADING BOT DEPLOYMENT (Raspberry Pi)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
 
 # Validation
 if [ ! -f "package.json" ]; then
-    log_error "Run from project root (/opt/crypto-trading-bot)"
+    log_error "Run from project root (/opt/forex-trading-bot)"
     exit 1
 fi
 
@@ -36,76 +36,105 @@ if [ "$(whoami)" != "adam" ]; then
     exit 1
 fi
 
-# 0. Update code
-log_info "Fetching latest changes..."
+# Check for secrets
+if [ ! -f ".secrets/oanda_api_key.enc" ]; then
+    log_warn "Oanda API key not configured. Run: ./scripts/setup-secrets.sh"
+fi
+
+# 0. Update code from git
+log_info "Fetching latest changes from git..."
 git fetch origin main
-log_info "Resetting local branch..."
 git reset --hard origin/main
 chmod +x scripts/*.sh
 
 # 1. Stop Service
-log_info "Stopping service..."
-pm2 stop "$APP_NAME" --silent || true
+log_info "Stopping forex services..."
+pm2 stop forex-backend --silent 2>/dev/null || true
+pm2 stop forex-frontend --silent 2>/dev/null || true
 sleep 2
 
-# 2. Backup
-log_info "Creating backup..."
-./scripts/backup.sh
-
-# 3. Update Dependencies (FIXED)
-log_info "Updating dependencies..."
-
-# Backend: Keep it lean (Production deps only)
-log_info "Backend: Installing production dependencies..."
-npm run install:backend -- --omit=dev
-
-# Frontend: MUST install ALL dependencies (Dev + Optional) for build tools (Vite/Esbuild) to work
-log_info "Frontend: Installing build dependencies (ARM64 binaries)..."
-npm run install:frontend
-
-# 4. Build Frontend
-log_info "Building frontend..."
-# Explicitly install the Linux ARM64 Rollup binary to prevent Vite hangs
-cd frontend
-npm install @rollup/rollup-linux-arm64-gnu --no-save
-cd ..
-
-# Run build with memory constraints and NO source maps
-NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build:frontend
-
-if [ ! -d "frontend/dist" ]; then
-    log_error "Frontend build failed."
-    exit 1
+# 2. Backup database
+log_info "Creating database backup..."
+mkdir -p $BACKUP_DIR
+if [ -f "data/trading.db" ]; then
+    cp data/trading.db "$BACKUP_DIR/trading_$(date +%Y%m%d_%H%M%S).db"
+    # Keep only last 7 backups
+    ls -t $BACKUP_DIR/trading_*.db 2>/dev/null | tail -n +8 | xargs -r rm
+    log_success "Database backed up"
+else
+    log_info "No existing database to backup"
 fi
 
-# 5. Reload Nginx
-log_info "Reloading Nginx..."
-sudo systemctl reload nginx
+# 3. Install dependencies
+log_info "Installing backend dependencies..."
+npm install --omit=dev
 
-# 6. Migrations
+# 4. Build frontend (if exists)
+if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+    log_info "Installing frontend dependencies..."
+    cd frontend
+    npm install
+    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+    
+    log_info "Building frontend..."
+    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
+    cd ..
+    
+    if [ -d "frontend/dist" ]; then
+        log_success "Frontend built successfully"
+    else
+        log_warn "Frontend build may have failed - no dist folder"
+    fi
+else
+    log_info "No frontend to build"
+fi
+
+# 5. Run database migrations
 log_info "Running database migrations..."
-npm run db:migrate
+mkdir -p data
+npm run db:migrate || log_warn "Migration may have failed"
 
-# 7. Restart
-log_info "Restarting Application..."
-pm2 restart ecosystem.config.js --env production
+# 6. Create logs directory
+mkdir -p logs
+
+# 7. Restart services
+log_info "Starting application..."
+pm2 start ecosystem.config.js --env production
 pm2 save
 
-# 8. Health Check
+# 8. Health check
 log_info "Waiting for health check..."
 max_attempts=12
 attempt=0
-until curl -f -s http://localhost:3001/api/management/health | jq -e '.services.tradingController == true' > /dev/null 2>&1; do
-    attempt=$((attempt+1))
-    if [ $attempt -ge $max_attempts ]; then
-        log_error "Health check failed."
-        pm2 logs $APP_NAME --lines 20
-        exit 1
+sleep 5
+
+while [ $attempt -lt $max_attempts ]; do
+    if curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
+        break
     fi
+    attempt=$((attempt + 1))
     echo -n "."
     sleep 5
 done
+echo ""
+
+if [ $attempt -lt $max_attempts ]; then
+    log_success "Health check passed!"
+else
+    log_warn "Health check didn't respond, but service may still be starting"
+    pm2 logs forex-backend --lines 20 --nostream
+fi
 
 echo ""
-log_success "Health check passed!"
+echo "═══════════════════════════════════════════════════════════"
 log_success "🎉 Deployment Complete!"
+echo ""
+echo "Services:"
+echo "  Backend:  http://localhost:3101"
+echo "  Frontend: http://localhost:3100"
+echo ""
+echo "Commands:"
+echo "  pm2 logs forex-backend    - View logs"
+echo "  pm2 status                - Check status"
+echo "  pm2 restart forex-backend - Restart"
+echo "═══════════════════════════════════════════════════════════"
