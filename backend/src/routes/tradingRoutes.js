@@ -1,8 +1,6 @@
-// backend/routes/tradingRoutes.js - Trading API Routes
+// backend/src/routes/tradingRoutes.js - Trading API Routes with ConfigService
 const express = require("express");
 const router = express.Router();
-const path = require("path");
-const fs = require("fs");
 
 // Oanda configuration
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
@@ -11,8 +9,6 @@ const OANDA_BASE_URL =
     process.env.OANDA_ENVIRONMENT === "practice"
         ? "https://api-fxpractice.oanda.com"
         : "https://api-fxtrade.oanda.com";
-
-const INSTRUMENTS = ["AUD_USD", "EUR_USD", "GBP_USD", "USD_JPY"];
 
 // Helper: Make Oanda API request
 async function oandaRequest(endpoint) {
@@ -38,10 +34,13 @@ function getPipValue(instrument) {
 
 // ============ ROUTES ============
 
-// Health check
+// Health check - INCLUDES CONFIG for dashboard
 router.get("/health", (req, res) => {
     const dataService = req.app.locals.dataService;
     const signalGenerator = req.app.locals.signalGenerator;
+    const configService = req.app.locals.configService;
+
+    const config = configService ? configService.get() : {};
 
     res.json({
         status: "ok",
@@ -52,6 +51,17 @@ router.get("/health", (req, res) => {
             oanda: !!OANDA_API_KEY,
             dataService: dataService?.isRunning || false,
             signalGenerator: signalGenerator?.isRunning || false,
+        },
+        // Include config for dashboard to read
+        config: {
+            enableTrading: config.enableTrading || false,
+            assets: config.assets || [],
+            strategy: config.strategy || "supertrend_momentum",
+            timeframe: config.timeframe || "15m",
+            minAdx: config.minAdx || 22,
+            rsiOverbought: config.rsiOverbought || 75,
+            maxOpenPositions: config.maxOpenPositions || 2,
+            leverage: config.leverage || 10,
         },
     });
 });
@@ -84,7 +94,7 @@ router.get("/account", async (req, res) => {
     }
 });
 
-// Live prices - LIVE from Oanda
+// Live prices - Uses config assets
 router.get("/prices", async (req, res) => {
     try {
         if (!OANDA_API_KEY) {
@@ -93,7 +103,16 @@ router.get("/prices", async (req, res) => {
                 .json({ error: "Oanda API key not configured" });
         }
 
-        const instruments = req.query.instruments || INSTRUMENTS.join(",");
+        // Get instruments from config or query param
+        const configService = req.app.locals.configService;
+        const configAssets = configService?.getValue("assets") || [
+            "AUD_USD",
+            "EUR_USD",
+            "GBP_USD",
+            "USD_JPY",
+        ];
+        const instruments = req.query.instruments || configAssets.join(",");
+
         const data = await oandaRequest(
             `/v3/accounts/${OANDA_ACCOUNT_ID}/pricing?instruments=${instruments}`
         );
@@ -180,6 +199,7 @@ router.get("/signals", async (req, res) => {
             config: {
                 minAdx: status.config?.minAdx,
                 timeframe: status.config?.timeframe,
+                assets: status.config?.assets,
             },
             timestamp: Date.now(),
         });
@@ -223,6 +243,7 @@ router.get("/portfolio", async (req, res) => {
             unrealizedPnL: parseFloat(account.unrealizedPL),
             realizedPnL: parseFloat(account.pl),
             marginUsed: parseFloat(account.marginUsed),
+            marginAvailable: parseFloat(account.marginAvailable),
             exposure: trades.length > 0 ? "Active" : "None",
         });
     } catch (error) {
@@ -250,29 +271,104 @@ router.get("/trades", async (req, res) => {
     }
 });
 
-// Get config
+// Get config - from ConfigService
 router.get("/config", (req, res) => {
     try {
-        const configPath = path.join(
-            __dirname,
-            "../../data/trading_config.json"
-        );
-        const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-        res.json(config);
+        const configService = req.app.locals.configService;
+        if (!configService) {
+            return res
+                .status(503)
+                .json({ error: "ConfigService not available" });
+        }
+        res.json(configService.get());
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// Update config
+// Update config - via ConfigService (updates running services)
 router.post("/config", (req, res) => {
     try {
-        const configPath = path.join(
-            __dirname,
-            "../../data/trading_config.json"
-        );
-        fs.writeFileSync(configPath, JSON.stringify(req.body, null, 4));
-        res.json({ success: true });
+        const configService = req.app.locals.configService;
+        if (!configService) {
+            return res
+                .status(503)
+                .json({ error: "ConfigService not available" });
+        }
+
+        const updatedConfig = configService.update(req.body);
+
+        // Broadcast update to connected clients
+        const broadcastConfig = req.app.locals.broadcastConfig;
+        if (broadcastConfig) {
+            broadcastConfig(updatedConfig);
+        }
+
+        res.json({
+            success: true,
+            config: updatedConfig,
+            message: "Configuration updated and applied to services",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Reset config to defaults
+router.post("/config/reset", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (!configService) {
+            return res
+                .status(503)
+                .json({ error: "ConfigService not available" });
+        }
+
+        const defaultConfig = configService.reset();
+
+        res.json({
+            success: true,
+            config: defaultConfig,
+            message: "Configuration reset to defaults",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trading control endpoints
+router.post("/trading/start", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (configService) {
+            configService.update({ enableTrading: true });
+        }
+        res.json({ success: true, message: "Trading enabled" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/trading/stop", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        if (configService) {
+            configService.update({ enableTrading: false });
+        }
+        res.json({ success: true, message: "Trading disabled" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Reset signal generator state
+router.post("/trading/reset", (req, res) => {
+    try {
+        const signalGenerator = req.app.locals.signalGenerator;
+        if (signalGenerator) {
+            signalGenerator.reset();
+        }
+        res.json({ success: true, message: "Signal generator reset" });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -282,8 +378,37 @@ router.post("/config", (req, res) => {
 router.post("/trade/close/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        // TODO: implement with LiveTradingEngine
-        res.json({ success: true, message: `Position ${id} close requested` });
+
+        if (!OANDA_API_KEY) {
+            return res
+                .status(503)
+                .json({ error: "Oanda API key not configured" });
+        }
+
+        // Close trade via Oanda API
+        const response = await fetch(
+            `${OANDA_BASE_URL}/v3/accounts/${OANDA_ACCOUNT_ID}/trades/${id}/close`,
+            {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${OANDA_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Failed to close trade: ${error}`);
+        }
+
+        const data = await response.json();
+
+        res.json({
+            success: true,
+            message: `Position ${id} closed`,
+            orderFillTransaction: data.orderFillTransaction,
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

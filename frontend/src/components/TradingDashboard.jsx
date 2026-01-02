@@ -1,7 +1,7 @@
 // frontend/src/components/TradingDashboard.jsx
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Container, Typography, Button, Chip, FormControl, Select, MenuItem, IconButton, Box, Stack, LinearProgress, useTheme, alpha, Tooltip, Alert, Tabs, Tab, Badge, Divider } from '@mui/material';
-import { PlayArrow, Stop, Refresh, PieChart, Radar, ReceiptLong, Timeline } from '@mui/icons-material';
+import { PlayArrow, Stop, Refresh, PieChart, Radar, ReceiptLong, Timeline, Settings, ArrowBack } from '@mui/icons-material';
 import { io } from 'socket.io-client';
 import { SOCKET_URL, tradingAPI } from '../config/api';
 
@@ -13,6 +13,7 @@ import LivePrices from './dashboard/LivePrices';
 import TradingSignals from './dashboard/TradingSignals';
 import RecentTrades from './dashboard/RecentTrades';
 import LivePriceChart from './dashboard/LivePriceChart';
+import TradingConfig from './TradingConfig';
 
 const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
 const SIDEBAR_WIDTH = 340;
@@ -21,6 +22,7 @@ const TradingDashboard = () => {
   const theme = useTheme();
   
   // --- STATE ---
+  const [currentView, setCurrentView] = useState('dashboard'); // 'dashboard' or 'config'
   const [systemStatus, setSystemStatus] = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
@@ -116,14 +118,41 @@ const TradingDashboard = () => {
     
     socket.on('systemStatus', (s) => isMountedRef.current && setSystemStatus(s));
     socket.on('portfolioUpdated', (d) => { if(isMountedRef.current) { setPortfolio(d); setLastUpdate(Date.now()); }});
-    socket.on('priceUpdate', (d) => { 
-      if(isMountedRef.current) { 
-        const key = d.instrument || d.symbol;
-        setPrices(p => ({ ...p, [key]: { ...d, price: d.mid || d.price, symbol: key } })); 
+    socket.on('priceUpdate', (data) => { 
+      if(isMountedRef.current && data) { 
+        // Handle full prices object from backend: { AUD_USD: {...}, EUR_USD: {...}, ... }
+        if (typeof data === 'object' && !data.instrument && !data.symbol) {
+          // Full prices object - merge all
+          setPrices(prev => {
+            const updated = { ...prev };
+            Object.entries(data).forEach(([instrument, priceData]) => {
+              updated[instrument] = { ...priceData, price: priceData.mid || priceData.price, symbol: instrument };
+            });
+            return updated;
+          });
+        } else {
+          // Single price update
+          const key = data.instrument || data.symbol;
+          if (key) {
+            setPrices(p => ({ ...p, [key]: { ...data, price: data.mid || data.price, symbol: key } })); 
+          }
+        }
+        setLastUpdate(Date.now());
       }
     });
+    socket.on('signalUpdate', (d) => { if(isMountedRef.current) { updateSignalState(d); setLastUpdate(Date.now()); }});
     socket.on('signalGenerated', (d) => { if(isMountedRef.current) { updateSignalState(d); setLastUpdate(Date.now()); }});
     socket.on('tradeExecuted', (t) => { if(isMountedRef.current) { setTrades(prev => [t, ...prev].slice(0, FETCH_LIMITS.TRADES)); setLastUpdate(Date.now()); }});
+    
+    // Listen for config updates (when user changes settings)
+    socket.on('configUpdate', (newConfig) => { 
+      if(isMountedRef.current && newConfig) { 
+        setSystemStatus(prev => ({ ...prev, config: newConfig }));
+        setTradingEnabled(newConfig.enableTrading || false);
+        setSelectedStrategy(newConfig.strategy || 'supertrend_momentum');
+        setLastUpdate(Date.now()); 
+      }
+    });
 
     return () => socket.disconnect();
   }, [fetchInitialData, updateSignalState]);
@@ -174,6 +203,15 @@ const TradingDashboard = () => {
             <Stack direction="row" spacing={2} alignItems="center">
                  <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', display: { xs: 'none', md: 'block' } }}>SYNC: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}</Typography>
                  <Tooltip title="Force Refresh"><IconButton size="small" onClick={fetchInitialData} sx={{ border: 1, borderColor: 'divider' }}><Refresh fontSize="small" /></IconButton></Tooltip>
+                 <Tooltip title={currentView === 'config' ? "Back to Dashboard" : "Settings"}>
+                    <IconButton 
+                        size="small" 
+                        onClick={() => setCurrentView(currentView === 'config' ? 'dashboard' : 'config')} 
+                        sx={{ border: 1, borderColor: currentView === 'config' ? 'primary.main' : 'divider', color: currentView === 'config' ? 'primary.main' : 'inherit' }}
+                    >
+                        {currentView === 'config' ? <ArrowBack fontSize="small" /> : <Settings fontSize="small" />}
+                    </IconButton>
+                 </Tooltip>
                  <FormControl size="small">
                     <Select value={selectedStrategy} onChange={handleStrategyChange} disabled={tradingEnabled} sx={{ height: 32, fontSize: '0.8rem', minWidth: 140, bgcolor: alpha(theme.palette.background.paper, 0.1) }}>
                         <MenuItem value="supertrend_momentum">âš¡ SuperTrend</MenuItem>
@@ -186,6 +224,13 @@ const TradingDashboard = () => {
 
         {error && <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>{error}</Alert>}
 
+        {/* CONDITIONAL VIEW: Config or Dashboard */}
+        {currentView === 'config' ? (
+            <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+                <TradingConfig />
+            </Box>
+        ) : (
+        <>
         {/* 2. KPI STATS */}
         <DashboardStats portfolio={portfolio} calculatedDailyPnL={calculatedDailyPnL} activeSignalsCount={signalsToRender.length} />
 
@@ -254,6 +299,8 @@ const TradingDashboard = () => {
                 </GlassCard>
             </Box>
         </Box>
+        </>
+        )}
 
     </Container>
   );

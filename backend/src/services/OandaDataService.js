@@ -1,4 +1,5 @@
-// backend/src/services/OandaDataService.js - Oanda Data Service
+// backend/src/services/OandaDataService.js - Oanda Data Service with EventEmitter
+const EventEmitter = require("events");
 const logger = require("../utils/logger");
 
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
@@ -8,8 +9,9 @@ const OANDA_BASE_URL =
         ? "https://api-fxpractice.oanda.com"
         : "https://api-fxtrade.oanda.com";
 
-class OandaDataService {
+class OandaDataService extends EventEmitter {
     constructor(instruments = ["AUD_USD", "EUR_USD", "GBP_USD", "USD_JPY"]) {
+        super();
         this.instruments = instruments;
         this.priceCache = {};
         this.candleCache = {};
@@ -74,23 +76,33 @@ class OandaDataService {
                 `/v3/accounts/${OANDA_ACCOUNT_ID}/pricing?instruments=${instruments}`
             );
 
+            const updatedPrices = {};
+
             data.prices.forEach((price) => {
                 const bid = parseFloat(price.bids?.[0]?.price || 0);
                 const ask = parseFloat(price.asks?.[0]?.price || 0);
+                const mid = (bid + ask) / 2;
                 const pipValue = this.getPipValue(price.instrument);
                 const spread = (ask - bid) / pipValue;
 
-                this.priceCache[price.instrument] = {
+                const priceData = {
                     instrument: price.instrument,
                     bid,
                     ask,
-                    price: (bid + ask) / 2, // mid price
+                    mid,
+                    price: mid, // alias for compatibility
                     spread: parseFloat(spread.toFixed(1)),
                     tradeable: price.tradeable,
                     time: price.time,
                     timestamp: Date.now(),
                 };
+
+                this.priceCache[price.instrument] = priceData;
+                updatedPrices[price.instrument] = priceData;
             });
+
+            // Emit price update event for socket.io broadcasting
+            this.emit("priceUpdate", updatedPrices);
         } catch (error) {
             logger.error("❌ Price fetch error:", error.message);
         }
@@ -139,9 +151,13 @@ class OandaDataService {
         }
     }
 
-    // Methods expected by SignalGenerator
+    // Methods expected by SignalGenerator and routes
     getCurrentPrice(instrument) {
         return this.priceCache[instrument] || null;
+    }
+
+    getCurrentPrices() {
+        return this.priceCache;
     }
 
     getAllPrices() {
@@ -175,6 +191,41 @@ class OandaDataService {
             pricesCached: Object.keys(this.priceCache).length,
             candlesCached: Object.keys(this.candleCache).length,
         };
+    }
+
+    /**
+     * Update active instruments (called by ConfigService)
+     */
+    updateInstruments(newInstruments) {
+        if (!newInstruments || !Array.isArray(newInstruments)) return;
+
+        const oldInstruments = [...this.instruments];
+        this.instruments = newInstruments;
+
+        // Fetch data for any new instruments
+        const addedInstruments = newInstruments.filter(
+            (i) => !oldInstruments.includes(i)
+        );
+        if (addedInstruments.length > 0 && this.isRunning) {
+            this.fetchAllPrices();
+            addedInstruments.forEach((instrument) => {
+                this.fetchCandles(instrument, "M15", 500);
+            });
+        }
+
+        // Clean up cache for removed instruments
+        const removedInstruments = oldInstruments.filter(
+            (i) => !newInstruments.includes(i)
+        );
+        removedInstruments.forEach((instrument) => {
+            delete this.priceCache[instrument];
+            // Remove candle cache entries for this instrument
+            Object.keys(this.candleCache).forEach((key) => {
+                if (key.startsWith(instrument + "_")) {
+                    delete this.candleCache[key];
+                }
+            });
+        });
     }
 }
 

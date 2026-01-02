@@ -18,11 +18,13 @@ const config = API_CONFIG[environment];
 export const API_BASE_URL = config.baseURL;
 export const SOCKET_URL = config.socketURL;
 
-// Initialize Socket
+// Initialize Socket with reconnection settings
 export const socket = io(SOCKET_URL, {
-    transports: ["websocket"],
+    transports: ["websocket", "polling"], // Allow fallback to polling
     autoConnect: true,
     reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
 });
 
 // Endpoints matching backend tradingRoutes.js
@@ -139,6 +141,7 @@ export const tradingAPI = {
     // Trading Control (TODO: Add these routes to backend when LiveTradingEngine is built)
     startTrading: () => apiCall("/api/trading/start", { method: "POST" }),
     stopTrading: () => apiCall("/api/trading/stop", { method: "POST" }),
+    resetTrading: () => apiCall("/api/trading/reset", { method: "POST" }),
 };
 
 export default {
