@@ -28,7 +28,7 @@
     "fixedPositionUnits": 1000,
     "stopLossType": "ATR",
     "stopLossPips": 30,
-    "stopLossAtrMultiplier": 2,
+    "stopLossAtrMultiplier": 1.5,
     "enableTrailingStops": true,
     "trailingStopPips": 25,
     "trailingStopActivationPips": 20,
@@ -36,8 +36,8 @@
     "activeSessions": [
         "sydney",
         "tokyo",
-        "london",
-        "newyork"
+        "newyork",
+        "london"
     ],
     "enableEmailAlerts": false,
     "alertEmail": "",

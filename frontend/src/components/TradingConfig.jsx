@@ -7,7 +7,7 @@ import {
   Save, Refresh, Security, AccountBalance, Science, 
   CurrencyExchange, Email
 } from '@mui/icons-material';
-import { tradingAPI } from '../config/api';
+import { configAPI } from '../config/api';
 import { DEFAULT_CONFIG } from './config/ConfigShared';
 
 // Import settings panels
@@ -34,16 +34,14 @@ const TradingConfig = () => {
   const fetchCurrentConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await tradingAPI.getStatus();
-      if (data.config) {
-        const fetchedConfig = {
-          ...DEFAULT_CONFIG,
-          ...data.config,
-          signalCooldown: (data.config.signalCooldown / 1000) || 60,
-        };
-        setConfig(fetchedConfig);
-        setOriginalConfig(fetchedConfig);
-      }
+      const data = await configAPI.get();
+      const fetchedConfig = {
+        ...DEFAULT_CONFIG,
+        ...data,
+        signalCooldown: (data.signalCooldown / 1000) || 60,
+      };
+      setConfig(fetchedConfig);
+      setOriginalConfig(fetchedConfig);
     } catch (err) {
       setError(`Failed to load configuration: ${err.message}`);
     } finally {
@@ -70,7 +68,7 @@ const TradingConfig = () => {
         ...config,
         signalCooldown: config.signalCooldown * 1000,
       };
-      await tradingAPI.updateConfig(configToSave);
+      await configAPI.update(configToSave);
       setOriginalConfig(config);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -82,10 +80,10 @@ const TradingConfig = () => {
   };
 
   const handleResetEngine = async () => {
-    if (!window.confirm("⚠️ RESET ENGINE STATE?\nThis clears pending entries and signal history.")) return;
+    if (!window.confirm("âš ï¸ RESET ENGINE STATE?\nThis clears pending entries and signal history.")) return;
     try { 
       // TODO: Implement reset endpoint
-      alert("✅ Engine Reset"); 
+      alert("âœ… Engine Reset"); 
       fetchCurrentConfig(); 
     } catch (e) { 
       alert(e.message); 
