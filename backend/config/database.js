@@ -1,18 +1,50 @@
 // backend/config/database.js - Database Connection
 const knex = require("knex");
 const path = require("path");
+const fs = require("fs");
 
-// Determine database path based on environment
-const dbPath =
-    process.env.NODE_ENV === "production"
-        ? "/opt/forex-trading-bot/data/trading.db"
-        : path.join(__dirname, "../data/trading.db");
+// =============================================================================
+// DATABASE PATH CONFIGURATION
+// =============================================================================
+// Priority: DB_PATH env var → NODE_ENV-based default → dev fallback
+// This MUST match the logic in knexfile.js and ecosystem.config.js
+// =============================================================================
 
-console.log("DATABASE DEBUG:");
-console.log("  __dirname:", __dirname);
-console.log("  dbPath:", dbPath);
-console.log("  exists:", require("fs").existsSync(dbPath));
-console.log("  dir exists:", require("fs").existsSync(path.dirname(dbPath)));
+const PRODUCTION_DB_PATH = "/opt/forex-trading-bot/backend/data/trading.db";
+
+const getDbPath = () => {
+    // 1. Explicit DB_PATH takes priority (set in ecosystem.config.js for production)
+    if (process.env.DB_PATH) {
+        return process.env.DB_PATH;
+    }
+
+    // 2. Production default
+    if (process.env.NODE_ENV === "production") {
+        return PRODUCTION_DB_PATH;
+    }
+
+    // 3. Development default (relative to this file in /backend/config/)
+    return path.join(__dirname, "../data/trading.db");
+};
+
+const dbPath = getDbPath();
+
+// Ensure the database directory exists
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+    console.log(`📁 Created database directory: ${dbDir}`);
+}
+
+// Log database configuration on startup
+console.log("DATABASE CONFIG:");
+console.log(
+    "  DB_PATH env:",
+    process.env.DB_PATH || "(not set - using default)"
+);
+console.log("  NODE_ENV:", process.env.NODE_ENV || "(not set)");
+console.log("  Resolved path:", dbPath);
+console.log("  File exists:", fs.existsSync(dbPath));
 
 // Database configuration
 const config = {
@@ -33,4 +65,5 @@ const config = {
 // Create database connection
 const db = knex(config);
 
-module.exports = { db };
+// Export db connection and resolved path (for debugging/testing)
+module.exports = { db, dbPath };

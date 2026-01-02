@@ -1,26 +1,38 @@
+// ecosystem.config.js - PM2 Configuration for Forex Trading Bot
+// Raspberry Pi 5 8GB deployment alongside crypto bot
+// =============================================================================
+// DB_PATH is set here and used by both database.js and knexfile.js
+// =============================================================================
+
 module.exports = {
     apps: [
         {
             name: "forex-backend",
-            // Use an absolute path to the wrapper script that handles secret decryption
+
+            // Use wrapper script that handles secret decryption (Oanda API keys)
             script: "/opt/forex-trading-bot/scripts/start-wrapper.sh",
             interpreter: "bash",
             cwd: "/opt/forex-trading-bot/backend",
+
             instances: 1,
             exec_mode: "fork",
 
+            // =================================================================
+            // ENVIRONMENT VARIABLES
+            // =================================================================
             env_production: {
                 NODE_ENV: "production",
                 PORT: 3101,
 
-                // Database
+                // Database - SINGLE SOURCE OF TRUTH
+                // This path is used by database.js and knexfile.js
                 DB_PATH: "/opt/forex-trading-bot/backend/data/trading.db",
 
                 // Logging
                 LOG_LEVEL: "info",
                 LOG_PATH: "/opt/forex-trading-bot/backend/logs",
 
-                // Oanda API (injected by start-wrapper.sh)
+                // Oanda API credentials (injected by start-wrapper.sh)
                 // OANDA_API_KEY: injected
                 // OANDA_ACCOUNT_ID: injected
                 // OANDA_ENVIRONMENT: injected
@@ -33,7 +45,9 @@ module.exports = {
                 NODE_OPTIONS: "--max-old-space-size=2048",
             },
 
-            // Process Management
+            // =================================================================
+            // PROCESS MANAGEMENT
+            // =================================================================
             autorestart: true,
             watch: false,
             max_memory_restart: "512M", // Mac Mini has more memory available
@@ -41,7 +55,9 @@ module.exports = {
             max_restarts: 10,
             min_uptime: "10s",
 
-            // Logging
+            // =================================================================
+            // LOGGING
+            // =================================================================
             log_file: "/opt/forex-trading-bot/backend/logs/combined.log",
             out_file: "/opt/forex-trading-bot/backend/logs/out.log",
             error_file: "/opt/forex-trading-bot/backend/logs/error.log",
