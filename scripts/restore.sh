@@ -1,130 +1,173 @@
 #!/bin/bash
 # =====================================================
-# Crypto Trading Bot - Restore from Backup
-# Use this script to restore the entire application
-# state from a previously created backup.
+# Forex Trading Bot - Restore from Backup
+# Restores application state from a backup archive
 # =====================================================
 
 set -e
 
 # --- Configuration ---
-APP_NAME="crypto-trend-bot"
-PROJECT_DIR="/opt/crypto-trading-bot"
-PROJECT_USER="adam" # This should match the user running the app
-# This script is for disaster recovery, so it should ONLY look in the safe, external directory.
-# This prevents accidentally restoring from an old, internal backup.
-BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
+APP_NAME="forex-backend"
+PROJECT_DIR="/opt/forex-trading-bot"
+PROJECT_USER=$(whoami)
+BACKUP_DIR="$HOME/forex-trading-bot-backups"
 
-
-# --- Colors for output ---
-RED='\033[0;31m'
+# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+RED='\033[0;31m'
+NC='\033[0m'
 
-# --- Logging functions ---
 log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
 log_success() { echo -e "${GREEN}✅ $1${NC}"; }
-log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
-log_step() { echo -e "${PURPLE}🔧 $1${NC}"; }
-log_substep() { echo -e "${CYAN}   └─ $1${NC}"; }
 
-# --- Main Logic ---
-main() {
-    log_step "Starting application restore process..."
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "         🔄 FOREX TRADING BOT - RESTORE FROM BACKUP"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
 
-    if [ "$(whoami)" != "$PROJECT_USER" ]; then
-        log_error "This script must be run as user '$PROJECT_USER'."
-    fi
+# Validate user
+if [ "$(whoami)" != "$PROJECT_USER" ]; then
+    log_error "Run as user '$PROJECT_USER'"
+fi
 
-    # 1. Find and select a backup
-    log_substep "Finding available backups in the safe directory: $BACKUP_DIR..."
-    backups=($(ls -t "$BACKUP_DIR"/*.tar.gz 2>/dev/null))
+# Find backups
+log_info "Finding available backups in $BACKUP_DIR..."
 
-    if [ ${#backups[@]} -eq 0 ]; then
-        log_error "No backups found in $BACKUP_DIR. Cannot restore. Please ensure backups exist there."
-    fi
+# Check for full backups
+full_backups=($(ls -t "$BACKUP_DIR"/forex_backup_*.tar.gz 2>/dev/null || true))
+db_backups=($(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null || true))
 
-    log_info "Please select a backup to restore from:"
-    select backup_file in "${backups[@]}"; do
-        if [ -n "$backup_file" ]; then
-            break
-        else
-            log_warning "Invalid selection. Please try again."
-        fi
+if [ ${#full_backups[@]} -eq 0 ] && [ ${#db_backups[@]} -eq 0 ]; then
+    log_error "No backups found in $BACKUP_DIR"
+fi
+
+echo ""
+echo "Available backups:"
+echo ""
+echo "Full Backups (code + data):"
+if [ ${#full_backups[@]} -gt 0 ]; then
+    for i in "${!full_backups[@]}"; do
+        size=$(du -h "${full_backups[$i]}" | cut -f1)
+        name=$(basename "${full_backups[$i]}")
+        echo "  [$((i+1))] $name ($size)"
     done
+else
+    echo "  None"
+fi
 
-    log_info "You have selected: $(basename "$backup_file")"
-    read -p "This will completely overwrite the current application. Are you sure? (y/N): " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        log_info "Restore cancelled."
-        exit 0
+echo ""
+echo "Database-only Backups:"
+if [ ${#db_backups[@]} -gt 0 ]; then
+    offset=${#full_backups[@]}
+    for i in "${!db_backups[@]}"; do
+        size=$(du -h "${db_backups[$i]}" | cut -f1)
+        name=$(basename "${db_backups[$i]}")
+        echo "  [$((offset+i+1))] $name ($size) [DB ONLY]"
+    done
+else
+    echo "  None"
+fi
+
+echo ""
+read -p "Select backup number (or 'q' to quit): " selection
+
+if [ "$selection" = "q" ]; then
+    log_info "Restore cancelled."
+    exit 0
+fi
+
+# Determine which backup was selected
+total_full=${#full_backups[@]}
+if [ "$selection" -le "$total_full" ] 2>/dev/null; then
+    backup_file="${full_backups[$((selection-1))]}"
+    restore_type="full"
+else
+    db_index=$((selection - total_full - 1))
+    if [ "$db_index" -ge 0 ] && [ "$db_index" -lt "${#db_backups[@]}" ]; then
+        backup_file="${db_backups[$db_index]}"
+        restore_type="db"
+    else
+        log_error "Invalid selection"
     fi
+fi
 
-    # 2. Stop the application
-    log_step "Stopping the application..."
-    pm2 stop "$APP_NAME" --silent || true
-    pm2 delete "$APP_NAME" --silent || true
-    pm2 save --force
-    sleep 2
+echo ""
+log_info "Selected: $(basename "$backup_file")"
+log_info "Restore type: $restore_type"
+echo ""
+log_warn "This will overwrite current data!"
+read -p "Are you sure? (yes/N): " confirm
 
-    # 3. Secure the backup file
-    log_step "Securing backup file before restore..."
-    local temp_backup_path="/tmp/restore_$(basename "$backup_file")"
-    cp "$backup_file" "$temp_backup_path"
-    log_success "Backup file secured at $temp_backup_path"
+if [ "$confirm" != "yes" ]; then
+    log_info "Restore cancelled."
+    exit 0
+fi
 
-    # 4. Remove the old project directory
-    log_step "Removing current installation..."
+# Stop the service
+log_info "Stopping service..."
+pm2 stop "$APP_NAME" --silent 2>/dev/null || true
+pm2 delete "$APP_NAME" --silent 2>/dev/null || true
+sleep 2
+
+if [ "$restore_type" = "full" ]; then
+    # Full restore
+    log_info "Creating safety backup of current state..."
+    if [ -d "$PROJECT_DIR" ]; then
+        tar -czf "$BACKUP_DIR/pre_restore_$(date +%Y%m%d_%H%M%S).tar.gz" \
+            --exclude='node_modules' \
+            -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null || true
+    fi
+    
+    log_info "Removing current installation..."
     sudo rm -rf "$PROJECT_DIR"
+    
+    log_info "Extracting backup..."
+    sudo tar -xzf "$backup_file" -C /opt
+    sudo chown -R "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR"
+    
+    log_info "Reinstalling dependencies..."
+    cd "$PROJECT_DIR/backend"
+    npm install --omit=dev
+    
+    if [ -d "$PROJECT_DIR/frontend" ]; then
+        cd "$PROJECT_DIR/frontend"
+        npm install
+        npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+        
+        log_info "Rebuilding frontend..."
+        NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
+    fi
+    
+    chmod +x "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
+    
+else
+    # Database-only restore
+    log_info "Restoring database..."
+    cp "$backup_file" "$PROJECT_DIR/backend/data/trading.db"
+    chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"
+fi
 
-    # 5. Restore from the secured backup file
-    log_step "Extracting backup archive from temporary location..."
-    # The backup was created with -C /opt, so we extract it back into /opt
-    # This correctly re-creates the /opt/crypto-trading-bot directory
-    sudo tar -xzf "$temp_backup_path" -C /opt
-    log_success "Backup extracted to $PROJECT_DIR"
+# Restart service
+log_info "Starting service..."
+cd "$PROJECT_DIR"
+pm2 start ecosystem.config.js --env production
+pm2 save
 
-    # 6. Clean up the temporary file
-    log_substep "Cleaning up temporary backup file..."
-    rm -f "$temp_backup_path"
+# Health check
+log_info "Running health check..."
+sleep 5
+if curl -sf http://localhost:3101/api/health > /dev/null 2>&1; then
+    log_success "Health check passed!"
+else
+    log_warn "Health check pending - check logs with: pm2 logs forex-backend"
+fi
 
-    # 7. Set correct permissions
-    log_step "Setting permissions..."
-    sudo chown -R "$PROJECT_USER":"$PROJECT_USER" "$PROJECT_DIR"
-    chmod +x "$PROJECT_DIR/scripts/"*.sh
-
-    # 8. Re-install dependencies to match the current system environment
-    log_step "Re-installing dependencies..."
-    cd "$PROJECT_DIR"
-    log_substep "Installing backend dependencies..."
-    npm run install:backend -- --omit=dev --no-optional
-    log_substep "Installing frontend dependencies..."
-    npm run install:frontend -- --omit=dev --no-optional
-    log_success "Dependencies installed."
-
-    # 9. Re-build frontend
-    log_step "Re-building frontend..."
-    # FIX: Add the ARM64-specific rollup dependency install before building.
-    # This ensures that a restore operation will correctly build the frontend on a Pi.
-    cd "$PROJECT_DIR/frontend"
-    NODE_OPTIONS="--max-old-space-size=1024" npm install @rollup/rollup-linux-arm64-gnu --no-save
-    cd ..
-    npm run build:frontend
-    log_success "Frontend built."
-
-    # 10. Restart the application
-    log_step "Restarting application from restored state..."
-    cd "$PROJECT_DIR"
-    pm2 start ecosystem.config.js --env production
-    pm2 save
-
-    log_success "🎉 Restore complete! The application is now running from the state of $(basename "$backup_file")."
-    pm2 status
-}
-
-main "$@"
+echo ""
+log_success "🎉 Restore complete!"
+echo ""
+pm2 status

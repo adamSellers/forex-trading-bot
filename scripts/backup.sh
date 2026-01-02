@@ -1,55 +1,80 @@
 #!/bin/bash
+# =====================================================
+# Forex Trading Bot - Backup Script
+# Creates timestamped backup of database and config
+# =====================================================
+
+set -e
 
 # --- Configuration ---
-# CONSISTENT & EXTERNAL BACKUP PATH
-BACKUP_DIR="$HOME/crypto-trading-bot-backups" # Use user's home directory for backups
-PROJECT_DIR="/opt/crypto-trading-bot"         # Keep for source path
-APP_NAME="crypto-trend-bot"
+APP_NAME="forex-backend"
+PROJECT_DIR="/opt/forex-trading-bot"
+BACKUP_DIR="$HOME/forex-trading-bot-backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="daily_backup_${TIMESTAMP}.tar.gz" # Differentiate daily from deploy backups
+BACKUP_FILE="forex_backup_${TIMESTAMP}.tar.gz"
 
-echo "📦 Creating backup..."
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-mkdir -p $BACKUP_DIR
+log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 
-# --- Graceful Stop/Start for Standalone Execution (Cron Job) ---
+echo "📦 Creating Forex Trading Bot backup..."
+
+mkdir -p "$BACKUP_DIR"
+
+# Check if service is running
 was_running=false
 if pm2 list | grep -q "$APP_NAME.*online"; then
     was_running=true
 fi
 
-# Stop the service to ensure a consistent state for backup
-if [ "$was_running" = true ]; then
-    echo "   └─ Stopping PM2 service '$APP_NAME' for consistent backup..."
+# Stop for consistent backup (optional - can be removed for hot backups)
+if [ "$was_running" = true ] && [ "$1" = "--cold" ]; then
+    log_info "Stopping service for consistent backup..."
     pm2 stop "$APP_NAME" --silent
-    sleep 2 # Give it a moment to stop
+    sleep 2
 fi
 
-echo "   └─ Creating full project archive..."
+log_info "Creating archive..."
 
-# Create a comprehensive tarball backup
-# -czf: create, gzip, file
-# --exclude: patterns to ignore
-# -C: change to this directory before adding files
+# Create backup (excludes node_modules, logs, and large generated files)
 tar -czf "$BACKUP_DIR/$BACKUP_FILE" \
     --exclude='node_modules' \
     --exclude='frontend/node_modules' \
     --exclude='backend/node_modules' \
     --exclude='*.log' \
     --exclude='backend/logs/*' \
-    --exclude='backend/backups/*' \
+    --exclude='frontend/dist' \
     -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")"
 
-echo "✅ Backup created: $BACKUP_DIR/$BACKUP_FILE"
+log_success "Backup created: $BACKUP_DIR/$BACKUP_FILE"
 
-# Clean old backups (keep last 7)
-echo "   └─ Cleaning old backups (keeping last 7)..."
-ls -tp "$BACKUP_DIR" | grep -v '/$' | tail -n +8 | xargs -I {} rm -f -- "$BACKUP_DIR/{}"
+# Database-only backup (quick restore option)
+if [ -f "$PROJECT_DIR/backend/data/trading.db" ]; then
+    cp "$PROJECT_DIR/backend/data/trading.db" "$BACKUP_DIR/trading_${TIMESTAMP}.db"
+    log_success "Database backup: $BACKUP_DIR/trading_${TIMESTAMP}.db"
+fi
 
-# --- Restart the service if it was running before ---
-if [ "$was_running" = true ]; then
-    echo "   └─ Restarting PM2 service '$APP_NAME'..."
+# Clean old backups (keep last 7 full, last 14 DB-only)
+log_info "Cleaning old backups..."
+ls -tp "$BACKUP_DIR"/forex_backup_*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm -f
+ls -tp "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +15 | xargs -r rm -f
+
+# Restart if was running
+if [ "$was_running" = true ] && [ "$1" = "--cold" ]; then
+    log_info "Restarting service..."
     pm2 start "$APP_NAME" --env production
 fi
 
-echo "$(date): Backup completed" >> "$BACKUP_DIR/backup.log"
+# Log backup completion
+echo "$(date): Backup completed - $BACKUP_FILE" >> "$BACKUP_DIR/backup.log"
+
+log_success "Backup complete!"
+echo ""
+echo "Files:"
+ls -lh "$BACKUP_DIR"/*.tar.gz 2>/dev/null | tail -3
+echo ""
+echo "Disk usage: $(du -sh "$BACKUP_DIR" | cut -f1)"

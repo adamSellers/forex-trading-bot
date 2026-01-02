@@ -79,6 +79,8 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 
 -   [x] Live trading activation
 -   [x] Trading session filters
+-   [x] Codebase cleanup (removed legacy crypto bot files)
+-   [x] Engine status broadcast fix (race condition)
 -   [ ] PM2 deployment alongside crypto bot
 -   [ ] Email notifications for trades
 -   [ ] Extended monitoring period
@@ -97,54 +99,47 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 
 ```
 /opt/forex-trading-bot/
-├── backend/
-│   ├── server.js                     # Express + Socket.IO entry
-│   ├── package.json
-│   ├── .env                          # OANDA_API_KEY, PORT=3101
-│   ├── data/
-│   │   ├── trading.db                # SQLite database
-│   │   └── trading_config.json       # Persisted config
-│   └── src/
-│       ├── routes/
-│       │   └── tradingRoutes.js      # All API endpoints
-│       ├── services/
-│       │   ├── configService.js      # Config + persistence
-│       │   ├── OandaDataService.js   # Price/candle fetching
-│       │   ├── Oandaclient.js        # Oanda API wrapper
-│       │   ├── signalGenerator.js    # SuperTrend + ADX signals
-│       │   ├── analyticsService.js   # Performance metrics
-│       │   └── LiveTradingEngine.js  # ✅ Trade execution engine
-│       ├── repositories/
-│       │   ├── tradeRepository.js    # Trade CRUD
-│       │   ├── signalRepository.js   # Signal history
-│       │   └── portfolioRepository.js
-│       └── utils/
-│           └── logger.js             # Logging utility
-│
-├── frontend/
-│   ├── package.json
-│   ├── vite.config.js                # Port 3100, proxy to 3101
-│   └── src/
-│       ├── App.jsx                   # Navigation + view routing
-│       ├── index.css
-│       ├── theme/
-│       │   └── tradingTheme.js       # MUI dark theme
-│       ├── config/
-│       │   └── api.js                # API client + Socket.IO
-│       └── components/
-│           ├── Navigation.jsx        # Top nav bar
-│           ├── TradingDashboard.jsx  # Main trading view
-│           ├── AnalyticsDashboard.jsx # Performance metrics
-│           ├── SystemHealth.jsx      # Service monitoring
-│           ├── TradingConfig.jsx     # Settings panel
-│           ├── dashboard/            # Dashboard widgets
-│           ├── analytics/            # Analytics widgets
-│           └── config/               # Config widgets
-│
-├── migrations/
-│   └── 001_create_forex_tables.js    # Database schema
-│
-└── USER_GUIDE.md                     # Comprehensive user documentation
++-- backend/
+|   +-- server.js                     # Express + Socket.IO entry
+|   +-- package.json
+|   +-- .env                          # OANDA_API_KEY, PORT=3101
+|   +-- data/
+|   |   +-- trading.db                # SQLite database
+|   |   +-- trading_config.json       # Persisted config
+|   +-- src/
+|       +-- routes/
+|       |   +-- tradingRoutes.js      # All API endpoints
+|       +-- services/
+|       |   +-- configService.js      # Config + persistence
+|       |   +-- OandaDataService.js   # Price/candle fetching
+|       |   +-- Oandaclient.js        # Oanda API wrapper
+|       |   +-- signalGenerator.js    # SuperTrend + ADX signals
+|       |   +-- analyticsService.js   # Performance metrics
+|       |   +-- LiveTradingEngine.js  # Trade execution engine
+|       +-- repositories/
+|       |   +-- tradeRepository.js    # Trade CRUD
+|       |   +-- signalRepository.js   # Signal history
+|       |   +-- portfolioRepository.js
+|       +-- utils/
+|           +-- logger.js             # Logging utility
+|
++-- frontend/
+|   +-- package.json
+|   +-- vite.config.js                # Port 3100, proxy to 3101
+|   +-- src/
+|       +-- App.jsx                   # Navigation + view routing
+|       +-- config/
+|       |   +-- api.js                # API client
+|       +-- components/
+|           +-- TradingDashboard.jsx  # Main view
+|           +-- AnalyticsDashboard.jsx
+|           +-- SystemHealth.jsx
+|           +-- TradingConfig.jsx
+|           +-- dashboard/            # Dashboard widgets
+|           +-- config/               # Config tab components
+|
++-- ecosystem.config.js               # PM2 configuration
++-- package.json                      # Root monorepo scripts
 ```
 
 ### Dual-Bot Deployment
@@ -286,7 +281,7 @@ curl -X POST http://localhost:3101/api/config \
 
 ---
 
-## 🔌 Socket.IO Events
+## 📌 Socket.IO Events
 
 ### Server → Client
 
@@ -302,7 +297,7 @@ curl -X POST http://localhost:3101/api/config \
 
 ---
 
-## ⚙️ Configuration Reference
+## ⚙️ Configuration Reference
 
 ### Key Settings
 
@@ -341,7 +336,7 @@ curl -X POST http://localhost:3101/api/config \
 
   // Stop Loss
   stopLossType: 'ATR',         // 'ATR' or 'FIXED'
-  stopLossAtrMultiplier: 2.0,  // ATR × 2.0
+  stopLossAtrMultiplier: 2.0,  // ATR Ã— 2.0
   stopLossPips: 30,            // For FIXED type
 
   // Trailing Stops
@@ -394,20 +389,20 @@ curl -X POST http://localhost:3101/api/config \
 
 ```
 Every 60 seconds:
-         │
-         ▼
-    SuperTrend Flipped? ──No──► HOLD
-         │ Yes
-         ▼
-    ADX ≥ 22? ──No──► REJECTED
-         │ Yes
-         ▼
-    RSI < 75? ──No──► Save as PENDING
-         │ Yes         │
-         ▼             ▼
+         |
+         v
+    SuperTrend Flipped? --No---> HOLD
+         | Yes
+         v
+    ADX ≥ 22? --No---> REJECTED
+         | Yes
+         v
+    RSI < 75? --No---> Save as PENDING
+         | Yes         |
+         v             v
     ✅ BUY SIGNAL    Wait for RSI < 70
-         │             │
-         ▼             ▼
+         |             |
+         v             v
     Execute Trade    ✅ CONTINUATION ENTRY
 ```
 
@@ -434,7 +429,7 @@ Before executing a trade, the engine validates:
 
 ---
 
-## 🛡️ Safety Features
+## 🛡️ Safety Features
 
 | Feature                         | Description                                    |
 | ------------------------------- | ---------------------------------------------- |
@@ -501,7 +496,7 @@ Multiple ways to stop trading immediately:
 | Metric                 | Description                   |
 | ---------------------- | ----------------------------- |
 | Win Rate               | % of profitable trades        |
-| Profit Factor          | Gross wins ÷ Gross losses     |
+| Profit Factor          | Gross wins / Gross losses     |
 | Sharpe Ratio           | Risk-adjusted returns         |
 | Avg Win / Loss         | Risk:Reward achieved          |
 | Performance by Pair    | Which pairs work best         |
@@ -577,8 +572,8 @@ FROM trades WHERE is_open = 0;
 ### Position Sizing (RISK Method)
 
 ```
-Risk Amount = Account Balance × Risk Per Trade (e.g., 2%)
-Stop Loss Price = Stop Loss Pips × Pip Value
+Risk Amount = Account Balance Ã— Risk Per Trade (e.g., 2%)
+Stop Loss Price = Stop Loss Pips Ã— Pip Value
 Position Size = Risk Amount / Stop Loss Price
 ```
 
@@ -659,7 +654,7 @@ Check in order:
 
 ---
 
-## 📄 License
+## 🔄 License
 
 MIT
 
