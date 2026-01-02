@@ -1,6 +1,7 @@
 // backend/server.js - Forex Trading Bot Express Server with Socket.IO
 require("dotenv").config();
 
+const path = require("path");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -23,7 +24,11 @@ server.setMaxListeners(20);
 // Initialize Socket.IO with CORS for frontend
 const io = new Server(server, {
     cors: {
-        origin: ["http://localhost:3100", "http://localhost:5173"], // Vite dev ports
+        origin: [
+            "http://localhost:3100",
+            "http://localhost:3101", // Same-origin in production
+            "http://localhost:5173", // Vite dev port
+        ],
         methods: ["GET", "POST"],
         credentials: true,
     },
@@ -101,10 +106,27 @@ app.use((req, res, next) => {
 app.use("/api", tradingRoutes);
 
 // ============================================
+// Production: Serve Frontend Static Files
+// ============================================
+const frontendPath = path.join(__dirname, "../frontend/dist");
+
+// Serve static files from frontend build
+app.use(express.static(frontendPath));
+
+// SPA fallback - serve index.html for any non-API routes
+app.get("*", (req, res) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith("/api")) {
+        return res.status(404).json({ error: "Not found" });
+    }
+    res.sendFile(path.join(frontendPath, "index.html"));
+});
+
+// ============================================
 // Socket.IO Connection Handling
 // ============================================
 io.on("connection", (socket) => {
-    logger.info(`🔌 Client connected: ${socket.id}`);
+    logger.info(`ðŸ”Œ Client connected: ${socket.id}`);
 
     // Send initial data on connect
     socket.emit("connected", {
@@ -148,7 +170,7 @@ io.on("connection", (socket) => {
 
     // Handle disconnect
     socket.on("disconnect", (reason) => {
-        logger.info(`🔌 Client disconnected: ${socket.id} (${reason})`);
+        logger.info(`ðŸ”Œ Client disconnected: ${socket.id} (${reason})`);
     });
 
     // Handle errors
@@ -176,7 +198,7 @@ const broadcastSignal = (signal) => {
     if (signal.signal === "BUY" || signal.signal === "SELL") {
         io.emit("tradeSignal", signal);
         logger.info(
-            `📡 Broadcasted trade signal: ${signal.symbol} - ${signal.signal}`
+            `ðŸ“¡ Broadcasted trade signal: ${signal.symbol} - ${signal.signal}`
         );
     }
 };
@@ -184,7 +206,7 @@ const broadcastSignal = (signal) => {
 // Broadcast trade updates
 const broadcastTrade = (trade) => {
     io.emit("tradeUpdate", trade);
-    logger.info(`📡 Broadcasted trade: ${trade.instrument} - ${trade.side}`);
+    logger.info(`ðŸ“¡ Broadcasted trade: ${trade.instrument} - ${trade.side}`);
 };
 
 // Broadcast engine status
@@ -202,7 +224,7 @@ app.locals.broadcastEngineStatus = broadcastEngineStatus;
 // Broadcast config changes
 const broadcastConfig = (config) => {
     io.emit("configUpdate", config);
-    logger.info("📡 Broadcasted config update");
+    logger.info("ðŸ“¡ Broadcasted config update");
 };
 app.locals.broadcastConfig = broadcastConfig;
 
@@ -211,29 +233,29 @@ configService.on("configChanged", broadcastConfig);
 
 // Listen for trading engine events
 tradingEngine.on("tradeOpened", (trade) => {
-    logger.info(`🔔 Trade opened event: ${trade.instrument}`);
+    logger.info(`ðŸ”” Trade opened event: ${trade.instrument}`);
     broadcastEngineStatus();
 });
 
 tradingEngine.on("tradeClosed", (trade) => {
-    logger.info(`🔔 Trade closed event: ${trade.instrument}`);
+    logger.info(`ðŸ”” Trade closed event: ${trade.instrument}`);
     broadcastEngineStatus();
 });
 
 tradingEngine.on("entryRejected", ({ signal, reason }) => {
-    logger.debug(`⏸️ Entry rejected: ${signal.symbol} - ${reason}`);
+    logger.debug(`â¸ï¸ Entry rejected: ${signal.symbol} - ${reason}`);
 });
 
 // ============================================
 // Start Server
 // ============================================
 server.listen(PORT, async () => {
-    logger.success(`🚀 Forex Trading Bot API running on port ${PORT}`);
+    logger.success(`ðŸš€ Forex Trading Bot API running on port ${PORT}`);
     logger.info(`   Health: http://localhost:${PORT}/api/health`);
     logger.info(`   Socket.IO: ws://localhost:${PORT}`);
 
     if (!process.env.OANDA_API_KEY) {
-        logger.warn("⚠️  OANDA_API_KEY not set - trading features disabled");
+        logger.warn("âš ï¸  OANDA_API_KEY not set - trading features disabled");
     } else {
         const keyPreview = process.env.OANDA_API_KEY.substring(0, 4) + "...";
         logger.info(`   Oanda API Key: ${keyPreview}`);
@@ -255,20 +277,20 @@ server.listen(PORT, async () => {
             try {
                 await tradingEngine.start();
                 logger.success(
-                    "✅ Trading engine started and listening for signals"
+                    "âœ… Trading engine started and listening for signals"
                 );
 
                 const config = configService.get();
                 if (config.enableTrading) {
-                    logger.success("✅ Live trading is ENABLED");
+                    logger.success("âœ… Live trading is ENABLED");
                 } else {
                     logger.info(
-                        "ℹ️  Trading is DISABLED - enable in settings to start trading"
+                        "â„¹ï¸  Trading is DISABLED - enable in settings to start trading"
                     );
                 }
             } catch (error) {
                 logger.error(
-                    "❌ Failed to start trading engine:",
+                    "âŒ Failed to start trading engine:",
                     error.message
                 );
             }
@@ -281,7 +303,7 @@ let isShuttingDown = false;
 
 const gracefulShutdown = (signal) => {
     if (isShuttingDown) {
-        logger.warn("⚠️ Shutdown already in progress, forcing exit...");
+        logger.warn("âš ï¸ Shutdown already in progress, forcing exit...");
         process.exit(1);
     }
 
@@ -310,7 +332,7 @@ const gracefulShutdown = (signal) => {
 
     // Close HTTP server with timeout
     const forceExitTimeout = setTimeout(() => {
-        logger.warn("⚠️ Graceful shutdown timeout - forcing exit");
+        logger.warn("âš ï¸ Graceful shutdown timeout - forcing exit");
         process.exit(1);
     }, 5000); // 5 second timeout
 

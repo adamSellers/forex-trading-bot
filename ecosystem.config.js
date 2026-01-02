@@ -1,61 +1,50 @@
 module.exports = {
     apps: [
         {
-            name: "crypto-trend-bot", // Using a more descriptive name
+            name: "forex-backend",
             // Use an absolute path to the wrapper script that handles secret decryption
-            script: "/opt/crypto-trading-bot/scripts/start-wrapper.sh",
-            interpreter: "bash", // Specify bash as the interpreter for the wrapper script
-            cwd: "/opt/crypto-trading-bot/backend",
+            script: "/opt/forex-trading-bot/scripts/start-wrapper.sh",
+            interpreter: "bash",
+            cwd: "/opt/forex-trading-bot/backend",
             instances: 1,
             exec_mode: "fork",
 
             env_production: {
                 NODE_ENV: "production",
-                PORT: 3001,
+                PORT: 3101,
 
                 // Database
-                DB_PATH: "/opt/crypto-trading-bot/backend/data/trading.db",
-                DB_BACKUP_PATH: "/opt/crypto-trading-bot/backend/backups",
+                DB_PATH: "/opt/forex-trading-bot/backend/data/trading.db",
 
                 // Logging
-                LOG_LEVEL: "debug",
-                LOG_PATH: "/opt/crypto-trading-bot/backend/logs",
+                LOG_LEVEL: "info",
+                LOG_PATH: "/opt/forex-trading-bot/backend/logs",
 
-                // Binance API
-                USE_REAL_BINANCE_DATA: "true",
+                // Oanda API (injected by start-wrapper.sh)
+                // OANDA_API_KEY: injected
+                // OANDA_ACCOUNT_ID: injected
+                // OANDA_ENVIRONMENT: injected
 
                 // Security
-                CORS_ORIGIN:
-                    "http://localhost:3000,https://localhost:3000,http://img.oakroad,https://img.oakroad",
-                RATE_LIMIT_WINDOW: "15",
-                RATE_LIMIT_MAX: "100",
+                CORS_ORIGIN: "http://localhost:3100,http://localhost:3101",
 
-                // Trading Safety
-                MAX_DAILY_LOSS_OVERRIDE: "0.01",
-                EMERGENCY_STOP_FILE: "/opt/crypto-trading-bot/.emergency_stop",
-
-                // NEW: AWS S3 Analytics Upload Control (default is OFF)
-                ENABLE_S3_ANALYTICS: "false",
-                ENABLE_S3_SIGNAL_LOGGING: "false", // NEW: Independent control for signal logging
-                // S3 credentials are injected securely by the start-wrapper.sh script if enabled.
-
-                // Performance for Pi
-                UV_THREADPOOL_SIZE: "4",
-                NODE_OPTIONS: "--max-old-space-size=512",
+                // Performance for Pi (shared resources with crypto bot)
+                UV_THREADPOOL_SIZE: "2",
+                NODE_OPTIONS: "--max-old-space-size=384",
             },
 
             // Process Management
             autorestart: true,
-            watch: false, // Set to true for development, false for production
-            max_memory_restart: "400M", // Adjust for your Raspberry Pi model
+            watch: false,
+            max_memory_restart: "350M", // Slightly lower than crypto to leave room
             restart_delay: 5000,
             max_restarts: 10,
             min_uptime: "10s",
 
             // Logging
-            log_file: "/opt/crypto-trading-bot/backend/logs/combined.log",
-            out_file: "/opt/crypto-trading-bot/backend/logs/out.log",
-            error_file: "/opt/crypto-trading-bot/backend/logs/error.log",
+            log_file: "/opt/forex-trading-bot/backend/logs/combined.log",
+            out_file: "/opt/forex-trading-bot/backend/logs/out.log",
+            error_file: "/opt/forex-trading-bot/backend/logs/error.log",
             log_date_format: "YYYY-MM-DD HH:mm:ss Z",
             merge_logs: true,
         },

@@ -56,8 +56,8 @@ sleep 2
 # 2. Backup database
 log_info "Creating database backup..."
 mkdir -p $BACKUP_DIR
-if [ -f "data/trading.db" ]; then
-    cp data/trading.db "$BACKUP_DIR/trading_$(date +%Y%m%d_%H%M%S).db"
+if [ -f "backend/data/trading.db" ]; then
+    cp backend/data/trading.db "$BACKUP_DIR/trading_$(date +%Y%m%d_%H%M%S).db"
     # Keep only last 7 backups
     ls -t $BACKUP_DIR/trading_*.db 2>/dev/null | tail -n +8 | xargs -r rm
     log_success "Database backed up"
@@ -67,7 +67,9 @@ fi
 
 # 3. Install dependencies
 log_info "Installing backend dependencies..."
+cd backend
 npm install --omit=dev
+cd ..
 
 # 4. Build frontend (if exists)
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
@@ -91,18 +93,18 @@ fi
 
 # 5. Run database migrations
 log_info "Running database migrations..."
+cd backend
 mkdir -p data
-npm run db:migrate || log_warn "Migration may have failed"
-
-# 6. Create logs directory
 mkdir -p logs
+npm run db:migrate || log_warn "Migration may have failed"
+cd ..
 
-# 7. Restart services
+# 6. Restart services
 log_info "Starting application..."
 pm2 start ecosystem.config.js --env production
 pm2 save
 
-# 8. Health check
+# 7. Health check
 log_info "Waiting for health check..."
 max_attempts=12
 attempt=0
