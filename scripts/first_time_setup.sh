@@ -28,6 +28,7 @@ log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "       🚀 FOREX TRADING BOT - FIRST TIME SETUP"
+echo "           (Mac Mini)"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 
@@ -48,14 +49,14 @@ if [ -d "$PROJECT_DIR" ]; then
 fi
 
 # --- 1. Clone Repository ---
-log_step "Cloning forex-trend-bot repository..."
+log_step "Cloning forex-trading-bot repository..."
 sudo mkdir -p "$PROJECT_DIR"
 sudo chown $PROJECT_USER:$PROJECT_USER "$PROJECT_DIR"
 git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 log_success "Repository cloned"
 
-# --- 2. Install Dependencies ---
+# --- 3. Install Dependencies ---
 log_step "Installing backend dependencies..."
 cd backend
 npm install --omit=dev
@@ -95,7 +96,7 @@ log_success "Database initialized"
 # --- 5. Setup Secrets ---
 log_step "Setting up encrypted secrets..."
 chmod +x scripts/*.sh
-./scripts/setup-secrets.sh
+./scripts/setup-secrets.sh < /dev/tty
 
 # --- 6. Register with PM2 ---
 log_step "Registering with PM2..."
@@ -137,12 +138,11 @@ log_success "🎉 FOREX BOT SETUP COMPLETE!"
 echo ""
 echo "Services:"
 echo "  Backend:  http://localhost:3101"
-echo "  Frontend: http://localhost:3100 (or served by backend)"
+echo "  Frontend: http://fx.oakroad"
 echo ""
 echo "Quick Commands:"
 echo "  pm2 status                    - Check both bots"
 echo "  pm2 logs forex-backend        - View forex logs"
-echo "  pm2 logs crypto-backend       - View crypto logs"
 echo "  pm2 restart forex-backend     - Restart forex bot"
 echo ""
 echo "Dashboard:"
