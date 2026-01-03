@@ -17,8 +17,6 @@ import {
   Paper,
 } from '@mui/material';
 import {
-  AccessTime,
-  Public,
   TrendingUp,
   NightsStay,
   ExpandMore,
@@ -217,7 +215,6 @@ const MarketStatusBanner = ({ compact = false }) => {
         borderColor: marketOpen
           ? alpha(theme.palette.success.main, 0.3)
           : alpha(theme.palette.warning.main, 0.3),
-        overflow: 'hidden',
         mb: 2,
       }}
     >
@@ -330,21 +327,22 @@ const MarketStatusBanner = ({ compact = false }) => {
       )}
       
       {/* Expanded Details */}
-      <Collapse in={expanded}>
+      <Collapse in={expanded} timeout="auto">
         <Box
           sx={{
-            p: 2,
+            px: 2,
+            py: 1.5,
             borderTop: 1,
             borderColor: 'divider',
             bgcolor: alpha(theme.palette.background.default, 0.95),
           }}
         >
-          <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block" mb={1.5}>
+          <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block" mb={1}>
             TRADING SESSIONS (UTC)
           </Typography>
           
           {/* Single Row Grid Layout */}
-          <Grid container spacing={2}>
+          <Grid container spacing={1.5}>
             {Object.entries(SESSIONS).map(([key, session]) => {
               const isActive = activeSessions.some((s) => s.key === key);
               return (
@@ -352,7 +350,8 @@ const MarketStatusBanner = ({ compact = false }) => {
                   <Paper
                     variant="outlined"
                     sx={{
-                      p: 2,
+                      py: 1.5,
+                      px: 1.5,
                       textAlign: 'center',
                       borderColor: isActive ? session.color : alpha(theme.palette.divider, 0.3),
                       bgcolor: isActive ? alpha(session.color, 0.15) : alpha(theme.palette.background.paper, 0.5),
@@ -366,10 +365,10 @@ const MarketStatusBanner = ({ compact = false }) => {
                         size="small"
                         sx={{
                           position: 'absolute',
-                          top: 6,
-                          right: 6,
-                          height: 18,
-                          fontSize: '0.6rem',
+                          top: 4,
+                          right: 4,
+                          height: 16,
+                          fontSize: '0.55rem',
                           fontWeight: 'bold',
                           bgcolor: session.color,
                           color: 'white',
@@ -379,41 +378,39 @@ const MarketStatusBanner = ({ compact = false }) => {
                     <Typography 
                       variant="caption" 
                       fontWeight="bold"
+                      component="div"
                       sx={{ 
                         color: isActive ? session.color : 'text.secondary',
-                        opacity: 0.8,
+                        lineHeight: 1.2,
                       }}
                     >
                       {session.code}
                     </Typography>
                     <Typography 
-                      variant="body1"
-                      fontWeight="bold" 
+                      variant="body2"
+                      fontWeight="bold"
+                      component="div"
                       sx={{ color: isActive ? session.color : 'text.primary' }}
                     >
                       {session.name}
                     </Typography>
                     <Typography 
-                      variant="caption" 
+                      variant="caption"
+                      component="div"
                       sx={{ 
-                        color: 'text.secondary',
+                        color: 'text.primary',
                         fontFamily: 'monospace',
-                        display: 'block',
-                        mt: 0.5,
+                        lineHeight: 1.4,
+                        opacity: 0.7,
                       }}
                     >
-                      {String(session.start).padStart(2, '0')}:00 – {String(session.end).padStart(2, '0')}:00
+                      {String(session.start).padStart(2, '0')}:00–{String(session.end).padStart(2, '0')}:00
                     </Typography>
                   </Paper>
                 </Grid>
               );
             })}
           </Grid>
-          
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-            <AccessTime sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.5 }} />
-            Markets open Sunday 21:00 UTC → Friday 21:00 UTC. Best volatility during London/NY overlap (12:00-16:00 UTC).
-          </Typography>
         </Box>
       </Collapse>
     </Box>

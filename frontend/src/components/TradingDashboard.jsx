@@ -427,7 +427,9 @@ const TradingDashboard = () => {
       )}
 
       {/* Market Status Banner - Shows open/closed status with countdown */}
-      <MarketStatusBanner />
+      <Box sx={{ flexShrink: 0 }}>
+        <MarketStatusBanner />
+      </Box>
 
       {/* KPI Stats */}
       <DashboardStats
