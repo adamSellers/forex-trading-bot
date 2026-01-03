@@ -1,5 +1,9 @@
 #!/bin/bash
-# scripts/deploy.sh - Forex Trading Bot Deployment Script
+# =====================================================
+# Forex Trading Bot - Deployment Script (Raspberry Pi)
+# Fixed for ARM64 Dependencies + Memory Constraints
+# =====================================================
+
 set -e
 
 # --- Configuration ---
@@ -50,7 +54,6 @@ chmod +x scripts/*.sh
 # 1. Stop Service
 log_info "Stopping forex services..."
 pm2 stop forex-backend --silent 2>/dev/null || true
-pm2 stop forex-frontend --silent 2>/dev/null || true
 sleep 2
 
 # 2. Backup database
@@ -65,7 +68,7 @@ else
     log_info "No existing database to backup"
 fi
 
-# 3. Install dependencies
+# 3. Install backend dependencies
 log_info "Installing backend dependencies..."
 cd backend
 npm install --omit=dev
@@ -76,16 +79,23 @@ if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     log_info "Installing frontend dependencies..."
     cd frontend
     npm install
-    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
     
-    log_info "Building frontend..."
-    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
+    # ARM64 Rollup fix - CRITICAL for Raspberry Pi
+    log_info "Installing ARM64 Rollup binary..."
+    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+    cd ..
+    
+    log_info "Building frontend (memory constrained)..."
+    # Pi-specific: Limit heap + disable source maps
+    cd frontend
+    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build
     cd ..
     
     if [ -d "frontend/dist" ]; then
         log_success "Frontend built successfully"
     else
-        log_warn "Frontend build may have failed - no dist folder"
+        log_error "Frontend build failed - no dist folder"
+        exit 1
     fi
 else
     log_info "No frontend to build"
@@ -133,7 +143,7 @@ log_success "🎉 Deployment Complete!"
 echo ""
 echo "Services:"
 echo "  Backend:  http://localhost:3101"
-echo "  Frontend: http://localhost:3100"
+echo "  Frontend: http://fx.oakroad"
 echo ""
 echo "Commands:"
 echo "  pm2 logs forex-backend    - View logs"

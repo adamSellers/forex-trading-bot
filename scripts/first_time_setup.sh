@@ -1,6 +1,7 @@
 #!/bin/bash
 # =====================================================
 # Forex Trading Bot - First Time Setup (Raspberry Pi)
+# Includes: 4GB Swap (OOM Fix) + Pi Build Optimizations
 # Run this ONCE to set up the forex bot alongside crypto bot
 # =====================================================
 
@@ -25,9 +26,44 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
+# --- Pi-Specific: Swap Management ---
+setup_swap() {
+    log_step "Setting up 4GB Build Swap (OOM prevention)..."
+    if [ -f /swapfile ]; then
+        sudo swapoff /swapfile || true
+        sudo rm -f /swapfile
+    fi
+    sudo fallocate -l 4G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    log_success "Swap active (4GB)"
+}
+
+cleanup_swap() {
+    log_step "Cleaning up build swap..."
+    if [ -f /swapfile ]; then
+        sudo swapoff /swapfile 2>/dev/null || true
+        sudo rm -f /swapfile
+    fi
+}
+
+# --- Pi-Specific: Build Environment ---
+setup_build_env() {
+    log_step "Tuning Node.js for Raspberry Pi build..."
+    export UV_THREADPOOL_SIZE=2
+    export MAKEFLAGS="-j2"
+    export NODE_OPTIONS="--max-old-space-size=3584"
+    log_success "Build environment configured"
+}
+
+# Ensure swap is cleaned up on exit (success or failure)
+trap cleanup_swap EXIT
+
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "       🚀 FOREX TRADING BOT - FIRST TIME SETUP"
+echo "           (Raspberry Pi Optimized)"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 
@@ -47,15 +83,19 @@ if [ -d "$PROJECT_DIR" ]; then
     fi
 fi
 
-# --- 1. Clone Repository ---
-log_step "Cloning forex-trend-bot repository..."
+# --- 1. Setup Build Environment ---
+setup_build_env
+setup_swap
+
+# --- 2. Clone Repository ---
+log_step "Cloning forex-trading-bot repository..."
 sudo mkdir -p "$PROJECT_DIR"
 sudo chown $PROJECT_USER:$PROJECT_USER "$PROJECT_DIR"
 git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 log_success "Repository cloned"
 
-# --- 2. Install Dependencies ---
+# --- 3. Install Dependencies ---
 log_step "Installing backend dependencies..."
 cd backend
 npm install --omit=dev
@@ -71,11 +111,12 @@ if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
 fi
 log_success "Dependencies installed"
 
-# --- 3. Build Frontend ---
+# --- 4. Build Frontend ---
 if [ -d "frontend" ]; then
     log_step "Building frontend (this may take a few minutes on Pi)..."
     cd frontend
-    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
+    # Memory constrained build with no source maps
+    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build
     cd ..
     
     if [ -d "frontend/dist" ]; then
@@ -85,7 +126,7 @@ if [ -d "frontend" ]; then
     fi
 fi
 
-# --- 4. Setup Database ---
+# --- 5. Setup Database ---
 log_step "Setting up database..."
 cd backend
 mkdir -p data
@@ -94,18 +135,18 @@ npm run db:migrate
 cd ..
 log_success "Database initialized"
 
-# --- 5. Setup Secrets ---
+# --- 6. Setup Secrets ---
 log_step "Setting up encrypted secrets..."
 chmod +x scripts/*.sh
-./scripts/setup-secrets.sh
+./scripts/setup-secrets.sh < /dev/tty
 
-# --- 6. Register with PM2 ---
+# --- 7. Register with PM2 ---
 log_step "Registering with PM2..."
 pm2 start ecosystem.config.js --env production
 pm2 save
 log_success "PM2 configured"
 
-# --- 7. Health Check ---
+# --- 8. Health Check ---
 log_step "Running health check..."
 sleep 5
 max_attempts=12
@@ -139,20 +180,15 @@ log_success "🎉 FOREX BOT SETUP COMPLETE!"
 echo ""
 echo "Services:"
 echo "  Backend:  http://localhost:3101"
-echo "  Frontend: http://localhost:3100 (or served by backend)"
+echo "  Frontend: http://fx.oakroad"
 echo ""
 echo "Quick Commands:"
 echo "  pm2 status                    - Check both bots"
 echo "  pm2 logs forex-backend        - View forex logs"
-echo "  pm2 logs crypto-backend       - View crypto logs"
 echo "  pm2 restart forex-backend     - Restart forex bot"
 echo ""
-echo "Dashboard:"
-echo "  http://<pi-ip>:3101           - Forex Bot"
-echo "  http://<pi-ip>:3001           - Crypto Bot"
-echo ""
 echo "Next Steps:"
-echo "  1. Open dashboard and verify connection"
+echo "  1. Open http://fx.oakroad and verify connection"
 echo "  2. Check Settings → all config loaded correctly"
-echo "  3. Trading is ENABLED - bot is live!"
+echo "  3. Trading is DISABLED by default - enable when ready"
 echo "═══════════════════════════════════════════════════════════"
