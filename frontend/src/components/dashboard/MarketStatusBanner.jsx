@@ -27,10 +27,10 @@ import {
 
 // Forex market sessions (in UTC hours)
 const SESSIONS = {
-  sydney: { name: 'Sydney', start: 21, end: 6, color: '#4caf50', icon: '🇦🇺' },
-  tokyo: { name: 'Tokyo', start: 0, end: 9, color: '#f44336', icon: '🇯🇵' },
-  london: { name: 'London', start: 7, end: 16, color: '#2196f3', icon: '🇬🇧' },
-  newYork: { name: 'New York', start: 12, end: 21, color: '#ff9800', icon: '🇺🇸' },
+  sydney: { name: 'Sydney', code: 'AU', start: 21, end: 6, color: '#4caf50' },
+  tokyo: { name: 'Tokyo', code: 'JP', start: 0, end: 9, color: '#f44336' },
+  london: { name: 'London', code: 'GB', start: 7, end: 16, color: '#2196f3' },
+  newYork: { name: 'New York', code: 'US', start: 12, end: 21, color: '#ff9800' },
 };
 
 // Market opens Sunday 21:00 UTC, closes Friday 21:00 UTC
@@ -291,13 +291,15 @@ const MarketStatusBanner = ({ compact = false }) => {
               {activeSessions.map((session) => (
                 <Tooltip key={session.key} title={`${session.name} Session`}>
                   <Chip
-                    label={session.icon}
+                    label={session.code}
                     size="small"
                     sx={{
                       bgcolor: alpha(session.color, 0.2),
                       borderColor: session.color,
                       border: 1,
                       minWidth: 36,
+                      fontWeight: 'bold',
+                      fontSize: '0.7rem',
                       '& .MuiChip-label': { px: 1 },
                     }}
                   />
@@ -341,22 +343,21 @@ const MarketStatusBanner = ({ compact = false }) => {
             TRADING SESSIONS (UTC)
           </Typography>
           
-          {/* 2x2 Grid Layout - matching InstrumentSettings style */}
+          {/* Single Row Grid Layout */}
           <Grid container spacing={2}>
             {Object.entries(SESSIONS).map(([key, session]) => {
               const isActive = activeSessions.some((s) => s.key === key);
               return (
-                <Grid item xs={6} md={3} key={key}>
+                <Grid item xs={6} sm={3} key={key}>
                   <Paper
                     variant="outlined"
                     sx={{
                       p: 2,
                       textAlign: 'center',
                       borderColor: isActive ? session.color : alpha(theme.palette.divider, 0.3),
-                      bgcolor: isActive ? alpha(session.color, 0.1) : alpha(theme.palette.background.paper, 0.5),
+                      bgcolor: isActive ? alpha(session.color, 0.15) : alpha(theme.palette.background.paper, 0.5),
                       borderWidth: isActive ? 2 : 1,
                       position: 'relative',
-                      overflow: 'hidden',
                     }}
                   >
                     {isActive && (
@@ -365,8 +366,8 @@ const MarketStatusBanner = ({ compact = false }) => {
                         size="small"
                         sx={{
                           position: 'absolute',
-                          top: 4,
-                          right: 4,
+                          top: 6,
+                          right: 6,
                           height: 18,
                           fontSize: '0.6rem',
                           fontWeight: 'bold',
@@ -375,15 +376,33 @@ const MarketStatusBanner = ({ compact = false }) => {
                         }}
                       />
                     )}
-                    <Typography fontSize="1.5rem" mb={0.5}>{session.icon}</Typography>
                     <Typography 
+                      variant="caption" 
+                      fontWeight="bold"
+                      sx={{ 
+                        color: isActive ? session.color : 'text.secondary',
+                        opacity: 0.8,
+                      }}
+                    >
+                      {session.code}
+                    </Typography>
+                    <Typography 
+                      variant="body1"
                       fontWeight="bold" 
                       sx={{ color: isActive ? session.color : 'text.primary' }}
                     >
                       {session.name}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" fontFamily="monospace">
-                      {String(session.start).padStart(2, '0')}:00 - {String(session.end).padStart(2, '0')}:00
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        color: 'text.secondary',
+                        fontFamily: 'monospace',
+                        display: 'block',
+                        mt: 0.5,
+                      }}
+                    >
+                      {String(session.start).padStart(2, '0')}:00 – {String(session.end).padStart(2, '0')}:00
                     </Typography>
                   </Paper>
                 </Grid>
