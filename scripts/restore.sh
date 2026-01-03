@@ -112,10 +112,17 @@ fi
 log_info "Stopping service..."
 pm2 stop "$APP_NAME" --silent 2>/dev/null || true
 pm2 delete "$APP_NAME" --silent 2>/dev/null || true
+pm2 save --force 2>/dev/null || true
 sleep 2
 
 if [ "$restore_type" = "full" ]; then
     # Full restore
+    
+    # Safety: Copy backup to /tmp in case it's inside the project directory
+    log_info "Securing backup file..."
+    temp_backup="/tmp/restore_$(basename "$backup_file")"
+    cp "$backup_file" "$temp_backup"
+    
     log_info "Creating safety backup of current state..."
     if [ -d "$PROJECT_DIR" ]; then
         tar -czf "$BACKUP_DIR/pre_restore_$(date +%Y%m%d_%H%M%S).tar.gz" \
@@ -127,7 +134,10 @@ if [ "$restore_type" = "full" ]; then
     sudo rm -rf "$PROJECT_DIR"
     
     log_info "Extracting backup..."
-    sudo tar -xzf "$backup_file" -C /opt
+    sudo tar -xzf "$temp_backup" -C /opt
+    
+    # Cleanup temp file
+    rm -f "$temp_backup"
     sudo chown -R "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR"
     
     log_info "Reinstalling dependencies..."
@@ -140,7 +150,7 @@ if [ "$restore_type" = "full" ]; then
         npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
         
         log_info "Rebuilding frontend..."
-        NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
+        NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build
     fi
     
     chmod +x "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
