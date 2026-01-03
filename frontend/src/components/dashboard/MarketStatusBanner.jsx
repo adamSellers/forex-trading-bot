@@ -13,6 +13,8 @@ import {
   Collapse,
   IconButton,
   Tooltip,
+  Grid,
+  Paper,
 } from '@mui/material';
 import {
   AccessTime,
@@ -332,78 +334,67 @@ const MarketStatusBanner = ({ compact = false }) => {
             p: 2,
             borderTop: 1,
             borderColor: 'divider',
-            bgcolor: alpha(theme.palette.background.paper, 0.5),
+            bgcolor: alpha(theme.palette.background.default, 0.95),
           }}
         >
-          <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+          <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block" mb={1.5}>
             TRADING SESSIONS (UTC)
           </Typography>
           
-          <Stack spacing={1}>
+          {/* 2x2 Grid Layout - matching InstrumentSettings style */}
+          <Grid container spacing={2}>
             {Object.entries(SESSIONS).map(([key, session]) => {
               const isActive = activeSessions.some((s) => s.key === key);
               return (
-                <Box
-                  key={key}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    p: 1,
-                    borderRadius: 1,
-                    bgcolor: isActive
-                      ? alpha(session.color, 0.15)
-                      : alpha(theme.palette.action.hover, 0.5),
-                    border: 1,
-                    borderColor: isActive ? session.color : 'transparent',
-                  }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography>{session.icon}</Typography>
-                    <Typography
-                      variant="body2"
-                      fontWeight={isActive ? 'bold' : 'normal'}
-                      color={isActive ? session.color : 'text.secondary'}
-                    >
-                      {session.name}
-                    </Typography>
+                <Grid item xs={6} md={3} key={key}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      textAlign: 'center',
+                      borderColor: isActive ? session.color : alpha(theme.palette.divider, 0.3),
+                      bgcolor: isActive ? alpha(session.color, 0.1) : alpha(theme.palette.background.paper, 0.5),
+                      borderWidth: isActive ? 2 : 1,
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                  >
                     {isActive && (
                       <Chip
                         label="LIVE"
                         size="small"
                         sx={{
+                          position: 'absolute',
+                          top: 4,
+                          right: 4,
                           height: 18,
-                          fontSize: '0.65rem',
+                          fontSize: '0.6rem',
+                          fontWeight: 'bold',
                           bgcolor: session.color,
                           color: 'white',
-                          animation: 'pulse 2s infinite',
-                          '@keyframes pulse': {
-                            '0%, 100%': { opacity: 1 },
-                            '50%': { opacity: 0.7 },
-                          },
                         }}
                       />
                     )}
-                  </Stack>
-                  <Typography
-                    variant="caption"
-                    fontFamily="monospace"
-                    color="text.secondary"
-                  >
-                    {String(session.start).padStart(2, '0')}:00 - {String(session.end).padStart(2, '0')}:00
-                  </Typography>
-                </Box>
+                    <Typography fontSize="1.5rem" mb={0.5}>{session.icon}</Typography>
+                    <Typography 
+                      fontWeight="bold" 
+                      sx={{ color: isActive ? session.color : 'text.primary' }}
+                    >
+                      {session.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                      {String(session.start).padStart(2, '0')}:00 - {String(session.end).padStart(2, '0')}:00
+                    </Typography>
+                  </Paper>
+                </Grid>
               );
             })}
-          </Stack>
+          </Grid>
           
-          <Box mt={2} p={1.5} borderRadius={1} bgcolor={alpha(theme.palette.info.main, 0.1)}>
-            <Typography variant="caption" color="text.secondary">
-              <AccessTime sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.5 }} />
-              Forex markets are open 24/5 from Sunday 21:00 UTC to Friday 21:00 UTC.
-              Best trading times are during session overlaps (London/NY and Tokyo/Sydney).
-            </Typography>
-          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+            <AccessTime sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.5 }} />
+            Markets open Sunday 21:00 UTC → Friday 21:00 UTC. Best volatility during London/NY overlap (12:00-16:00 UTC).
+          </Typography>
         </Box>
       </Collapse>
     </Box>
