@@ -40,6 +40,7 @@ import LivePrices from './dashboard/LivePrices';
 import TradingSignals from './dashboard/TradingSignals';
 import RecentTrades from './dashboard/RecentTrades';
 import LivePriceChart from './dashboard/LivePriceChart';
+import MarketStatusBanner from './dashboard/MarketStatusBanner';
 
 const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
 const SIDEBAR_WIDTH = 340;
@@ -424,6 +425,9 @@ const TradingDashboard = () => {
           {error}
         </Alert>
       )}
+
+      {/* Market Status Banner - Shows open/closed status with countdown */}
+      <MarketStatusBanner />
 
       {/* KPI Stats */}
       <DashboardStats
