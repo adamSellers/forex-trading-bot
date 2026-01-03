@@ -102,6 +102,13 @@ else
     echo -e "  Database:       ${YELLOW}⚠️  Not Found${NC}"
 fi
 
+# Nginx
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    echo -e "  Nginx:          ${GREEN}✅ Running${NC}"
+else
+    echo -e "  Nginx:          ${YELLOW}⚠️  Not Running${NC}"
+fi
+
 echo ""
 
 # Trading Stats (if API is up)
