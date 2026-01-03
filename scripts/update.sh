@@ -1,7 +1,8 @@
 #!/bin/bash
 # =====================================================
-# Forex Trading Bot - Quick Update Script
-# Pulls latest code and restarts (preserves data)
+# Forex Trading Bot - Lightweight Update Script
+# Pulls latest changes, conditionally rebuilds, restarts.
+# Does NOT wipe data. Use for quick code pushes.
 # =====================================================
 
 set -e
@@ -11,7 +12,7 @@ APP_NAME="forex-backend"
 PROJECT_DIR="/opt/forex-trading-bot"
 BRANCH="main"
 
-# Colors
+# --- Colors ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -25,102 +26,108 @@ log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo "         🔄 FOREX TRADING BOT - QUICK UPDATE"
+echo "       ⚡ FOREX BOT - QUICK UPDATE"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 
-cd "$PROJECT_DIR" || log_error "Project directory not found"
+cd "$PROJECT_DIR" || log_error "Project directory $PROJECT_DIR not found."
 
-# Get current state
+# 1. Fetch latest changes
+log_info "Fetching latest changes from origin..."
+git fetch origin
+
+# 2. Get current and remote commit hashes
 before_hash=$(git rev-parse HEAD)
-log_info "Current commit: ${before_hash:0:7}"
-
-# Fetch and check for changes
-log_info "Fetching latest changes..."
-git fetch origin "$BRANCH"
-
 after_hash=$(git rev-parse "origin/$BRANCH")
 
-if [ "$before_hash" = "$after_hash" ]; then
-    log_success "Already up-to-date. No changes to deploy."
+# 3. Reset to match remote
+log_warn "Resetting local branch to match remote 'origin/$BRANCH'..."
+git reset --hard "origin/$BRANCH"
+chmod +x scripts/*.sh 2>/dev/null || true
+
+if [ "$before_hash" == "$after_hash" ]; then
+    log_success "Already up-to-date. No new code to deploy."
     exit 0
 fi
 
-log_info "New commit available: ${after_hash:0:7}"
+log_success "Code updated: ${before_hash:0:7} → ${after_hash:0:7}"
 
-# Show what changed
-echo ""
-log_info "Changes:"
-git log --oneline "$before_hash..$after_hash" | head -10
-echo ""
-
-# Analyze changes
+# 4. Analyze what changed
+log_info "Analyzing changes..."
 changed_files=$(git diff --name-only "$before_hash" "$after_hash")
 
 backend_changed=false
 frontend_changed=false
 deps_changed=false
 
-echo "$changed_files" | grep -qE "^backend/" && backend_changed=true
-echo "$changed_files" | grep -qE "^frontend/" && frontend_changed=true
-echo "$changed_files" | grep -q "package.json" && deps_changed=true
+if echo "$changed_files" | grep -q -E "^backend/"; then
+    backend_changed=true
+    log_info "  Backend changes detected"
+fi
+if echo "$changed_files" | grep -q -E "^frontend/"; then
+    frontend_changed=true
+    log_info "  Frontend changes detected"
+fi
+if echo "$changed_files" | grep -q -E "package.json|package-lock.json"; then
+    deps_changed=true
+    log_info "  Dependency changes detected"
+fi
 
-log_info "Backend changes: $backend_changed"
-log_info "Frontend changes: $frontend_changed"
-log_info "Dependency changes: $deps_changed"
-echo ""
-
-# Apply changes
-log_warn "Applying update..."
-git reset --hard "origin/$BRANCH"
-chmod +x scripts/*.sh 2>/dev/null || true
-
-# Install dependencies if needed
+# 5. Install dependencies if needed
 if [ "$deps_changed" = true ]; then
-    log_info "Updating backend dependencies..."
-    cd backend && npm install --omit=dev && cd ..
-fi
-
-# Rebuild frontend if needed
-if [ "$frontend_changed" = true ]; then
-    log_info "Rebuilding frontend..."
-    cd frontend
-    npm install
-    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
-    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
+    log_info "Installing backend dependencies..."
+    cd backend
+    npm install --omit=dev
     cd ..
+    
+    if [ -d "frontend" ]; then
+        log_info "Installing frontend dependencies..."
+        cd frontend
+        npm install
+        cd ..
+    fi
+    log_success "Dependencies updated"
 fi
 
-# Run migrations
-log_info "Running database migrations..."
-cd backend && npm run db:migrate 2>/dev/null || true && cd ..
+# 6. Build frontend if needed
+if [ "$frontend_changed" = true ] || [ "$deps_changed" = true ]; then
+    if [ -d "frontend" ]; then
+        log_info "Rebuilding frontend..."
+        cd frontend
+        
+        # ARM64 Rollup fix for Raspberry Pi
+        npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+        
+        # Memory constrained build
+        NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build
+        cd ..
+        log_success "Frontend rebuilt"
+    fi
+else
+    log_info "No frontend changes, skipping build"
+fi
 
-# Graceful reload
+# 7. Run database migrations
+log_info "Running database migrations..."
+cd backend
+NODE_ENV=production npm run db:migrate 2>/dev/null || log_warn "Migration may have issues"
+cd ..
+
+# 8. Graceful reload using ecosystem config (FIXED: --env requires ecosystem file)
 log_info "Reloading application..."
-pm2 reload "$APP_NAME" --env production 2>/dev/null || pm2 restart "$APP_NAME" --env production
+pm2 reload ecosystem.config.js --env production 2>/dev/null || pm2 restart ecosystem.config.js --env production
 pm2 save
 
-# Health check
+# 9. Health check
 log_info "Health check..."
-sleep 5
-max_attempts=6
-attempt=0
-
-while [ $attempt -lt $max_attempts ]; do
-    if curl -sf http://localhost:3101/api/health > /dev/null 2>&1; then
-        break
-    fi
-    attempt=$((attempt + 1))
-    sleep 3
-done
-
-if [ $attempt -lt $max_attempts ]; then
+sleep 3
+if curl -sf http://localhost:3101/api/health > /dev/null 2>&1; then
     log_success "Health check passed!"
 else
-    log_warn "Health check pending - check logs"
+    log_warn "Health check failed - checking logs..."
+    pm2 logs $APP_NAME --lines 10 --nostream
 fi
 
 echo ""
-log_success "🎉 Update complete! (${before_hash:0:7} → ${after_hash:0:7})"
-echo ""
-pm2 status | grep -E "forex|Name"
+log_success "🎉 Quick update complete!"
+pm2 status | grep -E "(forex|crypto)" || pm2 status
