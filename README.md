@@ -413,7 +413,7 @@ Before executing a trade, the engine validates:
 -   `enableTrading === true`
 -   `openPositions < maxOpenPositions`
 -   Instrument is in `assets` array
--   No existing position for this pair
+-   No existing position for this pair.
 -   Signal ADX >= `minAdx`
 -   Within active trading session (if filter enabled)
 
