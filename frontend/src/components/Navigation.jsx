@@ -157,12 +157,6 @@ const Navigation = ({ currentView, onViewChange, views }) => {
                   height: 22,
                   fontSize: '0.65rem',
                   fontWeight: 'bold',
-                  animation: 'pulse 2s infinite',
-                  '@keyframes pulse': {
-                    '0%': { opacity: 1 },
-                    '50%': { opacity: 0.6 },
-                    '100%': { opacity: 1 },
-                  },
                 }}
               />
             )}
