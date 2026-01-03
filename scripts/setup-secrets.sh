@@ -34,8 +34,11 @@ echo ""
 
 read -p "🔑 Oanda API Key: " OANDA_API_KEY
 echo ""
-read -p "📋 Oanda Account ID [001-011-20128302-001]: " OANDA_ACCOUNT_ID
-OANDA_ACCOUNT_ID=${OANDA_ACCOUNT_ID:-001-011-20128302-001}
+read -p "📋 Oanda Account ID: " OANDA_ACCOUNT_ID
+if [ -z "$OANDA_ACCOUNT_ID" ]; then
+    echo "❌ Account ID is required"
+    exit 1
+fi
 echo ""
 read -p "🌐 Environment (live/practice) [live]: " OANDA_ENVIRONMENT
 OANDA_ENVIRONMENT=${OANDA_ENVIRONMENT:-live}
