@@ -111,6 +111,14 @@ backtest_results/
 paper_trading_logs/
 live_trading_logs/
 
+# Secrets and encrypted credentials - NEVER COMMIT THESE
+.secrets/
+.keys/
+*.enc
+encryption.key
+**/encryption.key
+**/*.enc
+
 # PM2 logs (for production deployment)
 pm2-logs/
 

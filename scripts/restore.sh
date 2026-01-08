@@ -10,6 +10,7 @@ set -e
 APP_NAME="forex-backend"
 PROJECT_DIR="/opt/forex-trading-bot"
 PROJECT_USER=$(whoami)
+PROJECT_GROUP=$(id -gn)  # Get primary group (works on macOS and Linux)
 BACKUP_DIR="$HOME/forex-trading-bot-backups"
 
 # Colors
@@ -138,7 +139,7 @@ if [ "$restore_type" = "full" ]; then
     
     # Cleanup temp file
     rm -f "$temp_backup"
-    sudo chown -R "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR"
+    sudo chown -R "$PROJECT_USER:$PROJECT_GROUP" "$PROJECT_DIR"
     
     log_info "Reinstalling dependencies..."
     cd "$PROJECT_DIR/backend"
@@ -147,10 +148,13 @@ if [ "$restore_type" = "full" ]; then
     if [ -d "$PROJECT_DIR/frontend" ]; then
         cd "$PROJECT_DIR/frontend"
         npm install
-        npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+        # Skip ARM64 Rollup on macOS (uses native binaries)
+        if [[ "$OSTYPE" != "darwin"* ]]; then
+            npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+        fi
         
         log_info "Rebuilding frontend..."
-        NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build
+        NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
     fi
     
     chmod +x "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
@@ -159,7 +163,7 @@ else
     # Database-only restore
     log_info "Restoring database..."
     cp "$backup_file" "$PROJECT_DIR/backend/data/trading.db"
-    chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"
+    chown "$PROJECT_USER:$PROJECT_GROUP" "$PROJECT_DIR/backend/data/trading.db"
 fi
 
 # Restart service

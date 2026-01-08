@@ -10,6 +10,7 @@ set -e
 APP_NAME="forex-backend"
 PROJECT_DIR="/opt/forex-trading-bot"
 PROJECT_USER=$(whoami)
+PROJECT_GROUP=$(id -gn)  # Get primary group (works on macOS and Linux)
 REPO_URL="git@github.com:adamSellers/forex-trading-bot.git"
 BRANCH="mac-mini"
 
@@ -51,7 +52,7 @@ fi
 # --- 1. Clone Repository ---
 log_step "Cloning forex-trading-bot repository..."
 sudo mkdir -p "$PROJECT_DIR"
-sudo chown $PROJECT_USER:$PROJECT_USER "$PROJECT_DIR"
+sudo chown $PROJECT_USER:$PROJECT_GROUP "$PROJECT_DIR"
 git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 log_success "Repository cloned"

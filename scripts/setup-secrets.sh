@@ -2,10 +2,16 @@
 # scripts/setup-secrets.sh - Forex Trading Bot Secure API Key Management
 set -e
 
-SECRETS_DIR="/opt/forex-trading-bot/.secrets"
-KEYS_DIR="/opt/forex-trading-bot/.keys"
+# --- Detect Project Root Dynamically ---
+# This script is in scripts/, so go up one level to get project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+SECRETS_DIR="$BASE_DIR/.secrets"
+KEYS_DIR="$BASE_DIR/.keys"
 
 echo "🔐 Setting up secure API key management for Forex Bot..."
+echo "📍 Project directory: $BASE_DIR"
 
 # Create secure directories
 mkdir -p $SECRETS_DIR $KEYS_DIR
@@ -53,30 +59,28 @@ else
     echo "⚠️ Skipping Oanda setup (empty input)"
 fi
 
-# --- 2. EMAIL NOTIFICATIONS (Optional) ---
+# --- 2. SLACK NOTIFICATIONS (Optional) ---
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo "           Email Notification Configuration (Optional)"
+echo "           Slack Notification Configuration (Optional)"
 echo "═══════════════════════════════════════════════════════════"
-read -p "Enable Email Notifications? (y/N): " enable_email
-if [[ "$enable_email" =~ ^[Yy]$ ]]; then
-    echo "Please enter your SMTP credentials (e.g., Gmail App Password):"
-    read -p "📧 Email User (sender@gmail.com): " EMAIL_USER
-    echo ""
-    read -s -p "🔑 Email Password (App Password): " EMAIL_PASS
-    echo ""
-    read -p "📩 Default Recipient: " EMAIL_TO
+echo "To set up Slack notifications:"
+echo "  1. Go to https://api.slack.com/apps"
+echo "  2. Create a new app or select existing app"
+echo "  3. Go to 'Incoming Webhooks' and activate"
+echo "  4. Create a webhook for your channel"
+echo "  5. Copy the webhook URL"
+echo ""
+read -p "Enable Slack Notifications? (y/N): " enable_slack
+if [[ "$enable_slack" =~ ^[Yy]$ ]]; then
+    read -p "💬 Slack Webhook URL: " SLACK_WEBHOOK_URL
 
-    if [ -n "$EMAIL_USER" ] && [ -n "$EMAIL_PASS" ]; then
-        echo "🔒 Encrypting Email credentials..."
-        echo -n "$EMAIL_USER" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/email_user.enc
-        echo -n "$EMAIL_PASS" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/email_pass.enc
-        if [ -n "$EMAIL_TO" ]; then
-            echo -n "$EMAIL_TO" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/email_to.enc
-        fi
-        echo "✅ Email credentials encrypted"
+    if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        echo "🔒 Encrypting Slack webhook URL..."
+        echo -n "$SLACK_WEBHOOK_URL" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/slack_webhook_url.enc
+        echo "✅ Slack webhook URL encrypted"
     else
-        echo "❌ Email fields empty, skipping."
+        echo "❌ Slack webhook URL empty, skipping."
     fi
 fi
 

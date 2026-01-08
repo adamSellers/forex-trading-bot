@@ -3,6 +3,7 @@ const EventEmitter = require("events");
 const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
+const slackService = require("./slackService");
 
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator
@@ -649,6 +650,9 @@ class LiveTradingEngine extends EventEmitter {
             // Broadcast trade event
             this.broadcastTradeOpened(trade);
 
+            // Send Slack notification
+            await slackService.sendTradeAlert(trade, "opened");
+
             logger.success(
                 `✅ LIVE BUY executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}`
             );
@@ -717,6 +721,9 @@ class LiveTradingEngine extends EventEmitter {
 
         // Broadcast trade event
         this.broadcastTradeOpened(trade);
+
+        // Send Slack notification
+        await slackService.sendTradeAlert(trade, "opened");
 
         logger.success(
             `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}`
@@ -812,6 +819,9 @@ class LiveTradingEngine extends EventEmitter {
 
         // Broadcast trade closed event
         this.broadcastTradeClosed(closedTrade);
+
+        // Send Slack notification
+        await slackService.sendTradeAlert(closedTrade, "closed");
 
         const profitEmoji = pnlAud >= 0 ? "💰" : "📉";
         logger.info(

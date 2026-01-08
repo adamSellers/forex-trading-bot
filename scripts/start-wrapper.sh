@@ -7,8 +7,12 @@ set -e
 # Called by PM2 via ecosystem.config.js
 # =====================================================
 
+# --- Detect Project Root Dynamically ---
+# This script is in scripts/, so go up one level to get project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 # --- Configuration ---
-BASE_DIR="/opt/forex-trading-bot"
 SECRETS_DIR="$BASE_DIR/.secrets"
 KEYS_DIR="$BASE_DIR/.keys"
 ENCRYPTION_KEY_FILE="$KEYS_DIR/encryption.key"
@@ -18,10 +22,8 @@ OANDA_API_KEY_FILE="$SECRETS_DIR/oanda_api_key.enc"
 OANDA_ACCOUNT_ID_FILE="$SECRETS_DIR/oanda_account_id.enc"
 OANDA_ENVIRONMENT_FILE="$SECRETS_DIR/oanda_environment.enc"
 
-# Email Credentials (Optional)
-EMAIL_USER_FILE="$SECRETS_DIR/email_user.enc"
-EMAIL_PASS_FILE="$SECRETS_DIR/email_pass.enc"
-EMAIL_TO_FILE="$SECRETS_DIR/email_to.enc"
+# Slack Webhook (Optional)
+SLACK_WEBHOOK_URL_FILE="$SECRETS_DIR/slack_webhook_url.enc"
 
 # --- Decrypt and Export ---
 if [ -f "$ENCRYPTION_KEY_FILE" ]; then
@@ -42,14 +44,9 @@ if [ -f "$ENCRYPTION_KEY_FILE" ]; then
         export OANDA_ENVIRONMENT="live"
     fi
 
-    # 2. Decrypt Email Credentials (Optional)
-    if [ -f "$EMAIL_USER_FILE" ]; then
-        export EMAIL_USER=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_USER_FILE" 2>/dev/null)
-        export EMAIL_PASS=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_PASS_FILE" 2>/dev/null)
-        
-        if [ -f "$EMAIL_TO_FILE" ]; then
-            export EMAIL_TO=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_TO_FILE" 2>/dev/null)
-        fi
+    # 2. Decrypt Slack Webhook URL (Optional)
+    if [ -f "$SLACK_WEBHOOK_URL_FILE" ]; then
+        export SLACK_WEBHOOK_URL=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$SLACK_WEBHOOK_URL_FILE" 2>/dev/null)
     fi
 
     echo "✅ Secrets decrypted and loaded into environment." >&2

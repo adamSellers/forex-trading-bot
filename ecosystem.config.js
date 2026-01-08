@@ -4,15 +4,22 @@
 // DB_PATH is set here and used by both database.js and knexfile.js
 // =============================================================================
 
+const path = require("path");
+
+// Detect project root (this file is in project root)
+const PROJECT_ROOT = __dirname;
+const BACKEND_DIR = path.join(PROJECT_ROOT, "backend");
+const SCRIPTS_DIR = path.join(PROJECT_ROOT, "scripts");
+
 module.exports = {
     apps: [
         {
             name: "forex-backend",
 
             // Use wrapper script that handles secret decryption (Oanda API keys)
-            script: "/opt/forex-trading-bot/scripts/start-wrapper.sh",
+            script: path.join(SCRIPTS_DIR, "start-wrapper.sh"),
             interpreter: "bash",
-            cwd: "/opt/forex-trading-bot/backend",
+            cwd: BACKEND_DIR,
 
             instances: 1,
             exec_mode: "fork",
@@ -26,11 +33,11 @@ module.exports = {
 
                 // Database - SINGLE SOURCE OF TRUTH
                 // This path is used by database.js and knexfile.js
-                DB_PATH: "/opt/forex-trading-bot/backend/data/trading.db",
+                DB_PATH: path.join(BACKEND_DIR, "data", "trading.db"),
 
                 // Logging
                 LOG_LEVEL: "info",
-                LOG_PATH: "/opt/forex-trading-bot/backend/logs",
+                LOG_PATH: path.join(BACKEND_DIR, "logs"),
 
                 // Oanda API credentials (injected by start-wrapper.sh)
                 // OANDA_API_KEY: injected
@@ -58,9 +65,9 @@ module.exports = {
             // =================================================================
             // LOGGING
             // =================================================================
-            log_file: "/opt/forex-trading-bot/backend/logs/combined.log",
-            out_file: "/opt/forex-trading-bot/backend/logs/out.log",
-            error_file: "/opt/forex-trading-bot/backend/logs/error.log",
+            log_file: path.join(BACKEND_DIR, "logs", "combined.log"),
+            out_file: path.join(BACKEND_DIR, "logs", "out.log"),
+            error_file: path.join(BACKEND_DIR, "logs", "error.log"),
             log_date_format: "YYYY-MM-DD HH:mm:ss Z",
             merge_logs: true,
         },

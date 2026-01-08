@@ -5,7 +5,9 @@
     "logLevel": "info",
     "assets": [
         "AUD_USD",
-        "EUR_USD"
+        "EUR_USD",
+        "GBP_USD",
+        "USD_JPY"
     ],
     "strategy": "supertrend_momentum",
     "timeframe": "15m",
@@ -35,14 +37,14 @@
     "enableSessionFilter": true,
     "activeSessions": [
         "sydney",
-        "tokyo",
         "newyork",
-        "london"
+        "london",
+        "tokyo"
     ],
     "enableEmailAlerts": false,
     "alertEmail": "",
     "maxLeverage": 30,
     "enableTakeProfit": false,
     "takeProfitPips": 60,
-    "tradingMode": "live"
+    "tradingMode": "paper"
 }
