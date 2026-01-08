@@ -38,7 +38,7 @@ module.exports = {
                 // OANDA_ENVIRONMENT: injected
 
                 // Security
-                CORS_ORIGIN: "http://localhost:3100,http://localhost:3101",
+                CORS_ORIGIN: "http://localhost:3100,http://localhost:3101,http://mac-mini.bunny.hq,https://mac-mini.bunny.hq",
 
                 // Performance for Mac Mini
                 UV_THREADPOOL_SIZE: "4",

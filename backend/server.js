@@ -22,13 +22,28 @@ const PORT = process.env.PORT || 3101;
 server.setMaxListeners(20);
 
 // Initialize Socket.IO with CORS for frontend
+// Get allowed origins from environment or use defaults
+const getAllowedOrigins = () => {
+    const envOrigins = process.env.CORS_ORIGIN;
+    const defaultOrigins = [
+        "http://localhost:3100",
+        "http://localhost:3101", // Same-origin in production
+        "http://localhost:5173", // Vite dev port
+        "http://mac-mini.bunny.hq",
+        "https://mac-mini.bunny.hq",
+    ];
+    
+    if (envOrigins) {
+        // Split comma-separated string and combine with defaults
+        const envList = envOrigins.split(",").map((o) => o.trim());
+        return [...new Set([...defaultOrigins, ...envList])]; // Remove duplicates
+    }
+    return defaultOrigins;
+};
+
 const io = new Server(server, {
     cors: {
-        origin: [
-            "http://localhost:3100",
-            "http://localhost:3101", // Same-origin in production
-            "http://localhost:5173", // Vite dev port
-        ],
+        origin: getAllowedOrigins(),
         methods: ["GET", "POST"],
         credentials: true,
     },
@@ -91,7 +106,25 @@ app.locals.tradeRepository = tradeRepository;
 app.locals.io = io;
 
 // Middleware
-app.use(cors());
+// Configure CORS with allowed origins
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            const allowedOrigins = getAllowedOrigins();
+            // Allow requests with no origin (mobile apps, curl, etc.)
+            if (!origin) return callback(null, true);
+            
+            if (allowedOrigins.includes(origin)) {
+                callback(null, true);
+            } else {
+                callback(new Error("Not allowed by CORS"));
+            }
+        },
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+    })
+);
 app.use(express.json());
 
 // Request logging (skip health checks)
