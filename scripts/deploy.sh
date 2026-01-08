@@ -21,7 +21,7 @@ log_error() { echo -e "${RED}❌ $1${NC}"; }
 
 echo ""
 echo "═══════════════════════════════════════════════════════════"
-echo "       🚀 FOREX TRADING BOT DEPLOYMENT (Raspberry Pi)"
+echo "       🚀 FOREX TRADING BOT DEPLOYMENT (Mac Mini)"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 
@@ -31,8 +31,9 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
-if [ "$(whoami)" != "adam" ]; then
-    log_error "Please run as user 'adam'"
+# Prevent running as root
+if [ "$(whoami)" = "root" ]; then
+    log_error "Don't run as root. Use your normal user account."
     exit 1
 fi
 
@@ -43,8 +44,8 @@ fi
 
 # 0. Update code from git
 log_info "Fetching latest changes from git..."
-git fetch origin main
-git reset --hard origin/main
+git fetch origin mac-mini
+git reset --hard origin/mac-mini
 chmod +x scripts/*.sh
 
 # 1. Stop Service
@@ -58,8 +59,8 @@ log_info "Creating database backup..."
 mkdir -p $BACKUP_DIR
 if [ -f "backend/data/trading.db" ]; then
     cp backend/data/trading.db "$BACKUP_DIR/trading_$(date +%Y%m%d_%H%M%S).db"
-    # Keep only last 7 backups
-    ls -t $BACKUP_DIR/trading_*.db 2>/dev/null | tail -n +8 | xargs -r rm
+    # Keep only last 7 backups (macOS compatible xargs)
+    ls -t $BACKUP_DIR/trading_*.db 2>/dev/null | tail -n +8 | xargs rm 2>/dev/null || true
     log_success "Database backed up"
 else
     log_info "No existing database to backup"
@@ -76,7 +77,6 @@ if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     log_info "Installing frontend dependencies..."
     cd frontend
     npm install
-    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
     
     log_info "Building frontend..."
     NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build

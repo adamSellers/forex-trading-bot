@@ -1,6 +1,6 @@
 #!/bin/bash
 # =====================================================
-# Forex Trading Bot - First Time Setup (Raspberry Pi)
+# Forex Trading Bot - First Time Setup (Mac Mini)
 # Run this ONCE to set up the forex bot alongside crypto bot
 # =====================================================
 
@@ -11,7 +11,7 @@ APP_NAME="forex-backend"
 PROJECT_DIR="/opt/forex-trading-bot"
 PROJECT_USER=$(whoami)
 REPO_URL="git@github.com:adamSellers/forex-trading-bot.git"
-BRANCH="main"
+BRANCH="mac-mini"
 
 # --- Colors ---
 GREEN='\033[0;32m'
@@ -33,7 +33,7 @@ echo ""
 
 # --- Validation ---
 if [[ $EUID -eq 0 ]]; then
-    log_error "Don't run as root. Use your normal user (adam)."
+    log_error "Don't run as root. Use your normal user account."
 fi
 
 if [ -d "$PROJECT_DIR" ]; then
@@ -65,15 +65,13 @@ if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     log_step "Installing frontend dependencies..."
     cd frontend
     npm install
-    # ARM64 Rollup fix for Raspberry Pi
-    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
     cd ..
 fi
 log_success "Dependencies installed"
 
 # --- 3. Build Frontend ---
 if [ -d "frontend" ]; then
-    log_step "Building frontend (this may take a few minutes on Pi)..."
+    log_step "Building frontend (this may take a few minutes on Mac Mini)..."
     cd frontend
     NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
     cd ..
@@ -148,8 +146,8 @@ echo "  pm2 logs crypto-backend       - View crypto logs"
 echo "  pm2 restart forex-backend     - Restart forex bot"
 echo ""
 echo "Dashboard:"
-echo "  http://<pi-ip>:3101           - Forex Bot"
-echo "  http://<pi-ip>:3001           - Crypto Bot"
+echo "  http://localhost:3101        - Forex Bot (or http://<mac-mini-ip>:3101)"
+echo "  http://localhost:3001        - Crypto Bot (or http://<mac-mini-ip>:3001)"
 echo ""
 echo "Next Steps:"
 echo "  1. Open dashboard and verify connection"

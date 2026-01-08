@@ -28,15 +28,15 @@ module.exports = {
                 // Security
                 CORS_ORIGIN: "http://localhost:3100,http://localhost:3101",
 
-                // Performance for Pi (shared resources with crypto bot)
-                UV_THREADPOOL_SIZE: "2",
-                NODE_OPTIONS: "--max-old-space-size=384",
+                // Performance for Mac Mini
+                UV_THREADPOOL_SIZE: "4",
+                NODE_OPTIONS: "--max-old-space-size=2048",
             },
 
             // Process Management
             autorestart: true,
             watch: false,
-            max_memory_restart: "350M", // Slightly lower than crypto to leave room
+            max_memory_restart: "512M", // Mac Mini has more memory available
             restart_delay: 5000,
             max_restarts: 10,
             min_uptime: "10s",
