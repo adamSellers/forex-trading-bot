@@ -1,5 +1,5 @@
 // ecosystem.config.js - PM2 Configuration for Forex Trading Bot
-// Raspberry Pi 5 8GB deployment alongside crypto bot
+// Mac Mini deployment
 // =============================================================================
 // DB_PATH is set here and used by both database.js and knexfile.js
 // =============================================================================

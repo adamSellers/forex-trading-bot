@@ -56,7 +56,7 @@ git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 log_success "Repository cloned"
 
-# --- 3. Install Dependencies ---
+# --- 2. Install Dependencies ---
 log_step "Installing backend dependencies..."
 cd backend
 npm install --omit=dev
@@ -96,7 +96,7 @@ log_success "Database initialized"
 # --- 5. Setup Secrets ---
 log_step "Setting up encrypted secrets..."
 chmod +x scripts/*.sh
-./scripts/setup-secrets.sh < /dev/tty
+./scripts/setup-secrets.sh
 
 # --- 6. Register with PM2 ---
 log_step "Registering with PM2..."
@@ -138,11 +138,12 @@ log_success "🎉 FOREX BOT SETUP COMPLETE!"
 echo ""
 echo "Services:"
 echo "  Backend:  http://localhost:3101"
-echo "  Frontend: http://fx.oakroad"
+echo "  Frontend: http://localhost:3100 (or served by backend)"
 echo ""
 echo "Quick Commands:"
 echo "  pm2 status                    - Check both bots"
 echo "  pm2 logs forex-backend        - View forex logs"
+echo "  pm2 logs crypto-backend       - View crypto logs"
 echo "  pm2 restart forex-backend     - Restart forex bot"
 echo ""
 echo "Dashboard:"

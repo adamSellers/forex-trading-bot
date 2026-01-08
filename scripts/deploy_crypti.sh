@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # ===================================================
-# scripts/deploy.sh - Fixed for ARM64 Dependencies
+# scripts/deploy_crypti.sh - Crypto Trading Bot Deployment
+# Mac Mini deployment
 # ===================================================
 
 set -e
@@ -23,7 +24,11 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 
-echo "🚀 Starting local deployment on Raspberry Pi..."
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "       🚀 CRYPTO TRADING BOT DEPLOYMENT (Mac Mini)"
+echo "═══════════════════════════════════════════════════════════"
+echo ""
 
 # Validation
 if [ ! -f "package.json" ]; then
@@ -31,8 +36,9 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
-if [ "$(whoami)" != "adam" ]; then
-    log_error "Please run as user 'adam'"
+# Prevent running as root
+if [ "$(whoami)" = "root" ]; then
+    log_error "Don't run as root. Use your normal user account."
     exit 1
 fi
 
@@ -59,28 +65,35 @@ log_info "Updating dependencies..."
 log_info "Backend: Installing production dependencies..."
 npm run install:backend -- --omit=dev
 
-# Frontend: MUST install ALL dependencies (Dev + Optional) for build tools (Vite/Esbuild) to work
-log_info "Frontend: Installing build dependencies (ARM64 binaries)..."
+# Frontend: Install all dependencies for build tools (Vite/Esbuild)
+log_info "Frontend: Installing build dependencies..."
 npm run install:frontend
 
 # 4. Build Frontend
 log_info "Building frontend..."
-# Explicitly install the Linux ARM64 Rollup binary to prevent Vite hangs
 cd frontend
-npm install @rollup/rollup-linux-arm64-gnu --no-save
+# Skip ARM64 Rollup on macOS (uses native binaries)
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    log_info "Installing ARM64 Rollup binary for Linux..."
+    npm install @rollup/rollup-linux-arm64-gnu --no-save
+fi
 cd ..
 
-# Run build with memory constraints and NO source maps
-NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build:frontend
+# Run build with memory constraints
+NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build:frontend
 
 if [ ! -d "frontend/dist" ]; then
     log_error "Frontend build failed."
     exit 1
 fi
 
-# 5. Reload Nginx
-log_info "Reloading Nginx..."
-sudo systemctl reload nginx
+# 5. Reload Nginx (if on Linux)
+if [[ "$OSTYPE" != "darwin"* ]]; then
+    log_info "Reloading Nginx..."
+    sudo systemctl reload nginx || log_warn "Nginx reload failed or not installed"
+else
+    log_info "Skipping Nginx reload (macOS - use nginx directly if configured)"
+fi
 
 # 6. Migrations
 log_info "Running database migrations..."
