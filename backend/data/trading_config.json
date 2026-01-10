@@ -44,6 +44,7 @@
     ],
     "enableEmailAlerts": false,
     "alertEmail": "",
+    "enableSlackAlerts": true,
     "maxLeverage": 30,
     "enableTakeProfit": false,
     "takeProfitPips": 60,

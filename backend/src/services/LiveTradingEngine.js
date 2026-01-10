@@ -5,6 +5,7 @@ const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
 const slackService = require("./slackService");
 const emailService = require("./emailService");
+const slackService = require("./slackService");
 
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator
@@ -1106,9 +1107,14 @@ class LiveTradingEngine extends EventEmitter {
 
         this.emit("tradeOpened", trade);
 
-        // Send email alert (async, non-blocking)
+        // Send notifications (async, non-blocking)
         const config = this.configService?.get();
-        emailService.sendTradeOpenedAlert(trade, config).catch(() => {});
+        if (config?.enableEmailAlerts) {
+            emailService.sendTradeOpenedAlert(trade, config).catch(() => {});
+        }
+        if (config?.enableSlackAlerts !== false) {
+            slackService.sendTradeAlert(trade, "opened").catch(() => {});
+        }
     }
 
     /**
@@ -1134,9 +1140,14 @@ class LiveTradingEngine extends EventEmitter {
 
         this.emit("tradeClosed", trade);
 
-        // Send email alert (async, non-blocking)
+        // Send notifications (async, non-blocking)
         const config = this.configService?.get();
-        emailService.sendTradeClosedAlert(trade, config).catch(() => {});
+        if (config?.enableEmailAlerts) {
+            emailService.sendTradeClosedAlert(trade, config).catch(() => {});
+        }
+        if (config?.enableSlackAlerts !== false) {
+            slackService.sendTradeAlert(trade, "closed").catch(() => {});
+        }
     }
 
     // ==================== PUBLIC METHODS ====================
