@@ -86,7 +86,9 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] P/L tracking fix (uses Oanda's realizedPL for accuracy)
 -   [x] Balance-based Take Profit feature (6% target, 1:3 risk:reward)
 -   [x] Database backup improvements (backup before deploy)
--   [ ] Email notifications for trades
+-   [x] Automated daily backups via cron
+-   [x] Email notifications for trades (open/close alerts)
+-   [x] Stop loss tuning (ATR 2.0x, 12 pip minimum floor)
 -   [ ] Extended monitoring period
 
 ### Phase 4: Backtesting (Planned)
@@ -277,6 +279,12 @@ curl -X POST http://localhost:3101/api/config \
 | POST   | `/api/config`       | Update config      |
 | POST   | `/api/config/reset` | Reset to defaults  |
 
+### Notifications
+
+| Method | Endpoint          | Description              |
+| ------ | ----------------- | ------------------------ |
+| POST   | `/api/email/test` | Send test email alert    |
+
 ### Analytics
 
 | Method | Endpoint                              | Description         |
@@ -456,6 +464,8 @@ Before executing a trade, the engine validates:
 | **Trailing Stops**              | Lock in profits automatically                  |
 | **Graceful Shutdown**           | Clean stop with 5s timeout                     |
 | **Oanda Sync**                  | Detects externally closed positions            |
+| **Email Alerts**                | Get notified when trades open/close            |
+| **Automated Backups**           | Daily database backups via cron                |
 | **Negative Balance Protection** | ASIC-mandated, can't lose more than deposit    |
 
 ### Emergency Stop
