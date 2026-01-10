@@ -490,11 +490,20 @@ class LiveTradingEngine extends EventEmitter {
 
         if (config.stopLossType === "ATR" && atrPips) {
             // ATR-based stop loss
-            const multiplier = config.stopLossAtrMultiplier || 1.5;
+            const multiplier = config.stopLossAtrMultiplier || 2.0;
             stopLossPips = atrPips * multiplier;
         } else {
             // Fixed pip stop loss
             stopLossPips = config.stopLossPips || 30;
+        }
+
+        // Enforce minimum stop loss distance to prevent tight stops in low volatility
+        const minStopPips = config.minStopLossPips || 12;
+        if (stopLossPips < minStopPips) {
+            logger.info(
+                `📏 Stop loss adjusted: ${stopLossPips.toFixed(1)} pips -> ${minStopPips} pips (minimum floor)`
+            );
+            stopLossPips = minStopPips;
         }
 
         // For BUY trades, stop loss is below entry

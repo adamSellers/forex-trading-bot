@@ -148,12 +148,12 @@ const RiskSettings = ({ config, updateConfig }) => {
           
           {config.stopLossType === 'FIXED' ? (
             <Grid item xs={12} md={6}>
-              <TextField 
-                fullWidth 
-                label="Stop Loss Distance" 
-                type="number" 
-                value={config.stopLossPips || 30} 
-                onChange={(e) => updateConfig('stopLossPips', parseInt(e.target.value))} 
+              <TextField
+                fullWidth
+                label="Stop Loss Distance"
+                type="number"
+                value={config.stopLossPips || 30}
+                onChange={(e) => updateConfig('stopLossPips', parseInt(e.target.value))}
                 InputProps={{ endAdornment: <InputAdornment position="end">pips</InputAdornment> }}
                 helperText="Typical range: 20-50 pips for majors"
               />
@@ -162,19 +162,31 @@ const RiskSettings = ({ config, updateConfig }) => {
             <Grid item xs={12} md={6}>
               <Typography gutterBottom variant="subtitle2" color="text.secondary">ATR MULTIPLIER</Typography>
               <Stack direction="row" spacing={2} alignItems="center">
-                <Slider 
-                  value={config.stopLossAtrMultiplier || 1.5} 
-                  min={1.0} max={3.0} step={0.1}
-                  onChange={(_, v) => updateConfig('stopLossAtrMultiplier', v)} 
-                  sx={{ flexGrow: 1 }} 
+                <Slider
+                  value={config.stopLossAtrMultiplier || 2.0}
+                  min={1.0} max={4.0} step={0.1}
+                  onChange={(_, v) => updateConfig('stopLossAtrMultiplier', v)}
+                  sx={{ flexGrow: 1 }}
                 />
-                <Chip label={`${(config.stopLossAtrMultiplier || 1.5).toFixed(1)}x ATR`} size="small" />
+                <Chip label={`${(config.stopLossAtrMultiplier || 2.0).toFixed(1)}x ATR`} size="small" />
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                Stop = Entry ± (ATR × Multiplier). 1.5x is standard.
+                Stop = Entry ± (ATR × Multiplier). 2.0x recommended for forex.
               </Typography>
             </Grid>
           )}
+
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Minimum Stop Distance"
+              type="number"
+              value={config.minStopLossPips || 12}
+              onChange={(e) => updateConfig('minStopLossPips', parseInt(e.target.value))}
+              InputProps={{ endAdornment: <InputAdornment position="end">pips</InputAdornment> }}
+              helperText="Floor to prevent tight stops in low volatility"
+            />
+          </Grid>
         </Grid>
       </GlassCard>
 

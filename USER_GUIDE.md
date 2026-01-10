@@ -14,10 +14,11 @@ A practical guide for understanding and configuring your forex trading bot, writ
 6. [Risk Management Settings](#risk-management-settings)
 7. [Position Sizing](#position-sizing)
 8. [Stop Loss Configuration](#stop-loss-configuration)
-9. [Engine Activation](#engine-activation)
-10. [Monitoring & Commands](#monitoring--commands)
-11. [Safety Features](#safety-features)
-12. [Troubleshooting](#troubleshooting)
+9. [Take Profit (Balance-Based)](#take-profit-balance-based)
+10. [Engine Activation](#engine-activation)
+11. [Monitoring & Commands](#monitoring--commands)
+12. [Safety Features](#safety-features)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -140,7 +141,8 @@ USD_JPY: 150.25
 | `stopLossPips`               | 30    | Backup fixed stop loss distance       |
 | `trailingStopPips`           | 25    | Trail this far behind price           |
 | `trailingStopActivationPips` | 20    | Start trailing after this much profit |
-| `takeProfitPips`             | 60    | Take profit distance (if enabled)     |
+
+**Note:** Take profit now uses balance-based targeting (`takeProfitPercent: 0.06`) instead of fixed pips. See [Take Profit section](#take-profit-balance-based) for details.
 
 ---
 
@@ -490,14 +492,49 @@ Price falls to 0.6725 → Stop triggered
 Result: +25 pips profit instead of +50, but locked in gains
 ```
 
-### Take Profit (Optional)
+---
+
+## Take Profit (Balance-Based)
 
 ```javascript
-enableTakeProfit: false,
-takeProfitPips: 60
+enableTakeProfit: true,
+takeProfitPercent: 0.06  // 6% of account balance
 ```
 
-When enabled, automatically closes trade at target profit. Generally not recommended for trend-following strategies since you want to let winners run.
+The take profit feature uses a **balance-based approach** rather than fixed pips. This creates a consistent 1:3 risk:reward ratio with your 2% risk per trade.
+
+**How it works:**
+
+```
+Target Profit = Account Balance × takeProfitPercent
+TP Price = Entry Price + (Target Profit / Units)
+
+Example (on $100 account with 850 units EUR_USD):
+Target = $100 × 0.06 = $6.00
+Price Change = $6.00 / 850 = 0.00706
+TP Price = 1.1050 + 0.00706 = 1.1121 (~70 pips above entry)
+```
+
+**Risk:Reward calculation:**
+- Risk: 2% of balance (~$2 on $100 account)
+- Reward: 6% of balance (~$6 on $100 account)
+- **R:R = 1:3** (only need 25% win rate to break even)
+
+**Key behaviors:**
+- TP order is set on Oanda at entry time (server-side execution, no lag)
+- Scales automatically with account balance (larger account = larger TP target)
+- Can be adjusted from 2% to 15% via UI slider
+- Coexists with signal reversal exits (whichever comes first)
+
+| Setting | Range | Description |
+|---------|-------|-------------|
+| `enableTakeProfit` | true/false | Enable/disable the feature |
+| `takeProfitPercent` | 0.02-0.15 | Target as percentage of balance |
+
+**Why balance-based instead of fixed pips?**
+- Adapts to your account size automatically
+- Maintains consistent risk:reward ratio
+- Prevents the issue of trades reaching large unrealized profits but exiting small due to lagging signal reversals
 
 ---
 
@@ -646,6 +683,7 @@ The bot includes multiple safety layers:
 | Session filter              | Avoid low-liquidity periods                    |
 | ADX filter                  | Avoid choppy markets                           |
 | RSI filter                  | Avoid buying tops                              |
+| Take profit                 | Balance-based TP (6% target, 1:3 risk:reward)  |
 | Graceful shutdown           | Clean stop with timeout                        |
 | Oanda sync                  | Detects externally closed positions            |
 | Negative Balance Protection | ASIC requirement, can't lose more than deposit |
@@ -719,6 +757,9 @@ Check in order:
 | **Trailing**  | Enabled             | Yes            |
 | **Trailing**  | Activation          | 20 pips profit |
 | **Trailing**  | Distance            | 25 pips        |
+| **Take Profit** | Enabled           | Yes            |
+| **Take Profit** | Target            | 6% of balance  |
+| **Take Profit** | Risk:Reward       | 1:3            |
 | **Sessions**  | Filter Enabled      | Yes            |
 | **Sessions**  | Active              | All four       |
 
