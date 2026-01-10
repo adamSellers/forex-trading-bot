@@ -37,6 +37,13 @@ module.exports = {
                 // OANDA_ACCOUNT_ID: injected
                 // OANDA_ENVIRONMENT: injected
 
+                // AWS S3 Analytics (credentials injected by start-wrapper.sh)
+                ENABLE_S3_ANALYTICS: "true",
+                // AWS_REGION: injected
+                // AWS_ACCESS_KEY_ID: injected
+                // AWS_SECRET_ACCESS_KEY: injected
+                // S3_BUCKET_NAME: injected
+
                 // Security
                 CORS_ORIGIN: "http://localhost:3100,http://localhost:3101",
 

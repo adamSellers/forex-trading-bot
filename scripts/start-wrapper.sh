@@ -23,6 +23,12 @@ EMAIL_USER_FILE="$SECRETS_DIR/email_user.enc"
 EMAIL_PASS_FILE="$SECRETS_DIR/email_pass.enc"
 EMAIL_TO_FILE="$SECRETS_DIR/email_to.enc"
 
+# AWS S3 Credentials (Optional)
+AWS_REGION_FILE="$SECRETS_DIR/aws_region.enc"
+AWS_ACCESS_KEY_ID_FILE="$SECRETS_DIR/aws_access_key_id.enc"
+AWS_SECRET_ACCESS_KEY_FILE="$SECRETS_DIR/aws_secret_access_key.enc"
+S3_BUCKET_NAME_FILE="$SECRETS_DIR/s3_bucket_name.enc"
+
 # --- Decrypt and Export ---
 if [ -f "$ENCRYPTION_KEY_FILE" ]; then
     ENCRYPTION_KEY=$(cat "$ENCRYPTION_KEY_FILE")
@@ -46,10 +52,18 @@ if [ -f "$ENCRYPTION_KEY_FILE" ]; then
     if [ -f "$EMAIL_USER_FILE" ]; then
         export EMAIL_USER=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_USER_FILE" 2>/dev/null)
         export EMAIL_PASS=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_PASS_FILE" 2>/dev/null)
-        
+
         if [ -f "$EMAIL_TO_FILE" ]; then
             export EMAIL_TO=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_TO_FILE" 2>/dev/null)
         fi
+    fi
+
+    # 3. Decrypt AWS S3 Credentials (Optional)
+    if [ -f "$AWS_ACCESS_KEY_ID_FILE" ]; then
+        export AWS_REGION=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_REGION_FILE" 2>/dev/null)
+        export AWS_ACCESS_KEY_ID=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_ACCESS_KEY_ID_FILE" 2>/dev/null)
+        export AWS_SECRET_ACCESS_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_SECRET_ACCESS_KEY_FILE" 2>/dev/null)
+        export S3_BUCKET_NAME=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$S3_BUCKET_NAME_FILE" 2>/dev/null)
     fi
 
     echo "✅ Secrets decrypted and loaded into environment." >&2
