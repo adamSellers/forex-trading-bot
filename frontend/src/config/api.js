@@ -62,6 +62,9 @@ export const API_ENDPOINTS = {
     engineStart: "/api/engine/start",
     engineStop: "/api/engine/stop",
 
+    // emailRoutes.js
+    emailTest: "/api/email/test",
+
     // analyticsRoutes.js
     analytics: "/api/analytics",
     analyticsSummary: "/api/analytics/summary",
@@ -252,6 +255,17 @@ export const analyticsAPI = {
 };
 
 /**
+ * Email API - Notifications
+ */
+export const emailAPI = {
+    sendTest: (email) =>
+        apiCall(API_ENDPOINTS.emailTest, {
+            method: "POST",
+            body: JSON.stringify({ email }),
+        }),
+};
+
+/**
  * System API - Health & monitoring
  */
 export const systemAPI = {
@@ -280,5 +294,6 @@ export default {
     configAPI,
     engineAPI,
     analyticsAPI,
+    emailAPI,
     systemAPI,
 };
