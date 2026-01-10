@@ -178,6 +178,73 @@ const RiskSettings = ({ config, updateConfig }) => {
         </Grid>
       </GlassCard>
 
+      {/* Take Profit */}
+      <GlassCard>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <Box display="flex" alignItems="center" gap={2}>
+            <SectionHeader
+              icon={<Security />}
+              title="Take Profit"
+              subtitle="Lock in gains automatically"
+            />
+          </Box>
+          <Box display="flex" alignItems="center" gap={1}>
+            <Chip
+              label={config.enableTakeProfit ? 'ENABLED' : 'DISABLED'}
+              size="small"
+              color={config.enableTakeProfit ? 'success' : 'default'}
+            />
+            <Switch
+              checked={config.enableTakeProfit || false}
+              onChange={(e) => updateConfig('enableTakeProfit', e.target.checked)}
+            />
+          </Box>
+        </Box>
+
+        <Collapse in={config.enableTakeProfit}>
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={6}>
+              <Typography gutterBottom variant="subtitle2" color="text.secondary">
+                TAKE PROFIT TARGET (% OF ACCOUNT)
+              </Typography>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Slider
+                  value={(config.takeProfitPercent || 0.06) * 100}
+                  min={2} max={15} step={1}
+                  onChange={(_, v) => updateConfig('takeProfitPercent', v / 100)}
+                  sx={{ flexGrow: 1 }}
+                />
+                <Chip
+                  label={`${((config.takeProfitPercent || 0.06) * 100).toFixed(0)}%`}
+                  color="success"
+                  sx={{ minWidth: 60 }}
+                />
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                Close position when profit reaches this % of account balance
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  EXAMPLE (on $100 account)
+                </Typography>
+                <Typography variant="body2" fontWeight="bold">
+                  Target: ${(100 * (config.takeProfitPercent || 0.06)).toFixed(2)} profit per trade
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  With 2% risk ($2) = {((config.takeProfitPercent || 0.06) / 0.02).toFixed(1)}:1 reward-to-risk ratio
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </Collapse>
+      </GlassCard>
+
       {/* Trailing Stop */}
       <GlassCard>
         <Box 

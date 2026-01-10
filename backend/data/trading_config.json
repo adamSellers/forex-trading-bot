@@ -42,7 +42,7 @@
     "enableEmailAlerts": false,
     "alertEmail": "",
     "maxLeverage": 30,
-    "enableTakeProfit": false,
-    "takeProfitPips": 60,
+    "enableTakeProfit": true,
+    "takeProfitPercent": 0.06,
     "tradingMode": "live"
 }
