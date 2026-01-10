@@ -16,10 +16,11 @@ A practical guide for understanding and configuring your forex trading bot, writ
 8. [Stop Loss Configuration](#stop-loss-configuration)
 9. [Take Profit (Balance-Based)](#take-profit-balance-based)
 10. [Email Notifications](#email-notifications)
-11. [Engine Activation](#engine-activation)
-12. [Monitoring & Commands](#monitoring--commands)
-13. [Safety Features](#safety-features)
-14. [Troubleshooting](#troubleshooting)
+11. [S3 Analytics Reports](#s3-analytics-reports)
+12. [Engine Activation](#engine-activation)
+13. [Monitoring & Commands](#monitoring--commands)
+14. [Safety Features](#safety-features)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -602,6 +603,75 @@ alertEmail: "you@example.com" // Recipient address
 
 ---
 
+## S3 Analytics Reports
+
+Automated upload of performance analytics to AWS S3 for historical tracking and external analysis.
+
+### What Gets Uploaded
+
+The scheduler automatically uploads:
+- **Daily reports** - At midnight UTC (comprehensive 24h analytics)
+- **Weekly reports** - On Sundays (7-day performance summary)
+
+Reports include: summary stats, pair performance, session analysis, equity curve, ADX correlation, and trade breakdown.
+
+### Dashboard Access
+
+Go to **Settings → Notifications** to see:
+- Scheduler status (Running/Stopped)
+- Connected S3 bucket name
+- Last Daily/Weekly upload timestamps
+- Manual upload button with period selector
+
+### Manual Uploads
+
+You can trigger manual uploads anytime via the dashboard:
+1. Go to Settings → Notifications
+2. Select period (24h, 7d, or 30d)
+3. Click "Upload Now"
+
+### S3 Bucket Structure
+
+```
+forex-bot-log-stash/
+├── daily/
+│   └── 2026-01-10/
+│       └── analytics.json
+├── weekly/
+│   └── 2026/
+│       └── week-02/
+│           └── analytics.json
+└── manual/
+    └── 2026-01-10T05-27-21-599Z/
+        └── analytics-24h.json
+```
+
+### API Commands
+
+```bash
+# Check scheduler status
+curl http://localhost:3101/api/reports/status
+
+# Manual upload
+curl -X POST http://localhost:3101/api/reports/upload \
+  -H "Content-Type: application/json" \
+  -d '{"period": "7d"}'
+```
+
+### Configuration
+
+Set via environment variables (through `setup-secrets.sh`):
+
+| Variable | Description |
+|----------|-------------|
+| `ENABLE_S3_ANALYTICS` | Set to `true` to enable |
+| `S3_BUCKET_NAME` | Your S3 bucket name |
+| `AWS_REGION` | AWS region (e.g., `ap-southeast-2`) |
+| `AWS_ACCESS_KEY_ID` | AWS access key |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key |
+
+---
+
 ## Engine Activation
 
 ### Pre-Flight Checklist
@@ -749,6 +819,7 @@ The bot includes multiple safety layers:
 | RSI filter                  | Avoid buying tops                              |
 | Take profit                 | Balance-based TP (6% target, 1:3 risk:reward)  |
 | Email alerts                | Get notified when trades open/close            |
+| S3 analytics reports        | Daily/weekly performance uploads to AWS S3     |
 | Graceful shutdown           | Clean stop with timeout                        |
 | Oanda sync                  | Detects externally closed positions            |
 | Negative Balance Protection | ASIC requirement, can't lose more than deposit |
@@ -887,4 +958,4 @@ curl http://localhost:3101/api/signals
 
 ---
 
-_Last updated: January 10, 2026_
+_Last updated: January 11, 2026_
