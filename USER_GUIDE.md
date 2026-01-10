@@ -15,10 +15,11 @@ A practical guide for understanding and configuring your forex trading bot, writ
 7. [Position Sizing](#position-sizing)
 8. [Stop Loss Configuration](#stop-loss-configuration)
 9. [Take Profit (Balance-Based)](#take-profit-balance-based)
-10. [Engine Activation](#engine-activation)
-11. [Monitoring & Commands](#monitoring--commands)
-12. [Safety Features](#safety-features)
-13. [Troubleshooting](#troubleshooting)
+10. [Email Notifications](#email-notifications)
+11. [Engine Activation](#engine-activation)
+12. [Monitoring & Commands](#monitoring--commands)
+13. [Safety Features](#safety-features)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -538,6 +539,69 @@ TP Price = 1.1050 + 0.00706 = 1.1121 (~70 pips above entry)
 
 ---
 
+## Email Notifications
+
+Get notified on your phone/email when trades open and close.
+
+### Setup
+
+1. **Configure Gmail App Password** (one-time setup on Pi):
+   - Go to https://myaccount.google.com/apppasswords
+   - Generate an App Password for "Mail"
+   - Run `setup-secrets.sh` on the Pi and enter credentials when prompted
+
+2. **Enable in Dashboard**:
+   - Go to Settings → Notifications
+   - Toggle "Email Alerts" ON
+   - Enter your email address
+   - Click "Send Test" to verify it works
+
+### Alert Types
+
+| Event | What You Receive |
+|-------|------------------|
+| Trade Opened | Pair, entry price, stop loss, take profit, units |
+| Trade Closed (win) | P/L in AUD and pips, exit reason, hold time |
+| Trade Closed (loss) | P/L in AUD and pips, exit reason, hold time |
+
+### Example Alerts
+
+**Trade Opened:**
+```
+Subject: OPENED: EUR_USD @ 1.09234
+
+Pair: EUR_USD
+Direction: BUY
+Units: 855
+Entry Price: 1.09234
+Stop Loss: 1.09134
+Take Profit: 1.09887 ($5.55)
+Signal: FRESH_FLIP
+Strength: 78%
+```
+
+**Trade Closed:**
+```
+Subject: CLOSED: EUR_USD +$5.50 AUD
+
+Pair: EUR_USD
+Entry: 1.09234
+Exit: 1.09887
+Units: 855
+P/L: +$5.50 AUD (+65.3 pips)
+Exit Reason: TAKE_PROFIT
+Hold Time: 4h 23m
+```
+
+### Configuration
+
+```javascript
+enableEmailAlerts: true,     // Enable/disable alerts
+alertEmail: "you@example.com" // Recipient address
+```
+
+---
+
 ## Engine Activation
 
 ### Pre-Flight Checklist
@@ -684,6 +748,7 @@ The bot includes multiple safety layers:
 | ADX filter                  | Avoid choppy markets                           |
 | RSI filter                  | Avoid buying tops                              |
 | Take profit                 | Balance-based TP (6% target, 1:3 risk:reward)  |
+| Email alerts                | Get notified when trades open/close            |
 | Graceful shutdown           | Clean stop with timeout                        |
 | Oanda sync                  | Detects externally closed positions            |
 | Negative Balance Protection | ASIC requirement, can't lose more than deposit |
@@ -822,4 +887,4 @@ curl http://localhost:3101/api/signals
 
 ---
 
-_Last updated: January 2026_
+_Last updated: January 10, 2026_
