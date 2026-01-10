@@ -209,7 +209,18 @@ class LiveTradingEngine extends EventEmitter {
             );
             const exitReason = this.determineExitReason(tradeDetails);
 
-            await this.closeTrade(trade.id, exitPrice, exitReason);
+            // Extract Oanda's actual P/L (includes spreads, conversion, etc.)
+            const oandaRealizedPL = tradeDetails.trade?.realizedPL
+                ? parseFloat(tradeDetails.trade.realizedPL)
+                : null;
+            const oandaFinancing = tradeDetails.trade?.financing
+                ? parseFloat(tradeDetails.trade.financing)
+                : 0;
+
+            await this.closeTrade(trade.id, exitPrice, exitReason, {
+                oandaRealizedPL,
+                oandaFinancing,
+            });
         } catch (error) {
             // Trade might not exist anymore, mark as closed with unknown reason
             logger.warn(
@@ -745,6 +756,8 @@ class LiveTradingEngine extends EventEmitter {
             `🎯 Executing exit for ${trade.instrument} at ${exitPrice} (${reason})`
         );
 
+        let oandaData = {};
+
         if (
             mode === "live" &&
             trade.oandaTradeId &&
@@ -752,7 +765,25 @@ class LiveTradingEngine extends EventEmitter {
         ) {
             // Live trading - close via Oanda
             try {
-                await oandaClient.closeTrade(trade.oandaTradeId);
+                const closeResult = await oandaClient.closeTrade(
+                    trade.oandaTradeId
+                );
+
+                // Extract actual P/L from Oanda's response
+                const orderFill = closeResult.orderFillTransaction;
+                if (orderFill) {
+                    oandaData.oandaRealizedPL = orderFill.pl
+                        ? parseFloat(orderFill.pl)
+                        : null;
+                    oandaData.oandaFinancing = orderFill.financing
+                        ? parseFloat(orderFill.financing)
+                        : 0;
+
+                    // Use Oanda's actual exit price if available
+                    if (orderFill.price) {
+                        exitPrice = parseFloat(orderFill.price);
+                    }
+                }
             } catch (error) {
                 // Trade might already be closed
                 logger.warn(
@@ -762,25 +793,42 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // Close in our system
-        await this.closeTrade(trade.id, exitPrice, reason);
+        await this.closeTrade(trade.id, exitPrice, reason, oandaData);
     }
 
     /**
      * Close a trade and update database
+     * @param {string} tradeId - Internal trade ID
+     * @param {number} exitPrice - Exit price
+     * @param {string} exitReason - Reason for exit
+     * @param {object} oandaData - Optional Oanda P/L data
+     * @param {number} oandaData.oandaRealizedPL - Oanda's realized P/L (source of truth)
+     * @param {number} oandaData.oandaFinancing - Overnight financing charges
      */
-    async closeTrade(tradeId, exitPrice, exitReason) {
+    async closeTrade(tradeId, exitPrice, exitReason, oandaData = {}) {
         const trade = this.openTrades.get(tradeId);
         if (!trade) {
             logger.warn(`⚠️ Trade ${tradeId} not found in open trades`);
             return;
         }
 
-        // Calculate P/L
+        // Calculate P/L - use Oanda's realizedPL if available (includes all costs)
         const pipValue = oandaClient.getPipValue(trade.instrument);
         const priceChange = exitPrice - trade.entryPrice;
         const pnlPips = priceChange / pipValue;
-        const pnlAud = trade.units * priceChange;
-        const pnlPercent = (priceChange / trade.entryPrice) * 100;
+
+        // Use Oanda's realizedPL as source of truth when available
+        // This includes spreads, currency conversion, and all fees
+        const pnlAud =
+            oandaData.oandaRealizedPL !== null &&
+            oandaData.oandaRealizedPL !== undefined
+                ? oandaData.oandaRealizedPL
+                : trade.units * priceChange; // Fallback to simple calc for paper trades
+
+        const pnlPercent = (pnlAud / trade.entryCostAud) * 100;
+
+        // Extract financing (swap) charges
+        const swapAud = oandaData.oandaFinancing || 0;
 
         // Calculate holding period
         const holdingPeriodMs = Date.now() - trade.entryTime;
@@ -794,6 +842,7 @@ class LiveTradingEngine extends EventEmitter {
             pnlAud,
             pnlPips,
             pnlPercent,
+            swapAud,
             holdingPeriodMs,
             isOpen: false,
         };
@@ -807,6 +856,7 @@ class LiveTradingEngine extends EventEmitter {
             pnlAud,
             pnlPips,
             pnlPercent,
+            swapAud,
             holdingPeriodMs,
             isOpen: false,
         });
@@ -824,12 +874,13 @@ class LiveTradingEngine extends EventEmitter {
         await slackService.sendTradeAlert(closedTrade, "closed");
 
         const profitEmoji = pnlAud >= 0 ? "💰" : "📉";
+        const swapNote = swapAud !== 0 ? ` | Swap: ${swapAud.toFixed(2)}` : "";
         logger.info(
             `${profitEmoji} Trade closed: ${
                 trade.instrument
             } | P/L: ${pnlAud.toFixed(2)} AUD (${pnlPips.toFixed(
                 1
-            )} pips) | Reason: ${exitReason}`
+            )} pips)${swapNote} | Reason: ${exitReason}`
         );
 
         return closedTrade;

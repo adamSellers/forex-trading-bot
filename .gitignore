@@ -136,3 +136,6 @@ backend/backtest_lab/data
 backend/backtest_lab/downloads
 
 changes.md
+
+# trading log data
+trades_week*
