@@ -93,7 +93,8 @@ export const DEFAULT_CONFIG = {
   // Stop Loss
   stopLossType: 'ATR',
   stopLossPips: 30,
-  stopLossAtrMultiplier: 1.5,
+  stopLossAtrMultiplier: 2.0,
+  minStopLossPips: 12,
   
   // Take Profit (% of account balance)
   enableTakeProfit: true,
