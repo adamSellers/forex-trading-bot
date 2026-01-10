@@ -26,6 +26,12 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   **Max Position Limits**: Cap on concurrent open trades
 -   **Negative Balance Protection**: ASIC-mandated retail client protection
 
+### Notifications & Reporting
+
+-   **Email Alerts**: Trade open/close notifications via Gmail
+-   **S3 Analytics Reports**: Automated daily/weekly uploads to AWS S3
+-   **Automated Backups**: Daily database backups via cron
+
 ### Dashboard
 
 -   **Real-time Prices**: WebSocket-based live price updates every 5 seconds
@@ -89,6 +95,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] Automated daily backups via cron
 -   [x] Email notifications for trades (open/close alerts)
 -   [x] Stop loss tuning (ATR 2.0x, 12 pip minimum floor)
+-   [x] S3 analytics reports (daily/weekly auto-upload)
 -   [ ] Extended monitoring period
 
 ### Phase 4: Backtesting (Planned)
@@ -285,6 +292,15 @@ curl -X POST http://localhost:3101/api/config \
 | ------ | ----------------- | ------------------------ |
 | POST   | `/api/email/test` | Send test email alert    |
 
+### S3 Reports
+
+| Method | Endpoint                    | Description                   |
+| ------ | --------------------------- | ----------------------------- |
+| GET    | `/api/reports/status`       | S3 scheduler status           |
+| POST   | `/api/reports/upload`       | Manual upload (body: period)  |
+| POST   | `/api/reports/upload/daily` | Trigger daily report upload   |
+| POST   | `/api/reports/upload/weekly`| Trigger weekly report upload  |
+
 ### Analytics
 
 | Method | Endpoint                              | Description         |
@@ -465,6 +481,7 @@ Before executing a trade, the engine validates:
 | **Graceful Shutdown**           | Clean stop with 5s timeout                     |
 | **Oanda Sync**                  | Detects externally closed positions            |
 | **Email Alerts**                | Get notified when trades open/close            |
+| **S3 Analytics Reports**        | Daily/weekly performance uploads to AWS S3     |
 | **Automated Backups**           | Daily database backups via cron                |
 | **Negative Balance Protection** | ASIC-mandated, can't lose more than deposit    |
 
