@@ -8,7 +8,7 @@ set -e
 
 # --- Configuration ---
 PROJECT_DIR="/opt/forex-trading-bot"
-BACKUP_DIR="$HOME/forex-trading-bot-backups"
+BACKUP_DIR="$HOME/forex-backups"
 APP_NAME="forex-backend"
 
 # Colors
@@ -46,28 +46,28 @@ if [ ! -f ".secrets/oanda_api_key.enc" ]; then
     log_warn "Oanda API key not configured. Run: ./scripts/setup-secrets.sh"
 fi
 
-# 0. Update code from git
-log_info "Fetching latest changes from git..."
-git fetch origin mac-mini
-git reset --hard origin/mac-mini
-chmod +x scripts/*.sh
-
-# 1. Stop Service
-log_info "Stopping forex services..."
-pm2 stop forex-backend --silent 2>/dev/null || true
-sleep 2
-
-# 2. Backup database
+# 0. Backup database BEFORE any git operations (prevents data loss from git reset)
 log_info "Creating database backup..."
 mkdir -p $BACKUP_DIR
 if [ -f "backend/data/trading.db" ]; then
     cp backend/data/trading.db "$BACKUP_DIR/trading_$(date +%Y%m%d_%H%M%S).db"
     # Keep only last 7 backups (macOS compatible xargs)
     ls -t $BACKUP_DIR/trading_*.db 2>/dev/null | tail -n +8 | xargs rm 2>/dev/null || true
-    log_success "Database backed up"
+    log_success "Database backed up to $BACKUP_DIR"
 else
     log_info "No existing database to backup"
 fi
+
+# 1. Update code from git
+log_info "Fetching latest changes from git..."
+git fetch origin mac-mini
+git reset --hard origin/mac-mini
+chmod +x scripts/*.sh
+
+# 2. Stop Service
+log_info "Stopping forex services..."
+pm2 stop forex-backend --silent 2>/dev/null || true
+sleep 2
 
 # 3. Install backend dependencies
 log_info "Installing backend dependencies..."
@@ -81,15 +81,16 @@ if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     cd frontend
     npm install
     
-    # ARM64 Rollup fix - CRITICAL for Raspberry Pi
-    log_info "Installing ARM64 Rollup binary..."
-    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+    # Skip ARM64 Rollup on macOS (uses native binaries)
+    if [[ "$OSTYPE" != "darwin"* ]]; then
+        log_info "Installing ARM64 Rollup binary for Linux..."
+        npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+    fi
     cd ..
     
-    log_info "Building frontend (memory constrained)..."
-    # Pi-specific: Limit heap + disable source maps
+    log_info "Building frontend..."
     cd frontend
-    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build
+    NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build
     cd ..
     
     if [ -d "frontend/dist" ]; then
