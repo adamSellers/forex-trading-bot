@@ -13,6 +13,7 @@ const SignalGenerator = require("./src/services/signalGenerator");
 const ConfigService = require("./src/services/configService");
 const LiveTradingEngine = require("./src/services/LiveTradingEngine");
 const TradeRepository = require("./src/repositories/tradeRepository");
+const emailService = require("./src/services/emailService");
 
 const app = express();
 const server = http.createServer(app);
@@ -82,12 +83,16 @@ tradingEngine.init(
     io
 );
 
+// Initialize email service (will log status)
+emailService.initialize();
+
 // Make services available to routes
 app.locals.dataService = dataService;
 app.locals.signalGenerator = signalGenerator;
 app.locals.configService = configService;
 app.locals.tradingEngine = tradingEngine;
 app.locals.tradeRepository = tradeRepository;
+app.locals.emailService = emailService;
 app.locals.io = io;
 
 // Middleware

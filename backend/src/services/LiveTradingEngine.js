@@ -3,6 +3,7 @@ const EventEmitter = require("events");
 const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
+const emailService = require("./emailService");
 
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator
@@ -1094,6 +1095,10 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         this.emit("tradeOpened", trade);
+
+        // Send email alert (async, non-blocking)
+        const config = this.configService?.get();
+        emailService.sendTradeOpenedAlert(trade, config).catch(() => {});
     }
 
     /**
@@ -1118,6 +1123,10 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         this.emit("tradeClosed", trade);
+
+        // Send email alert (async, non-blocking)
+        const config = this.configService?.get();
+        emailService.sendTradeClosedAlert(trade, config).catch(() => {});
     }
 
     // ==================== PUBLIC METHODS ====================

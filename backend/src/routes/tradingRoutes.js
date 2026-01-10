@@ -190,6 +190,43 @@ router.get("/system/health", async (req, res) => {
     }
 });
 
+// Test email endpoint
+router.post("/email/test", async (req, res) => {
+    try {
+        const emailService = req.app.locals.emailService;
+        const configService = req.app.locals.configService;
+        const config = configService?.get() || {};
+
+        // Use address from request body, or from config, or from env
+        const toAddress = req.body?.email || config.alertEmail || process.env.EMAIL_TO;
+
+        if (!emailService?.initialized) {
+            return res.status(400).json({
+                success: false,
+                error: "Email service not configured. Set EMAIL_USER and EMAIL_PASS environment variables.",
+            });
+        }
+
+        if (!toAddress) {
+            return res.status(400).json({
+                success: false,
+                error: "No email address provided. Pass email in request body or set alertEmail in config.",
+            });
+        }
+
+        await emailService.sendTestEmail(toAddress);
+        res.json({
+            success: true,
+            message: `Test email sent to ${toAddress}`,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+        });
+    }
+});
+
 // System info endpoint
 router.get("/system/info", (req, res) => {
     try {
