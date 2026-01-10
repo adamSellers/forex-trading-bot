@@ -1,16 +1,38 @@
 // frontend/src/components/config/NotificationSettings.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, TextField, Switch, Grid, Stack,
-  Button, CircularProgress, Alert
+  Button, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel
 } from '@mui/material';
-import { Email, Send } from '@mui/icons-material';
+import { Email, Send, CloudUpload, Cloud, CheckCircle } from '@mui/icons-material';
 import { GlassCard, SectionHeader } from './ConfigShared';
-import { emailAPI } from '../../config/api';
+import { emailAPI, reportsAPI } from '../../config/api';
 
 const NotificationSettings = ({ config, updateConfig }) => {
   const [testStatus, setTestStatus] = useState(null); // 'sending' | 'success' | 'error'
   const [testError, setTestError] = useState('');
+
+  // S3 Reports state
+  const [s3Status, setS3Status] = useState(null);
+  const [s3Loading, setS3Loading] = useState(true);
+  const [uploadStatus, setUploadStatus] = useState(null); // 'uploading' | 'success' | 'error'
+  const [uploadError, setUploadError] = useState('');
+  const [uploadPeriod, setUploadPeriod] = useState('24h');
+
+  // Fetch S3 status on mount
+  useEffect(() => {
+    const fetchS3Status = async () => {
+      try {
+        const status = await reportsAPI.getStatus();
+        setS3Status(status);
+      } catch (err) {
+        setS3Status(null);
+      } finally {
+        setS3Loading(false);
+      }
+    };
+    fetchS3Status();
+  }, []);
 
   const handleSendTest = async () => {
     setTestStatus('sending');
@@ -26,7 +48,32 @@ const NotificationSettings = ({ config, updateConfig }) => {
     }
   };
 
+  const handleS3Upload = async () => {
+    setUploadStatus('uploading');
+    setUploadError('');
+    try {
+      await reportsAPI.upload(uploadPeriod);
+      setUploadStatus('success');
+      // Refresh status to update last upload time
+      const status = await reportsAPI.getStatus();
+      setS3Status(status);
+      setTimeout(() => setUploadStatus(null), 5000);
+    } catch (err) {
+      setUploadStatus('error');
+      setUploadError(err.message || 'Upload failed');
+    }
+  };
+
+  const formatDate = (isoString) => {
+    if (!isoString) return 'Never';
+    const date = new Date(isoString);
+    return date.toLocaleString();
+  };
+
   const canSendTest = config.enableEmailAlerts && config.alertEmail?.includes('@');
+
+  // Only show S3 section if configured (has bucket name)
+  const showS3Section = !s3Loading && s3Status && s3Status.performanceBucket !== 'not configured';
 
   return (
     <Stack spacing={3}>
@@ -99,6 +146,110 @@ const NotificationSettings = ({ config, updateConfig }) => {
           )}
         </Grid>
       </GlassCard>
+
+      {/* S3 Analytics Reports - Only shown when configured */}
+      {showS3Section && (
+        <GlassCard>
+          <SectionHeader
+            icon={<Cloud />}
+            title="S3 Analytics Reports"
+            subtitle="Automated upload to AWS S3"
+          />
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                border={1}
+                borderColor="divider"
+                borderRadius={1}
+                p={2}
+              >
+                <Box>
+                  <Typography fontWeight="bold">
+                    Status
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Bucket: {s3Status.performanceBucket}
+                  </Typography>
+                </Box>
+                <Chip
+                  icon={s3Status.isRunning ? <CheckCircle /> : null}
+                  label={s3Status.isRunning ? 'Running' : 'Stopped'}
+                  color={s3Status.isRunning ? 'success' : 'default'}
+                  size="small"
+                />
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box border={1} borderColor="divider" borderRadius={1} p={2}>
+                <Typography variant="caption" color="text.secondary">
+                  Last Daily Upload
+                </Typography>
+                <Typography fontWeight="medium">
+                  {formatDate(s3Status.lastDailyUpload)}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Box border={1} borderColor="divider" borderRadius={1} p={2}>
+                <Typography variant="caption" color="text.secondary">
+                  Last Weekly Upload
+                </Typography>
+                <Typography fontWeight="medium">
+                  {formatDate(s3Status.lastWeeklyUpload)}
+                </Typography>
+              </Box>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Period</InputLabel>
+                <Select
+                  value={uploadPeriod}
+                  label="Period"
+                  onChange={(e) => setUploadPeriod(e.target.value)}
+                >
+                  <MenuItem value="24h">Last 24 Hours</MenuItem>
+                  <MenuItem value="7d">Last 7 Days</MenuItem>
+                  <MenuItem value="30d">Last 30 Days</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={uploadStatus === 'uploading' ? <CircularProgress size={18} /> : <CloudUpload />}
+                onClick={handleS3Upload}
+                disabled={uploadStatus === 'uploading'}
+                sx={{ height: 40 }}
+              >
+                {uploadStatus === 'uploading' ? 'Uploading...' : 'Upload Now'}
+              </Button>
+            </Grid>
+
+            {uploadStatus === 'success' && (
+              <Grid item xs={12}>
+                <Alert severity="success" onClose={() => setUploadStatus(null)}>
+                  Report uploaded to S3 successfully!
+                </Alert>
+              </Grid>
+            )}
+            {uploadStatus === 'error' && (
+              <Grid item xs={12}>
+                <Alert severity="error" onClose={() => setUploadStatus(null)}>
+                  {uploadError}
+                </Alert>
+              </Grid>
+            )}
+          </Grid>
+        </GlassCard>
+      )}
     </Stack>
   );
 };
