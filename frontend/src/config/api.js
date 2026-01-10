@@ -70,6 +70,10 @@ export const API_ENDPOINTS = {
     analyticsSummary: "/api/analytics/summary",
     analyticsEquity: "/api/analytics/equity",
     analyticsInstruments: "/api/analytics/instruments",
+
+    // S3 Reports
+    reportsStatus: "/api/reports/status",
+    reportsUpload: "/api/reports/upload",
 };
 
 /**
@@ -266,6 +270,21 @@ export const emailAPI = {
 };
 
 /**
+ * Reports API - S3 Analytics Reports
+ */
+export const reportsAPI = {
+    // Get S3 scheduler status (returns null if not configured)
+    getStatus: () => apiCall(API_ENDPOINTS.reportsStatus).catch(() => null),
+
+    // Manual upload with period (24h, 7d, 30d)
+    upload: (period = "24h") =>
+        apiCall(API_ENDPOINTS.reportsUpload, {
+            method: "POST",
+            body: JSON.stringify({ period }),
+        }),
+};
+
+/**
  * System API - Health & monitoring
  */
 export const systemAPI = {
@@ -295,5 +314,6 @@ export default {
     engineAPI,
     analyticsAPI,
     emailAPI,
+    reportsAPI,
     systemAPI,
 };
