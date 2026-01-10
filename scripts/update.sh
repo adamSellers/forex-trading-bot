@@ -32,15 +32,28 @@ echo ""
 
 cd "$PROJECT_DIR" || log_error "Project directory $PROJECT_DIR not found."
 
-# 1. Fetch latest changes
+# 1. Backup database BEFORE any git operations (prevents data loss from git reset)
+BACKUP_DIR="$HOME/forex-backups"
+log_info "Creating database backup..."
+mkdir -p "$BACKUP_DIR"
+if [ -f "backend/data/trading.db" ]; then
+    cp backend/data/trading.db "$BACKUP_DIR/trading_$(date +%Y%m%d_%H%M%S).db"
+    # Keep only last 7 backups
+    ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +8 | xargs -r rm
+    log_success "Database backed up to $BACKUP_DIR"
+else
+    log_info "No existing database to backup"
+fi
+
+# 2. Fetch latest changes
 log_info "Fetching latest changes from origin..."
 git fetch origin
 
-# 2. Get current and remote commit hashes
+# 3. Get current and remote commit hashes
 before_hash=$(git rev-parse HEAD)
 after_hash=$(git rev-parse "origin/$BRANCH")
 
-# 3. Reset to match remote
+# 4. Reset to match remote
 log_warn "Resetting local branch to match remote 'origin/$BRANCH'..."
 git reset --hard "origin/$BRANCH"
 chmod +x scripts/*.sh 2>/dev/null || true

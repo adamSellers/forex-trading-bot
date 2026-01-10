@@ -48,6 +48,8 @@ module.exports = {
                 // -------------------------------------------------------------
                 UV_THREADPOOL_SIZE: "4", // Use all 4 cores
                 NODE_OPTIONS: "--max-old-space-size=512", // 512MB heap
+                LANG: "en_AU.UTF-8",
+                LC_ALL: "en_AU.UTF-8",
             },
 
             // =================================================================

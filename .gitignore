@@ -20,6 +20,11 @@ data/*.db-journal
 data/*.sqlite
 data/*.sqlite3
 
+# SQLite database files - CRITICAL: do not track live data!
+backend/data/*.db
+backend/data/*.db-wal
+backend/data/*.db-shm
+
 # Logs
 logs/
 *.log
