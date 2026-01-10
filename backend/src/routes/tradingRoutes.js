@@ -791,4 +791,83 @@ router.get("/analytics", async (req, res) => {
     }
 });
 
+// ============ S3 REPORTS ============
+
+// Get S3 report scheduler status
+router.get("/reports/status", (req, res) => {
+    try {
+        const s3ReportScheduler = req.app.locals.s3ReportScheduler;
+        if (!s3ReportScheduler) {
+            return res.status(503).json({ error: "S3 report scheduler not available" });
+        }
+        res.json(s3ReportScheduler.getStatus());
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Manually trigger a report upload
+router.post("/reports/upload", async (req, res) => {
+    try {
+        const s3ReportScheduler = req.app.locals.s3ReportScheduler;
+        if (!s3ReportScheduler) {
+            return res.status(503).json({ error: "S3 report scheduler not available" });
+        }
+
+        const period = req.body.period || "24h";
+        const result = await s3ReportScheduler.forceUpload(period);
+
+        if (result.success) {
+            res.json({
+                success: true,
+                message: `Report uploaded to S3`,
+                key: result.key,
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: result.error || "Upload failed",
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trigger daily report upload
+router.post("/reports/upload/daily", async (req, res) => {
+    try {
+        const s3ReportScheduler = req.app.locals.s3ReportScheduler;
+        if (!s3ReportScheduler) {
+            return res.status(503).json({ error: "S3 report scheduler not available" });
+        }
+
+        const success = await s3ReportScheduler.uploadDailyReport();
+        res.json({
+            success,
+            message: success ? "Daily report uploaded" : "Upload failed (check logs)",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trigger weekly report upload
+router.post("/reports/upload/weekly", async (req, res) => {
+    try {
+        const s3ReportScheduler = req.app.locals.s3ReportScheduler;
+        if (!s3ReportScheduler) {
+            return res.status(503).json({ error: "S3 report scheduler not available" });
+        }
+
+        const success = await s3ReportScheduler.uploadWeeklyReport();
+        res.json({
+            success,
+            message: success ? "Weekly report uploaded" : "Upload failed (check logs)",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

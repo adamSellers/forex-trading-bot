@@ -84,6 +84,33 @@ if [[ "$enable_slack" =~ ^[Yy]$ ]]; then
     fi
 fi
 
+# --- 3. AWS S3 ANALYTICS (Optional) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "           AWS S3 Analytics Configuration (Optional)"
+echo "═══════════════════════════════════════════════════════════"
+read -p "Enable S3 Analytics Upload? (y/N): " enable_s3
+if [[ "$enable_s3" =~ ^[Yy]$ ]]; then
+    echo "Please enter your AWS credentials:"
+    read -p "🌍 AWS Region (e.g., ap-southeast-2): " AWS_REGION
+    read -p "🔑 AWS Access Key ID: " AWS_ACCESS_KEY_ID
+    echo ""
+    read -s -p "🔐 AWS Secret Access Key: " AWS_SECRET_ACCESS_KEY
+    echo ""
+    read -p "📦 S3 Bucket Name: " S3_BUCKET_NAME
+
+    if [ -n "$AWS_ACCESS_KEY_ID" ] && [ -n "$AWS_SECRET_ACCESS_KEY" ] && [ -n "$S3_BUCKET_NAME" ]; then
+        echo "🔒 Encrypting AWS credentials..."
+        echo -n "$AWS_REGION" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_region.enc
+        echo -n "$AWS_ACCESS_KEY_ID" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_access_key_id.enc
+        echo -n "$AWS_SECRET_ACCESS_KEY" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/aws_secret_access_key.enc
+        echo -n "$S3_BUCKET_NAME" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/s3_bucket_name.enc
+        echo "✅ AWS credentials encrypted"
+    else
+        echo "❌ AWS fields empty, skipping."
+    fi
+fi
+
 # Set secure permissions
 chmod 600 $SECRETS_DIR/* 2>/dev/null || true
 

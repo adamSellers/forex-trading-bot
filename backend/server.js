@@ -13,7 +13,9 @@ const SignalGenerator = require("./src/services/signalGenerator");
 const ConfigService = require("./src/services/configService");
 const LiveTradingEngine = require("./src/services/LiveTradingEngine");
 const TradeRepository = require("./src/repositories/tradeRepository");
+const SignalRepository = require("./src/repositories/signalRepository");
 const emailService = require("./src/services/emailService");
+const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 
 const app = express();
 const server = http.createServer(app);
@@ -80,6 +82,10 @@ const signalGenerator = new SignalGenerator({
 
 // Initialize repositories
 const tradeRepository = new TradeRepository();
+const signalRepository = new SignalRepository();
+
+// Initialize S3 report scheduler
+const s3ReportScheduler = new S3ReportScheduler(tradeRepository, signalRepository);
 
 // Initialize LiveTradingEngine
 const tradingEngine = new LiveTradingEngine({
@@ -107,7 +113,9 @@ app.locals.signalGenerator = signalGenerator;
 app.locals.configService = configService;
 app.locals.tradingEngine = tradingEngine;
 app.locals.tradeRepository = tradeRepository;
+app.locals.signalRepository = signalRepository;
 app.locals.emailService = emailService;
+app.locals.s3ReportScheduler = s3ReportScheduler;
 app.locals.io = io;
 
 // Middleware
@@ -340,6 +348,8 @@ server.listen(PORT, async () => {
                     error.message
                 );
             }
+            // Start S3 report scheduler (non-blocking, won't affect trading)
+            s3ReportScheduler.start();
         }, 5000); // Wait 5s for initial candle data
     }
 });
@@ -374,6 +384,7 @@ const gracefulShutdown = (signal) => {
         if (tradingEngine) tradingEngine.stop();
         if (dataService) dataService.stop();
         if (signalGenerator) signalGenerator.stop();
+        if (s3ReportScheduler) s3ReportScheduler.stop();
     } catch (err) {
         logger.error("Error stopping services:", err.message);
     }
