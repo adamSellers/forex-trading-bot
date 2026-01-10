@@ -95,9 +95,9 @@ export const DEFAULT_CONFIG = {
   stopLossPips: 30,
   stopLossAtrMultiplier: 1.5,
   
-  // Take Profit
-  enableTakeProfit: false,
-  takeProfitPips: 60,
+  // Take Profit (% of account balance)
+  enableTakeProfit: true,
+  takeProfitPercent: 0.06,
   
   // Trailing Stop
   enableTrailingStops: true,

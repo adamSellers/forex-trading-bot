@@ -507,25 +507,42 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     /**
-     * Calculate take profit price (optional)
+     * Calculate take profit price based on percentage of account balance
+     *
+     * Target profit = accountBalance × takeProfitPercent (default 6%)
+     * TP Price = entryPrice + (targetProfit / units)
+     *
+     * @param {object} signal - Signal data with currentPrice
+     * @param {object} config - Trading config
+     * @param {number} units - Position size in units
+     * @param {number} accountBalance - Current account balance
      */
-    calculateTakeProfit(signal, config, stopLossPips) {
+    calculateTakeProfit(signal, config, units, accountBalance) {
         if (!config.enableTakeProfit) return null;
+        if (!units || units <= 0) return null;
+        if (!accountBalance || accountBalance <= 0) return null;
 
         const { currentPrice } = signal;
         const instrument = signal.symbol;
         const pipValue = oandaClient.getPipValue(instrument);
 
-        // Use risk-reward ratio for take profit
-        const rrRatio = config.takeProfitRatio || 2.0;
-        const takeProfitPips = stopLossPips * rrRatio;
+        // Calculate target profit as percentage of account balance
+        const takeProfitPercent = config.takeProfitPercent || 0.06; // Default 6%
+        const targetProfitAud = accountBalance * takeProfitPercent;
+
+        // Calculate price movement needed to achieve target profit
+        // For Forex: P/L = units × priceChange (simplified for AUD account)
+        // priceChange = targetProfit / units
+        const priceChange = targetProfitAud / units;
 
         // For BUY trades, take profit is above entry
-        const takeProfitPrice = currentPrice + takeProfitPips * pipValue;
+        const takeProfitPrice = currentPrice + priceChange;
+        const takeProfitPips = priceChange / pipValue;
 
         return {
             takeProfitPips,
             takeProfitPrice: parseFloat(takeProfitPrice.toFixed(5)),
+            targetProfitAud,
         };
     }
 
@@ -546,6 +563,16 @@ class LiveTradingEngine extends EventEmitter {
             config
         );
 
+        // Get account balance for position sizing and take profit calculation
+        let accountBalance;
+        try {
+            const accountSummary = await oandaClient.getAccountSummary();
+            accountBalance = parseFloat(accountSummary.account.balance);
+        } catch (error) {
+            logger.error("❌ Failed to get account balance:", error.message);
+            return;
+        }
+
         // Calculate position size
         const units = await this.calculatePositionSize(
             symbol,
@@ -564,11 +591,12 @@ class LiveTradingEngine extends EventEmitter {
             return;
         }
 
-        // Calculate take profit (optional)
+        // Calculate take profit based on % of account balance
         const takeProfit = this.calculateTakeProfit(
             signal,
             config,
-            stopLossPips
+            units,
+            accountBalance
         );
 
         // Calculate trailing stop distance (if enabled)
@@ -664,8 +692,11 @@ class LiveTradingEngine extends EventEmitter {
             // Send Slack notification
             await slackService.sendTradeAlert(trade, "opened");
 
+            const tpInfo = takeProfit?.takeProfitPrice
+                ? ` | TP: ${takeProfit.takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)})`
+                : "";
             logger.success(
-                `✅ LIVE BUY executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}`
+                `✅ LIVE BUY executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
             );
 
             return trade;
