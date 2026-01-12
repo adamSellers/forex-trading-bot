@@ -37,7 +37,11 @@ BACKUP_DIR="$HOME/forex-backups"
 log_info "Creating database backup..."
 mkdir -p "$BACKUP_DIR"
 if [ -f "backend/data/trading.db" ]; then
-    cp backend/data/trading.db "$BACKUP_DIR/trading_$(date +%Y%m%d_%H%M%S).db"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    cp backend/data/trading.db "$BACKUP_DIR/trading_$TIMESTAMP.db"
+    # Also backup WAL files if they exist (critical for SQLite integrity)
+    cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
+    cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
     # Keep only last 7 backups
     ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +8 | xargs -r rm
     log_success "Database backed up to $BACKUP_DIR"
@@ -57,6 +61,14 @@ after_hash=$(git rev-parse "origin/$BRANCH")
 log_warn "Resetting local branch to match remote 'origin/$BRANCH'..."
 git reset --hard "origin/$BRANCH"
 chmod +x scripts/*.sh 2>/dev/null || true
+
+# 4a. Create config from template if it doesn't exist (fresh install or after untracking)
+if [ ! -f "backend/data/trading_config.json" ]; then
+    if [ -f "backend/data/trading_config_initial.json" ]; then
+        cp backend/data/trading_config_initial.json backend/data/trading_config.json
+        log_info "Created trading_config.json from template"
+    fi
+fi
 
 if [ "$before_hash" == "$after_hash" ]; then
     log_success "Already up-to-date. No new code to deploy."
