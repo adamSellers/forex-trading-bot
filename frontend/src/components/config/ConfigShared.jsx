@@ -96,7 +96,7 @@ export const DEFAULT_CONFIG = {
   stopLossAtrMultiplier: 2.0,
   minStopLossPips: 12,
   
-  // Take Profit (% of account balance)
+  // Take Profit (% of margin used for the trade)
   enableTakeProfit: true,
   takeProfitPercent: 0.06,
   

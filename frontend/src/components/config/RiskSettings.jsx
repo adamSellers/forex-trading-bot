@@ -221,7 +221,7 @@ const RiskSettings = ({ config, updateConfig }) => {
           <Grid container spacing={3} sx={{ mt: 1 }}>
             <Grid item xs={12} md={6}>
               <Typography gutterBottom variant="subtitle2" color="text.secondary">
-                TAKE PROFIT TARGET (% OF ACCOUNT)
+                TAKE PROFIT TARGET (% OF MARGIN)
               </Typography>
               <Stack direction="row" spacing={2} alignItems="center">
                 <Slider
@@ -237,19 +237,19 @@ const RiskSettings = ({ config, updateConfig }) => {
                 />
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                Close position when profit reaches this % of account balance
+                Close position when profit reaches this % of the margin used for the trade
               </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
               <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
                 <Typography variant="caption" color="text.secondary" display="block">
-                  EXAMPLE (on $100 account)
+                  EXAMPLE (with $46 margin)
                 </Typography>
                 <Typography variant="body2" fontWeight="bold">
-                  Target: ${(100 * (config.takeProfitPercent || 0.06)).toFixed(2)} profit per trade
+                  Target: ${(46 * (config.takeProfitPercent || 0.06)).toFixed(2)} profit (~35 pips)
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  With 2% risk ($2) = {((config.takeProfitPercent || 0.06) / 0.02).toFixed(1)}:1 reward-to-risk ratio
+                  TP scales with position size (larger positions = larger margin = larger target)
                 </Typography>
               </Box>
             </Grid>
