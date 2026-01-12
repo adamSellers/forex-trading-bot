@@ -516,28 +516,29 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     /**
-     * Calculate take profit price based on percentage of account balance
+     * Calculate take profit price based on percentage of margin used
      *
-     * Target profit = accountBalance × takeProfitPercent (default 6%)
+     * Target profit = marginUsed × takeProfitPercent (default 6%)
      * TP Price = entryPrice + (targetProfit / units)
      *
      * @param {object} signal - Signal data with currentPrice
      * @param {object} config - Trading config
      * @param {number} units - Position size in units
-     * @param {number} accountBalance - Current account balance
+     * @param {number} marginUsed - Margin used for this trade
+     * @param {number} entryPrice - Actual entry price (may differ from signal price)
      */
-    calculateTakeProfit(signal, config, units, accountBalance) {
+    calculateTakeProfit(signal, config, units, marginUsed, entryPrice = null) {
         if (!config.enableTakeProfit) return null;
         if (!units || units <= 0) return null;
-        if (!accountBalance || accountBalance <= 0) return null;
+        if (!marginUsed || marginUsed <= 0) return null;
 
-        const { currentPrice } = signal;
+        const price = entryPrice || signal.currentPrice;
         const instrument = signal.symbol;
         const pipValue = oandaClient.getPipValue(instrument);
 
-        // Calculate target profit as percentage of account balance
+        // Calculate target profit as percentage of margin used (not account balance)
         const takeProfitPercent = config.takeProfitPercent || 0.06; // Default 6%
-        const targetProfitAud = accountBalance * takeProfitPercent;
+        const targetProfitAud = marginUsed * takeProfitPercent;
 
         // Calculate price movement needed to achieve target profit
         // For Forex: P/L = units × priceChange (simplified for AUD account)
@@ -545,8 +546,12 @@ class LiveTradingEngine extends EventEmitter {
         const priceChange = targetProfitAud / units;
 
         // For BUY trades, take profit is above entry
-        const takeProfitPrice = currentPrice + priceChange;
+        const takeProfitPrice = price + priceChange;
         const takeProfitPips = priceChange / pipValue;
+
+        logger.info(
+            `📊 TP Calculation: margin=$${marginUsed.toFixed(2)} × ${(takeProfitPercent * 100).toFixed(0)}% = $${targetProfitAud.toFixed(2)} target | ${takeProfitPips.toFixed(1)} pips`
+        );
 
         return {
             takeProfitPips,
@@ -572,15 +577,6 @@ class LiveTradingEngine extends EventEmitter {
             config
         );
 
-        // Get account balance for position sizing and take profit calculation
-        let accountBalance;
-        try {
-            const accountSummary = await oandaClient.getAccountSummary();
-            accountBalance = parseFloat(accountSummary.account.balance);
-        } catch (error) {
-            logger.error("❌ Failed to get account balance:", error.message);
-            return;
-        }
 
         // Calculate position size
         const units = await this.calculatePositionSize(
@@ -600,13 +596,7 @@ class LiveTradingEngine extends EventEmitter {
             return;
         }
 
-        // Calculate take profit based on % of account balance
-        const takeProfit = this.calculateTakeProfit(
-            signal,
-            config,
-            units,
-            accountBalance
-        );
+        // Note: Take profit will be calculated AFTER order fills using actual margin from Oanda
 
         // Calculate trailing stop distance (if enabled)
         let trailingStopDistance = null;
@@ -628,20 +618,18 @@ class LiveTradingEngine extends EventEmitter {
                 units,
                 stopLossPrice,
                 stopLossPips,
-                takeProfitPrice: takeProfit?.takeProfitPrice,
                 spreadPips,
             });
         }
 
-        // Live trading - execute via Oanda
+        // Live trading - execute via Oanda (without TP initially)
         try {
             const orderResult = await oandaClient.placeMarketOrder(
                 symbol,
                 units,
                 {
                     stopLossPrice,
-                    takeProfitPrice: takeProfit?.takeProfitPrice,
-                    // Note: We don't set trailing stop on entry - manage it separately
+                    // Note: TP will be set after order fills using actual margin
                 }
             );
 
@@ -661,6 +649,42 @@ class LiveTradingEngine extends EventEmitter {
             const oandaTradeId = fillTransaction.tradeOpened?.tradeID;
             const fillPrice = parseFloat(fillTransaction.price);
 
+            // Get actual margin from Oanda response
+            const marginUsed = parseFloat(
+                fillTransaction.tradeOpened?.initialMarginRequired || 0
+            );
+
+            // Calculate take profit based on actual margin used
+            let takeProfit = null;
+            let takeProfitPrice = null;
+
+            if (marginUsed > 0 && config.enableTakeProfit) {
+                takeProfit = this.calculateTakeProfit(
+                    signal,
+                    config,
+                    units,
+                    marginUsed,
+                    fillPrice
+                );
+                takeProfitPrice = takeProfit?.takeProfitPrice;
+
+                // Set TP on Oanda via modifyTrade
+                if (takeProfitPrice && oandaTradeId) {
+                    try {
+                        await oandaClient.modifyTrade(oandaTradeId, {
+                            takeProfitPrice,
+                        });
+                        logger.info(
+                            `✅ Take profit set: ${takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)} target)`
+                        );
+                    } catch (tpError) {
+                        logger.warn(
+                            `⚠️ Failed to set take profit: ${tpError.message}`
+                        );
+                    }
+                }
+            }
+
             // Create trade record
             const trade = {
                 id: uuidv4(),
@@ -675,10 +699,10 @@ class LiveTradingEngine extends EventEmitter {
                 entryType,
                 atrPips,
                 stopLossPrice,
-                takeProfitPrice: takeProfit?.takeProfitPrice,
+                takeProfitPrice,
                 trailingStopPips: config.trailingStopPips,
                 leverageUsed: config.leverage || 10,
-                marginUsedAud: (units * fillPrice) / (config.leverage || 10),
+                marginUsedAud: marginUsed || (units * fillPrice) / (config.leverage || 10),
                 spreadPips,
                 entryTime: Date.now(),
                 mode: "live",
@@ -698,8 +722,8 @@ class LiveTradingEngine extends EventEmitter {
             // Broadcast trade event
             this.broadcastTradeOpened(trade);
 
-            const tpInfo = takeProfit?.takeProfitPrice
-                ? ` | TP: ${takeProfit.takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)})`
+            const tpInfo = takeProfitPrice
+                ? ` | TP: ${takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)})`
                 : "";
             logger.success(
                 `✅ LIVE BUY executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
@@ -726,12 +750,28 @@ class LiveTradingEngine extends EventEmitter {
             units,
             stopLossPrice,
             stopLossPips,
-            takeProfitPrice,
             spreadPips,
         } = params;
 
         // Simulate fill at current price (could add slippage simulation)
         const fillPrice = currentPrice;
+
+        // Calculate margin (simulated)
+        const leverage = config.leverage || 10;
+        const marginUsed = (units * fillPrice) / leverage;
+
+        // Calculate take profit based on margin used
+        let takeProfitPrice = null;
+        if (config.enableTakeProfit && marginUsed > 0) {
+            const takeProfit = this.calculateTakeProfit(
+                signal,
+                config,
+                units,
+                marginUsed,
+                fillPrice
+            );
+            takeProfitPrice = takeProfit?.takeProfitPrice;
+        }
 
         // Create trade record
         const trade = {
@@ -749,8 +789,8 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPrice,
             takeProfitPrice,
             trailingStopPips: config.trailingStopPips,
-            leverageUsed: config.leverage || 10,
-            marginUsedAud: (units * fillPrice) / (config.leverage || 10),
+            leverageUsed: leverage,
+            marginUsedAud: marginUsed,
             spreadPips,
             entryTime: Date.now(),
             mode: "paper",
@@ -770,8 +810,9 @@ class LiveTradingEngine extends EventEmitter {
         // Broadcast trade event
         this.broadcastTradeOpened(trade);
 
+        const tpInfo = takeProfitPrice ? ` | TP: ${takeProfitPrice}` : "";
         logger.success(
-            `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}`
+            `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
         );
 
         return trade;
@@ -1133,9 +1174,22 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Manually close a trade
+     * Accepts either the internal UUID or Oanda trade ID
      */
     async forceCloseTrade(tradeId) {
-        const trade = this.openTrades.get(tradeId);
+        // First try lookup by UUID (engine-created trades)
+        let trade = this.openTrades.get(tradeId);
+
+        // If not found, try lookup by oandaTradeId (portfolio trades)
+        if (!trade) {
+            for (const [, t] of this.openTrades) {
+                if (t.oandaTradeId === tradeId || t.oandaTradeId === String(tradeId)) {
+                    trade = t;
+                    break;
+                }
+            }
+        }
+
         if (!trade) {
             throw new Error(`Trade ${tradeId} not found`);
         }
