@@ -15,18 +15,18 @@ const StrategySettings = ({ config, updateConfig }) => {
     <Stack spacing={3}>
       {/* Core Strategy Settings */}
       <GlassCard>
-        <SectionHeader 
-          icon={<Science />} 
-          title="SuperTrend + ADX Strategy" 
-          subtitle="Core trend-following configuration" 
+        <SectionHeader
+          icon={<Science />}
+          title="SuperTrend + ADX Strategy"
+          subtitle="Core trend-following configuration"
         />
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Timeframe</InputLabel>
-              <Select 
-                value={config.timeframe} 
-                label="Timeframe" 
+              <Select
+                value={config.timeframe}
+                label="Timeframe"
                 onChange={(e) => updateConfig('timeframe', e.target.value)}
               >
                 <MenuItem value="5m">5 Minutes (Scalping)</MenuItem>
@@ -50,25 +50,40 @@ const StrategySettings = ({ config, updateConfig }) => {
               helperText="Minimum time between signals for same pair"
             />
           </Grid>
+          <Grid item xs={12} md={6}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" height="100%" sx={{ p: 1, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+              <Box>
+                <Typography fontWeight="bold">Enable Short Selling</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Allow the bot to open SELL positions
+                </Typography>
+              </Box>
+              <Switch
+                checked={config.enableShorting ?? true}
+                onChange={(e) => updateConfig('enableShorting', e.target.checked)}
+                color="warning"
+              />
+            </Box>
+          </Grid>
         </Grid>
       </GlassCard>
 
       {/* SuperTrend Parameters */}
       <GlassCard>
-        <SectionHeader 
-          icon={<Tune />} 
-          title="SuperTrend Parameters" 
-          subtitle="ATR-based trend detection" 
+        <SectionHeader
+          icon={<Tune />}
+          title="SuperTrend Parameters"
+          subtitle="ATR-based trend detection"
         />
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <Typography gutterBottom variant="subtitle2" color="text.secondary">ATR PERIOD</Typography>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Slider 
-                value={config.supertrendPeriod || 10} 
-                min={5} max={20} 
-                onChange={(_, v) => updateConfig('supertrendPeriod', v)} 
-                sx={{ flexGrow: 1 }} 
+              <Slider
+                value={config.supertrendPeriod || 10}
+                min={5} max={20}
+                onChange={(_, v) => updateConfig('supertrendPeriod', v)}
+                sx={{ flexGrow: 1 }}
               />
               <Chip label={config.supertrendPeriod || 10} size="small" />
             </Stack>
@@ -79,11 +94,11 @@ const StrategySettings = ({ config, updateConfig }) => {
           <Grid item xs={12} md={6}>
             <Typography gutterBottom variant="subtitle2" color="text.secondary">MULTIPLIER</Typography>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Slider 
-                value={config.supertrendMultiplier || 3.0} 
+              <Slider
+                value={config.supertrendMultiplier || 3.0}
                 min={1.5} max={5.0} step={0.1}
-                onChange={(_, v) => updateConfig('supertrendMultiplier', v)} 
-                sx={{ flexGrow: 1 }} 
+                onChange={(_, v) => updateConfig('supertrendMultiplier', v)}
+                sx={{ flexGrow: 1 }}
               />
               <Chip label={(config.supertrendMultiplier || 3.0).toFixed(1)} size="small" />
             </Stack>
@@ -96,10 +111,10 @@ const StrategySettings = ({ config, updateConfig }) => {
 
       {/* Entry Filters */}
       <GlassCard>
-        <SectionHeader 
-          icon={<Speed />} 
-          title="Entry Filters" 
-          subtitle="Trend strength requirements" 
+        <SectionHeader
+          icon={<Speed />}
+          title="Entry Filters"
+          subtitle="Trend strength requirements"
         />
         <Box mb={4}>
           <Box display="flex" justifyContent="space-between" mb={1}>
@@ -109,18 +124,18 @@ const StrategySettings = ({ config, updateConfig }) => {
                 Only enter when trend is strong enough
               </Typography>
             </Box>
-            <Switch 
-              size="small" 
-              checked={config.enableAdxFilter} 
-              onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)} 
+            <Switch
+              size="small"
+              checked={config.enableAdxFilter}
+              onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)}
             />
           </Box>
           <Box px={2} display="flex" alignItems="center" gap={2} sx={{ opacity: config.enableAdxFilter ? 1 : 0.5 }}>
-            <Slider 
-              value={config.minAdx} 
-              min={15} max={40} 
-              onChange={(_, v) => updateConfig('minAdx', v)} 
-              disabled={!config.enableAdxFilter} 
+            <Slider
+              value={config.minAdx}
+              min={15} max={40}
+              onChange={(_, v) => updateConfig('minAdx', v)}
+              disabled={!config.enableAdxFilter}
               sx={{ flexGrow: 1 }}
               marks={[
                 { value: 20, label: '20' },
@@ -128,10 +143,10 @@ const StrategySettings = ({ config, updateConfig }) => {
                 { value: 30, label: '30' },
               ]}
             />
-            <Chip 
-              label={config.minAdx} 
-              color={config.minAdx < 20 ? 'warning' : config.minAdx > 30 ? 'error' : 'success'} 
-              size="small" 
+            <Chip
+              label={config.minAdx}
+              color={config.minAdx < 20 ? 'warning' : config.minAdx > 30 ? 'error' : 'success'}
+              size="small"
             />
           </Box>
           <Alert severity="info" sx={{ mt: 2 }}>
@@ -149,18 +164,18 @@ const StrategySettings = ({ config, updateConfig }) => {
                 Block entries when momentum is exhausted
               </Typography>
             </Box>
-            <Switch 
-              size="small" 
-              checked={config.enableRsiFilter} 
-              onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)} 
+            <Switch
+              size="small"
+              checked={config.enableRsiFilter}
+              onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)}
             />
           </Box>
-          <TextField 
-            fullWidth 
-            label="RSI Overbought Threshold" 
-            type="number" 
-            value={config.rsiOverbought} 
-            onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))} 
+          <TextField
+            fullWidth
+            label="RSI Overbought Threshold"
+            type="number"
+            value={config.rsiOverbought}
+            onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))}
             size="small"
             disabled={!config.enableRsiFilter}
             helperText="Block BUY signals when RSI exceeds this value"
@@ -170,23 +185,23 @@ const StrategySettings = ({ config, updateConfig }) => {
 
       {/* Continuation Entry Settings */}
       <GlassCard>
-        <Box 
-          display="flex" 
-          justifyContent="space-between" 
-          alignItems="center" 
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
           onClick={() => setShowAdvancedStrategy(!showAdvancedStrategy)}
           sx={{ cursor: 'pointer' }}
         >
-          <SectionHeader 
-            icon={<TrendingUp />} 
-            title="Continuation Entry" 
-            subtitle="Catch missed entries when RSI cools down" 
+          <SectionHeader
+            icon={<TrendingUp />}
+            title="Continuation Entry"
+            subtitle="Catch missed entries when RSI cools down"
           />
           <IconButton size="small">
             {showAdvancedStrategy ? <ExpandLess /> : <ExpandMore />}
           </IconButton>
         </Box>
-        
+
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
             <Typography fontWeight="bold">Enable Continuation Entries</Typography>
@@ -194,9 +209,9 @@ const StrategySettings = ({ config, updateConfig }) => {
               If RSI blocked initial flip, wait for cooldown
             </Typography>
           </Box>
-          <Switch 
-            checked={config.enableContinuationEntry ?? true} 
-            onChange={(e) => updateConfig('enableContinuationEntry', e.target.checked)} 
+          <Switch
+            checked={config.enableContinuationEntry ?? true}
+            onChange={(e) => updateConfig('enableContinuationEntry', e.target.checked)}
             color="primary"
           />
         </Box>
@@ -206,12 +221,12 @@ const StrategySettings = ({ config, updateConfig }) => {
             <Divider sx={{ my: 2 }} />
             <Grid container spacing={3}>
               <Grid item xs={12} md={6}>
-                <TextField 
-                  fullWidth 
-                  label="Continuation RSI Threshold" 
-                  type="number" 
-                  value={config.continuationRsiThreshold ?? 70} 
-                  onChange={(e) => updateConfig('continuationRsiThreshold', parseFloat(e.target.value))} 
+                <TextField
+                  fullWidth
+                  label="Continuation RSI Threshold"
+                  type="number"
+                  value={config.continuationRsiThreshold ?? 70}
+                  onChange={(e) => updateConfig('continuationRsiThreshold', parseFloat(e.target.value))}
                   size="small"
                   helperText={`RSI must drop below this (lower than ${config.rsiOverbought})`}
                 />
@@ -227,9 +242,9 @@ const StrategySettings = ({ config, updateConfig }) => {
                     onChange={(_, v) => updateConfig('continuationWindowMs', hoursToMs(v))}
                     sx={{ flexGrow: 1 }}
                   />
-                  <Chip 
-                    label={`${msToHours(config.continuationWindowMs ?? (4 * 60 * 60 * 1000))}h`} 
-                    size="small" 
+                  <Chip
+                    label={`${msToHours(config.continuationWindowMs ?? (4 * 60 * 60 * 1000))}h`}
+                    size="small"
                     color="primary"
                     variant="outlined"
                   />
@@ -246,8 +261,8 @@ const StrategySettings = ({ config, updateConfig }) => {
                     onChange={(_, v) => updateConfig('continuationMaxPriceDeviation', v / 100)}
                     sx={{ flexGrow: 1 }}
                   />
-                  <Chip 
-                    label={`${((config.continuationMaxPriceDeviation ?? 0.02) * 100).toFixed(1)}%`} 
+                  <Chip
+                    label={`${((config.continuationMaxPriceDeviation ?? 0.02) * 100).toFixed(1)}%`}
                     size="small"
                     color={config.continuationMaxPriceDeviation > 0.03 ? "warning" : "primary"}
                     variant="outlined"

@@ -548,12 +548,24 @@ class LiveTradingEngine extends EventEmitter {
             return config.fixedPositionUnits || 1000;
         }
 
-        // Risk-based position sizing
-        const riskPercent = config.riskPerTrade || 0.02;
-        const riskAmount = accountBalance * riskPercent;
+        // Create effective balance based on max capital setting
+        // User Request: If balance > maxCapitalAtRisk, use maxCapitalAtRisk as the base for sizing
+        const maxCapital = config.maxCapitalAtRisk || 500;
+        const effectiveBalance = (maxCapital > 0)
+            ? Math.min(accountBalance, maxCapital)
+            : accountBalance;
 
-        // Don't exceed max capital at risk
-        const maxRisk = Math.min(riskAmount, config.maxCapitalAtRisk || 500);
+        // Calculate risk amount on the effective balance
+        const riskPercent = config.riskPerTrade || 0.02;
+        const riskAmount = effectiveBalance * riskPercent;
+
+        // Log if we are capping the capital
+        if (effectiveBalance < accountBalance) {
+            logger.debug(`💰 Using capped capital: $${effectiveBalance.toFixed(2)} (Actual: $${accountBalance.toFixed(2)})`);
+        }
+
+        // Use riskAmount directly (maxRisk logic is now handled by capping the balance)
+        const maxRisk = riskAmount;
 
         // Calculate position size
         const pipValue = oandaClient.getPipValue(instrument);
