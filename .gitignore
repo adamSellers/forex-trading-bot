@@ -28,6 +28,7 @@ backend/data/*.db-shm
 # Logs
 logs/
 *.log
+investigation_logs/
 
 # Runtime data
 pids

@@ -109,13 +109,91 @@ class LiveTradingEngine extends EventEmitter {
             logger.info("📡 Subscribed to signal generator events");
         }
 
-        // Start position monitoring loop
-        this.startMonitoring();
+    }
 
-        logger.success("🚀 LiveTradingEngine started");
-        this.emit("engineStarted", { timestamp: Date.now() });
+    /**
+     * Start position monitoring loop
+     */
+    startMonitoring() {
+        if (this.monitorInterval) {
+            clearInterval(this.monitorInterval);
+        }
 
-        return this;
+        logger.info("👀 Position monitoring started");
+        this.monitorInterval = setInterval(
+            () => this.monitorTrades(),
+            this.monitorIntervalMs
+        );
+    }
+
+    /**
+     * Monitor open trades for exit conditions
+     * (Called periodically by setInterval)
+     */
+    async monitorTrades() {
+        if (this.openTrades.size === 0) return;
+
+        try {
+            // Get current prices for all instruments
+            const config = this.configService.get();
+            const quotes = await oandaClient.getPricing(config.assets);
+
+            for (const [id, trade] of this.openTrades) {
+                // Find quote for this instrument
+                const quote = quotes.find((q) => q.instrument === trade.instrument);
+                if (!quote) continue;
+
+                // Use bid for Long exit, ask for Short exit
+                // Current Price for P/L calc: Bid for Long, Ask for Short
+                const currentPrice = trade.side === "BUY" ? parseFloat(quote.closeoutBid) : parseFloat(quote.closeoutAsk);
+
+                // --- 1. Check Breakeven Trigger ---
+                if (config.enableBreakeven && !trade.isBreakevenSet) {
+                    const pipValue = oandaClient.getPipValue(trade.instrument);
+                    const triggerPips = config.breakevenTriggerPips || 12; // e.g. move to BE after +12 pips
+
+                    let pipsProfit = 0;
+                    if (trade.side === "BUY") {
+                        pipsProfit = (currentPrice - trade.entryPrice) / pipValue;
+                    } else {
+                        pipsProfit = (trade.entryPrice - currentPrice) / pipValue;
+                    }
+
+                    if (pipsProfit >= triggerPips) {
+                        // Move SL to Entry + 2 pips (cover spread)
+                        const lockPips = 2;
+                        let newStopLoss = 0;
+
+                        if (trade.side === "BUY") {
+                            newStopLoss = trade.entryPrice + (lockPips * pipValue);
+                        } else {
+                            newStopLoss = trade.entryPrice - (lockPips * pipValue);
+                        }
+
+                        // Update Oanda
+                        try {
+                            if (trade.mode === "live") {
+                                await oandaClient.modifyTrade(trade.oandaTradeId, {
+                                    stopLossPrice: parseFloat(newStopLoss.toFixed(5))
+                                });
+                            }
+
+                            // Update local state
+                            trade.stopLossPrice = newStopLoss;
+                            trade.isBreakevenSet = true;
+                            await this.tradeRepository.update(trade);
+
+                            logger.success(`🛡️ Breakeven set for ${trade.instrument} (Profit: ${pipsProfit.toFixed(1)} pips)`);
+
+                        } catch (error) {
+                            logger.error(`❌ Failed to set breakeven for ${trade.instrument}: ${error.message}`);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            logger.error("❌ Monitoring error:", error.message);
+        }
     }
 
     /**
@@ -253,8 +331,7 @@ class LiveTradingEngine extends EventEmitter {
         this.stats.lastSignalTime = Date.now();
 
         logger.debug(
-            `📨 Received signal: ${signal.symbol} - ${
-                signal.signal
+            `📨 Received signal: ${signal.symbol} - ${signal.signal
             } (ADX: ${signal.strength?.toFixed(1)})`
         );
 
@@ -333,21 +410,43 @@ class LiveTradingEngine extends EventEmitter {
 
             await this.executeEntry(signal, config);
         } else if (signalType === "SELL") {
-            // Exit signal
-            if (!existingTrade) {
-                logger.debug(
-                    `⏸️ Skipping SELL for ${symbol} - no open position`
-                );
-                return;
+            // Check if we have an open position for this instrument
+            if (existingTrade) {
+                // Close existing LONG position if we get a SELL signal
+                if (existingTrade.side === "BUY") {
+                    await this.executeExit(
+                        existingTrade,
+                        currentPrice,
+                        "SIGNAL_REVERSAL"
+                    );
+                }
             }
 
-            // Only exit if we're in a long position
-            if (existingTrade.side === "BUY") {
-                await this.executeExit(
-                    existingTrade,
-                    currentPrice,
-                    "SIGNAL_REVERSAL"
-                );
+            // Execute SHORT Entry if shorting is enabled
+            if (config.enableShorting) {
+                if (existingTrade && existingTrade.side === "SELL") {
+                    logger.debug(
+                        `⏸️ Skipping SELL for ${symbol} - already in short position`
+                    );
+                    this.stats.signalsRejected++;
+                    return;
+                }
+
+                // Validate and execute entry
+                const validation = this.validateEntry(signal, config);
+                if (!validation.valid) {
+                    logger.info(
+                        `⏸️ Short Entry rejected for ${symbol}: ${validation.reason}`
+                    );
+                    this.stats.signalsRejected++;
+                    this.emit("entryRejected", {
+                        signal,
+                        reason: validation.reason,
+                    });
+                    return;
+                }
+
+                await this.executeEntry(signal, config);
             }
         }
         // HOLD signals are ignored
@@ -405,15 +504,19 @@ class LiveTradingEngine extends EventEmitter {
         if (signal.strength < config.minAdx) {
             return {
                 valid: false,
-                reason: `ADX too low (${signal.strength?.toFixed(1)} < ${
-                    config.minAdx
-                })`,
+                reason: `ADX too low (${signal.strength?.toFixed(1)} < ${config.minAdx
+                    })`,
             };
         }
 
-        // 6. Signal must be BUY (we only go long for now)
-        if (signal.signal !== "BUY") {
-            return { valid: false, reason: "Only BUY signals are executed" };
+        // 6. Signal direction check
+        if (signal.signal !== "BUY" && signal.signal !== "SELL") {
+            return { valid: false, reason: "Invalid signal type" };
+        }
+
+        // 7. Shorting enabled check
+        if (signal.signal === "SELL" && !config.enableShorting) {
+            return { valid: false, reason: "Short selling is disabled" };
         }
 
         return { valid: true };
@@ -513,6 +616,15 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPips,
             stopLossPrice: parseFloat(stopLossPrice.toFixed(5)),
         };
+
+        // For SELL trades, stop loss is ABOVE entry
+        if (signal.signal === "SELL") {
+            const sellStopLossPrice = currentPrice + stopLossPips * pipValue;
+            return {
+                stopLossPips,
+                stopLossPrice: parseFloat(sellStopLossPrice.toFixed(5)),
+            };
+        }
     }
 
     /**
@@ -546,7 +658,13 @@ class LiveTradingEngine extends EventEmitter {
         const priceChange = targetProfitAud / units;
 
         // For BUY trades, take profit is above entry
-        const takeProfitPrice = price + priceChange;
+        let takeProfitPrice = price + priceChange;
+
+        // For SELL trades, take profit is below entry
+        if (signal.signal === "SELL") {
+            takeProfitPrice = price - priceChange;
+        }
+
         const takeProfitPips = priceChange / pipValue;
 
         logger.info(
@@ -690,7 +808,7 @@ class LiveTradingEngine extends EventEmitter {
                 id: uuidv4(),
                 oandaTradeId,
                 instrument: symbol,
-                side: "BUY",
+                side: signal.signal === "SELL" ? "SELL" : "BUY",
                 units,
                 entryPrice: fillPrice,
                 entryCostAud: units * fillPrice, // Simplified
@@ -726,7 +844,7 @@ class LiveTradingEngine extends EventEmitter {
                 ? ` | TP: ${takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)})`
                 : "";
             logger.success(
-                `✅ LIVE BUY executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
+                `✅ LIVE ${trade.side} executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
             );
 
             return trade;
@@ -793,9 +911,15 @@ class LiveTradingEngine extends EventEmitter {
             marginUsedAud: marginUsed,
             spreadPips,
             entryTime: Date.now(),
-            mode: "paper",
             isOpen: true,
         };
+
+        // Adjust for SELL
+        if (signal.signal === "SELL") {
+            trade.side = "SELL";
+            trade.stopLossPrice = params.stopLossPrice; // Already calculated correctly
+            // TP already calculated correctly
+        }
 
         // Save to database
         await this.tradeRepository.save(trade);
@@ -896,7 +1020,7 @@ class LiveTradingEngine extends EventEmitter {
         // This includes spreads, currency conversion, and all fees
         const pnlAud =
             oandaData.oandaRealizedPL !== null &&
-            oandaData.oandaRealizedPL !== undefined
+                oandaData.oandaRealizedPL !== undefined
                 ? oandaData.oandaRealizedPL
                 : trade.units * priceChange; // Fallback to simple calc for paper trades
 
@@ -948,8 +1072,7 @@ class LiveTradingEngine extends EventEmitter {
         const profitEmoji = pnlAud >= 0 ? "💰" : "📉";
         const swapNote = swapAud !== 0 ? ` | Swap: ${swapAud.toFixed(2)}` : "";
         logger.info(
-            `${profitEmoji} Trade closed: ${
-                trade.instrument
+            `${profitEmoji} Trade closed: ${trade.instrument
             } | P/L: ${pnlAud.toFixed(2)} AUD (${pnlPips.toFixed(
                 1
             )} pips)${swapNote} | Reason: ${exitReason}`
@@ -973,8 +1096,7 @@ class LiveTradingEngine extends EventEmitter {
         }, this.monitorIntervalMs);
 
         logger.info(
-            `👁️ Position monitoring started (${
-                this.monitorIntervalMs / 1000
+            `👁️ Position monitoring started (${this.monitorIntervalMs / 1000
             }s interval)`
         );
     }
@@ -1104,8 +1226,7 @@ class LiveTradingEngine extends EventEmitter {
             }
 
             logger.debug(
-                `📈 Trailing stop updated for ${
-                    trade.instrument
+                `📈 Trailing stop updated for ${trade.instrument
                 }: ${previousStop?.toFixed(5)} → ${newStopLossPrice.toFixed(5)}`
             );
         }
@@ -1139,7 +1260,7 @@ class LiveTradingEngine extends EventEmitter {
 
         // Send email alert (async, non-blocking)
         const config = this.configService?.get();
-        emailService.sendTradeOpenedAlert(trade, config).catch(() => {});
+        emailService.sendTradeOpenedAlert(trade, config).catch(() => { });
     }
 
     /**
@@ -1167,7 +1288,7 @@ class LiveTradingEngine extends EventEmitter {
 
         // Send email alert (async, non-blocking)
         const config = this.configService?.get();
-        emailService.sendTradeClosedAlert(trade, config).catch(() => {});
+        emailService.sendTradeClosedAlert(trade, config).catch(() => { });
     }
 
     // ==================== PUBLIC METHODS ====================

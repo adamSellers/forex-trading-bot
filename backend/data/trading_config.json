@@ -29,7 +29,7 @@
     "stopLossType": "ATR",
     "stopLossPips": 30,
     "stopLossAtrMultiplier": 2.0,
-    "minStopLossPips": 12,
+    "minStopLossPips": 15,
     "enableTrailingStops": true,
     "trailingStopPips": 25,
     "trailingStopActivationPips": 20,
@@ -40,6 +40,9 @@
         "newyork",
         "london"
     ],
+    "enableShorting": true,
+    "enableBreakeven": true,
+    "breakevenTriggerPips": 12,
     "enableEmailAlerts": false,
     "alertEmail": "",
     "maxLeverage": 30,
