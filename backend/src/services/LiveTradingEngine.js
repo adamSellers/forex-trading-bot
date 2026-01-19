@@ -526,6 +526,7 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Calculate position size based on config
+     * Uses marginAvailable (not total balance) to prevent over-leveraging
      */
     async calculatePositionSize(
         instrument,
@@ -533,13 +534,14 @@ class LiveTradingEngine extends EventEmitter {
         currentPrice,
         config
     ) {
-        // Get account balance from Oanda
-        let accountBalance;
+        // Get account info from Oanda including available margin
+        let accountBalance, marginAvailable;
         try {
             const accountSummary = await oandaClient.getAccountSummary();
             accountBalance = parseFloat(accountSummary.account.balance);
+            marginAvailable = parseFloat(accountSummary.account.marginAvailable);
         } catch (error) {
-            logger.error("❌ Failed to get account balance:", error.message);
+            logger.error("❌ Failed to get account info:", error.message);
             return 0;
         }
 
@@ -548,37 +550,44 @@ class LiveTradingEngine extends EventEmitter {
             return config.fixedPositionUnits || 1000;
         }
 
-        // Create effective balance based on max capital setting
-        // User Request: If balance > maxCapitalAtRisk, use maxCapitalAtRisk as the base for sizing
+        // CRITICAL: Use marginAvailable (free capital) not total balance
+        // This prevents opening positions when capital is already committed
         const maxCapital = config.maxCapitalAtRisk || 500;
+
+        // Apply margin buffer (default 20%) to avoid cutting it too close
+        const marginBuffer = config.marginBuffer || 0.20;
+        const safeMarginAvailable = marginAvailable * (1 - marginBuffer);
+
+        // effectiveBalance = min(safeMarginAvailable, maxCapitalAtRisk)
         const effectiveBalance = (maxCapital > 0)
-            ? Math.min(accountBalance, maxCapital)
-            : accountBalance;
+            ? Math.min(safeMarginAvailable, maxCapital)
+            : safeMarginAvailable;
+
+        // Log margin status for debugging
+        const marginUsed = accountBalance - marginAvailable;
+        logger.info(`💰 Margin status: Balance=$${accountBalance.toFixed(2)} | Available=$${marginAvailable.toFixed(2)} | Used=$${marginUsed.toFixed(2)} | Effective=$${effectiveBalance.toFixed(2)}`);
+
+        // Check if we have enough margin to trade
+        if (effectiveBalance <= 0) {
+            logger.warn(`⚠️ Insufficient margin available: $${marginAvailable.toFixed(2)} (after ${marginBuffer * 100}% buffer)`);
+            return 0;
+        }
 
         // Calculate risk amount on the effective balance
         const riskPercent = config.riskPerTrade || 0.02;
         const riskAmount = effectiveBalance * riskPercent;
-
-        // Log if we are capping the capital
-        if (effectiveBalance < accountBalance) {
-            logger.debug(`💰 Using capped capital: $${effectiveBalance.toFixed(2)} (Actual: $${accountBalance.toFixed(2)})`);
-        }
-
-        // Use riskAmount directly (maxRisk logic is now handled by capping the balance)
-        const maxRisk = riskAmount;
 
         // Calculate position size
         const pipValue = oandaClient.getPipValue(instrument);
         const stopLossPrice = stopLossPips * pipValue;
 
         // Position size = Risk Amount / (Stop Loss in Price × Conversion Factor)
-        // For AUD account, this is simplified - could be more precise with conversion rates
-        let units = Math.floor(maxRisk / (stopLossPrice * currentPrice));
+        let units = Math.floor(riskAmount / (stopLossPrice * currentPrice));
 
-        // Apply leverage limits
+        // Apply leverage limits based on available margin (not total balance)
         const maxLeverage = config.leverage || 10;
         const maxUnitsFromLeverage = Math.floor(
-            (accountBalance * maxLeverage) / currentPrice
+            (safeMarginAvailable * maxLeverage) / currentPrice
         );
         units = Math.min(units, maxUnitsFromLeverage);
 

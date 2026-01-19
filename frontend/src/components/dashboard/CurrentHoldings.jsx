@@ -20,14 +20,28 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus, engineStatu
   const PositionRow = ({ position, isEngineTrade = false }) => {
       const instrument = position.instrument || position.symbol;
       const info = INSTRUMENT_INFO[instrument] || {};
-      const pnl = position.unrealizedPL || position.unrealizedPnL || 0;
-      const isPositive = pnl >= 0;
       const isBuy = position.side === 'BUY' || position.units > 0;
-      
+
       // Get current price from prices prop
       const priceData = prices[instrument];
       const currentPrice = priceData?.mid || priceData?.price || 0;
       const entryPrice = position.entryPrice || position.price;
+
+      // Calculate P&L: prefer Oanda's value, but calculate if missing (engine trades)
+      const units = Math.abs(position.units || 0);
+      let pnl = position.unrealizedPL || position.unrealizedPnL || 0;
+
+      // If no P&L from Oanda and we have prices, calculate it
+      // P&L = (currentPrice - entryPrice) * units * direction
+      // Note: This is approximate - doesn't include spreads/conversion rates
+      if (pnl === 0 && currentPrice && entryPrice && units) {
+          const priceDiff = currentPrice - entryPrice;
+          const direction = isBuy ? 1 : -1;
+          // For AUD account with forex pairs, rough estimate
+          pnl = priceDiff * units * direction;
+      }
+
+      const isPositive = pnl >= 0;
       
       const [closing, setClosing] = useState(false);
 
@@ -93,7 +107,7 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus, engineStatu
                     <Grid item xs={3}>
                         <Typography variant="caption" color="text.secondary" display="block">Units</Typography>
                         <Typography variant="caption" fontWeight="bold" sx={{ fontFamily: 'monospace' }}>
-                            {Math.abs(position.units).toLocaleString()}
+                            {units.toLocaleString()}
                         </Typography>
                     </Grid>
                     <Grid item xs={3} textAlign="center">
