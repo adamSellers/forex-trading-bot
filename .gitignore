@@ -122,7 +122,6 @@ pm2-logs/
 
 # Vibe coders
 .claude
-CLAUDE.md
 
 # don't ship the backtesting data
 backend/data/historical
