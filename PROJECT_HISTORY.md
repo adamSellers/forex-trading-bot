@@ -24,24 +24,28 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
-### 2026-01-20 - Test Suite Infrastructure
+### 2026-01-20 - Test Suite Complete
 
-**Summary**: Established comprehensive Jest test suite for critical trading logic.
+**Summary**: Comprehensive Jest test suite for critical trading logic - all tests passing.
 
 **Key Changes**:
 - Created test infrastructure with fixtures, mocks, and in-memory SQLite
-- 142 tests passing covering LiveTradingEngine, signalGenerator, Oandaclient, analyticsService
+- 174 tests passing covering LiveTradingEngine, signalGenerator, Oandaclient, analyticsService, tradeRepository
 - Fixed Oandaclient tests (native fetch mocking instead of nock)
 - Fixed signalGenerator tests (assertion update for HOLD signal)
+- Fixed Jest hoisting issue in tradeRepository tests (`testDbInstance` → `mockTestDbInstance`)
+- Added missing EventEmitter methods to mock services (`removeListener`, `off`, `once`, etc.)
+- Fixed LiveTradingEngine test assertions (margin validation, Oanda sync mocking)
 
 **Files Modified**:
 - `backend/jest.config.js` - Test configuration
 - `backend/__tests__/setup.js` - Global test setup
 - `backend/__tests__/fixtures/` - Mock data factories
-- `backend/__tests__/helpers/` - Test utilities
+- `backend/__tests__/helpers/mockServices.js` - Mock service utilities with EventEmitter support
 - `backend/src/services/__tests__/*.test.js` - Service tests
+- `backend/src/repositories/__tests__/tradeRepository.test.js` - Repository tests
 
-**Testing**: 142 passing, 5 failing (work in progress)
+**Testing**: 174 passing, 0 failing
 
 ---
 
@@ -308,7 +312,7 @@ When a feature is **fully completed AND deployed to production**:
 | 2026-01-12 | Database WAL fix, margin-based TP                      |
 | 2026-01-17 | Navigation overhaul, analytics dashboard               |
 | 2026-01-19 | Margin-aware position sizing                           |
-| 2026-01-20 | Test suite infrastructure (142 passing)                |
+| 2026-01-20 | Test suite complete (174 passing, 0 failing)           |
 
 ---
 

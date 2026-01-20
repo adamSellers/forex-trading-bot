@@ -25,11 +25,6 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ## Known Issues / Bugs
 
-| Priority | Issue                    | Notes                                                          |
-| -------- | ------------------------ | -------------------------------------------------------------- |
-| ~~HIGH~~ | ~~Ghost position bug~~   | RESOLVED - Manually fixed EUR/USD trade 489                    |
-| ~~MEDIUM~~ | ~~Test suite - 5 failing~~ | FIXED - Awaiting verification (Jan 20). See CLAUDE.md IN PROGRESS |
-
 _No active bugs at this time._
 
 ---
@@ -86,7 +81,6 @@ These features were planned but not yet implemented.
 
 | Priority | Item                           | Notes                                                     |
 | -------- | ------------------------------ | --------------------------------------------------------- |
-| ~~MEDIUM~~ | ~~Fix remaining 5 test failures~~ | FIXED - Jan 20, awaiting verification                  |
 | LOW      | Health check improvements      | Include last trade time, signal age in endpoint           |
 | LOW      | Disk space monitoring          | Alert if Pi storage gets low                              |
 | LOW      | Uptime tracking                | Log/display how long bot has been running                 |
@@ -133,4 +127,4 @@ These features were planned but not yet implemented.
 
 ---
 
-_Last updated: 2026-01-20 (test fixes)_
+_Last updated: 2026-01-20_

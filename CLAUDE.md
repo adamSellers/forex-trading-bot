@@ -125,7 +125,7 @@ git push origin main
 | Dashboard         | http://img.oakroad:3100          |
 | API               | http://img.oakroad:3101/api      |
 | PM2 Process       | forex-backend                    |
-| Test Suite        | 142 passing, 5 failing           |
+| Test Suite        | 174 passing, 0 failing           |
 
 **CRITICAL**: This is a LIVE trading account with real money. Exercise extreme caution with any changes that affect trading logic, position sizing, or order execution.
 
@@ -348,55 +348,13 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-12 | Database WAL fix, margin-based take profit                   |
 | 2026-01-17 | Navigation overhaul, analytics dashboard                     |
 | 2026-01-19 | Margin-aware position sizing deployed                        |
-| 2026-01-20 | Test suite partial fix (142 passing)                         |
+| 2026-01-20 | Test suite complete (174 passing, 0 failing)                 |
 
 ---
 
 ## IN PROGRESS
 
-### Test Suite Fixes - Verify and Deploy
-
-**Status**: Code changes complete, awaiting test verification (Jan 20, 2026)
-
-**What Was Done This Session**:
-Fixed all 5 test failures (previously 142 passing, 5 failing → now should be 174 passing):
-
-1. **tradeRepository.test.js** - Fixed Jest hoisting issue
-   - Renamed `testDbInstance` → `mockTestDbInstance` (Jest requires `mock` prefix for hoisted variables)
-   - File: [tradeRepository.test.js](backend/src/repositories/__tests__/tradeRepository.test.js) lines 8, 38, 43
-
-2. **mockServices.js** - Fixed missing EventEmitter methods
-   - Added `removeListener`, `off`, `once`, `addListener`, `removeAllListeners` to both:
-     - `createMockConfigService()`
-     - `createMockSignalGenerator()`
-   - File: [mockServices.js](backend/__tests__/helpers/mockServices.js) lines 184-191, 303-310
-
-3. **LiveTradingEngine.test.js** - Fixed 2 assertion failures
-   - "should not execute when position size is 0": Changed `marginAvailable: '0.50'` → `'0.00'`
-   - "should sync open trades from database on start": Added Oanda mock to prevent `syncWithOanda()` from removing trades
-   - File: [LiveTradingEngine.test.js](backend/src/services/__tests__/LiveTradingEngine.test.js) lines 655-673, 815-837
-
-**Next Steps**:
-1. Run tests to verify all 174 pass: `cd backend && npm test`
-2. Commit the test fixes:
-```bash
-git add backend/src/repositories/__tests__/tradeRepository.test.js
-git add backend/__tests__/helpers/mockServices.js
-git add backend/src/services/__tests__/LiveTradingEngine.test.js
-git commit -m "test: fix 5 failing tests (Jest hoisting, EventEmitter methods, assertions)"
-git push origin main
-```
-3. Deploy to Pi: `ssh img.oakroad && cd /opt/forex-trading-bot && ./scripts/update.sh`
-
----
-
-### Resolved Issues
-
-**Ghost Position Bug** - RESOLVED by user
-- EUR/USD trade ID 11, Oanda trade 489 - manually fixed
-
-**Documentation Migration** - COMPLETE
-- Docs committed in previous session
+_No active work items. Ready for new tasks._
 
 ---
 

@@ -958,4 +958,4 @@ curl http://localhost:3101/api/signals
 
 ---
 
-_Last updated: January 11, 2026_
+_Last updated: January 20, 2026_
