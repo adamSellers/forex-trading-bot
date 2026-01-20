@@ -294,8 +294,11 @@ server.listen(PORT, async () => {
             try {
                 await tradingEngine.start();
                 logger.success(
-                    "Ã¢Å“â€¦ Trading engine started and listening for signals"
+                    "Ã¢Å"â€¦ Trading engine started and listening for signals"
                 );
+
+                // Start position monitoring loop (reconciles with Oanda every 10s)
+                tradingEngine.startMonitoring();
 
                 const config = configService.get();
 
