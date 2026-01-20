@@ -1,12 +1,9 @@
 {
     "enableTrading": true,
-    "maxCapitalAtRisk": 500,
+    "maxCapitalAtRisk": 100,
     "maxOpenPositions": 2,
     "logLevel": "info",
-    "assets": [
-        "AUD_USD",
-        "EUR_USD"
-    ],
+    "assets": ["AUD_USD", "EUR_USD"],
     "strategy": "supertrend_momentum",
     "timeframe": "15m",
     "signalCooldown": 60000,
@@ -34,19 +31,14 @@
     "trailingStopPips": 25,
     "trailingStopActivationPips": 20,
     "enableSessionFilter": true,
-    "activeSessions": [
-        "sydney",
-        "tokyo",
-        "newyork",
-        "london"
-    ],
+    "activeSessions": ["sydney", "tokyo", "newyork", "london"],
     "enableShorting": true,
     "enableBreakeven": true,
     "breakevenTriggerPips": 12,
-    "enableEmailAlerts": false,
-    "alertEmail": "",
+    "enableEmailAlerts": true,
+    "alertEmail": "adam@sellers.life",
     "maxLeverage": 30,
-    "enableTakeProfit": true,
+    "enableTakeProfit": false,
     "takeProfitPercent": 0.06,
     "tradingMode": "live"
 }
