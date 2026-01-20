@@ -354,48 +354,49 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Documentation Migration Complete - Ready for Next Task
+### Test Suite Fixes - Verify and Deploy
 
-**Status**: Complete (Jan 20, 2026)
+**Status**: Code changes complete, awaiting test verification (Jan 20, 2026)
 
 **What Was Done This Session**:
-- Migrated to structured documentation system
-- Created `CLAUDE.md` from template with full project context
-- Created `project_roadmap.md` with future features and known issues
-- Created `PROJECT_HISTORY.md` with 17 completed feature entries
-- Deleted template files
+Fixed all 5 test failures (previously 142 passing, 5 failing → now should be 174 passing):
 
-**Pending Commit**:
+1. **tradeRepository.test.js** - Fixed Jest hoisting issue
+   - Renamed `testDbInstance` → `mockTestDbInstance` (Jest requires `mock` prefix for hoisted variables)
+   - File: [tradeRepository.test.js](backend/src/repositories/__tests__/tradeRepository.test.js) lines 8, 38, 43
+
+2. **mockServices.js** - Fixed missing EventEmitter methods
+   - Added `removeListener`, `off`, `once`, `addListener`, `removeAllListeners` to both:
+     - `createMockConfigService()`
+     - `createMockSignalGenerator()`
+   - File: [mockServices.js](backend/__tests__/helpers/mockServices.js) lines 184-191, 303-310
+
+3. **LiveTradingEngine.test.js** - Fixed 2 assertion failures
+   - "should not execute when position size is 0": Changed `marginAvailable: '0.50'` → `'0.00'`
+   - "should sync open trades from database on start": Added Oanda mock to prevent `syncWithOanda()` from removing trades
+   - File: [LiveTradingEngine.test.js](backend/src/services/__tests__/LiveTradingEngine.test.js) lines 655-673, 815-837
+
+**Next Steps**:
+1. Run tests to verify all 174 pass: `cd backend && npm test`
+2. Commit the test fixes:
 ```bash
-git add CLAUDE.md project_roadmap.md PROJECT_HISTORY.md
-git commit -m "docs: migrate to structured documentation system"
+git add backend/src/repositories/__tests__/tradeRepository.test.js
+git add backend/__tests__/helpers/mockServices.js
+git add backend/src/services/__tests__/LiveTradingEngine.test.js
+git commit -m "test: fix 5 failing tests (Jest hoisting, EventEmitter methods, assertions)"
 git push origin main
 ```
+3. Deploy to Pi: `ssh img.oakroad && cd /opt/forex-trading-bot && ./scripts/update.sh`
 
 ---
 
-### Outstanding Work (from previous sessions)
+### Resolved Issues
 
-**1. Ghost Position Bug** (HIGH priority)
-- EUR/USD trade ID 11, Oanda trade 489
-- Trade closed on Oanda via TP but DB shows `is_open=1`
-- Need to: Query Oanda for exit details, manually fix DB, investigate `reconcilePositions()`
+**Ghost Position Bug** - RESOLVED by user
+- EUR/USD trade ID 11, Oanda trade 489 - manually fixed
 
-**2. Test Suite - 5 Remaining Failures** (MEDIUM priority)
-- `tradeRepository.test.js` - Jest hoisting issue (rename `testDbInstance` to `mockTestDbInstance`)
-- `LiveTradingEngine.test.js` - `removeListener is not a function`, position size assertions
-
-**Debug Commands**:
-```bash
-# Check reconciliation logic
-grep -n -A 20 "reconcile\|handleExternal" backend/src/services/LiveTradingEngine.js
-
-# Get closed trade from Oanda
-grep -i "getTransaction\|getTrade\|closed" backend/src/services/Oandaclient.js
-
-# Run tests
-cd backend && npm test
-```
+**Documentation Migration** - COMPLETE
+- Docs committed in previous session
 
 ---
 

@@ -181,9 +181,14 @@ const createMockConfigService = (config = {}) => {
             emitter.emit('configUpdated', defaultConfig);
             return defaultConfig;
         }),
+        // EventEmitter methods - bind all necessary methods
         on: emitter.on.bind(emitter),
+        off: emitter.off.bind(emitter),
+        once: emitter.once.bind(emitter),
         emit: emitter.emit.bind(emitter),
-        ...emitter,
+        addListener: emitter.addListener.bind(emitter),
+        removeListener: emitter.removeListener.bind(emitter),
+        removeAllListeners: emitter.removeAllListeners.bind(emitter),
     };
 };
 
@@ -300,8 +305,14 @@ const createMockSignalGenerator = (signals = []) => {
         reset: jest.fn(() => {
             latestSignals = [];
         }),
+        // EventEmitter methods - bind all necessary methods for signal subscription
         on: emitter.on.bind(emitter),
+        off: emitter.off.bind(emitter),
+        once: emitter.once.bind(emitter),
         emit: emitter.emit.bind(emitter),
+        addListener: emitter.addListener.bind(emitter),
+        removeListener: emitter.removeListener.bind(emitter),
+        removeAllListeners: emitter.removeAllListeners.bind(emitter),
         // Helper to emit test signals
         _emitSignal: (signal) => {
             emitter.emit('signalGenerated', signal);

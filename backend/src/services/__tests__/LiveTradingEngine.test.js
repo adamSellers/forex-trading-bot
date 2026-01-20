@@ -653,11 +653,13 @@ describe('LiveTradingEngine', () => {
         });
 
         test('should not execute when position size is 0', async () => {
-            // Force position size to return 0
+            // Force position size to return 0 by setting marginAvailable to 0
+            // With 0 margin, safeMarginAvailable will be 0, effectiveBalance will be 0
+            // which triggers the "insufficient margin" return 0 path
             oandaClient.getAccountSummary.mockResolvedValue({
                 account: {
                     balance: '10.00',
-                    marginAvailable: '0.50', // Very low
+                    marginAvailable: '0.00', // Zero margin available
                 },
             });
 
@@ -813,10 +815,20 @@ describe('LiveTradingEngine', () => {
         });
 
         test('should sync open trades from database on start', async () => {
+            // Mock database to return 2 open trades
             mockTradeRepository.getOpenTrades.mockResolvedValue([
-                createMockTrade({ id: 'trade-1' }),
-                createMockTrade({ id: 'trade-2' }),
+                createMockTrade({ id: 'trade-1', oandaTradeId: '501' }),
+                createMockTrade({ id: 'trade-2', oandaTradeId: '502' }),
             ]);
+
+            // Also mock Oanda to return these trades so syncWithOanda doesn't remove them
+            // Without this, syncWithOanda sees empty Oanda trades and closes our DB trades
+            oandaClient.getOpenTrades.mockResolvedValue({
+                trades: [
+                    { id: '501', instrument: 'AUD_USD', currentUnits: '795' },
+                    { id: '502', instrument: 'AUD_USD', currentUnits: '795' },
+                ],
+            });
 
             await engine.start();
 

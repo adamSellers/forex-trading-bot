@@ -4,24 +4,25 @@ const { createTestDb, seedTestData, cleanupTestDb, destroyTestDb } = require('..
 const { createMockTrade, createClosedTrade, createLosingTrade, createDbRecord } = require('../../../__tests__/fixtures/mockTrades');
 
 // Store reference to test database for mock
-let testDbInstance = null;
+// IMPORTANT: Variable must be prefixed with 'mock' for Jest hoisting to work
+let mockTestDbInstance = null;
 
-// Mock the database module - use a function that delegates to testDbInstance
+// Mock the database module - use a function that delegates to mockTestDbInstance
 jest.mock('../../../config/database', () => ({
     db: new Proxy(function() {}, {
         apply: (target, thisArg, args) => {
             // Handle db("tableName") calls
-            if (testDbInstance) {
-                return testDbInstance(args[0]);
+            if (mockTestDbInstance) {
+                return mockTestDbInstance(args[0]);
             }
             throw new Error('Database not initialized');
         },
         get: (target, prop) => {
             // Handle db.fn, db.raw, etc.
-            if (testDbInstance && testDbInstance[prop]) {
-                return typeof testDbInstance[prop] === 'function'
-                    ? testDbInstance[prop].bind(testDbInstance)
-                    : testDbInstance[prop];
+            if (mockTestDbInstance && mockTestDbInstance[prop]) {
+                return typeof mockTestDbInstance[prop] === 'function'
+                    ? mockTestDbInstance[prop].bind(mockTestDbInstance)
+                    : mockTestDbInstance[prop];
             }
             return undefined;
         },
@@ -34,12 +35,12 @@ describe('TradeRepository', () => {
 
     beforeAll(async () => {
         testDb = await createTestDb();
-        testDbInstance = testDb;
+        mockTestDbInstance = testDb;
     });
 
     afterAll(async () => {
         await destroyTestDb(testDb);
-        testDbInstance = null;
+        mockTestDbInstance = null;
     });
 
     beforeEach(async () => {
