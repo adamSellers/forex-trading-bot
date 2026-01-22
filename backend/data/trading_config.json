@@ -30,8 +30,7 @@
     "fixedPositionUnits": 1000,
     "stopLossType": "ATR",
     "stopLossPips": 30,
-    "stopLossAtrMultiplier": 2.0,
-    "minStopLossPips": 12,
+    "stopLossAtrMultiplier": 2,
     "enableTrailingStops": true,
     "trailingStopPips": 25,
     "trailingStopActivationPips": 20,
@@ -42,15 +41,16 @@
         "london",
         "tokyo"
     ],
+    "enableEmailAlerts": false,
+    "alertEmail": "",
+    "minStopLossPips": 12,
     "enableShorting": true,
     "enableBreakeven": true,
     "breakevenTriggerPips": 12,
-    "enableEmailAlerts": false,
-    "alertEmail": "",
     "enableSlackAlerts": true,
     "maxLeverage": 30,
     "enableTakeProfit": false,
     "takeProfitPips": 60,
     "takeProfitPercent": 0.06,
-    "tradingMode": "paper"
+    "tradingMode": "live"
 }
