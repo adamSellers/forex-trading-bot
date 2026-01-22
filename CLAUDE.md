@@ -354,7 +354,32 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-_No active work items. Ready for new tasks._
+### Week 3 Soak Test - Live Trading Monitoring
+
+**Status**: Active monitoring (Jan 20, 2026)
+
+**Context**:
+- Live trading has been active since Jan 19, 2026
+- Test suite is complete (174 passing, 0 failing)
+- All known bugs resolved (ghost position, test failures)
+- System is stable and running on Raspberry Pi at img.oakroad
+
+**Current Focus**:
+- Monitor live trading performance during Week 3
+- Watch for any edge cases or issues in production
+- Collect performance data for strategy evaluation
+
+**System State**:
+- Trading Mode: Live
+- Test Suite: 174 passing, 0 failing
+- Known Bugs: None
+- Dashboard: http://img.oakroad:3100
+- API: http://img.oakroad:3101/api
+
+**Next Steps**:
+1. Continue monitoring live trades
+2. Review performance metrics at end of week
+3. Consider any strategy adjustments based on Week 2-3 data
 
 ---
 
