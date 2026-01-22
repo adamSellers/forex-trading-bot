@@ -27,6 +27,11 @@ This document tracks all planned features, enhancements, and technical improveme
 
 _No active bugs at this time._
 
+**Recently Fixed (Jan 22, 2026):**
+- SELL orders sent positive units (opened LONGs instead of SHORTs) - FIXED
+- Trailing stops only worked for BUY trades - FIXED
+- SELL stop loss calculation was unreachable code - FIXED
+
 ---
 
 ## Phase 4 - Backtesting & Optimization
@@ -46,7 +51,7 @@ These features were planned but not yet implemented.
 
 | Priority | Feature                     | Notes                                                       |
 | -------- | --------------------------- | ----------------------------------------------------------- |
-| MEDIUM   | Short selling               | Currently long-only; SELL signals are ignored               |
+| MEDIUM   | Short selling               | Mechanism fixed (Jan 22); requires `enableShorting: true`   |
 | MEDIUM   | Whipsaw protection          | Cooldown after consecutive stop-outs (Jan 9 event)          |
 | LOW      | Multi-timeframe confirmation | Use 1H + 15M signals for higher conviction entries         |
 | LOW      | Trailing stop improvements  | Dynamic trail based on ATR instead of fixed pips            |

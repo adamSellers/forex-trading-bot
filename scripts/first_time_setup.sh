@@ -28,16 +28,16 @@ log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
 # --- Pi-Specific: Swap Management ---
 setup_swap() {
-    log_step "Setting up 4GB Build Swap (OOM prevention)..."
+    log_step "Setting up 8GB Build Swap (OOM prevention)..."
     if [ -f /swapfile ]; then
         sudo swapoff /swapfile || true
         sudo rm -f /swapfile
     fi
-    sudo fallocate -l 4G /swapfile
+    sudo fallocate -l 8G /swapfile
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
     sudo swapon /swapfile
-    log_success "Swap active (4GB)"
+    log_success "Swap active (8GB)"
 }
 
 cleanup_swap() {

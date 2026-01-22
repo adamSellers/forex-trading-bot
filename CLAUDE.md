@@ -354,32 +354,46 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Week 3 Soak Test - Live Trading Monitoring
+### Critical Bug Fixes - Jan 22, 2026
 
-**Status**: Active monitoring (Jan 20, 2026)
+**Status**: Fixes deployed, clean install completed
 
-**Context**:
-- Live trading has been active since Jan 19, 2026
-- Test suite is complete (174 passing, 0 failing)
-- All known bugs resolved (ghost position, test failures)
-- System is stable and running on Raspberry Pi at img.oakroad
+**Bugs Found & Fixed**:
 
-**Current Focus**:
-- Monitor live trading performance during Week 3
-- Watch for any edge cases or issues in production
-- Collect performance data for strategy evaluation
+1. **SELL orders sent positive units** (CRITICAL)
+   - Location: [LiveTradingEngine.js:681-688](backend/src/services/LiveTradingEngine.js#L681-L688)
+   - Problem: SELL signals sent positive units to Oanda, opening LONGs instead of SHORTs
+   - Impact: All "SELL" trades in history were actually LONGs (data integrity compromised)
+   - Fix: Added `const orderUnits = signal.signal === "SELL" ? -units : units;`
+
+2. **Trailing stop only worked for BUY trades**
+   - Location: [LiveTradingEngine.js:1104](backend/src/services/LiveTradingEngine.js#L1104)
+   - Problem: Code had `trade.side === "BUY"` filter, excluding SELL trades
+   - Fix: Removed filter, made `updateTrailingStop()` direction-aware
+
+3. **Unreachable SELL stop loss code**
+   - Location: [LiveTradingEngine.js:548-563](backend/src/services/LiveTradingEngine.js#L548-L563)
+   - Problem: Early `return` statement made SELL branch unreachable
+   - Fix: Restructured to check direction before returning
+
+**Actions Taken**:
+- User manually closed AUD/USD position (+$12.49 profit - but due to bug, not strategy)
+- Clean install deployed on Pi (fresh database, fixed code)
+- Historical trade data cleared (was corrupted by SELL/BUY bug)
 
 **System State**:
-- Trading Mode: Live
-- Test Suite: 174 passing, 0 failing
-- Known Bugs: None
+- Trading Mode: Live (fresh start)
+- Database: Reset (clean slate)
 - Dashboard: http://img.oakroad:3100
 - API: http://img.oakroad:3101/api
 
 **Next Steps**:
-1. Continue monitoring live trades
-2. Review performance metrics at end of week
-3. Consider any strategy adjustments based on Week 2-3 data
+1. Verify deployment completed successfully on Pi
+2. Run tests to confirm fixes work: `cd backend && npm test`
+3. Monitor first trades after fix to ensure correct side alignment
+4. Consider disabling shorting if not wanted (`enableShorting: false`)
+
+**Note on `.env`**: The codebase uses `DB_PATH`, not `DATABASE_PATH`. If `.env` has `DATABASE_PATH`, it's unused.
 
 ---
 
