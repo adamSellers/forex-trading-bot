@@ -546,22 +546,20 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPips = minStopPips;
         }
 
-        // For BUY trades, stop loss is below entry
-        const stopLossPrice = currentPrice - stopLossPips * pipValue;
+        // Calculate stop loss price based on trade direction
+        // BUY: stop loss is BELOW entry
+        // SELL: stop loss is ABOVE entry
+        let stopLossPrice;
+        if (signal.signal === "SELL") {
+            stopLossPrice = currentPrice + stopLossPips * pipValue;
+        } else {
+            stopLossPrice = currentPrice - stopLossPips * pipValue;
+        }
 
         return {
             stopLossPips,
             stopLossPrice: parseFloat(stopLossPrice.toFixed(5)),
         };
-
-        // For SELL trades, stop loss is ABOVE entry
-        if (signal.signal === "SELL") {
-            const sellStopLossPrice = currentPrice + stopLossPips * pipValue;
-            return {
-                stopLossPips,
-                stopLossPrice: parseFloat(sellStopLossPrice.toFixed(5)),
-            };
-        }
     }
 
     /**
@@ -695,9 +693,13 @@ class LiveTradingEngine extends EventEmitter {
 
         // Live trading - execute via Oanda (without TP initially)
         try {
+            // For SELL signals, negate units to open SHORT position in Oanda
+            // Oanda API: positive units = BUY, negative units = SELL
+            const orderUnits = signal.signal === "SELL" ? -units : units;
+
             const orderResult = await oandaClient.placeMarketOrder(
                 symbol,
-                units,
+                orderUnits,
                 {
                     stopLossPrice,
                     // Note: TP will be set after order fills using actual margin
@@ -1131,48 +1133,68 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
 
-        // Update trailing stop if enabled
-        if (config.enableTrailingStops && trade.side === "BUY") {
+        // Update trailing stop if enabled (works for both BUY and SELL)
+        if (config.enableTrailingStops) {
             await this.updateTrailingStop(trade, currentPrice, config);
         }
     }
 
     /**
-     * Update trailing stop for a position
+     * Update trailing stop for a position (works for both BUY and SELL)
      */
     async updateTrailingStop(trade, currentPrice, config) {
         const pipValue = oandaClient.getPipValue(trade.instrument);
         const trailingPips = config.trailingStopPips || 25;
         const activationPips = config.trailingStopActivationPips || 20;
+        const isBuy = trade.side === "BUY";
 
-        // Check if price has moved enough to activate trailing stop
-        const profitPips = (currentPrice - trade.entryPrice) / pipValue;
+        // Calculate profit in pips (direction-aware)
+        const profitPips = isBuy
+            ? (currentPrice - trade.entryPrice) / pipValue
+            : (trade.entryPrice - currentPrice) / pipValue;
 
         if (profitPips < activationPips) {
             return; // Not in profit enough to activate trailing
         }
 
-        // Calculate new trailing stop price
-        const newStopLossPrice = currentPrice - trailingPips * pipValue;
+        // Calculate new trailing stop price (direction-aware)
+        // BUY: stop is BELOW current price, moves UP
+        // SELL: stop is ABOVE current price, moves DOWN
+        const newStopLossPrice = isBuy
+            ? currentPrice - trailingPips * pipValue
+            : currentPrice + trailingPips * pipValue;
 
-        // Only update if new stop is higher than current stop
-        if (
-            !trade.trailingStopPrice ||
-            newStopLossPrice > trade.trailingStopPrice
-        ) {
+        // Check if we should update (stop should only move in favorable direction)
+        // BUY: new stop must be HIGHER than current
+        // SELL: new stop must be LOWER than current
+        const shouldUpdate = isBuy
+            ? !trade.trailingStopPrice || newStopLossPrice > trade.trailingStopPrice
+            : !trade.trailingStopPrice || newStopLossPrice < trade.trailingStopPrice;
+
+        if (shouldUpdate) {
             const previousStop = trade.trailingStopPrice || trade.stopLossPrice;
 
             // Update in memory
             trade.trailingStopPrice = newStopLossPrice;
-            trade.highestPrice = Math.max(
-                trade.highestPrice || trade.entryPrice,
-                currentPrice
-            );
+
+            // Track extreme price (highest for BUY, lowest for SELL)
+            if (isBuy) {
+                trade.highestPrice = Math.max(
+                    trade.highestPrice || trade.entryPrice,
+                    currentPrice
+                );
+            } else {
+                trade.lowestPrice = Math.min(
+                    trade.lowestPrice || trade.entryPrice,
+                    currentPrice
+                );
+            }
 
             // Update in database
             await this.tradeRepository.updateTrade(trade.id, {
                 trailingStopPrice: newStopLossPrice,
                 highestPrice: trade.highestPrice,
+                lowestPrice: trade.lowestPrice,
             });
 
             // Update Oanda stop loss (live trades only)
@@ -1184,6 +1206,9 @@ class LiveTradingEngine extends EventEmitter {
                     await oandaClient.modifyTrade(trade.oandaTradeId, {
                         stopLossPrice: newStopLossPrice,
                     });
+                    logger.info(
+                        `📈 Trailing stop updated on Oanda for ${trade.instrument} (${trade.side}): ${previousStop?.toFixed(5)} → ${newStopLossPrice.toFixed(5)}`
+                    );
                 } catch (error) {
                     logger.error(
                         `❌ Failed to update trailing stop on Oanda:`,
@@ -1193,8 +1218,7 @@ class LiveTradingEngine extends EventEmitter {
             }
 
             logger.debug(
-                `📈 Trailing stop updated for ${trade.instrument
-                }: ${previousStop?.toFixed(5)} → ${newStopLossPrice.toFixed(5)}`
+                `📈 Trailing stop updated for ${trade.instrument} (${trade.side}): ${previousStop?.toFixed(5)} → ${newStopLossPrice.toFixed(5)}`
             );
         }
     }

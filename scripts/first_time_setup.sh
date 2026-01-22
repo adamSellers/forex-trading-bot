@@ -26,6 +26,7 @@ log_success() { echo -e "${GREEN}✅ $1${NC}"; }
 log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
+
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "       🚀 FOREX TRADING BOT - FIRST TIME SETUP"
