@@ -15,18 +15,18 @@ const RiskSettings = ({ config, updateConfig }) => {
     <Stack spacing={3}>
       {/* Position Sizing */}
       <GlassCard>
-        <SectionHeader 
-          icon={<Security />} 
-          title="Position Sizing" 
-          subtitle="Risk-based or fixed units" 
+        <SectionHeader
+          icon={<Security />}
+          title="Position Sizing"
+          subtitle="Risk-based or fixed units"
         />
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Position Size Method</InputLabel>
-              <Select 
-                value={config.positionSizeMethod || 'RISK'} 
-                label="Position Size Method" 
+              <Select
+                value={config.positionSizeMethod || 'RISK'}
+                label="Position Size Method"
                 onChange={(e) => updateConfig('positionSizeMethod', e.target.value)}
               >
                 <MenuItem value="RISK">Risk-Based (Recommended)</MenuItem>
@@ -37,20 +37,20 @@ const RiskSettings = ({ config, updateConfig }) => {
               Risk-based calculates position size from stop loss distance
             </Typography>
           </Grid>
-          
+
           {config.positionSizeMethod === 'RISK' ? (
             <Grid item xs={12} md={6}>
               <Typography gutterBottom variant="subtitle2" color="text.secondary">RISK PER TRADE</Typography>
               <Stack direction="row" spacing={2} alignItems="center">
-                <Slider 
-                  value={(config.riskPerTrade || 0.02) * 100} 
+                <Slider
+                  value={(config.riskPerTrade || 0.02) * 100}
                   min={0.5} max={5} step={0.5}
-                  onChange={(_, v) => updateConfig('riskPerTrade', v / 100)} 
-                  sx={{ flexGrow: 1 }} 
+                  onChange={(_, v) => updateConfig('riskPerTrade', v / 100)}
+                  sx={{ flexGrow: 1 }}
                 />
-                <Chip 
-                  label={`${((config.riskPerTrade || 0.02) * 100).toFixed(1)}%`} 
-                  color={config.riskPerTrade > 0.03 ? "error" : config.riskPerTrade > 0.02 ? "warning" : "success"} 
+                <Chip
+                  label={`${((config.riskPerTrade || 0.02) * 100).toFixed(1)}%`}
+                  color={config.riskPerTrade > 0.03 ? "error" : config.riskPerTrade > 0.02 ? "warning" : "success"}
                 />
               </Stack>
               <Typography variant="caption" color="text.secondary">
@@ -70,18 +70,18 @@ const RiskSettings = ({ config, updateConfig }) => {
               />
             </Grid>
           )}
-          
+
           <Grid item xs={12}>
             <Divider sx={{ my: 1 }} />
           </Grid>
-          
+
           <Grid item xs={12} md={6}>
             <Typography gutterBottom variant="subtitle2" color="text.secondary">LEVERAGE</Typography>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Slider 
-                value={config.leverage || 10} 
+              <Slider
+                value={config.leverage || 10}
                 min={1} max={30}
-                onChange={(_, v) => updateConfig('leverage', v)} 
+                onChange={(_, v) => updateConfig('leverage', v)}
                 sx={{ flexGrow: 1 }}
                 marks={[
                   { value: 1, label: '1:1' },
@@ -90,28 +90,28 @@ const RiskSettings = ({ config, updateConfig }) => {
                   { value: 30, label: '30:1' },
                 ]}
               />
-              <Chip 
-                label={`${config.leverage || 10}:1`} 
-                color={config.leverage > 20 ? "error" : config.leverage > 10 ? "warning" : "success"} 
+              <Chip
+                label={`${config.leverage || 10}:1`}
+                color={config.leverage > 20 ? "error" : config.leverage > 10 ? "warning" : "success"}
               />
             </Stack>
             <Typography variant="caption" color="text.secondary">
               ASIC limit is 30:1 for major pairs. Lower leverage = lower risk.
             </Typography>
           </Grid>
-          
+
           <Grid item xs={12} md={6}>
             <Typography gutterBottom variant="subtitle2" color="text.secondary">MAX PORTFOLIO EXPOSURE</Typography>
             <Stack direction="row" spacing={2} alignItems="center">
-              <Slider 
-                value={(config.maxPortfolioExposure ?? 0.50) * 100} 
+              <Slider
+                value={(config.maxPortfolioExposure ?? 0.50) * 100}
                 min={20} max={100} step={10}
-                onChange={(_, v) => updateConfig('maxPortfolioExposure', v / 100)} 
-                sx={{ flexGrow: 1 }} 
+                onChange={(_, v) => updateConfig('maxPortfolioExposure', v / 100)}
+                sx={{ flexGrow: 1 }}
               />
-              <Chip 
-                label={`${((config.maxPortfolioExposure ?? 0.50) * 100).toFixed(0)}%`} 
-                color={config.maxPortfolioExposure > 0.7 ? "warning" : "success"} 
+              <Chip
+                label={`${((config.maxPortfolioExposure ?? 0.50) * 100).toFixed(0)}%`}
+                color={config.maxPortfolioExposure > 0.7 ? "warning" : "success"}
               />
             </Stack>
             <Typography variant="caption" color="text.secondary">
@@ -123,18 +123,18 @@ const RiskSettings = ({ config, updateConfig }) => {
 
       {/* Stop Loss */}
       <GlassCard>
-        <SectionHeader 
-          icon={<Security />} 
-          title="Stop Loss" 
-          subtitle="Risk control per trade" 
+        <SectionHeader
+          icon={<Security />}
+          title="Stop Loss"
+          subtitle="Risk control per trade"
         />
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>Stop Loss Type</InputLabel>
-              <Select 
-                value={config.stopLossType || 'ATR'} 
-                label="Stop Loss Type" 
+              <Select
+                value={config.stopLossType || 'ATR'}
+                label="Stop Loss Type"
                 onChange={(e) => updateConfig('stopLossType', e.target.value)}
               >
                 <MenuItem value="FIXED">Fixed Pips</MenuItem>
@@ -145,7 +145,7 @@ const RiskSettings = ({ config, updateConfig }) => {
               ATR adapts to market volatility automatically
             </Typography>
           </Grid>
-          
+
           {config.stopLossType === 'FIXED' ? (
             <Grid item xs={12} md={6}>
               <TextField
@@ -259,25 +259,25 @@ const RiskSettings = ({ config, updateConfig }) => {
 
       {/* Trailing Stop */}
       <GlassCard>
-        <Box 
-          display="flex" 
-          justifyContent="space-between" 
+        <Box
+          display="flex"
+          justifyContent="space-between"
           alignItems="center"
           onClick={() => setShowAdvancedRisk(!showAdvancedRisk)}
           sx={{ cursor: 'pointer' }}
         >
           <Box display="flex" alignItems="center" gap={2}>
             <Typography fontWeight="bold">Trailing Stop-Loss</Typography>
-            <Chip 
-              label={config.enableTrailingStops ? 'ENABLED' : 'DISABLED'} 
-              size="small" 
+            <Chip
+              label={config.enableTrailingStops ? 'ENABLED' : 'DISABLED'}
+              size="small"
               color={config.enableTrailingStops ? 'success' : 'default'}
             />
           </Box>
           <Box display="flex" alignItems="center" gap={1}>
-            <Switch 
-              checked={config.enableTrailingStops || false} 
-              onChange={(e) => { e.stopPropagation(); updateConfig('enableTrailingStops', e.target.checked); }} 
+            <Switch
+              checked={config.enableTrailingStops || false}
+              onChange={(e) => { e.stopPropagation(); updateConfig('enableTrailingStops', e.target.checked); }}
             />
             <IconButton size="small">
               {showAdvancedRisk ? <ExpandLess /> : <ExpandMore />}
@@ -287,28 +287,28 @@ const RiskSettings = ({ config, updateConfig }) => {
         <Typography variant="caption" color="text.secondary">
           Lock in profits by moving stop loss as price moves in your favor
         </Typography>
-        
+
         <Collapse in={showAdvancedRisk && config.enableTrailingStops}>
           <Divider sx={{ my: 2 }} />
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
-              <TextField 
-                fullWidth 
-                label="Trailing Distance" 
-                type="number" 
-                value={config.trailingStopPips || 25} 
-                onChange={(e) => updateConfig('trailingStopPips', parseInt(e.target.value))} 
+              <TextField
+                fullWidth
+                label="Trailing Distance"
+                type="number"
+                value={config.trailingStopPips || 25}
+                onChange={(e) => updateConfig('trailingStopPips', parseInt(e.target.value))}
                 InputProps={{ endAdornment: <InputAdornment position="end">pips</InputAdornment> }}
                 helperText="How far behind price the stop trails"
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <TextField 
-                fullWidth 
-                label="Activation Threshold" 
-                type="number" 
-                value={config.trailingStopActivationPips || 20} 
-                onChange={(e) => updateConfig('trailingStopActivationPips', parseInt(e.target.value))} 
+              <TextField
+                fullWidth
+                label="Activation Threshold"
+                type="number"
+                value={config.trailingStopActivationPips || 20}
+                onChange={(e) => updateConfig('trailingStopActivationPips', parseInt(e.target.value))}
                 InputProps={{ endAdornment: <InputAdornment position="end">pips profit</InputAdornment> }}
                 helperText="Only start trailing after this much profit"
               />

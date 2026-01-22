@@ -110,13 +110,6 @@ class LiveTradingEngine extends EventEmitter {
             logger.info("📡 Subscribed to signal generator events");
         }
 
-        // Start position monitoring loop
-        this.startMonitoring();
-
-        logger.success("🚀 LiveTradingEngine started");
-        this.emit("engineStarted", { timestamp: Date.now() });
-
-        return this;
     }
 
     /**
@@ -254,8 +247,7 @@ class LiveTradingEngine extends EventEmitter {
         this.stats.lastSignalTime = Date.now();
 
         logger.debug(
-            `📨 Received signal: ${signal.symbol} - ${
-                signal.signal
+            `📨 Received signal: ${signal.symbol} - ${signal.signal
             } (ADX: ${signal.strength?.toFixed(1)})`
         );
 
@@ -334,21 +326,43 @@ class LiveTradingEngine extends EventEmitter {
 
             await this.executeEntry(signal, config);
         } else if (signalType === "SELL") {
-            // Exit signal
-            if (!existingTrade) {
-                logger.debug(
-                    `⏸️ Skipping SELL for ${symbol} - no open position`
-                );
-                return;
+            // Check if we have an open position for this instrument
+            if (existingTrade) {
+                // Close existing LONG position if we get a SELL signal
+                if (existingTrade.side === "BUY") {
+                    await this.executeExit(
+                        existingTrade,
+                        currentPrice,
+                        "SIGNAL_REVERSAL"
+                    );
+                }
             }
 
-            // Only exit if we're in a long position
-            if (existingTrade.side === "BUY") {
-                await this.executeExit(
-                    existingTrade,
-                    currentPrice,
-                    "SIGNAL_REVERSAL"
-                );
+            // Execute SHORT Entry if shorting is enabled
+            if (config.enableShorting) {
+                if (existingTrade && existingTrade.side === "SELL") {
+                    logger.debug(
+                        `⏸️ Skipping SELL for ${symbol} - already in short position`
+                    );
+                    this.stats.signalsRejected++;
+                    return;
+                }
+
+                // Validate and execute entry
+                const validation = this.validateEntry(signal, config);
+                if (!validation.valid) {
+                    logger.info(
+                        `⏸️ Short Entry rejected for ${symbol}: ${validation.reason}`
+                    );
+                    this.stats.signalsRejected++;
+                    this.emit("entryRejected", {
+                        signal,
+                        reason: validation.reason,
+                    });
+                    return;
+                }
+
+                await this.executeEntry(signal, config);
             }
         }
         // HOLD signals are ignored
@@ -406,15 +420,19 @@ class LiveTradingEngine extends EventEmitter {
         if (signal.strength < config.minAdx) {
             return {
                 valid: false,
-                reason: `ADX too low (${signal.strength?.toFixed(1)} < ${
-                    config.minAdx
-                })`,
+                reason: `ADX too low (${signal.strength?.toFixed(1)} < ${config.minAdx
+                    })`,
             };
         }
 
-        // 6. Signal must be BUY (we only go long for now)
-        if (signal.signal !== "BUY") {
-            return { valid: false, reason: "Only BUY signals are executed" };
+        // 6. Signal direction check
+        if (signal.signal !== "BUY" && signal.signal !== "SELL") {
+            return { valid: false, reason: "Invalid signal type" };
+        }
+
+        // 7. Shorting enabled check
+        if (signal.signal === "SELL" && !config.enableShorting) {
+            return { valid: false, reason: "Short selling is disabled" };
         }
 
         return { valid: true };
@@ -424,6 +442,7 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Calculate position size based on config
+     * Uses marginAvailable (not total balance) to prevent over-leveraging
      */
     async calculatePositionSize(
         instrument,
@@ -431,13 +450,14 @@ class LiveTradingEngine extends EventEmitter {
         currentPrice,
         config
     ) {
-        // Get account balance from Oanda
-        let accountBalance;
+        // Get account info from Oanda including available margin
+        let accountBalance, marginAvailable;
         try {
             const accountSummary = await oandaClient.getAccountSummary();
             accountBalance = parseFloat(accountSummary.account.balance);
+            marginAvailable = parseFloat(accountSummary.account.marginAvailable);
         } catch (error) {
-            logger.error("❌ Failed to get account balance:", error.message);
+            logger.error("❌ Failed to get account info:", error.message);
             return 0;
         }
 
@@ -446,25 +466,44 @@ class LiveTradingEngine extends EventEmitter {
             return config.fixedPositionUnits || 1000;
         }
 
-        // Risk-based position sizing
-        const riskPercent = config.riskPerTrade || 0.02;
-        const riskAmount = accountBalance * riskPercent;
+        // CRITICAL: Use marginAvailable (free capital) not total balance
+        // This prevents opening positions when capital is already committed
+        const maxCapital = config.maxCapitalAtRisk || 500;
 
-        // Don't exceed max capital at risk
-        const maxRisk = Math.min(riskAmount, config.maxCapitalAtRisk || 500);
+        // Apply margin buffer (default 20%) to avoid cutting it too close
+        const marginBuffer = config.marginBuffer || 0.20;
+        const safeMarginAvailable = marginAvailable * (1 - marginBuffer);
+
+        // effectiveBalance = min(safeMarginAvailable, maxCapitalAtRisk)
+        const effectiveBalance = (maxCapital > 0)
+            ? Math.min(safeMarginAvailable, maxCapital)
+            : safeMarginAvailable;
+
+        // Log margin status for debugging
+        const marginUsed = accountBalance - marginAvailable;
+        logger.info(`💰 Margin status: Balance=$${accountBalance.toFixed(2)} | Available=$${marginAvailable.toFixed(2)} | Used=$${marginUsed.toFixed(2)} | Effective=$${effectiveBalance.toFixed(2)}`);
+
+        // Check if we have enough margin to trade
+        if (effectiveBalance <= 0) {
+            logger.warn(`⚠️ Insufficient margin available: $${marginAvailable.toFixed(2)} (after ${marginBuffer * 100}% buffer)`);
+            return 0;
+        }
+
+        // Calculate risk amount on the effective balance
+        const riskPercent = config.riskPerTrade || 0.02;
+        const riskAmount = effectiveBalance * riskPercent;
 
         // Calculate position size
         const pipValue = oandaClient.getPipValue(instrument);
         const stopLossPrice = stopLossPips * pipValue;
 
         // Position size = Risk Amount / (Stop Loss in Price × Conversion Factor)
-        // For AUD account, this is simplified - could be more precise with conversion rates
-        let units = Math.floor(maxRisk / (stopLossPrice * currentPrice));
+        let units = Math.floor(riskAmount / (stopLossPrice * currentPrice));
 
-        // Apply leverage limits
+        // Apply leverage limits based on available margin (not total balance)
         const maxLeverage = config.leverage || 10;
         const maxUnitsFromLeverage = Math.floor(
-            (accountBalance * maxLeverage) / currentPrice
+            (safeMarginAvailable * maxLeverage) / currentPrice
         );
         units = Math.min(units, maxUnitsFromLeverage);
 
@@ -514,6 +553,15 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPips,
             stopLossPrice: parseFloat(stopLossPrice.toFixed(5)),
         };
+
+        // For SELL trades, stop loss is ABOVE entry
+        if (signal.signal === "SELL") {
+            const sellStopLossPrice = currentPrice + stopLossPips * pipValue;
+            return {
+                stopLossPips,
+                stopLossPrice: parseFloat(sellStopLossPrice.toFixed(5)),
+            };
+        }
     }
 
     /**
@@ -525,6 +573,7 @@ class LiveTradingEngine extends EventEmitter {
      * @param {object} signal - Signal data with currentPrice
      * @param {object} config - Trading config
      * @param {number} units - Position size in units
+     * @param {number} units - Position size in units
      * @param {number} accountBalance - Current account balance
      */
     calculateTakeProfit(signal, config, units, accountBalance) {
@@ -532,7 +581,7 @@ class LiveTradingEngine extends EventEmitter {
         if (!units || units <= 0) return null;
         if (!accountBalance || accountBalance <= 0) return null;
 
-        const { currentPrice } = signal;
+        const price = entryPrice || signal.currentPrice;
         const instrument = signal.symbol;
         const pipValue = oandaClient.getPipValue(instrument);
 
@@ -546,8 +595,19 @@ class LiveTradingEngine extends EventEmitter {
         const priceChange = targetProfitAud / units;
 
         // For BUY trades, take profit is above entry
-        const takeProfitPrice = currentPrice + priceChange;
+        // For BUY trades, take profit is above entry
+        let takeProfitPrice = currentPrice + priceChange;
+
+        // For SELL trades, take profit is below entry
+        if (signal.signal === "SELL") {
+            takeProfitPrice = currentPrice - priceChange;
+        }
+
         const takeProfitPips = priceChange / pipValue;
+
+        logger.info(
+            `📊 TP Calculation: balance=$${accountBalance.toFixed(2)} × ${(takeProfitPercent * 100).toFixed(0)}% = $${targetProfitAud.toFixed(2)} target | ${takeProfitPips.toFixed(1)} pips`
+        );
 
         return {
             takeProfitPips,
@@ -629,20 +689,18 @@ class LiveTradingEngine extends EventEmitter {
                 units,
                 stopLossPrice,
                 stopLossPips,
-                takeProfitPrice: takeProfit?.takeProfitPrice,
                 spreadPips,
             });
         }
 
-        // Live trading - execute via Oanda
+        // Live trading - execute via Oanda (without TP initially)
         try {
             const orderResult = await oandaClient.placeMarketOrder(
                 symbol,
                 units,
                 {
                     stopLossPrice,
-                    takeProfitPrice: takeProfit?.takeProfitPrice,
-                    // Note: We don't set trailing stop on entry - manage it separately
+                    // Note: TP will be set after order fills using actual margin
                 }
             );
 
@@ -662,12 +720,48 @@ class LiveTradingEngine extends EventEmitter {
             const oandaTradeId = fillTransaction.tradeOpened?.tradeID;
             const fillPrice = parseFloat(fillTransaction.price);
 
+            // Get actual margin from Oanda response
+            const marginUsed = parseFloat(
+                fillTransaction.tradeOpened?.initialMarginRequired || 0
+            );
+
+            // Calculate take profit based on actual margin used
+            let takeProfit = null;
+            let takeProfitPrice = null;
+
+            if (marginUsed > 0 && config.enableTakeProfit) {
+                takeProfit = this.calculateTakeProfit(
+                    signal,
+                    config,
+                    units,
+                    marginUsed,
+                    fillPrice
+                );
+                takeProfitPrice = takeProfit?.takeProfitPrice;
+
+                // Set TP on Oanda via modifyTrade
+                if (takeProfitPrice && oandaTradeId) {
+                    try {
+                        await oandaClient.modifyTrade(oandaTradeId, {
+                            takeProfitPrice,
+                        });
+                        logger.info(
+                            `✅ Take profit set: ${takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)} target)`
+                        );
+                    } catch (tpError) {
+                        logger.warn(
+                            `⚠️ Failed to set take profit: ${tpError.message}`
+                        );
+                    }
+                }
+            }
+
             // Create trade record
             const trade = {
                 id: uuidv4(),
                 oandaTradeId,
                 instrument: symbol,
-                side: "BUY",
+                side: signal.signal === "SELL" ? "SELL" : "BUY",
                 units,
                 entryPrice: fillPrice,
                 entryCostAud: units * fillPrice, // Simplified
@@ -676,10 +770,10 @@ class LiveTradingEngine extends EventEmitter {
                 entryType,
                 atrPips,
                 stopLossPrice,
-                takeProfitPrice: takeProfit?.takeProfitPrice,
+                takeProfitPrice,
                 trailingStopPips: config.trailingStopPips,
                 leverageUsed: config.leverage || 10,
-                marginUsedAud: (units * fillPrice) / (config.leverage || 10),
+                marginUsedAud: marginUsed || (units * fillPrice) / (config.leverage || 10),
                 spreadPips,
                 entryTime: Date.now(),
                 mode: "live",
@@ -699,14 +793,19 @@ class LiveTradingEngine extends EventEmitter {
             // Broadcast trade event
             this.broadcastTradeOpened(trade);
 
-            // Send Slack notification
-            await slackService.sendTradeAlert(trade, "opened");
+            // Send Slack notification (async)
+            if (this.configService) {
+                const config = this.configService.get();
+                if (config.enableSlackAlerts !== false) {
+                    slackService.sendTradeAlert(trade, "opened").catch(() => { });
+                }
+            }
 
             const tpInfo = takeProfit?.takeProfitPrice
                 ? ` | TP: ${takeProfit.takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)})`
                 : "";
             logger.success(
-                `✅ LIVE BUY executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
+                `✅ LIVE ${trade.side} executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
             );
 
             return trade;
@@ -730,12 +829,28 @@ class LiveTradingEngine extends EventEmitter {
             units,
             stopLossPrice,
             stopLossPips,
-            takeProfitPrice,
             spreadPips,
         } = params;
 
         // Simulate fill at current price (could add slippage simulation)
         const fillPrice = currentPrice;
+
+        // Calculate margin (simulated)
+        const leverage = config.leverage || 10;
+        const marginUsed = (units * fillPrice) / leverage;
+
+        // Calculate take profit based on margin used
+        let takeProfitPrice = null;
+        if (config.enableTakeProfit && marginUsed > 0) {
+            const takeProfit = this.calculateTakeProfit(
+                signal,
+                config,
+                units,
+                marginUsed,
+                fillPrice
+            );
+            takeProfitPrice = takeProfit?.takeProfitPrice;
+        }
 
         // Create trade record
         const trade = {
@@ -753,13 +868,19 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPrice,
             takeProfitPrice,
             trailingStopPips: config.trailingStopPips,
-            leverageUsed: config.leverage || 10,
-            marginUsedAud: (units * fillPrice) / (config.leverage || 10),
+            leverageUsed: leverage,
+            marginUsedAud: marginUsed,
             spreadPips,
             entryTime: Date.now(),
-            mode: "paper",
             isOpen: true,
         };
+
+        // Adjust for SELL
+        if (signal.signal === "SELL") {
+            trade.side = "SELL";
+            trade.stopLossPrice = params.stopLossPrice; // Already calculated correctly
+            // TP already calculated correctly
+        }
 
         // Save to database
         await this.tradeRepository.save(trade);
@@ -777,8 +898,9 @@ class LiveTradingEngine extends EventEmitter {
         // Send Slack notification
         await slackService.sendTradeAlert(trade, "opened");
 
+        const tpInfo = takeProfitPrice ? ` | TP: ${takeProfitPrice}` : "";
         logger.success(
-            `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}`
+            `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
         );
 
         return trade;
@@ -862,7 +984,7 @@ class LiveTradingEngine extends EventEmitter {
         // This includes spreads, currency conversion, and all fees
         const pnlAud =
             oandaData.oandaRealizedPL !== null &&
-            oandaData.oandaRealizedPL !== undefined
+                oandaData.oandaRealizedPL !== undefined
                 ? oandaData.oandaRealizedPL
                 : trade.units * priceChange; // Fallback to simple calc for paper trades
 
@@ -917,8 +1039,7 @@ class LiveTradingEngine extends EventEmitter {
         const profitEmoji = pnlAud >= 0 ? "💰" : "📉";
         const swapNote = swapAud !== 0 ? ` | Swap: ${swapAud.toFixed(2)}` : "";
         logger.info(
-            `${profitEmoji} Trade closed: ${
-                trade.instrument
+            `${profitEmoji} Trade closed: ${trade.instrument
             } | P/L: ${pnlAud.toFixed(2)} AUD (${pnlPips.toFixed(
                 1
             )} pips)${swapNote} | Reason: ${exitReason}`
@@ -942,8 +1063,7 @@ class LiveTradingEngine extends EventEmitter {
         }, this.monitorIntervalMs);
 
         logger.info(
-            `👁️ Position monitoring started (${
-                this.monitorIntervalMs / 1000
+            `👁️ Position monitoring started (${this.monitorIntervalMs / 1000
             }s interval)`
         );
     }
@@ -1073,8 +1193,7 @@ class LiveTradingEngine extends EventEmitter {
             }
 
             logger.debug(
-                `📈 Trailing stop updated for ${
-                    trade.instrument
+                `📈 Trailing stop updated for ${trade.instrument
                 }: ${previousStop?.toFixed(5)} → ${newStopLossPrice.toFixed(5)}`
             );
         }
@@ -1109,10 +1228,10 @@ class LiveTradingEngine extends EventEmitter {
         // Send notifications (async, non-blocking)
         const config = this.configService?.get();
         if (config?.enableEmailAlerts) {
-            emailService.sendTradeOpenedAlert(trade, config).catch(() => {});
+            emailService.sendTradeOpenedAlert(trade, config).catch(() => { });
         }
         if (config?.enableSlackAlerts !== false) {
-            slackService.sendTradeAlert(trade, "opened").catch(() => {});
+            slackService.sendTradeAlert(trade, "opened").catch(() => { });
         }
     }
 
@@ -1142,10 +1261,10 @@ class LiveTradingEngine extends EventEmitter {
         // Send notifications (async, non-blocking)
         const config = this.configService?.get();
         if (config?.enableEmailAlerts) {
-            emailService.sendTradeClosedAlert(trade, config).catch(() => {});
+            emailService.sendTradeClosedAlert(trade, config).catch(() => { });
         }
         if (config?.enableSlackAlerts !== false) {
-            slackService.sendTradeAlert(trade, "closed").catch(() => {});
+            slackService.sendTradeAlert(trade, "closed").catch(() => { });
         }
     }
 
@@ -1153,9 +1272,22 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Manually close a trade
+     * Accepts either the internal UUID or Oanda trade ID
      */
     async forceCloseTrade(tradeId) {
-        const trade = this.openTrades.get(tradeId);
+        // First try lookup by UUID (engine-created trades)
+        let trade = this.openTrades.get(tradeId);
+
+        // If not found, try lookup by oandaTradeId (portfolio trades)
+        if (!trade) {
+            for (const [, t] of this.openTrades) {
+                if (t.oandaTradeId === tradeId || t.oandaTradeId === String(tradeId)) {
+                    trade = t;
+                    break;
+                }
+            }
+        }
+
         if (!trade) {
             throw new Error(`Trade ${tradeId} not found`);
         }

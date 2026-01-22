@@ -1,6 +1,6 @@
 {
     "enableTrading": true,
-    "maxCapitalAtRisk": 500,
+    "maxCapitalAtRisk": 100,
     "maxOpenPositions": 2,
     "logLevel": "info",
     "assets": [
@@ -42,11 +42,15 @@
         "london",
         "tokyo"
     ],
+    "enableShorting": true,
+    "enableBreakeven": true,
+    "breakevenTriggerPips": 12,
     "enableEmailAlerts": false,
     "alertEmail": "",
     "enableSlackAlerts": true,
     "maxLeverage": 30,
     "enableTakeProfit": false,
     "takeProfitPips": 60,
+    "takeProfitPercent": 0.06,
     "tradingMode": "paper"
 }

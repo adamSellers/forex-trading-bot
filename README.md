@@ -372,9 +372,15 @@ curl -X POST http://localhost:3101/api/config \
   trailingStopPips: 25,
   trailingStopActivationPips: 20,
 
+<<<<<<< HEAD
   // Take Profit (Balance-Based)
   enableTakeProfit: true,
   takeProfitPercent: 0.06,     // 6% of account balance
+=======
+  // Take Profit (Margin-Based)
+  enableTakeProfit: true,
+  takeProfitPercent: 0.06,     // 6% of used margin
+>>>>>>> origin/main
 
   // Trading Sessions
   enableSessionFilter: true,
