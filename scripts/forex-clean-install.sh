@@ -77,9 +77,9 @@ cleanup_swap() {
 
 # --- 3. APP INSTALLATION ---
 backup_and_clean() {
-    log_step "Cleaning previous install..."
+    log_step "Cleaning previous forex install..."
+    # Only delete forex - don't touch other PM2 apps like crypto bot
     pm2 delete $APP_NAME --silent 2>/dev/null || true
-    pm2 kill 2>/dev/null || true
 
     if [[ -d "$PROJECT_DIR" ]]; then
         mkdir -p "$BACKUP_DIR"
@@ -102,13 +102,11 @@ install_app() {
     log_step "Installing backend dependencies..."
     npm run install:backend -- --omit=dev
 
-    # Install Frontend Deps
-    log_step "Installing frontend dependencies..."
-    npm run install:frontend
-
-    # Build Frontend (No SourceMaps)
-    log_step "Building Frontend (this may take a few minutes)..."
-    NODE_ENV=production GENERATE_SOURCEMAP=false npm run build:frontend
+    # SKIP FRONTEND ON PI - build locally and scp dist/ folder
+    log_warn "Skipping frontend build on Pi (causes OOM)"
+    log_warn "Build locally: cd frontend && npm run build"
+    log_warn "Then scp: scp -r dist/ adam@img.oakroad:/opt/forex-trading-bot/frontend/"
+    mkdir -p frontend/dist
 
     # Setup DB
     log_step "Running database migrations..."
@@ -116,7 +114,7 @@ install_app() {
     npm run db:migrate
     cd ..
 
-    log_success "Application installed"
+    log_success "Backend installed (frontend: build locally & scp)"
 }
 
 # --- 4. CONFIGURATION ---
