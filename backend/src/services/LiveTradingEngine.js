@@ -5,7 +5,6 @@ const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
 const slackService = require("./slackService");
 const emailService = require("./emailService");
-const slackService = require("./slackService");
 
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator

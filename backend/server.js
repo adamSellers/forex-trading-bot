@@ -33,7 +33,9 @@ const getAllowedOrigins = () => {
         "http://localhost:3101", // Same-origin in production
         "http://localhost:5173", // Vite dev port
         "http://mac-mini.bunny.hq",
+        "http://mac-mini.bunny.hq:3101", // Production port with explicit port number
         "https://mac-mini.bunny.hq",
+        "https://mac-mini.bunny.hq:3101", // HTTPS with explicit port number
     ];
     
     if (envOrigins) {

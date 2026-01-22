@@ -95,13 +95,28 @@ class TradeRepository {
      */
     async getRecent(limit = 20, mode = "live") {
         try {
+            // Ensure database connection is ready
+            if (!db) {
+                logger.error("Database connection not initialized");
+                return [];
+            }
+
             let query = db("trades").orderBy("entry_time", "desc").limit(limit);
-            if (mode) query = query.where("mode", mode);
+            if (mode) {
+                query = query.where("mode", mode);
+            }
             const records = await query;
-            return records.map((r) => this._mapToTradeObject(r));
+            
+            // Handle empty result set gracefully
+            if (!records || records.length === 0) {
+                return [];
+            }
+            
+            return records.map((r) => this._mapToTradeObject(r)).filter(Boolean);
         } catch (error) {
             logger.error("Error getting recent trades:", error);
-            throw error;
+            // Return empty array instead of throwing to prevent breaking the API
+            return [];
         }
     }
 

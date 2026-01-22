@@ -2,21 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, TextField, Switch, Grid, Stack,
-<<<<<<< HEAD
-<<<<<<< HEAD
-  Button, CircularProgress, Alert, Link
-} from '@mui/material';
-import { Notifications, Email, Send } from '@mui/icons-material';
-=======
-  Button, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel
-} from '@mui/material';
-import { Email, Send, CloudUpload, Cloud, CheckCircle } from '@mui/icons-material';
->>>>>>> acf795d (fixing report scheduler deps)
-=======
   Button, CircularProgress, Alert, Chip, Select, MenuItem, FormControl, InputLabel, Link
 } from '@mui/material';
 import { Email, Send, CloudUpload, Cloud, CheckCircle, Notifications } from '@mui/icons-material';
->>>>>>> 786fc69 (merge)
 import { GlassCard, SectionHeader } from './ConfigShared';
 import { emailAPI, reportsAPI } from '../../config/api';
 
