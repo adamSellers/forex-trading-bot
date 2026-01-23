@@ -1,13 +1,12 @@
 {
     "enableTrading": true,
-    "maxCapitalAtRisk": 100,
+    "maxCapitalAtRisk": 200,
     "maxOpenPositions": 2,
     "logLevel": "info",
     "assets": [
         "AUD_USD",
         "EUR_USD",
-        "GBP_USD",
-        "USD_JPY"
+        "GBP_USD"
     ],
     "strategy": "supertrend_momentum",
     "timeframe": "15m",
@@ -43,7 +42,7 @@
     ],
     "enableEmailAlerts": false,
     "alertEmail": "",
-    "minStopLossPips": 12,
+    "minStopLossPips": 20,
     "enableShorting": true,
     "enableBreakeven": true,
     "breakevenTriggerPips": 12,

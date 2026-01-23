@@ -52,7 +52,7 @@ module.exports = {
                 // S3_BUCKET_NAME: injected
 
                 // Security
-                CORS_ORIGIN: "http://localhost:3100,http://localhost:3101,http://mac-mini.bunny.hq,https://mac-mini.bunny.hq",
+                CORS_ORIGIN: "http://localhost:3100,http://localhost:3101,http://mac-mini.bunny.hq,https://mac-mini.bunny.hq,http://192.168.1.15:3101",
 
                 // Performance for Mac Mini
                 UV_THREADPOOL_SIZE: "4",
