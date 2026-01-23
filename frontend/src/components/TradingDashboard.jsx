@@ -292,12 +292,12 @@ const TradingDashboard = () => {
     return trades
       .filter(
         (t) =>
-          t.pnl !== null &&
-          !isNaN(Number(t.pnl)) &&
+          t.pnlAud !== null &&
+          !isNaN(Number(t.pnlAud)) &&
           !t.isOpen &&
           new Date(t.exitTime || t.timestamp).getTime() > oneDayAgo
       )
-      .reduce((sum, t) => sum + Number(t.pnl), 0);
+      .reduce((sum, t) => sum + Number(t.pnlAud), 0);
   }, [trades]);
 
   const actionableSignalCount = useMemo(() => {
