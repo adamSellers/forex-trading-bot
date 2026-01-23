@@ -300,8 +300,19 @@ class LiveTradingEngine extends EventEmitter {
         const existingTrade = this.getOpenTradeByInstrument(symbol);
 
         if (signalType === "BUY") {
-            // Entry signal
-            if (existingTrade) {
+            // Signal reversal: Close existing SHORT position before opening LONG
+            if (existingTrade && existingTrade.side === "SELL") {
+                logger.info(
+                    `[${symbol}] Signal reversal: Closing SHORT position due to BUY signal`
+                );
+                await this.executeExit(
+                    existingTrade,
+                    currentPrice,
+                    "SIGNAL_REVERSAL"
+                );
+                // Position is now closed, proceed to open LONG
+            } else if (existingTrade) {
+                // Already in a LONG position, skip
                 logger.debug(
                     `⏸️ Skipping BUY for ${symbol} - already in position`
                 );
