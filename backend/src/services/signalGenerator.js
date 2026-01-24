@@ -35,6 +35,7 @@ class SignalGenerator extends EventEmitter {
 
         this.lastSignals = new Map();
         this._pendingEntries = new Map();
+        this._lastKnownDirection = new Map(); // Tracks last observed SuperTrend direction per instrument to prevent repeated flip signals
 
         logger.info(
             `ðŸ§  Signal Generator v4.5 (Forex) Initialized. ` +
@@ -171,6 +172,10 @@ class SignalGenerator extends EventEmitter {
             const currentDir = stData.direction[idx];
             const prevDir = stData.direction[idx - 1];
 
+            // Track direction state to fire flip signals only once per actual change
+            const lastKnownDir = this._lastKnownDirection.get(instrument);
+            this._lastKnownDirection.set(instrument, currentDir);
+
             const rsiVal = RSI.calculate({ values: closes, period: 14 }).pop();
             const adxResult = ADX.calculate({
                 high: highs,
@@ -206,8 +211,9 @@ class SignalGenerator extends EventEmitter {
             const rsiOkForContinuation =
                 rsiVal < (this.config.continuationRsiThreshold || 70);
 
-            // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED â†’ GREEN)
-            if (prevDir === -1 && currentDir === 1) {
+            // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED → GREEN)
+            // Uses lastKnownDir (generator's memory) not prevDir (candle data) to prevent repeated signals
+            if (lastKnownDir === -1 && currentDir === 1) {
                 if (adxOk && rsiOkForFresh) {
                     // All conditions met - immediate entry
                     signalType = "BUY";
@@ -369,10 +375,12 @@ class SignalGenerator extends EventEmitter {
                     }
                 }
             }
-            // 5. EXIT: SuperTrend Flip (GREEN â†’ RED)
-            else if (prevDir === 1 && currentDir === -1) {
+            // 5. EXIT: SuperTrend Flip (GREEN → RED)
+            // Uses lastKnownDir (generator's memory) not prevDir (candle data) to prevent repeated signals
+            else if (lastKnownDir === 1 && currentDir === -1) {
                 signalType = "SELL";
-                reason = `ðŸ“‰ SELL: ST Flip RED`;
+                entryType = "FRESH_FLIP";
+                reason = `📉 SELL: ST Flip RED`;
                 this._pendingEntries.delete(instrument);
             }
 
@@ -519,7 +527,8 @@ class SignalGenerator extends EventEmitter {
         this.lastSignals.clear();
         this.latestSignals = [];
         this._pendingEntries.clear();
-        logger.info("ðŸ”„ Signal Generator reset. Pending entries cleared.");
+        this._lastKnownDirection.clear();
+        logger.info("📄 Signal Generator reset. Pending entries and direction state cleared.");
     }
 
     clearPendingEntries() {
