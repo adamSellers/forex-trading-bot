@@ -70,6 +70,8 @@ export const DEFAULT_CONFIG = {
   // Entry Filters
   enableAdxFilter: true,
   minAdx: 22,
+  adxSlopeFilter: true,
+  adxSlopeLookback: 3,
   enableRsiFilter: true,
   rsiOverbought: 75,
   rsiOversold: 30,

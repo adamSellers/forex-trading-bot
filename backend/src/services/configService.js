@@ -27,6 +27,8 @@ const DEFAULT_CONFIG = {
     // Entry Filters
     enableAdxFilter: true,
     minAdx: 22,
+    adxSlopeFilter: true,
+    adxSlopeLookback: 3,
     enableRsiFilter: true,
     rsiOverbought: 75,
     rsiOversold: 30,
@@ -179,6 +181,8 @@ class ConfigService extends EventEmitter {
                 assets: this.config.assets,
                 timeframe: this.config.timeframe,
                 minAdx: this.config.minAdx,
+                adxSlopeFilter: this.config.adxSlopeFilter,
+                adxSlopeLookback: this.config.adxSlopeLookback,
                 rsiOverbought: this.config.rsiOverbought,
                 rsiOversold: this.config.rsiOversold,
                 enableContinuationEntry: this.config.enableContinuationEntry,

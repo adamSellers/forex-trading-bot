@@ -387,6 +387,7 @@ class AnalyticsService {
             total: signals.length,
             triggered: 0,
             filteredChoppy: 0,
+            filteredAdxSlope: 0,
             filteredOverbought: 0,
             filteredOversold: 0,
             hold: 0,
@@ -409,6 +410,11 @@ class AnalyticsService {
                 type.includes("SELL")
             ) {
                 stats.triggered++;
+            } else if (
+                message.includes("falling adx") ||
+                message.includes("adx_slope")
+            ) {
+                stats.filteredAdxSlope++;
             } else if (
                 message.includes("choppy") ||
                 message.includes("adx") ||
@@ -447,6 +453,11 @@ class AnalyticsService {
                 label: "Filtered (Choppy)",
                 value: stats.filteredChoppy,
                 color: "warning",
+            },
+            {
+                label: "Filtered (ADX Falling)",
+                value: stats.filteredAdxSlope,
+                color: "error",
             },
             {
                 label: "Filtered (Overbought)",

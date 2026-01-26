@@ -5,7 +5,7 @@ import {
   InputLabel, Select, MenuItem, InputAdornment, Grid, Stack,
   Chip, Divider, Alert, Collapse, IconButton
 } from '@mui/material';
-import { Science, Tune, Speed, TrendingUp, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { Science, Tune, Speed, TrendingUp, ExpandMore, ExpandLess, TrendingUpOutlined } from '@mui/icons-material';
 import { GlassCard, SectionHeader, msToHours, hoursToMs } from './ConfigShared';
 
 const StrategySettings = ({ config, updateConfig }) => {
@@ -154,6 +154,52 @@ const StrategySettings = ({ config, updateConfig }) => {
               <strong>Forex Tip:</strong> ADX 22 works well for major pairs. Crypto typically needs 25-28 due to higher noise.
             </Typography>
           </Alert>
+
+          {/* ADX Slope Filter - nested under ADX filter */}
+          <Box sx={{ mt: 3, ml: 2, pl: 2, borderLeft: 2, borderColor: 'divider', opacity: config.enableAdxFilter ? 1 : 0.5 }}>
+            <Box display="flex" justifyContent="space-between" mb={1}>
+              <Box>
+                <Typography fontWeight="bold" variant="body2">
+                  <TrendingUpOutlined sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
+                  Require Rising ADX
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Only enter when ADX is increasing vs N bars ago
+                </Typography>
+              </Box>
+              <Switch
+                size="small"
+                checked={config.adxSlopeFilter ?? true}
+                onChange={(e) => updateConfig('adxSlopeFilter', e.target.checked)}
+                disabled={!config.enableAdxFilter}
+              />
+            </Box>
+            <Box px={2} display="flex" alignItems="center" gap={2} sx={{ opacity: config.adxSlopeFilter && config.enableAdxFilter ? 1 : 0.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>Lookback:</Typography>
+              <Slider
+                value={config.adxSlopeLookback ?? 3}
+                min={2} max={10}
+                onChange={(_, v) => updateConfig('adxSlopeLookback', v)}
+                disabled={!config.adxSlopeFilter || !config.enableAdxFilter}
+                sx={{ flexGrow: 1 }}
+                marks={[
+                  { value: 2, label: '2' },
+                  { value: 5, label: '5' },
+                  { value: 10, label: '10' },
+                ]}
+              />
+              <Chip
+                label={`${config.adxSlopeLookback ?? 3} bars`}
+                size="small"
+                variant="outlined"
+              />
+            </Box>
+            <Alert severity="warning" sx={{ mt: 1 }} icon={false}>
+              <Typography variant="caption">
+                Catches trends early - when ADX is rising, not mature/plateauing.
+              </Typography>
+            </Alert>
+          </Box>
         </Box>
         <Divider sx={{ my: 3 }} />
         <Box>

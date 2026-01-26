@@ -354,46 +354,36 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Critical Bug Fixes - Jan 22, 2026
+### System Running Smoothly - Jan 27, 2026
 
-**Status**: Fixes deployed, clean install completed
+**Status**: Live trading active, all systems healthy
 
-**Bugs Found & Fixed**:
+**Current Open Positions** (as of Jan 27):
+- **EUR/USD LONG**: 658 units @ 1.17648, current ~1.18750 (+$10.27 unrealized)
+- **AUD/USD LONG**: 1,173 units @ 0.68686, current ~0.69267 (+$8.97 unrealized)
 
-1. **SELL orders sent positive units** (CRITICAL)
-   - Location: [LiveTradingEngine.js:681-688](backend/src/services/LiveTradingEngine.js#L681-L688)
-   - Problem: SELL signals sent positive units to Oanda, opening LONGs instead of SHORTs
-   - Impact: All "SELL" trades in history were actually LONGs (data integrity compromised)
-   - Fix: Added `const orderUnits = signal.signal === "SELL" ? -units : units;`
+**Trailing Stops Verified Working**:
+- EUR/USD stop trailing up: 1.18458 → 1.18510 (locking in ~86 pips profit)
+- AUD/USD stop trailing up: 0.68987 → 0.69044 (locking in ~36 pips profit)
+- Logs show updates every 10-20 seconds as price advances
+- Both BUY positions correctly managed
 
-2. **Trailing stop only worked for BUY trades**
-   - Location: [LiveTradingEngine.js:1104](backend/src/services/LiveTradingEngine.js#L1104)
-   - Problem: Code had `trade.side === "BUY"` filter, excluding SELL trades
-   - Fix: Removed filter, made `updateTrailingStop()` direction-aware
-
-3. **Unreachable SELL stop loss code**
-   - Location: [LiveTradingEngine.js:548-563](backend/src/services/LiveTradingEngine.js#L548-L563)
-   - Problem: Early `return` statement made SELL branch unreachable
-   - Fix: Restructured to check direction before returning
-
-**Actions Taken**:
-- User manually closed AUD/USD position (+$12.49 profit - but due to bug, not strategy)
-- Clean install deployed on Pi (fresh database, fixed code)
-- Historical trade data cleared (was corrupted by SELL/BUY bug)
+**Previous Bug Fixes (Jan 22) - CONFIRMED WORKING**:
+1. SELL orders now correctly send negative units
+2. Trailing stops work for both BUY and SELL trades
+3. SELL stop loss code now reachable
 
 **System State**:
-- Trading Mode: Live (fresh start)
-- Database: Reset (clean slate)
+- Trading Mode: Live
+- Engine: Running
+- Open Positions: 2 (at max)
 - Dashboard: http://img.oakroad:3100
 - API: http://img.oakroad:3101/api
 
 **Next Steps**:
-1. Verify deployment completed successfully on Pi
-2. Run tests to confirm fixes work: `cd backend && npm test`
-3. Monitor first trades after fix to ensure correct side alignment
-4. Consider disabling shorting if not wanted (`enableShorting: false`)
-
-**Note on `.env`**: The codebase uses `DB_PATH`, not `DATABASE_PATH`. If `.env` has `DATABASE_PATH`, it's unused.
+- Monitor trades through to exit (TP, SL, or signal reversal)
+- Review performance once these trades close
+- No active development tasks
 
 ---
 
