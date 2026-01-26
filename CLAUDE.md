@@ -354,36 +354,48 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### System Running Smoothly - Jan 27, 2026
+### ADX Slope Filter - Implementation Complete, Awaiting Deploy - Jan 27, 2026
 
-**Status**: Live trading active, all systems healthy
+**Status**: Code complete, needs testing and deployment
 
-**Current Open Positions** (as of Jan 27):
-- **EUR/USD LONG**: 658 units @ 1.17648, current ~1.18750 (+$10.27 unrealized)
-- **AUD/USD LONG**: 1,173 units @ 0.68686, current ~0.69267 (+$8.97 unrealized)
+**Context**: Analytics showed winners had avg ADX 22.5 while losers had 27.5. We were entering too late - when ADX is high but plateauing/falling (mature trends). Added filter to require rising ADX to catch trends as they develop.
 
-**Trailing Stops Verified Working**:
-- EUR/USD stop trailing up: 1.18458 → 1.18510 (locking in ~86 pips profit)
-- AUD/USD stop trailing up: 0.68987 → 0.69044 (locking in ~36 pips profit)
-- Logs show updates every 10-20 seconds as price advances
-- Both BUY positions correctly managed
+**Implementation Complete**:
+1. ✅ **Backend - signalGenerator.js**: ADX slope calculation and filter logic
+   - `adxSlopeFilter: true` (default enabled)
+   - `adxSlopeLookback: 3` (compare current ADX vs 3 bars ago)
+   - Logic: `adxOk = adxMeetsThreshold && (!adxSlopeFilter || adxRising)`
+   - New pending state: `ADX_SLOPE_RISING` for continuation entries
+   - Logging: `📉 {instrument}: Signal filtered - ADX falling`
 
-**Previous Bug Fixes (Jan 22) - CONFIRMED WORKING**:
-1. SELL orders now correctly send negative units
-2. Trailing stops work for both BUY and SELL trades
-3. SELL stop loss code now reachable
+2. ✅ **Backend - configService.js**: Config defaults + passed to SignalGenerator
 
-**System State**:
-- Trading Mode: Live
-- Engine: Running
-- Open Positions: 2 (at max)
-- Dashboard: http://img.oakroad:3100
-- API: http://img.oakroad:3101/api
+3. ✅ **Backend - analyticsService.js**: Tracks `filteredAdxSlope` separately in filterBreakdown
+
+4. ✅ **Frontend - ConfigShared.jsx**: Default values for new config options
+
+5. ✅ **Frontend - StrategySettings.jsx**: UI controls
+   - Toggle: "Require Rising ADX" (nested under ADX filter)
+   - Slider: Lookback 2-10 bars
+   - Tooltip: "Only enter when ADX is increasing vs N bars ago"
 
 **Next Steps**:
-- Monitor trades through to exit (TP, SL, or signal reversal)
-- Review performance once these trades close
-- No active development tasks
+1. Run tests: `cd backend && npm test`
+2. Commit and push:
+   ```bash
+   git add backend/src/services/signalGenerator.js backend/src/services/configService.js backend/src/services/analyticsService.js frontend/src/components/config/ConfigShared.jsx frontend/src/components/config/StrategySettings.jsx
+   git commit -m "feat: add ADX slope filter to catch rising trends early"
+   git push origin main
+   ```
+3. Deploy: `ssh img.oakroad && cd /opt/forex-trading-bot && ./scripts/update.sh`
+4. Verify in dashboard: Strategy tab should show new "Require Rising ADX" toggle
+
+**Files Changed**:
+- `backend/src/services/signalGenerator.js` - Core filter logic
+- `backend/src/services/configService.js` - Config defaults
+- `backend/src/services/analyticsService.js` - Analytics tracking
+- `frontend/src/components/config/ConfigShared.jsx` - Frontend defaults
+- `frontend/src/components/config/StrategySettings.jsx` - UI controls
 
 ---
 

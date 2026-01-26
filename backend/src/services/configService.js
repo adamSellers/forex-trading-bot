@@ -39,6 +39,9 @@ const DEFAULT_CONFIG = {
     continuationRsiThreshold: 70,
     continuationMaxPriceDeviation: 0.02,
 
+    // Short Selling
+    enableShorting: false,
+
     // Risk Management
     riskPerTrade: 0.02,
     maxPortfolioExposure: 0.5,

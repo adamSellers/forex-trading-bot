@@ -885,7 +885,7 @@ class LiveTradingEngine extends EventEmitter {
 
         const tpInfo = takeProfitPrice ? ` | TP: ${takeProfitPrice}` : "";
         logger.success(
-            `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
+            `✅ PAPER ${trade.side} simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
         );
 
         return trade;
@@ -962,7 +962,10 @@ class LiveTradingEngine extends EventEmitter {
 
         // Calculate P/L - use Oanda's realizedPL if available (includes all costs)
         const pipValue = oandaClient.getPipValue(trade.instrument);
-        const priceChange = exitPrice - trade.entryPrice;
+        // Direction-aware: BUY profits when price rises, SELL profits when price falls
+        const priceChange = trade.side === 'BUY'
+            ? exitPrice - trade.entryPrice
+            : trade.entryPrice - exitPrice;
         const pnlPips = priceChange / pipValue;
 
         // Use Oanda's realizedPL as source of truth when available
@@ -1084,8 +1087,13 @@ class LiveTradingEngine extends EventEmitter {
         const pipValue = oandaClient.getPipValue(trade.instrument);
 
         // Check paper trade stop loss (Oanda handles live trades)
+        // Direction-aware: BUY stop is below entry, SELL stop is above entry
         if (trade.mode === "paper" && trade.stopLossPrice) {
-            if (currentPrice <= trade.stopLossPrice) {
+            const stopHit = trade.side === 'BUY'
+                ? currentPrice <= trade.stopLossPrice
+                : currentPrice >= trade.stopLossPrice;
+
+            if (stopHit) {
                 logger.info(
                     `🛑 Paper trade stop loss hit for ${trade.instrument}`
                 );
@@ -1099,8 +1107,13 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // Check paper trade take profit
+        // Direction-aware: BUY TP is above entry, SELL TP is below entry
         if (trade.mode === "paper" && trade.takeProfitPrice) {
-            if (currentPrice >= trade.takeProfitPrice) {
+            const tpHit = trade.side === 'BUY'
+                ? currentPrice >= trade.takeProfitPrice
+                : currentPrice <= trade.takeProfitPrice;
+
+            if (tpHit) {
                 logger.info(
                     `🎯 Paper trade take profit hit for ${trade.instrument}`
                 );
