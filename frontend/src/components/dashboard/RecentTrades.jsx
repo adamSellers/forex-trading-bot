@@ -42,10 +42,11 @@ export default function RecentTrades({ trades = [] }) {
     const getExitReasonColor = (reason) => {
         if (!reason) return 'default';
         const r = reason.toUpperCase();
-        if (r.includes('STOP')) return 'error';
-        if (r.includes('TAKE') || r.includes('PROFIT')) return 'success';
-        if (r.includes('TREND') || r.includes('FLIP')) return 'warning';
-        if (r.includes('MANUAL')) return 'info';
+        if (r.includes('STOP')) return 'error';        // Stop Loss, Trailing Stop
+        if (r.includes('TAKE') || r.includes('PROFIT')) return 'success';  // Take Profit
+        if (r.includes('SIGNAL') || r.includes('REVERSAL')) return 'warning';  // Signal Reversal
+        if (r.includes('MANUAL')) return 'info';       // Manual close
+        if (r.includes('EXTERNAL')) return 'default';  // External (closed on Oanda)
         return 'default';
     };
 

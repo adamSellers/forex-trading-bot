@@ -486,10 +486,10 @@ class AnalyticsService {
             exitCounts[reason] = (exitCounts[reason] || 0) + 1;
         });
 
-        // Convert to array format
+        // Convert to array format with title case formatting
         const breakdown = Object.entries(exitCounts)
             .map(([reason, count]) => ({
-                reason: reason.replace(/_/g, " "),
+                reason: this.formatExitReason(reason),
                 count,
                 percentage:
                     trades.length > 0 ? (count / trades.length) * 100 : 0,
@@ -500,6 +500,18 @@ class AnalyticsService {
             total: trades.length,
             breakdown,
         };
+    }
+
+    /**
+     * Format exit reason to title case for display
+     * STOP_LOSS -> Stop Loss, TAKE_PROFIT -> Take Profit, etc.
+     */
+    formatExitReason(reason) {
+        if (!reason) return "Unknown";
+        return reason
+            .toLowerCase()
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     /**

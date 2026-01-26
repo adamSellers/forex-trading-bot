@@ -370,6 +370,7 @@ export const ExitAnalysisWidget = ({ exitAnalysis }) => {
     'Trailing Stop': theme.palette.warning.main,
     'Signal Reversal': theme.palette.info.main,
     Manual: theme.palette.secondary.main,
+    External: theme.palette.grey[500],
     Unknown: theme.palette.grey[600],
   };
 

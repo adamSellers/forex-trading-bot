@@ -349,53 +349,26 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-17 | Navigation overhaul, analytics dashboard                     |
 | 2026-01-19 | Margin-aware position sizing deployed                        |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)                 |
+| 2026-01-27 | Short selling bug fix deployed (5 bugs fixed)                |
 
 ---
 
 ## IN PROGRESS
 
-### ADX Slope Filter - Implementation Complete, Awaiting Deploy - Jan 27, 2026
+### No Active Work
 
-**Status**: Code complete, needs testing and deployment
+All tasks completed. Recent deployments:
 
-**Context**: Analytics showed winners had avg ADX 22.5 while losers had 27.5. We were entering too late - when ADX is high but plateauing/falling (mature trends). Added filter to require rising ADX to catch trends as they develop.
+1. **Short Selling Fix** (Jan 27, 2026) - Fixed 5 bugs causing 100% loss on shorts:
+   - Added `enableShorting: false` to DEFAULT_CONFIG
+   - Direction-aware stop loss, take profit, and P/L calculations
+   - See PROJECT_HISTORY.md for details
 
-**Implementation Complete**:
-1. ✅ **Backend - signalGenerator.js**: ADX slope calculation and filter logic
-   - `adxSlopeFilter: true` (default enabled)
-   - `adxSlopeLookback: 3` (compare current ADX vs 3 bars ago)
-   - Logic: `adxOk = adxMeetsThreshold && (!adxSlopeFilter || adxRising)`
-   - New pending state: `ADX_SLOPE_RISING` for continuation entries
-   - Logging: `📉 {instrument}: Signal filtered - ADX falling`
+2. **ADX Slope Filter** (Jan 27, 2026) - Deployed earlier this session:
+   - Filters signals to require rising ADX
+   - Config: `adxSlopeFilter: true`, `adxSlopeLookback: 3`
 
-2. ✅ **Backend - configService.js**: Config defaults + passed to SignalGenerator
-
-3. ✅ **Backend - analyticsService.js**: Tracks `filteredAdxSlope` separately in filterBreakdown
-
-4. ✅ **Frontend - ConfigShared.jsx**: Default values for new config options
-
-5. ✅ **Frontend - StrategySettings.jsx**: UI controls
-   - Toggle: "Require Rising ADX" (nested under ADX filter)
-   - Slider: Lookback 2-10 bars
-   - Tooltip: "Only enter when ADX is increasing vs N bars ago"
-
-**Next Steps**:
-1. Run tests: `cd backend && npm test`
-2. Commit and push:
-   ```bash
-   git add backend/src/services/signalGenerator.js backend/src/services/configService.js backend/src/services/analyticsService.js frontend/src/components/config/ConfigShared.jsx frontend/src/components/config/StrategySettings.jsx
-   git commit -m "feat: add ADX slope filter to catch rising trends early"
-   git push origin main
-   ```
-3. Deploy: `ssh img.oakroad && cd /opt/forex-trading-bot && ./scripts/update.sh`
-4. Verify in dashboard: Strategy tab should show new "Require Rising ADX" toggle
-
-**Files Changed**:
-- `backend/src/services/signalGenerator.js` - Core filter logic
-- `backend/src/services/configService.js` - Config defaults
-- `backend/src/services/analyticsService.js` - Analytics tracking
-- `frontend/src/components/config/ConfigShared.jsx` - Frontend defaults
-- `frontend/src/components/config/StrategySettings.jsx` - UI controls
+**To enable short selling**: Set `enableShorting: true` in config (dashboard or API)
 
 ---
 

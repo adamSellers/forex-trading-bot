@@ -225,14 +225,32 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Determine exit reason from Oanda trade details
+     * Checks if stop loss, take profit, or trailing stop orders were filled
      */
     determineExitReason(tradeDetails) {
-        const state = tradeDetails.trade?.state;
-        if (state === "CLOSED") {
-            // Check if there was a stop loss or take profit order that triggered
-            // This is a simplified check - could be enhanced
+        const trade = tradeDetails.trade;
+        if (!trade) return "UNKNOWN";
+
+        // Check if stop loss order was filled
+        if (trade.stopLossOrder?.state === "FILLED") {
+            return "STOP_LOSS";
+        }
+
+        // Check if take profit order was filled
+        if (trade.takeProfitOrder?.state === "FILLED") {
+            return "TAKE_PROFIT";
+        }
+
+        // Check if trailing stop loss order was filled
+        if (trade.trailingStopLossOrder?.state === "FILLED") {
+            return "TRAILING_STOP";
+        }
+
+        // Trade is closed but not by SL/TP - likely manual close on Oanda
+        if (trade.state === "CLOSED") {
             return "EXTERNAL";
         }
+
         return "UNKNOWN";
     }
 
