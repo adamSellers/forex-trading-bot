@@ -43,7 +43,7 @@
     "enableEmailAlerts": false,
     "alertEmail": "",
     "minStopLossPips": 20,
-    "enableShorting": true,
+    "enableShorting": false,
     "enableBreakeven": true,
     "breakevenTriggerPips": 12,
     "enableSlackAlerts": true,
