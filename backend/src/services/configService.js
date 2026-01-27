@@ -27,6 +27,8 @@ const DEFAULT_CONFIG = {
     // Entry Filters
     enableAdxFilter: true,
     minAdx: 22,
+    adxSlopeFilter: true,
+    adxSlopeLookback: 3,
     enableRsiFilter: true,
     rsiOverbought: 75,
     rsiOversold: 30,
@@ -36,6 +38,9 @@ const DEFAULT_CONFIG = {
     continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
     continuationRsiThreshold: 70,
     continuationMaxPriceDeviation: 0.02,
+
+    // Short Selling
+    enableShorting: false,
 
     // Risk Management
     riskPerTrade: 0.02,
@@ -179,6 +184,8 @@ class ConfigService extends EventEmitter {
                 assets: this.config.assets,
                 timeframe: this.config.timeframe,
                 minAdx: this.config.minAdx,
+                adxSlopeFilter: this.config.adxSlopeFilter,
+                adxSlopeLookback: this.config.adxSlopeLookback,
                 rsiOverbought: this.config.rsiOverbought,
                 rsiOversold: this.config.rsiOversold,
                 enableContinuationEntry: this.config.enableContinuationEntry,

@@ -19,6 +19,8 @@ class SignalGenerator extends EventEmitter {
 
             // Forex-specific: Lower ADX threshold (Forex trends show lower ADX than crypto)
             minAdx: 22, // Lower than crypto (25-28)
+            adxSlopeFilter: true, // Only enter when ADX is rising
+            adxSlopeLookback: 3, // Compare current ADX vs N bars ago
             rsiOverbought: 75,
             rsiOversold: 30,
             atrPeriod: 10,
@@ -177,13 +179,21 @@ class SignalGenerator extends EventEmitter {
             this._lastKnownDirection.set(instrument, currentDir);
 
             const rsiVal = RSI.calculate({ values: closes, period: 14 }).pop();
-            const adxResult = ADX.calculate({
+            const adxResults = ADX.calculate({
                 high: highs,
                 low: lows,
                 close: closes,
                 period: 14,
-            }).pop();
+            });
+            const adxResult = adxResults[adxResults.length - 1];
             const adxVal = adxResult?.adx || 0;
+
+            // ADX Slope calculation: compare current ADX to ADX from N bars ago
+            const lookback = this.config.adxSlopeLookback || 3;
+            const lookbackIdx = adxResults.length - 1 - lookback;
+            const prevAdxResult = lookbackIdx >= 0 ? adxResults[lookbackIdx] : null;
+            const prevAdxVal = prevAdxResult?.adx || adxVal;
+            const adxRising = adxVal > prevAdxVal;
 
             const atrVal = ATR.calculate({
                 high: highs,
@@ -206,7 +216,9 @@ class SignalGenerator extends EventEmitter {
             )} ATR:${atrPips.toFixed(1)}pips`;
             let entryType = null;
 
-            const adxOk = adxVal >= (this.config.minAdx || 22);
+            const adxMeetsThreshold = adxVal >= (this.config.minAdx || 22);
+            const adxSlopeOk = !this.config.adxSlopeFilter || adxRising;
+            const adxOk = adxMeetsThreshold && adxSlopeOk;
             const rsiOkForFresh = rsiVal < (this.config.rsiOverbought || 75);
             const rsiOkForContinuation =
                 rsiVal < (this.config.continuationRsiThreshold || 70);
@@ -218,10 +230,21 @@ class SignalGenerator extends EventEmitter {
                     // All conditions met - immediate entry
                     signalType = "BUY";
                     entryType = "FRESH_FLIP";
-                    reason = `ðŸš€ BUY: ST Flip GREEN | ADX ${adxVal.toFixed(
-                        1
-                    )} | RSI ${rsiVal.toFixed(1)}`;
+                    reason = `🚀 BUY: ST Flip GREEN | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(1)}`;
                     this._pendingEntries.delete(instrument);
+                } else if (adxMeetsThreshold && !adxSlopeOk && rsiOkForFresh) {
+                    // ADX meets threshold but falling - wait for ADX to rise
+                    if (this.config.enableContinuationEntry) {
+                        this._pendingEntries.set(instrument, {
+                            flipTime: Date.now(),
+                            flipPrice: currentPrice,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            waitingFor: "ADX_SLOPE_RISING",
+                        });
+                        reason = `⏸️ PENDING: ST Flip blocked by falling ADX (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)}) - waiting for rising trend`;
+                        logger.info(`📉 ${instrument}: Signal filtered - ADX falling (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)})`);
+                    }
                 } else if (adxOk && !rsiOkForFresh) {
                     // ADX strong but RSI overbought - wait for RSI cooldown
                     if (this.config.enableContinuationEntry) {
@@ -238,8 +261,8 @@ class SignalGenerator extends EventEmitter {
                             this.config.rsiOverbought
                         }) - waiting for cooldown`;
                     }
-                } else if (!adxOk && rsiOkForFresh) {
-                    // RSI OK but ADX weak - wait for ADX to strengthen
+                } else if (!adxMeetsThreshold && rsiOkForFresh) {
+                    // RSI OK but ADX below threshold - wait for ADX to strengthen
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
                             flipTime: Date.now(),
@@ -330,12 +353,19 @@ class SignalGenerator extends EventEmitter {
                             signalType = "BUY";
                             entryType = "CONTINUATION_ADX";
                             reason =
-                                `ðŸ”„ BUY: Continuation (ADX Strengthened) | ADX ${adxVal.toFixed(
-                                    1
-                                )} >= ${this.config.minAdx} | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(
-                                    1
-                                )}% from flip | ` +
+                                `🔄 BUY: Continuation (ADX Strengthened) | ADX ${adxVal.toFixed(1)} >= ${this.config.minAdx} | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | ` +
+                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    } else if (pending.waitingFor === "ADX_SLOPE_RISING") {
+                        // Was blocked by falling ADX - check if ADX is now rising
+                        if (adxRising && rsiOkForFresh) {
+                            signalType = "BUY";
+                            entryType = "CONTINUATION_ADX_SLOPE";
+                            reason =
+                                `🔄 BUY: Continuation (ADX Rising) | ADX ${adxVal.toFixed(1)}↑ | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | ` +
                                 `Wait: ${(ageMs / 60000).toFixed(0)}min`;
                             this._pendingEntries.delete(instrument);
                         }
@@ -400,6 +430,8 @@ class SignalGenerator extends EventEmitter {
                     currentPrice,
                     rsi: rsiVal,
                     adx: adxVal,
+                    adxRising: adxRising,
+                    adxPrev: prevAdxVal,
                     supertrend_direction: currentDir,
                     atrPips: atrPips,
                 },
@@ -409,6 +441,8 @@ class SignalGenerator extends EventEmitter {
                     currentPrice,
                     rsi: rsiVal,
                     adx: adxVal,
+                    adxRising: adxRising,
+                    adxPrev: prevAdxVal,
                     stDirection: currentDir,
                     atrPips: atrPips,
                 },

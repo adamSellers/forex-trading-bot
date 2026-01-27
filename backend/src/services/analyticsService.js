@@ -387,6 +387,7 @@ class AnalyticsService {
             total: signals.length,
             triggered: 0,
             filteredChoppy: 0,
+            filteredAdxSlope: 0,
             filteredOverbought: 0,
             filteredOversold: 0,
             hold: 0,
@@ -409,6 +410,11 @@ class AnalyticsService {
                 type.includes("SELL")
             ) {
                 stats.triggered++;
+            } else if (
+                message.includes("falling adx") ||
+                message.includes("adx_slope")
+            ) {
+                stats.filteredAdxSlope++;
             } else if (
                 message.includes("choppy") ||
                 message.includes("adx") ||
@@ -449,6 +455,11 @@ class AnalyticsService {
                 color: "warning",
             },
             {
+                label: "Filtered (ADX Falling)",
+                value: stats.filteredAdxSlope,
+                color: "error",
+            },
+            {
                 label: "Filtered (Overbought)",
                 value: stats.filteredOverbought,
                 color: "info",
@@ -475,10 +486,10 @@ class AnalyticsService {
             exitCounts[reason] = (exitCounts[reason] || 0) + 1;
         });
 
-        // Convert to array format
+        // Convert to array format with title case formatting
         const breakdown = Object.entries(exitCounts)
             .map(([reason, count]) => ({
-                reason: reason.replace(/_/g, " "),
+                reason: this.formatExitReason(reason),
                 count,
                 percentage:
                     trades.length > 0 ? (count / trades.length) * 100 : 0,
@@ -489,6 +500,18 @@ class AnalyticsService {
             total: trades.length,
             breakdown,
         };
+    }
+
+    /**
+     * Format exit reason to title case for display
+     * STOP_LOSS -> Stop Loss, TAKE_PROFIT -> Take Profit, etc.
+     */
+    formatExitReason(reason) {
+        if (!reason) return "Unknown";
+        return reason
+            .toLowerCase()
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
     }
 
     /**

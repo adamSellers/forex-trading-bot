@@ -344,7 +344,7 @@ describe('AnalyticsService', () => {
             expect(analysis.total).toBe(4);
             expect(analysis.breakdown.length).toBeGreaterThan(0);
 
-            const tpBreakdown = analysis.breakdown.find(b => b.reason === 'TAKE PROFIT');
+            const tpBreakdown = analysis.breakdown.find(b => b.reason === 'Take Profit');
             expect(tpBreakdown.count).toBe(2);
             expect(tpBreakdown.percentage).toBe(50);
         });
@@ -360,7 +360,7 @@ describe('AnalyticsService', () => {
 
             const analysis = service.calculateExitAnalysis(trades);
 
-            expect(analysis.breakdown[0].reason).toBe('TAKE PROFIT');
+            expect(analysis.breakdown[0].reason).toBe('Take Profit');
             expect(analysis.breakdown[0].count).toBe(3);
         });
 

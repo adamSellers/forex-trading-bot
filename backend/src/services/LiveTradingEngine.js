@@ -226,14 +226,32 @@ class LiveTradingEngine extends EventEmitter {
 
     /**
      * Determine exit reason from Oanda trade details
+     * Checks if stop loss, take profit, or trailing stop orders were filled
      */
     determineExitReason(tradeDetails) {
-        const state = tradeDetails.trade?.state;
-        if (state === "CLOSED") {
-            // Check if there was a stop loss or take profit order that triggered
-            // This is a simplified check - could be enhanced
+        const trade = tradeDetails.trade;
+        if (!trade) return "UNKNOWN";
+
+        // Check if stop loss order was filled
+        if (trade.stopLossOrder?.state === "FILLED") {
+            return "STOP_LOSS";
+        }
+
+        // Check if take profit order was filled
+        if (trade.takeProfitOrder?.state === "FILLED") {
+            return "TAKE_PROFIT";
+        }
+
+        // Check if trailing stop loss order was filled
+        if (trade.trailingStopLossOrder?.state === "FILLED") {
+            return "TRAILING_STOP";
+        }
+
+        // Trade is closed but not by SL/TP - likely manual close on Oanda
+        if (trade.state === "CLOSED") {
             return "EXTERNAL";
         }
+
         return "UNKNOWN";
     }
 
@@ -301,8 +319,19 @@ class LiveTradingEngine extends EventEmitter {
         const existingTrade = this.getOpenTradeByInstrument(symbol);
 
         if (signalType === "BUY") {
-            // Entry signal
-            if (existingTrade) {
+            // Signal reversal: Close existing SHORT position before opening LONG
+            if (existingTrade && existingTrade.side === "SELL") {
+                logger.info(
+                    `[${symbol}] Signal reversal: Closing SHORT position due to BUY signal`
+                );
+                await this.executeExit(
+                    existingTrade,
+                    currentPrice,
+                    "SIGNAL_REVERSAL"
+                );
+                // Position is now closed, proceed to open LONG
+            } else if (existingTrade) {
+                // Already in a LONG position, skip
                 logger.debug(
                     `⏸️ Skipping BUY for ${symbol} - already in position`
                 );
@@ -902,7 +931,7 @@ class LiveTradingEngine extends EventEmitter {
 
         const tpInfo = takeProfitPrice ? ` | TP: ${takeProfitPrice}` : "";
         logger.success(
-            `✅ PAPER BUY simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
+            `✅ PAPER ${trade.side} simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
         );
 
         return trade;
@@ -979,7 +1008,10 @@ class LiveTradingEngine extends EventEmitter {
 
         // Calculate P/L - use Oanda's realizedPL if available (includes all costs)
         const pipValue = oandaClient.getPipValue(trade.instrument);
-        const priceChange = exitPrice - trade.entryPrice;
+        // Direction-aware: BUY profits when price rises, SELL profits when price falls
+        const priceChange = trade.side === 'BUY'
+            ? exitPrice - trade.entryPrice
+            : trade.entryPrice - exitPrice;
         const pnlPips = priceChange / pipValue;
 
         // Use Oanda's realizedPL as source of truth when available
@@ -1104,8 +1136,13 @@ class LiveTradingEngine extends EventEmitter {
         const pipValue = oandaClient.getPipValue(trade.instrument);
 
         // Check paper trade stop loss (Oanda handles live trades)
+        // Direction-aware: BUY stop is below entry, SELL stop is above entry
         if (trade.mode === "paper" && trade.stopLossPrice) {
-            if (currentPrice <= trade.stopLossPrice) {
+            const stopHit = trade.side === 'BUY'
+                ? currentPrice <= trade.stopLossPrice
+                : currentPrice >= trade.stopLossPrice;
+
+            if (stopHit) {
                 logger.info(
                     `🛑 Paper trade stop loss hit for ${trade.instrument}`
                 );
@@ -1119,8 +1156,13 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // Check paper trade take profit
+        // Direction-aware: BUY TP is above entry, SELL TP is below entry
         if (trade.mode === "paper" && trade.takeProfitPrice) {
-            if (currentPrice >= trade.takeProfitPrice) {
+            const tpHit = trade.side === 'BUY'
+                ? currentPrice >= trade.takeProfitPrice
+                : currentPrice <= trade.takeProfitPrice;
+
+            if (tpHit) {
                 logger.info(
                     `🎯 Paper trade take profit hit for ${trade.instrument}`
                 );

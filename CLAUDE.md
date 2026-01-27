@@ -349,51 +349,26 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-17 | Navigation overhaul, analytics dashboard                     |
 | 2026-01-19 | Margin-aware position sizing deployed                        |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)                 |
+| 2026-01-27 | Short selling bug fix deployed (5 bugs fixed)                |
 
 ---
 
 ## IN PROGRESS
 
-### Critical Bug Fixes - Jan 22, 2026
+### No Active Work
 
-**Status**: Fixes deployed, clean install completed
+All tasks completed. Recent deployments:
 
-**Bugs Found & Fixed**:
+1. **Short Selling Fix** (Jan 27, 2026) - Fixed 5 bugs causing 100% loss on shorts:
+   - Added `enableShorting: false` to DEFAULT_CONFIG
+   - Direction-aware stop loss, take profit, and P/L calculations
+   - See PROJECT_HISTORY.md for details
 
-1. **SELL orders sent positive units** (CRITICAL)
-   - Location: [LiveTradingEngine.js:681-688](backend/src/services/LiveTradingEngine.js#L681-L688)
-   - Problem: SELL signals sent positive units to Oanda, opening LONGs instead of SHORTs
-   - Impact: All "SELL" trades in history were actually LONGs (data integrity compromised)
-   - Fix: Added `const orderUnits = signal.signal === "SELL" ? -units : units;`
+2. **ADX Slope Filter** (Jan 27, 2026) - Deployed earlier this session:
+   - Filters signals to require rising ADX
+   - Config: `adxSlopeFilter: true`, `adxSlopeLookback: 3`
 
-2. **Trailing stop only worked for BUY trades**
-   - Location: [LiveTradingEngine.js:1104](backend/src/services/LiveTradingEngine.js#L1104)
-   - Problem: Code had `trade.side === "BUY"` filter, excluding SELL trades
-   - Fix: Removed filter, made `updateTrailingStop()` direction-aware
-
-3. **Unreachable SELL stop loss code**
-   - Location: [LiveTradingEngine.js:548-563](backend/src/services/LiveTradingEngine.js#L548-L563)
-   - Problem: Early `return` statement made SELL branch unreachable
-   - Fix: Restructured to check direction before returning
-
-**Actions Taken**:
-- User manually closed AUD/USD position (+$12.49 profit - but due to bug, not strategy)
-- Clean install deployed on Pi (fresh database, fixed code)
-- Historical trade data cleared (was corrupted by SELL/BUY bug)
-
-**System State**:
-- Trading Mode: Live (fresh start)
-- Database: Reset (clean slate)
-- Dashboard: http://img.oakroad:3100
-- API: http://img.oakroad:3101/api
-
-**Next Steps**:
-1. Verify deployment completed successfully on Pi
-2. Run tests to confirm fixes work: `cd backend && npm test`
-3. Monitor first trades after fix to ensure correct side alignment
-4. Consider disabling shorting if not wanted (`enableShorting: false`)
-
-**Note on `.env`**: The codebase uses `DB_PATH`, not `DATABASE_PATH`. If `.env` has `DATABASE_PATH`, it's unused.
+**To enable short selling**: Set `enableShorting: true` in config (dashboard or API)
 
 ---
 

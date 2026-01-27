@@ -24,6 +24,27 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-01-27 - Short Selling Bug Fix
+
+**Summary**: Fixed 5 critical bugs causing 100% loss rate on SHORT positions.
+
+**Root Cause**: Short selling logic was hardcoded for BUY direction only.
+
+**Bugs Fixed**:
+1. **Missing `enableShorting` config** - Added to DEFAULT_CONFIG (defaults to `false`)
+2. **Paper trade stop loss check** - Now direction-aware (BUY: `<=`, SELL: `>=`)
+3. **Paper trade take profit check** - Now direction-aware (BUY: `>=`, SELL: `<=`)
+4. **P/L calculation** - Now direction-aware (BUY: exit-entry, SELL: entry-exit)
+5. **Logging** - Changed hardcoded "PAPER BUY" to dynamic `trade.side`
+
+**Files Modified**:
+- `backend/src/services/configService.js` - Added `enableShorting: false`
+- `backend/src/services/LiveTradingEngine.js` - Fixed lines 888, 965-968, 1088-1093, 1103-1108
+
+**Note**: `enableShorting` defaults to `false`. Enable in config to allow short positions.
+
+---
+
 ### 2026-01-20 - Test Suite Complete
 
 **Summary**: Comprehensive Jest test suite for critical trading logic - all tests passing.
