@@ -592,29 +592,29 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     /**
-     * Calculate take profit price based on percentage of account balance
+     * Calculate take profit price based on percentage of margin used
      *
-     * Target profit = accountBalance × takeProfitPercent (default 6%)
+     * Target profit = marginUsed × takeProfitPercent (default 6%)
      * TP Price = entryPrice + (targetProfit / units)
      *
      * @param {object} signal - Signal data with currentPrice
      * @param {object} config - Trading config
      * @param {number} units - Position size in units
-     * @param {number} units - Position size in units
-     * @param {number} accountBalance - Current account balance
+     * @param {number} marginUsed - Margin used for this trade
+     * @param {number} entryPrice - Actual entry price (may differ from signal price)
      */
-    calculateTakeProfit(signal, config, units, accountBalance) {
+    calculateTakeProfit(signal, config, units, marginUsed, entryPrice = null) {
         if (!config.enableTakeProfit) return null;
         if (!units || units <= 0) return null;
-        if (!accountBalance || accountBalance <= 0) return null;
+        if (!marginUsed || marginUsed <= 0) return null;
 
         const price = entryPrice || signal.currentPrice;
         const instrument = signal.symbol;
         const pipValue = oandaClient.getPipValue(instrument);
 
-        // Calculate target profit as percentage of account balance
+        // Calculate target profit as percentage of margin used (not account balance)
         const takeProfitPercent = config.takeProfitPercent || 0.06; // Default 6%
-        const targetProfitAud = accountBalance * takeProfitPercent;
+        const targetProfitAud = marginUsed * takeProfitPercent;
 
         // Calculate price movement needed to achieve target profit
         // For Forex: P/L = units × priceChange (simplified for AUD account)
@@ -622,18 +622,17 @@ class LiveTradingEngine extends EventEmitter {
         const priceChange = targetProfitAud / units;
 
         // For BUY trades, take profit is above entry
-        // For BUY trades, take profit is above entry
-        let takeProfitPrice = currentPrice + priceChange;
+        let takeProfitPrice = price + priceChange;
 
         // For SELL trades, take profit is below entry
         if (signal.signal === "SELL") {
-            takeProfitPrice = currentPrice - priceChange;
+            takeProfitPrice = price - priceChange;
         }
 
         const takeProfitPips = priceChange / pipValue;
 
         logger.info(
-            `📊 TP Calculation: balance=$${accountBalance.toFixed(2)} × ${(takeProfitPercent * 100).toFixed(0)}% = $${targetProfitAud.toFixed(2)} target | ${takeProfitPips.toFixed(1)} pips`
+            `📊 TP Calculation: margin=$${marginUsed.toFixed(2)} × ${(takeProfitPercent * 100).toFixed(0)}% = $${targetProfitAud.toFixed(2)} target | ${takeProfitPips.toFixed(1)} pips`
         );
 
         return {
@@ -660,15 +659,6 @@ class LiveTradingEngine extends EventEmitter {
             config
         );
 
-        // Get account balance for position sizing and take profit calculation
-        let accountBalance;
-        try {
-            const accountSummary = await oandaClient.getAccountSummary();
-            accountBalance = parseFloat(accountSummary.account.balance);
-        } catch (error) {
-            logger.error("❌ Failed to get account balance:", error.message);
-            return;
-        }
 
         // Calculate position size
         const units = await this.calculatePositionSize(
@@ -688,13 +678,7 @@ class LiveTradingEngine extends EventEmitter {
             return;
         }
 
-        // Calculate take profit based on % of account balance
-        const takeProfit = this.calculateTakeProfit(
-            signal,
-            config,
-            units,
-            accountBalance
-        );
+        // Note: Take profit will be calculated AFTER order fills using actual margin from Oanda
 
         // Calculate trailing stop distance (if enabled)
         let trailingStopDistance = null;

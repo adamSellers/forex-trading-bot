@@ -1,7 +1,7 @@
 {
     "enableTrading": true,
     "maxCapitalAtRisk": 200,
-    "maxOpenPositions": 2,
+    "maxOpenPositions": 3,
     "logLevel": "info",
     "assets": [
         "AUD_USD",
@@ -15,6 +15,8 @@
     "supertrendMultiplier": 3,
     "enableAdxFilter": true,
     "minAdx": 22,
+    "adxSlopeFilter": true,
+    "adxSlopeLookback": 3,
     "enableRsiFilter": true,
     "rsiOverbought": 75,
     "rsiOversold": 30,
@@ -22,6 +24,7 @@
     "continuationWindowMs": 14400000,
     "continuationRsiThreshold": 70,
     "continuationMaxPriceDeviation": 0.02,
+    "enableShorting": false,
     "riskPerTrade": 0.02,
     "maxPortfolioExposure": 0.5,
     "leverage": 10,
@@ -43,7 +46,6 @@
     "enableEmailAlerts": false,
     "alertEmail": "",
     "minStopLossPips": 20,
-    "enableShorting": false,
     "enableBreakeven": true,
     "breakevenTriggerPips": 12,
     "enableSlackAlerts": true,
