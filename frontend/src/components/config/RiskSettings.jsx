@@ -95,7 +95,7 @@ const RiskSettings = ({ config, updateConfig }) => {
                 color={config.leverage > 20 ? "error" : config.leverage > 10 ? "warning" : "success"}
               />
             </Stack>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>
               ASIC limit is 30:1 for major pairs. Lower leverage = lower risk.
             </Typography>
           </Grid>
