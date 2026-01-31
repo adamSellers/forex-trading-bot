@@ -350,6 +350,7 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-19 | Margin-aware position sizing deployed                        |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)                 |
 | 2026-01-27 | Short selling fix, ADX slope filter, exit reason detection   |
+| 2026-01-31 | Signal persistence for analytics, 90-day retention           |
 
 ---
 
@@ -357,11 +358,11 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ### No Active Work
 
-All tasks completed. Recent deployments (Jan 27, 2026):
+All tasks completed. Recent deployment (Jan 31, 2026):
 
-1. **Exit Reason Detection** - Analytics now correctly shows Stop Loss, Take Profit, Trailing Stop instead of generic "EXTERNAL"
-2. **Short Selling Fix** - Fixed 5 bugs causing 100% loss on shorts (direction-aware SL/TP/P&L)
-3. **ADX Slope Filter** - Filters signals to require rising ADX (`adxSlopeFilter: true`)
+1. **Signal Persistence** - Signals now saved to database for analytics (fixes "No signal data" in Signal Filtering widget)
+2. **90-Day Retention** - Daily cleanup job keeps signals table bounded (~5.4 MB max)
+3. **19 New Tests** - Test suite now at 193 passing (was 174)
 
 **Config Notes**:
 - `enableShorting: false` by default - set to `true` to allow short positions

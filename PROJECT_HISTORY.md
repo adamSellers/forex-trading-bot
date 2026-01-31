@@ -24,6 +24,38 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-01-31 - Signal Persistence for Analytics
+
+**Summary**: Fixed "No signal data" issue in Analytics Dashboard Signal Filtering widget by persisting signals to the database with 90-day retention.
+
+**Problem**: `signalGenerator.js` emitted signals but never saved them to the database. The analytics endpoint queried an empty signals table.
+
+**Solution**:
+- SignalGenerator now accepts `signalRepository` as second constructor parameter
+- Calls `signalRepo.saveBatch(signals)` after each signal cycle
+- Added `deleteOlderThan(days)` method to signalRepository for retention cleanup
+- Daily cleanup job runs at midnight (90-day retention keeps table bounded at ~5.4 MB)
+
+**Files Modified**:
+- `backend/src/services/signalGenerator.js` - Accept signalRepository, persist signals
+- `backend/src/repositories/signalRepository.js` - Added `deleteOlderThan()` method
+- `backend/server.js` - Wire up signalRepository, add daily cleanup scheduler
+- `backend/src/services/__tests__/signalGenerator.test.js` - 6 new tests for persistence
+- `backend/src/repositories/__tests__/signalRepository.test.js` - NEW file, 13 tests
+
+**Testing**: 193 passing, 0 failing (was 174)
+
+**Verification**:
+```bash
+# Check signals being saved
+sqlite3 backend/data/trading.db "SELECT COUNT(*) FROM signals WHERE timestamp > datetime('now', '-1 hour');"
+
+# Check cleanup scheduler
+pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
+```
+
+---
+
 ### 2026-01-27 - Exit Reason Detection
 
 **Summary**: Fixed analytics dashboard showing all exits as "EXTERNAL" - now correctly identifies Stop Loss, Take Profit, and Trailing Stop exits from Oanda.
@@ -364,6 +396,7 @@ When a feature is **fully completed AND deployed to production**:
 | 2026-01-19 | Margin-aware position sizing                           |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)           |
 | 2026-01-27 | Short selling bug fix, ADX slope filter, exit reason detection |
+| 2026-01-31 | Signal persistence for analytics, 90-day retention (193 tests) |
 
 ---
 
