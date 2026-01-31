@@ -11,8 +11,15 @@ const {
 describe('SignalGenerator', () => {
     let generator;
     let mockDataService;
+    let mockSignalRepository;
 
     beforeEach(() => {
+        // Create mock signal repository
+        mockSignalRepository = {
+            saveBatch: jest.fn().mockResolvedValue(undefined),
+            save: jest.fn().mockResolvedValue(undefined),
+        };
+
         generator = new SignalGenerator({
             minAdx: 22,
             rsiOverbought: 75,
@@ -57,6 +64,16 @@ describe('SignalGenerator', () => {
         test('should not be running initially', () => {
             expect(generator.isRunning).toBe(false);
             expect(generator.latestSignals).toEqual([]);
+        });
+
+        test('should accept signalRepository as second parameter', () => {
+            const gen = new SignalGenerator({}, mockSignalRepository);
+            expect(gen.signalRepo).toBe(mockSignalRepository);
+        });
+
+        test('should work without signalRepository (null)', () => {
+            const gen = new SignalGenerator({}, null);
+            expect(gen.signalRepo).toBeNull();
         });
     });
 
@@ -533,6 +550,80 @@ describe('SignalGenerator', () => {
             expect(signal).not.toBeNull();
             // ADX should be lower in ranging market
             expect(signal.strength).toBeDefined();
+        });
+    });
+
+    describe('Signal Persistence', () => {
+        test('should persist signals when signalRepository is provided', async () => {
+            const genWithRepo = new SignalGenerator({
+                assets: ['AUD_USD'],
+                minAdx: 22,
+            }, mockSignalRepository);
+
+            const candles = generateCandles(250);
+            mockDataService = createMockDataService(
+                { AUD_USD: candles },
+                { AUD_USD: { price: 1.16571, bid: 1.16566, ask: 1.16576 } }
+            );
+
+            genWithRepo.dataService = mockDataService;
+            await genWithRepo.generateSignalCycle();
+
+            // Should have called saveBatch with the generated signals
+            expect(mockSignalRepository.saveBatch).toHaveBeenCalled();
+        });
+
+        test('should not call saveBatch when signalRepository is null', async () => {
+            const genWithoutRepo = new SignalGenerator({
+                assets: ['AUD_USD'],
+                minAdx: 22,
+            }, null);
+
+            const candles = generateCandles(250);
+            mockDataService = createMockDataService(
+                { AUD_USD: candles },
+                { AUD_USD: { price: 1.16571, bid: 1.16566, ask: 1.16576 } }
+            );
+
+            genWithoutRepo.dataService = mockDataService;
+
+            // Should not throw
+            await expect(genWithoutRepo.generateSignalCycle()).resolves.not.toThrow();
+        });
+
+        test('should not persist when no signals generated', async () => {
+            const genWithRepo = new SignalGenerator({
+                assets: [], // No assets = no signals
+                minAdx: 22,
+            }, mockSignalRepository);
+
+            genWithRepo.dataService = mockDataService;
+            await genWithRepo.generateSignalCycle();
+
+            // Should not call saveBatch when signals array is empty
+            expect(mockSignalRepository.saveBatch).not.toHaveBeenCalled();
+        });
+
+        test('should handle saveBatch errors gracefully', async () => {
+            const errorRepo = {
+                saveBatch: jest.fn().mockRejectedValue(new Error('DB error')),
+            };
+
+            const genWithErrorRepo = new SignalGenerator({
+                assets: ['AUD_USD'],
+                minAdx: 22,
+            }, errorRepo);
+
+            const candles = generateCandles(250);
+            mockDataService = createMockDataService(
+                { AUD_USD: candles },
+                { AUD_USD: { price: 1.16571, bid: 1.16566, ask: 1.16576 } }
+            );
+
+            genWithErrorRepo.dataService = mockDataService;
+
+            // Should not throw even if saveBatch fails
+            await expect(genWithErrorRepo.generateSignalCycle()).resolves.not.toThrow();
         });
     });
 });

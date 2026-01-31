@@ -102,6 +102,26 @@ class SignalRepository {
         }
     }
 
+    /**
+     * Delete signals older than specified number of days
+     * Used for retention policy to keep signals table bounded
+     * @param {number} days - Delete signals older than this many days
+     * @returns {number} - Number of deleted records
+     */
+    async deleteOlderThan(days) {
+        try {
+            const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+            const deleted = await db("signals").where("timestamp", "<", cutoff).del();
+            if (deleted > 0) {
+                logger.info(`🧹 Cleaned up ${deleted} signals older than ${days} days`);
+            }
+            return deleted;
+        } catch (error) {
+            logger.error("Error deleting old signals:", error);
+            return 0;
+        }
+    }
+
     async getSignalStats(period = "24h") {
         try {
             const periodMs = this.parsePeriod(period);

@@ -4,11 +4,12 @@ const logger = require("../utils/logger");
 const { RSI, ADX, ATR } = require("technicalindicators");
 
 class SignalGenerator extends EventEmitter {
-    constructor(config = {}) {
+    constructor(config = {}, signalRepository = null) {
         super();
         this.isRunning = false;
         this.signalInterval = null;
         this.dataService = null;
+        this.signalRepo = signalRepository;
         this.latestSignals = [];
 
         this.config = {
@@ -76,6 +77,11 @@ class SignalGenerator extends EventEmitter {
             if (signals.length > 0) {
                 this.emit("allSignalsGenerated", signals);
                 signals.forEach((s) => this.emit("signalGenerated", s));
+
+                // Persist signals to database for analytics
+                if (this.signalRepo) {
+                    await this.signalRepo.saveBatch(signals);
+                }
             }
         } catch (error) {
             logger.error("âŒ Signal Cycle Error:", error);
