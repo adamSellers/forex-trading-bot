@@ -58,6 +58,7 @@ const TradingDashboard = () => {
   const [account, setAccount] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState('supertrend_momentum');
+  const [dailyPnL, setDailyPnL] = useState(0); // Fetch from backend
 
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState(null);
@@ -100,7 +101,7 @@ const TradingDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData] =
+      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, analyticsData] =
         await Promise.allSettled([
           tradingAPI.getStatus(),
           tradingAPI.getPortfolio(),
@@ -109,6 +110,7 @@ const TradingDashboard = () => {
           tradingAPI.getPrices(),
           tradingAPI.getAccount(),
           engineAPI.getStatus(),
+          tradingAPI.analyticsAPI.getSummary('24h'), // New fetch
         ]);
 
       if (!isMountedRef.current) return;
@@ -140,6 +142,9 @@ const TradingDashboard = () => {
         setPrices(pricesObj);
       }
       if (accountData.status === 'fulfilled') setAccount(accountData.value);
+      if (analyticsData.status === 'fulfilled' && analyticsData.value) {
+        setDailyPnL(analyticsData.value.totalPnLAud || 0);
+      }
 
       setLoading(false);
       setLastUpdate(Date.now());
@@ -286,19 +291,8 @@ const TradingDashboard = () => {
     [systemStatus]
   );
 
-  const calculatedDailyPnL = useMemo(() => {
-    if (!trades || trades.length === 0) return 0;
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    return trades
-      .filter(
-        (t) =>
-          t.pnlAud !== null &&
-          !isNaN(Number(t.pnlAud)) &&
-          !t.isOpen &&
-          new Date(t.exitTime || t.timestamp).getTime() > oneDayAgo
-      )
-      .reduce((sum, t) => sum + Number(t.pnlAud), 0);
-  }, [trades]);
+  // Removed client-side PnL calculation in favor of backend value
+  const calculatedDailyPnL = dailyPnL;
 
   const actionableSignalCount = useMemo(() => {
     return signalsToRender.filter(

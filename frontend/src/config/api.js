@@ -302,6 +302,7 @@ export const systemAPI = {
 tradingAPI.getConfig = configAPI.get;
 tradingAPI.updateConfig = configAPI.update;
 tradingAPI.getAnalytics = analyticsAPI.get;
+tradingAPI.analyticsAPI = analyticsAPI;
 
 export default {
     API_BASE_URL,

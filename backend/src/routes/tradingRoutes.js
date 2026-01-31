@@ -123,29 +123,29 @@ router.get("/system/health", async (req, res) => {
         // Get service statuses
         const dataServiceStatus = dataService
             ? {
-                  isRunning: dataService.isRunning || false,
-                  instruments: dataService.instruments || [],
-                  priceCount: Object.keys(dataService.getAllPrices?.() || {})
-                      .length,
-                  lastUpdate: dataService.lastUpdate || null,
-              }
+                isRunning: dataService.isRunning || false,
+                instruments: dataService.instruments || [],
+                priceCount: Object.keys(dataService.getAllPrices?.() || {})
+                    .length,
+                lastUpdate: dataService.lastUpdate || null,
+            }
             : { isRunning: false };
 
         const signalGenStatus = signalGenerator
             ? {
-                  isActive: signalGenerator.isRunning || false,
-                  activeSignals: signalGenerator.latestSignals?.length || 0,
-                  pendingEntries: signalGenerator._pendingEntries?.size || 0,
-                  lastRun: signalGenerator.lastRunTime || null,
-              }
+                isActive: signalGenerator.isRunning || false,
+                activeSignals: signalGenerator.latestSignals?.length || 0,
+                pendingEntries: signalGenerator._pendingEntries?.size || 0,
+                lastRun: signalGenerator.lastRunTime || null,
+            }
             : { isActive: false };
 
         const engineStatus = tradingEngine
             ? {
-                  isRunning: tradingEngine.isRunning || false,
-                  openPositions: tradingEngine.openTrades?.size || 0,
-                  stats: tradingEngine.stats || {},
-              }
+                isRunning: tradingEngine.isRunning || false,
+                openPositions: tradingEngine.openTrades?.size || 0,
+                stats: tradingEngine.stats || {},
+            }
             : { isRunning: false };
 
         const uptimeSeconds = process.uptime();
@@ -261,10 +261,10 @@ router.get("/system/info", (req, res) => {
             },
             tradingEngine: tradingEngine
                 ? {
-                      isRunning: tradingEngine.isRunning,
-                      openTrades: tradingEngine.openTrades?.size || 0,
-                      stats: tradingEngine.stats,
-                  }
+                    isRunning: tradingEngine.isRunning,
+                    openTrades: tradingEngine.openTrades?.size || 0,
+                    stats: tradingEngine.stats,
+                }
                 : null,
             timestamp: new Date().toISOString(),
         });
@@ -768,6 +768,30 @@ router.post("/engine/reset-stats", (req, res) => {
 });
 
 // ============ ANALYTICS ============
+
+// Quick summary for dashboard
+router.get("/analytics/summary", async (req, res) => {
+    try {
+        const TradeRepository = require("../repositories/tradeRepository");
+        const SignalRepository = require("../repositories/signalRepository");
+        const AnalyticsService = require("../services/analyticsService");
+
+        const tradeRepo = new TradeRepository();
+        const signalRepo = new SignalRepository();
+        const analyticsService = new AnalyticsService(tradeRepo, signalRepo);
+
+        // Default to 24h for dashboard summary if not specified
+        const period = req.query.period || "24h";
+        const mode = req.query.mode || "live";
+
+        const analytics = await analyticsService.getAnalytics(period, mode);
+
+        res.json(analytics.summary);
+    } catch (error) {
+        console.error("Analytics summary error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 router.get("/analytics", async (req, res) => {
     try {
