@@ -42,7 +42,8 @@ export default function RecentTrades({ trades = [] }) {
     const getExitReasonColor = (reason) => {
         if (!reason) return 'default';
         const r = reason.toUpperCase();
-        if (r.includes('STOP')) return 'error';        // Stop Loss, Trailing Stop
+        if (r.includes('TRAILING')) return 'warning';  // Trailing Stop (locked in profit)
+        if (r.includes('STOP')) return 'error';        // Stop Loss
         if (r.includes('TAKE') || r.includes('PROFIT')) return 'success';  // Take Profit
         if (r.includes('SIGNAL') || r.includes('REVERSAL')) return 'warning';  // Signal Reversal
         if (r.includes('MANUAL')) return 'info';       // Manual close

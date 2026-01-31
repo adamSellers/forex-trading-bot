@@ -24,6 +24,35 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-01-27 - Exit Reason Detection
+
+**Summary**: Fixed analytics dashboard showing all exits as "EXTERNAL" - now correctly identifies Stop Loss, Take Profit, and Trailing Stop exits from Oanda.
+
+**Problem**: When Oanda closed trades (via SL/TP orders), the `determineExitReason()` method returned generic "EXTERNAL" instead of checking what actually triggered the close.
+
+**Solution**: Enhanced `determineExitReason()` to check Oanda order states:
+- `stopLossOrder.state === "FILLED"` → "STOP_LOSS"
+- `takeProfitOrder.state === "FILLED"` → "TAKE_PROFIT"
+- `trailingStopLossOrder.state === "FILLED"` → "TRAILING_STOP"
+- Otherwise → "EXTERNAL" (manual close on Oanda platform)
+
+**Additional Changes**:
+- Added `formatExitReason()` helper for title case display (STOP_LOSS → "Stop Loss")
+- Added "External" color to analytics pie chart
+- Updated RecentTrades component for Signal Reversal and External color coding
+- Fixed 2 failing tests (expected title case format)
+
+**Files Modified**:
+- `backend/src/services/LiveTradingEngine.js` - Enhanced `determineExitReason()`
+- `backend/src/services/analyticsService.js` - Added `formatExitReason()` helper
+- `frontend/src/components/analytics/StrategyWidgets.jsx` - Added External color
+- `frontend/src/components/dashboard/RecentTrades.jsx` - Updated exit reason colors
+- `backend/src/services/__tests__/analyticsService.test.js` - Fixed test expectations
+
+**Testing**: 174 passing, 0 failing
+
+---
+
 ### 2026-01-27 - Short Selling Bug Fix
 
 **Summary**: Fixed 5 critical bugs causing 100% loss rate on SHORT positions.
@@ -334,6 +363,7 @@ When a feature is **fully completed AND deployed to production**:
 | 2026-01-17 | Navigation overhaul, analytics dashboard               |
 | 2026-01-19 | Margin-aware position sizing                           |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)           |
+| 2026-01-27 | Short selling bug fix, ADX slope filter, exit reason detection |
 
 ---
 

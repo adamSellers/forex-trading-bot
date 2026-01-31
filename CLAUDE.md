@@ -349,7 +349,7 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-17 | Navigation overhaul, analytics dashboard                     |
 | 2026-01-19 | Margin-aware position sizing deployed                        |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)                 |
-| 2026-01-27 | Short selling bug fix deployed (5 bugs fixed)                |
+| 2026-01-27 | Short selling fix, ADX slope filter, exit reason detection   |
 
 ---
 
@@ -357,18 +357,15 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ### No Active Work
 
-All tasks completed. Recent deployments:
+All tasks completed. Recent deployments (Jan 27, 2026):
 
-1. **Short Selling Fix** (Jan 27, 2026) - Fixed 5 bugs causing 100% loss on shorts:
-   - Added `enableShorting: false` to DEFAULT_CONFIG
-   - Direction-aware stop loss, take profit, and P/L calculations
-   - See PROJECT_HISTORY.md for details
+1. **Exit Reason Detection** - Analytics now correctly shows Stop Loss, Take Profit, Trailing Stop instead of generic "EXTERNAL"
+2. **Short Selling Fix** - Fixed 5 bugs causing 100% loss on shorts (direction-aware SL/TP/P&L)
+3. **ADX Slope Filter** - Filters signals to require rising ADX (`adxSlopeFilter: true`)
 
-2. **ADX Slope Filter** (Jan 27, 2026) - Deployed earlier this session:
-   - Filters signals to require rising ADX
-   - Config: `adxSlopeFilter: true`, `adxSlopeLookback: 3`
-
-**To enable short selling**: Set `enableShorting: true` in config (dashboard or API)
+**Config Notes**:
+- `enableShorting: false` by default - set to `true` to allow short positions
+- `adxSlopeFilter: true`, `adxSlopeLookback: 3` - requires ADX trending up over 3 periods
 
 ---
 
