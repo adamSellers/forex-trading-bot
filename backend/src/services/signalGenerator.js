@@ -223,6 +223,9 @@ class SignalGenerator extends EventEmitter {
             const rsiOkForFresh = rsiVal < (this.config.rsiOverbought || 75);
             const rsiOkForContinuation =
                 rsiVal < (this.config.continuationRsiThreshold || 70);
+            // SHORT entry RSI check: not oversold (inverse of overbought for longs)
+            const rsiOkForShort = rsiVal > (this.config.rsiOversold || 30);
+            const rsiOkForShortContinuation = rsiVal > ((this.config.rsiOversold || 30) + 5); // 35 default
 
             // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED â†’ GREEN)
             if (prevDir === -1 && currentDir === 1) {
@@ -405,11 +408,141 @@ class SignalGenerator extends EventEmitter {
                     }
                 }
             }
-            // 5. EXIT: SuperTrend Flip (GREEN â†’ RED)
+            // 5. SHORT ENTRY: SuperTrend Flip (GREEN → RED)
+            // Always emits SELL (to close longs), but entryType indicates if short entry is valid
             else if (prevDir === 1 && currentDir === -1) {
                 signalType = "SELL";
-                reason = `ðŸ“‰ SELL: ST Flip RED`;
-                this._pendingEntries.delete(instrument);
+                // Clear any pending LONG entries on direction change
+                const existingPending = this._pendingEntries.get(instrument);
+                if (existingPending && existingPending.direction !== "SHORT") {
+                    this._pendingEntries.delete(instrument);
+                }
+
+                if (adxOk && rsiOkForShort) {
+                    // All conditions met - valid short entry
+                    entryType = "SHORT_ENTRY";
+                    reason = `📉 SELL: ST Flip RED | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(1)}`;
+                    this._pendingEntries.delete(instrument);
+                } else if (adxMeetsThreshold && !adxSlopeOk && rsiOkForShort) {
+                    // ADX meets threshold but falling - wait for ADX to rise
+                    entryType = "EXIT_ONLY";
+                    reason = `📉 EXIT: ST Flip RED (short blocked: falling ADX ${adxVal.toFixed(1)})`;
+                    if (this.config.enableContinuationEntry) {
+                        this._pendingEntries.set(instrument, {
+                            flipTime: Date.now(),
+                            flipPrice: currentPrice,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            waitingFor: "ADX_SLOPE_RISING",
+                            direction: "SHORT",
+                        });
+                        logger.info(`📉 ${instrument}: Short entry filtered - ADX falling (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)})`);
+                    }
+                } else if (adxOk && !rsiOkForShort) {
+                    // ADX strong but RSI oversold - wait for RSI recovery
+                    entryType = "EXIT_ONLY";
+                    reason = `📉 EXIT: ST Flip RED (short blocked: RSI oversold ${rsiVal.toFixed(1)})`;
+                    if (this.config.enableContinuationEntry) {
+                        this._pendingEntries.set(instrument, {
+                            flipTime: Date.now(),
+                            flipPrice: currentPrice,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            waitingFor: "RSI_RECOVERY",
+                            direction: "SHORT",
+                        });
+                    }
+                } else if (!adxMeetsThreshold && rsiOkForShort) {
+                    // RSI OK but ADX below threshold - wait for ADX to strengthen
+                    entryType = "EXIT_ONLY";
+                    reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} < ${this.config.minAdx})`;
+                    if (this.config.enableContinuationEntry) {
+                        this._pendingEntries.set(instrument, {
+                            flipTime: Date.now(),
+                            flipPrice: currentPrice,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            waitingFor: "ADX_STRENGTHEN",
+                            direction: "SHORT",
+                        });
+                    }
+                } else {
+                    // Both ADX weak AND RSI oversold - wait for both
+                    entryType = "EXIT_ONLY";
+                    reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} & RSI ${rsiVal.toFixed(1)})`;
+                    if (this.config.enableContinuationEntry) {
+                        this._pendingEntries.set(instrument, {
+                            flipTime: Date.now(),
+                            flipPrice: currentPrice,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            waitingFor: "BOTH",
+                            direction: "SHORT",
+                        });
+                    }
+                }
+            }
+            // 6. SHORT CONTINUATION: Conditions improved after pending short flip
+            else if (
+                currentDir === -1 &&
+                this.config.enableContinuationEntry &&
+                this._pendingEntries.has(instrument) &&
+                this._pendingEntries.get(instrument).direction === "SHORT"
+            ) {
+                const pending = this._pendingEntries.get(instrument);
+                const ageMs = Date.now() - pending.flipTime;
+                const maxAgeMs = this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
+
+                if (ageMs > maxAgeMs) {
+                    logger.info(
+                        `⏰ ${instrument}: Short continuation window expired after ${(ageMs / 60000).toFixed(0)} minutes. Was waiting for: ${pending.waitingFor}`
+                    );
+                    this._pendingEntries.delete(instrument);
+                } else {
+                    const maxDeviation = this.config.continuationMaxPriceDeviation || 0.02;
+                    // For shorts, price deviation is negative when price falls (favorable)
+                    const priceDeviation = (pending.flipPrice - currentPrice) / pending.flipPrice;
+                    const priceOk = priceDeviation <= maxDeviation;
+
+                    if (!priceOk) {
+                        logger.info(
+                            `❌ ${instrument}: Short continuation cancelled. Price moved ${(priceDeviation * 100).toFixed(1)}% from flip price`
+                        );
+                        this._pendingEntries.delete(instrument);
+                    } else if (pending.waitingFor === "RSI_RECOVERY") {
+                        if (adxOk && rsiOkForShortContinuation) {
+                            signalType = "SELL";
+                            entryType = "SHORT_CONTINUATION_RSI";
+                            reason = `🔄 SELL: Short Continuation (RSI Recovery) | RSI ${rsiVal.toFixed(1)} > ${(this.config.rsiOversold || 30) + 5} | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    } else if (pending.waitingFor === "ADX_STRENGTHEN") {
+                        if (adxOk && rsiOkForShort) {
+                            signalType = "SELL";
+                            entryType = "SHORT_CONTINUATION_ADX";
+                            reason = `🔄 SELL: Short Continuation (ADX Strengthened) | ADX ${adxVal.toFixed(1)} >= ${this.config.minAdx} | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    } else if (pending.waitingFor === "ADX_SLOPE_RISING") {
+                        if (adxRising && rsiOkForShort) {
+                            signalType = "SELL";
+                            entryType = "SHORT_CONTINUATION_ADX_SLOPE";
+                            reason = `🔄 SELL: Short Continuation (ADX Rising) | ADX ${adxVal.toFixed(1)}↑ | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    } else if (pending.waitingFor === "BOTH") {
+                        if (adxOk && rsiOkForShortContinuation) {
+                            signalType = "SELL";
+                            entryType = "SHORT_CONTINUATION_BOTH";
+                            reason = `🔄 SELL: Short Continuation (Both OK) | ADX ${adxVal.toFixed(1)} RSI ${rsiVal.toFixed(1)} | ` +
+                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
+                            this._pendingEntries.delete(instrument);
+                        }
+                    }
+                }
             }
 
             return {

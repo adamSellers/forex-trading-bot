@@ -129,6 +129,12 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       const badges = [];
 
       if (waitingFor) {
+          // Add direction indicator for pending shorts
+          const isShort = signal.pendingEntry?.direction === 'SHORT';
+          if (isShort) {
+              badges.push({ label: 'SHORT', color: 'warning' });
+          }
+
           switch (waitingFor) {
               case 'ADX_SLOPE_RISING':
                   badges.push({ label: 'SLOPE', color: 'error' });
@@ -137,6 +143,9 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                   badges.push({ label: 'ADX', color: 'error' });
                   break;
               case 'RSI_COOLDOWN':
+                  badges.push({ label: 'RSI', color: 'error' });
+                  break;
+              case 'RSI_RECOVERY':
                   badges.push({ label: 'RSI', color: 'error' });
                   break;
               case 'BOTH':
@@ -235,17 +244,28 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                                  <Chip label={signal.signal?.split('_')[0]} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 'bold', bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main }} />
                                  {/* Block reason badge for compact view */}
                                  {signal.signal === 'HOLD' && signal.pendingEntry?.waitingFor && (
-                                     <Chip
-                                         label={
-                                             signal.pendingEntry.waitingFor === 'ADX_SLOPE_RISING' ? 'SLOPE' :
-                                             signal.pendingEntry.waitingFor === 'ADX_STRENGTHEN' ? 'ADX' :
-                                             signal.pendingEntry.waitingFor === 'RSI_COOLDOWN' ? 'RSI' :
-                                             signal.pendingEntry.waitingFor === 'BOTH' ? 'ADX' : 'WAIT'
-                                         }
-                                         size="small"
-                                         color="error"
-                                         sx={{ height: 14, fontSize: '0.55rem', '& .MuiChip-label': { px: 0.5 } }}
-                                     />
+                                     <>
+                                         {signal.pendingEntry.direction === 'SHORT' && (
+                                             <Chip
+                                                 label="S"
+                                                 size="small"
+                                                 color="warning"
+                                                 sx={{ height: 14, fontSize: '0.55rem', '& .MuiChip-label': { px: 0.3 } }}
+                                             />
+                                         )}
+                                         <Chip
+                                             label={
+                                                 signal.pendingEntry.waitingFor === 'ADX_SLOPE_RISING' ? 'SLOPE' :
+                                                 signal.pendingEntry.waitingFor === 'ADX_STRENGTHEN' ? 'ADX' :
+                                                 signal.pendingEntry.waitingFor === 'RSI_COOLDOWN' ? 'RSI' :
+                                                 signal.pendingEntry.waitingFor === 'RSI_RECOVERY' ? 'RSI' :
+                                                 signal.pendingEntry.waitingFor === 'BOTH' ? 'ADX' : 'WAIT'
+                                             }
+                                             size="small"
+                                             color="error"
+                                             sx={{ height: 14, fontSize: '0.55rem', '& .MuiChip-label': { px: 0.5 } }}
+                                         />
+                                     </>
                                  )}
                              </Box>
                              <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.3} mt={0.5}>

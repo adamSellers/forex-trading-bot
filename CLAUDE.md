@@ -351,22 +351,83 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)                 |
 | 2026-01-27 | Short selling fix, ADX slope filter, exit reason detection   |
 | 2026-01-31 | Signal persistence for analytics, 90-day retention           |
+| 2026-02-02 | Signals component enhancement (ADX arrows, block reasons)    |
 
 ---
 
 ## IN PROGRESS
 
-### No Active Work
+### Short Entry Signal Filtering - Investigation & Fix
 
-All tasks completed. Recent deployment (Jan 31, 2026):
+**Status**: Investigation complete, ready to implement
 
-1. **Signal Persistence** - Signals now saved to database for analytics (fixes "No signal data" in Signal Filtering widget)
-2. **90-Day Retention** - Daily cleanup job keeps signals table bounded (~5.4 MB max)
-3. **19 New Tests** - Test suite now at 193 passing (was 174)
+**Problem Discovered** (Feb 2, 2026):
+Short positions ARE being executed (confirmed via trade history), but they bypass all quality filters that protect long entries. This creates asymmetric risk.
+
+**Evidence from Trade History**:
+| Trade | Side | Entry | Exit | P&L | Reason |
+|-------|------|-------|------|-----|--------|
+| EUR/USD | SELL | 1.19150 | 1.18796 | +$3.50 | Stop Loss |
+| EUR/USD | SELL | 1.19954 | 1.20215 | -$2.45 | Stop Loss |
+| EUR/USD | SELL | 1.18388 | 1.18598 | -$2.62 | External |
+
+**Root Cause Analysis**:
+
+The signal flow for entries:
+
+| Direction | Signal | Filters Applied | Code Location |
+|-----------|--------|-----------------|---------------|
+| LONG | BUY on GREEN flip | ADX ≥22 ✓, ADX rising ✓, RSI <75 ✓ | signalGenerator.js:228-294 |
+| SHORT | SELL on RED flip | **NONE** ❌ | signalGenerator.js:408-413 |
+
+Current SELL signal code (line 408-413):
+```javascript
+// 5. EXIT: SuperTrend Flip (GREEN → RED)
+else if (prevDir === 1 && currentDir === -1) {
+    signalType = "SELL";
+    reason = `📉 SELL: ST Flip RED`;
+    this._pendingEntries.delete(instrument);
+}
+```
+
+This emits SELL unconditionally - no ADX check, no slope filter, no RSI check. LiveTradingEngine then opens a short if `enableShorting: true`.
+
+**Implementation Plan**:
+
+1. **Add SHORT entry logic** (mirror BUY logic):
+   - Check ADX ≥ minAdx threshold
+   - Check ADX slope rising (same as longs - rising = strengthening trend)
+   - Check RSI > rsiOversold (inverse of overbought check)
+   - Create pending entry if conditions not met
+
+2. **Separate SELL signal types**:
+   - `SELL` = short entry signal (when conditions met)
+   - `EXIT_LONG` = close long position (always emit on RED flip)
+   - Or use context in LiveTradingEngine to differentiate
+
+3. **Add SHORT continuation entries**:
+   - Same logic as BUY continuations
+   - Track pending short flips with `waitingFor` enum
+
+4. **Update frontend**:
+   - Handle new signal types in TradingSignals.jsx
+   - Show block reasons for pending short entries
+
+**Files to Modify**:
+- `backend/src/services/signalGenerator.js` - Add SHORT entry filtering
+- `backend/src/services/LiveTradingEngine.js` - May need signal type handling
+- `frontend/src/components/dashboard/TradingSignals.jsx` - UI updates
+- Tests for new short entry logic
 
 **Config Notes**:
-- `enableShorting: false` by default - set to `true` to allow short positions
-- `adxSlopeFilter: true`, `adxSlopeLookback: 3` - requires ADX trending up over 3 periods
+- `enableShorting: true` is already set in production
+- `rsiOversold: 30` exists in config (for short RSI filter)
+
+**Next Steps**:
+1. Read LiveTradingEngine.js to understand how SELL signals trigger short entries
+2. Determine best approach: new signal type vs context-aware handling
+3. Implement SHORT entry filtering to match LONG quality standards
+4. Run tests and deploy
 
 ---
 

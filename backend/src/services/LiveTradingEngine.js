@@ -366,8 +366,9 @@ class LiveTradingEngine extends EventEmitter {
                 }
             }
 
-            // Execute SHORT Entry if shorting is enabled
-            if (config.enableShorting) {
+            // Execute SHORT Entry if shorting is enabled AND signal qualifies for short entry
+            // entryType "EXIT_ONLY" means conditions weren't met for short (pending continuation)
+            if (config.enableShorting && signal.entryType !== "EXIT_ONLY") {
                 if (existingTrade && existingTrade.side === "SELL") {
                     logger.debug(
                         `⏸️ Skipping SELL for ${symbol} - already in short position`
@@ -390,7 +391,14 @@ class LiveTradingEngine extends EventEmitter {
                     return;
                 }
 
+                logger.info(
+                    `📉 Short Entry approved for ${symbol} | Type: ${signal.entryType || "FRESH_FLIP"}`
+                );
                 await this.executeEntry(signal, config);
+            } else if (config.enableShorting && signal.entryType === "EXIT_ONLY") {
+                logger.info(
+                    `⏸️ Short Entry skipped for ${symbol} - signal filtered at generator (pending continuation)`
+                );
             }
         }
         // HOLD signals are ignored

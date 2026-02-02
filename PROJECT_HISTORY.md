@@ -24,6 +24,37 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-02-02 - Signals Component Enhancement
+
+**Summary**: Improved the Signals table in the Trading Dashboard with ADX trend arrows and meaningful block reason badges.
+
+**Changes**:
+
+1. **ADX Arrows** - Added rising/falling arrows (↑/↓) next to ADX values
+   - Green ↑ when `trend.adxRising` is true
+   - Red ↓ when `trend.adxRising` is false
+
+2. **Block Reason Badges** - Replaced generic "NEW/LOGGED" status with meaningful badges:
+   - "NEW" (green) - BUY/SELL signals
+   - "ADX" (red) - Blocked due to weak ADX
+   - "SLOPE" (red) - Blocked due to falling ADX
+   - "RSI" (red) - Blocked due to overbought
+   - "HOLD" (gray) - Neutral hold
+   - Uses `signal.pendingEntry.waitingFor` enum
+
+3. **Fixed Signal Repository Bug** - Column name mismatch was causing `SQLITE_ERROR`:
+   - `symbol` → `instrument`
+   - `current_price` → `price`
+   - `atr` → `atr_pips`
+   - `trend_data` JSON → individual columns (`rsi`, `adx`, `supertrend_direction`, `entry_type`)
+   - `new Date()` → epoch milliseconds (bigint)
+
+**Files Modified**:
+- `frontend/src/components/dashboard/TradingSignals.jsx` - ADX arrows and block reason badges
+- `backend/src/repositories/signalRepository.js` - Fixed column name mapping
+
+---
+
 ### 2026-01-31 - Signal Persistence for Analytics
 
 **Summary**: Fixed "No signal data" issue in Analytics Dashboard Signal Filtering widget by persisting signals to the database with 90-day retention.
@@ -397,6 +428,7 @@ pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)           |
 | 2026-01-27 | Short selling bug fix, ADX slope filter, exit reason detection |
 | 2026-01-31 | Signal persistence for analytics, 90-day retention (193 tests) |
+| 2026-02-02 | Signals component enhancement (ADX arrows, block reasons)      |
 
 ---
 
