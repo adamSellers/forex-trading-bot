@@ -24,6 +24,42 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-02-02 - Short Entry Signal Filtering
+
+**Summary**: SHORT positions now have the same quality filters as LONG entries, eliminating asymmetric risk where shorts bypassed all ADX/RSI checks.
+
+**Problem Discovered**: Short positions WERE being executed (confirmed via trade history), but they bypassed all quality filters that protect long entries. SELL signals were emitted unconditionally on RED flip with no ADX or RSI filtering.
+
+**Solution**: Added symmetric filtering for short entries:
+
+| Filter | LONG (BUY) | SHORT (SELL) |
+|--------|------------|--------------|
+| ADX ≥ minAdx | ✓ | ✓ (NEW) |
+| ADX Rising | ✓ | ✓ (NEW) |
+| RSI Check | < 75 (overbought) | > 30 (oversold) (NEW) |
+| Pending Entry Tracking | ✓ | ✓ (NEW) |
+| Continuation Window | 4 hours | 4 hours (NEW) |
+
+**Key Changes**:
+1. **Signal Generator** - Section 5 (RED flip) now filters shorts like Section 3 filters longs
+   - `entryType: "SHORT_ENTRY"` when conditions met
+   - `entryType: "EXIT_ONLY"` when conditions fail (still closes longs, but no short opened)
+   - Pending short entries tracked with `direction: "SHORT"` field
+   - New `RSI_RECOVERY` waitingFor state (inverse of RSI_COOLDOWN)
+
+2. **LiveTradingEngine** - Checks `entryType !== "EXIT_ONLY"` before opening shorts
+
+3. **Frontend** - Added short pending badges ("S" indicator) and RSI_RECOVERY handling
+
+**Files Modified**:
+- `backend/src/services/signalGenerator.js` - Short filtering + continuation logic
+- `backend/src/services/LiveTradingEngine.js` - entryType check for shorts
+- `frontend/src/components/dashboard/TradingSignals.jsx` - Short pending badges
+
+**Config Notes**: `enableShorting: true` and `rsiOversold: 30` already existed in config.
+
+---
+
 ### 2026-02-02 - Signals Component Enhancement
 
 **Summary**: Improved the Signals table in the Trading Dashboard with ADX trend arrows and meaningful block reason badges.
@@ -428,7 +464,7 @@ pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)           |
 | 2026-01-27 | Short selling bug fix, ADX slope filter, exit reason detection |
 | 2026-01-31 | Signal persistence for analytics, 90-day retention (193 tests) |
-| 2026-02-02 | Signals component enhancement (ADX arrows, block reasons)      |
+| 2026-02-02 | Signals component enhancement, Short entry signal filtering    |
 
 ---
 

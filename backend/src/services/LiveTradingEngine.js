@@ -529,12 +529,46 @@ class LiveTradingEngine extends EventEmitter {
         const riskPercent = config.riskPerTrade || 0.02;
         const riskAmount = effectiveBalance * riskPercent;
 
-        // Calculate position size
+        // Calculate pip value in account currency (AUD)
+        // This requires knowing the AUD_USD rate for proper conversion
         const pipValue = oandaClient.getPipValue(instrument);
-        const stopLossPrice = stopLossPips * pipValue;
+        let pipValueInAUD;
 
-        // Position size = Risk Amount / (Stop Loss in Price × Conversion Factor)
-        let units = Math.floor(riskAmount / (stopLossPrice * currentPrice));
+        try {
+            // Get AUD_USD rate for conversion to account currency
+            let audUsdRate;
+            if (instrument === "AUD_USD") {
+                audUsdRate = currentPrice;
+            } else {
+                const pricingData = await oandaClient.getPricing(["AUD_USD"]);
+                audUsdRate = parseFloat(pricingData.prices[0].closeoutAsk);
+            }
+
+            // Calculate pip value in AUD based on quote currency
+            // For USD-quoted pairs (EUR_USD, AUD_USD): pip P&L is in USD, convert to AUD
+            // For JPY-quoted pairs (USD_JPY): pip P&L is in JPY, convert via USD to AUD
+            if (instrument.endsWith("_USD")) {
+                // USD is quote currency: 1 pip = 0.0001 USD per unit
+                pipValueInAUD = pipValue / audUsdRate;
+            } else if (instrument.endsWith("_JPY")) {
+                // JPY is quote currency: 1 pip = 0.01 JPY per unit
+                // Convert JPY to USD first, then USD to AUD
+                pipValueInAUD = (pipValue / currentPrice) / audUsdRate;
+            } else {
+                // Fallback for other quote currencies (GBP, CHF, etc.)
+                // Would need specific conversion rates - use approximation
+                logger.warn(`⚠️ Unsupported quote currency for ${instrument}, using approximation`);
+                pipValueInAUD = pipValue / audUsdRate;
+            }
+
+            logger.info(`📊 Position sizing: ${instrument} | pipValue=${pipValue} | audUsdRate=${audUsdRate.toFixed(5)} | pipValueInAUD=${pipValueInAUD.toFixed(8)}`);
+        } catch (error) {
+            logger.error(`❌ Failed to calculate pip value in AUD: ${error.message}`);
+            return 0;
+        }
+
+        // Position size = Risk Amount / (Stop Loss Pips × Pip Value in Account Currency)
+        let units = Math.floor(riskAmount / (stopLossPips * pipValueInAUD));
 
         // Apply leverage limits based on available margin (not total balance)
         const maxLeverage = config.leverage || 10;
