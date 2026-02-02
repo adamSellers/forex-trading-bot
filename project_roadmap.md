@@ -132,4 +132,4 @@ These features were planned but not yet implemented.
 
 ---
 
-_Last updated: 2026-01-20_
+_Last updated: 2026-01-31_

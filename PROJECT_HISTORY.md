@@ -24,6 +24,134 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-02-02 - Short Entry Signal Filtering
+
+**Summary**: SHORT positions now have the same quality filters as LONG entries, eliminating asymmetric risk where shorts bypassed all ADX/RSI checks.
+
+**Problem Discovered**: Short positions WERE being executed (confirmed via trade history), but they bypassed all quality filters that protect long entries. SELL signals were emitted unconditionally on RED flip with no ADX or RSI filtering.
+
+**Solution**: Added symmetric filtering for short entries:
+
+| Filter | LONG (BUY) | SHORT (SELL) |
+|--------|------------|--------------|
+| ADX ≥ minAdx | ✓ | ✓ (NEW) |
+| ADX Rising | ✓ | ✓ (NEW) |
+| RSI Check | < 75 (overbought) | > 30 (oversold) (NEW) |
+| Pending Entry Tracking | ✓ | ✓ (NEW) |
+| Continuation Window | 4 hours | 4 hours (NEW) |
+
+**Key Changes**:
+1. **Signal Generator** - Section 5 (RED flip) now filters shorts like Section 3 filters longs
+   - `entryType: "SHORT_ENTRY"` when conditions met
+   - `entryType: "EXIT_ONLY"` when conditions fail (still closes longs, but no short opened)
+   - Pending short entries tracked with `direction: "SHORT"` field
+   - New `RSI_RECOVERY` waitingFor state (inverse of RSI_COOLDOWN)
+
+2. **LiveTradingEngine** - Checks `entryType !== "EXIT_ONLY"` before opening shorts
+
+3. **Frontend** - Added short pending badges ("S" indicator) and RSI_RECOVERY handling
+
+**Files Modified**:
+- `backend/src/services/signalGenerator.js` - Short filtering + continuation logic
+- `backend/src/services/LiveTradingEngine.js` - entryType check for shorts
+- `frontend/src/components/dashboard/TradingSignals.jsx` - Short pending badges
+
+**Config Notes**: `enableShorting: true` and `rsiOversold: 30` already existed in config.
+
+---
+
+### 2026-02-02 - Signals Component Enhancement
+
+**Summary**: Improved the Signals table in the Trading Dashboard with ADX trend arrows and meaningful block reason badges.
+
+**Changes**:
+
+1. **ADX Arrows** - Added rising/falling arrows (↑/↓) next to ADX values
+   - Green ↑ when `trend.adxRising` is true
+   - Red ↓ when `trend.adxRising` is false
+
+2. **Block Reason Badges** - Replaced generic "NEW/LOGGED" status with meaningful badges:
+   - "NEW" (green) - BUY/SELL signals
+   - "ADX" (red) - Blocked due to weak ADX
+   - "SLOPE" (red) - Blocked due to falling ADX
+   - "RSI" (red) - Blocked due to overbought
+   - "HOLD" (gray) - Neutral hold
+   - Uses `signal.pendingEntry.waitingFor` enum
+
+3. **Fixed Signal Repository Bug** - Column name mismatch was causing `SQLITE_ERROR`:
+   - `symbol` → `instrument`
+   - `current_price` → `price`
+   - `atr` → `atr_pips`
+   - `trend_data` JSON → individual columns (`rsi`, `adx`, `supertrend_direction`, `entry_type`)
+   - `new Date()` → epoch milliseconds (bigint)
+
+**Files Modified**:
+- `frontend/src/components/dashboard/TradingSignals.jsx` - ADX arrows and block reason badges
+- `backend/src/repositories/signalRepository.js` - Fixed column name mapping
+
+---
+
+### 2026-01-31 - Signal Persistence for Analytics
+
+**Summary**: Fixed "No signal data" issue in Analytics Dashboard Signal Filtering widget by persisting signals to the database with 90-day retention.
+
+**Problem**: `signalGenerator.js` emitted signals but never saved them to the database. The analytics endpoint queried an empty signals table.
+
+**Solution**:
+- SignalGenerator now accepts `signalRepository` as second constructor parameter
+- Calls `signalRepo.saveBatch(signals)` after each signal cycle
+- Added `deleteOlderThan(days)` method to signalRepository for retention cleanup
+- Daily cleanup job runs at midnight (90-day retention keeps table bounded at ~5.4 MB)
+
+**Files Modified**:
+- `backend/src/services/signalGenerator.js` - Accept signalRepository, persist signals
+- `backend/src/repositories/signalRepository.js` - Added `deleteOlderThan()` method
+- `backend/server.js` - Wire up signalRepository, add daily cleanup scheduler
+- `backend/src/services/__tests__/signalGenerator.test.js` - 6 new tests for persistence
+- `backend/src/repositories/__tests__/signalRepository.test.js` - NEW file, 13 tests
+
+**Testing**: 193 passing, 0 failing (was 174)
+
+**Verification**:
+```bash
+# Check signals being saved
+sqlite3 backend/data/trading.db "SELECT COUNT(*) FROM signals WHERE timestamp > datetime('now', '-1 hour');"
+
+# Check cleanup scheduler
+pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
+```
+
+---
+
+### 2026-01-27 - Exit Reason Detection
+
+**Summary**: Fixed analytics dashboard showing all exits as "EXTERNAL" - now correctly identifies Stop Loss, Take Profit, and Trailing Stop exits from Oanda.
+
+**Problem**: When Oanda closed trades (via SL/TP orders), the `determineExitReason()` method returned generic "EXTERNAL" instead of checking what actually triggered the close.
+
+**Solution**: Enhanced `determineExitReason()` to check Oanda order states:
+- `stopLossOrder.state === "FILLED"` → "STOP_LOSS"
+- `takeProfitOrder.state === "FILLED"` → "TAKE_PROFIT"
+- `trailingStopLossOrder.state === "FILLED"` → "TRAILING_STOP"
+- Otherwise → "EXTERNAL" (manual close on Oanda platform)
+
+**Additional Changes**:
+- Added `formatExitReason()` helper for title case display (STOP_LOSS → "Stop Loss")
+- Added "External" color to analytics pie chart
+- Updated RecentTrades component for Signal Reversal and External color coding
+- Fixed 2 failing tests (expected title case format)
+
+**Files Modified**:
+- `backend/src/services/LiveTradingEngine.js` - Enhanced `determineExitReason()`
+- `backend/src/services/analyticsService.js` - Added `formatExitReason()` helper
+- `frontend/src/components/analytics/StrategyWidgets.jsx` - Added External color
+- `frontend/src/components/dashboard/RecentTrades.jsx` - Updated exit reason colors
+- `backend/src/services/__tests__/analyticsService.test.js` - Fixed test expectations
+
+**Testing**: 174 passing, 0 failing
+
+---
+
 ### 2026-01-27 - Short Selling Bug Fix
 
 **Summary**: Fixed 5 critical bugs causing 100% loss rate on SHORT positions.
@@ -334,6 +462,9 @@ When a feature is **fully completed AND deployed to production**:
 | 2026-01-17 | Navigation overhaul, analytics dashboard               |
 | 2026-01-19 | Margin-aware position sizing                           |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)           |
+| 2026-01-27 | Short selling bug fix, ADX slope filter, exit reason detection |
+| 2026-01-31 | Signal persistence for analytics, 90-day retention (193 tests) |
+| 2026-02-02 | Signals component enhancement, Short entry signal filtering    |
 
 ---
 

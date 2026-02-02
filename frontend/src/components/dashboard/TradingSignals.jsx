@@ -106,6 +106,73 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       return { rsiVal, isBullish, isBearish };
   };
 
+  // --- LOGIC: Determine Signal Status and Block Reasons ---
+  // Returns badges indicating why a signal is blocked or if it's actionable
+  const getSignalStatus = (signal, config) => {
+      const minAdx = config?.minAdx || 22;
+      const adxVal = signal.strength || signal.trend?.adx || 0;
+      const adxRising = signal.trend?.adxRising;
+      const waitingFor = signal.pendingEntry?.waitingFor;
+      const signalType = signal.signal;
+      const timestamp = new Date(signal.timestamp).getTime();
+      const isNew = Date.now() - timestamp < 60000;
+
+      // BUY/SELL signals are actionable
+      if (signalType === 'BUY' || signalType === 'SELL') {
+          return {
+              isActionable: true,
+              badges: [{ label: 'NEW', color: 'success' }]
+          };
+      }
+
+      // Determine block reasons from pendingEntry.waitingFor
+      const badges = [];
+
+      if (waitingFor) {
+          // Add direction indicator for pending shorts
+          const isShort = signal.pendingEntry?.direction === 'SHORT';
+          if (isShort) {
+              badges.push({ label: 'SHORT', color: 'warning' });
+          }
+
+          switch (waitingFor) {
+              case 'ADX_SLOPE_RISING':
+                  badges.push({ label: 'SLOPE', color: 'error' });
+                  break;
+              case 'ADX_STRENGTHEN':
+                  badges.push({ label: 'ADX', color: 'error' });
+                  break;
+              case 'RSI_COOLDOWN':
+                  badges.push({ label: 'RSI', color: 'error' });
+                  break;
+              case 'RSI_RECOVERY':
+                  badges.push({ label: 'RSI', color: 'error' });
+                  break;
+              case 'BOTH':
+                  badges.push({ label: 'ADX', color: 'error' });
+                  badges.push({ label: 'RSI', color: 'error' });
+                  break;
+              default:
+                  badges.push({ label: 'WAIT', color: 'warning' });
+          }
+      } else {
+          // Infer from current values for HOLD signals without pending entry
+          if (adxVal < minAdx) {
+              badges.push({ label: 'ADX', color: 'warning' });
+          }
+          if (adxRising === false) {
+              badges.push({ label: 'SLOPE', color: 'warning' });
+          }
+      }
+
+      // Default to HOLD if no specific block reason
+      if (badges.length === 0) {
+          badges.push({ label: 'HOLD', color: 'default' });
+      }
+
+      return { isActionable: false, badges };
+  };
+
   // --- LOGIC: System Health (Oanda data service) ---
   const dataStatus = useMemo(() => {
       if (!systemStatus?.services?.dataService) return null;
@@ -173,8 +240,51 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                             </Box>
                          </Box>
                          <Box textAlign="right">
-                             <Chip label={signal.signal?.split('_')[0]} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 'bold', bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main }} />
-                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.7rem' }}>ADX: {signal.strength?.toFixed(0)}</Typography>
+                             <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                                 <Chip label={signal.signal?.split('_')[0]} size="small" sx={{ height: 18, fontSize: '0.65rem', fontWeight: 'bold', bgcolor: alpha(paletteColor.main, 0.1), color: paletteColor.main }} />
+                                 {/* Block reason badge for compact view */}
+                                 {signal.signal === 'HOLD' && signal.pendingEntry?.waitingFor && (
+                                     <>
+                                         {signal.pendingEntry.direction === 'SHORT' && (
+                                             <Chip
+                                                 label="S"
+                                                 size="small"
+                                                 color="warning"
+                                                 sx={{ height: 14, fontSize: '0.55rem', '& .MuiChip-label': { px: 0.3 } }}
+                                             />
+                                         )}
+                                         <Chip
+                                             label={
+                                                 signal.pendingEntry.waitingFor === 'ADX_SLOPE_RISING' ? 'SLOPE' :
+                                                 signal.pendingEntry.waitingFor === 'ADX_STRENGTHEN' ? 'ADX' :
+                                                 signal.pendingEntry.waitingFor === 'RSI_COOLDOWN' ? 'RSI' :
+                                                 signal.pendingEntry.waitingFor === 'RSI_RECOVERY' ? 'RSI' :
+                                                 signal.pendingEntry.waitingFor === 'BOTH' ? 'ADX' : 'WAIT'
+                                             }
+                                             size="small"
+                                             color="error"
+                                             sx={{ height: 14, fontSize: '0.55rem', '& .MuiChip-label': { px: 0.5 } }}
+                                         />
+                                     </>
+                                 )}
+                             </Box>
+                             <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.3} mt={0.5}>
+                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                                     ADX: {signal.strength?.toFixed(0)}
+                                 </Typography>
+                                 {signal.trend?.adxRising !== undefined && (
+                                     <Typography
+                                         component="span"
+                                         sx={{
+                                             fontSize: '0.75rem',
+                                             color: signal.trend.adxRising ? 'success.main' : 'error.main',
+                                             fontWeight: 'bold'
+                                         }}
+                                     >
+                                         {signal.trend.adxRising ? '↑' : '↓'}
+                                     </Typography>
+                                 )}
+                             </Box>
                          </Box>
                     </Box>
                 );
@@ -233,8 +343,28 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                              {/* Strength */}
                              <StyledTableCell align="right">
                                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
-                                     <LinearProgress variant="determinate" value={Math.min((signal.strength || 0) * 2, 100)} sx={{ width: 50, height: 4, borderRadius: 2 }} color={signal.strength > 22 ? "primary" : "secondary"} />
-                                      <MonoText>{signal.strength?.toFixed(1)}</MonoText>
+                                     <LinearProgress
+                                         variant="determinate"
+                                         value={Math.min((signal.strength || 0) * 2, 100)}
+                                         sx={{ width: 50, height: 4, borderRadius: 2 }}
+                                         color={signal.strength > (systemStatus?.config?.minAdx || 22) ? "primary" : "secondary"}
+                                     />
+                                     <Box display="flex" alignItems="center" gap={0.3}>
+                                         <MonoText>{signal.strength?.toFixed(1)}</MonoText>
+                                         {signal.trend?.adxRising !== undefined && (
+                                             <Typography
+                                                 component="span"
+                                                 sx={{
+                                                     fontSize: '0.9rem',
+                                                     color: signal.trend.adxRising ? 'success.main' : 'error.main',
+                                                     fontWeight: 'bold',
+                                                     lineHeight: 1
+                                                 }}
+                                             >
+                                                 {signal.trend.adxRising ? '↑' : '↓'}
+                                             </Typography>
+                                         )}
+                                     </Box>
                                   </Box>
                               </StyledTableCell>
 
@@ -267,14 +397,29 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                                   </Box>
                               </StyledTableCell>
 
-                             {/* Status */}
+                             {/* Status - Block Reason Badges */}
                               <StyledTableCell align="center">
-                                  {/* Using a timestamp check to determine 'newness' within last minute */}
-                                  {Date.now() - new Date(signal.timestamp).getTime() < 60000 ? (
-                                      <Chip label="NEW" color="error" size="small" sx={{ height: 16, fontSize: '0.6rem' }} />
-                                  ) : (
-                                      <Typography variant="caption" color="text.secondary">LOGGED</Typography>
-                                  )}
+                                  {(() => {
+                                      const status = getSignalStatus(signal, systemStatus?.config);
+                                      return (
+                                          <Box display="flex" gap={0.5} justifyContent="center" flexWrap="wrap">
+                                              {status.badges.map((badge, idx) => (
+                                                  <Chip
+                                                      key={idx}
+                                                      label={badge.label}
+                                                      size="small"
+                                                      color={badge.color}
+                                                      sx={{
+                                                          height: 18,
+                                                          fontSize: '0.6rem',
+                                                          fontWeight: 'bold',
+                                                          '& .MuiChip-label': { px: 0.75 }
+                                                      }}
+                                                  />
+                                              ))}
+                                          </Box>
+                                      );
+                                  })()}
                               </StyledTableCell>
                           </StyledTableRow>
                       );

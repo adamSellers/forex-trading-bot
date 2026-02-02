@@ -69,6 +69,12 @@ const INSTRUMENTS = initialConfig.assets || [
 
 // Initialize services with config
 const dataService = new OandaDataService(INSTRUMENTS);
+
+// Initialize repositories (before SignalGenerator so we can pass signalRepository)
+const tradeRepository = new TradeRepository();
+const signalRepository = new SignalRepository();
+
+// Initialize SignalGenerator with repository for persistence
 const signalGenerator = new SignalGenerator({
     assets: INSTRUMENTS,
     timeframe: initialConfig.timeframe || "15m",
@@ -80,11 +86,7 @@ const signalGenerator = new SignalGenerator({
     continuationRsiThreshold: initialConfig.continuationRsiThreshold || 70,
     continuationMaxPriceDeviation:
         initialConfig.continuationMaxPriceDeviation || 0.02,
-});
-
-// Initialize repositories
-const tradeRepository = new TradeRepository();
-const signalRepository = new SignalRepository();
+}, signalRepository);
 
 // Initialize S3 report scheduler
 const s3ReportScheduler = new S3ReportScheduler(tradeRepository, signalRepository);
@@ -300,6 +302,34 @@ tradingEngine.on("entryRejected", ({ signal, reason }) => {
 });
 
 // ============================================
+// Signal Cleanup Scheduler (90-day retention)
+// ============================================
+const scheduleSignalCleanup = () => {
+    const RETENTION_DAYS = 90;
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+    // Run cleanup immediately on startup
+    signalRepository.deleteOlderThan(RETENTION_DAYS);
+
+    // Calculate ms until next midnight
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const msUntilMidnight = tomorrow - now;
+
+    // Schedule first cleanup at midnight, then daily
+    setTimeout(() => {
+        signalRepository.deleteOlderThan(RETENTION_DAYS);
+        setInterval(() => {
+            signalRepository.deleteOlderThan(RETENTION_DAYS);
+        }, ONE_DAY_MS);
+    }, msUntilMidnight);
+
+    logger.info(`🗓️ Signal cleanup scheduled: ${RETENTION_DAYS}-day retention, runs at midnight`);
+};
+
+// ============================================
 // Start Server
 // ============================================
 server.listen(PORT, async () => {
@@ -358,6 +388,9 @@ server.listen(PORT, async () => {
             }
             // Start S3 report scheduler (non-blocking, won't affect trading)
             s3ReportScheduler.start();
+
+            // Schedule daily signal cleanup (90-day retention)
+            scheduleSignalCleanup();
         }, 5000); // Wait 5s for initial candle data
     }
 });

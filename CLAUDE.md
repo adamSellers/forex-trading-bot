@@ -349,26 +349,15 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-17 | Navigation overhaul, analytics dashboard                     |
 | 2026-01-19 | Margin-aware position sizing deployed                        |
 | 2026-01-20 | Test suite complete (174 passing, 0 failing)                 |
-| 2026-01-27 | Short selling bug fix deployed (5 bugs fixed)                |
+| 2026-01-27 | Short selling fix, ADX slope filter, exit reason detection   |
+| 2026-01-31 | Signal persistence for analytics, 90-day retention           |
+| 2026-02-02 | Signals component enhancement, Short entry signal filtering  |
 
 ---
 
 ## IN PROGRESS
 
-### No Active Work
-
-All tasks completed. Recent deployments:
-
-1. **Short Selling Fix** (Jan 27, 2026) - Fixed 5 bugs causing 100% loss on shorts:
-   - Added `enableShorting: false` to DEFAULT_CONFIG
-   - Direction-aware stop loss, take profit, and P/L calculations
-   - See PROJECT_HISTORY.md for details
-
-2. **ADX Slope Filter** (Jan 27, 2026) - Deployed earlier this session:
-   - Filters signals to require rising ADX
-   - Config: `adxSlopeFilter: true`, `adxSlopeLookback: 3`
-
-**To enable short selling**: Set `enableShorting: true` in config (dashboard or API)
+_No active work items. See [project_roadmap.md](project_roadmap.md) for planned features._
 
 ---
 
