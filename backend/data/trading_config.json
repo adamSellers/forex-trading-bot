@@ -24,7 +24,7 @@
     "continuationWindowMs": 14400000,
     "continuationRsiThreshold": 70,
     "continuationMaxPriceDeviation": 0.02,
-    "enableShorting": false,
+    "enableShorting": true,
     "riskPerTrade": 0.02,
     "maxPortfolioExposure": 0.5,
     "leverage": 10,
