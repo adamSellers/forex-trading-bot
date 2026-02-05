@@ -123,8 +123,19 @@ app.locals.s3ReportScheduler = s3ReportScheduler;
 app.locals.io = io;
 
 // Middleware
-// Configure CORS with allowed origins
+app.use(express.json());
+
+// Request logging (skip health checks)
+app.use((req, res, next) => {
+    if (!req.path.includes("/health")) {
+        logger.debug(`${req.method} ${req.path}`);
+    }
+    next();
+});
+
+// Mount API routes with CORS
 app.use(
+    "/api",
     cors({
         origin: (origin, callback) => {
             const allowedOrigins = getAllowedOrigins();
@@ -140,20 +151,9 @@ app.use(
         credentials: true,
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"],
-    })
+    }),
+    tradingRoutes
 );
-app.use(express.json());
-
-// Request logging (skip health checks)
-app.use((req, res, next) => {
-    if (!req.path.includes("/health")) {
-        logger.debug(`${req.method} ${req.path}`);
-    }
-    next();
-});
-
-// Mount API routes
-app.use("/api", tradingRoutes);
 
 // ============================================
 // Production: Serve Frontend Static Files

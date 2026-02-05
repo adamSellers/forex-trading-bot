@@ -815,6 +815,28 @@ router.get("/analytics", async (req, res) => {
     }
 });
 
+// Get PnL for current trading window (since market open Sunday 21:00 UTC)
+router.get("/analytics/market-window", async (req, res) => {
+    try {
+        const TradeRepository = require("../repositories/tradeRepository");
+        const SignalRepository = require("../repositories/signalRepository");
+        const AnalyticsService = require("../services/analyticsService");
+
+        const tradeRepo = new TradeRepository();
+        const signalRepo = new SignalRepository();
+        const analyticsService = new AnalyticsService(tradeRepo, signalRepo);
+
+        const mode = req.query.mode || "live";
+
+        const result = await analyticsService.getMarketWindowPnL(mode);
+
+        res.json(result);
+    } catch (error) {
+        console.error("Market window analytics error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ============ S3 REPORTS ============
 
 // Get S3 report scheduler status

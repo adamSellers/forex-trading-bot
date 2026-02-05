@@ -59,6 +59,7 @@ const TradingDashboard = () => {
   const [tradingEnabled, setTradingEnabled] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState('supertrend_momentum');
   const [dailyPnL, setDailyPnL] = useState(0); // Fetch from backend
+  const [marketWindowPnL, setMarketWindowPnL] = useState(0); // PnL since market open
 
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState(null);
@@ -101,7 +102,7 @@ const TradingDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, analyticsData] =
+      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, analyticsData, marketWindowData] =
         await Promise.allSettled([
           tradingAPI.getStatus(),
           tradingAPI.getPortfolio(),
@@ -110,7 +111,8 @@ const TradingDashboard = () => {
           tradingAPI.getPrices(),
           tradingAPI.getAccount(),
           engineAPI.getStatus(),
-          tradingAPI.analyticsAPI.getSummary('24h'), // New fetch
+          tradingAPI.analyticsAPI.getSummary('24h'), // 24h PnL
+          tradingAPI.analyticsAPI.getMarketWindow('live'), // Market window PnL
         ]);
 
       if (!isMountedRef.current) return;
@@ -144,6 +146,9 @@ const TradingDashboard = () => {
       if (accountData.status === 'fulfilled') setAccount(accountData.value);
       if (analyticsData.status === 'fulfilled' && analyticsData.value) {
         setDailyPnL(analyticsData.value.totalPnLAud || 0);
+      }
+      if (marketWindowData.status === 'fulfilled' && marketWindowData.value) {
+        setMarketWindowPnL(marketWindowData.value.totalPnLAud || 0);
       }
 
       setLoading(false);
@@ -429,6 +434,7 @@ const TradingDashboard = () => {
       <DashboardStats
         portfolio={portfolio}
         calculatedDailyPnL={calculatedDailyPnL}
+        marketWindowPnL={marketWindowPnL}
         activeSignalsCount={signalsToRender.length}
         engineStatus={engineStatus}
       />

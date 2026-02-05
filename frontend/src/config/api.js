@@ -68,6 +68,7 @@ export const API_ENDPOINTS = {
     // analyticsRoutes.js
     analytics: "/api/analytics",
     analyticsSummary: "/api/analytics/summary",
+    analyticsMarketWindow: "/api/analytics/market-window",
     analyticsEquity: "/api/analytics/equity",
     analyticsInstruments: "/api/analytics/instruments",
 
@@ -243,6 +244,12 @@ export const analyticsAPI = {
     getSummary: (period = "30d", mode = "live") => {
         const query = new URLSearchParams({ period, mode }).toString();
         return apiCall(`${API_ENDPOINTS.analyticsSummary}?${query}`);
+    },
+
+    // Market window PnL (since Sunday 21:00 UTC)
+    getMarketWindow: (mode = "live") => {
+        const query = new URLSearchParams({ mode }).toString();
+        return apiCall(`${API_ENDPOINTS.analyticsMarketWindow}?${query}`);
     },
 
     // Equity curve data

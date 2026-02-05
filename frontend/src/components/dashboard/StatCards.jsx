@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Avatar, alpha, useTheme } from '@mui/material';
-import { AccountBalanceWallet, ShowChart, Bolt, History } from '@mui/icons-material';
+import { AccountBalanceWallet, ShowChart, Bolt, History, TrendingUp } from '@mui/icons-material';
 import { GlassCard, MetricValue, formatCurrency } from './Shared';
 
 const StatCard = ({ title, value, subValue, icon, color }) => (
@@ -26,49 +26,58 @@ const StatCard = ({ title, value, subValue, icon, color }) => (
     </GlassCard>
 );
 
-export const DashboardStats = ({ portfolio, calculatedDailyPnL, activeSignalsCount }) => {
+export const DashboardStats = ({ portfolio, calculatedDailyPnL, marketWindowPnL, activeSignalsCount }) => {
     const theme = useTheme();
-    
+
     // Forex uses AUD as base currency
     const totalEquity = portfolio?.totalValue || portfolio?.balance || 0;
     const marginAvailable = portfolio?.balance ? (portfolio.balance - (portfolio?.marginUsed || 0)) : 0;
-    
+
     return (
         <Box display="flex" gap={2} mb={2} flexShrink={0} sx={{ overflowX: 'auto', pb: 0.5 }}>
             <Box flex={1} minWidth={200}>
-                <StatCard 
-                    title="Total Equity" 
-                    value={formatCurrency(totalEquity)} 
-                    subValue={`${formatCurrency(marginAvailable)} Available`} 
-                    icon={<AccountBalanceWallet fontSize="small" />} 
-                    color={theme.palette.primary.main} 
+                <StatCard
+                    title="Total Equity"
+                    value={formatCurrency(totalEquity)}
+                    subValue={`${formatCurrency(marginAvailable)} Available`}
+                    icon={<AccountBalanceWallet fontSize="small" />}
+                    color={theme.palette.primary.main}
                 />
             </Box>
             <Box flex={1} minWidth={200}>
-                <StatCard 
-                    title="24h PnL" 
-                    value={formatCurrency(calculatedDailyPnL)} 
-                    subValue={calculatedDailyPnL > 0 ? "+ Profit" : calculatedDailyPnL < 0 ? "- Loss" : "Flat"} 
-                    icon={<ShowChart fontSize="small" />} 
-                    color={calculatedDailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main} 
+                <StatCard
+                    title="24h PnL"
+                    value={formatCurrency(calculatedDailyPnL)}
+                    subValue={calculatedDailyPnL > 0 ? "+ Profit" : calculatedDailyPnL < 0 ? "- Loss" : "Flat"}
+                    icon={<ShowChart fontSize="small" />}
+                    color={calculatedDailyPnL >= 0 ? theme.palette.success.main : theme.palette.error.main}
                 />
             </Box>
             <Box flex={1} minWidth={200}>
-                <StatCard 
-                    title="Active Positions" 
-                    value={portfolio?.positions?.length || 0} 
-                    subValue={`${activeSignalsCount} Signals Active`} 
-                    icon={<Bolt fontSize="small" />} 
-                    color={theme.palette.warning.main} 
+                <StatCard
+                    title="Window PnL"
+                    value={formatCurrency(marketWindowPnL)}
+                    subValue={marketWindowPnL > 0 ? "+ Since Open" : marketWindowPnL < 0 ? "- Since Open" : "Since Open"}
+                    icon={<TrendingUp fontSize="small" />}
+                    color={marketWindowPnL >= 0 ? theme.palette.success.main : theme.palette.error.main}
                 />
             </Box>
             <Box flex={1} minWidth={200}>
-                <StatCard 
-                    title="Win Rate" 
-                    value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`} 
-                    subValue={`${portfolio?.performance?.totalTrades || 0} Trades`} 
-                    icon={<History fontSize="small" />} 
-                    color={theme.palette.info.main} 
+                <StatCard
+                    title="Active Positions"
+                    value={portfolio?.positions?.length || 0}
+                    subValue={`${activeSignalsCount} Signals Active`}
+                    icon={<Bolt fontSize="small" />}
+                    color={theme.palette.warning.main}
+                />
+            </Box>
+            <Box flex={1} minWidth={200}>
+                <StatCard
+                    title="Win Rate"
+                    value={`${(portfolio?.performance?.winRate || 0).toFixed(1)}%`}
+                    subValue={`${portfolio?.performance?.totalTrades || 0} Trades`}
+                    icon={<History fontSize="small" />}
+                    color={theme.palette.info.main}
                 />
             </Box>
         </Box>

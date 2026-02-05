@@ -618,6 +618,89 @@ class AnalyticsService {
             recommendation,
         };
     }
+
+    /**
+     * Get the most recent market open time (Sunday 21:00 UTC)
+     * Forex market opens Sunday 21:00 UTC, closes Friday 21:00 UTC
+     */
+    getLastMarketOpen(now = new Date()) {
+        const result = new Date(now);
+        const utcDay = result.getUTCDay();
+        const utcHour = result.getUTCHours();
+
+        // Calculate days back to last Sunday 21:00 UTC
+        let daysBack = 0;
+
+        if (utcDay === 0) {
+            // Sunday
+            if (utcHour < 21) {
+                // Before open today -> go back to last Sunday
+                daysBack = 7;
+            } else {
+                // After 21:00 today -> this is the current open
+                daysBack = 0;
+            }
+        } else {
+            // Monday (1) through Saturday (6)
+            // Go back to last Sunday
+            daysBack = utcDay;
+        }
+
+        result.setUTCDate(result.getUTCDate() - daysBack);
+        result.setUTCHours(21, 0, 0, 0);
+
+        return result;
+    }
+
+    /**
+     * Calculate PnL since the current trading window opened (since last Sunday 21:00 UTC)
+     * @param {string} mode - 'live' or 'paper'
+     */
+    async getMarketWindowPnL(mode = "live") {
+        try {
+            const marketOpenTime = this.getLastMarketOpen();
+            const cutoffTimestamp = marketOpenTime.getTime();
+
+            // Fetch trades since market open
+            const trades = await this.tradeRepo.getTradesSince(
+                cutoffTimestamp,
+                mode
+            );
+
+            // Filter to closed trades only
+            const closedTrades = trades.filter(
+                (t) => !t.isOpen && t.pnlAud !== null && t.pnlAud !== undefined
+            );
+
+            // Calculate total PnL
+            const totalPnL = closedTrades.reduce(
+                (sum, t) => sum + (t.pnlAud || 0),
+                0
+            );
+
+            const winners = closedTrades.filter((t) => t.pnlAud > 0);
+            const losers = closedTrades.filter((t) => t.pnlAud < 0);
+
+            return {
+                marketOpenTime: marketOpenTime.toISOString(),
+                totalPnLAud: parseFloat(totalPnL.toFixed(2)),
+                totalTrades: closedTrades.length,
+                winningTrades: winners.length,
+                losingTrades: losers.length,
+                winRate:
+                    closedTrades.length > 0
+                        ? parseFloat(
+                              ((winners.length / closedTrades.length) * 100).toFixed(
+                                  1
+                              )
+                          )
+                        : 0,
+            };
+        } catch (error) {
+            logger.error("Market window PnL calculation error:", error);
+            throw error;
+        }
+    }
 }
 
 module.exports = AnalyticsService;
