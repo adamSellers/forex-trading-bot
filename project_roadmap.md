@@ -25,21 +25,22 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ## Current Enhancement Status (Session Snapshot)
 
-### Completed In Code (Pending Deployment Verification)
+### Completed & Deployed
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
-| HIGH | Live-only trading runtime | Complete (code) | Removed paper mode from engine/API/UI/docs |
-| HIGH | Deployment safety hardening | Complete (code) | `update.sh` + `deploy.sh` preserve runtime config, hard-fail migrations, prune WAL/SHM backups |
-| MEDIUM | Test suite stabilization | Complete (code) | Backend suite now 263/263 passing |
+| HIGH | Live-only trading runtime | Complete (deployed) | Removed paper mode from engine/API/UI/docs |
+| HIGH | Deployment safety hardening | Complete (deployed) | `update.sh` + `deploy.sh` preserve runtime config, hard-fail migrations, prune WAL/SHM backups |
+| HIGH | Enforce `maxPortfolioExposure` in live entry validation | Complete (deployed) | Live entry now rejects when current exposure exceeds configured cap |
+| HIGH | Enforce session filter (`enableSessionFilter`, `activeSessions`) | Complete (deployed) | Live entry now requires current UTC time to be inside configured sessions |
+| HIGH | Live breakeven logic (`enableBreakeven`) | Complete (deployed) | Live monitor moves SL to entry at trigger pips and syncs to Oanda |
+| MEDIUM | Holdings stop-status visibility | Complete (deployed) | Current Holdings now shows active protective stop (`TSL` / `BE` / `SL`) + TP |
+| MEDIUM | Test suite stabilization | Complete (deployed) | Backend suite now 268/268 passing |
 
 ### Not Yet Implemented (High-Value Follow-Up)
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
-| HIGH | Enforce `maxPortfolioExposure` in live entry validation | Planned | Config exists but not enforced in engine |
-| HIGH | Enforce session filter (`enableSessionFilter`, `activeSessions`) | Planned | Config exists but not enforced in engine |
-| HIGH | Live breakeven logic (`enableBreakeven`) | Planned | Backtest supports it; live path does not |
 | HIGH | Improve TP/account-currency conversion model | Planned | TP model uses simplified AUD conversion |
 | HIGH | Backtest/live margin realism parity | Planned | Backtest currently less strict than live margin behavior |
 
@@ -73,6 +74,7 @@ This document tracks all planned features, enhancements, and technical improveme
 | -------- | -------------------------- | ------------------------------------------------------------ |
 | MEDIUM   | Mobile-responsive dashboard | Responsive CSS for checking on phone                         |
 | MEDIUM   | Trade annotations          | Add notes/tags to trades for post-analysis                   |
+| LOW      | Compact stop chips on mobile | Optional compact labels/tooltips for `TSL`/`BE`/`SL`/`TP` in Current Holdings |
 | LOW      | Weekly P&L email summary   | Auto-send performance report every Sunday                    |
 | LOW      | Price alerts               | Notify when price reaches specified levels                   |
 

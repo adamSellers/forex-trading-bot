@@ -404,9 +404,12 @@ curl -X POST http://localhost:3101/api/trading/start
     - Within 4-hour window
     - Price deviation < 2%
 
-3. **SELL Signal**:
+3. **SELL Signal (SHORT_ENTRY)**:
 
-    - SuperTrend flips GREEN → RED (exits long position)
+    - SuperTrend flips GREEN → RED
+    - ADX > 22 and rising
+    - RSI > 30 (not oversold)
+    - If filters fail, emits `EXIT_ONLY` (closes long only) and waits for continuation
 
 4. **HOLD**:
     - No conditions met

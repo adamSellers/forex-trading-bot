@@ -368,72 +368,50 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Live-Only Trading Refactor (COMPLETE IN CODE — PENDING DEPLOYMENT)
+### Recently Delivered & Deployed (2026-02-15)
 
-**Completed in this session**:
-- Removed all paper-trading branches from runtime engine paths
-- Removed `tradingMode` usage from backend API/config flows
-- Updated frontend settings/health UI to live-only behavior
-- Updated docs (`README.md`, `USER_GUIDE.md`) to remove paper/live instructions
-- Updated tests to match live-only behavior
+The following are complete and confirmed deployed:
+- Live-only runtime refactor
+- Deployment script hardening (`update.sh` / `deploy.sh`)
+- Phase 1 live risk gates:
+  - `maxPortfolioExposure` enforcement
+  - Session filter enforcement
+  - Live breakeven logic
+- Current Holdings protective-stop visibility (`TSL` / `BE` / `SL` + `TP`)
 
-**Validation**:
-- Backend suite passes: **263 passing, 0 failing**
-- Command run: `npm --prefix backend test`
-
-**Key files touched**:
-- `backend/src/services/LiveTradingEngine.js`
-- `backend/src/services/configService.js`
-- `backend/src/routes/tradingRoutes.js`
-- `backend/src/repositories/tradeRepository.js`
-- `frontend/src/components/config/GeneralSettings.jsx`
-- `frontend/src/components/SystemHealth.jsx`
-- `frontend/src/config/api.js`
-
----
-
-### Deployment Script Hardening (COMPLETE IN CODE — PENDING DEPLOYMENT)
-
-**Completed in this session**:
-- `scripts/update.sh` now preserves runtime config across `git reset --hard`
-- `scripts/deploy.sh` now preserves runtime config across `git reset --hard`
-- Both scripts now fail hard on migration errors
-- Both scripts now prune old DB backup triplets (`.db`, `.db-wal`, `.db-shm`)
-
-**Validation**:
-- Syntax checks passed:
-  - `bash -n scripts/update.sh`
-  - `bash -n scripts/deploy.sh`
+**Validation snapshot**:
+- Backend tests passing: **268/268**
 
 ---
 
 ### Trading Strategy Review Follow-Up (NEXT WORK)
 
-A full strategy/risk review was completed. Main risk items identified:
-1. Backtest/live model mismatch around margin realism
-2. Unenforced config controls (`maxPortfolioExposure`, session filter, breakeven in live path)
-3. TP currency-conversion simplification
-4. Short continuation adverse-deviation asymmetry
+Open risk/model items now:
+1. TP/account-currency conversion simplification (still uses simplified AUD model)
+2. Backtest/live margin realism parity gap
+3. Short continuation adverse-deviation asymmetry
 
-**Recommended next implementation phase**:
-- Phase 1: Enforce missing live risk gates (`maxPortfolioExposure`, session filter, breakeven)
-- Phase 2: Improve TP/account-currency conversion model
+**Next recommended implementation phase**:
+- Phase 2: Improve TP/account-currency conversion model in live path
 - Phase 3: Align backtest margin/cost model with live execution
 
 ---
 
-### Deployment Readiness Checklist (NEXT STEPS)
+### Next Session Start Checklist
 
-1. Push branch and deploy to Pi:
-   - `git push origin main`
-   - `ssh img.oakroad`
-   - `cd /opt/forex-trading-bot`
-   - `./scripts/update.sh`
-2. Verify post-deploy:
-   - `curl http://localhost:3101/api/health`
-   - `curl http://localhost:3101/api/engine/status`
-   - `pm2 logs forex-backend --lines 100 --nostream`
-3. If stable, move this session’s completed items into `PROJECT_HISTORY.md` as deployed.
+1. Review current TP calculation path:
+   - `backend/src/services/LiveTradingEngine.js` (`calculateTakeProfit`, `calculatePositionSize`)
+2. Define account-currency conversion approach per instrument quote currency:
+   - `_USD`, `_JPY`, and fallback crosses
+3. Add/update unit tests for conversion correctness and edge cases
+4. Validate with backend suite:
+   - `npm --prefix backend test`
+
+---
+
+### Future UI Enhancement (Captured)
+
+- Current Holdings: compact mobile stop chips / tooltip mode for `TSL` / `BE` / `SL` / `TP` labels (deferred)
 
 ---
 

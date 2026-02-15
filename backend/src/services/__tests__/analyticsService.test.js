@@ -32,6 +32,7 @@ describe('AnalyticsService', () => {
             expect(result).toHaveProperty('exitAnalysis');
             expect(result).toHaveProperty('equityData');
             expect(result).toHaveProperty('adxAnalysis');
+            expect(result).toHaveProperty('sidePerformance');
             expect(result).toHaveProperty('rawCounts');
         });
 
@@ -491,6 +492,45 @@ describe('AnalyticsService', () => {
 
             expect(analysis.recommendation).toBeDefined();
             expect(typeof analysis.recommendation).toBe('string');
+        });
+    });
+
+    describe('calculateSidePerformance', () => {
+        test('should split performance by BUY and SELL sides', () => {
+            const trades = [
+                createClosedTrade({ side: 'BUY', pnlAud: 5.00, pnlPips: 20, entryType: 'FRESH_FLIP' }),
+                createLosingTrade({ side: 'BUY', pnlAud: -2.00, pnlPips: -10, entryType: 'CONTINUATION_RSI' }),
+                createClosedTrade({ side: 'SELL', pnlAud: 3.00, pnlPips: 15, entryType: 'SHORT_ENTRY' }),
+                createLosingTrade({ side: 'SELL', pnlAud: -1.00, pnlPips: -8, entryType: 'SHORT_ENTRY' }),
+            ];
+
+            const analysis = service.calculateSidePerformance(trades);
+
+            expect(analysis.buy.totalTrades).toBe(2);
+            expect(analysis.buy.wins).toBe(1);
+            expect(analysis.buy.totalPnLAud).toBe(3.0);
+            expect(analysis.sell.totalTrades).toBe(2);
+            expect(analysis.sell.wins).toBe(1);
+            expect(analysis.sell.totalPnLAud).toBe(2.0);
+            expect(analysis.sellSharePercent).toBe(50.0);
+        });
+
+        test('should aggregate by entry type and side', () => {
+            const trades = [
+                createClosedTrade({ side: 'BUY', pnlAud: 4.00, entryType: 'FRESH_FLIP' }),
+                createLosingTrade({ side: 'SELL', pnlAud: -2.00, entryType: 'SHORT_ENTRY' }),
+                createClosedTrade({ side: 'SELL', pnlAud: 3.00, entryType: 'SHORT_ENTRY' }),
+            ];
+
+            const analysis = service.calculateSidePerformance(trades);
+            const shortEntry = analysis.byEntryType.find((e) => e.entryType === 'SHORT_ENTRY');
+            const freshFlip = analysis.byEntryType.find((e) => e.entryType === 'FRESH_FLIP');
+
+            expect(shortEntry.sellTrades).toBe(2);
+            expect(shortEntry.sellWinRate).toBe(50.0);
+            expect(shortEntry.sellPnLAud).toBe(1.0);
+            expect(freshFlip.buyTrades).toBe(1);
+            expect(freshFlip.buyWinRate).toBe(100.0);
         });
     });
 

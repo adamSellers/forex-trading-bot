@@ -176,6 +176,12 @@ class SignalGenerator extends EventEmitter {
 
             // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED â†’ GREEN)
             if (prevDir === -1 && currentDir === 1) {
+                // Clear any pending SHORT entries on direction change
+                const existingPending = this._pendingEntries.get(instrument);
+                if (existingPending && existingPending.direction === "SHORT") {
+                    this._pendingEntries.delete(instrument);
+                }
+
                 if (adxOk && rsiOkForFresh) {
                     // All conditions met - immediate entry
                     signalType = "BUY";
@@ -191,6 +197,7 @@ class SignalGenerator extends EventEmitter {
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "ADX_SLOPE_RISING",
+                            direction: "LONG",
                         });
                         reason = `⏸️ PENDING: ST Flip blocked by falling ADX (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)}) - waiting for rising trend`;
                         logger.info(`📉 ${instrument}: Signal filtered - ADX falling (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)})`);
@@ -204,6 +211,7 @@ class SignalGenerator extends EventEmitter {
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "RSI_COOLDOWN",
+                            direction: "LONG",
                         });
                         reason = `â¸ï¸ PENDING: ST Flip blocked by RSI (${rsiVal.toFixed(
                             1
@@ -220,6 +228,7 @@ class SignalGenerator extends EventEmitter {
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "ADX_STRENGTHEN",
+                            direction: "LONG",
                         });
                         reason = `â¸ï¸ PENDING: ST Flip blocked by ADX (${adxVal.toFixed(
                             1
@@ -236,6 +245,7 @@ class SignalGenerator extends EventEmitter {
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "BOTH",
+                            direction: "LONG",
                         });
                         reason = `â¸ï¸ PENDING: ST Flip blocked by ADX (${adxVal.toFixed(
                             1
@@ -247,7 +257,11 @@ class SignalGenerator extends EventEmitter {
             else if (
                 currentDir === 1 &&
                 this.config.enableContinuationEntry &&
-                this._pendingEntries.has(instrument)
+                this._pendingEntries.has(instrument) &&
+                (
+                    !this._pendingEntries.get(instrument).direction ||
+                    this._pendingEntries.get(instrument).direction === "LONG"
+                )
             ) {
                 const pending = this._pendingEntries.get(instrument);
                 const ageMs = Date.now() - pending.flipTime;
@@ -268,7 +282,7 @@ class SignalGenerator extends EventEmitter {
                         this.config.continuationMaxPriceDeviation || 0.02;
                     const priceDeviation =
                         (currentPrice - pending.flipPrice) / pending.flipPrice;
-                    const priceOk = priceDeviation <= maxDeviation;
+                    const priceOk = Math.abs(priceDeviation) <= maxDeviation;
 
                     // Check if price has moved too far - cancel regardless of type
                     if (!priceOk) {
@@ -449,7 +463,7 @@ class SignalGenerator extends EventEmitter {
                     const maxDeviation = this.config.continuationMaxPriceDeviation || 0.02;
                     // For shorts, price deviation is negative when price falls (favorable)
                     const priceDeviation = (pending.flipPrice - currentPrice) / pending.flipPrice;
-                    const priceOk = priceDeviation <= maxDeviation;
+                    const priceOk = Math.abs(priceDeviation) <= maxDeviation;
 
                     if (!priceOk) {
                         logger.info(

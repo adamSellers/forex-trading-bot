@@ -92,6 +92,7 @@ class AnalyticsService {
             const exitAnalysis = this.calculateExitAnalysis(closedTrades);
             const equityData = this.calculateEquityData(closedTrades);
             const adxAnalysis = this.calculateAdxAnalysis(closedTrades);
+            const sidePerformance = this.calculateSidePerformance(closedTrades);
 
             return {
                 period,
@@ -104,6 +105,7 @@ class AnalyticsService {
                 exitAnalysis,
                 equityData,
                 adxAnalysis,
+                sidePerformance,
                 rawCounts: {
                     totalTrades: trades.length,
                     closedTrades: closedTrades.length,
@@ -615,6 +617,125 @@ class AnalyticsService {
             sampleSize: tradesWithAdx.length,
             correlation,
             recommendation,
+        };
+    }
+
+    /**
+     * Analyze performance split by side (BUY vs SELL) and entry type
+     */
+    calculateSidePerformance(trades) {
+        const sideStats = {
+            BUY: {
+                side: "BUY",
+                totalTrades: 0,
+                wins: 0,
+                losses: 0,
+                winRate: 0,
+                totalPnLAud: 0,
+                totalPnLPips: 0,
+                avgPnLAud: 0,
+            },
+            SELL: {
+                side: "SELL",
+                totalTrades: 0,
+                wins: 0,
+                losses: 0,
+                winRate: 0,
+                totalPnLAud: 0,
+                totalPnLPips: 0,
+                avgPnLAud: 0,
+            },
+        };
+
+        const entryTypeStats = {};
+
+        trades.forEach((trade) => {
+            const side = trade.side === "SELL" ? "SELL" : "BUY";
+            const stats = sideStats[side];
+            const pnlAud = trade.pnlAud || 0;
+            const pnlPips = trade.pnlPips || 0;
+            const entryType = trade.entryType || "UNKNOWN";
+
+            stats.totalTrades++;
+            stats.totalPnLAud += pnlAud;
+            stats.totalPnLPips += pnlPips;
+            if (pnlAud > 0) stats.wins++;
+            if (pnlAud < 0) stats.losses++;
+
+            if (!entryTypeStats[entryType]) {
+                entryTypeStats[entryType] = {
+                    entryType,
+                    buyTrades: 0,
+                    buyWinRate: 0,
+                    buyPnLAud: 0,
+                    sellTrades: 0,
+                    sellWinRate: 0,
+                    sellPnLAud: 0,
+                };
+            }
+
+            const entryStats = entryTypeStats[entryType];
+            if (side === "BUY") {
+                entryStats.buyTrades++;
+                entryStats.buyPnLAud += pnlAud;
+                if (pnlAud > 0) {
+                    entryStats.buyWins = (entryStats.buyWins || 0) + 1;
+                }
+            } else {
+                entryStats.sellTrades++;
+                entryStats.sellPnLAud += pnlAud;
+                if (pnlAud > 0) {
+                    entryStats.sellWins = (entryStats.sellWins || 0) + 1;
+                }
+            }
+        });
+
+        const buy = sideStats.BUY;
+        const sell = sideStats.SELL;
+
+        [buy, sell].forEach((stats) => {
+            stats.winRate =
+                stats.totalTrades > 0 ? (stats.wins / stats.totalTrades) * 100 : 0;
+            stats.avgPnLAud =
+                stats.totalTrades > 0 ? stats.totalPnLAud / stats.totalTrades : 0;
+            stats.totalPnLAud = parseFloat(stats.totalPnLAud.toFixed(2));
+            stats.totalPnLPips = parseFloat(stats.totalPnLPips.toFixed(1));
+            stats.avgPnLAud = parseFloat(stats.avgPnLAud.toFixed(2));
+            stats.winRate = parseFloat(stats.winRate.toFixed(1));
+        });
+
+        const byEntryType = Object.values(entryTypeStats)
+            .map((entry) => {
+                const buyWins = entry.buyWins || 0;
+                const sellWins = entry.sellWins || 0;
+                const buyWinRate =
+                    entry.buyTrades > 0 ? (buyWins / entry.buyTrades) * 100 : 0;
+                const sellWinRate =
+                    entry.sellTrades > 0 ? (sellWins / entry.sellTrades) * 100 : 0;
+
+                return {
+                    entryType: entry.entryType,
+                    buyTrades: entry.buyTrades,
+                    buyWinRate: parseFloat(buyWinRate.toFixed(1)),
+                    buyPnLAud: parseFloat(entry.buyPnLAud.toFixed(2)),
+                    sellTrades: entry.sellTrades,
+                    sellWinRate: parseFloat(sellWinRate.toFixed(1)),
+                    sellPnLAud: parseFloat(entry.sellPnLAud.toFixed(2)),
+                    totalTrades: entry.buyTrades + entry.sellTrades,
+                };
+            })
+            .sort((a, b) => b.totalTrades - a.totalTrades);
+
+        const totalTrades = trades.length;
+        const sellSharePercent =
+            totalTrades > 0 ? (sell.totalTrades / totalTrades) * 100 : 0;
+
+        return {
+            buy,
+            sell,
+            totalTrades,
+            sellSharePercent: parseFloat(sellSharePercent.toFixed(1)),
+            byEntryType,
         };
     }
 }

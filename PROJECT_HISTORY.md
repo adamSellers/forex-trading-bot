@@ -24,10 +24,57 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
-### Pending Deployment (Not Yet Added to History)
+### 2026-02-15 - Live Runtime Hardening + Phase 1 Risk Gates
 
-Session updates on **2026-02-15** (live-only runtime refactor, deployment script hardening, documentation cleanup) are complete in code but **not yet confirmed deployed to production**.  
-Per project rules, they will be moved into this history after deployment verification on Pi.
+**Summary**: Deployed live-runtime hardening and Phase 1 risk controls to production. The engine now enforces session/exposure gates at entry and supports live breakeven stop movement.
+
+**Deployed Changes**:
+1. **Live-only runtime refactor**
+   - Removed paper-mode branches from runtime engine/API/UI paths
+   - Removed `tradingMode` usage from config and live controls
+
+2. **Deployment script hardening**
+   - `scripts/update.sh` and `scripts/deploy.sh` preserve runtime config across hard resets
+   - Both scripts now hard-fail migration errors
+   - Added pruning of old DB backup triplets (`.db`, `.db-wal`, `.db-shm`)
+
+3. **Phase 1 live risk gates**
+   - Enforced `maxPortfolioExposure` during live entry validation
+   - Enforced session filter (`enableSessionFilter`, `activeSessions`) during live entry validation
+   - Added live breakeven behavior (`enableBreakeven`, `breakevenTriggerPips`) with Oanda stop sync
+
+**Files Modified (Core)**:
+- `backend/src/services/LiveTradingEngine.js`
+- `backend/src/services/configService.js`
+- `backend/src/routes/tradingRoutes.js`
+- `frontend/src/components/config/GeneralSettings.jsx`
+- `frontend/src/components/config/RiskSettings.jsx`
+- `frontend/src/components/config/ConfigShared.jsx`
+- `frontend/src/components/SystemHealth.jsx`
+- `frontend/src/config/api.js`
+- `scripts/update.sh`
+- `scripts/deploy.sh`
+
+**Testing**:
+- Backend tests passing: **268 passing, 0 failing**
+
+---
+
+### 2026-02-15 - Current Holdings Protective Stop Visibility
+
+**Summary**: Deployed dashboard enhancement to show the active protective stop in Current Holdings.
+
+**Changes**:
+- Added protective stop display priority in holdings widget:
+  - `TSL` when trailing stop is active
+  - `BE` when breakeven is active
+  - `SL` otherwise
+- Added colored chip styling for `TSL`/`BE`/`SL` and `TP`
+- Extended engine status payload to expose `trailingStopPrice`, `breakevenHit`, and `takeProfitPrice`
+
+**Files Modified**:
+- `frontend/src/components/dashboard/CurrentHoldings.jsx`
+- `backend/src/services/LiveTradingEngine.js`
 
 ### 2026-02-02 - Short Entry Signal Filtering
 

@@ -20,6 +20,7 @@ import {
   DonutLarge,
   Schedule,
   LightMode,
+  CompareArrows,
 } from '@mui/icons-material';
 import { GlassCard, MetricValue, EmptyState } from '../dashboard/Shared';
 
@@ -355,6 +356,107 @@ export const SessionPerformanceWidget = ({ sessions }) => {
         </Stack>
       ) : (
         <EmptyState icon={<LightMode />} message="No session data" />
+      )}
+    </GlassCard>
+  );
+};
+
+// --- SIDE PERFORMANCE (BUY vs SELL) ---
+export const SidePerformanceWidget = ({ sidePerformance }) => {
+  const buy = sidePerformance?.buy || {};
+  const sell = sidePerformance?.sell || {};
+  const entryTypes = sidePerformance?.byEntryType || [];
+
+  const sideRows = [
+    {
+      side: 'BUY',
+      trades: buy.totalTrades || 0,
+      winRate: buy.winRate || 0,
+      pnl: buy.totalPnLAud || 0,
+      color: 'success.main',
+    },
+    {
+      side: 'SELL',
+      trades: sell.totalTrades || 0,
+      winRate: sell.winRate || 0,
+      pnl: sell.totalPnLAud || 0,
+      color: 'error.main',
+    },
+  ];
+
+  return (
+    <GlassCard sx={{ p: 3, height: '100%' }}>
+      <Box mb={2} display="flex" alignItems="center" justifyContent="space-between">
+        <Box display="flex" alignItems="center" gap={1}>
+          <CompareArrows color="primary" fontSize="small" />
+          <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
+            SIDE PERFORMANCE
+          </Typography>
+        </Box>
+        <Chip
+          label={`${sidePerformance?.totalTrades || 0} trades`}
+          size="small"
+          sx={{ height: 20, fontSize: '0.65rem' }}
+        />
+      </Box>
+
+      <Stack spacing={1.25}>
+        {sideRows.map((row) => (
+          <Box
+            key={row.side}
+            px={1.5}
+            py={1}
+            borderRadius={1.5}
+            sx={{
+              border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+              bgcolor: (theme) => alpha(theme.palette.background.paper, 0.25),
+            }}
+          >
+            <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="body2" fontWeight="bold" color={row.color}>
+                {row.side}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {row.trades} trades
+              </Typography>
+            </Box>
+            <Box display="flex" justifyContent="space-between" mt={0.75}>
+              <Typography variant="caption" color="text.secondary">
+                Win: {row.winRate.toFixed(1)}%
+              </Typography>
+              <Typography
+                variant="caption"
+                fontWeight="bold"
+                color={row.pnl >= 0 ? 'success.main' : 'error.main'}
+              >
+                {row.pnl >= 0 ? '+' : ''}A${row.pnl.toFixed(2)}
+              </Typography>
+            </Box>
+          </Box>
+        ))}
+      </Stack>
+
+      <Divider sx={{ my: 2 }} />
+
+      <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ letterSpacing: 0.6 }}>
+        ENTRY TYPE SPLIT
+      </Typography>
+
+      {entryTypes.length > 0 ? (
+        <Stack spacing={0.75} mt={1.25}>
+          {entryTypes.slice(0, 5).map((row) => (
+            <Box key={row.entryType} display="flex" justifyContent="space-between" alignItems="center">
+              <Typography variant="caption" color="text.secondary">
+                {row.entryType}
+              </Typography>
+              <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                B {row.buyTrades}/{row.buyWinRate.toFixed(0)}% | S {row.sellTrades}/{row.sellWinRate.toFixed(0)}%
+              </Typography>
+            </Box>
+          ))}
+        </Stack>
+      ) : (
+        <EmptyState height={90} icon={<CompareArrows />} message="No side split data" />
       )}
     </GlassCard>
   );

@@ -363,7 +363,7 @@ class BacktestEngine {
                     pendingContinuations.delete(instrument);
                 } else {
                     const priceDeviation = (candle.close - pending.flipPrice) / pending.flipPrice;
-                    if (priceDeviation > config.continuationMaxPriceDeviation) {
+                    if (Math.abs(priceDeviation) > config.continuationMaxPriceDeviation) {
                         pendingContinuations.delete(instrument);
                     } else if (pending.waitingFor === "RSI_COOLDOWN" && adxOk && rsiOkForContinuation) {
                         signalType = "BUY";
@@ -444,7 +444,7 @@ class BacktestEngine {
                 } else {
                     // For shorts, price deviation is inverted (favorable when price falls)
                     const priceDeviation = (pending.flipPrice - candle.close) / pending.flipPrice;
-                    if (priceDeviation > config.continuationMaxPriceDeviation) {
+                    if (Math.abs(priceDeviation) > config.continuationMaxPriceDeviation) {
                         pendingContinuations.delete(instrument);
                     } else if (pending.waitingFor === "RSI_RECOVERY" && adxOk && rsiOkForShortContinuation) {
                         signalType = "SELL";

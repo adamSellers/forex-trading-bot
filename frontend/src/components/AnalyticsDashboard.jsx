@@ -22,6 +22,7 @@ import {
   TrendAnalysisWidget,
   ExitAnalysisWidget,
   SessionPerformanceWidget,
+  SidePerformanceWidget,
 } from './analytics/StrategyWidgets';
 
 const AnalyticsDashboard = () => {
@@ -73,7 +74,16 @@ const AnalyticsDashboard = () => {
     );
   }
 
-  const { summary, signalAnalysis, equityData, adxAnalysis, exitAnalysis, pairPerformance, sessionPerformance } = analytics;
+  const {
+    summary,
+    signalAnalysis,
+    equityData,
+    adxAnalysis,
+    exitAnalysis,
+    pairPerformance,
+    sessionPerformance,
+    sidePerformance,
+  } = analytics;
 
   // Format holding time
   const formatHoldingTime = (ms) => {
@@ -216,7 +226,12 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 4. Pair Performance Table */}
+      {/* 4. Side Performance */}
+      <Box mb={2}>
+        <SidePerformanceWidget sidePerformance={sidePerformance} />
+      </Box>
+
+      {/* 5. Pair Performance Table */}
       <Box width="100%">
         <PairPerformance pairStats={pairPerformance || []} />
       </Box>
