@@ -2,6 +2,7 @@
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const { RSI, ADX, ATR } = require("technicalindicators");
+const { calculateSuperTrend } = require("../utils/indicators");
 
 class SignalGenerator extends EventEmitter {
     constructor(config = {}, signalRepository = null) {
@@ -90,64 +91,10 @@ class SignalGenerator extends EventEmitter {
 
     /**
      * Calculate SuperTrend indicator
+     * Delegates to shared indicators module for reuse by backtester
      */
     calculateSuperTrend(highs, lows, closes, period = 10, factor = 3) {
-        // True Range calculation
-        let tr = [highs[0] - lows[0]];
-        let atr = [tr[0]];
-
-        for (let i = 1; i < closes.length; i++) {
-            let hl = highs[i] - lows[i];
-            let hc = Math.abs(highs[i] - closes[i - 1]);
-            let lc = Math.abs(lows[i] - closes[i - 1]);
-            tr.push(Math.max(hl, hc, lc));
-            atr.push((atr[i - 1] * (period - 1) + tr[i]) / period);
-        }
-
-        let upperBand = [],
-            lowerBand = [],
-            superTrend = [],
-            direction = [];
-        let basicUpper = (highs[0] + lows[0]) / 2 + factor * atr[0];
-        let basicLower = (highs[0] + lows[0]) / 2 - factor * atr[0];
-
-        upperBand.push(basicUpper);
-        lowerBand.push(basicLower);
-        superTrend.push(basicUpper);
-        direction.push(1);
-
-        for (let i = 1; i < closes.length; i++) {
-            let currBasicUpper = (highs[i] + lows[i]) / 2 + factor * atr[i];
-            let currBasicLower = (highs[i] + lows[i]) / 2 - factor * atr[i];
-
-            let prevFinalUpper = upperBand[i - 1];
-            let prevFinalLower = lowerBand[i - 1];
-            let prevClose = closes[i - 1];
-
-            let finalUpper =
-                currBasicUpper < prevFinalUpper || prevClose > prevFinalUpper
-                    ? currBasicUpper
-                    : prevFinalUpper;
-            let finalLower =
-                currBasicLower > prevFinalLower || prevClose < prevFinalLower
-                    ? currBasicLower
-                    : prevFinalLower;
-
-            upperBand.push(finalUpper);
-            lowerBand.push(finalLower);
-
-            let prevDir = direction[i - 1];
-            let currentDir = prevDir;
-
-            if (prevDir === 1 && closes[i] < lowerBand[i - 1]) currentDir = -1;
-            else if (prevDir === -1 && closes[i] > upperBand[i - 1])
-                currentDir = 1;
-
-            direction.push(currentDir);
-            superTrend.push(currentDir === 1 ? finalLower : finalUpper);
-        }
-
-        return { superTrend, direction, atr };
+        return calculateSuperTrend(highs, lows, closes, period, factor);
     }
 
     async generateSignal(instrument, candles, currentPrice) {

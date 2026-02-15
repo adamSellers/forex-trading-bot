@@ -125,7 +125,7 @@ git push origin main
 | Dashboard         | http://img.oakroad:3100          |
 | API               | http://img.oakroad:3101/api      |
 | PM2 Process       | forex-backend                    |
-| Test Suite        | 174 passing, 0 failing           |
+| Test Suite        | 253 passing, 0 failing           |
 
 **CRITICAL**: This is a LIVE trading account with real money. Exercise extreme caution with any changes that affect trading logic, position sizing, or order execution.
 
@@ -206,12 +206,15 @@ forex-trend-bot/
 │   │   ├── trading_config.json            # Runtime config (UNTRACKED)
 │   │   └── trading_config_initial.json    # Config template (tracked)
 │   ├── migrations/
-│   │   └── 001_create_forex_tables.js     # Database schema
+│   │   ├── 001_create_forex_tables.js     # Database schema
+│   │   └── 002_create_backtest_results.js # Backtest results storage
 │   ├── src/
 │   │   ├── routes/tradingRoutes.js        # 50+ API endpoints
 │   │   ├── services/
 │   │   │   ├── LiveTradingEngine.js       # CRITICAL - Trade execution
 │   │   │   ├── signalGenerator.js         # CRITICAL - Strategy signals
+│   │   │   ├── backtestEngine.js          # Strategy backtesting on historical data
+│   │   │   ├── historicalDataService.js   # Oanda candle fetching with cache
 │   │   │   ├── Oandaclient.js             # Oanda API wrapper
 │   │   │   ├── OandaDataService.js        # Price polling
 │   │   │   ├── analyticsService.js        # Performance metrics
@@ -220,7 +223,8 @@ forex-trend-bot/
 │   │   │   └── s3ReportScheduler.js       # S3 report uploads
 │   │   ├── repositories/
 │   │   │   ├── tradeRepository.js         # Trade CRUD
-│   │   │   └── signalRepository.js        # Signal CRUD
+│   │   │   ├── signalRepository.js        # Signal CRUD
+│   │   │   └── backtestRepository.js      # Backtest results CRUD
 │   │   └── utils/
 │   │       ├── logger.js                  # Winston with daily rotation
 │   │       └── awsS3Utils.js              # S3 upload helpers
@@ -243,7 +247,9 @@ forex-trend-bot/
 │   ├── update.sh                          # Smart update
 │   ├── backup.sh                          # Manual backup
 │   ├── restore.sh                         # Restore from backup
-│   └── setup-secrets.sh                   # API key setup
+│   ├── setup-secrets.sh                   # API key setup
+│   ├── backtest.js                        # CLI backtest runner
+│   └── backtestSweep.js                   # Batch parameter sweep runner
 ├── ecosystem.config.js                    # PM2 configuration
 ├── claude.md                              # This file
 ├── project_roadmap.md                     # Future features
@@ -261,6 +267,7 @@ forex-trend-bot/
 | `portfolio_snapshots` | Account state history                              |
 | `performance`       | Calculated metrics (win rate, Sharpe ratio, etc.)    |
 | `trading_config`    | Persisted settings as JSON blob                      |
+| `backtest_results`  | Stored backtest run results for comparison            |
 
 Key columns in `trades`:
 - `id`, `trade_id`, `oanda_trade_id`, `instrument`, `side`
@@ -352,12 +359,79 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-01-27 | Short selling fix, ADX slope filter, exit reason detection   |
 | 2026-01-31 | Signal persistence for analytics, 90-day retention           |
 | 2026-02-02 | Signals component enhancement, Short entry signal filtering  |
+| 2026-02-05 | Backtesting engine complete (Phases 1-4), CLI + API + DB     |
+| 2026-02-06 | Batch sweep script, comprehensive 132-run analysis across 6 pairs |
+| 2026-02-06 | HTF trend filter implemented, 12-month sweep analysis completed   |
+| 2026-02-06 | Multi-TF simulation (M15 fills + H1 signals), 12-month sweep     |
 
 ---
 
 ## IN PROGRESS
 
-_No active work items. See [project_roadmap.md](project_roadmap.md) for planned features._
+### Multi-Timeframe Simulation (IMPLEMENTED — NEEDS TEST VERIFICATION)
+
+**Implemented 2026-02-06**. M15 fill resolution with H1 signal quality. Aggregates M15 candles into H1 bars for indicator/signal evaluation while iterating M15 candles for exit checks (SL/TP/trailing/breakeven) — 4x more granular fill simulation.
+
+**Architecture**:
+- `_aggregateToH1(m15Candles)` groups by hour boundary (`Math.floor(time/3600)*3600`)
+- Returns `h1Candles`, `m15ToH1Index` (maps each M15→parent H1), `h1CompletionM15Indices` (Set)
+- `shouldEvaluateSignal(i)` predicate wraps sections 3/3e/4 — signals only fire at H1 completion
+- `getIndicators(i)` maps through `m15ToH1Index` transparently
+- Sections 1 (pending entry) and 2 (exit checks) run every M15 candle
+- No look-ahead bias: signals fire at H1 completion (all 4 M15 candles are past)
+- `enableMultiTimeframe: false` default — backwards compatible
+
+**Files modified**: `backtestEngine.js` (core + `_aggregateToH1`), `backtestEngine.test.js` (10 new tests), `backtest.js` (`--multiTF` flag), `backtestSweep.js` (5 new scenarios)
+
+**12-Month MultiTF Baseline Sweep Results (2025-02-01 to 2026-02-01)**:
+| Pair | Trades | Win Rate | P&L | Return |
+|------|--------|----------|-----|--------|
+| AUD_USD | 38 | 44.7% | +$20.54 | +4.1% |
+| NZD_USD | 34 | 52.9% | +$24.48 | +4.9% |
+| GBP_USD | 31 | 45.2% | -$11.97 | -2.4% |
+| USD_JPY | 35 | 40.0% | -$14.88 | -3.0% |
+| EUR_USD | 44 | 29.5% | -$105.89 | -21.2% |
+| USD_CAD | 39 | 33.3% | -$117.20 | -23.4% |
+| **Total** | **221** | | **-$204.92** | |
+
+**Key findings**:
+- AUD_USD + NZD_USD profitable (+$45.02 combined)
+- EUR_USD + USD_CAD significantly negative — strategy doesn't work on these pairs
+- AUD_USD with TP off: +$60.60 vs +$20.54 with TP on (TP cuts winners short)
+- Still need to run MultiTF+NoCont, MultiTF+HTF, and TP-off sweep variants
+
+**Pending**:
+1. **Run tests**: `cd backend && npx jest --testPathPattern backtestEngine` (user runs in terminal)
+2. **Run additional sweep scenarios**: MultiTF+NoCont, MultiTF+HTF, MultiTF+HTF+NoCont
+3. **Analyze which pair/config combos are viable for live trading**
+
+**Instruments for testing**: AUD_USD, EUR_USD, USD_JPY, NZD_USD, GBP_USD, USD_CAD
+**Historical data cached**: All instruments, M15 + H1 + H4 in `backend/data/historical/`
+
+---
+
+### HTF Trend Filter (COMPLETE)
+
+**Implemented 2026-02-06**. H4 SuperTrend higher-timeframe filter added to backtest engine. Filter at entry gating (section 4), not signal generation (section 3) — preserves signal reversal exits. Binary search helper `_getHTFDirection()` for efficient H4 direction lookup. 5 new sweep scenarios added. CLI `--htfFilter` flag added.
+
+**Files modified**: `backtestEngine.js`, `backtestSweep.js`, `backtest.js`
+
+---
+
+### Backtesting Engine — Infrastructure (COMPLETE)
+
+**What's Built (Phases 1-4 complete, 253 tests passing)**:
+
+| Component | File | Status |
+|-----------|------|--------|
+| Shared indicators | `backend/src/utils/indicators.js` | Complete |
+| Historical data service | `backend/src/services/historicalDataService.js` | Complete |
+| Backtest engine | `backend/src/services/backtestEngine.js` | Complete + HTF filter + Multi-TF |
+| Backtest repository | `backend/src/repositories/backtestRepository.js` | Complete |
+| Database migration | `backend/migrations/002_create_backtest_results.js` | Complete |
+| API endpoints | `backend/src/routes/tradingRoutes.js` (backtest section) | Complete |
+| CLI script | `scripts/backtest.js` | Complete + HTF + MultiTF flags |
+| Sweep script | `scripts/backtestSweep.js` | Complete + HTF + MultiTF scenarios |
 
 ---
 

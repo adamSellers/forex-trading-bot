@@ -870,4 +870,119 @@ router.post("/reports/upload/weekly", async (req, res) => {
     }
 });
 
+// ============ BACKTESTING ============
+
+// Run a backtest on historical data
+router.post("/backtest/run", async (req, res) => {
+    try {
+        const { instrument, from, to, granularity, label, config: configOverrides } = req.body;
+
+        // Validate required fields
+        if (!instrument || !from || !to) {
+            return res.status(400).json({
+                error: "Missing required fields: instrument, from, to",
+            });
+        }
+
+        // Convert date strings to UNIX timestamps (seconds)
+        const fromTimestamp = Math.floor(new Date(from).getTime() / 1000);
+        const toTimestamp = Math.floor(new Date(to).getTime() / 1000);
+
+        if (isNaN(fromTimestamp) || isNaN(toTimestamp)) {
+            return res.status(400).json({
+                error: "Invalid date format. Use YYYY-MM-DD.",
+            });
+        }
+
+        if (fromTimestamp >= toTimestamp) {
+            return res.status(400).json({
+                error: "'from' must be before 'to'",
+            });
+        }
+
+        const gran = granularity || "M15";
+
+        // Create services on-demand (stateless, backtests are infrequent)
+        const HistoricalDataService = require("../services/historicalDataService");
+        const BacktestEngine = require("../services/backtestEngine");
+        const BacktestRepository = require("../repositories/backtestRepository");
+
+        const historicalDataService = new HistoricalDataService();
+        const engine = new BacktestEngine(historicalDataService);
+        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
+
+        // Run backtest (may take 10-30s for large date ranges due to Oanda rate limits)
+        const result = await engine.run(instrument, gran, fromTimestamp, toTimestamp, configOverrides || {});
+
+        // Save result to database
+        const backtestId = await backtestRepo.save(
+            result, instrument, gran, fromTimestamp, toTimestamp, label || null
+        );
+
+        // Return summary (not full trade list — use GET /results/:id for that)
+        res.json({
+            success: true,
+            backtestId,
+            instrument,
+            granularity: gran,
+            from,
+            to,
+            summary: result.summary,
+        });
+    } catch (error) {
+        console.error("Backtest error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// List recent backtest results (summary only)
+router.get("/backtest/results", async (req, res) => {
+    try {
+        const BacktestRepository = require("../repositories/backtestRepository");
+        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
+
+        const limit = parseInt(req.query.limit) || 20;
+        const instrument = req.query.instrument || null;
+
+        const results = await backtestRepo.getRecent(limit, instrument);
+        res.json({ results, total: results.length });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get a specific backtest result (includes full trades and equity curve)
+router.get("/backtest/results/:id", async (req, res) => {
+    try {
+        const BacktestRepository = require("../repositories/backtestRepository");
+        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
+
+        const result = await backtestRepo.getById(req.params.id);
+        if (!result) {
+            return res.status(404).json({ error: "Backtest result not found" });
+        }
+
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete a backtest result
+router.delete("/backtest/results/:id", async (req, res) => {
+    try {
+        const BacktestRepository = require("../repositories/backtestRepository");
+        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
+
+        const deleted = await backtestRepo.delete(req.params.id);
+        if (!deleted) {
+            return res.status(404).json({ error: "Backtest result not found" });
+        }
+
+        res.json({ success: true, message: "Backtest result deleted" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

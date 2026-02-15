@@ -16,6 +16,7 @@ const TradeRepository = require("./src/repositories/tradeRepository");
 const SignalRepository = require("./src/repositories/signalRepository");
 const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
+const BacktestRepository = require("./src/repositories/backtestRepository");
 
 const app = express();
 const server = http.createServer(app);
@@ -74,6 +75,9 @@ const signalGenerator = new SignalGenerator({
 // Initialize S3 report scheduler
 const s3ReportScheduler = new S3ReportScheduler(tradeRepository, signalRepository);
 
+// Initialize backtest repository (for storing backtest results)
+const backtestRepository = new BacktestRepository();
+
 // Initialize LiveTradingEngine
 const tradingEngine = new LiveTradingEngine({
     monitorIntervalMs: 10000, // Check positions every 10 seconds
@@ -103,6 +107,7 @@ app.locals.tradeRepository = tradeRepository;
 app.locals.signalRepository = signalRepository;
 app.locals.emailService = emailService;
 app.locals.s3ReportScheduler = s3ReportScheduler;
+app.locals.backtestRepository = backtestRepository;
 app.locals.io = io;
 
 // Middleware

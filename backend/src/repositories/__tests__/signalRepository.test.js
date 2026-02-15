@@ -45,7 +45,7 @@ describe('SignalRepository', () => {
 
             expect(deleted).toBe(5);
             expect(mockTestDbInstance).toHaveBeenCalledWith('signals');
-            expect(mockWhere).toHaveBeenCalledWith('timestamp', '<', expect.any(Date));
+            expect(mockWhere).toHaveBeenCalledWith('timestamp', '<', expect.any(Number));
             expect(mockDel).toHaveBeenCalled();
         });
 
@@ -61,12 +61,11 @@ describe('SignalRepository', () => {
             const now = Date.now();
             await repository.deleteOlderThan(90);
 
-            // Cutoff should be approximately 90 days ago
+            // Cutoff should be approximately 90 days ago (timestamp in ms)
             const expectedCutoff = now - 90 * 24 * 60 * 60 * 1000;
-            const actualCutoff = capturedCutoff.getTime();
 
             // Allow 1 second tolerance for test execution time
-            expect(Math.abs(actualCutoff - expectedCutoff)).toBeLessThan(1000);
+            expect(Math.abs(capturedCutoff - expectedCutoff)).toBeLessThan(1000);
         });
 
         test('should return 0 when no signals deleted', async () => {
@@ -103,9 +102,8 @@ describe('SignalRepository', () => {
 
             const now = Date.now();
             const expected30Days = now - 30 * 24 * 60 * 60 * 1000;
-            const actualCutoff = capturedCutoff.getTime();
 
-            expect(Math.abs(actualCutoff - expected30Days)).toBeLessThan(1000);
+            expect(Math.abs(capturedCutoff - expected30Days)).toBeLessThan(1000);
         });
     });
 
