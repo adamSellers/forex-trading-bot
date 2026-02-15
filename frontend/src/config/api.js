@@ -234,26 +234,26 @@ export const engineAPI = {
  */
 export const analyticsAPI = {
     // Comprehensive analytics
-    get: (period = "30d", mode = "live") => {
-        const query = new URLSearchParams({ period, mode }).toString();
+    get: (period = "30d") => {
+        const query = new URLSearchParams({ period }).toString();
         return apiCall(`${API_ENDPOINTS.analytics}?${query}`);
     },
 
     // Quick summary
-    getSummary: (period = "30d", mode = "live") => {
-        const query = new URLSearchParams({ period, mode }).toString();
+    getSummary: (period = "30d") => {
+        const query = new URLSearchParams({ period }).toString();
         return apiCall(`${API_ENDPOINTS.analyticsSummary}?${query}`);
     },
 
     // Equity curve data
-    getEquity: (period = "30d", mode = "live") => {
-        const query = new URLSearchParams({ period, mode }).toString();
+    getEquity: (period = "30d") => {
+        const query = new URLSearchParams({ period }).toString();
         return apiCall(`${API_ENDPOINTS.analyticsEquity}?${query}`);
     },
 
     // Per-instrument breakdown
-    getInstruments: (period = "30d", mode = "live") => {
-        const query = new URLSearchParams({ period, mode }).toString();
+    getInstruments: (period = "30d") => {
+        const query = new URLSearchParams({ period }).toString();
         return apiCall(`${API_ENDPOINTS.analyticsInstruments}?${query}`);
     },
 };

@@ -66,16 +66,15 @@ class AnalyticsService {
     /**
      * Get full analytics report for a period
      * @param {string} period - '24h', '7d', '30d', '90d', 'all'
-     * @param {string} mode - 'live' or 'paper'
      */
-    async getAnalytics(period = "30d", mode = "live") {
+    async getAnalytics(period = "30d") {
         try {
             const periodMs = parsePeriod(period);
             const cutoffTime = Date.now() - periodMs;
 
             // Fetch raw data
             const [trades, signals] = await Promise.all([
-                this.tradeRepo.getTradesSince(cutoffTime, mode),
+                this.tradeRepo.getTradesSince(cutoffTime),
                 this.signalRepo.getSignalsSince(new Date(cutoffTime)),
             ]);
 
@@ -96,7 +95,7 @@ class AnalyticsService {
 
             return {
                 period,
-                mode,
+                mode: "live",
                 generatedAt: new Date().toISOString(),
                 summary,
                 pairPerformance,

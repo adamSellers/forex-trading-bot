@@ -39,6 +39,5 @@
     "alertEmail": "adam@sellers.life",
     "maxLeverage": 30,
     "enableTakeProfit": false,
-    "takeProfitPercent": 0.06,
-    "tradingMode": "live"
+    "takeProfitPercent": 0.06
 }

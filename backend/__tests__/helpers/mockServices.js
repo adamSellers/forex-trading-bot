@@ -152,7 +152,6 @@ const createMockOandaClient = (overrides = {}) => {
 const createMockConfigService = (config = {}) => {
     const defaultConfig = {
         enableTrading: true,
-        tradingMode: 'live',
         maxOpenPositions: 2,
         riskPerTrade: 0.02,
         maxCapitalAtRisk: 70,

@@ -153,7 +153,6 @@ describe('LiveTradingEngine', () => {
         // Create fresh mocks for each test
         mockConfigService = createMockConfigService({
             enableTrading: true,
-            tradingMode: 'live',
             maxOpenPositions: 2,
             riskPerTrade: 0.02,
             maxCapitalAtRisk: 70,
@@ -727,7 +726,7 @@ describe('LiveTradingEngine', () => {
             );
         });
 
-        test('should fall back to calculated P/L for paper trades', async () => {
+        test('should fall back to calculated P/L when Oanda P/L is unavailable', async () => {
             const trade = createMockTrade({
                 id: 'trade-123',
                 entryPrice: 1.16571,
@@ -736,7 +735,7 @@ describe('LiveTradingEngine', () => {
             });
             engine.openTrades.set(trade.id, trade);
 
-            // No Oanda data (paper trade)
+            // No Oanda P/L data provided
             await engine.closeTrade(trade.id, 1.16784, 'TAKE_PROFIT', {});
 
             expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(

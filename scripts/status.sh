@@ -76,10 +76,9 @@ if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
     health=$(curl -s "http://localhost:$PORT/api/health" 2>/dev/null)
     if [ -n "$health" ]; then
         trading_enabled=$(echo "$health" | grep -o '"enableTrading":[^,}]*' | cut -d: -f2)
-        trading_mode=$(echo "$health" | grep -o '"tradingMode":"[^"]*"' | cut -d'"' -f4)
         
         if [ "$trading_enabled" = "true" ]; then
-            echo -e "  Trading:        ${GREEN}✅ ENABLED ($trading_mode)${NC}"
+            echo -e "  Trading:        ${GREEN}✅ ENABLED (live)${NC}"
         else
             echo -e "  Trading:        ${YELLOW}⏸️  DISABLED${NC}"
         fi

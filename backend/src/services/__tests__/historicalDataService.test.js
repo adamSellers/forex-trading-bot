@@ -229,7 +229,7 @@ describe("HistoricalDataService", () => {
             }
         });
 
-        test("should pass from and to timestamps to Oanda API", async () => {
+        test("should pass from timestamp to Oanda API for count-based pagination", async () => {
             mockClient.getCandles.mockResolvedValueOnce({ candles: createOandaCandles(3) });
 
             const from = 1696118400;
@@ -241,7 +241,7 @@ describe("HistoricalDataService", () => {
                 "AUD_USD",
                 "M15",
                 5000,
-                { from: from.toString(), to: to.toString() }
+                { from: from.toString() }
             );
         });
     });

@@ -78,7 +78,6 @@ router.get("/health", (req, res) => {
         },
         config: {
             enableTrading: config.enableTrading || false,
-            tradingMode: config.tradingMode || "live",
             assets: config.assets || [],
             strategy: config.strategy || "supertrend_momentum",
             timeframe: config.timeframe || "15m",
@@ -173,7 +172,6 @@ router.get("/system/health", async (req, res) => {
             },
             config: {
                 enableTrading: config.enableTrading || false,
-                tradingMode: config.tradingMode || "live",
                 assets: config.assets || [],
                 strategy: config.strategy || "supertrend_momentum",
                 timeframe: config.timeframe || "15m",
@@ -471,9 +469,7 @@ router.get("/trades", async (req, res) => {
         }
 
         const limit = parseInt(req.query.limit) || 20;
-        const mode = req.query.mode || "live";
-
-        const trades = await tradeRepo.getRecent(limit, mode);
+        const trades = await tradeRepo.getRecent(limit);
 
         res.json({
             trades,
@@ -780,9 +776,7 @@ router.get("/analytics", async (req, res) => {
         const analyticsService = new AnalyticsService(tradeRepo, signalRepo);
 
         const period = req.query.period || "30d";
-        const mode = req.query.mode || "live";
-
-        const analytics = await analyticsService.getAnalytics(period, mode);
+        const analytics = await analyticsService.getAnalytics(period);
 
         res.json(analytics);
     } catch (error) {

@@ -166,7 +166,7 @@ describe('TradeRepository', () => {
             await repository.save(trade2);
             await repository.save(trade3);
 
-            const recent = await repository.getRecent(3, 'live');
+            const recent = await repository.getRecent(3);
 
             expect(recent).toHaveLength(3);
             expect(recent[0].id).toBe('trade-3'); // Most recent first
@@ -178,22 +178,19 @@ describe('TradeRepository', () => {
                 await repository.save(createMockTrade({ id: `trade-limit-${i}` }));
             }
 
-            const recent = await repository.getRecent(5, 'live');
+            const recent = await repository.getRecent(5);
 
             expect(recent).toHaveLength(5);
         });
 
-        test('should filter by mode', async () => {
+        test('should return live-mode trades only', async () => {
             await repository.save(createMockTrade({ id: 'live-trade', mode: 'live' }));
-            await repository.save(createMockTrade({ id: 'paper-trade', mode: 'paper' }));
+            await repository.save(createMockTrade({ id: 'legacy-paper-trade', mode: 'paper' }));
 
-            const liveTrades = await repository.getRecent(10, 'live');
-            const paperTrades = await repository.getRecent(10, 'paper');
+            const liveTrades = await repository.getRecent(10);
 
             expect(liveTrades).toHaveLength(1);
             expect(liveTrades[0].id).toBe('live-trade');
-            expect(paperTrades).toHaveLength(1);
-            expect(paperTrades[0].id).toBe('paper-trade');
         });
     });
 
@@ -203,7 +200,7 @@ describe('TradeRepository', () => {
             await repository.save(createMockTrade({ id: 'open-2', isOpen: true }));
             await repository.save(createClosedTrade({ id: 'closed-1' }));
 
-            const openTrades = await repository.getOpenTrades('live');
+            const openTrades = await repository.getOpenTrades();
 
             expect(openTrades).toHaveLength(2);
             expect(openTrades.every(t => t.isOpen)).toBe(true);
@@ -212,7 +209,7 @@ describe('TradeRepository', () => {
         test('should return empty array when no open trades', async () => {
             await repository.save(createClosedTrade({ id: 'closed-1' }));
 
-            const openTrades = await repository.getOpenTrades('live');
+            const openTrades = await repository.getOpenTrades();
 
             expect(openTrades).toHaveLength(0);
         });
@@ -224,7 +221,7 @@ describe('TradeRepository', () => {
             await repository.save(createMockTrade({ id: 'eur-1', instrument: 'EUR_USD' }));
             await repository.save(createMockTrade({ id: 'aud-2', instrument: 'AUD_USD' }));
 
-            const audTrades = await repository.getByInstrument('AUD_USD', 10, 'live');
+            const audTrades = await repository.getByInstrument('AUD_USD', 10);
 
             expect(audTrades).toHaveLength(2);
             expect(audTrades.every(t => t.instrument === 'AUD_USD')).toBe(true);
@@ -241,7 +238,7 @@ describe('TradeRepository', () => {
             await repository.save(recentTrade);
 
             const cutoff = now - 50000;
-            const trades = await repository.getTradesSince(cutoff, 'live');
+            const trades = await repository.getTradesSince(cutoff);
 
             expect(trades).toHaveLength(1);
             expect(trades[0].id).toBe('recent');
@@ -253,7 +250,7 @@ describe('TradeRepository', () => {
             await repository.save(trade);
 
             const cutoff = new Date(now - 1000);
-            const trades = await repository.getTradesSince(cutoff, 'live');
+            const trades = await repository.getTradesSince(cutoff);
 
             expect(trades).toHaveLength(1);
         });
@@ -266,7 +263,7 @@ describe('TradeRepository', () => {
             await repository.save(createMockTrade({ id: 'trade-2', entryTime: now - 2000 }));
             await repository.save(createMockTrade({ id: 'trade-3', entryTime: now - 1000 }));
 
-            const trades = await repository.getAllTrades('live');
+            const trades = await repository.getAllTrades();
 
             expect(trades).toHaveLength(3);
             expect(trades[0].id).toBe('trade-1'); // Oldest first
@@ -362,7 +359,7 @@ describe('TradeRepository', () => {
                 entryTime: Date.now() - 80000,
             }));
 
-            const metrics = await repository.getPerformanceMetrics('7d', 'live');
+            const metrics = await repository.getPerformanceMetrics('7d');
 
             expect(metrics.totalTrades).toBe(3);
             expect(metrics.winningTrades).toBe(2);
@@ -372,7 +369,7 @@ describe('TradeRepository', () => {
         });
 
         test('should return null when no trades', async () => {
-            const metrics = await repository.getPerformanceMetrics('7d', 'live');
+            const metrics = await repository.getPerformanceMetrics('7d');
             expect(metrics).toBeNull();
         });
 
@@ -380,7 +377,7 @@ describe('TradeRepository', () => {
             await repository.save(createClosedTrade({ id: 'closed', pnlAud: 5.00, entryTime: Date.now() - 1000 }));
             await repository.save(createMockTrade({ id: 'open', isOpen: true, entryTime: Date.now() - 1000 }));
 
-            const metrics = await repository.getPerformanceMetrics('7d', 'live');
+            const metrics = await repository.getPerformanceMetrics('7d');
 
             expect(metrics.totalTrades).toBe(1);
         });

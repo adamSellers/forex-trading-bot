@@ -108,6 +108,7 @@ class ConfigService extends EventEmitter {
                 const fileContent = fs.readFileSync(this.configPath, "utf8");
                 const fileConfig = JSON.parse(fileContent);
                 this.config = { ...DEFAULT_CONFIG, ...fileConfig };
+                delete this.config.tradingMode;
                 logger.info(`📋 Config loaded from ${this.configPath}`);
             } else {
                 // Create default config file
@@ -149,9 +150,10 @@ class ConfigService extends EventEmitter {
      */
     update(newConfig) {
         const oldAssets = [...(this.config.assets || [])];
+        const { tradingMode, ...sanitizedConfig } = newConfig;
 
         // Merge new config
-        this.config = { ...this.config, ...newConfig };
+        this.config = { ...this.config, ...sanitizedConfig };
 
         // Save to file
         this.save();

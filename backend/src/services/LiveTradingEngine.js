@@ -143,10 +143,7 @@ class LiveTradingEngine extends EventEmitter {
      */
     async syncOpenTrades() {
         try {
-            const config = this.configService.get();
-            const dbTrades = await this.tradeRepository.getOpenTrades(
-                config.tradingMode || "live"
-            );
+            const dbTrades = await this.tradeRepository.getOpenTrades();
 
             this.openTrades.clear();
             for (const trade of dbTrades) {
@@ -732,19 +729,6 @@ class LiveTradingEngine extends EventEmitter {
         const priceData = this.dataService.getCurrentPrice(symbol);
         const spreadPips = priceData?.spread || 0;
 
-        // Check if paper trading mode
-        const mode = config.tradingMode || "live";
-
-        if (mode === "paper") {
-            // Paper trading - simulate the trade
-            return this.executePaperEntry(signal, config, {
-                units,
-                stopLossPrice,
-                stopLossPips,
-                spreadPips,
-            });
-        }
-
         // Live trading - execute via Oanda (without TP initially)
         try {
             // For SELL signals, negate units to open SHORT position in Oanda
@@ -868,109 +852,19 @@ class LiveTradingEngine extends EventEmitter {
         }
     }
 
-    /**
-     * Execute a paper trade entry (simulation)
-     */
-    async executePaperEntry(signal, config, params) {
-        const { symbol, currentPrice, strength, entryType, atrPips } = signal;
-        const {
-            units,
-            stopLossPrice,
-            stopLossPips,
-            spreadPips,
-        } = params;
-
-        // Simulate fill at current price (could add slippage simulation)
-        const fillPrice = currentPrice;
-
-        // Calculate margin (simulated)
-        const leverage = config.leverage || 10;
-        const marginUsed = (units * fillPrice) / leverage;
-
-        // Calculate take profit based on margin used
-        let takeProfitPrice = null;
-        if (config.enableTakeProfit && marginUsed > 0) {
-            const takeProfit = this.calculateTakeProfit(
-                signal,
-                config,
-                units,
-                marginUsed,
-                fillPrice
-            );
-            takeProfitPrice = takeProfit?.takeProfitPrice;
-        }
-
-        // Create trade record
-        const trade = {
-            id: uuidv4(),
-            oandaTradeId: `PAPER_${Date.now()}`,
-            instrument: symbol,
-            side: "BUY",
-            units,
-            entryPrice: fillPrice,
-            entryCostAud: units * fillPrice,
-            signal: signal.signal,
-            signalStrength: strength,
-            entryType,
-            atrPips,
-            stopLossPrice,
-            takeProfitPrice,
-            trailingStopPips: config.trailingStopPips,
-            leverageUsed: leverage,
-            marginUsedAud: marginUsed,
-            spreadPips,
-            entryTime: Date.now(),
-            isOpen: true,
-        };
-
-        // Adjust for SELL
-        if (signal.signal === "SELL") {
-            trade.side = "SELL";
-            trade.stopLossPrice = params.stopLossPrice; // Already calculated correctly
-            // TP already calculated correctly
-        }
-
-        // Save to database
-        await this.tradeRepository.save(trade);
-
-        // Track in memory
-        this.openTrades.set(trade.id, trade);
-
-        // Update stats
-        this.stats.tradesExecuted++;
-        this.stats.lastTradeTime = Date.now();
-
-        // Broadcast trade event
-        this.broadcastTradeOpened(trade);
-
-        const tpInfo = takeProfitPrice ? ` | TP: ${takeProfitPrice}` : "";
-        logger.success(
-            `✅ PAPER ${trade.side} simulated: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`
-        );
-
-        return trade;
-    }
-
     // ==================== TRADE EXIT ====================
 
     /**
      * Execute a trade exit
      */
     async executeExit(trade, exitPrice, reason) {
-        const config = this.configService.get();
-        const mode = config.tradingMode || "live";
-
         logger.info(
             `🎯 Executing exit for ${trade.instrument} at ${exitPrice} (${reason})`
         );
 
         let oandaData = {};
 
-        if (
-            mode === "live" &&
-            trade.oandaTradeId &&
-            !trade.oandaTradeId.startsWith("PAPER_")
-        ) {
+        if (trade.oandaTradeId) {
             // Live trading - close via Oanda
             try {
                 const closeResult = await oandaClient.closeTrade(
@@ -993,11 +887,15 @@ class LiveTradingEngine extends EventEmitter {
                     }
                 }
             } catch (error) {
-                // Trade might already be closed
+                // Trade might already be closed externally
                 logger.warn(
                     `⚠️ Error closing trade on Oanda: ${error.message}`
                 );
             }
+        } else {
+            logger.warn(
+                `⚠️ Trade ${trade.id} has no Oanda trade ID, using local exit processing`
+            );
         }
 
         // Close in our system
@@ -1034,7 +932,7 @@ class LiveTradingEngine extends EventEmitter {
             oandaData.oandaRealizedPL !== null &&
                 oandaData.oandaRealizedPL !== undefined
                 ? oandaData.oandaRealizedPL
-                : trade.units * priceChange; // Fallback to simple calc for paper trades
+                : trade.units * priceChange; // Fallback when Oanda P/L is unavailable
 
         const pnlPercent = (pnlAud / trade.entryCostAud) * 100;
 
@@ -1146,46 +1044,6 @@ class LiveTradingEngine extends EventEmitter {
         const currentPrice = priceData.price;
         const pipValue = oandaClient.getPipValue(trade.instrument);
 
-        // Check paper trade stop loss (Oanda handles live trades)
-        // Direction-aware: BUY stop is below entry, SELL stop is above entry
-        if (trade.mode === "paper" && trade.stopLossPrice) {
-            const stopHit = trade.side === 'BUY'
-                ? currentPrice <= trade.stopLossPrice
-                : currentPrice >= trade.stopLossPrice;
-
-            if (stopHit) {
-                logger.info(
-                    `🛑 Paper trade stop loss hit for ${trade.instrument}`
-                );
-                await this.closeTrade(
-                    trade.id,
-                    trade.stopLossPrice,
-                    "STOP_LOSS"
-                );
-                return;
-            }
-        }
-
-        // Check paper trade take profit
-        // Direction-aware: BUY TP is above entry, SELL TP is below entry
-        if (trade.mode === "paper" && trade.takeProfitPrice) {
-            const tpHit = trade.side === 'BUY'
-                ? currentPrice >= trade.takeProfitPrice
-                : currentPrice <= trade.takeProfitPrice;
-
-            if (tpHit) {
-                logger.info(
-                    `🎯 Paper trade take profit hit for ${trade.instrument}`
-                );
-                await this.closeTrade(
-                    trade.id,
-                    trade.takeProfitPrice,
-                    "TAKE_PROFIT"
-                );
-                return;
-            }
-        }
-
         // Update trailing stop if enabled (works for both BUY and SELL)
         if (config.enableTrailingStops) {
             await this.updateTrailingStop(trade, currentPrice, config);
@@ -1250,11 +1108,8 @@ class LiveTradingEngine extends EventEmitter {
                 lowestPrice: trade.lowestPrice,
             });
 
-            // Update Oanda stop loss (live trades only)
-            if (
-                trade.mode === "live" &&
-                !trade.oandaTradeId.startsWith("PAPER_")
-            ) {
+            // Update Oanda stop loss
+            if (trade.oandaTradeId) {
                 try {
                     await oandaClient.modifyTrade(trade.oandaTradeId, {
                         stopLossPrice: newStopLossPrice,
@@ -1376,7 +1231,6 @@ class LiveTradingEngine extends EventEmitter {
         return {
             isRunning: this.isRunning,
             tradingEnabled: config.enableTrading,
-            tradingMode: config.tradingMode || "live",
             openPositions: this.openTrades.size,
             maxPositions: config.maxOpenPositions,
             stats: this.stats,

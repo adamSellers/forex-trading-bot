@@ -93,11 +93,12 @@ class TradeRepository {
     /**
      * Get recent trades
      */
-    async getRecent(limit = 20, mode = "live") {
+    async getRecent(limit = 20) {
         try {
-            let query = db("trades").orderBy("entry_time", "desc").limit(limit);
-            if (mode) query = query.where("mode", mode);
-            const records = await query;
+            const records = await db("trades")
+                .where("mode", "live")
+                .orderBy("entry_time", "desc")
+                .limit(limit);
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting recent trades:", error);
@@ -108,14 +109,13 @@ class TradeRepository {
     /**
      * Get trades by instrument
      */
-    async getByInstrument(instrument, limit = 50, mode = "live") {
+    async getByInstrument(instrument, limit = 50) {
         try {
-            let query = db("trades")
+            const records = await db("trades")
                 .where("instrument", instrument)
-                .orderBy("entry_time", "desc");
-
-            if (mode) query = query.where("mode", mode);
-            const records = await query.limit(limit);
+                .where("mode", "live")
+                .orderBy("entry_time", "desc")
+                .limit(limit);
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting trades by instrument:", error);
@@ -126,14 +126,15 @@ class TradeRepository {
     /**
      * Get trades since a cutoff time
      */
-    async getTradesSince(cutoffTime, mode = "live") {
+    async getTradesSince(cutoffTime) {
         try {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
 
-            let query = db("trades").where("entry_time", ">=", timestamp);
-            if (mode) query = query.where("mode", mode);
-            const records = await query.orderBy("entry_time", "desc");
+            const records = await db("trades")
+                .where("entry_time", ">=", timestamp)
+                .where("mode", "live")
+                .orderBy("entry_time", "desc");
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting trades since cutoff:", error);
@@ -144,11 +145,11 @@ class TradeRepository {
     /**
      * Get all trades
      */
-    async getAllTrades(mode = "live") {
+    async getAllTrades() {
         try {
-            let query = db("trades").orderBy("entry_time", "asc");
-            if (mode) query = query.where("mode", mode);
-            const records = await query;
+            const records = await db("trades")
+                .where("mode", "live")
+                .orderBy("entry_time", "asc");
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting all trades:", error);
@@ -159,10 +160,10 @@ class TradeRepository {
     /**
      * Get open trades
      */
-    async getOpenTrades(mode = "live") {
+    async getOpenTrades() {
         try {
             const records = await db("trades")
-                .where("mode", mode)
+                .where("mode", "live")
                 .where("is_open", true);
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
@@ -228,14 +229,14 @@ class TradeRepository {
     /**
      * Get performance metrics for a period
      */
-    async getPerformanceMetrics(period = "30d", mode = "live") {
+    async getPerformanceMetrics(period = "30d") {
         try {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = Date.now() - periodMs;
 
             const trades = await db("trades")
                 .where("entry_time", ">=", cutoffTime)
-                .where("mode", mode)
+                .where("mode", "live")
                 .where("is_open", false)
                 .orderBy("entry_time", "desc");
 

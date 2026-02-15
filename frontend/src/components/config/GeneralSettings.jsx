@@ -9,7 +9,7 @@ import {
   SettingsRemote, Warning, RestartAlt, Sync, PlayArrow, 
   Stop, Engineering, BarChart, FiberManualRecord 
 } from '@mui/icons-material';
-import { tradingAPI, engineAPI, configAPI } from '../../config/api';
+import { tradingAPI, engineAPI } from '../../config/api';
 import { GlassCard, SectionHeader } from './ConfigShared';
 
 const GeneralSettings = ({ config, updateConfig, onResetEngine }) => {
@@ -73,16 +73,6 @@ const GeneralSettings = ({ config, updateConfig, onResetEngine }) => {
     } finally {
       setLoadingAction(null);
     }
-  };
-
-  const handleToggleTradingMode = async () => {
-    const newMode = config.tradingMode === 'live' ? 'paper' : 'live';
-    const confirmMsg = newMode === 'live' 
-      ? "⚠️ SWITCH TO LIVE TRADING?\nThis will execute REAL trades with REAL money!"
-      : "Switch to Paper Trading?\nTrades will be simulated without real execution.";
-    
-    if (!window.confirm(confirmMsg)) return;
-    updateConfig('tradingMode', newMode);
   };
 
   const engineStats = engineStatus?.stats || {};
@@ -151,25 +141,18 @@ const GeneralSettings = ({ config, updateConfig, onResetEngine }) => {
               alignItems="center" 
               justifyContent="space-between" 
               border={1} 
-              borderColor={config.tradingMode === 'live' ? 'error.main' : 'warning.main'} 
+              borderColor='error.main'
               borderRadius={1} 
               p={2} 
-              bgcolor={config.tradingMode === 'live' ? alpha(theme.palette.error.main, 0.05) : alpha(theme.palette.warning.main, 0.05)}
+              bgcolor={alpha(theme.palette.error.main, 0.05)}
             >
               <Box>
                 <Typography fontWeight="bold">Trading Mode</Typography>
-                <Typography variant="caption" color={config.tradingMode === 'live' ? 'error.main' : 'warning.main'}>
-                  {config.tradingMode === 'live' ? "🔴 LIVE - Real Money" : "🟡 PAPER - Simulated"}
+                <Typography variant="caption" color='error.main'>
+                  🔴 LIVE - Real Money
                 </Typography>
               </Box>
-              <Button 
-                variant="outlined" 
-                size="small" 
-                color={config.tradingMode === 'live' ? 'warning' : 'error'}
-                onClick={handleToggleTradingMode}
-              >
-                Switch to {config.tradingMode === 'live' ? 'Paper' : 'Live'}
-              </Button>
+              <Chip label="Fixed: Live" color="error" size="small" />
             </Box>
           </Grid>
           

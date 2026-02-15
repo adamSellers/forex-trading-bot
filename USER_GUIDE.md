@@ -706,7 +706,7 @@ Before enabling trading, verify:
     ```bash
     curl http://localhost:3101/api/config
     ```
-    Verify `tradingMode`, `maxCapitalAtRisk`, etc.
+    Verify `enableTrading`, `maxCapitalAtRisk`, etc.
 
 ### Enabling Trading
 
@@ -728,24 +728,6 @@ Via API:
 curl -X POST http://localhost:3101/api/trading/stop
 ```
 
-### Paper vs Live Mode
-
-```javascript
-tradingMode: "paper"; // or "live"
-```
-
-| Aspect          | Paper Mode              | Live Mode         |
-| --------------- | ----------------------- | ----------------- |
-| Real money      | No                      | Yes               |
-| Oanda execution | Simulated               | Real orders       |
-| Stop loss       | Bot monitors internally | Oanda server-side |
-| Database `mode` | `paper`                 | `live`            |
-| Use for         | Testing strategy        | Real trading      |
-
-**Recommendation:** Test in paper mode for 24-48 hours before going live.
-
----
-
 ## Monitoring & Commands
 
 ### Check Engine Status
@@ -758,7 +740,6 @@ Returns:
 
 -   `isRunning`: Engine active
 -   `tradingEnabled`: Will execute trades
--   `tradingMode`: paper/live
 -   `openPositions`: Current open trades count
 -   `stats`: Signals received, trades executed, errors
 
@@ -843,13 +824,11 @@ Multiple ways to stop trading immediately:
 Check in order:
 
 1. `enableTrading` is `true`?
-2. `tradingMode` is set correctly?
-3. `maxOpenPositions` not reached?
-4. Signal is `BUY`? (engine only goes long)
-5. Signal ADX >= `minAdx`?
-6. Instrument in `assets` array?
-7. Within active trading session?
-8. Check logs for "Entry rejected" messages
+2. `maxOpenPositions` not reached?
+3. Signal ADX >= `minAdx`?
+4. Instrument in `assets` array?
+5. Within active trading session?
+6. Check logs for "Entry rejected" messages
 
 ### "Trading engine not available" error
 
@@ -858,13 +837,9 @@ Check in order:
 
 ### Trades not showing in database
 
--   Check `tradingMode` - paper trades have `mode: 'paper'`
--   Query with correct mode: `/api/trades?mode=paper`
-
-### Stop loss not triggering (paper mode)
-
--   Engine must be running to monitor paper trades
--   If engine stops, paper stop losses won't trigger
+-   Query recent trades via `/api/trades`
+-   Confirm backend can write to `backend/data/trading.db`
+-   Live stop loss/take profit are managed by Oanda once orders are placed
 
 ### Spread seems high
 
@@ -880,7 +855,6 @@ Check in order:
 
 | Category      | Setting             | Value          |
 | ------------- | ------------------- | -------------- |
-| **Mode**      | Trading Mode        | live           |
 | **Risk**      | Risk Per Trade      | 2%             |
 | **Risk**      | Max Capital at Risk | $100           |
 | **Risk**      | Max Open Positions  | 2              |

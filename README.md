@@ -226,13 +226,8 @@ Open http://localhost:3100 to view the dashboard.
 # Check engine status
 curl http://localhost:3101/api/engine/status
 
-# Enable trading (paper mode by default)
+# Enable live trading
 curl -X POST http://localhost:3101/api/trading/start
-
-# Or set to live mode first
-curl -X POST http://localhost:3101/api/config \
-  -H "Content-Type: application/json" \
-  -d '{"tradingMode": "live"}'
 ```
 
 ---
@@ -333,7 +328,6 @@ curl -X POST http://localhost:3101/api/config \
 {
   // Master Controls
   enableTrading: false,        // Must be true to execute trades
-  tradingMode: 'paper',        // 'paper' or 'live'
 
   // Position Limits
   maxOpenPositions: 2,         // Max concurrent trades
@@ -639,13 +633,11 @@ Position Size = Risk Amount / Stop Loss Price
 Check in order:
 
 1. `enableTrading` is `true`?
-2. `tradingMode` is set (`paper` or `live`)?
-3. `maxOpenPositions` not reached?
-4. Signal is `BUY`? (engine only goes long currently)
-5. Signal ADX >= `minAdx`?
-6. Instrument in `assets` array?
-7. Within active trading session?
-8. Check logs for "Entry rejected" messages
+2. `maxOpenPositions` not reached?
+3. Signal ADX >= `minAdx`?
+4. Instrument in `assets` array?
+5. Within active trading session?
+6. Check logs for "Entry rejected" messages
 
 ### "Trading engine not available" error
 
@@ -654,14 +646,9 @@ Check in order:
 
 ### Trades not showing in database
 
--   Check `tradingMode` - paper trades have `mode: 'paper'`
--   Query with correct mode: `/api/trades?mode=paper`
-
-### Stop loss not triggering (paper mode)
-
--   Engine must be running to monitor paper trades
--   If engine stops, paper stop losses won't trigger
--   Live trades have stop loss managed by Oanda server
+-   Query recent trades via `/api/trades`
+-   Confirm backend can write to `backend/data/trading.db`
+-   Live stop loss/take profit are managed by Oanda once orders are placed
 
 ### Signals all show HOLD
 

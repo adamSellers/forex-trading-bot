@@ -535,12 +535,12 @@ const SystemHealth = () => {
                 <Grid item xs={12} sm={6}>
                   <MetricItem
                     title="Trading Mode"
-                    value={health.config?.tradingMode === 'live' ? 'LIVE' : 'PAPER'}
+                    value="LIVE"
                     subValue={
                       health.config?.enableTrading ? 'Engine Active' : 'Engine Paused'
                     }
                     icon={<Sensors fontSize="small" />}
-                    color={health.config?.tradingMode === 'live' ? 'error' : 'warning'}
+                    color="error"
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
