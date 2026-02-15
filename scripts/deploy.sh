@@ -10,6 +10,8 @@ set -e
 PROJECT_DIR="/opt/forex-trading-bot"
 BACKUP_DIR="$HOME/forex-backups"
 APP_NAME="forex-backend"
+CONFIG_PATH="backend/data/trading_config.json"
+CONFIG_BACKUP=""
 
 # Colors
 GREEN='\033[0;32m'
@@ -54,11 +56,20 @@ if [ -f "backend/data/trading.db" ]; then
     # Also backup WAL files if they exist (critical for SQLite integrity)
     cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
     cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
-    # Keep only last 7 backups
-    ls -t $BACKUP_DIR/trading_*.db 2>/dev/null | tail -n +8 | xargs -r rm
+    # Keep only last 7 backups (including WAL/SHM companions)
+    while IFS= read -r old_db; do
+        rm -f "$old_db" "$old_db-wal" "$old_db-shm"
+    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +8)
     log_success "Database backed up to $BACKUP_DIR"
 else
     log_info "No existing database to backup"
+fi
+
+# 0a. Backup runtime config so local live settings survive git reset
+if [ -f "$CONFIG_PATH" ]; then
+    CONFIG_BACKUP=$(mktemp /tmp/forex_trading_config.XXXXXX.json)
+    cp "$CONFIG_PATH" "$CONFIG_BACKUP"
+    log_info "Runtime trading config backed up"
 fi
 
 # 1. Update code from git
@@ -67,10 +78,15 @@ git fetch origin main
 git reset --hard origin/main
 chmod +x scripts/*.sh
 
-# 1a. Create config from template if it doesn't exist (fresh install or after untracking)
-if [ ! -f "backend/data/trading_config.json" ]; then
+# 1a. Restore runtime config backup if available
+if [ -n "$CONFIG_BACKUP" ] && [ -f "$CONFIG_BACKUP" ]; then
+    cp "$CONFIG_BACKUP" "$CONFIG_PATH"
+    rm -f "$CONFIG_BACKUP"
+    log_info "Restored runtime trading config after update"
+# 1b. Create config from template if it doesn't exist (fresh install or after untracking)
+elif [ ! -f "$CONFIG_PATH" ]; then
     if [ -f "backend/data/trading_config_initial.json" ]; then
-        cp backend/data/trading_config_initial.json backend/data/trading_config.json
+        cp backend/data/trading_config_initial.json "$CONFIG_PATH"
         log_info "Created trading_config.json from template"
     fi
 fi
@@ -118,7 +134,10 @@ log_info "Running database migrations..."
 cd backend
 mkdir -p data
 mkdir -p logs
-npm run db:migrate || log_warn "Migration may have failed"
+if ! npm run db:migrate; then
+    log_error "Database migration failed. Aborting deployment."
+    exit 1
+fi
 cd ..
 
 # 6. Restart services

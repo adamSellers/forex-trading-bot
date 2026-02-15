@@ -2,7 +2,7 @@
 # =====================================================
 # Forex Trading Bot - Lightweight Update Script
 # Pulls latest changes, conditionally rebuilds, restarts.
-# Does NOT wipe data. Use for quick code pushes.
+# Preserves database and runtime config. Use for quick code pushes.
 # =====================================================
 
 set -e
@@ -34,6 +34,8 @@ cd "$PROJECT_DIR" || log_error "Project directory $PROJECT_DIR not found."
 
 # 1. Backup database BEFORE any git operations (prevents data loss from git reset)
 BACKUP_DIR="$HOME/forex-backups"
+CONFIG_PATH="backend/data/trading_config.json"
+CONFIG_BACKUP=""
 log_info "Creating database backup..."
 mkdir -p "$BACKUP_DIR"
 if [ -f "backend/data/trading.db" ]; then
@@ -42,11 +44,20 @@ if [ -f "backend/data/trading.db" ]; then
     # Also backup WAL files if they exist (critical for SQLite integrity)
     cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
     cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
-    # Keep only last 7 backups
-    ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +8 | xargs -r rm
+    # Keep only last 7 backups (including WAL/SHM companions)
+    while IFS= read -r old_db; do
+        rm -f "$old_db" "$old_db-wal" "$old_db-shm"
+    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +8)
     log_success "Database backed up to $BACKUP_DIR"
 else
     log_info "No existing database to backup"
+fi
+
+# 1a. Backup runtime config so local live settings survive git reset
+if [ -f "$CONFIG_PATH" ]; then
+    CONFIG_BACKUP=$(mktemp /tmp/forex_trading_config.XXXXXX.json)
+    cp "$CONFIG_PATH" "$CONFIG_BACKUP"
+    log_info "Runtime trading config backed up"
 fi
 
 # 2. Fetch latest changes
@@ -62,10 +73,15 @@ log_warn "Resetting local branch to match remote 'origin/$BRANCH'..."
 git reset --hard "origin/$BRANCH"
 chmod +x scripts/*.sh 2>/dev/null || true
 
-# 4a. Create config from template if it doesn't exist (fresh install or after untracking)
-if [ ! -f "backend/data/trading_config.json" ]; then
+# 4a. Restore runtime config backup if available
+if [ -n "$CONFIG_BACKUP" ] && [ -f "$CONFIG_BACKUP" ]; then
+    cp "$CONFIG_BACKUP" "$CONFIG_PATH"
+    rm -f "$CONFIG_BACKUP"
+    log_info "Restored runtime trading config after update"
+# 4b. Create config from template if it doesn't exist (fresh install or after untracking)
+elif [ ! -f "$CONFIG_PATH" ]; then
     if [ -f "backend/data/trading_config_initial.json" ]; then
-        cp backend/data/trading_config_initial.json backend/data/trading_config.json
+        cp backend/data/trading_config_initial.json "$CONFIG_PATH"
         log_info "Created trading_config.json from template"
     fi
 fi
@@ -135,7 +151,9 @@ fi
 # 7. Run database migrations
 log_info "Running database migrations..."
 cd backend
-NODE_ENV=production npm run db:migrate 2>/dev/null || log_warn "Migration may have issues"
+if ! NODE_ENV=production npm run db:migrate; then
+    log_error "Database migration failed. Aborting update."
+fi
 cd ..
 
 # 8. Graceful reload using ecosystem config (FIXED: --env requires ecosystem file)
