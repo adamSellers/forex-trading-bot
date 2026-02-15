@@ -336,7 +336,7 @@ class LiveTradingEngine extends EventEmitter {
             }
 
             // Validate and execute entry
-            const validation = this.validateEntry(signal, config);
+            const validation = await this.validateEntry(signal, config);
             if (!validation.valid) {
                 logger.info(
                     `⏸️ Entry rejected for ${symbol}: ${validation.reason}`
@@ -375,7 +375,7 @@ class LiveTradingEngine extends EventEmitter {
                 }
 
                 // Validate and execute entry
-                const validation = this.validateEntry(signal, config);
+                const validation = await this.validateEntry(signal, config);
                 if (!validation.valid) {
                     logger.info(
                         `⏸️ Short Entry rejected for ${symbol}: ${validation.reason}`
@@ -418,7 +418,7 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Validate entry conditions
      */
-    validateEntry(signal, config) {
+    async validateEntry(signal, config) {
         // 1. Trading must be enabled
         if (!config.enableTrading) {
             return { valid: false, reason: "Trading is disabled" };
@@ -458,17 +458,129 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // 6. Signal direction check
+        // 6. Session filter check (entries only during configured market sessions)
+        if (config.enableSessionFilter) {
+            const activeSessions = Array.isArray(config.activeSessions)
+                ? config.activeSessions
+                : [];
+
+            if (activeSessions.length === 0) {
+                return {
+                    valid: false,
+                    reason: "Session filter enabled but no active sessions configured",
+                };
+            }
+
+            const hourUtc = this.getCurrentUtcHour();
+            if (!this.isWithinActiveSession(hourUtc, activeSessions)) {
+                return {
+                    valid: false,
+                    reason: `Outside active sessions (${activeSessions.join(", ")}) at ${hourUtc}:00 UTC`,
+                };
+            }
+        }
+
+        // 7. Max portfolio exposure check (margin used / balance)
+        const maxPortfolioExposure = Number(config.maxPortfolioExposure);
+        if (Number.isFinite(maxPortfolioExposure) && maxPortfolioExposure > 0) {
+            const exposureCheck = await this.checkPortfolioExposure(
+                maxPortfolioExposure
+            );
+            if (!exposureCheck.valid) {
+                return exposureCheck;
+            }
+        }
+
+        // 8. Signal direction check
         if (signal.signal !== "BUY" && signal.signal !== "SELL") {
             return { valid: false, reason: "Invalid signal type" };
         }
 
-        // 7. Shorting enabled check
+        // 9. Shorting enabled check
         if (signal.signal === "SELL" && !config.enableShorting) {
             return { valid: false, reason: "Short selling is disabled" };
         }
 
         return { valid: true };
+    }
+
+    /**
+     * Get current UTC hour [0-23]
+     */
+    getCurrentUtcHour() {
+        return new Date().getUTCHours();
+    }
+
+    /**
+     * Check if a UTC hour falls inside any configured trading session
+     */
+    isWithinActiveSession(hourUtc, activeSessions) {
+        const sessionHours = {
+            sydney: { start: 21, end: 6 },
+            tokyo: { start: 0, end: 9 },
+            london: { start: 7, end: 16 },
+            newyork: { start: 12, end: 21 },
+        };
+
+        return activeSessions.some((sessionName) => {
+            const session = sessionHours[sessionName];
+            if (!session) return false;
+
+            if (session.start > session.end) {
+                return hourUtc >= session.start || hourUtc < session.end;
+            }
+
+            return hourUtc >= session.start && hourUtc < session.end;
+        });
+    }
+
+    /**
+     * Validate current account exposure against configured max exposure
+     */
+    async checkPortfolioExposure(maxPortfolioExposure) {
+        try {
+            const accountSummary = await oandaClient.getAccountSummary();
+            const balance = parseFloat(accountSummary?.account?.balance);
+            const marginUsedRaw = accountSummary?.account?.marginUsed;
+            const marginAvailableRaw = accountSummary?.account?.marginAvailable;
+
+            if (!Number.isFinite(balance) || balance <= 0) {
+                return {
+                    valid: false,
+                    reason: "Unable to validate exposure: invalid account balance",
+                };
+            }
+
+            let marginUsed = parseFloat(marginUsedRaw);
+            if (!Number.isFinite(marginUsed) && Number.isFinite(parseFloat(marginAvailableRaw))) {
+                marginUsed = balance - parseFloat(marginAvailableRaw);
+            }
+            if (!Number.isFinite(marginUsed)) {
+                return {
+                    valid: false,
+                    reason: "Unable to validate exposure: margin data unavailable",
+                };
+            }
+
+            marginUsed = Math.max(0, marginUsed);
+            const currentExposure = marginUsed / balance;
+            if (currentExposure >= maxPortfolioExposure) {
+                return {
+                    valid: false,
+                    reason: `Portfolio exposure limit reached (${(currentExposure * 100).toFixed(1)}% / ${(maxPortfolioExposure * 100).toFixed(1)}%)`,
+                };
+            }
+
+            return { valid: true };
+        } catch (error) {
+            logger.error(
+                `❌ Failed to validate portfolio exposure: ${error.message}`
+            );
+            return {
+                valid: false,
+                reason: "Unable to validate portfolio exposure",
+            };
+        }
     }
 
     // ==================== POSITION SIZING ====================
@@ -812,6 +924,7 @@ class LiveTradingEngine extends EventEmitter {
                 stopLossPrice,
                 takeProfitPrice,
                 trailingStopPips: config.trailingStopPips,
+                breakevenHit: false,
                 leverageUsed: config.leverage || 10,
                 marginUsedAud: marginUsed || (units * fillPrice) / (config.leverage || 10),
                 spreadPips,
@@ -1042,12 +1155,71 @@ class LiveTradingEngine extends EventEmitter {
         if (!priceData) return;
 
         const currentPrice = priceData.price;
-        const pipValue = oandaClient.getPipValue(trade.instrument);
+
+        // Breakeven protection: move stop to entry once trade is in sufficient profit
+        if (config.enableBreakeven) {
+            await this.updateBreakevenStop(trade, currentPrice, config);
+        }
 
         // Update trailing stop if enabled (works for both BUY and SELL)
         if (config.enableTrailingStops) {
             await this.updateTrailingStop(trade, currentPrice, config);
         }
+    }
+
+    /**
+     * Move stop to breakeven once profit reaches configured trigger
+     */
+    async updateBreakevenStop(trade, currentPrice, config) {
+        if (trade.breakevenHit) return;
+
+        const pipValue = oandaClient.getPipValue(trade.instrument);
+        const triggerPips = config.breakevenTriggerPips || 12;
+        const isBuy = trade.side === "BUY";
+
+        const profitPips = isBuy
+            ? (currentPrice - trade.entryPrice) / pipValue
+            : (trade.entryPrice - currentPrice) / pipValue;
+
+        if (profitPips < triggerPips) {
+            return;
+        }
+
+        const breakevenPrice = trade.entryPrice;
+        const trailingStop = trade.trailingStopPrice;
+        const shouldRaiseTrailingToBreakeven = isBuy
+            ? trailingStop && trailingStop < breakevenPrice
+            : trailingStop && trailingStop > breakevenPrice;
+
+        const updatePayload = {
+            stopLossPrice: breakevenPrice,
+        };
+
+        trade.stopLossPrice = breakevenPrice;
+        if (shouldRaiseTrailingToBreakeven) {
+            trade.trailingStopPrice = breakevenPrice;
+            updatePayload.trailingStopPrice = breakevenPrice;
+        }
+        trade.breakevenHit = true;
+
+        await this.tradeRepository.updateTrade(trade.id, updatePayload);
+
+        if (trade.oandaTradeId) {
+            try {
+                await oandaClient.modifyTrade(trade.oandaTradeId, {
+                    stopLossPrice: breakevenPrice,
+                });
+            } catch (error) {
+                logger.error(
+                    `❌ Failed to update breakeven stop on Oanda:`,
+                    error.message
+                );
+            }
+        }
+
+        logger.info(
+            `🛡️ Breakeven activated for ${trade.instrument} (${trade.side}): SL moved to ${breakevenPrice.toFixed(5)}`
+        );
     }
 
     /**
@@ -1241,6 +1413,9 @@ class LiveTradingEngine extends EventEmitter {
                 units: t.units,
                 entryPrice: t.entryPrice,
                 stopLossPrice: t.stopLossPrice,
+                trailingStopPrice: t.trailingStopPrice,
+                breakevenHit: !!t.breakevenHit,
+                takeProfitPrice: t.takeProfitPrice,
                 entryTime: t.entryTime,
                 mode: t.mode,
             })),

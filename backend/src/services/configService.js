@@ -61,6 +61,10 @@ const DEFAULT_CONFIG = {
     trailingStopPips: 25,
     trailingStopActivationPips: 20,
 
+    // Breakeven
+    enableBreakeven: false,
+    breakevenTriggerPips: 12,
+
     // Trading Sessions
     enableSessionFilter: false,
     activeSessions: ["sydney", "tokyo", "london", "newyork"],

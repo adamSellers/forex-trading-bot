@@ -156,11 +156,16 @@ describe('LiveTradingEngine', () => {
             maxOpenPositions: 2,
             riskPerTrade: 0.02,
             maxCapitalAtRisk: 70,
+            maxPortfolioExposure: 0.5,
             marginBuffer: 0.20,
             enableTakeProfit: true,
             takeProfitPercent: 0.06,
             stopLossAtrMultiplier: 2.0,
             minStopLossPips: 12,
+            enableSessionFilter: false,
+            activeSessions: ['sydney', 'tokyo', 'london', 'newyork'],
+            enableBreakeven: false,
+            breakevenTriggerPips: 12,
             minAdx: 22,
             assets: ['AUD_USD', 'EUR_USD'],
             leverage: 20,
@@ -222,27 +227,27 @@ describe('LiveTradingEngine', () => {
     });
 
     describe('validateEntry', () => {
-        test('should reject when trading is disabled', () => {
+        test('should reject when trading is disabled', async () => {
             const signal = createMockSignal();
             const config = { ...mockConfigService.get(), enableTrading: false };
 
-            const result = engine.validateEntry(signal, config);
+            const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
             expect(result.reason).toBe('Trading is disabled');
         });
 
-        test('should reject when instrument not in active list', () => {
+        test('should reject when instrument not in active list', async () => {
             const signal = createMockSignal({ symbol: 'GBP_USD' });
             const config = mockConfigService.get();
 
-            const result = engine.validateEntry(signal, config);
+            const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
             expect(result.reason).toContain('not in active list');
         });
 
-        test('should reject when max positions reached', () => {
+        test('should reject when max positions reached', async () => {
             const signal = createMockSignal();
             const config = mockConfigService.get();
 
@@ -250,54 +255,98 @@ describe('LiveTradingEngine', () => {
             engine.openTrades.set('trade1', createMockTrade());
             engine.openTrades.set('trade2', createMockTrade({ instrument: 'EUR_USD' }));
 
-            const result = engine.validateEntry(signal, config);
+            const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
             expect(result.reason).toContain('Max positions reached');
         });
 
-        test('should reject when already in position for instrument', () => {
+        test('should reject when already in position for instrument', async () => {
             const signal = createMockSignal({ symbol: 'AUD_USD' });
             const config = mockConfigService.get();
 
             // Add existing trade for same instrument
             engine.openTrades.set('trade1', createMockTrade({ instrument: 'AUD_USD' }));
 
-            const result = engine.validateEntry(signal, config);
+            const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
             expect(result.reason).toBe('Already in position for this instrument');
         });
 
-        test('should reject when ADX is below threshold', () => {
+        test('should reject when ADX is below threshold', async () => {
             const signal = createMockSignal({ strength: 18 }); // Below 22
             const config = mockConfigService.get();
 
-            const result = engine.validateEntry(signal, config);
+            const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
             expect(result.reason).toContain('ADX too low');
         });
 
-        test('should reject SELL signal when shorting disabled', () => {
+        test('should reject SELL signal when shorting disabled', async () => {
             const signal = createSellSignal();
             const config = { ...mockConfigService.get(), enableShorting: false };
 
-            const result = engine.validateEntry(signal, config);
+            const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
             expect(result.reason).toBe('Short selling is disabled');
         });
 
-        test('should approve valid BUY signal', () => {
+        test('should reject entry outside configured trading sessions', async () => {
+            const signal = createMockSignal();
+            const config = {
+                ...mockConfigService.get(),
+                enableSessionFilter: true,
+                activeSessions: ['london'],
+            };
+
+            jest.spyOn(engine, 'getCurrentUtcHour').mockReturnValue(2); // Not in London session
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.reason).toContain('Outside active sessions');
+        });
+
+        test('should reject entry when portfolio exposure limit is reached', async () => {
+            const signal = createMockSignal();
+            const config = {
+                ...mockConfigService.get(),
+                maxPortfolioExposure: 0.5,
+            };
+
+            oandaClient.getAccountSummary.mockResolvedValue({
+                account: {
+                    balance: '100.00',
+                    marginUsed: '60.00',
+                    marginAvailable: '40.00',
+                },
+            });
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.reason).toContain('Portfolio exposure limit reached');
+        });
+
+        test('should approve valid BUY signal', async () => {
             const signal = createMockSignal({
                 symbol: 'AUD_USD',
                 signal: 'BUY',
                 strength: 28,
             });
             const config = mockConfigService.get();
+            oandaClient.getAccountSummary.mockResolvedValue({
+                account: {
+                    balance: '100.00',
+                    marginUsed: '20.00',
+                    marginAvailable: '80.00',
+                },
+            });
 
-            const result = engine.validateEntry(signal, config);
+            const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(true);
         });
@@ -753,6 +802,110 @@ describe('LiveTradingEngine', () => {
             await engine.closeTrade(trade.id, 1.16784, 'TAKE_PROFIT');
 
             expect(engine.stats.tradesClosed).toBe(1);
+        });
+    });
+
+    describe('Breakeven Logic', () => {
+        test('should move stop loss to entry after breakeven trigger', async () => {
+            const trade = createMockTrade({
+                id: 'trade-breakeven',
+                side: 'BUY',
+                entryPrice: 1.10000,
+                stopLossPrice: 1.09500,
+                oandaTradeId: '489',
+            });
+
+            mockDataService.getCurrentPrice.mockReturnValue({
+                price: 1.10150, // +15 pips
+                spread: 1.0,
+            });
+
+            const config = {
+                ...mockConfigService.get(),
+                enableBreakeven: true,
+                breakevenTriggerPips: 12,
+                enableTrailingStops: false,
+            };
+
+            await engine.checkPosition(trade, config);
+
+            expect(trade.stopLossPrice).toBe(1.1);
+            expect(trade.breakevenHit).toBe(true);
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-breakeven',
+                expect.objectContaining({
+                    stopLossPrice: 1.1,
+                })
+            );
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith(
+                '489',
+                expect.objectContaining({
+                    stopLossPrice: 1.1,
+                })
+            );
+        });
+
+        test('should raise trailing stop to breakeven when trailing is less favorable', async () => {
+            const trade = createMockTrade({
+                id: 'trade-breakeven-trailing',
+                side: 'BUY',
+                entryPrice: 1.20000,
+                stopLossPrice: 1.19500,
+                trailingStopPrice: 1.19900,
+                oandaTradeId: '489',
+            });
+
+            mockDataService.getCurrentPrice.mockReturnValue({
+                price: 1.20130, // +13 pips
+                spread: 1.0,
+            });
+
+            const config = {
+                ...mockConfigService.get(),
+                enableBreakeven: true,
+                breakevenTriggerPips: 12,
+                enableTrailingStops: false,
+            };
+
+            await engine.checkPosition(trade, config);
+
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-breakeven-trailing',
+                expect.objectContaining({
+                    stopLossPrice: 1.2,
+                    trailingStopPrice: 1.2,
+                })
+            );
+        });
+
+        test('should not update stop loss when breakeven trigger is not reached', async () => {
+            const trade = createMockTrade({
+                id: 'trade-breakeven-no-trigger',
+                side: 'BUY',
+                entryPrice: 1.30000,
+                stopLossPrice: 1.29500,
+                oandaTradeId: '489',
+            });
+
+            mockDataService.getCurrentPrice.mockReturnValue({
+                price: 1.30080, // +8 pips
+                spread: 1.0,
+            });
+
+            const config = {
+                ...mockConfigService.get(),
+                enableBreakeven: true,
+                breakevenTriggerPips: 12,
+                enableTrailingStops: false,
+            };
+
+            await engine.checkPosition(trade, config);
+
+            expect(mockTradeRepository.updateTrade).not.toHaveBeenCalledWith(
+                'trade-breakeven-no-trigger',
+                expect.objectContaining({ stopLossPrice: 1.3 })
+            );
+            expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
         });
     });
 

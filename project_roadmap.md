@@ -23,38 +23,47 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ---
 
-## Known Issues / Bugs
+## Current Enhancement Status (Session Snapshot)
 
-_No active bugs at this time._
+### Completed In Code (Pending Deployment Verification)
 
-**Recently Fixed (Jan 22, 2026):**
-- SELL orders sent positive units (opened LONGs instead of SHORTs) - FIXED
-- Trailing stops only worked for BUY trades - FIXED
-- SELL stop loss calculation was unreachable code - FIXED
+| Priority | Enhancement | Status | Notes |
+| -------- | ----------- | ------ | ----- |
+| HIGH | Live-only trading runtime | Complete (code) | Removed paper mode from engine/API/UI/docs |
+| HIGH | Deployment safety hardening | Complete (code) | `update.sh` + `deploy.sh` preserve runtime config, hard-fail migrations, prune WAL/SHM backups |
+| MEDIUM | Test suite stabilization | Complete (code) | Backend suite now 263/263 passing |
+
+### Not Yet Implemented (High-Value Follow-Up)
+
+| Priority | Enhancement | Status | Notes |
+| -------- | ----------- | ------ | ----- |
+| HIGH | Enforce `maxPortfolioExposure` in live entry validation | Planned | Config exists but not enforced in engine |
+| HIGH | Enforce session filter (`enableSessionFilter`, `activeSessions`) | Planned | Config exists but not enforced in engine |
+| HIGH | Live breakeven logic (`enableBreakeven`) | Planned | Backtest supports it; live path does not |
+| HIGH | Improve TP/account-currency conversion model | Planned | TP model uses simplified AUD conversion |
+| HIGH | Backtest/live margin realism parity | Planned | Backtest currently less strict than live margin behavior |
 
 ---
 
 ## Phase 4 - Backtesting & Optimization
 
-These features were planned but not yet implemented.
-
-| Priority | Feature                  | Notes                                                          |
-| -------- | ------------------------ | -------------------------------------------------------------- |
-| MEDIUM   | Historical data pipeline | Fetch and store historical candles for backtesting             |
-| MEDIUM   | Backtest engine          | Simulate trades against historical data                        |
-| MEDIUM   | Walk-forward analysis    | Rolling optimization to avoid overfitting                      |
-| LOW      | Genetic algorithm params | Auto-optimize strategy parameters                              |
+| Priority | Feature | Status | Notes |
+| -------- | ------- | ------ | ----- |
+| MEDIUM | Historical data pipeline | Complete | Implemented in `historicalDataService` |
+| MEDIUM | Backtest engine | Complete | Implemented with CLI/API + result storage |
+| MEDIUM | Walk-forward analysis | Planned | Not implemented yet |
+| LOW | Genetic algorithm params | Planned | Not implemented yet |
 
 ---
 
 ## Trading Enhancements
 
-| Priority | Feature                     | Notes                                                       |
-| -------- | --------------------------- | ----------------------------------------------------------- |
-| MEDIUM   | Short selling               | Mechanism fixed (Jan 22); requires `enableShorting: true`   |
-| MEDIUM   | Whipsaw protection          | Cooldown after consecutive stop-outs (Jan 9 event)          |
-| LOW      | Multi-timeframe confirmation | Use 1H + 15M signals for higher conviction entries         |
-| LOW      | Trailing stop improvements  | Dynamic trail based on ATR instead of fixed pips            |
+| Priority | Feature | Status | Notes |
+| -------- | ------- | ------ | ----- |
+| MEDIUM | Short selling | Complete | Entry direction and filtering fixed |
+| MEDIUM | Whipsaw protection | Planned | Cooldown after consecutive stop-outs |
+| LOW | Multi-timeframe confirmation | Complete (backtest) | M15 fills + H1 signal mode implemented in backtests |
+| LOW | Trailing stop improvements | Planned | Dynamic ATR-based trail still pending |
 
 ---
 
@@ -84,12 +93,14 @@ These features were planned but not yet implemented.
 
 ## Technical Improvements
 
-| Priority | Item                           | Notes                                                     |
-| -------- | ------------------------------ | --------------------------------------------------------- |
-| LOW      | Health check improvements      | Include last trade time, signal age in endpoint           |
-| LOW      | Disk space monitoring          | Alert if Pi storage gets low                              |
-| LOW      | Uptime tracking                | Log/display how long bot has been running                 |
-| LOW      | Log rotation cleanup           | Auto-delete logs older than 30 days                       |
+| Priority | Item | Status | Notes |
+| -------- | ---- | ------ | ----- |
+| LOW | Health check improvements | Planned | Include last trade time, signal age in endpoint |
+| LOW | Disk space monitoring | Planned | Alert if Pi storage gets low |
+| LOW | Uptime tracking | Planned | Log/display how long bot has been running |
+| LOW | Log rotation cleanup | Planned | Auto-delete logs older than 30 days |
+| HIGH | Preserve runtime config on deploy | Complete (code) | Added to `update.sh` and `deploy.sh` |
+| HIGH | Hard-fail migration on deploy | Complete (code) | Added to `update.sh` and `deploy.sh` |
 
 ---
 
@@ -105,15 +116,15 @@ These features were planned but not yet implemented.
 
 | Item                    | Blocked By                      | Notes                                        |
 | ----------------------- | ------------------------------- | -------------------------------------------- |
-| Backtest UI             | Historical data pipeline        | Need data before UI makes sense              |
-| Parameter optimization  | Backtest engine                 | Need simulation capability first             |
+| Backtest UI             | Product prioritization          | Engine/data now available                    |
+| Parameter optimization  | Walk-forward framework          | Need robust anti-overfitting flow            |
 
 ---
 
 ## Ideas / Backlog
 
 - [ ] Add more currency pairs (GBP_USD, USD_JPY)
-- [ ] Strategy comparison mode (run multiple strategies in parallel on paper)
+- [ ] Strategy comparison mode (run multiple strategies in parallel)
 - [ ] Telegram bot integration for alerts
 - [ ] Performance comparison vs benchmark (buy-and-hold)
 - [ ] Risk-adjusted position sizing based on recent volatility
@@ -132,4 +143,4 @@ These features were planned but not yet implemented.
 
 ---
 
-_Last updated: 2026-01-31_
+_Last updated: 2026-02-15_

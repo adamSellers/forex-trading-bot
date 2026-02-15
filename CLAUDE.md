@@ -125,7 +125,7 @@ git push origin main
 | Dashboard         | http://img.oakroad:3100          |
 | API               | http://img.oakroad:3101/api      |
 | PM2 Process       | forex-backend                    |
-| Test Suite        | 253 passing, 0 failing           |
+| Test Suite        | 263 passing, 0 failing           |
 
 **CRITICAL**: This is a LIVE trading account with real money. Exercise extreme caution with any changes that affect trading logic, position sizing, or order execution.
 
@@ -203,7 +203,7 @@ forex-trend-bot/
 │   ├── data/
 │   │   ├── trading.db                     # SQLite database (UNTRACKED)
 │   │   ├── trading.db-wal                 # WAL file (UNTRACKED)
-│   │   ├── trading_config.json            # Runtime config (UNTRACKED)
+│   │   ├── trading_config.json            # Runtime config (tracked, preserved by deploy scripts)
 │   │   └── trading_config_initial.json    # Config template (tracked)
 │   ├── migrations/
 │   │   ├── 001_create_forex_tables.js     # Database schema
@@ -368,71 +368,73 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Multi-Timeframe Simulation (IMPLEMENTED — NEEDS TEST VERIFICATION)
+### Live-Only Trading Refactor (COMPLETE IN CODE — PENDING DEPLOYMENT)
 
-**Implemented 2026-02-06**. M15 fill resolution with H1 signal quality. Aggregates M15 candles into H1 bars for indicator/signal evaluation while iterating M15 candles for exit checks (SL/TP/trailing/breakeven) — 4x more granular fill simulation.
+**Completed in this session**:
+- Removed all paper-trading branches from runtime engine paths
+- Removed `tradingMode` usage from backend API/config flows
+- Updated frontend settings/health UI to live-only behavior
+- Updated docs (`README.md`, `USER_GUIDE.md`) to remove paper/live instructions
+- Updated tests to match live-only behavior
 
-**Architecture**:
-- `_aggregateToH1(m15Candles)` groups by hour boundary (`Math.floor(time/3600)*3600`)
-- Returns `h1Candles`, `m15ToH1Index` (maps each M15→parent H1), `h1CompletionM15Indices` (Set)
-- `shouldEvaluateSignal(i)` predicate wraps sections 3/3e/4 — signals only fire at H1 completion
-- `getIndicators(i)` maps through `m15ToH1Index` transparently
-- Sections 1 (pending entry) and 2 (exit checks) run every M15 candle
-- No look-ahead bias: signals fire at H1 completion (all 4 M15 candles are past)
-- `enableMultiTimeframe: false` default — backwards compatible
+**Validation**:
+- Backend suite passes: **263 passing, 0 failing**
+- Command run: `npm --prefix backend test`
 
-**Files modified**: `backtestEngine.js` (core + `_aggregateToH1`), `backtestEngine.test.js` (10 new tests), `backtest.js` (`--multiTF` flag), `backtestSweep.js` (5 new scenarios)
-
-**12-Month MultiTF Baseline Sweep Results (2025-02-01 to 2026-02-01)**:
-| Pair | Trades | Win Rate | P&L | Return |
-|------|--------|----------|-----|--------|
-| AUD_USD | 38 | 44.7% | +$20.54 | +4.1% |
-| NZD_USD | 34 | 52.9% | +$24.48 | +4.9% |
-| GBP_USD | 31 | 45.2% | -$11.97 | -2.4% |
-| USD_JPY | 35 | 40.0% | -$14.88 | -3.0% |
-| EUR_USD | 44 | 29.5% | -$105.89 | -21.2% |
-| USD_CAD | 39 | 33.3% | -$117.20 | -23.4% |
-| **Total** | **221** | | **-$204.92** | |
-
-**Key findings**:
-- AUD_USD + NZD_USD profitable (+$45.02 combined)
-- EUR_USD + USD_CAD significantly negative — strategy doesn't work on these pairs
-- AUD_USD with TP off: +$60.60 vs +$20.54 with TP on (TP cuts winners short)
-- Still need to run MultiTF+NoCont, MultiTF+HTF, and TP-off sweep variants
-
-**Pending**:
-1. **Run tests**: `cd backend && npx jest --testPathPattern backtestEngine` (user runs in terminal)
-2. **Run additional sweep scenarios**: MultiTF+NoCont, MultiTF+HTF, MultiTF+HTF+NoCont
-3. **Analyze which pair/config combos are viable for live trading**
-
-**Instruments for testing**: AUD_USD, EUR_USD, USD_JPY, NZD_USD, GBP_USD, USD_CAD
-**Historical data cached**: All instruments, M15 + H1 + H4 in `backend/data/historical/`
+**Key files touched**:
+- `backend/src/services/LiveTradingEngine.js`
+- `backend/src/services/configService.js`
+- `backend/src/routes/tradingRoutes.js`
+- `backend/src/repositories/tradeRepository.js`
+- `frontend/src/components/config/GeneralSettings.jsx`
+- `frontend/src/components/SystemHealth.jsx`
+- `frontend/src/config/api.js`
 
 ---
 
-### HTF Trend Filter (COMPLETE)
+### Deployment Script Hardening (COMPLETE IN CODE — PENDING DEPLOYMENT)
 
-**Implemented 2026-02-06**. H4 SuperTrend higher-timeframe filter added to backtest engine. Filter at entry gating (section 4), not signal generation (section 3) — preserves signal reversal exits. Binary search helper `_getHTFDirection()` for efficient H4 direction lookup. 5 new sweep scenarios added. CLI `--htfFilter` flag added.
+**Completed in this session**:
+- `scripts/update.sh` now preserves runtime config across `git reset --hard`
+- `scripts/deploy.sh` now preserves runtime config across `git reset --hard`
+- Both scripts now fail hard on migration errors
+- Both scripts now prune old DB backup triplets (`.db`, `.db-wal`, `.db-shm`)
 
-**Files modified**: `backtestEngine.js`, `backtestSweep.js`, `backtest.js`
-
----
-
-### Backtesting Engine — Infrastructure (COMPLETE)
-
-**What's Built (Phases 1-4 complete, 253 tests passing)**:
-
-| Component | File | Status |
-|-----------|------|--------|
-| Shared indicators | `backend/src/utils/indicators.js` | Complete |
-| Historical data service | `backend/src/services/historicalDataService.js` | Complete |
-| Backtest engine | `backend/src/services/backtestEngine.js` | Complete + HTF filter + Multi-TF |
-| Backtest repository | `backend/src/repositories/backtestRepository.js` | Complete |
-| Database migration | `backend/migrations/002_create_backtest_results.js` | Complete |
-| API endpoints | `backend/src/routes/tradingRoutes.js` (backtest section) | Complete |
-| CLI script | `scripts/backtest.js` | Complete + HTF + MultiTF flags |
-| Sweep script | `scripts/backtestSweep.js` | Complete + HTF + MultiTF scenarios |
+**Validation**:
+- Syntax checks passed:
+  - `bash -n scripts/update.sh`
+  - `bash -n scripts/deploy.sh`
 
 ---
 
-_See [project_roadmap.md](project_roadmap.md) for full feature list._
+### Trading Strategy Review Follow-Up (NEXT WORK)
+
+A full strategy/risk review was completed. Main risk items identified:
+1. Backtest/live model mismatch around margin realism
+2. Unenforced config controls (`maxPortfolioExposure`, session filter, breakeven in live path)
+3. TP currency-conversion simplification
+4. Short continuation adverse-deviation asymmetry
+
+**Recommended next implementation phase**:
+- Phase 1: Enforce missing live risk gates (`maxPortfolioExposure`, session filter, breakeven)
+- Phase 2: Improve TP/account-currency conversion model
+- Phase 3: Align backtest margin/cost model with live execution
+
+---
+
+### Deployment Readiness Checklist (NEXT STEPS)
+
+1. Push branch and deploy to Pi:
+   - `git push origin main`
+   - `ssh img.oakroad`
+   - `cd /opt/forex-trading-bot`
+   - `./scripts/update.sh`
+2. Verify post-deploy:
+   - `curl http://localhost:3101/api/health`
+   - `curl http://localhost:3101/api/engine/status`
+   - `pm2 logs forex-backend --lines 100 --nostream`
+3. If stable, move this session’s completed items into `PROJECT_HISTORY.md` as deployed.
+
+---
+
+_See [project_roadmap.md](project_roadmap.md) for full feature list and enhancement status._

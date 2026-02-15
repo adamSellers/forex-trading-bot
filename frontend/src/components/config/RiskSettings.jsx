@@ -316,6 +316,48 @@ const RiskSettings = ({ config, updateConfig }) => {
           </Grid>
         </Collapse>
       </GlassCard>
+
+      {/* Breakeven Protection */}
+      <GlassCard>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <Box display="flex" alignItems="center" gap={2}>
+            <Typography fontWeight="bold">Breakeven Protection</Typography>
+            <Chip
+              label={config.enableBreakeven ? 'ENABLED' : 'DISABLED'}
+              size="small"
+              color={config.enableBreakeven ? 'success' : 'default'}
+            />
+          </Box>
+          <Switch
+            checked={config.enableBreakeven || false}
+            onChange={(e) => updateConfig('enableBreakeven', e.target.checked)}
+          />
+        </Box>
+        <Typography variant="caption" color="text.secondary">
+          Move stop loss to entry once profit reaches a minimum pip threshold.
+        </Typography>
+
+        <Collapse in={config.enableBreakeven}>
+          <Divider sx={{ my: 2 }} />
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Breakeven Trigger"
+                type="number"
+                value={config.breakevenTriggerPips || 12}
+                onChange={(e) => updateConfig('breakevenTriggerPips', parseInt(e.target.value, 10))}
+                InputProps={{ endAdornment: <InputAdornment position="end">pips profit</InputAdornment> }}
+                helperText="When unrealized profit reaches this value, SL moves to entry price"
+              />
+            </Grid>
+          </Grid>
+        </Collapse>
+      </GlassCard>
     </Stack>
   );
 };

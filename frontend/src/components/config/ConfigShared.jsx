@@ -106,6 +106,10 @@ export const DEFAULT_CONFIG = {
   enableTrailingStops: true,
   trailingStopPips: 25,
   trailingStopActivationPips: 20,
+
+  // Breakeven
+  enableBreakeven: false,
+  breakevenTriggerPips: 12,
   
   // Trading Sessions
   enableSessionFilter: false,

@@ -24,6 +24,11 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### Pending Deployment (Not Yet Added to History)
+
+Session updates on **2026-02-15** (live-only runtime refactor, deployment script hardening, documentation cleanup) are complete in code but **not yet confirmed deployed to production**.  
+Per project rules, they will be moved into this history after deployment verification on Pi.
+
 ### 2026-02-02 - Short Entry Signal Filtering
 
 **Summary**: SHORT positions now have the same quality filters as LONG entries, eliminating asymmetric risk where shorts bypassed all ADX/RSI checks.

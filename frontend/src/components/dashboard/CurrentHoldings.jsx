@@ -45,6 +45,39 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus, engineStatu
       
       const [closing, setClosing] = useState(false);
 
+      // Active protective stop display priority:
+      // 1) Trailing stop (most protective, dynamic)
+      // 2) Breakeven stop (SL moved to entry)
+      // 3) Regular stop loss
+      const activeProtectiveStop = (() => {
+          if (!isEngineTrade) return null;
+          if (position.trailingStopPrice) {
+              return {
+                  label: 'TSL',
+                  value: position.trailingStopPrice,
+                  color: 'warning.main',
+              };
+          }
+          const stopAtEntry = position.stopLossPrice && position.entryPrice
+              ? Math.abs(position.stopLossPrice - position.entryPrice) < 1e-8
+              : false;
+          if (position.breakevenHit || stopAtEntry) {
+              return {
+                  label: 'BE',
+                  value: position.stopLossPrice || position.entryPrice,
+                  color: 'info.main',
+              };
+          }
+          if (position.stopLossPrice) {
+              return {
+                  label: 'SL',
+                  value: position.stopLossPrice,
+                  color: 'error.main',
+              };
+          }
+          return null;
+      })();
+
       const handleForceClose = async () => {
           const displayName = formatInstrument(instrument);
           if (!window.confirm(`⚠️ CLOSE ${displayName} POSITION?\nThis will immediately close the position at market price.`)) return;
@@ -147,19 +180,37 @@ const CurrentHoldings = ({ account, prices, portfolio, systemStatus, engineStatu
                     </Grid>
                 </Grid>
                 
-                {/* Stop Loss / Take Profit Info (for engine trades) */}
-                {isEngineTrade && (position.stopLossPrice || position.takeProfitPrice) && (
+                {/* Protective Stop / Take Profit Info (for engine trades) */}
+                {isEngineTrade && (activeProtectiveStop || position.takeProfitPrice) && (
                     <Box mt={1} pt={1} borderTop={`1px solid ${alpha(theme.palette.divider, 0.1)}`}>
-                        <Stack direction="row" spacing={2}>
-                            {position.stopLossPrice && (
-                                <Typography variant="caption" color="error.main">
-                                    SL: {formatPrice(position.stopLossPrice, instrument)}
-                                </Typography>
+                        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                            {activeProtectiveStop && (
+                                <Chip
+                                    size="small"
+                                    label={`${activeProtectiveStop.label}: ${formatPrice(activeProtectiveStop.value, instrument)}`}
+                                    sx={{
+                                        height: 20,
+                                        fontSize: '0.68rem',
+                                        fontWeight: 'bold',
+                                        color: activeProtectiveStop.color,
+                                        border: `1px solid ${alpha(theme.palette[activeProtectiveStop.color.split('.')[0]]?.main || theme.palette.text.primary, 0.35)}`,
+                                        bgcolor: alpha(theme.palette[activeProtectiveStop.color.split('.')[0]]?.main || theme.palette.text.primary, 0.12),
+                                    }}
+                                />
                             )}
                             {position.takeProfitPrice && (
-                                <Typography variant="caption" color="success.main">
-                                    TP: {formatPrice(position.takeProfitPrice, instrument)}
-                                </Typography>
+                                <Chip
+                                    size="small"
+                                    label={`TP: ${formatPrice(position.takeProfitPrice, instrument)}`}
+                                    sx={{
+                                        height: 20,
+                                        fontSize: '0.68rem',
+                                        fontWeight: 'bold',
+                                        color: 'success.main',
+                                        border: `1px solid ${alpha(theme.palette.success.main, 0.35)}`,
+                                        bgcolor: alpha(theme.palette.success.main, 0.12),
+                                    }}
+                                />
                             )}
                         </Stack>
                     </Box>
