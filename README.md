@@ -14,7 +14,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   **SuperTrend + ADX Strategy**: Trend-following approach optimized for Forex markets
 -   **Multiple Pairs**: AUD/USD, EUR/USD, GBP/USD, USD/JPY
 -   **Oanda Integration**: Live trading via REST v20 API (ASIC regulated)
--   **Paper & Live Modes**: Test strategies without risking real capital
+-   **Live Runtime**: Production engine runs live-only execution path
 
 ### Risk Management
 
@@ -74,7 +74,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] Pip-based stop loss calculation
 -   [x] ATR-based dynamic stop loss
 -   [x] Trade execution via Oanda API
--   [x] Paper trading mode support
+-   [x] Live-only runtime cleanup (paper mode removed from runtime path)
 -   [x] Trade logging to database
 -   [x] Socket broadcast of trade events
 -   [x] Engine status API endpoints
@@ -300,7 +300,7 @@ curl -X POST http://localhost:3101/api/trading/start
 
 | Method | Endpoint                              | Description         |
 | ------ | ------------------------------------- | ------------------- |
-| GET    | `/api/analytics?period=30d&mode=live` | Performance metrics |
+| GET    | `/api/analytics?period=30d` | Performance metrics (includes side + short health analytics) |
 
 ---
 
@@ -435,6 +435,11 @@ Every 60 seconds:
     Execute Trade    ✅ CONTINUATION ENTRY
 ```
 
+Short-side behavior mirrors this pattern on GREEN→RED flips:
+- Valid short entry emits `SELL` with `entryType=SHORT_ENTRY`
+- Filtered short emits `SELL` with `entryType=EXIT_ONLY` (exit long only)
+- Continuation entries use `SHORT_CONTINUATION_*` when conditions recover
+
 ### Entry Validation
 
 Before executing a trade, the engine validates:
@@ -535,6 +540,8 @@ Multiple ways to stop trading immediately:
 | Avg Win / Loss         | Risk:Reward achieved          |
 | Performance by Pair    | Which pairs work best         |
 | Performance by Session | Best trading times            |
+| Side Performance       | BUY vs SELL win-rate/P&L split |
+| Short Health           | SELL-side health status with entry-type breakdown |
 | Exit Analysis          | Why trades closed             |
 | ADX Analysis           | Performance vs trend strength |
 | Equity Curve           | Account growth visualization  |

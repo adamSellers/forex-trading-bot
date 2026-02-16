@@ -24,6 +24,32 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-02-15 - Short-Side Hardening + Short Health Analytics
+
+**Summary**: Deployed short-side reliability fixes plus new analytics visibility focused on SELL performance quality.
+
+**Deployed Changes**:
+1. **Short continuation hardening**
+   - Fixed pending-entry direction leakage so LONG continuation logic only consumes LONG pending states
+   - Made continuation price-deviation checks symmetric (`abs(deviation)`) for both long/short paths
+   - Kept live/backtest continuation behavior aligned
+
+2. **Analytics enhancement: side + short health**
+   - Added backend analytics payload for BUY vs SELL performance split
+   - Added entry-type side breakdown (BUY/SELL trades, win rates, P&L by `entryType`)
+   - Added dashboard Short Health indicator (`Healthy` / `Watch` / `Critical`) based on SELL outcomes
+
+**Files Modified (Core)**:
+- `backend/src/services/signalGenerator.js`
+- `backend/src/services/backtestEngine.js`
+- `backend/src/services/analyticsService.js`
+- `backend/src/services/__tests__/analyticsService.test.js`
+- `frontend/src/components/AnalyticsDashboard.jsx`
+- `frontend/src/components/analytics/StrategyWidgets.jsx`
+- `README.md`
+
+---
+
 ### 2026-02-15 - Live Runtime Hardening + Phase 1 Risk Gates
 
 **Summary**: Deployed live-runtime hardening and Phase 1 risk controls to production. The engine now enforces session/exposure gates at entry and supports live breakeven stop movement.
@@ -517,6 +543,7 @@ pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
 | 2026-01-27 | Short selling bug fix, ADX slope filter, exit reason detection |
 | 2026-01-31 | Signal persistence for analytics, 90-day retention (193 tests) |
 | 2026-02-02 | Signals component enhancement, Short entry signal filtering    |
+| 2026-02-15 | Short-side hardening and short health analytics                |
 
 ---
 

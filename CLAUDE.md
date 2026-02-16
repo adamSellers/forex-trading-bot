@@ -378,9 +378,13 @@ The following are complete and confirmed deployed:
   - Session filter enforcement
   - Live breakeven logic
 - Current Holdings protective-stop visibility (`TSL` / `BE` / `SL` + `TP`)
+- Short-side hardening and analytics:
+  - Pending-direction fix + symmetric continuation deviation checks
+  - Analytics side split (`BUY` vs `SELL`) + entry-type side breakdown
+  - Dashboard `SHORT HEALTH` status indicator
 
 **Validation snapshot**:
-- Backend tests passing: **268/268**
+- Backend tests passing: **270/270**
 
 ---
 
@@ -389,7 +393,6 @@ The following are complete and confirmed deployed:
 Open risk/model items now:
 1. TP/account-currency conversion simplification (still uses simplified AUD model)
 2. Backtest/live margin realism parity gap
-3. Short continuation adverse-deviation asymmetry
 
 **Next recommended implementation phase**:
 - Phase 2: Improve TP/account-currency conversion model in live path
@@ -406,6 +409,10 @@ Open risk/model items now:
 3. Add/update unit tests for conversion correctness and edge cases
 4. Validate with backend suite:
    - `npm --prefix backend test`
+
+5. Validate short-side metrics post-deployment window:
+   - Check `SHORT HEALTH` status over fresh trade sample
+   - Confirm SELL win rate trends by `entryType` (`SHORT_ENTRY`, `SHORT_CONTINUATION_*`)
 
 ---
 

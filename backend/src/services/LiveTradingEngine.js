@@ -742,10 +742,94 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     /**
+     * Get mid price from Oanda pricing payload for a single instrument.
+     */
+    async getMidPrice(instrument) {
+        const pricing = await oandaClient.getPricing([instrument]);
+        const price = pricing?.prices?.[0];
+        if (!price) {
+            throw new Error(`No pricing data for ${instrument}`);
+        }
+
+        const bid = parseFloat(price.closeoutBid || price.bids?.[0]?.price);
+        const ask = parseFloat(price.closeoutAsk || price.asks?.[0]?.price);
+
+        if (Number.isFinite(bid) && Number.isFinite(ask)) {
+            return (bid + ask) / 2;
+        }
+        if (Number.isFinite(ask)) return ask;
+        if (Number.isFinite(bid)) return bid;
+
+        throw new Error(`Invalid pricing payload for ${instrument}`);
+    }
+
+    /**
+     * Convert from one currency to another using direct, inverse, or USD bridge.
+     *
+     * Returns amount of `toCurrency` per 1 `fromCurrency`.
+     */
+    async getConversionRate(
+        fromCurrency,
+        toCurrency,
+        { instrument = null, entryPrice = null } = {}
+    ) {
+        if (!fromCurrency || !toCurrency) {
+            throw new Error("Missing currency for conversion");
+        }
+        if (fromCurrency === toCurrency) return 1;
+
+        const direct = `${fromCurrency}_${toCurrency}`;
+        const inverse = `${toCurrency}_${fromCurrency}`;
+
+        if (
+            instrument === direct &&
+            Number.isFinite(entryPrice) &&
+            entryPrice > 0
+        ) {
+            return entryPrice;
+        }
+        if (
+            instrument === inverse &&
+            Number.isFinite(entryPrice) &&
+            entryPrice > 0
+        ) {
+            return 1 / entryPrice;
+        }
+
+        try {
+            return await this.getMidPrice(direct);
+        } catch {
+            // Try inverse next
+        }
+
+        try {
+            const inverseRate = await this.getMidPrice(inverse);
+            if (inverseRate > 0) return 1 / inverseRate;
+        } catch {
+            // Try bridge next
+        }
+
+        if (fromCurrency !== "USD" && toCurrency !== "USD") {
+            const fromToUsd = await this.getConversionRate(fromCurrency, "USD", {
+                instrument,
+                entryPrice,
+            });
+            const usdToTarget = await this.getConversionRate("USD", toCurrency, {
+                instrument,
+                entryPrice,
+            });
+            return fromToUsd * usdToTarget;
+        }
+
+        throw new Error(
+            `Unable to convert ${fromCurrency} to ${toCurrency}: no rate path`
+        );
+    }
+
+    /**
      * Calculate take profit price based on percentage of margin used
      *
      * Target profit = marginUsed × takeProfitPercent (default 6%)
-     * TP Price = entryPrice + (targetProfit / units)
      *
      * @param {object} signal - Signal data with currentPrice
      * @param {object} config - Trading config
@@ -753,7 +837,7 @@ class LiveTradingEngine extends EventEmitter {
      * @param {number} marginUsed - Margin used for this trade
      * @param {number} entryPrice - Actual entry price (may differ from signal price)
      */
-    calculateTakeProfit(signal, config, units, marginUsed, entryPrice = null) {
+    async calculateTakeProfit(signal, config, units, marginUsed, entryPrice = null) {
         if (!config.enableTakeProfit) return null;
         if (!units || units <= 0) return null;
         if (!marginUsed || marginUsed <= 0) return null;
@@ -761,15 +845,33 @@ class LiveTradingEngine extends EventEmitter {
         const price = entryPrice || signal.currentPrice;
         const instrument = signal.symbol;
         const pipValue = oandaClient.getPipValue(instrument);
+        const [, quoteCurrency] = instrument.split("_");
 
         // Calculate target profit as percentage of margin used (not account balance)
         const takeProfitPercent = config.takeProfitPercent || 0.06; // Default 6%
-        const targetProfitAud = marginUsed * takeProfitPercent;
+        const targetProfitAccount = marginUsed * takeProfitPercent;
 
-        // Calculate price movement needed to achieve target profit
-        // For Forex: P/L = units × priceChange (simplified for AUD account)
-        // priceChange = targetProfit / units
-        const priceChange = targetProfitAud / units;
+        let accountCurrency = "AUD";
+        let quoteToAccountRate = 1;
+        try {
+            const accountSummary = await oandaClient.getAccountSummary();
+            accountCurrency = accountSummary?.account?.currency || "AUD";
+            quoteToAccountRate = await this.getConversionRate(
+                quoteCurrency,
+                accountCurrency,
+                { instrument, entryPrice: price }
+            );
+        } catch (error) {
+            logger.warn(
+                `⚠️ TP conversion fallback for ${instrument}: ${error.message}`
+            );
+            quoteToAccountRate = 1;
+        }
+
+        // P/L in account currency = units * priceChange(quote) * quoteToAccountRate
+        const denominator = units * quoteToAccountRate;
+        if (!Number.isFinite(denominator) || denominator <= 0) return null;
+        const priceChange = targetProfitAccount / denominator;
 
         // For BUY trades, take profit is above entry
         let takeProfitPrice = price + priceChange;
@@ -782,13 +884,15 @@ class LiveTradingEngine extends EventEmitter {
         const takeProfitPips = priceChange / pipValue;
 
         logger.info(
-            `📊 TP Calculation: margin=$${marginUsed.toFixed(2)} × ${(takeProfitPercent * 100).toFixed(0)}% = $${targetProfitAud.toFixed(2)} target | ${takeProfitPips.toFixed(1)} pips`
+            `📊 TP Calculation: margin=${marginUsed.toFixed(2)} ${accountCurrency} × ${(takeProfitPercent * 100).toFixed(0)}% = ${targetProfitAccount.toFixed(2)} ${accountCurrency} target | ${takeProfitPips.toFixed(1)} pips`
         );
 
         return {
             takeProfitPips,
             takeProfitPrice: parseFloat(takeProfitPrice.toFixed(5)),
-            targetProfitAud,
+            targetProfitAud: targetProfitAccount,
+            targetProfitAccount,
+            accountCurrency,
         };
     }
 
@@ -882,7 +986,7 @@ class LiveTradingEngine extends EventEmitter {
             let takeProfitPrice = null;
 
             if (marginUsed > 0 && config.enableTakeProfit) {
-                takeProfit = this.calculateTakeProfit(
+                takeProfit = await this.calculateTakeProfit(
                     signal,
                     config,
                     units,

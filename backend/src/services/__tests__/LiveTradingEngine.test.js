@@ -149,6 +149,30 @@ describe('LiveTradingEngine', () => {
 
         // Get the mocked oandaClient
         oandaClient = require('../Oandaclient');
+        oandaClient.getAccountSummary.mockResolvedValue({
+            account: {
+                id: '001-011-20128302-001',
+                currency: 'AUD',
+                balance: '136.00',
+                marginAvailable: '71.00',
+                marginUsed: '65.00',
+                unrealizedPL: '5.63',
+                NAV: '141.63',
+                openTradeCount: 1,
+            },
+        });
+        oandaClient.getPricing.mockResolvedValue({
+            prices: [
+                {
+                    instrument: 'AUD_USD',
+                    bids: [{ price: '1.16566', liquidity: 1000000 }],
+                    asks: [{ price: '1.16576', liquidity: 1000000 }],
+                    closeoutBid: '1.16566',
+                    closeoutAsk: '1.16576',
+                    tradeable: true,
+                },
+            ],
+        });
 
         // Create fresh mocks for each test
         mockConfigService = createMockConfigService({
@@ -521,7 +545,7 @@ describe('LiveTradingEngine', () => {
     });
 
     describe('calculateTakeProfit', () => {
-        test('should calculate TP based on margin percentage', () => {
+        test('should calculate TP based on margin percentage', async () => {
             const signal = createMockSignal({ currentPrice: 1.16571 });
             const config = {
                 ...mockConfigService.get(),
@@ -531,50 +555,50 @@ describe('LiveTradingEngine', () => {
             const units = 795;
             const marginUsed = 46.17;
 
-            const result = engine.calculateTakeProfit(signal, config, units, marginUsed);
+            const result = await engine.calculateTakeProfit(signal, config, units, marginUsed);
 
             // Target = $46.17 * 0.06 = $2.77
             expect(result.targetProfitAud).toBeCloseTo(2.77, 1);
             expect(result.takeProfitPrice).toBeGreaterThan(signal.currentPrice);
         });
 
-        test('should return null when TP disabled', () => {
+        test('should return null when TP disabled', async () => {
             const signal = createMockSignal();
             const config = {
                 ...mockConfigService.get(),
                 enableTakeProfit: false,
             };
 
-            const result = engine.calculateTakeProfit(signal, config, 795, 46.17);
+            const result = await engine.calculateTakeProfit(signal, config, 795, 46.17);
 
             expect(result).toBeNull();
         });
 
-        test('should return null when units is 0', () => {
+        test('should return null when units is 0', async () => {
             const signal = createMockSignal();
             const config = {
                 ...mockConfigService.get(),
                 enableTakeProfit: true,
             };
 
-            const result = engine.calculateTakeProfit(signal, config, 0, 46.17);
+            const result = await engine.calculateTakeProfit(signal, config, 0, 46.17);
 
             expect(result).toBeNull();
         });
 
-        test('should return null when margin is 0', () => {
+        test('should return null when margin is 0', async () => {
             const signal = createMockSignal();
             const config = {
                 ...mockConfigService.get(),
                 enableTakeProfit: true,
             };
 
-            const result = engine.calculateTakeProfit(signal, config, 795, 0);
+            const result = await engine.calculateTakeProfit(signal, config, 795, 0);
 
             expect(result).toBeNull();
         });
 
-        test('should use entry price when provided', () => {
+        test('should use entry price when provided', async () => {
             const signal = createMockSignal({ currentPrice: 1.16571 });
             const config = {
                 ...mockConfigService.get(),
@@ -583,10 +607,89 @@ describe('LiveTradingEngine', () => {
             };
             const entryPrice = 1.16600;
 
-            const result = engine.calculateTakeProfit(signal, config, 795, 46.17, entryPrice);
+            const result = await engine.calculateTakeProfit(signal, config, 795, 46.17, entryPrice);
 
             // TP should be calculated from entry price, not signal price
             expect(result.takeProfitPrice).toBeGreaterThan(entryPrice);
+        });
+
+        test('should calculate TP for JPY-quoted pair using quote-to-account conversion', async () => {
+            const signal = createMockSignal({
+                symbol: 'USD_JPY',
+                signal: 'BUY',
+                currentPrice: 150.0,
+            });
+            const config = {
+                ...mockConfigService.get(),
+                enableTakeProfit: true,
+                takeProfitPercent: 0.06,
+            };
+
+            oandaClient.getPricing.mockImplementation(async (instruments) => {
+                const instrument = instruments[0];
+                if (instrument === 'AUD_USD') {
+                    return {
+                        prices: [{ closeoutBid: '0.6600', closeoutAsk: '0.6602' }],
+                    };
+                }
+                if (instrument === 'USD_AUD') {
+                    return {
+                        prices: [{ closeoutBid: '1.5147', closeoutAsk: '1.5152' }],
+                    };
+                }
+                if (instrument === 'JPY_USD') {
+                    return {
+                        prices: [{ closeoutBid: '0.0066', closeoutAsk: '0.0067' }],
+                    };
+                }
+                if (instrument === 'USD_JPY') {
+                    return {
+                        prices: [{ closeoutBid: '149.95', closeoutAsk: '150.05' }],
+                    };
+                }
+                throw new Error(`Unexpected instrument: ${instrument}`);
+            });
+
+            const result = await engine.calculateTakeProfit(signal, config, 1000, 50, 150.0);
+
+            expect(result).toBeTruthy();
+            expect(result.takeProfitPrice).toBeGreaterThan(150.0);
+            expect(result.targetProfitAccount).toBeCloseTo(3.0, 6);
+            expect(result.accountCurrency).toBe('AUD');
+        });
+
+        test('should calculate TP for cross quote currency via USD bridge', async () => {
+            const signal = createMockSignal({
+                symbol: 'GBP_CHF',
+                signal: 'BUY',
+                currentPrice: 1.12,
+            });
+            const config = {
+                ...mockConfigService.get(),
+                enableTakeProfit: true,
+                takeProfitPercent: 0.06,
+            };
+
+            oandaClient.getPricing.mockImplementation(async (instruments) => {
+                const instrument = instruments[0];
+                if (instrument === 'CHF_USD') {
+                    return {
+                        prices: [{ closeoutBid: '1.1000', closeoutAsk: '1.1010' }],
+                    };
+                }
+                if (instrument === 'USD_AUD') {
+                    return {
+                        prices: [{ closeoutBid: '1.5147', closeoutAsk: '1.5152' }],
+                    };
+                }
+                throw new Error(`Unexpected instrument: ${instrument}`);
+            });
+
+            const result = await engine.calculateTakeProfit(signal, config, 1000, 50, 1.12);
+
+            expect(result).toBeTruthy();
+            expect(result.takeProfitPrice).toBeGreaterThan(1.12);
+            expect(result.targetProfitAccount).toBeCloseTo(3.0, 6);
         });
     });
 

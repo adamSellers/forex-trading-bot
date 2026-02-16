@@ -35,6 +35,7 @@ This document tracks all planned features, enhancements, and technical improveme
 | HIGH | Enforce session filter (`enableSessionFilter`, `activeSessions`) | Complete (deployed) | Live entry now requires current UTC time to be inside configured sessions |
 | HIGH | Live breakeven logic (`enableBreakeven`) | Complete (deployed) | Live monitor moves SL to entry at trigger pips and syncs to Oanda |
 | MEDIUM | Holdings stop-status visibility | Complete (deployed) | Current Holdings now shows active protective stop (`TSL` / `BE` / `SL`) + TP |
+| LOW | Side performance + short health analytics | Complete (deployed) | Analytics now includes BUY/SELL split, entry-type side breakdown, and SELL health status widget |
 | MEDIUM | Test suite stabilization | Complete (deployed) | Backend suite now 268/268 passing |
 
 ### Not Yet Implemented (High-Value Follow-Up)

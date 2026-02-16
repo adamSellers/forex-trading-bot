@@ -366,6 +366,27 @@ export const SidePerformanceWidget = ({ sidePerformance }) => {
   const buy = sidePerformance?.buy || {};
   const sell = sidePerformance?.sell || {};
   const entryTypes = sidePerformance?.byEntryType || [];
+  const sellShare = sidePerformance?.sellSharePercent || 0;
+
+  const getShortHealth = () => {
+    const sellTrades = sell.totalTrades || 0;
+    if (sellTrades < 3) {
+      return { label: 'Insufficient', color: 'default', note: 'Need more SELL sample size' };
+    }
+
+    const winRate = sell.winRate || 0;
+    const pnl = sell.totalPnLAud || 0;
+
+    if (winRate >= 50 && pnl >= 0) {
+      return { label: 'Healthy', color: 'success', note: 'SELL side is contributing positively' };
+    }
+    if (winRate >= 40 && pnl > -5) {
+      return { label: 'Watch', color: 'warning', note: 'Monitor SELL entries and continuation quality' };
+    }
+    return { label: 'Critical', color: 'error', note: 'SELL side materially underperforming' };
+  };
+
+  const shortHealth = getShortHealth();
 
   const sideRows = [
     {
@@ -437,6 +458,27 @@ export const SidePerformanceWidget = ({ sidePerformance }) => {
       </Stack>
 
       <Divider sx={{ my: 2 }} />
+
+      <Box
+        px={1.5}
+        py={1}
+        mb={1.5}
+        borderRadius={1.5}
+        sx={{
+          border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+          bgcolor: (theme) => alpha(theme.palette.background.paper, 0.25),
+        }}
+      >
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+          <Typography variant="caption" color="text.secondary" fontWeight="bold">
+            SHORT HEALTH
+          </Typography>
+          <Chip label={shortHealth.label} size="small" color={shortHealth.color} sx={{ height: 18, fontSize: '0.62rem' }} />
+        </Box>
+        <Typography variant="caption" color="text.secondary">
+          SELL share: {sellShare.toFixed(1)}% | {shortHealth.note}
+        </Typography>
+      </Box>
 
       <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ letterSpacing: 0.6 }}>
         ENTRY TYPE SPLIT
