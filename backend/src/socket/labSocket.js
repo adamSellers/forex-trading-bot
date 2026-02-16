@@ -1,5 +1,4 @@
 // backend/src/socket/labSocket.js - V3.2.4 WORKER LIFECYCLE FIX
-const backtestEngine = require("../services/backtestEngine");
 const logger = require("../utils/logger");
 const { fork } = require("child_process");
 const path = require("path");
@@ -35,22 +34,77 @@ module.exports = (io, socket) => {
     socket.on("start_simulation", async (config) => {
         logger.info(`🧪 Lab Simulation requested by ${socketId}`);
 
-        try {
-            const results = await backtestEngine.runSimulation(
-                config,
-                (progress) => {
-                    io.to(socketId).emit("simulation_progress", progress);
-                }
-            );
-
-            io.to(socketId).emit("simulation_complete", results);
-            logger.info(`✅ Simulation complete for ${socketId}`);
-        } catch (error) {
-            logger.error(`❌ Simulation failed: ${error.message}`);
+        if (activeWorkers.has(socketId)) {
             io.to(socketId).emit("simulation_error", {
-                message: error.message,
+                message:
+                    "A simulation or optimization is already running. Please wait for it to complete.",
             });
+            return;
         }
+
+        const workerPath = path.join(__dirname, "../workers/backtestWorker.js");
+        const worker = fork(workerPath, [], {
+            execArgv: ["--max-old-space-size=512"],
+        });
+
+        const workerData = {
+            worker,
+            socketId,
+            startTime: Date.now(),
+            isTerminated: false,
+            timeoutHandle: null,
+            messageHandler: null,
+            exitHandler: null,
+            errorHandler: null,
+        };
+
+        workerData.timeoutHandle = setTimeout(() => {
+            if (!workerData.isTerminated) {
+                io.to(socketId).emit("simulation_error", {
+                    message: "Simulation timed out. Try reducing days/assets.",
+                });
+                terminateWorker(workerData, "Simulation timeout");
+            }
+        }, WORKER_TIMEOUT_MS);
+
+        activeWorkers.set(socketId, workerData);
+        worker.send({ command: "run_simulation", config });
+
+        workerData.messageHandler = (msg) => {
+            if (workerData.isTerminated) return;
+            if (msg.type === "progress") {
+                io.to(socketId).emit("simulation_progress", msg);
+            } else if (msg.type === "simulation_complete") {
+                io.to(socketId).emit("simulation_complete", msg.data);
+                logger.info(`✅ Simulation complete for ${socketId}`);
+                terminateWorker(workerData, "Simulation complete");
+            } else if (msg.type === "error") {
+                io.to(socketId).emit("simulation_error", { message: msg.error });
+                terminateWorker(workerData, "Simulation worker error");
+            }
+        };
+
+        workerData.exitHandler = (code, signal) => {
+            if (!workerData.isTerminated && code !== 0) {
+                io.to(socketId).emit("simulation_error", {
+                    message: `Simulation worker exited unexpectedly (code ${code}, signal ${signal || "none"})`,
+                });
+                cleanupWorkerData(workerData);
+            }
+        };
+
+        workerData.errorHandler = (err) => {
+            if (!workerData.isTerminated) {
+                io.to(socketId).emit("simulation_error", {
+                    message: `Simulation worker process error: ${err.message}`,
+                });
+                terminateWorker(workerData, "Simulation worker process error");
+            }
+        };
+
+        worker.on("message", workerData.messageHandler);
+        worker.on("exit", workerData.exitHandler);
+        worker.on("error", workerData.errorHandler);
     });
 
     // --- 2. GENETIC OPTIMIZATION (The Screener) - FIX #4: Full lifecycle management ---

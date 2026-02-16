@@ -20,7 +20,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 
 -   **ATR-Based Stop Loss**: Dynamic stops that adapt to market volatility
 -   **Trailing Stops**: Lock in profits as price moves in your favor
--   **Margin-Based Take Profit**: Automatic profit target (default 6% of used margin)
+-   **Margin-Based Take Profit**: Automatic profit target (default 6% of used margin) with quote-to-account currency conversion
 -   **Risk-Based Position Sizing**: Consistent risk per trade (default 2%)
 -   **Leverage Limits**: Enforces ASIC 30:1 max (configurable, default 10:1)
 -   **Max Position Limits**: Cap on concurrent open trades
@@ -90,7 +90,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] Engine status broadcast fix (race condition)
 -   [x] PM2 deployment alongside crypto bot
 -   [x] P/L tracking fix (uses Oanda's realizedPL for accuracy)
--   [x] Margin-based Take Profit feature (6% of margin target, 1:3 risk:reward)
+-   [x] Margin-based Take Profit feature (6% of margin target, account-currency aware conversion)
 -   [x] Database backup improvements (backup before deploy)
 -   [x] Automated daily backups via cron
 -   [x] Email notifications for trades (open/close alerts)

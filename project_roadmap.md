@@ -36,13 +36,13 @@ This document tracks all planned features, enhancements, and technical improveme
 | HIGH | Live breakeven logic (`enableBreakeven`) | Complete (deployed) | Live monitor moves SL to entry at trigger pips and syncs to Oanda |
 | MEDIUM | Holdings stop-status visibility | Complete (deployed) | Current Holdings now shows active protective stop (`TSL` / `BE` / `SL`) + TP |
 | LOW | Side performance + short health analytics | Complete (deployed) | Analytics now includes BUY/SELL split, entry-type side breakdown, and SELL health status widget |
-| MEDIUM | Test suite stabilization | Complete (deployed) | Backend suite now 268/268 passing |
+| MEDIUM | Test suite stabilization | Complete (deployed) | Backend suite now 272/272 passing |
 
 ### Not Yet Implemented (High-Value Follow-Up)
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
-| HIGH | Improve TP/account-currency conversion model | Planned | TP model uses simplified AUD conversion |
+| HIGH | Improve TP/account-currency conversion model | Complete (code, pending deploy) | Live TP now uses quote->account conversion with direct/inverse/USD-bridge fallback |
 | HIGH | Backtest/live margin realism parity | Planned | Backtest currently less strict than live margin behavior |
 
 ---
@@ -146,4 +146,4 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ---
 
-_Last updated: 2026-02-15_
+_Last updated: 2026-02-16_

@@ -125,7 +125,7 @@ git push origin main
 | Dashboard         | http://img.oakroad:3100          |
 | API               | http://img.oakroad:3101/api      |
 | PM2 Process       | forex-backend                    |
-| Test Suite        | 263 passing, 0 failing           |
+| Test Suite        | 272 passing, 0 failing           |
 
 **CRITICAL**: This is a LIVE trading account with real money. Exercise extreme caution with any changes that affect trading logic, position sizing, or order execution.
 
@@ -388,25 +388,46 @@ The following are complete and confirmed deployed:
 
 ---
 
+### Current Session Update (2026-02-16) - Code Complete, Pending Deploy
+
+Implemented Phase 2 TP conversion hardening in code (not yet deployed):
+- Live TP now converts quote-currency P/L to account currency before solving TP distance
+- Added conversion path support:
+  - direct pair (e.g. `USD_AUD`)
+  - inverse pair fallback
+  - USD bridge fallback for crosses (e.g. `CHF -> USD -> AUD`)
+- Updated entry flow to await async TP calculation
+- Added/updated tests for:
+  - base TP behavior
+  - JPY-quoted pair TP conversion
+  - cross-quote TP conversion via USD bridge
+
+**Validation snapshot (local)**:
+- Backend tests passing: **272/272**
+
+---
+
 ### Trading Strategy Review Follow-Up (NEXT WORK)
 
 Open risk/model items now:
-1. TP/account-currency conversion simplification (still uses simplified AUD model)
-2. Backtest/live margin realism parity gap
+1. Backtest/live margin realism parity gap
 
 **Next recommended implementation phase**:
-- Phase 2: Improve TP/account-currency conversion model in live path
 - Phase 3: Align backtest margin/cost model with live execution
 
 ---
 
 ### Next Session Start Checklist
 
-1. Review current TP calculation path:
-   - `backend/src/services/LiveTradingEngine.js` (`calculateTakeProfit`, `calculatePositionSize`)
-2. Define account-currency conversion approach per instrument quote currency:
-   - `_USD`, `_JPY`, and fallback crosses
-3. Add/update unit tests for conversion correctness and edge cases
+1. Deploy TP conversion update to Pi:
+   - `git push origin main`
+   - `ssh img.oakroad && cd /opt/forex-trading-bot && ./scripts/update.sh`
+2. Post-deploy validation:
+   - `pm2 logs forex-backend --lines 200` (check TP conversion and trade-open logs)
+   - `curl http://localhost:3101/api/engine/status`
+3. Start Phase 3 implementation:
+   - Align backtest margin/exposure constraints with live validation behavior
+   - Align conversion/cost assumptions used in backtest result calculations
 4. Validate with backend suite:
    - `npm --prefix backend test`
 

@@ -107,23 +107,23 @@ function runSimulation(db, config) {
             // FIX #6: Strategy config now mirrors LiveTradingEngine defaults exactly
             const STRATEGY = {
                 // Entry Filters (match signalGenerator.js defaults)
-                min_adx: parseFloat(config.minAdx) || 25,
+                min_adx: parseFloat(config.minAdx) || 22,
                 rsi_overbought:
                     parseFloat(config.rsiOverbought || config.maxRsi) || 75, // FIX: Was 70!
                 rsi_oversold: parseFloat(config.rsiOversold) || 30,
 
                 // Position Sizing (match LiveTradingEngine.js)
                 initial_balance: parseFloat(config.balance) || 1000,
-                trade_size_pct: parseFloat(config.riskPerTrade) || 0.98, // FIX: Was 0.95!
+                trade_size_pct: parseFloat(config.riskPerTrade) || 0.02,
                 max_portfolio_exposure:
-                    parseFloat(config.maxPortfolioExposure) || 0.95, // FIX: NEW!
+                    parseFloat(config.maxPortfolioExposure) || 0.5,
 
                 // Stop Loss (match LiveTradingEngine.js)
-                stop_loss_type: config.stopLossType || "FIXED",
+                stop_loss_type: config.stopLossType || "ATR",
                 stop_loss_pct:
                     (parseFloat(config.stopLoss || config.stopLossPercent) ||
                         2.0) / 100,
-                stop_loss_atr: parseFloat(config.stopLossATR) || 1.5,
+                stop_loss_atr: parseFloat(config.stopLossATR) || 2.0,
 
                 // Trailing Stops
                 enable_trailing: config.enableTrailingStops === true,
@@ -136,7 +136,7 @@ function runSimulation(db, config) {
                 continuation_rsi:
                     parseFloat(config.continuationRsiThreshold) || 70,
                 continuation_max_deviation:
-                    parseFloat(config.continuationMaxPriceDeviation) || 0.03,
+                    parseFloat(config.continuationMaxPriceDeviation) || 0.02,
 
                 // FIX #6: Realistic fee tiers (Binance spot)
                 fee_tier: config.feeTier || "standard", // 'vip0', 'vip1', 'bnb_discount', 'standard'
@@ -152,7 +152,7 @@ function runSimulation(db, config) {
                 assets:
                     Array.isArray(config.assets) && config.assets.length > 0
                         ? config.assets
-                        : ["BTCUSDT"],
+                        : ["AUD_USD", "EUR_USD"],
                 days: parseInt(config.days) || 30,
                 weights: config.weights || {},
             };

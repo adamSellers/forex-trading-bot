@@ -480,28 +480,53 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
 
-        // 7. Max portfolio exposure check (margin used / balance)
+        // 7. Signal direction check
+        if (signal.signal !== "BUY" && signal.signal !== "SELL") {
+            return { valid: false, reason: "Invalid signal type" };
+        }
+
+        // 8. Shorting enabled check
+        if (signal.signal === "SELL" && !config.enableShorting) {
+            return { valid: false, reason: "Short selling is disabled" };
+        }
+
+        // 9. Max portfolio exposure check (margin used / balance), including projected new trade margin
         const maxPortfolioExposure = Number(config.maxPortfolioExposure);
         if (Number.isFinite(maxPortfolioExposure) && maxPortfolioExposure > 0) {
+            const projectedMargin = await this.estimateEntryMargin(signal, config);
+            if (!Number.isFinite(projectedMargin) || projectedMargin <= 0) {
+                return {
+                    valid: false,
+                    reason: "Unable to validate projected entry margin",
+                };
+            }
             const exposureCheck = await this.checkPortfolioExposure(
-                maxPortfolioExposure
+                maxPortfolioExposure,
+                projectedMargin
             );
             if (!exposureCheck.valid) {
                 return exposureCheck;
             }
         }
 
-        // 8. Signal direction check
-        if (signal.signal !== "BUY" && signal.signal !== "SELL") {
-            return { valid: false, reason: "Invalid signal type" };
-        }
-
-        // 9. Shorting enabled check
-        if (signal.signal === "SELL" && !config.enableShorting) {
-            return { valid: false, reason: "Short selling is disabled" };
-        }
-
         return { valid: true };
+    }
+
+    /**
+     * Estimate margin that would be used by a new entry using current risk settings.
+     */
+    async estimateEntryMargin(signal, config) {
+        const { stopLossPips } = this.calculateStopLoss(signal, config);
+        const units = await this.calculatePositionSize(
+            signal.symbol,
+            stopLossPips,
+            signal.currentPrice,
+            config
+        );
+
+        if (!Number.isFinite(units) || units <= 0) return 0;
+        const leverage = Number(config.leverage) || 10;
+        return (units * signal.currentPrice) / leverage;
     }
 
     /**
@@ -537,7 +562,7 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Validate current account exposure against configured max exposure
      */
-    async checkPortfolioExposure(maxPortfolioExposure) {
+    async checkPortfolioExposure(maxPortfolioExposure, projectedMarginUsed = 0) {
         try {
             const accountSummary = await oandaClient.getAccountSummary();
             const balance = parseFloat(accountSummary?.account?.balance);
@@ -564,10 +589,12 @@ class LiveTradingEngine extends EventEmitter {
 
             marginUsed = Math.max(0, marginUsed);
             const currentExposure = marginUsed / balance;
-            if (currentExposure >= maxPortfolioExposure) {
+            const projectedExposure =
+                (marginUsed + Math.max(0, projectedMarginUsed || 0)) / balance;
+            if (projectedExposure >= maxPortfolioExposure) {
                 return {
                     valid: false,
-                    reason: `Portfolio exposure limit reached (${(currentExposure * 100).toFixed(1)}% / ${(maxPortfolioExposure * 100).toFixed(1)}%)`,
+                    reason: `Portfolio exposure limit reached (current ${(currentExposure * 100).toFixed(1)}%, projected ${(projectedExposure * 100).toFixed(1)}%, max ${(maxPortfolioExposure * 100).toFixed(1)}%)`,
                 };
             }
 
@@ -700,9 +727,12 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Calculate stop loss price
      */
-    calculateStopLoss(signal, config) {
-        const { currentPrice, atrPips } = signal;
+    calculateStopLoss(signal, config, entryPrice = null) {
+        const { atrPips } = signal;
         const instrument = signal.symbol;
+        const currentPrice = Number.isFinite(entryPrice)
+            ? entryPrice
+            : signal.currentPrice;
         const pipValue = oandaClient.getPipValue(instrument);
 
         let stopLossPips;
@@ -907,8 +937,8 @@ class LiveTradingEngine extends EventEmitter {
 
         logger.info(`🎯 Executing entry for ${symbol} at ${currentPrice}`);
 
-        // Calculate stop loss
-        const { stopLossPips, stopLossPrice } = this.calculateStopLoss(
+        // Calculate initial stop loss from signal price (will be corrected to fill price after execution)
+        const { stopLossPips, stopLossPrice: initialStopLossPrice } = this.calculateStopLoss(
             signal,
             config
         );
@@ -955,7 +985,7 @@ class LiveTradingEngine extends EventEmitter {
                 symbol,
                 orderUnits,
                 {
-                    stopLossPrice,
+                    stopLossPrice: initialStopLossPrice,
                     // Note: TP will be set after order fills using actual margin
                 }
             );
@@ -975,6 +1005,27 @@ class LiveTradingEngine extends EventEmitter {
 
             const oandaTradeId = fillTransaction.tradeOpened?.tradeID;
             const fillPrice = parseFloat(fillTransaction.price);
+            let stopLossPrice = initialStopLossPrice;
+
+            // Align SL to actual fill so true stop distance and risk match sizing assumptions.
+            const fillBasedStop = this.calculateStopLoss(
+                signal,
+                config,
+                fillPrice
+            );
+            stopLossPrice = fillBasedStop.stopLossPrice;
+
+            if (oandaTradeId && Number.isFinite(stopLossPrice)) {
+                try {
+                    await oandaClient.modifyTrade(oandaTradeId, {
+                        stopLossPrice,
+                    });
+                } catch (slError) {
+                    logger.warn(
+                        `⚠️ Failed to align stop loss to fill price: ${slError.message}`
+                    );
+                }
+            }
 
             // Get actual margin from Oanda response
             const marginUsed = parseFloat(

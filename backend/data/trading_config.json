@@ -38,6 +38,6 @@
     "enableEmailAlerts": true,
     "alertEmail": "adam@sellers.life",
     "maxLeverage": 30,
-    "enableTakeProfit": false,
+    "enableTakeProfit": true,
     "takeProfitPercent": 0.06
 }

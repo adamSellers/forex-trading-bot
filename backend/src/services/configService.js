@@ -54,12 +54,17 @@ const DEFAULT_CONFIG = {
     // Stop Loss
     stopLossType: "ATR",
     stopLossPips: 30,
-    stopLossAtrMultiplier: 1.5,
+    stopLossAtrMultiplier: 2.0,
+    minStopLossPips: 15,
 
     // Trailing Stop
     enableTrailingStops: true,
     trailingStopPips: 25,
     trailingStopActivationPips: 20,
+
+    // Take Profit
+    enableTakeProfit: true,
+    takeProfitPercent: 0.06,
 
     // Breakeven
     enableBreakeven: false,

@@ -22,30 +22,31 @@ const BacktestLab = () => {
     // --- CONFIG STATE (V3.2.6 - Matches Live Trading) ---
     const [config, setConfig] = useState({
         // Entry Filters (match signalGenerator.js)
-        minAdx: 25,
-        rsiOverbought: 75,  // FIX: Was maxRsi: 70
+        minAdx: 22,
+        rsiOverbought: 75,
+        rsiOversold: 30,
         
         // Position Sizing (match LiveTradingEngine.js)
         balance: 1000,
-        riskPerTrade: 0.98,  // FIX: Was 0.95
+        riskPerTrade: 0.02,
         
         // Stop Loss
-        stopLossType: 'FIXED',
+        stopLossType: 'ATR',
         stopLoss: 2.0,
-        stopLossATR: 1.5,
+        stopLossATR: 2.0,
         
         // Trailing Stops
-        enableTrailingStops: false,
+        enableTrailingStops: true,
         trailingStopPercent: 0.03,
         
-        // FIX #6: Exposure Cap (NEW)
-        maxPortfolioExposure: 0.95,
+        // Exposure cap
+        maxPortfolioExposure: 0.5,
         
         // FIX #6: Continuation Entry (NEW)
         enableContinuationEntry: true,
         continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
         continuationRsiThreshold: 70,
-        continuationMaxPriceDeviation: 0.03,
+        continuationMaxPriceDeviation: 0.02,
         
         // FIX #6: Fee & Slippage Simulation (NEW)
         feeTier: 'bnb_discount',
@@ -57,8 +58,8 @@ const BacktestLab = () => {
         burstMode: false,
         
         // Portfolio
-        assets: ['BTCUSDT', 'ETHUSDT'],
-        weights: { 'BTCUSDT': 50, 'ETHUSDT': 50 }
+        assets: ['AUD_USD', 'EUR_USD'],
+        weights: { AUD_USD: 50, EUR_USD: 50 }
     });
 
     // --- WEBSOCKET LISTENERS ---

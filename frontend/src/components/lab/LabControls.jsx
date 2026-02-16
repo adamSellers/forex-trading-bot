@@ -33,9 +33,8 @@ const SectionHeader = ({ icon, title, subtitle, action }) => {
 };
 
 const AVAILABLE_ASSETS = [
-    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'NEARUSDT', 'SOLUSDT', 
-    'ADAUSDT', 'DOGEUSDT', 'MATICUSDT', 'AVAXUSDT', 'DOTUSDT', 'LINKUSDT', 
-    'LTCUSDT', 'SHIBUSDT'
+    'AUD_USD', 'EUR_USD', 'GBP_USD', 'NZD_USD', 'USD_CAD', 'USD_CHF',
+    'USD_JPY', 'EUR_GBP', 'EUR_JPY', 'GBP_JPY'
 ];
 
 const FEE_TIERS = [

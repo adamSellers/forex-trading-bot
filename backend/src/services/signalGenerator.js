@@ -324,7 +324,7 @@ class SignalGenerator extends EventEmitter {
                         }
                     } else if (pending.waitingFor === "ADX_SLOPE_RISING") {
                         // Was blocked by falling ADX - check if ADX is now rising
-                        if (adxRising && rsiOkForFresh) {
+                        if (adxMeetsThreshold && adxRising && rsiOkForFresh) {
                             signalType = "BUY";
                             entryType = "CONTINUATION_ADX_SLOPE";
                             reason =
@@ -487,7 +487,7 @@ class SignalGenerator extends EventEmitter {
                             this._pendingEntries.delete(instrument);
                         }
                     } else if (pending.waitingFor === "ADX_SLOPE_RISING") {
-                        if (adxRising && rsiOkForShort) {
+                        if (adxMeetsThreshold && adxRising && rsiOkForShort) {
                             signalType = "SELL";
                             entryType = "SHORT_CONTINUATION_ADX_SLOPE";
                             reason = `🔄 SELL: Short Continuation (ADX Rising) | ADX ${adxVal.toFixed(1)}↑ | ` +

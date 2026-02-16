@@ -375,7 +375,7 @@ class BacktestEngine {
                         entryType = "CONTINUATION_ADX";
                         signalSide = "BUY";
                         pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "ADX_SLOPE_RISING" && adxRising && rsiOkForFresh) {
+                    } else if (pending.waitingFor === "ADX_SLOPE_RISING" && adxMeetsThreshold && adxRising && rsiOkForFresh) {
                         signalType = "BUY";
                         entryType = "CONTINUATION_ADX_SLOPE";
                         signalSide = "BUY";
@@ -456,7 +456,7 @@ class BacktestEngine {
                         entryType = "SHORT_CONTINUATION_ADX";
                         signalSide = "SELL";
                         pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "ADX_SLOPE_RISING" && adxRising && rsiOkForShort) {
+                    } else if (pending.waitingFor === "ADX_SLOPE_RISING" && adxMeetsThreshold && adxRising && rsiOkForShort) {
                         signalType = "SELL";
                         entryType = "SHORT_CONTINUATION_ADX_SLOPE";
                         signalSide = "SELL";

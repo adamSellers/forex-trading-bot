@@ -355,6 +355,29 @@ describe('LiveTradingEngine', () => {
             expect(result.reason).toContain('Portfolio exposure limit reached');
         });
 
+        test('should reject entry when projected margin would exceed exposure cap', async () => {
+            const signal = createMockSignal();
+            const config = {
+                ...mockConfigService.get(),
+                maxPortfolioExposure: 0.5,
+            };
+
+            jest.spyOn(engine, 'estimateEntryMargin').mockResolvedValue(35);
+            oandaClient.getAccountSummary.mockResolvedValue({
+                account: {
+                    balance: '100.00',
+                    marginUsed: '20.00',
+                    marginAvailable: '80.00',
+                },
+            });
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.reason).toContain('Portfolio exposure limit reached');
+            expect(result.reason).toContain('projected');
+        });
+
         test('should approve valid BUY signal', async () => {
             const signal = createMockSignal({
                 symbol: 'AUD_USD',
@@ -362,6 +385,7 @@ describe('LiveTradingEngine', () => {
                 strength: 28,
             });
             const config = mockConfigService.get();
+            jest.spyOn(engine, 'estimateEntryMargin').mockResolvedValue(10);
             oandaClient.getAccountSummary.mockResolvedValue({
                 account: {
                     balance: '100.00',
@@ -831,6 +855,24 @@ describe('LiveTradingEngine', () => {
 
             expect(engine.stats.tradesExecuted).toBe(1);
             expect(engine.stats.lastTradeTime).toBeDefined();
+        });
+
+        test('should align stop loss to actual fill price after execution', async () => {
+            const signal = createMockSignal({ currentPrice: 1.16000 });
+            const config = {
+                ...mockConfigService.get(),
+                stopLossType: 'ATR',
+            };
+
+            const trade = await engine.executeEntry(signal, config);
+
+            expect(trade.stopLossPrice).toBeCloseTo(1.16321, 5);
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith(
+                '489',
+                expect.objectContaining({
+                    stopLossPrice: expect.any(Number),
+                })
+            );
         });
     });
 

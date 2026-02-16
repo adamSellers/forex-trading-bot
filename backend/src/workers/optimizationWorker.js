@@ -13,21 +13,16 @@ const BUILD_SCRIPT = path.join(LAB_DIR, "build_15m_dataset.js");
 
 // CANDIDATE POOL (The "Universe" to test)
 const DEFAULT_CANDIDATES = [
-    "BTCUSDT",
-    "ETHUSDT",
-    "BNBUSDT",
-    "SOLUSDT",
-    "XRPUSDT",
-    "ADAUSDT",
-    "AVAXUSDT",
-    "DOGEUSDT",
-    "DOTUSDT",
-    "LINKUSDT",
-    "MATICUSDT",
-    "NEARUSDT",
-    "LTCUSDT",
-    "SHIBUSDT",
-    "UNIUSDT",
+    "AUD_USD",
+    "EUR_USD",
+    "GBP_USD",
+    "NZD_USD",
+    "USD_CAD",
+    "USD_CHF",
+    "USD_JPY",
+    "EUR_GBP",
+    "EUR_JPY",
+    "GBP_JPY",
 ];
 
 process.on("message", async (msg) => {
