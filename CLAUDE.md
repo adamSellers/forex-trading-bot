@@ -364,6 +364,7 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-02-06 | HTF trend filter implemented, 12-month sweep analysis completed   |
 | 2026-02-06 | Multi-TF simulation (M15 fills + H1 signals), 12-month sweep     |
 | 2026-02-16 | Risk-alignment hardening deployed (projected exposure, fill-price SL, continuation ADX floor, lab parity fixes) |
+| 2026-02-16 | Backtest equity-curve closeout parity fix (final curve point now matches realized end balance) |
 
 ---
 
@@ -394,12 +395,15 @@ The following are complete and confirmed deployed:
 
 ---
 
-### Current Session Update (2026-02-16) - Deployment In Progress
+### Current Session Update (2026-02-16)
 
-User has pushed code and started `./scripts/update.sh` on the Pi.
-Pending confirmation for this session:
-- health endpoint returns healthy after update
-- PM2 status/logs show stable runtime startup
+Implemented backtest/Lab portfolio-value consistency fix in historical simulation:
+- Root cause: open positions closed at `BACKTEST_END` were included in summary/end balance but not reflected as a final realized point in `equityCurve`
+- Fix: append final realized equity point after forced closeouts in `backtestEngine`
+- Regression coverage: added test asserting `equityCurve[equityCurve.length - 1].equity === summary.endBalance`
+
+Validation for this change:
+- `npm test -- backtestEngine.test.js` passing (**48/48**)
 
 ---
 

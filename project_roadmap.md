@@ -109,6 +109,7 @@ This document tracks all planned features, enhancements, and technical improveme
 | LOW | Log rotation cleanup | Planned | Auto-delete logs older than 30 days |
 | HIGH | Preserve runtime config on deploy | Complete (code) | Added to `update.sh` and `deploy.sh` |
 | HIGH | Hard-fail migration on deploy | Complete (code) | Added to `update.sh` and `deploy.sh` |
+| MEDIUM | Backtest equity curve end-balance parity | Complete (code) | `backtestEngine` now appends final realized equity after `BACKTEST_END` closeouts; prevents chart/summary mismatch |
 
 ---
 
