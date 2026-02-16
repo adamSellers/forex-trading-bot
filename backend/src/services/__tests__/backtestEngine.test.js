@@ -730,6 +730,19 @@ describe("BacktestEngine", () => {
             }
         });
 
+        test("should end equity curve at realized end balance", () => {
+            const candles = generateFlipCandles({ downCandles: 100, upCandles: 50 });
+            const result = engine.runOnCandles(candles, "AUD_USD", {
+                enableTrailingStops: false,
+                enableBreakeven: false,
+            });
+
+            const lastPoint = result.equityCurve[result.equityCurve.length - 1];
+            expect(lastPoint).toBeDefined();
+            expect(lastPoint.time).toBe(candles[candles.length - 1].time);
+            expect(lastPoint.equity).toBeCloseTo(result.summary.endBalance, 6);
+        });
+
         test("should handle zero spread correctly", () => {
             const candles = generateFlipCandles({ downCandles: 100, upCandles: 100 });
             const result = engine.runOnCandles(candles, "AUD_USD", {

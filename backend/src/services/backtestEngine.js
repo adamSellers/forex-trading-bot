@@ -538,6 +538,10 @@ class BacktestEngine {
         }
         openPositions.length = 0;
 
+        // Ensure the curve ends at realized portfolio value after forced closeouts.
+        // The in-loop point at the final candle tracks unrealized P&L pre-close.
+        equityCurve.push({ time: lastCandle.time, equity: balance });
+
         return this._buildResult(closedTrades, equityCurve, config);
     }
 
