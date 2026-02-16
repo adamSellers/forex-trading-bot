@@ -12,7 +12,7 @@ const STALE_THRESHOLD = 24 * 60 * 60 * 1000;
 
 // --- WORKER ENTRY POINT ---
 process.on("message", async (msg) => {
-    if (msg.command === "start") {
+    if (msg.command === "start" || msg.command === "run_simulation") {
         try {
             const forceRebuild = msg.config && msg.config.forceRebuild === true;
             await ensureLabData(forceRebuild);
@@ -30,7 +30,7 @@ process.on("message", async (msg) => {
             const results = await runSimulation(db, msg.config);
 
             // Send Results & Exit
-            if (process.send) process.send({ type: "result", data: results });
+            if (process.send) process.send({ type: "simulation_complete", data: results });
             db.close();
             process.exit(0);
         } catch (error) {
@@ -136,10 +136,12 @@ function runSimulation(db, config) {
                 continuation_rsi:
                     parseFloat(config.continuationRsiThreshold) || 70,
                 continuation_max_deviation:
-                    parseFloat(config.continuationMaxPriceDeviation) || 0.02,
+                    parseFloat(config.continuationMaxPriceDeviation) || 0.005,
 
-                // FIX #6: Realistic fee tiers (Binance spot)
-                fee_tier: config.feeTier || "standard", // 'vip0', 'vip1', 'bnb_discount', 'standard'
+                // Trading costs (forex-oriented)
+                spread_pips: parseFloat(config.spreadPips) || 1.5,
+                commission_per_side:
+                    parseFloat(config.commissionPerSide) || 0,
 
                 // FIX #6: Slippage simulation
                 enable_slippage: config.enableSlippage !== false, // Default true
@@ -216,18 +218,21 @@ function runSimulation(db, config) {
 }
 
 /**
- * FIX #6: Calculate realistic fee based on tier
+ * Pip size helper for FX pairs
  */
-function calculateFee(amount, tier) {
-    const feeRates = {
-        vip0: 0.001, // 0.10% - Standard
-        vip1: 0.0009, // 0.09%
-        vip2: 0.0008, // 0.08%
-        bnb_discount: 0.00075, // 0.075% - BNB 25% discount
-        standard: 0.001, // 0.10%
-    };
-    const rate = feeRates[tier] || feeRates["standard"];
-    return amount * rate;
+function getPipValue(symbol) {
+    return symbol.includes("JPY") ? 0.01 : 0.0001;
+}
+
+/**
+ * FX cost model:
+ * - spreadPips is applied round-turn, split across entry/exit
+ * - commissionPerSide is a fixed currency cost per execution side
+ */
+function calculateExecutionCost(units, symbol, spreadPips, commissionPerSide) {
+    const pipValue = getPipValue(symbol);
+    const halfSpreadCost = (spreadPips * pipValue * units) / 2;
+    return halfSpreadCost + commissionPerSide;
 }
 
 /**
@@ -276,8 +281,8 @@ async function executeStrategy(rows, strategy) {
     let tradeHistory = [];
     let equityCurve = [];
 
-    // FIX #6: Track total fees for reporting
-    let totalFeesPaid = 0;
+    // Track aggregate simulated trading costs for reporting
+    let totalCostsPaid = 0;
 
     // FIX #6: Pending entries for continuation logic (mirrors signalGenerator.js)
     let pendingEntries = {};
@@ -371,11 +376,15 @@ async function executeStrategy(rows, strategy) {
 
             if (closeReason) {
                 const exitValue = pos.quantity * exitPrice;
-                // FIX #6: Realistic fee calculation
-                const fee = calculateFee(exitValue, strategy.fee_tier);
-                const netReturn = exitValue - fee;
+                const exitCost = calculateExecutionCost(
+                    pos.quantity,
+                    sym,
+                    strategy.spread_pips,
+                    strategy.commission_per_side
+                );
+                const netReturn = exitValue - exitCost;
                 balance += netReturn;
-                totalFeesPaid += fee;
+                totalCostsPaid += exitCost;
 
                 tradeHistory.push({
                     id: tradeHistory.length + 1,
@@ -388,7 +397,7 @@ async function executeStrategy(rows, strategy) {
                     reason: closeReason,
                     time: candle.timestamp,
                     entryType: pos.entryType, // FIX #6: Track if it was continuation
-                    fees: pos.entryFee + fee,
+                    costs: pos.entryCost + exitCost,
                 });
                 delete positions[sym];
             }
@@ -518,10 +527,15 @@ async function executeStrategy(rows, strategy) {
                         strategy.enable_slippage
                     );
 
-                    // FIX #6: Realistic fee
-                    const fee = calculateFee(investAmount, strategy.fee_tier);
-                    const netInvest = investAmount - fee;
-                    totalFeesPaid += fee;
+                    const entryUnits = investAmount / entryPrice;
+                    const entryCost = calculateExecutionCost(
+                        entryUnits,
+                        sym,
+                        strategy.spread_pips,
+                        strategy.commission_per_side
+                    );
+                    const netInvest = investAmount - entryCost;
+                    totalCostsPaid += entryCost;
 
                     // FIX #6: Calculate stop loss based on type
                     let stopLoss;
@@ -541,7 +555,7 @@ async function executeStrategy(rows, strategy) {
                         trailingStopPrice:
                             entryPrice * (1 - strategy.trailing_pct),
                         entryType: entryType, // FIX #6: Track entry type
-                        entryFee: fee,
+                        entryCost,
                     };
                     balance -= investAmount;
                 }
@@ -569,21 +583,26 @@ async function executeStrategy(rows, strategy) {
         const pos = positions[posSym];
         const finalPrice = latestPrices[posSym];
         const exitValue = pos.quantity * finalPrice;
-        const fee = calculateFee(exitValue, strategy.fee_tier);
-        balance += exitValue - fee;
-        totalFeesPaid += fee;
+        const exitCost = calculateExecutionCost(
+            pos.quantity,
+            posSym,
+            strategy.spread_pips,
+            strategy.commission_per_side
+        );
+        balance += exitValue - exitCost;
+        totalCostsPaid += exitCost;
 
         tradeHistory.push({
             id: tradeHistory.length,
             symbol: posSym,
             entryPrice: pos.entryPrice,
             exitPrice: finalPrice,
-            pnl: exitValue - fee - pos.cost,
+            pnl: exitValue - exitCost - pos.cost,
             pnlPercent: ((finalPrice - pos.entryPrice) / pos.entryPrice) * 100,
             reason: "END_OF_SIM",
             time: Date.now(),
             entryType: pos.entryType,
-            fees: pos.entryFee + fee,
+            costs: pos.entryCost + exitCost,
         });
     });
 
@@ -637,12 +656,12 @@ async function executeStrategy(rows, strategy) {
             totalTrades: tradeHistory.length,
             winRate,
             // FIX #6: New stats for live parity verification
-            totalFees: totalFeesPaid,
+            totalCosts: totalCostsPaid,
             continuationTrades,
             freshFlipTrades,
-            avgFeePerTrade:
+            avgCostPerTrade:
                 tradeHistory.length > 0
-                    ? totalFeesPaid / tradeHistory.length
+                    ? totalCostsPaid / tradeHistory.length
                     : 0,
             assetStats: Object.values(assetStats).sort((a, b) => b.pnl - a.pnl),
         },
@@ -650,7 +669,8 @@ async function executeStrategy(rows, strategy) {
         equityCurve,
         // FIX #6: Include config used for verification
         configUsed: {
-            feeTier: strategy.fee_tier,
+            spreadPips: strategy.spread_pips,
+            commissionPerSide: strategy.commission_per_side,
             slippageEnabled: strategy.enable_slippage,
             slippagePct: strategy.slippage_pct,
             continuationEnabled: strategy.enable_continuation,

@@ -38,28 +38,27 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
     );
   }
 
-  const binanceStatus = systemStatus.services?.binanceData;
+  const dataServiceStatus = systemStatus.services?.dataService;
   
-  if (!binanceStatus) {
+  if (!dataServiceStatus) {
     return (
       <Alert severity="warning" sx={{ mb: 2 }}>
         <Typography variant="body2">
-          ⚠️ Binance data service not available
+          ⚠️ Market data service not available
         </Typography>
       </Alert>
     );
   }
 
-  // FIXED: Correct property mapping from Backend API (binanceDataService.js)
-  const totalCandles = binanceStatus.candleCount || 0;      // Was: .totalCandles
-  const candleDatasets = binanceStatus.cachedSymbols || 0;  // Was: .candleDatasets
-  const priceStreams = binanceStatus.prices || 0;           // Was: .currentPrices
+  const totalCandles = dataServiceStatus.candleCount || dataServiceStatus.priceCount || 0;
+  const candleDatasets = dataServiceStatus.cachedSymbols || dataServiceStatus.instruments?.length || 0;
+  const priceStreams = dataServiceStatus.prices || dataServiceStatus.priceCount || 0;
   
   console.log('🔍 SystemStatusBanner Debug:', {
     totalCandles,
     candleDatasets,
     priceStreams,
-    binanceStatus,
+    dataServiceStatus,
     systemConfig: systemStatus.config
   });
   
@@ -381,11 +380,10 @@ const SystemStatusBanner = ({ systemStatus, signals }) => {
               {/* Additional Info */}
               <Box mt={2} p={1} sx={{ backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 1 }}>
                 <Typography variant="caption" color="textSecondary">
-                  {/* FIXED: 'connected' is undefined on backend, use 'ready' instead */}
                   💡 <strong>System Status:</strong> {systemStatus.isInitialized ? '🟢 Online' : '🔴 Offline'} •
-                  <strong> Data Collection:</strong> {binanceStatus.ready ? '🟢 Active' : '🔴 Inactive'} • 
+                  <strong> Data Collection:</strong> {(dataServiceStatus.ready || dataServiceStatus.isRunning) ? '🟢 Active' : '🔴 Inactive'} • 
                   <strong> Assets Building:</strong> {insufficientSignals} • 
-                  <strong> Last Update:</strong> {binanceStatus.lastUpdate ? new Date(binanceStatus.lastUpdate).toLocaleTimeString() : 'Never'}
+                  <strong> Last Update:</strong> {dataServiceStatus.lastUpdate ? new Date(dataServiceStatus.lastUpdate).toLocaleTimeString() : 'Never'}
                 </Typography>
               </Box>
             </AccordionDetails>

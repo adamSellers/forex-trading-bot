@@ -17,6 +17,7 @@ import {
 import {
   Dashboard,
   Insights,
+  Science,
   Settings,
   Refresh,
   Circle,
@@ -35,15 +36,17 @@ const Navigation = ({ currentView, onViewChange, views }) => {
   const viewToIndex = {
     [views.DASHBOARD]: 0,
     [views.ANALYTICS]: 1,
-    [views.SYSTEM]: 2,
-    [views.SETTINGS]: 3,
+    [views.LAB]: 2,
+    [views.SYSTEM]: 3,
+    [views.SETTINGS]: 4,
   };
 
   const indexToView = {
     0: views.DASHBOARD,
     1: views.ANALYTICS,
-    2: views.SYSTEM,
-    3: views.SETTINGS,
+    2: views.LAB,
+    3: views.SYSTEM,
+    4: views.SETTINGS,
   };
 
   useEffect(() => {
@@ -191,6 +194,11 @@ const Navigation = ({ currentView, onViewChange, views }) => {
               icon={<Insights fontSize="small" />}
               iconPosition="start"
               label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Analytics</Box>}
+            />
+            <Tab
+              icon={<Science fontSize="small" />}
+              iconPosition="start"
+              label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Lab</Box>}
             />
             <Tab
               icon={<MonitorHeart fontSize="small" />}

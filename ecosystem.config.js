@@ -1,5 +1,5 @@
 // ecosystem.config.js - PM2 Configuration for Forex Trading Bot
-// Raspberry Pi 5 8GB deployment alongside crypto bot
+// Raspberry Pi 5 8GB deployment
 // =============================================================================
 // DB_PATH is set here and used by both database.js and knexfile.js
 // =============================================================================
@@ -51,7 +51,7 @@ module.exports = {
                 // Pi 5 8GB Optimizations
                 // -------------------------------------------------------------
                 // With 7GB+ available RAM and 4 cores at near-zero load,
-                // we can be generous. Crypto bot uses ~250MB, similar expected here.
+                // we can be generous for this forex backend on Pi 5.
                 // -------------------------------------------------------------
                 UV_THREADPOOL_SIZE: "4", // Use all 4 cores
                 NODE_OPTIONS: "--max-old-space-size=512", // 512MB heap

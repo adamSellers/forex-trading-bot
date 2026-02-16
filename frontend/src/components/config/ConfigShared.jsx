@@ -80,7 +80,7 @@ export const DEFAULT_CONFIG = {
   enableContinuationEntry: true,
   continuationWindowMs: 4 * 60 * 60 * 1000,
   continuationRsiThreshold: 70,
-  continuationMaxPriceDeviation: 0.02,
+  continuationMaxPriceDeviation: 0.005,
   
   // Risk Management
   riskPerTrade: 0.02,

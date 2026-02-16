@@ -417,7 +417,7 @@ class TechnicalIndicators {
 
     /**
      * Cache indicators to avoid recalculation
-     * @param {string} key - Cache key (e.g., 'BTCUSDT_1h')
+     * @param {string} key - Cache key (e.g., 'AUD_USD_M15')
      * @param {Object} indicators - Calculated indicators
      */
     cacheIndicators(key, indicators) {

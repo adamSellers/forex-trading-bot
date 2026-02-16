@@ -2,7 +2,7 @@
 # =====================================================
 # Forex Trading Bot - PRODUCTION INSTALLER (Hybrid)
 # Includes: 4GB Swap (OOM Fix) + Security + System Deps
-# Ported from working crypto-trend-bot installer
+# Production installer for forex-trading-bot
 # =====================================================
 
 set -e
@@ -78,7 +78,7 @@ cleanup_swap() {
 # --- 3. APP INSTALLATION ---
 backup_and_clean() {
     log_step "Cleaning previous forex install..."
-    # Only delete forex - don't touch other PM2 apps like crypto bot
+    # Only delete forex services
     pm2 delete $APP_NAME --silent 2>/dev/null || true
 
     if [[ -d "$PROJECT_DIR" ]]; then

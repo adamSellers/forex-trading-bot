@@ -1,5 +1,5 @@
 // oandaClient.js - Oanda Forex API Client
-// Equivalent to binanceClient.js but for Forex trading
+// Equivalent to legacy exchange clients, adapted for Forex trading
 
 const https = require("https");
 

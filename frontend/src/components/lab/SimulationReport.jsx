@@ -136,16 +136,16 @@ const SimulationReport = ({ results }) => {
             </Grid>
 
             {/* SECONDARY STATS (New in V3.2.6) */}
-            {(stats.totalFees !== undefined || stats.continuationTrades !== undefined) && (
+            {(stats.totalCosts !== undefined || stats.continuationTrades !== undefined) && (
                 <Grid container spacing={2} mb={3}>
-                    {stats.totalFees !== undefined && (
+                    {stats.totalCosts !== undefined && (
                         <Grid item xs={6} md={3}>
                             <StatCard 
-                                label="TOTAL FEES"
-                                value={`$${stats.totalFees.toFixed(2)}`}
+                                label="TOTAL COSTS"
+                                value={`$${stats.totalCosts.toFixed(2)}`}
                                 icon={<AttachMoney />}
-                                tooltip="Realistic fee simulation based on Binance tier"
-                                subValue={stats.avgFeePerTrade ? `Avg: $${stats.avgFeePerTrade.toFixed(3)}/trade` : undefined}
+                                tooltip="Includes spread and optional commission."
+                                subValue={stats.avgCostPerTrade ? `Avg: $${stats.avgCostPerTrade.toFixed(3)}/trade` : undefined}
                             />
                         </Grid>
                     )}
@@ -190,14 +190,27 @@ const SimulationReport = ({ results }) => {
                         </Typography>
                     </Box>
                     <Grid container spacing={2}>
-                        {configUsed?.feeTier && (
+                        {configUsed?.spreadPips !== undefined && (
                             <Grid item xs={6} md={3}>
                                 <Stack direction="row" alignItems="center" gap={1}>
                                     <AttachMoney fontSize="small" color="action" />
                                     <Box>
-                                        <Typography variant="caption" color="text.secondary">Fee Tier</Typography>
+                                        <Typography variant="caption" color="text.secondary">Spread</Typography>
                                         <Typography variant="body2" fontWeight="bold">
-                                            {configUsed.feeTier.replace('_', ' ').toUpperCase()}
+                                            {configUsed.spreadPips.toFixed(1)} pips
+                                        </Typography>
+                                    </Box>
+                                </Stack>
+                            </Grid>
+                        )}
+                        {configUsed?.commissionPerSide !== undefined && (
+                            <Grid item xs={6} md={3}>
+                                <Stack direction="row" alignItems="center" gap={1}>
+                                    <AttachMoney fontSize="small" color="action" />
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Commission</Typography>
+                                        <Typography variant="body2" fontWeight="bold">
+                                            ${configUsed.commissionPerSide.toFixed(2)} / side
                                         </Typography>
                                     </Box>
                                 </Stack>
@@ -340,7 +353,7 @@ const SimulationReport = ({ results }) => {
                                 <TableRow key={stat.symbol} hover>
                                     <TableCell>
                                         <Typography fontWeight="bold" fontSize="0.875rem">
-                                            {stat.symbol.replace('USDT', '')}
+                                            {stat.symbol}
                                         </Typography>
                                     </TableCell>
                                     <TableCell align="right">{stat.trades}</TableCell>

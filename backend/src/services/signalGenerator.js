@@ -19,8 +19,8 @@ class SignalGenerator extends EventEmitter {
             signalCooldown: 60000,
             assets: [],
 
-            // Forex-specific: Lower ADX threshold (Forex trends show lower ADX than crypto)
-            minAdx: 22, // Lower than crypto (25-28)
+            // Forex default ADX threshold
+            minAdx: 22,
             adxSlopeFilter: true, // Only enter when ADX is rising
             adxSlopeLookback: 3, // Compare current ADX vs N bars ago
             rsiOverbought: 75,
@@ -32,7 +32,7 @@ class SignalGenerator extends EventEmitter {
             enableContinuationEntry: true,
             continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
             continuationRsiThreshold: 70,
-            continuationMaxPriceDeviation: 0.02, // 2% for Forex (tighter than crypto)
+            continuationMaxPriceDeviation: 0.005, // 0.5% default for forex continuation entries
 
             ...config,
         };
@@ -279,7 +279,7 @@ class SignalGenerator extends EventEmitter {
                     this._pendingEntries.delete(instrument);
                 } else {
                     const maxDeviation =
-                        this.config.continuationMaxPriceDeviation || 0.02;
+                        this.config.continuationMaxPriceDeviation || 0.005;
                     const priceDeviation =
                         (currentPrice - pending.flipPrice) / pending.flipPrice;
                     const priceOk = Math.abs(priceDeviation) <= maxDeviation;
@@ -460,7 +460,7 @@ class SignalGenerator extends EventEmitter {
                     );
                     this._pendingEntries.delete(instrument);
                 } else {
-                    const maxDeviation = this.config.continuationMaxPriceDeviation || 0.02;
+                    const maxDeviation = this.config.continuationMaxPriceDeviation || 0.005;
                     // For shorts, price deviation is negative when price falls (favorable)
                     const priceDeviation = (pending.flipPrice - currentPrice) / pending.flipPrice;
                     const priceOk = Math.abs(priceDeviation) <= maxDeviation;

@@ -25,7 +25,7 @@ const DEFAULTS = {
     enableContinuationEntry: true,
     continuationWindowSeconds: 4 * 60 * 60, // 4 hours in candle time
     continuationRsiThreshold: 70,
-    continuationMaxPriceDeviation: 0.02,
+    continuationMaxPriceDeviation: 0.005,
 
     // Position sizing (matches LiveTradingEngine.js)
     initialBalance: 500,

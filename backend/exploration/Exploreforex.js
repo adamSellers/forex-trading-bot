@@ -345,7 +345,7 @@ async function main() {
             }
         }
 
-        // 4. Compare ADX Distribution (Forex vs Crypto insight)
+        // 4. Compare ADX distribution across selected forex pairs
         console.log("\n\n📈 ADX DISTRIBUTION ANALYSIS");
         console.log(
             "═══════════════════════════════════════════════════════════"
@@ -389,7 +389,7 @@ async function main() {
             "   2. Review ADX distribution - you may want to lower threshold to 20 for Forex"
         );
         console.log(
-            "   3. Run historical backtest to compare Forex vs Crypto performance"
+            "   3. Run historical backtest to compare pair-level performance"
         );
     } catch (error) {
         console.error("❌ Error:", error.message);

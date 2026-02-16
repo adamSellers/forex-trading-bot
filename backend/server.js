@@ -17,6 +17,8 @@ const SignalRepository = require("./src/repositories/signalRepository");
 const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 const BacktestRepository = require("./src/repositories/backtestRepository");
+const backtestRoutes = require("./src/routes/backtestRoutes");
+const registerLabSocket = require("./src/socket/labSocket");
 
 const app = express();
 const server = http.createServer(app);
@@ -124,6 +126,7 @@ app.use((req, res, next) => {
 
 // Mount API routes
 app.use("/api", tradingRoutes);
+app.use("/api/backtest", backtestRoutes);
 
 // ============================================
 // Production: Serve Frontend Static Files
@@ -147,6 +150,7 @@ app.get("*", (req, res) => {
 // ============================================
 io.on("connection", (socket) => {
     logger.info(`Client connected: ${socket.id}`);
+    registerLabSocket(io, socket);
 
     // Send initial data on connect
     socket.emit("connected", {

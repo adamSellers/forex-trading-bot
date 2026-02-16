@@ -450,6 +450,7 @@ Before executing a trade, the engine validates:
 -   No existing position for this pair.
 -   Signal ADX >= `minAdx`
 -   Within active trading session (if filter enabled)
+-   Projected post-entry exposure <= `maxPortfolioExposure`
 
 ### Trading Sessions (UTC)
 
@@ -468,16 +469,16 @@ Before executing a trade, the engine validates:
 | Feature                         | Description                                    |
 | ------------------------------- | ---------------------------------------------- |
 | **Trading Disabled by Default** | Must explicitly enable via config              |
-| **Paper Mode**                  | Test strategies without real money             |
 | **Position Limits**             | `maxOpenPositions` caps concurrent trades      |
 | **Capital Limits**              | `maxCapitalAtRisk` caps risk per trade         |
+| **Projected Exposure Gate**     | Rejects entries that would breach portfolio exposure after fill |
 | **Entry Validation**            | Multiple checks before every trade             |
 | **Signal Queue**                | Sequential processing prevents race conditions |
 | **Session Filter**              | Avoid low-liquidity trading periods            |
 | **ADX Filter**                  | Avoid choppy, trendless markets                |
 | **RSI Filter**                  | Avoid buying exhausted momentum                |
 | **Leverage Cap**                | Enforces ASIC 30:1 limit (default 10:1)        |
-| **Stop Loss Required**          | Every trade has a stop loss on Oanda           |
+| **Stop Loss Required**          | Every trade has a stop loss on Oanda (re-aligned to fill price) |
 | **Take Profit**                 | Margin-based TP (6% target, 1:3 risk:reward)  |
 | **Trailing Stops**              | Lock in profits automatically                  |
 | **Graceful Shutdown**           | Clean stop with 5s timeout                     |

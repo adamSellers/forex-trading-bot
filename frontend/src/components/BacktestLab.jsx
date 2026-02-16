@@ -46,10 +46,11 @@ const BacktestLab = () => {
         enableContinuationEntry: true,
         continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
         continuationRsiThreshold: 70,
-        continuationMaxPriceDeviation: 0.02,
+        continuationMaxPriceDeviation: 0.005,
         
-        // FIX #6: Fee & Slippage Simulation (NEW)
-        feeTier: 'bnb_discount',
+        // Trading Costs & Slippage
+        spreadPips: 1.5,
+        commissionPerSide: 0,
         enableSlippage: true,
         slippagePct: 0.0005,  // 0.05%
         

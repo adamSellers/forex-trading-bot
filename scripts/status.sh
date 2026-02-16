@@ -40,7 +40,7 @@ echo ""
 
 # PM2 Status
 echo -e "${BLUE}🔧 PM2 Services:${NC}"
-pm2 list 2>/dev/null | grep -E "forex|crypto" || echo "  No PM2 services found"
+pm2 list 2>/dev/null | grep -E "forex" || echo "  No PM2 services found"
 echo ""
 
 # Service Health

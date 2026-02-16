@@ -132,7 +132,7 @@ export const EmptyState = () => {
                 Configure parameters manually or use <Box component="span" fontWeight="bold" color="secondary.main">Auto-Optimize</Box>
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 2, opacity: 0.7 }}>
-                v3.2.6 • Live Parity Mode • Fees & Slippage Simulation
+                v3.2.6 • Live Parity Mode • Costs & Slippage Simulation
             </Typography>
         </GlassCard>
     );

@@ -6,6 +6,7 @@ import TradingDashboard from './components/TradingDashboard';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import TradingConfig from './components/TradingConfig';
 import SystemHealth from './components/SystemHealth';
+import BacktestLab from './components/BacktestLab';
 import Navigation from './components/Navigation';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -13,6 +14,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 const VIEWS = {
   DASHBOARD: 'dashboard',
   ANALYTICS: 'analytics',
+  LAB: 'lab',
   SYSTEM: 'system',
   SETTINGS: 'settings',
 };
@@ -24,6 +26,8 @@ function App() {
     switch (currentView) {
       case VIEWS.ANALYTICS:
         return <AnalyticsDashboard />;
+      case VIEWS.LAB:
+        return <BacktestLab />;
       case VIEWS.SYSTEM:
         return <SystemHealth />;
       case VIEWS.SETTINGS:

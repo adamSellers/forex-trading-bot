@@ -21,7 +21,7 @@ const OptimizationReport = ({ report, onApply }) => {
     const splitPercent = Math.round(100 / Math.max(assetCount, 1));
     
     // Check if we have new stats (V3.2.6)
-    const hasNewStats = optimizedPortfolio.stats.totalFees !== undefined;
+    const hasNewStats = optimizedPortfolio.stats.totalCosts !== undefined;
 
     return (
         <GlassCard>
@@ -80,7 +80,7 @@ const OptimizationReport = ({ report, onApply }) => {
                                 {rankedAssets.slice(0, 10).map((row, idx) => (
                                     <TableRow key={row.symbol} hover>
                                         <TableCell sx={{ fontWeight: 'bold' }}>#{idx + 1}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold' }}>{row.symbol.replace('USDT','')}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold' }}>{row.symbol}</TableCell>
                                         <TableCell align="right">{row.score.toFixed(1)}</TableCell>
                                         <TableCell align="right" sx={{ color: row.pnl > 0 ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
                                             ${row.pnl.toFixed(0)}
@@ -129,9 +129,9 @@ const OptimizationReport = ({ report, onApply }) => {
                                         <Stack direction="row" alignItems="center" gap={0.5}>
                                             <AttachMoney fontSize="small" color="action" />
                                             <Box>
-                                                <Typography variant="caption" color="text.secondary">Total Fees</Typography>
+                                                <Typography variant="caption" color="text.secondary">Total Costs</Typography>
                                                 <Typography variant="body1" fontWeight="bold">
-                                                    ${optimizedPortfolio.stats.totalFees?.toFixed(2) || '0.00'}
+                                                    ${optimizedPortfolio.stats.totalCosts?.toFixed(2) || '0.00'}
                                                 </Typography>
                                             </Box>
                                         </Stack>
@@ -161,7 +161,7 @@ const OptimizationReport = ({ report, onApply }) => {
                                     {optimizedPortfolio.assets.map(a => (
                                         <Chip 
                                             key={a} 
-                                            label={a.replace('USDT','')} 
+                                            label={a} 
                                             size="small"
                                             color="secondary" 
                                             variant="filled" 
@@ -195,10 +195,19 @@ const OptimizationReport = ({ report, onApply }) => {
                 <Box mt={3} pt={2} borderTop={1} borderColor="divider">
                     <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
                         <Typography variant="caption" color="text.secondary">Simulation Config:</Typography>
-                        {report.configUsed.feeTier && (
+                        {report.configUsed.spreadPips !== undefined && (
                             <Chip 
                                 icon={<AttachMoney sx={{ fontSize: '14px !important' }} />}
-                                label={report.configUsed.feeTier.replace('_', ' ')}
+                                label={`Spread: ${report.configUsed.spreadPips.toFixed(1)} pips`}
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 22 }}
+                            />
+                        )}
+                        {report.configUsed.commissionPerSide !== undefined && (
+                            <Chip 
+                                icon={<AttachMoney sx={{ fontSize: '14px !important' }} />}
+                                label={`Commission: $${report.configUsed.commissionPerSide.toFixed(2)}/side`}
                                 size="small"
                                 variant="outlined"
                                 sx={{ height: 22 }}

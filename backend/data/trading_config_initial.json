@@ -20,7 +20,7 @@
     "enableContinuationEntry": true,
     "continuationWindowMs": 14400000,
     "continuationRsiThreshold": 70,
-    "continuationMaxPriceDeviation": 0.02,
+    "continuationMaxPriceDeviation": 0.005,
     "riskPerTrade": 0.02,
     "maxPortfolioExposure": 0.5,
     "leverage": 10,

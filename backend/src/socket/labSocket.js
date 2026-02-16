@@ -68,13 +68,13 @@ module.exports = (io, socket) => {
         }, WORKER_TIMEOUT_MS);
 
         activeWorkers.set(socketId, workerData);
-        worker.send({ command: "run_simulation", config });
+        worker.send({ command: "start", config });
 
         workerData.messageHandler = (msg) => {
             if (workerData.isTerminated) return;
             if (msg.type === "progress") {
                 io.to(socketId).emit("simulation_progress", msg);
-            } else if (msg.type === "simulation_complete") {
+            } else if (msg.type === "simulation_complete" || msg.type === "result") {
                 io.to(socketId).emit("simulation_complete", msg.data);
                 logger.info(`✅ Simulation complete for ${socketId}`);
                 terminateWorker(workerData, "Simulation complete");

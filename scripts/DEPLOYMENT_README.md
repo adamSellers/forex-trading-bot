@@ -9,8 +9,8 @@ These scripts manage the forex trading bot deployment on Raspberry Pi 5 (8GB).
 |---------|------|
 | Forex Backend | 3101 |
 | Forex Frontend | 3100 |
-| Crypto Backend | 3001 |
-| Crypto Frontend | 3000 |
+| Legacy Backend | 3001 |
+| Legacy Frontend | 3000 |
 
 ---
 
@@ -195,17 +195,17 @@ sudo rm -rf /opt/forex-trading-bot
 
 ---
 
-## Files NOT Needed (Removed from Crypto Bot)
+## Files NOT Needed (Removed from Legacy Bot)
 
-These scripts were specific to the crypto bot and have been removed:
+These scripts were specific to the prior bot setup and have been removed:
 
 -   `clean-install.sh` - Redundant with `first_time_setup.sh`
--   `deploy_crypti.sh` - Crypto-specific deploy
--   `deploy-check.sh` - Crypto-specific validation
+-   `deploy_crypti.sh` - Legacy deploy script
+-   `deploy-check.sh` - Legacy validation script
 -   `dev-setup.sh` - Different development environment
 -   `rollback.sh` - Replaced by `restore.sh`
 -   `monitor.sh` - Merged into `status.sh`
--   `collect_logs.sh` - Crypto-specific paths
+-   `collect_logs.sh` - Legacy path assumptions
 
 ---
 

@@ -363,6 +363,7 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 | 2026-02-06 | Batch sweep script, comprehensive 132-run analysis across 6 pairs |
 | 2026-02-06 | HTF trend filter implemented, 12-month sweep analysis completed   |
 | 2026-02-06 | Multi-TF simulation (M15 fills + H1 signals), 12-month sweep     |
+| 2026-02-16 | Risk-alignment hardening deployed (projected exposure, fill-price SL, continuation ADX floor, lab parity fixes) |
 
 ---
 
@@ -388,52 +389,47 @@ The following are complete and confirmed deployed:
 
 ---
 
-### Current Session Update (2026-02-16) - Code Complete, Pending Deploy
+### Current Session Update (2026-02-16) - Deployed and Verified
 
-Implemented Phase 2 TP conversion hardening in code (not yet deployed):
-- Live TP now converts quote-currency P/L to account currency before solving TP distance
-- Added conversion path support:
-  - direct pair (e.g. `USD_AUD`)
-  - inverse pair fallback
-  - USD bridge fallback for crosses (e.g. `CHF -> USD -> AUD`)
-- Updated entry flow to await async TP calculation
-- Added/updated tests for:
-  - base TP behavior
-  - JPY-quoted pair TP conversion
-  - cross-quote TP conversion via USD bridge
+Delivered and verified on device:
+- Projected exposure gate in live entry validation (`maxPortfolioExposure`)
+- Fill-price stop-loss alignment after order open
+- Continuation hardening: `ADX_SLOPE_RISING` now also requires `ADX >= minAdx` (live + backtest)
+- Lab/backtest wiring fixes (stale simulation path removed; worker-backed flow restored)
+- Lab/optimizer default profile shifted from crypto-biased assumptions to forex-aligned defaults
+- Runtime risk defaults/documentation aligned (`enableTakeProfit`, stop/TP defaults)
 
-**Validation snapshot (local)**:
-- Backend tests passing: **272/272**
+**Validation snapshot**:
+- Targeted backend tests passing (`LiveTradingEngine`, `backtestEngine`, `signalGenerator`)
+- Deployment status: **confirmed deployed + verified on device**
 
 ---
 
 ### Trading Strategy Review Follow-Up (NEXT WORK)
 
 Open risk/model items now:
-1. Backtest/live margin realism parity gap
+1. Backtest/live margin realism parity gap (remaining)
+2. Add walk-forward validation for anti-overfitting on newly aligned parameter set
 
 **Next recommended implementation phase**:
-- Phase 3: Align backtest margin/cost model with live execution
+- Phase 3: Complete margin/cost realism parity in backtest execution path
 
 ---
 
 ### Next Session Start Checklist
 
-1. Deploy TP conversion update to Pi:
-   - `git push origin main`
-   - `ssh img.oakroad && cd /opt/forex-trading-bot && ./scripts/update.sh`
-2. Post-deploy validation:
-   - `pm2 logs forex-backend --lines 200` (check TP conversion and trade-open logs)
+1. Run post-deploy observation window checks:
+   - `pm2 logs forex-backend --lines 200` (confirm projected exposure / fill-SL updates are clean)
    - `curl http://localhost:3101/api/engine/status`
-3. Start Phase 3 implementation:
-   - Align backtest margin/exposure constraints with live validation behavior
-   - Align conversion/cost assumptions used in backtest result calculations
-4. Validate with backend suite:
+2. Start Phase 3 parity work:
+   - Align backtest margin/exposure constraints with live validation behavior end-to-end
+   - Align backtest fill/cost assumptions with live execution artifacts
+3. Validate with backend suite:
    - `npm --prefix backend test`
-
-5. Validate short-side metrics post-deployment window:
+4. Validate short-side metrics over fresh sample:
    - Check `SHORT HEALTH` status over fresh trade sample
    - Confirm SELL win rate trends by `entryType` (`SHORT_ENTRY`, `SHORT_CONTINUATION_*`)
+5. Run new sweep baselines with forex-only lab defaults and archive comparison report
 
 ---
 

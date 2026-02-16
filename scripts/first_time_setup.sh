@@ -2,7 +2,7 @@
 # =====================================================
 # Forex Trading Bot - First Time Setup (Raspberry Pi)
 # Includes: 4GB Swap (OOM Fix) + Pi Build Optimizations
-# Run this ONCE to set up the forex bot alongside crypto bot
+# Run this ONCE to set up the forex bot
 # =====================================================
 
 set -e

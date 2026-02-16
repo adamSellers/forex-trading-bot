@@ -173,4 +173,4 @@ fi
 
 echo ""
 log_success "🎉 Quick update complete!"
-pm2 status | grep -E "(forex|crypto)" || pm2 status
+pm2 status | grep -E "(forex)" || pm2 status

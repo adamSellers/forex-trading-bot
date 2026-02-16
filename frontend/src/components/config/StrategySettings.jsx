@@ -151,7 +151,7 @@ const StrategySettings = ({ config, updateConfig }) => {
           </Box>
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="caption">
-              <strong>Forex Tip:</strong> ADX 22 works well for major pairs. Crypto typically needs 25-28 due to higher noise.
+              <strong>Forex Tip:</strong> ADX 22 is a practical baseline for major pairs on this strategy.
             </Typography>
           </Alert>
 
@@ -302,20 +302,20 @@ const StrategySettings = ({ config, updateConfig }) => {
                 </Typography>
                 <Stack direction="row" spacing={2} alignItems="center">
                   <Slider
-                    value={(config.continuationMaxPriceDeviation ?? 0.02) * 100}
+                    value={(config.continuationMaxPriceDeviation ?? 0.005) * 100}
                     min={0.5} max={5} step={0.5}
                     onChange={(_, v) => updateConfig('continuationMaxPriceDeviation', v / 100)}
                     sx={{ flexGrow: 1 }}
                   />
                   <Chip
-                    label={`${((config.continuationMaxPriceDeviation ?? 0.02) * 100).toFixed(1)}%`}
+                    label={`${((config.continuationMaxPriceDeviation ?? 0.005) * 100).toFixed(1)}%`}
                     size="small"
                     color={config.continuationMaxPriceDeviation > 0.03 ? "warning" : "primary"}
                     variant="outlined"
                   />
                 </Stack>
                 <Typography variant="caption" color="text.secondary">
-                  Cancel if price moves too far above the flip price (2% is tight for Forex)
+                  Cancel if price moves too far above the flip price (0.5% is a tighter forex baseline)
                 </Typography>
               </Grid>
             </Grid>

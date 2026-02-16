@@ -80,7 +80,7 @@ export default function RecentTrades({ trades = [] }) {
                         if (!trade) return null;
 
                         const instrument = trade.instrument || trade.symbol || '---';
-                        const displayName = instrument.replace('_', '/').replace('USDT', '');
+                        const displayName = instrument.replace('_', '/');
                         const side = trade.side || 'BUY';
                         const isBuy = side === 'BUY';
                         const isOpen = trade.isOpen || trade.is_open;

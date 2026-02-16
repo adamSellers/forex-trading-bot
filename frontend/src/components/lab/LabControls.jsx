@@ -37,14 +37,6 @@ const AVAILABLE_ASSETS = [
     'USD_JPY', 'EUR_GBP', 'EUR_JPY', 'GBP_JPY'
 ];
 
-const FEE_TIERS = [
-    { value: 'vip0', label: 'VIP 0 (0.10%)' },
-    { value: 'vip1', label: 'VIP 1 (0.09%)' },
-    { value: 'vip2', label: 'VIP 2 (0.08%)' },
-    { value: 'bnb_discount', label: 'BNB Discount (0.075%)' },
-    { value: 'standard', label: 'Standard (0.10%)' },
-];
-
 const LabControls = ({ 
     config, updateConfig, updateWeight, 
     addAsset, removeAsset, 
@@ -160,7 +152,7 @@ const LabControls = ({
                             <Box display="flex" alignItems="center" width="100%" gap={1}>
                                 <Box display="flex" alignItems="center" gap={1} minWidth={60}>
                                     <Avatar sx={{ width: 24, height: 24, fontSize: '0.65rem', bgcolor: 'primary.main', fontWeight: 'bold' }}>{asset.substring(0,1)}</Avatar>
-                                    <Typography variant="body2" fontWeight="bold" fontSize="0.75rem">{asset.replace('USDT','')}</Typography>
+                                    <Typography variant="body2" fontWeight="bold" fontSize="0.75rem">{asset}</Typography>
                                 </Box>
                                 <Slider 
                                     value={config.weights[asset] || 0} 
@@ -291,14 +283,14 @@ const LabControls = ({
                                 <Typography variant="caption" color="text.secondary">Max Price Deviation</Typography>
                                 <Stack direction="row" alignItems="center" spacing={1}>
                                     <Slider
-                                        value={(config.continuationMaxPriceDeviation || 0.03) * 100}
-                                        min={1}
-                                        max={10}
-                                        step={0.5}
+                                        value={(config.continuationMaxPriceDeviation || 0.005) * 100}
+                                        min={0.1}
+                                        max={2}
+                                        step={0.1}
                                         onChange={(_, v) => updateConfig('continuationMaxPriceDeviation', v / 100)}
                                         size="small"
                                     />
-                                    <Chip label={`${((config.continuationMaxPriceDeviation || 0.03) * 100).toFixed(1)}%`} size="small" />
+                                    <Chip label={`${((config.continuationMaxPriceDeviation || 0.005) * 100).toFixed(1)}%`} size="small" />
                                 </Stack>
                             </Grid>
                         </Grid>
@@ -395,25 +387,41 @@ const LabControls = ({
                     onClick={() => setShowRealism(!showRealism)}
                     sx={{ cursor: 'pointer' }}
                 >
-                    <SectionHeader icon={<AttachMoney />} title="Realism" subtitle="Fees & Slippage" />
+                    <SectionHeader icon={<AttachMoney />} title="Realism" subtitle="Spread, Commission & Slippage" />
                     {showRealism ? <ExpandLess /> : <ExpandMore />}
                 </Box>
                 
                 <Collapse in={showRealism}>
                     <Grid container spacing={2} mt={1}>
                         <Grid item xs={12}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Fee Tier</InputLabel>
-                                <Select 
-                                    value={config.feeTier || 'bnb_discount'} 
-                                    label="Fee Tier"
-                                    onChange={(e) => updateConfig('feeTier', e.target.value)}
-                                >
-                                    {FEE_TIERS.map(tier => (
-                                        <MenuItem key={tier.value} value={tier.value}>{tier.label}</MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
+                            <Typography variant="caption" color="text.secondary">
+                                Spread: {(config.spreadPips || 1.5).toFixed(1)} pips
+                            </Typography>
+                            <Slider
+                                value={config.spreadPips || 1.5}
+                                min={0.1}
+                                max={3.0}
+                                step={0.1}
+                                onChange={(_, v) => updateConfig('spreadPips', v)}
+                                size="small"
+                                valueLabelDisplay="auto"
+                                valueLabelFormat={(v) => `${v.toFixed(1)} pips`}
+                            />
+                        </Grid>
+                        <Grid item xs={12}>
+                            <TextField
+                                label="Commission / Side"
+                                type="number"
+                                fullWidth
+                                size="small"
+                                value={config.commissionPerSide ?? 0}
+                                onChange={(e) => updateConfig('commissionPerSide', parseFloat(e.target.value) || 0)}
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start">$</InputAdornment>,
+                                    endAdornment: <InputAdornment position="end">AUD</InputAdornment>,
+                                }}
+                                helperText="Set to 0 for spread-only pricing."
+                            />
                         </Grid>
                         <Grid item xs={12}>
                             <Box display="flex" alignItems="center" justifyContent="space-between" p={1} border={1} borderColor="divider" borderRadius={1}>

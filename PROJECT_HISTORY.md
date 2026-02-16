@@ -24,6 +24,56 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-02-16 - Strategy Risk Alignment + Lab/Backtest Parity Fixes
+
+**Summary**: Deployed and verified a full risk-alignment pass across live execution, signal continuation gating, and strategy-lab/backtest wiring.
+
+**Deployed Changes**:
+1. **Live entry exposure hardening (projected exposure)**
+   - Entry validation now checks projected post-entry exposure, not only current exposure
+   - Prevents new entries that would breach `maxPortfolioExposure` after the order opens
+
+2. **Fill-price stop alignment**
+   - Initial SL still protects order at placement time
+   - Engine now recalculates and syncs SL from actual fill price to preserve intended risk distance
+
+3. **Continuation quality gate hardening**
+   - `ADX_SLOPE_RISING` continuation branches now also require `ADX >= minAdx`
+   - Applied symmetrically to LONG and SHORT continuation paths
+   - Kept live signal and backtest logic aligned
+
+4. **Backtest/Lab wiring and defaults corrections**
+   - Fixed stale backtest route + lab socket path using non-existent simulation methods
+   - Restored worker-backed simulation flow in lab runtime
+   - Replaced crypto-biased lab/optimizer defaults with forex-aligned defaults (pairs + risk sizing/exposure assumptions)
+
+5. **Risk defaults/documented runtime config alignment**
+   - Enabled TP in active runtime config
+   - Updated config defaults to match current deployed risk model (`stopLossAtrMultiplier`, `minStopLossPips`, TP defaults)
+
+**Files Modified (Core)**:
+- `backend/src/services/LiveTradingEngine.js`
+- `backend/src/services/signalGenerator.js`
+- `backend/src/services/backtestEngine.js`
+- `backend/src/services/configService.js`
+- `backend/src/routes/backtestRoutes.js`
+- `backend/src/socket/labSocket.js`
+- `backend/src/workers/backtestWorker.js`
+- `backend/src/workers/optimizationWorker.js`
+- `backend/data/trading_config.json`
+- `backend/src/services/__tests__/LiveTradingEngine.test.js`
+- `frontend/src/components/BacktestLab.jsx`
+- `frontend/src/components/lab/LabControls.jsx`
+
+**Validation**:
+- Targeted backend suites passing after changes:
+  - `LiveTradingEngine.test.js`
+  - `backtestEngine.test.js`
+  - `signalGenerator.test.js`
+- Deployment and device verification: **confirmed**
+
+---
+
 ### 2026-02-15 - Short-Side Hardening + Short Health Analytics
 
 **Summary**: Deployed short-side reliability fixes plus new analytics visibility focused on SELL performance quality.

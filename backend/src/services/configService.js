@@ -37,7 +37,7 @@ const DEFAULT_CONFIG = {
     enableContinuationEntry: true,
     continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
     continuationRsiThreshold: 70,
-    continuationMaxPriceDeviation: 0.02,
+    continuationMaxPriceDeviation: 0.005,
 
     // Short Selling
     enableShorting: false,

@@ -32,18 +32,22 @@ This document tracks all planned features, enhancements, and technical improveme
 | HIGH | Live-only trading runtime | Complete (deployed) | Removed paper mode from engine/API/UI/docs |
 | HIGH | Deployment safety hardening | Complete (deployed) | `update.sh` + `deploy.sh` preserve runtime config, hard-fail migrations, prune WAL/SHM backups |
 | HIGH | Enforce `maxPortfolioExposure` in live entry validation | Complete (deployed) | Live entry now rejects when current exposure exceeds configured cap |
+| HIGH | Enforce projected post-entry exposure (`maxPortfolioExposure`) | Complete (deployed) | Entry now rejects if projected exposure after new order would breach cap |
 | HIGH | Enforce session filter (`enableSessionFilter`, `activeSessions`) | Complete (deployed) | Live entry now requires current UTC time to be inside configured sessions |
 | HIGH | Live breakeven logic (`enableBreakeven`) | Complete (deployed) | Live monitor moves SL to entry at trigger pips and syncs to Oanda |
+| HIGH | Align stop-loss to actual fill price | Complete (deployed) | SL is recalculated from fill and synced post-open to preserve true risk distance |
 | MEDIUM | Holdings stop-status visibility | Complete (deployed) | Current Holdings now shows active protective stop (`TSL` / `BE` / `SL`) + TP |
 | LOW | Side performance + short health analytics | Complete (deployed) | Analytics now includes BUY/SELL split, entry-type side breakdown, and SELL health status widget |
 | MEDIUM | Test suite stabilization | Complete (deployed) | Backend suite now 272/272 passing |
+| HIGH | Continuation ADX hard floor parity (`ADX_SLOPE_RISING`) | Complete (deployed) | Continuations now require ADX slope + ADX threshold in both live and backtest |
+| MEDIUM | Strategy Lab/worker parity cleanup | Complete (deployed) | Fixed stale simulation route/socket wiring and removed crypto-biased lab defaults |
 
 ### Not Yet Implemented (High-Value Follow-Up)
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
-| HIGH | Improve TP/account-currency conversion model | Complete (code, pending deploy) | Live TP now uses quote->account conversion with direct/inverse/USD-bridge fallback |
-| HIGH | Backtest/live margin realism parity | Planned | Backtest currently less strict than live margin behavior |
+| HIGH | Improve TP/account-currency conversion model | Complete (deployed) | Live TP uses quote->account conversion with direct/inverse/USD-bridge fallback |
+| HIGH | Backtest/live margin realism parity | In progress | Core parity gaps reduced (continuation gate + lab defaults), full margin realism alignment remains |
 
 ---
 
