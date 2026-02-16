@@ -1,17 +1,7 @@
 // backend/src/workers/optimizationWorker.js
-const { runSimulation } = require("./backtestWorker"); // Reuse your fixed logic
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
-const fs = require("fs");
-const { spawn } = require("child_process");
+const { runSimulation } = require("./backtestWorker");
+const HistoricalDataService = require("../services/historicalDataService");
 
-// PATHS
-const LAB_DIR = path.join(__dirname, "../../backtest_lab");
-const DB_PATH = path.join(LAB_DIR, "data/market_data.db");
-const FETCH_SCRIPT = path.join(LAB_DIR, "fetch_candles.js");
-const BUILD_SCRIPT = path.join(LAB_DIR, "build_15m_dataset.js");
-
-// CANDIDATE POOL (The "Universe" to test)
 const DEFAULT_CANDIDATES = [
     "AUD_USD",
     "EUR_USD",
@@ -28,132 +18,112 @@ const DEFAULT_CANDIDATES = [
 process.on("message", async (msg) => {
     if (msg.command === "start_optimization") {
         try {
-            await runOptimizer(msg.config);
+            await runOptimizer(msg.config || {});
         } catch (error) {
-            if (process.send)
+            if (process.send) {
                 process.send({ type: "error", error: error.message });
+            }
             process.exit(1);
         }
     }
 });
 
 async function runOptimizer(userConfig) {
-    // 1. Prepare Data
-    const candidates = userConfig.candidates || DEFAULT_CANDIDATES;
-    if (process.send)
+    const historicalDataService = new HistoricalDataService();
+    const candidates = Array.isArray(userConfig.candidates) && userConfig.candidates.length > 0
+        ? userConfig.candidates
+        : DEFAULT_CANDIDATES;
+
+    if (process.send) {
         process.send({
             type: "progress",
-            message: `Initializing Data for ${candidates.length} assets...`,
+            message: `Initializing optimizer for ${candidates.length} assets...`,
             percent: 5,
         });
+    }
 
-    // Ensure we have data for ALL candidates
-    // Note: We force a check to ensure fetch_candles downloads everything needed
-    await ensureLabData(candidates);
+    const ranked = [];
 
-    const db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READONLY);
+    for (let i = 0; i < candidates.length; i++) {
+        const asset = candidates[i];
+        const progress = 10 + Math.round(((i + 1) / candidates.length) * 60);
 
-    // 2. Phase 1: The Screener (Test Indivudal Performance)
-    const results = [];
-    let completed = 0;
+        if (process.send) {
+            process.send({
+                type: "progress",
+                message: `Scoring ${asset}...`,
+                percent: progress,
+            });
+        }
 
-    if (process.send)
-        process.send({
-            type: "progress",
-            message: `🧪 Phase 1: Screening Assets...`,
-            percent: 10,
-        });
-
-    for (const asset of candidates) {
-        // Run simulation on SINGLE asset
-        // We divide capital by 1 to simulate "All In" on this asset to test its raw quality
-        const singleConfig = {
+        const simConfig = {
             ...userConfig,
             assets: [asset],
             weights: { [asset]: 100 },
-            balance: 1000, // Standardize test capital
+            balance: 1000,
         };
 
-        try {
-            // We wrap the callback-based DB call from runSimulation if needed,
-            // but runSimulation is async in our updated file.
-            // However, runSimulation expects to query the DB itself.
-            // We need to inject the DB or let it handle it.
-            // The exported runSimulation takes (db, config).
+        const simResult = await runSimulation(simConfig, {
+            historicalDataService,
+        });
 
-            const simResult = await runSimulation(db, singleConfig);
+        const stats = simResult.stats || {};
+        const score = calculateScore(stats);
 
-            // Score the asset
-            const stats = simResult.stats;
-            const score = calculateScore(stats); // Custom scoring logic
-
-            results.push({
-                symbol: asset,
-                pnl: stats.netProfit,
-                winRate: stats.winRate,
-                trades: stats.totalTrades,
-                score: score,
-                rawStats: stats,
-            });
-        } catch (e) {
-            // Ignore failed assets (e.g. no data)
-        }
-
-        completed++;
-        const progress = 10 + Math.round((completed / candidates.length) * 60); // 10% to 70%
-        if (process.send)
-            process.send({
-                type: "progress",
-                message: `Analyzing ${asset}...`,
-                percent: progress,
-            });
+        ranked.push({
+            symbol: asset,
+            pnl: Number(stats.netProfit) || 0,
+            winRate: Number(stats.winRate) || 0,
+            trades: Number(stats.totalTrades) || 0,
+            score,
+            rawStats: stats,
+        });
     }
 
-    // 3. Phase 2: The Ranking
-    // Filter out losers and sort by Score
-    const winners = results
-        .filter((r) => r.pnl > 0 && r.trades > 5) // Must be profitable and active
+    const winners = ranked
+        .filter((r) => r.pnl > 0 && r.trades > 5)
         .sort((a, b) => b.score - a.score);
 
     if (winners.length === 0) {
         throw new Error("No profitable assets found with these settings.");
     }
 
-    // Select Top N (e.g., Top 4) for the Portfolio
     const topPicks = winners.slice(0, 4).map((w) => w.symbol);
-
-    // Calculate optimal weights (simplistic: equal weight for now, or weighted by score)
     const optimizedWeights = {};
-    topPicks.forEach((sym) => (optimizedWeights[sym] = 25)); // 25% each for Top 4
+    const split = 100 / topPicks.length;
+    for (const symbol of topPicks) {
+        optimizedWeights[symbol] = split;
+    }
 
-    // 4. Phase 3: The Portfolio Validation
-    if (process.send)
+    if (process.send) {
         process.send({
             type: "progress",
-            message: `🏆 Phase 3: Validating "Dream Team" Portfolio...`,
-            percent: 80,
+            message: "Validating optimized portfolio...",
+            percent: 85,
         });
+    }
 
-    const finalConfig = {
-        ...userConfig,
-        assets: topPicks,
-        weights: optimizedWeights,
-        balance: userConfig.balance || 1000,
-    };
+    const finalResult = await runSimulation(
+        {
+            ...userConfig,
+            assets: topPicks,
+            weights: optimizedWeights,
+            balance: Number(userConfig.balance) > 0 ? Number(userConfig.balance) : 1000,
+        },
+        { historicalDataService }
+    );
 
-    const finalResult = await runSimulation(db, finalConfig);
-
-    // 5. Send Report
     if (process.send) {
         process.send({
             type: "optimization_complete",
             data: {
-                rankedAssets: winners, // The Leaderboard
+                rankedAssets: winners,
                 optimizedPortfolio: {
                     assets: topPicks,
                     stats: finalResult.stats,
                     equityCurve: finalResult.equityCurve,
                 },
+                configUsed: finalResult.configUsed,
                 recommendation: `Recommended Portfolio: ${topPicks.join(", ")}`,
             },
         });
@@ -163,30 +133,7 @@ async function runOptimizer(userConfig) {
 }
 
 function calculateScore(stats) {
-    // A simple proprietary score: PnL is good, but consistency (Win Rate) matters too.
-    // Score = NetProfit * (WinRate / 100)
-    // You can make this more complex (Sharpe Ratio) later.
-    return stats.netProfit * (stats.winRate / 100);
-}
-
-// --- HELPER: Data Fetching (Reused) ---
-async function ensureLabData(assets) {
-    // Trigger the fetch script passing the assets as args or env vars
-    // For now, we assume the fetch script grabs a default list,
-    // but in production you'd pass the list to fetch_candles.js
-
-    const dbExists = fs.existsSync(DB_PATH);
-    if (!dbExists) {
-        await runChildScript(FETCH_SCRIPT, "Fetching Market Data");
-        await runChildScript(BUILD_SCRIPT, "Building Database");
-    }
-}
-
-function runChildScript(scriptPath, actionName) {
-    return new Promise((resolve, reject) => {
-        const child = spawn("node", [scriptPath]);
-        child.on("close", (code) =>
-            code === 0 ? resolve() : reject(new Error(`${actionName} failed`))
-        );
-    });
+    const pnl = Number(stats.netProfit) || 0;
+    const winRate = Number(stats.winRate) || 0;
+    return pnl * (winRate / 100);
 }

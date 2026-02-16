@@ -41,13 +41,14 @@ This document tracks all planned features, enhancements, and technical improveme
 | MEDIUM | Test suite stabilization | Complete (deployed) | Backend suite now 272/272 passing |
 | HIGH | Continuation ADX hard floor parity (`ADX_SLOPE_RISING`) | Complete (deployed) | Continuations now require ADX slope + ADX threshold in both live and backtest |
 | MEDIUM | Strategy Lab/worker parity cleanup | Complete (deployed) | Fixed stale simulation route/socket wiring and removed crypto-biased lab defaults |
+| HIGH | Forex migration completion sweep | Complete (deployed) | Lab restored in UI/backend, Binance fee tiers replaced by forex spread/commission model, active UI/ops configs de-crypto'd |
 
 ### Not Yet Implemented (High-Value Follow-Up)
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
 | HIGH | Improve TP/account-currency conversion model | Complete (deployed) | Live TP uses quote->account conversion with direct/inverse/USD-bridge fallback |
-| HIGH | Backtest/live margin realism parity | In progress | Core parity gaps reduced (continuation gate + lab defaults), full margin realism alignment remains |
+| HIGH | Backtest/live margin realism parity | In progress | Cost parity improved in lab worker; remaining work is margin/exposure behavior alignment in historical engine path |
 
 ---
 

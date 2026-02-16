@@ -1,6 +1,6 @@
 # Forex Trend-Following Trading Bot
 
-A professional Forex trading bot using the **SuperTrend + ADX Momentum** strategy, built for deployment on a Raspberry Pi alongside an existing crypto trading bot. Features a real-time React dashboard, comprehensive analytics, live trading engine, and integration with Oanda's REST v20 API.
+A professional Forex trading bot using the **SuperTrend + ADX Momentum** strategy, built for deployment on a Raspberry Pi. Features a real-time React dashboard, strategy lab, comprehensive analytics, live trading engine, and integration with Oanda's REST v20 API.
 
 ![Status](https://img.shields.io/badge/Phase%202-Complete-success) ![Status](https://img.shields.io/badge/Phase%203-In%20Progress-yellow) ![Node](https://img.shields.io/badge/Node-18%2B-green) ![License](https://img.shields.io/badge/License-MIT-blue)
 
@@ -38,6 +38,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   **Signal Monitoring**: SuperTrend flip detection with ADX/RSI filters
 -   **Portfolio Tracking**: Live positions, P/L, margin usage
 -   **Performance Analytics**: Win rate, profit factor, Sharpe ratio, equity curves
+ -   **Strategy Lab**: Interactive simulation/optimization workflow with forex-oriented spread/commission realism
 -   **System Health**: Service status, API latency, memory monitoring
 -   **Trading Sessions**: Visual session indicators with best trading windows
 
@@ -63,7 +64,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] Socket.IO real-time updates
 -   [x] React + MUI dashboard
 -   [x] ConfigService with persistence
--   [x] Full navigation (Dashboard | Analytics | System | Settings)
+-   [x] Full navigation (Dashboard | Analytics | Lab | System | Settings)
 -   [x] Analytics with server-side metrics
 -   [x] System health monitoring
 
@@ -98,11 +99,14 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] S3 analytics reports (daily/weekly auto-upload)
 -   [ ] Extended monitoring period
 
-### Phase 4: Backtesting (Planned)
+### Phase 4: Backtesting & Lab 🔄 IN PROGRESS
 
--   [ ] Historical data pipeline
--   [ ] Backtest engine
--   [ ] Strategy optimization
+-   [x] Historical data pipeline
+-   [x] Backtest engine
+-   [x] Strategy Lab wiring (frontend + worker flow)
+-   [x] Forex cost realism controls (spread + commission)
+-   [ ] Walk-forward analysis
+-   [ ] Parameter optimization hardening
 
 ---
 

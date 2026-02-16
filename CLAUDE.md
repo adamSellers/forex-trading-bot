@@ -125,7 +125,7 @@ git push origin main
 | Dashboard         | http://img.oakroad:3100          |
 | API               | http://img.oakroad:3101/api      |
 | PM2 Process       | forex-backend                    |
-| Test Suite        | 272 passing, 0 failing           |
+| Test Suite        | 274 passing, 0 failing           |
 
 **CRITICAL**: This is a LIVE trading account with real money. Exercise extreme caution with any changes that affect trading logic, position sizing, or order execution.
 
@@ -369,67 +369,65 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Recently Delivered & Deployed (2026-02-15)
+### Recently Delivered & Deployed (2026-02-16)
 
 The following are complete and confirmed deployed:
-- Live-only runtime refactor
-- Deployment script hardening (`update.sh` / `deploy.sh`)
-- Phase 1 live risk gates:
-  - `maxPortfolioExposure` enforcement
-  - Session filter enforcement
-  - Live breakeven logic
-- Current Holdings protective-stop visibility (`TSL` / `BE` / `SL` + `TP`)
-- Short-side hardening and analytics:
-  - Pending-direction fix + symmetric continuation deviation checks
-  - Analytics side split (`BUY` vs `SELL`) + entry-type side breakdown
-  - Dashboard `SHORT HEALTH` status indicator
+- Live runtime hardening:
+  - projected post-entry exposure gate (`maxPortfolioExposure`)
+  - fill-price stop-loss realignment post-open
+  - continuation `ADX_SLOPE_RISING` branch requires `ADX >= minAdx` (live + backtest)
+- Strategy Lab restoration + parity cleanup:
+  - lab socket and worker protocol wiring fixed (`start_simulation` flow restored)
+  - `/api/backtest` route mounted in server
+  - Lab view added to frontend navigation
+- Forex migration completion pass:
+  - removed Binance fee-tier model from lab simulation
+  - replaced with forex cost model (`spreadPips`, `commissionPerSide`)
+  - removed Binance/USDT references from active UI paths and stale helpers
+  - tightened `continuationMaxPriceDeviation` defaults to `0.005` (0.5%) across config/live/backtest/lab
+- Deployment and operations docs/scripts refreshed for forex-only flow (`nginx`, script comments, deployment notes)
 
 **Validation snapshot**:
-- Backend tests passing: **270/270**
+- Backend tests passing: **274/274**
+- Frontend production build: **passing**
+- Syntax checks on updated backend entry files: **passing**
 
 ---
 
-### Current Session Update (2026-02-16) - Deployed and Verified
+### Current Session Update (2026-02-16) - Deployment In Progress
 
-Delivered and verified on device:
-- Projected exposure gate in live entry validation (`maxPortfolioExposure`)
-- Fill-price stop-loss alignment after order open
-- Continuation hardening: `ADX_SLOPE_RISING` now also requires `ADX >= minAdx` (live + backtest)
-- Lab/backtest wiring fixes (stale simulation path removed; worker-backed flow restored)
-- Lab/optimizer default profile shifted from crypto-biased assumptions to forex-aligned defaults
-- Runtime risk defaults/documentation aligned (`enableTakeProfit`, stop/TP defaults)
-
-**Validation snapshot**:
-- Targeted backend tests passing (`LiveTradingEngine`, `backtestEngine`, `signalGenerator`)
-- Deployment status: **confirmed deployed + verified on device**
+User has pushed code and started `./scripts/update.sh` on the Pi.
+Pending confirmation for this session:
+- health endpoint returns healthy after update
+- PM2 status/logs show stable runtime startup
 
 ---
 
 ### Trading Strategy Review Follow-Up (NEXT WORK)
 
-Open risk/model items now:
-1. Backtest/live margin realism parity gap (remaining)
-2. Add walk-forward validation for anti-overfitting on newly aligned parameter set
+Open model-quality items:
+1. Backtest/live margin realism parity (full alignment still pending outside lab worker)
+2. Walk-forward validation to reduce parameter overfitting risk on updated defaults
 
 **Next recommended implementation phase**:
-- Phase 3: Complete margin/cost realism parity in backtest execution path
+- Phase 3: complete margin/exposure execution parity in historical simulation path
 
 ---
 
 ### Next Session Start Checklist
 
-1. Run post-deploy observation window checks:
-   - `pm2 logs forex-backend --lines 200` (confirm projected exposure / fill-SL updates are clean)
-   - `curl http://localhost:3101/api/engine/status`
-2. Start Phase 3 parity work:
-   - Align backtest margin/exposure constraints with live validation behavior end-to-end
-   - Align backtest fill/cost assumptions with live execution artifacts
-3. Validate with backend suite:
+1. Confirm deploy completed cleanly:
+   - `pm2 status`
+   - `pm2 logs forex-backend --lines 200 --nostream`
+   - `curl -s http://localhost:3101/api/health`
+2. Run parity baseline checks:
+   - run one representative lab simulation and one `/api/backtest/run` scenario
+   - compare cost behavior (`spreadPips`, `commissionPerSide`) with expected live assumptions
+3. Start remaining parity work:
+   - align historical margin/exposure behavior with live entry validation edge cases
+4. Re-run verification:
    - `npm --prefix backend test`
-4. Validate short-side metrics over fresh sample:
-   - Check `SHORT HEALTH` status over fresh trade sample
-   - Confirm SELL win rate trends by `entryType` (`SHORT_ENTRY`, `SHORT_CONTINUATION_*`)
-5. Run new sweep baselines with forex-only lab defaults and archive comparison report
+   - `npm --prefix frontend run build`
 
 ---
 

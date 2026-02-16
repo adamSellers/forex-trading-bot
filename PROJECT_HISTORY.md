@@ -24,6 +24,38 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-02-16 - Forex Migration Completion Sweep (Deployed)
+
+**Summary**: Completed a full forex migration cleanup pass across Strategy Lab wiring, simulation cost model, operational configs, and active UI terminology.
+
+**Deployed Changes**:
+1. **Strategy Lab reactivation**
+   - Registered lab socket handlers in `server.js`
+   - Mounted `/api/backtest` route
+   - Fixed worker command/event contract mismatch (`start` + `simulation_complete`)
+   - Added Lab view back into frontend navigation
+
+2. **Forex simulation cost model**
+   - Removed Binance VIP/BNB fee-tier simulation in lab worker
+   - Replaced with forex-oriented cost inputs:
+     - `spreadPips`
+     - `commissionPerSide`
+   - Updated simulation reports to show `totalCosts` / `avgCostPerTrade`
+
+3. **Continuation guardrail tightening**
+   - Reduced default `continuationMaxPriceDeviation` from `0.02` to `0.005` (0.5%)
+   - Applied consistently across runtime config, signal generator, backtest engine, and lab defaults
+
+4. **Forex terminology and deploy config cleanup**
+   - Removed Binance/USDT wording from active dashboard/lab paths
+   - Updated nginx sample config to forex paths/ports and valid health endpoints
+   - Refreshed script/docs wording away from crypto-specific references
+
+**Validation**:
+- Backend tests: **274 passing, 0 failing**
+- Frontend production build: **passing**
+- Node syntax checks for updated backend entry points: **passing**
+
 ### 2026-02-16 - Strategy Risk Alignment + Lab/Backtest Parity Fixes
 
 **Summary**: Deployed and verified a full risk-alignment pass across live execution, signal continuation gating, and strategy-lab/backtest wiring.

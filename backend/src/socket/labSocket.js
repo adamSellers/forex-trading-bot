@@ -67,9 +67,6 @@ module.exports = (io, socket) => {
             }
         }, WORKER_TIMEOUT_MS);
 
-        activeWorkers.set(socketId, workerData);
-        worker.send({ command: "start", config });
-
         workerData.messageHandler = (msg) => {
             if (workerData.isTerminated) return;
             if (msg.type === "progress") {
@@ -105,6 +102,9 @@ module.exports = (io, socket) => {
         worker.on("message", workerData.messageHandler);
         worker.on("exit", workerData.exitHandler);
         worker.on("error", workerData.errorHandler);
+
+        activeWorkers.set(socketId, workerData);
+        worker.send({ command: "start", config });
     });
 
     // --- 2. GENETIC OPTIMIZATION (The Screener) - FIX #4: Full lifecycle management ---
@@ -163,12 +163,6 @@ module.exports = (io, socket) => {
             }
         }, WORKER_TIMEOUT_MS);
 
-        // FIX #4: Store worker reference for cleanup
-        activeWorkers.set(socketId, workerData);
-
-        // Send start command to worker
-        worker.send({ command: "start_optimization", config });
-
         // FIX #4: Message handler with proper cleanup
         workerData.messageHandler = (msg) => {
             if (workerData.isTerminated) return;
@@ -226,6 +220,12 @@ module.exports = (io, socket) => {
         worker.on("message", workerData.messageHandler);
         worker.on("exit", workerData.exitHandler);
         worker.on("error", workerData.errorHandler);
+
+        // FIX #4: Store worker reference for cleanup
+        activeWorkers.set(socketId, workerData);
+
+        // Send start command to worker
+        worker.send({ command: "start_optimization", config });
     });
 
     // --- 3. NEW: Cancel optimization endpoint ---
