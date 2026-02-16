@@ -84,11 +84,25 @@ async function runOptimizer(userConfig) {
         .filter((r) => r.pnl > 0 && r.trades > 5)
         .sort((a, b) => b.score - a.score);
 
-    if (winners.length === 0) {
-        throw new Error("No profitable assets found with these settings.");
+    let selectionPool = winners;
+    if (selectionPool.length === 0) {
+        const fallbackRanked = ranked.sort((a, b) => b.score - a.score);
+
+        if (fallbackRanked.length === 0) {
+            throw new Error("No candidates available for optimization.");
+        }
+
+        selectionPool = fallbackRanked;
+        if (process.send) {
+            process.send({
+                type: "progress",
+                message: "No strictly profitable assets; using top score-ranked fallback set.",
+                percent: 75,
+            });
+        }
     }
 
-    const topPicks = winners.slice(0, 4).map((w) => w.symbol);
+    const topPicks = selectionPool.slice(0, 4).map((w) => w.symbol);
     const optimizedWeights = {};
     const split = 100 / topPicks.length;
     for (const symbol of topPicks) {
@@ -117,7 +131,7 @@ async function runOptimizer(userConfig) {
         process.send({
             type: "optimization_complete",
             data: {
-                rankedAssets: winners,
+                rankedAssets: selectionPool,
                 optimizedPortfolio: {
                     assets: topPicks,
                     stats: finalResult.stats,

@@ -59,6 +59,7 @@ const SimulationReport = ({ results }) => {
     
     const { stats, equityCurve, configUsed } = results;
     const isProfit = stats.netProfit > 0;
+    const dataMode = configUsed?.dataMode || 'live';
     
     // Calculate additional metrics
     const avgPnlPerTrade = stats.totalTrades > 0 ? stats.netProfit / stats.totalTrades : 0;
@@ -88,19 +89,40 @@ const SimulationReport = ({ results }) => {
                 
                 {/* Config Verification Badge */}
                 {configUsed && (
-                    <Tooltip title="Click to see simulation parameters">
-                        <Chip 
-                            icon={<Info />}
-                            label="LIVE PARITY MODE"
-                            color="primary"
-                            variant="outlined"
-                            size="small"
-                            onClick={() => setShowDetails(!showDetails)}
-                            sx={{ cursor: 'pointer' }}
-                        />
-                    </Tooltip>
+                    <Stack direction="row" spacing={1}>
+                        <Tooltip title="Click to see simulation parameters">
+                            <Chip 
+                                icon={<Info />}
+                                label="LIVE PARITY MODE"
+                                color="primary"
+                                variant="outlined"
+                                size="small"
+                                onClick={() => setShowDetails(!showDetails)}
+                                sx={{ cursor: 'pointer' }}
+                            />
+                        </Tooltip>
+                        {dataMode !== 'live' && (
+                            <Chip
+                                label={dataMode === 'demo' ? 'OFFLINE DEMO DATA' : 'MIXED DATA MODE'}
+                                color="warning"
+                                variant="outlined"
+                                size="small"
+                            />
+                        )}
+                    </Stack>
                 )}
             </Box>
+
+            {Array.isArray(results.warnings) && results.warnings.length > 0 && (
+                <Box mb={2} p={1.5} borderRadius={1.5} border={1} borderColor={alpha(theme.palette.warning.main, 0.4)} bgcolor={alpha(theme.palette.warning.main, 0.08)}>
+                    <Typography variant="caption" color="warning.main" fontWeight="bold">
+                        Data Source Warnings
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        {results.warnings.join(' | ')}
+                    </Typography>
+                </Box>
+            )}
 
             {/* PRIMARY STATS */}
             <Grid container spacing={2} mb={3}>

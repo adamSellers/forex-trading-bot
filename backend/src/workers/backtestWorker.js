@@ -4,6 +4,7 @@ const HistoricalDataService = require("../services/historicalDataService");
 
 const DEFAULT_ASSETS = ["AUD_USD", "EUR_USD"];
 const DEFAULT_DAYS = 30;
+const M15_SECONDS = 15 * 60;
 
 process.on("message", async (msg) => {
     if (msg.command === "start" || msg.command === "run_simulation") {
@@ -114,7 +115,14 @@ function mapToEngineConfig(config, initialBalance) {
     };
 }
 
-function toLabResult(perAssetResults, config, assets, normalizedWeights, days) {
+function toLabResult(
+    perAssetResults,
+    config,
+    assets,
+    normalizedWeights,
+    days,
+    modeInfo = { dataMode: "live", fallbackAssets: [] }
+) {
     const initialBalance = Number(config.balance) > 0 ? Number(config.balance) : 1000;
     const trades = [];
     const assetStats = [];
@@ -233,6 +241,8 @@ function toLabResult(perAssetResults, config, assets, normalizedWeights, days) {
             assets,
             weights: normalizedWeights,
             days,
+            dataMode: modeInfo.dataMode,
+            fallbackAssets: modeInfo.fallbackAssets,
         },
     };
 }
@@ -292,6 +302,9 @@ async function runSimulation(config = {}, options = {}) {
     const engine = options.engine || new BacktestEngine(historicalDataService);
 
     const perAssetResults = {};
+    const fallbackAssets = [];
+    const warnings = [];
+    let dataMode = "live";
 
     if (options.onProgress) {
         options.onProgress({
@@ -315,20 +328,154 @@ async function runSimulation(config = {}, options = {}) {
         }
 
         const engineConfig = mapToEngineConfig(config, initialBalance);
-        perAssetResults[asset] = await engine.run(
-            asset,
-            "M15",
-            startTimestamp,
-            endTimestamp,
-            engineConfig
-        );
+        try {
+            perAssetResults[asset] = await engine.run(
+                asset,
+                "M15",
+                startTimestamp,
+                endTimestamp,
+                engineConfig
+            );
+        } catch (error) {
+            if (!shouldUseSyntheticFallback(error)) {
+                throw error;
+            }
+
+            dataMode = "mixed";
+            fallbackAssets.push(asset);
+            warnings.push(`${asset}: ${error.message}`);
+
+            if (options.onProgress) {
+                options.onProgress({
+                    message: `Using offline demo candles for ${asset}...`,
+                    percent: Math.min(90, 15 + Math.round((i / assets.length) * 75)),
+                });
+            }
+
+            const syntheticCandles = buildSyntheticCandles(
+                asset,
+                startTimestamp,
+                endTimestamp
+            );
+            perAssetResults[asset] = engine.runOnCandles(
+                syntheticCandles,
+                asset,
+                engineConfig
+            );
+        }
     }
 
     if (options.onProgress) {
         options.onProgress({ message: "Finalizing report...", percent: 95 });
     }
 
-    return toLabResult(perAssetResults, config, assets, normalizedWeights, days);
+    if (fallbackAssets.length === assets.length) {
+        dataMode = "demo";
+    }
+
+    const result = toLabResult(
+        perAssetResults,
+        config,
+        assets,
+        normalizedWeights,
+        days,
+        {
+            dataMode,
+            fallbackAssets,
+        }
+    );
+
+    if (warnings.length > 0) {
+        result.warnings = warnings;
+    }
+
+    return result;
 }
 
 module.exports = { runSimulation };
+
+function shouldUseSyntheticFallback(error) {
+    if (!error || !error.message) return false;
+    const message = String(error.message).toLowerCase();
+    return (
+        message.includes("oanda request failed") ||
+        message.includes("api key not configured") ||
+        message.includes("fetch failed") ||
+        message.includes("enotfound") ||
+        message.includes("econnrefused") ||
+        message.includes("etimedout")
+    );
+}
+
+function getBasePrice(instrument) {
+    if (instrument.includes("JPY")) return 150;
+    if (instrument === "EUR_USD") return 1.08;
+    if (instrument === "GBP_USD") return 1.27;
+    if (instrument === "AUD_USD") return 0.66;
+    if (instrument === "NZD_USD") return 0.61;
+    if (instrument === "USD_CAD") return 1.35;
+    if (instrument === "USD_CHF") return 0.89;
+    return 1.0;
+}
+
+function hashSeed(input) {
+    let h = 2166136261;
+    for (let i = 0; i < input.length; i++) {
+        h ^= input.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0) || 1;
+}
+
+function createPrng(seed) {
+    let state = seed >>> 0;
+    return () => {
+        state = (1664525 * state + 1013904223) >>> 0;
+        return state / 4294967296;
+    };
+}
+
+function buildSyntheticCandles(instrument, fromTimestamp, toTimestamp) {
+    const start = Math.floor(fromTimestamp / M15_SECONDS) * M15_SECONDS;
+    const end = Math.floor(toTimestamp / M15_SECONDS) * M15_SECONDS;
+    const candleCount = Math.max(240, Math.floor((end - start) / M15_SECONDS));
+
+    const seed = hashSeed(`${instrument}:${fromTimestamp}:${toTimestamp}`);
+    const rand = createPrng(seed);
+
+    let price = getBasePrice(instrument);
+    const pip = instrument.includes("JPY") ? 0.01 : 0.0001;
+    const baseTrendBias = (rand() - 0.5) * pip * 2.5;
+    const regimeSpan = 96; // ~1 trading day of M15 candles
+    const candles = [];
+
+    for (let i = 0; i < candleCount; i++) {
+        const t = start + i * M15_SECONDS;
+        const seasonal = Math.sin(i / 34) * pip * 6;
+        const regimePhase = Math.floor(i / regimeSpan) % 4;
+        const regimeSign = regimePhase < 2 ? 1 : -1;
+        const regimeTrend = regimeSign * pip * (2.2 + rand() * 1.8);
+        const drift =
+            baseTrendBias + regimeTrend + (rand() - 0.5) * pip * 5 + seasonal * 0.35;
+        const open = price;
+        const close = Math.max(pip, open + drift);
+
+        const wickUp = rand() * pip * 8;
+        const wickDown = rand() * pip * 8;
+        const high = Math.max(open, close) + wickUp;
+        const low = Math.max(pip / 2, Math.min(open, close) - wickDown);
+
+        candles.push({
+            time: t,
+            open: Number(open.toFixed(instrument.includes("JPY") ? 3 : 5)),
+            high: Number(high.toFixed(instrument.includes("JPY") ? 3 : 5)),
+            low: Number(low.toFixed(instrument.includes("JPY") ? 3 : 5)),
+            close: Number(close.toFixed(instrument.includes("JPY") ? 3 : 5)),
+            volume: 100 + Math.floor(rand() * 900),
+        });
+
+        price = close;
+    }
+
+    return candles;
+}

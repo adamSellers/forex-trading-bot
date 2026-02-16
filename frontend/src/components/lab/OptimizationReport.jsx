@@ -39,6 +39,14 @@ const OptimizationReport = ({ report, onApply }) => {
                         </Typography>
                     </Box>
                 </Box>
+                {report?.configUsed?.dataMode && report.configUsed.dataMode !== 'live' && (
+                    <Chip
+                        label={report.configUsed.dataMode === 'demo' ? 'OFFLINE DEMO DATA' : 'MIXED DATA MODE'}
+                        color="warning"
+                        variant="outlined"
+                        size="small"
+                    />
+                )}
                 <Button 
                     variant="contained" 
                     color="success" 
