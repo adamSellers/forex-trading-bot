@@ -338,6 +338,33 @@ describe('SignalGenerator', () => {
             expect(validated2.signal).toBe('BUY');
         });
 
+        test('should not emit the same actionable signal twice for the same candle', () => {
+            const signal1 = {
+                symbol: 'AUD_USD',
+                signal: 'BUY',
+                strength: 25,
+                entryType: 'FRESH_FLIP',
+                signalCandleTime: '2026-03-06T00:00:00.000000000Z',
+                timestamp: Date.now(),
+            };
+
+            const validated1 = generator.validateSignal(signal1);
+            expect(validated1.signal).toBe('BUY');
+
+            generator.lastSignals.set('AUD_USD_BUY', {
+                time: Date.now() - 120000,
+                signalCandleTime: signal1.signalCandleTime,
+                entryType: signal1.entryType,
+            });
+
+            const validated2 = generator.validateSignal({
+                ...signal1,
+                timestamp: Date.now() + 120000,
+            });
+            expect(validated2.signal).toBe('COOLDOWN');
+            expect(validated2.message).toContain('already emitted for this candle');
+        });
+
         test('should allow different instruments without cooldown', () => {
             const signal1 = {
                 symbol: 'AUD_USD',

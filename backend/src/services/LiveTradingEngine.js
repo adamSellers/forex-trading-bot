@@ -432,7 +432,53 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // 3. Check max open positions
+        // 3. Live price must be available and fresh
+        const priceData = this.dataService?.getCurrentPrice?.(signal.symbol);
+        if (!priceData) {
+            return {
+                valid: false,
+                reason: `No live price data for ${signal.symbol}`,
+            };
+        }
+
+        if (priceData.tradeable === false) {
+            return {
+                valid: false,
+                reason: `${signal.symbol} is not currently tradeable`,
+            };
+        }
+
+        const maxPriceAgeMs = Number(config.maxPriceAgeMs);
+        const priceAgeMs = Number.isFinite(priceData.timestamp)
+            ? Date.now() - priceData.timestamp
+            : null;
+        if (
+            Number.isFinite(maxPriceAgeMs) &&
+            maxPriceAgeMs > 0 &&
+            Number.isFinite(priceAgeMs) &&
+            priceAgeMs > maxPriceAgeMs
+        ) {
+            return {
+                valid: false,
+                reason: `Price data stale (${priceAgeMs}ms > ${maxPriceAgeMs}ms)`,
+            };
+        }
+
+        const maxSpreadPips = Number(config.maxSpreadPips);
+        const spreadPips = Number(priceData.spread);
+        if (
+            Number.isFinite(maxSpreadPips) &&
+            maxSpreadPips > 0 &&
+            Number.isFinite(spreadPips) &&
+            spreadPips > maxSpreadPips
+        ) {
+            return {
+                valid: false,
+                reason: `Spread too wide (${spreadPips.toFixed(1)} > ${maxSpreadPips.toFixed(1)} pips)`,
+            };
+        }
+
+        // 4. Check max open positions
         const openCount = this.openTrades.size;
         if (openCount >= config.maxOpenPositions) {
             return {
@@ -441,7 +487,7 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // 4. Not already in a position for this instrument
+        // 5. Not already in a position for this instrument
         if (this.getOpenTradeByInstrument(signal.symbol)) {
             return {
                 valid: false,
@@ -449,7 +495,7 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // 5. Check minimum ADX strength
+        // 6. Check minimum ADX strength
         if (signal.strength < config.minAdx) {
             return {
                 valid: false,
@@ -458,7 +504,7 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // 6. Session filter check (entries only during configured market sessions)
+        // 7. Session filter check (entries only during configured market sessions)
         if (config.enableSessionFilter) {
             const activeSessions = Array.isArray(config.activeSessions)
                 ? config.activeSessions
@@ -480,17 +526,17 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
 
-        // 7. Signal direction check
+        // 8. Signal direction check
         if (signal.signal !== "BUY" && signal.signal !== "SELL") {
             return { valid: false, reason: "Invalid signal type" };
         }
 
-        // 8. Shorting enabled check
+        // 9. Shorting enabled check
         if (signal.signal === "SELL" && !config.enableShorting) {
             return { valid: false, reason: "Short selling is disabled" };
         }
 
-        // 9. Max portfolio exposure check (margin used / balance), including projected new trade margin
+        // 10. Max portfolio exposure check (margin used / balance), including projected new trade margin
         const maxPortfolioExposure = Number(config.maxPortfolioExposure);
         if (Number.isFinite(maxPortfolioExposure) && maxPortfolioExposure > 0) {
             const projectedMargin = await this.estimateEntryMargin(signal, config);

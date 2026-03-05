@@ -97,6 +97,15 @@ class SignalGenerator extends EventEmitter {
         return calculateSuperTrend(highs, lows, closes, period, factor);
     }
 
+    getCandleTimestampMs(candleTime) {
+        if (typeof candleTime === "number") {
+            return candleTime > 1e12 ? candleTime : candleTime * 1000;
+        }
+
+        const parsed = Date.parse(candleTime);
+        return Number.isFinite(parsed) ? parsed : Date.now();
+    }
+
     async generateSignal(instrument, candles, currentPrice) {
         try {
             if (!candles || candles.length < 200) {
@@ -125,6 +134,9 @@ class SignalGenerator extends EventEmitter {
             const idx = closes.length - 1;
             const currentDir = stData.direction[idx];
             const prevDir = stData.direction[idx - 1];
+            const signalCandleTime = candles[idx]?.time || null;
+            const flipCandlePrice = closes[idx];
+            const flipTimeMs = this.getCandleTimestampMs(signalCandleTime);
 
             const rsiVal = RSI.calculate({ values: closes, period: 14 }).pop();
             const adxResults = ADX.calculate({
@@ -192,8 +204,8 @@ class SignalGenerator extends EventEmitter {
                     // ADX meets threshold but falling - wait for ADX to rise
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "ADX_SLOPE_RISING",
@@ -206,8 +218,8 @@ class SignalGenerator extends EventEmitter {
                     // ADX strong but RSI overbought - wait for RSI cooldown
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "RSI_COOLDOWN",
@@ -223,8 +235,8 @@ class SignalGenerator extends EventEmitter {
                     // RSI OK but ADX below threshold - wait for ADX to strengthen
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "ADX_STRENGTHEN",
@@ -240,8 +252,8 @@ class SignalGenerator extends EventEmitter {
                     // Both ADX weak AND RSI overbought - wait for both
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "BOTH",
@@ -390,8 +402,8 @@ class SignalGenerator extends EventEmitter {
                     reason = `📉 EXIT: ST Flip RED (short blocked: falling ADX ${adxVal.toFixed(1)})`;
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "ADX_SLOPE_RISING",
@@ -405,8 +417,8 @@ class SignalGenerator extends EventEmitter {
                     reason = `📉 EXIT: ST Flip RED (short blocked: RSI oversold ${rsiVal.toFixed(1)})`;
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "RSI_RECOVERY",
@@ -419,8 +431,8 @@ class SignalGenerator extends EventEmitter {
                     reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} < ${this.config.minAdx})`;
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "ADX_STRENGTHEN",
@@ -433,8 +445,8 @@ class SignalGenerator extends EventEmitter {
                     reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} & RSI ${rsiVal.toFixed(1)})`;
                     if (this.config.enableContinuationEntry) {
                         this._pendingEntries.set(instrument, {
-                            flipTime: Date.now(),
-                            flipPrice: currentPrice,
+                            flipTime: flipTimeMs,
+                            flipPrice: flipCandlePrice,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
                             waitingFor: "BOTH",
@@ -512,6 +524,7 @@ class SignalGenerator extends EventEmitter {
                 strength: adxVal,
                 message: reason,
                 timestamp: Date.now(),
+                signalCandleTime,
                 atr: atrVal,
                 atrPips: atrPips,
                 currentPrice: currentPrice,
@@ -570,22 +583,43 @@ class SignalGenerator extends EventEmitter {
     validateSignal(signal) {
         if (!signal) return null;
         const key = `${signal.symbol}_${signal.signal}`;
-        const lastTime = this.lastSignals.get(key) || 0;
+        const now = Date.now();
+        const lastEntry = this.lastSignals.get(key);
+        const lastMeta =
+            typeof lastEntry === "number"
+                ? { time: lastEntry, signalCandleTime: null, entryType: null }
+                : lastEntry || { time: 0, signalCandleTime: null, entryType: null };
+        const signalCandleTime = signal.signalCandleTime || null;
 
         // Rate limit active signals
-        if (
-            (signal.signal === "BUY" || signal.signal === "SELL") &&
-            Date.now() - lastTime < this.config.signalCooldown
-        ) {
-            return {
-                ...signal,
-                signal: "COOLDOWN",
-                message: "Signal Spam Filter",
-            };
+        if (signal.signal === "BUY" || signal.signal === "SELL") {
+            if (
+                signalCandleTime &&
+                lastMeta.signalCandleTime === signalCandleTime &&
+                lastMeta.entryType === (signal.entryType || null)
+            ) {
+                return {
+                    ...signal,
+                    signal: "COOLDOWN",
+                    message: "Signal already emitted for this candle",
+                };
+            }
+
+            if (now - (lastMeta.time || 0) < this.config.signalCooldown) {
+                return {
+                    ...signal,
+                    signal: "COOLDOWN",
+                    message: "Signal Spam Filter",
+                };
+            }
         }
 
         if (signal.signal === "BUY" || signal.signal === "SELL") {
-            this.lastSignals.set(key, Date.now());
+            this.lastSignals.set(key, {
+                time: now,
+                signalCandleTime,
+                entryType: signal.entryType || null,
+            });
         }
         return signal;
     }

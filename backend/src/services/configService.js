@@ -46,6 +46,8 @@ const DEFAULT_CONFIG = {
     riskPerTrade: 0.02,
     maxPortfolioExposure: 0.5,
     leverage: 10,
+    maxSpreadPips: 2.0,
+    maxPriceAgeMs: 15000,
 
     // Position Sizing
     positionSizeMethod: "RISK",

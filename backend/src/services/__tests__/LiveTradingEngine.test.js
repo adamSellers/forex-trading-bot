@@ -271,6 +271,56 @@ describe('LiveTradingEngine', () => {
             expect(result.reason).toContain('not in active list');
         });
 
+        test('should reject when no live price data is available', async () => {
+            const signal = createMockSignal();
+            const config = mockConfigService.get();
+
+            mockDataService.getCurrentPrice.mockReturnValue(null);
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.reason).toContain('No live price data');
+        });
+
+        test('should reject when live price data is stale', async () => {
+            const signal = createMockSignal();
+            const config = { ...mockConfigService.get(), maxPriceAgeMs: 15000 };
+
+            mockDataService.getCurrentPrice.mockReturnValue({
+                price: 1.16571,
+                bid: 1.16566,
+                ask: 1.16576,
+                spread: 1.0,
+                tradeable: true,
+                timestamp: Date.now() - 30000,
+            });
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.reason).toContain('Price data stale');
+        });
+
+        test('should reject when spread exceeds configured cap', async () => {
+            const signal = createMockSignal();
+            const config = { ...mockConfigService.get(), maxSpreadPips: 2.0 };
+
+            mockDataService.getCurrentPrice.mockReturnValue({
+                price: 1.16571,
+                bid: 1.16550,
+                ask: 1.16590,
+                spread: 4.0,
+                tradeable: true,
+                timestamp: Date.now(),
+            });
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.reason).toContain('Spread too wide');
+        });
+
         test('should reject when max positions reached', async () => {
             const signal = createMockSignal();
             const config = mockConfigService.get();
