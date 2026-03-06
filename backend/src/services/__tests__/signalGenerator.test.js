@@ -1,5 +1,6 @@
 // Tests for SignalGenerator - Strategy and signal logic
 const SignalGenerator = require('../signalGenerator');
+const { RSI, ADX, ATR } = require('technicalindicators');
 const {
     generateCandles,
     generateCandlesWithFlip,
@@ -36,6 +37,7 @@ describe('SignalGenerator', () => {
     });
 
     afterEach(() => {
+        jest.restoreAllMocks();
         if (generator.isRunning) {
             generator.stop();
         }
@@ -227,48 +229,249 @@ describe('SignalGenerator', () => {
             expect(['BUY', 'SELL', 'HOLD']).toContain(signal.signal);
         });
 
-        test('should track pending entry when RSI too high', async () => {
-            // This test verifies pending entry mechanism exists
+        test('should queue a long pullback setup when a fresh flip is overextended', async () => {
             const candles = generateCandles(250);
             const currentPrice = candles[candles.length - 1].close;
 
-            await generator.generateSignal('AUD_USD', candles, currentPrice);
+            generator.dataService = createMockDataService();
+            jest.spyOn(generator, 'calculateSuperTrend').mockImplementation((highs) => ({
+                superTrend: new Array(highs.length).fill(currentPrice),
+                direction: [...new Array(highs.length - 2).fill(-1), -1, 1],
+                atr: new Array(highs.length).fill(0.001),
+            }));
+            jest.spyOn(RSI, 'calculate').mockReturnValue([78]);
+            jest.spyOn(ATR, 'calculate').mockReturnValue([0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 17, mdi: 14 },
+                { adx: 21, pdi: 19, mdi: 13 },
+                { adx: 22, pdi: 21, mdi: 12 },
+                { adx: 25, pdi: 24, mdi: 10 },
+            ]);
 
-            // Check if pending entries map exists and is accessible
-            expect(generator._pendingEntries).toBeDefined();
-            expect(generator._pendingEntries instanceof Map).toBe(true);
+            const signal = await generator.generateSignal('AUD_USD', candles, currentPrice);
+
+            expect(signal.signal).toBe('HOLD');
+            expect(signal.message).toContain('waiting for pullback');
+            expect(generator._pendingEntries.get('AUD_USD')).toMatchObject({
+                state: 'AWAIT_PULLBACK',
+                waitingFor: 'PULLBACK',
+                direction: 'LONG',
+            });
+        });
+
+        test('should require directional ADX confirmation before long entry', async () => {
+            const candles = generateCandles(250);
+            const currentPrice = candles[candles.length - 1].close;
+
+            generator.dataService = createMockDataService();
+            jest.spyOn(generator, 'calculateSuperTrend').mockImplementation((highs) => ({
+                superTrend: new Array(highs.length).fill(currentPrice),
+                direction: [...new Array(highs.length - 2).fill(-1), -1, 1],
+                atr: new Array(highs.length).fill(0.001),
+            }));
+            jest.spyOn(RSI, 'calculate').mockReturnValue([62]);
+            jest.spyOn(ATR, 'calculate').mockReturnValue([0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 17, mdi: 19 },
+                { adx: 21, pdi: 17, mdi: 20 },
+                { adx: 22, pdi: 18, mdi: 21 },
+                { adx: 25, pdi: 18, mdi: 22 },
+            ]);
+
+            const signal = await generator.generateSignal('AUD_USD', candles, currentPrice);
+
+            expect(signal.signal).toBe('HOLD');
+            expect(signal.message).toContain('directional ADX');
+            expect(generator._pendingEntries.has('AUD_USD')).toBe(false);
+        });
+
+        test('should block fresh long entries when higher timeframe trend disagrees', async () => {
+            const m15Candles = generateCandles(250);
+            const h1Candles = generateCandles(120, 1.165, 'AUD_USD', 'down');
+            const currentPrice = m15Candles[m15Candles.length - 1].close;
+
+            generator.updateConfig({
+                enableHTFFilter: true,
+                htfTimeframe: '1h',
+            });
+            generator.dataService = createMockDataService({
+                AUD_USD: m15Candles,
+                'AUD_USD_1h': h1Candles,
+            });
+
+            jest.spyOn(generator, 'calculateSuperTrend').mockImplementation((highs) => {
+                const isHtf = highs.length === h1Candles.length;
+                return {
+                    superTrend: new Array(highs.length).fill(currentPrice),
+                    direction: isHtf
+                        ? new Array(highs.length).fill(-1)
+                        : [...new Array(highs.length - 2).fill(-1), -1, 1],
+                    atr: new Array(highs.length).fill(0.001),
+                };
+            });
+            jest.spyOn(RSI, 'calculate').mockReturnValue([60]);
+            jest.spyOn(ATR, 'calculate').mockReturnValue([0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 18, mdi: 12 },
+                { adx: 21, pdi: 20, mdi: 12 },
+                { adx: 22, pdi: 21, mdi: 11 },
+                { adx: 25, pdi: 24, mdi: 10 },
+            ]);
+
+            const signal = await generator.generateSignal('AUD_USD', m15Candles, currentPrice);
+
+            expect(signal.signal).toBe('HOLD');
+            expect(signal.message).toContain('HTF 1h downtrend');
+            expect(generator._pendingEntries.has('AUD_USD')).toBe(false);
+        });
+
+        test('should not queue short continuations when short continuation is disabled', async () => {
+            const candles = generateCandles(250);
+            const currentPrice = candles[candles.length - 1].close;
+
+            generator.updateConfig({
+                enableShortContinuationEntry: false,
+            });
+            generator.dataService = createMockDataService();
+            jest.spyOn(generator, 'calculateSuperTrend').mockImplementation((highs) => ({
+                superTrend: new Array(highs.length).fill(currentPrice),
+                direction: [...new Array(highs.length - 2).fill(1), 1, -1],
+                atr: new Array(highs.length).fill(0.001),
+            }));
+            jest.spyOn(RSI, 'calculate').mockReturnValue([55]);
+            jest.spyOn(ATR, 'calculate').mockReturnValue([0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 12, mdi: 18 },
+                { adx: 21, pdi: 11, mdi: 20 },
+                { adx: 22, pdi: 10, mdi: 21 },
+                { adx: 25, pdi: 9, mdi: 24 },
+            ]);
+
+            const signal = await generator.generateSignal('AUD_USD', candles, currentPrice);
+
+            expect(signal.signal).toBe('SELL');
+            expect(signal.entryType).toBe('EXIT_ONLY');
+            expect(signal.message).toContain('momentum too strong');
+            expect(generator._pendingEntries.has('AUD_USD')).toBe(false);
         });
     });
 
     describe('Continuation Entries', () => {
-        test('should store pending entry when flip blocked by RSI', async () => {
-            // Clear any existing pending entries
-            generator._pendingEntries.clear();
+        test('should transition a pending long setup from pullback wait to breakout wait', async () => {
+            const candles = generateCandles(250);
+            const currentPrice = candles[candles.length - 1].close;
 
-            // Manually set a pending entry to test the mechanism
             generator._pendingEntries.set('AUD_USD', {
-                flipTime: Date.now() - 30 * 60 * 1000, // 30 mins ago
+                direction: 'LONG',
+                state: 'AWAIT_PULLBACK',
+                waitingFor: 'PULLBACK',
+                flipTime: Date.now() - 30 * 60 * 1000,
                 flipPrice: 1.16500,
                 flipAdx: 25,
-                flipRsi: 76,
-                waitingFor: 'RSI_COOLDOWN',
+                flipRsi: 74,
+                peakPrice: 1.1700,
+                troughPrice: 1.1650,
             });
 
-            const pending = generator._pendingEntries.get('AUD_USD');
+            generator.dataService = createMockDataService();
+            jest.spyOn(generator, 'calculateSuperTrend').mockImplementation((highs) => ({
+                superTrend: new Array(highs.length).fill(currentPrice),
+                direction: new Array(highs.length).fill(1),
+                atr: new Array(highs.length).fill(0.001),
+            }));
+            jest.spyOn(RSI, 'calculate').mockReturnValue([66]);
+            jest.spyOn(ATR, 'calculate').mockReturnValue([0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 18, mdi: 12 },
+                { adx: 21, pdi: 19, mdi: 12 },
+                { adx: 22, pdi: 21, mdi: 11 },
+                { adx: 25, pdi: 24, mdi: 10 },
+            ]);
 
-            expect(pending).toBeDefined();
-            expect(pending.waitingFor).toBe('RSI_COOLDOWN');
-            expect(pending.flipRsi).toBeGreaterThan(generator.config.rsiOverbought);
+            const previous = candles[candles.length - 2];
+            const current = candles[candles.length - 1];
+            previous.close = 1.1694;
+            previous.low = 1.1691;
+            previous.high = 1.1701;
+            current.open = 1.1692;
+            current.close = 1.1689;
+            current.low = 1.1690;
+            current.high = 1.1695;
+
+            const signal = await generator.generateSignal('AUD_USD', candles, currentPrice);
+
+            expect(signal.signal).toBe('HOLD');
+            expect(signal.message).toContain('pullback detected');
+            expect(generator._pendingEntries.get('AUD_USD')).toMatchObject({
+                state: 'AWAIT_REACCELERATION',
+                waitingFor: 'REACCELERATION',
+                direction: 'LONG',
+            });
+        });
+
+        test('should enter on long pullback reacceleration only after breakout', async () => {
+            const candles = generateCandles(250);
+            const currentPrice = candles[candles.length - 1].close;
+
+            generator._pendingEntries.set('AUD_USD', {
+                direction: 'LONG',
+                state: 'AWAIT_REACCELERATION',
+                waitingFor: 'REACCELERATION',
+                flipTime: Date.now() - 45 * 60 * 1000,
+                flipPrice: 1.16500,
+                flipAdx: 25,
+                flipRsi: 74,
+                peakPrice: 1.1700,
+                troughPrice: 1.1650,
+                pullbackLow: 1.1688,
+                pullbackHigh: 1.1696,
+                pullbackDepthAtr: 1.2,
+                reaccelerationTrigger: 1.1696,
+            });
+
+            generator.dataService = createMockDataService();
+            jest.spyOn(generator, 'calculateSuperTrend').mockImplementation((highs) => ({
+                superTrend: new Array(highs.length).fill(currentPrice),
+                direction: new Array(highs.length).fill(1),
+                atr: new Array(highs.length).fill(0.001),
+            }));
+            jest.spyOn(RSI, 'calculate').mockReturnValue([61]);
+            jest.spyOn(ATR, 'calculate').mockReturnValue([0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 18, mdi: 12 },
+                { adx: 21, pdi: 20, mdi: 12 },
+                { adx: 22, pdi: 22, mdi: 11 },
+                { adx: 25, pdi: 25, mdi: 10 },
+            ]);
+
+            const previous = candles[candles.length - 2];
+            const current = candles[candles.length - 1];
+            previous.high = 1.1699;
+            previous.low = 1.1689;
+            previous.close = 1.1691;
+            current.open = 1.1692;
+            current.low = 1.1691;
+            current.high = 1.1708;
+            current.close = 1.1702;
+
+            const signal = await generator.generateSignal('AUD_USD', candles, currentPrice);
+
+            expect(signal.signal).toBe('BUY');
+            expect(signal.entryType).toBe('CONTINUATION_PULLBACK');
+            expect(signal.message).toContain('Pullback reacceleration');
+            expect(generator._pendingEntries.has('AUD_USD')).toBe(false);
         });
 
         test('should expire pending entry after window closes', () => {
             // Set an old pending entry
             generator._pendingEntries.set('AUD_USD', {
-                flipTime: Date.now() - 5 * 60 * 60 * 1000, // 5 hours ago (> 4 hour window)
+                direction: 'LONG',
+                state: 'AWAIT_PULLBACK',
+                flipTime: Date.now() - 5 * 60 * 60 * 1000,
                 flipPrice: 1.16500,
                 flipAdx: 25,
                 flipRsi: 76,
-                waitingFor: 'RSI_COOLDOWN',
+                waitingFor: 'PULLBACK',
             });
 
             const pending = generator._pendingEntries.get('AUD_USD');
@@ -507,11 +710,13 @@ describe('SignalGenerator', () => {
 
         test('should return complete status', () => {
             generator._pendingEntries.set('AUD_USD', {
+                direction: 'LONG',
+                state: 'AWAIT_PULLBACK',
                 flipTime: Date.now(),
                 flipPrice: 1.165,
                 flipAdx: 25,
                 flipRsi: 76,
-                waitingFor: 'RSI_COOLDOWN',
+                waitingFor: 'PULLBACK',
             });
 
             const status = generator.getStatus();

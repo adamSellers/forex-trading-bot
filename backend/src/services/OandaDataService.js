@@ -15,6 +15,9 @@ class OandaDataService extends EventEmitter {
         this.instruments = instruments;
         this.priceCache = {};
         this.candleCache = {};
+        this.primaryTimeframe = "15m";
+        this.enableHTFFilter = false;
+        this.htfTimeframe = "1h";
         this.isRunning = false;
         this.priceInterval = null;
         this.candleInterval = null;
@@ -109,16 +112,32 @@ class OandaDataService extends EventEmitter {
     }
 
     async fetchAllCandles() {
+        const granularities = this.getRequiredGranularities();
+
         for (const instrument of this.instruments) {
-            try {
-                await this.fetchCandles(instrument, "M15", 500);
-            } catch (error) {
-                logger.error(
-                    `❌ Candle fetch error for ${instrument}:`,
-                    error.message
-                );
+            for (const granularity of granularities) {
+                try {
+                    await this.fetchCandles(instrument, granularity, 500);
+                } catch (error) {
+                    logger.error(
+                        `❌ Candle fetch error for ${instrument} (${granularity}):`,
+                        error.message
+                    );
+                }
             }
         }
+    }
+
+    getRequiredGranularities() {
+        const granularities = new Set([
+            this.convertTimeframe(this.primaryTimeframe || "15m"),
+        ]);
+
+        if (this.enableHTFFilter) {
+            granularities.add(this.convertTimeframe(this.htfTimeframe || "1h"));
+        }
+
+        return Array.from(granularities);
     }
 
     async fetchCandles(instrument, granularity = "M15", count = 500) {
@@ -190,7 +209,22 @@ class OandaDataService extends EventEmitter {
             instruments: this.instruments,
             pricesCached: Object.keys(this.priceCache).length,
             candlesCached: Object.keys(this.candleCache).length,
+            candleGranularities: this.getRequiredGranularities(),
         };
+    }
+
+    updateCandleConfig({
+        timeframe = "15m",
+        enableHTFFilter = false,
+        htfTimeframe = "1h",
+    } = {}) {
+        this.primaryTimeframe = timeframe || "15m";
+        this.enableHTFFilter = enableHTFFilter === true;
+        this.htfTimeframe = htfTimeframe || "1h";
+
+        if (this.isRunning) {
+            this.fetchAllCandles();
+        }
     }
 
     /**
@@ -209,7 +243,9 @@ class OandaDataService extends EventEmitter {
         if (addedInstruments.length > 0 && this.isRunning) {
             this.fetchAllPrices();
             addedInstruments.forEach((instrument) => {
-                this.fetchCandles(instrument, "M15", 500);
+                this.getRequiredGranularities().forEach((granularity) => {
+                    this.fetchCandles(instrument, granularity, 500);
+                });
             });
         }
 

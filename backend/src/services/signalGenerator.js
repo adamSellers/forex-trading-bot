@@ -23,6 +23,9 @@ class SignalGenerator extends EventEmitter {
             minAdx: 22,
             adxSlopeFilter: true, // Only enter when ADX is rising
             adxSlopeLookback: 3, // Compare current ADX vs N bars ago
+            requireDirectionalAdx: true,
+            longRsiMomentumFloor: 52,
+            shortRsiMomentumCeiling: 48,
             rsiOverbought: 75,
             rsiOversold: 30,
             atrPeriod: 10,
@@ -30,9 +33,17 @@ class SignalGenerator extends EventEmitter {
 
             // Continuation entry settings
             enableContinuationEntry: true,
+            enableLongContinuationEntry: true,
+            enableShortContinuationEntry: false,
             continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
             continuationRsiThreshold: 70,
             continuationMaxPriceDeviation: 0.005, // 0.5% default for forex continuation entries
+            continuationPullbackMinAtr: 0.5,
+            continuationPullbackMaxAtr: 1.5,
+
+            // Higher-timeframe trend filter
+            enableHTFFilter: true,
+            htfTimeframe: "1h",
 
             ...config,
         };
@@ -106,6 +117,428 @@ class SignalGenerator extends EventEmitter {
         return Number.isFinite(parsed) ? parsed : Date.now();
     }
 
+    isLongContinuationEnabled() {
+        if (this.config.enableContinuationEntry === false) return false;
+        return this.config.enableLongContinuationEntry !== false;
+    }
+
+    isShortContinuationEnabled() {
+        if (this.config.enableContinuationEntry === false) return false;
+        return this.config.enableShortContinuationEntry !== false;
+    }
+
+    getHtfTrendContext(instrument) {
+        if (!this.config.enableHTFFilter) {
+            return {
+                enabled: false,
+                timeframe: null,
+                direction: 0,
+                longAllowed: true,
+                shortAllowed: true,
+            };
+        }
+
+        const timeframe = this.config.htfTimeframe || "1h";
+        const candles = this.dataService?.getCandles?.(instrument, timeframe) || [];
+        if (candles.length < 50) {
+            return {
+                enabled: true,
+                timeframe,
+                direction: 0,
+                longAllowed: false,
+                shortAllowed: false,
+                reason: `HTF ${timeframe} unavailable`,
+            };
+        }
+
+        const highs = candles.map((c) => c.high);
+        const lows = candles.map((c) => c.low);
+        const closes = candles.map((c) => c.close);
+        const stData = this.calculateSuperTrend(
+            highs,
+            lows,
+            closes,
+            this.config.atrPeriod || 10,
+            this.config.factor || 3
+        );
+        const direction = stData.direction[stData.direction.length - 1] || 0;
+
+        return {
+            enabled: true,
+            timeframe,
+            direction,
+            longAllowed: direction === 1,
+            shortAllowed: direction === -1,
+            reason:
+                direction === 1
+                    ? `HTF ${timeframe} uptrend`
+                    : `HTF ${timeframe} downtrend`,
+        };
+    }
+
+    createPullbackSetup({
+        direction,
+        flipTime,
+        flipPrice,
+        flipAdx,
+        flipRsi,
+        initialHigh,
+        initialLow,
+        signalCandleTime,
+    }) {
+        return {
+            direction,
+            state: "AWAIT_PULLBACK",
+            waitingFor: "PULLBACK",
+            flipTime,
+            flipPrice,
+            flipAdx,
+            flipRsi,
+            peakPrice: initialHigh,
+            troughPrice: initialLow,
+            signalCandleTime,
+            pullbackLow: null,
+            pullbackHigh: null,
+            pullbackDepthAtr: null,
+            reaccelerationTrigger: null,
+            pullbackDetectedTime: null,
+        };
+    }
+
+    evaluateLongPullbackSetup({
+        instrument,
+        pending,
+        signalCandleTime,
+        currentOpen,
+        currentClose,
+        currentHigh,
+        currentLow,
+        previousCandle,
+        atrVal,
+        rsiVal,
+        adxMeetsThreshold,
+        adxOk,
+        longDiOk,
+        htfContext,
+    }) {
+        const ageMs = Date.now() - pending.flipTime;
+        const maxAgeMs =
+            this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
+        if (ageMs > maxAgeMs) {
+            logger.info(
+                `TIME ${instrument}: Long setup expired after ${(
+                    ageMs / 60000
+                ).toFixed(0)} minutes`
+            );
+            return {
+                clearPending: true,
+                reason: "HOLD: long setup expired",
+            };
+        }
+
+        if (!htfContext.longAllowed || !adxMeetsThreshold || !longDiOk) {
+            return {
+                clearPending: true,
+                reason: `HOLD: long setup invalidated (${htfContext.reason || "trend lost"})`,
+            };
+        }
+
+        const minPullbackAtr = this.config.continuationPullbackMinAtr || 0.5;
+        const maxPullbackAtr = this.config.continuationPullbackMaxAtr || 1.5;
+        const longMomentumFloor = this.config.longRsiMomentumFloor || 52;
+        const trackedPeakPrice =
+            pending.state === "AWAIT_PULLBACK"
+                ? Math.max(pending.peakPrice || pending.flipPrice, currentHigh)
+                : pending.peakPrice || pending.flipPrice;
+        const pullbackDepthAtr =
+            atrVal > 0 ? (trackedPeakPrice - currentLow) / atrVal : 0;
+        const bearishPullbackCandle =
+            currentClose < previousCandle.close ||
+            currentLow < previousCandle.low;
+        const rsiCooled =
+            rsiVal <= (this.config.continuationRsiThreshold || 70);
+
+        if (pending.state === "AWAIT_PULLBACK") {
+            if (pullbackDepthAtr > maxPullbackAtr) {
+                return {
+                    clearPending: true,
+                    reason: `HOLD: long pullback too deep (${pullbackDepthAtr.toFixed(
+                        2
+                    )} ATR)`,
+                };
+            }
+
+            if (bearishPullbackCandle && pullbackDepthAtr >= minPullbackAtr && rsiCooled) {
+                const nextPending = {
+                    ...pending,
+                    state: "AWAIT_REACCELERATION",
+                    waitingFor: "REACCELERATION",
+                    peakPrice: trackedPeakPrice,
+                    pullbackLow: currentLow,
+                    pullbackHigh: currentHigh,
+                    pullbackDepthAtr,
+                    reaccelerationTrigger: currentHigh,
+                    pullbackDetectedTime:
+                        this.getCandleTimestampMs(signalCandleTime),
+                };
+
+                return {
+                    pending: nextPending,
+                    reason:
+                        `HOLD: long pullback detected (${pullbackDepthAtr.toFixed(
+                            2
+                        )} ATR) - waiting for breakout`,
+                };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    peakPrice: trackedPeakPrice,
+                },
+                reason:
+                    `HOLD: long setup waiting for pullback | peak ${trackedPeakPrice.toFixed(
+                        5
+                    )}`,
+            };
+        }
+
+        const breakoutTrigger =
+            pending.reaccelerationTrigger ||
+            pending.pullbackHigh ||
+            previousCandle.high;
+        const updatedPullbackLow =
+            pending.pullbackLow == null
+                ? currentLow
+                : Math.min(pending.pullbackLow, currentLow);
+        const updatedPullbackHigh =
+            pending.pullbackHigh == null
+                ? currentHigh
+                : Math.max(pending.pullbackHigh, currentHigh);
+        const updatedTrigger = Math.max(breakoutTrigger, currentHigh);
+        const updatedDepthAtr =
+            atrVal > 0
+                ? (pending.peakPrice - updatedPullbackLow) / atrVal
+                : pending.pullbackDepthAtr || 0;
+
+        if (updatedDepthAtr > maxPullbackAtr) {
+            return {
+                clearPending: true,
+                reason: `HOLD: long pullback invalidated (${updatedDepthAtr.toFixed(
+                    2
+                )} ATR)`,
+            };
+        }
+
+        const bullishBreakout =
+            currentClose > breakoutTrigger &&
+            currentClose > previousCandle.high &&
+            currentClose > currentOpen;
+        const reaccelerationConfirmed =
+            bullishBreakout &&
+            adxOk &&
+            longDiOk &&
+            rsiVal >= longMomentumFloor &&
+            rsiVal < (this.config.rsiOverbought || 75) &&
+            htfContext.longAllowed;
+
+        if (reaccelerationConfirmed) {
+            return {
+                signalType: "BUY",
+                entryType: "CONTINUATION_PULLBACK",
+                clearPending: true,
+                reason:
+                    `BUY: Pullback reacceleration | depth ${updatedDepthAtr.toFixed(
+                        2
+                    )} ATR | RSI ${rsiVal.toFixed(1)} | ` +
+                    `+DI breakout confirmed`,
+            };
+        }
+
+        return {
+            pending: {
+                ...pending,
+                state: "AWAIT_REACCELERATION",
+                waitingFor: "REACCELERATION",
+                pullbackLow: updatedPullbackLow,
+                pullbackHigh: updatedPullbackHigh,
+                pullbackDepthAtr: updatedDepthAtr,
+                reaccelerationTrigger: updatedTrigger,
+            },
+            reason:
+                `HOLD: long setup waiting for breakout | depth ${updatedDepthAtr.toFixed(
+                    2
+                )} ATR`,
+        };
+    }
+
+    evaluateShortPullbackSetup({
+        instrument,
+        pending,
+        signalCandleTime,
+        currentOpen,
+        currentClose,
+        currentHigh,
+        currentLow,
+        previousCandle,
+        atrVal,
+        rsiVal,
+        adxMeetsThreshold,
+        adxOk,
+        shortDiOk,
+        htfContext,
+    }) {
+        const ageMs = Date.now() - pending.flipTime;
+        const maxAgeMs =
+            this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
+        if (ageMs > maxAgeMs) {
+            logger.info(
+                `TIME ${instrument}: Short setup expired after ${(
+                    ageMs / 60000
+                ).toFixed(0)} minutes`
+            );
+            return {
+                clearPending: true,
+                reason: "EXIT_ONLY: short setup expired",
+            };
+        }
+
+        if (!htfContext.shortAllowed || !adxMeetsThreshold || !shortDiOk) {
+            return {
+                clearPending: true,
+                reason: `EXIT_ONLY: short setup invalidated (${htfContext.reason || "trend lost"})`,
+            };
+        }
+
+        const minPullbackAtr = this.config.continuationPullbackMinAtr || 0.5;
+        const maxPullbackAtr = this.config.continuationPullbackMaxAtr || 1.5;
+        const shortMomentumCeiling =
+            this.config.shortRsiMomentumCeiling || 48;
+        const trackedTroughPrice =
+            pending.state === "AWAIT_PULLBACK"
+                ? Math.min(pending.troughPrice || pending.flipPrice, currentLow)
+                : pending.troughPrice || pending.flipPrice;
+        const pullbackDepthAtr =
+            atrVal > 0 ? (currentHigh - trackedTroughPrice) / atrVal : 0;
+        const bullishPullbackCandle =
+            currentClose > previousCandle.close ||
+            currentHigh > previousCandle.high;
+        const rsiRecovered = rsiVal >= shortMomentumCeiling;
+
+        if (pending.state === "AWAIT_PULLBACK") {
+            if (pullbackDepthAtr > maxPullbackAtr) {
+                return {
+                    clearPending: true,
+                    reason: `EXIT_ONLY: short pullback too deep (${pullbackDepthAtr.toFixed(
+                        2
+                    )} ATR)`,
+                };
+            }
+
+            if (bullishPullbackCandle && pullbackDepthAtr >= minPullbackAtr && rsiRecovered) {
+                const nextPending = {
+                    ...pending,
+                    state: "AWAIT_REACCELERATION",
+                    waitingFor: "REACCELERATION",
+                    troughPrice: trackedTroughPrice,
+                    pullbackLow: currentLow,
+                    pullbackHigh: currentHigh,
+                    pullbackDepthAtr,
+                    reaccelerationTrigger: currentLow,
+                    pullbackDetectedTime:
+                        this.getCandleTimestampMs(signalCandleTime),
+                };
+
+                return {
+                    pending: nextPending,
+                    reason:
+                        `EXIT_ONLY: short pullback detected (${pullbackDepthAtr.toFixed(
+                            2
+                        )} ATR) - waiting for breakdown`,
+                };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    troughPrice: trackedTroughPrice,
+                },
+                reason:
+                    `EXIT_ONLY: short setup waiting for pullback | trough ${trackedTroughPrice.toFixed(
+                        5
+                    )}`,
+            };
+        }
+
+        const breakdownTrigger =
+            pending.reaccelerationTrigger ||
+            pending.pullbackLow ||
+            previousCandle.low;
+        const updatedPullbackLow =
+            pending.pullbackLow == null
+                ? currentLow
+                : Math.min(pending.pullbackLow, currentLow);
+        const updatedPullbackHigh =
+            pending.pullbackHigh == null
+                ? currentHigh
+                : Math.max(pending.pullbackHigh, currentHigh);
+        const updatedTrigger = Math.min(breakdownTrigger, currentLow);
+        const updatedDepthAtr =
+            atrVal > 0
+                ? (updatedPullbackHigh - pending.troughPrice) / atrVal
+                : pending.pullbackDepthAtr || 0;
+
+        if (updatedDepthAtr > maxPullbackAtr) {
+            return {
+                clearPending: true,
+                reason: `EXIT_ONLY: short pullback invalidated (${updatedDepthAtr.toFixed(
+                    2
+                )} ATR)`,
+            };
+        }
+
+        const bearishBreakdown =
+            currentClose < breakdownTrigger &&
+            currentClose < previousCandle.low &&
+            currentClose < currentOpen;
+        const reaccelerationConfirmed =
+            bearishBreakdown &&
+            adxOk &&
+            shortDiOk &&
+            rsiVal <= shortMomentumCeiling &&
+            rsiVal > (this.config.rsiOversold || 30) &&
+            htfContext.shortAllowed;
+
+        if (reaccelerationConfirmed) {
+            return {
+                signalType: "SELL",
+                entryType: "SHORT_CONTINUATION_PULLBACK",
+                clearPending: true,
+                reason:
+                    `SELL: Pullback reacceleration | depth ${updatedDepthAtr.toFixed(
+                        2
+                    )} ATR | RSI ${rsiVal.toFixed(1)} | ` +
+                    `-DI breakdown confirmed`,
+            };
+        }
+
+        return {
+            pending: {
+                ...pending,
+                state: "AWAIT_REACCELERATION",
+                waitingFor: "REACCELERATION",
+                pullbackLow: updatedPullbackLow,
+                pullbackHigh: updatedPullbackHigh,
+                pullbackDepthAtr: updatedDepthAtr,
+                reaccelerationTrigger: updatedTrigger,
+            },
+            reason:
+                `EXIT_ONLY: short setup waiting for breakdown | depth ${updatedDepthAtr.toFixed(
+                    2
+                )} ATR`,
+        };
+    }
+
     async generateSignal(instrument, candles, currentPrice) {
         try {
             if (!candles || candles.length < 200) {
@@ -147,6 +580,8 @@ class SignalGenerator extends EventEmitter {
             });
             const adxResult = adxResults[adxResults.length - 1];
             const adxVal = adxResult?.adx || 0;
+            const pdiVal = adxResult?.pdi || 0;
+            const mdiVal = adxResult?.mdi || 0;
 
             // ADX Slope calculation: compare current ADX to ADX from N bars ago
             const lookback = this.config.adxSlopeLookback || 3;
@@ -166,12 +601,19 @@ class SignalGenerator extends EventEmitter {
             const pipValue =
                 this.dataService?.getPipValue?.(instrument) || 0.0001;
             const atrPips = atrVal / pipValue;
+            const htfContext = this.getHtfTrendContext(instrument);
+            const longContinuationEnabled = this.isLongContinuationEnabled();
+            const shortContinuationEnabled = this.isShortContinuationEnabled();
+            const currentCandle = candles[idx];
+            const previousCandle = candles[idx - 1];
 
             // 2. Base state
             let signalType = "HOLD";
             let reason = `ST:${
                 currentDir === 1 ? "ðŸŸ¢" : "ðŸ”´"
-            } ADX:${adxVal.toFixed(1)} RSI:${rsiVal.toFixed(
+            } ADX:${adxVal.toFixed(1)} +DI:${pdiVal.toFixed(
+                1
+            )} -DI:${mdiVal.toFixed(1)} RSI:${rsiVal.toFixed(
                 1
             )} ATR:${atrPips.toFixed(1)}pips`;
             let entryType = null;
@@ -179,342 +621,219 @@ class SignalGenerator extends EventEmitter {
             const adxMeetsThreshold = adxVal >= (this.config.minAdx || 22);
             const adxSlopeOk = !this.config.adxSlopeFilter || adxRising;
             const adxOk = adxMeetsThreshold && adxSlopeOk;
-            const rsiOkForFresh = rsiVal < (this.config.rsiOverbought || 75);
-            const rsiOkForContinuation =
-                rsiVal < (this.config.continuationRsiThreshold || 70);
-            // SHORT entry RSI check: not oversold (inverse of overbought for longs)
-            const rsiOkForShort = rsiVal > (this.config.rsiOversold || 30);
-            const rsiOkForShortContinuation = rsiVal > ((this.config.rsiOversold || 30) + 5); // 35 default
+            const longDiOk =
+                this.config.requireDirectionalAdx === false || pdiVal > mdiVal;
+            const shortDiOk =
+                this.config.requireDirectionalAdx === false || mdiVal > pdiVal;
+            const longMomentumFloor = this.config.longRsiMomentumFloor || 52;
+            const shortMomentumCeiling =
+                this.config.shortRsiMomentumCeiling || 48;
+            const longBaseRegimeOk =
+                adxMeetsThreshold &&
+                longDiOk &&
+                htfContext.longAllowed &&
+                rsiVal >= longMomentumFloor;
+            const shortBaseRegimeOk =
+                adxMeetsThreshold &&
+                shortDiOk &&
+                htfContext.shortAllowed &&
+                rsiVal <= shortMomentumCeiling;
+            const freshLongEntryOk =
+                longBaseRegimeOk &&
+                adxSlopeOk &&
+                rsiVal < (this.config.rsiOverbought || 75);
+            const freshShortEntryOk =
+                shortBaseRegimeOk &&
+                adxSlopeOk &&
+                rsiVal > (this.config.rsiOversold || 30);
 
-            // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED â†’ GREEN)
+            // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED -> GREEN)
             if (prevDir === -1 && currentDir === 1) {
-                // Clear any pending SHORT entries on direction change
                 const existingPending = this._pendingEntries.get(instrument);
                 if (existingPending && existingPending.direction === "SHORT") {
                     this._pendingEntries.delete(instrument);
                 }
 
-                if (adxOk && rsiOkForFresh) {
-                    // All conditions met - immediate entry
+                if (freshLongEntryOk) {
                     signalType = "BUY";
                     entryType = "FRESH_FLIP";
-                    reason = `🚀 BUY: ST Flip GREEN | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(1)}`;
+                    reason =
+                        `🚀 BUY: ST Flip GREEN | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | ` +
+                        `+DI ${pdiVal.toFixed(1)} > -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
                     this._pendingEntries.delete(instrument);
-                } else if (adxMeetsThreshold && !adxSlopeOk && rsiOkForFresh) {
-                    // ADX meets threshold but falling - wait for ADX to rise
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "ADX_SLOPE_RISING",
-                            direction: "LONG",
-                        });
-                        reason = `⏸️ PENDING: ST Flip blocked by falling ADX (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)}) - waiting for rising trend`;
-                        logger.info(`📉 ${instrument}: Signal filtered - ADX falling (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)})`);
-                    }
-                } else if (adxOk && !rsiOkForFresh) {
-                    // ADX strong but RSI overbought - wait for RSI cooldown
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "RSI_COOLDOWN",
-                            direction: "LONG",
-                        });
-                        reason = `â¸ï¸ PENDING: ST Flip blocked by RSI (${rsiVal.toFixed(
+                } else if (longContinuationEnabled && longBaseRegimeOk) {
+                    const pendingSetup = this.createPullbackSetup({
+                        direction: "LONG",
+                        flipTime: flipTimeMs,
+                        flipPrice: flipCandlePrice,
+                        flipAdx: adxVal,
+                        flipRsi: rsiVal,
+                        initialHigh: currentCandle.high,
+                        initialLow: currentCandle.low,
+                        signalCandleTime,
+                    });
+                    this._pendingEntries.set(instrument, pendingSetup);
+                    reason =
+                        `HOLD: long trend valid but not chaseable | ` +
+                        `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
                             1
-                        )} >= ${
-                            this.config.rsiOverbought
-                        }) - waiting for cooldown`;
-                    }
-                } else if (!adxMeetsThreshold && rsiOkForFresh) {
-                    // RSI OK but ADX below threshold - wait for ADX to strengthen
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "ADX_STRENGTHEN",
-                            direction: "LONG",
-                        });
-                        reason = `â¸ï¸ PENDING: ST Flip blocked by ADX (${adxVal.toFixed(
+                        )} | waiting for pullback`;
+                } else if (!htfContext.longAllowed) {
+                    reason = `HOLD: ST Flip blocked by ${htfContext.reason}`;
+                } else if (!adxMeetsThreshold) {
+                    reason = `HOLD: ST Flip blocked by weak ADX ${adxVal.toFixed(1)} < ${this.config.minAdx}`;
+                } else if (!longDiOk) {
+                    reason =
+                        `HOLD: ST Flip blocked by directional ADX (+DI ${pdiVal.toFixed(
                             1
-                        )} < ${
-                            this.config.minAdx
-                        }) - waiting for trend strength`;
-                    }
+                        )} <= -DI ${mdiVal.toFixed(1)})`;
+                } else if (rsiVal < longMomentumFloor) {
+                    reason =
+                        `HOLD: ST Flip blocked by weak momentum RSI ${rsiVal.toFixed(
+                            1
+                        )} < ${longMomentumFloor}`;
                 } else {
-                    // Both ADX weak AND RSI overbought - wait for both
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "BOTH",
-                            direction: "LONG",
-                        });
-                        reason = `â¸ï¸ PENDING: ST Flip blocked by ADX (${adxVal.toFixed(
-                            1
-                        )}) AND RSI (${rsiVal.toFixed(1)}) - waiting for both`;
-                    }
+                    reason =
+                        `HOLD: ST Flip filtered | ADX ${adxVal.toFixed(1)} | ` +
+                        `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
                 }
             }
-            // 4. CONTINUATION ENTRY: Conditions improved after pending flip
+            // 4. CONTINUATION ENTRY: valid trend + real pullback + breakout
             else if (
                 currentDir === 1 &&
-                this.config.enableContinuationEntry &&
+                longContinuationEnabled &&
                 this._pendingEntries.has(instrument) &&
-                (
-                    !this._pendingEntries.get(instrument).direction ||
-                    this._pendingEntries.get(instrument).direction === "LONG"
-                )
+                this._pendingEntries.get(instrument).direction === "LONG"
             ) {
                 const pending = this._pendingEntries.get(instrument);
-                const ageMs = Date.now() - pending.flipTime;
-                const maxAgeMs =
-                    this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
+                const evaluation = this.evaluateLongPullbackSetup({
+                    instrument,
+                    pending,
+                    signalCandleTime,
+                    currentOpen: currentCandle.open,
+                    currentClose: currentCandle.close,
+                    currentHigh: currentCandle.high,
+                    currentLow: currentCandle.low,
+                    previousCandle,
+                    atrVal,
+                    rsiVal,
+                    adxMeetsThreshold,
+                    adxOk,
+                    longDiOk,
+                    htfContext,
+                });
 
-                if (ageMs > maxAgeMs) {
-                    logger.info(
-                        `â° ${instrument}: Continuation window expired after ${(
-                            ageMs / 60000
-                        ).toFixed(0)} minutes. Was waiting for: ${
-                            pending.waitingFor
-                        }`
-                    );
+                if (evaluation.clearPending) {
                     this._pendingEntries.delete(instrument);
-                } else {
-                    const maxDeviation =
-                        this.config.continuationMaxPriceDeviation || 0.005;
-                    const priceDeviation =
-                        (currentPrice - pending.flipPrice) / pending.flipPrice;
-                    const priceOk = Math.abs(priceDeviation) <= maxDeviation;
+                } else if (evaluation.pending) {
+                    this._pendingEntries.set(instrument, evaluation.pending);
+                }
 
-                    // Check if price has moved too far - cancel regardless of type
-                    if (!priceOk) {
-                        logger.info(
-                            `âŒ ${instrument}: Continuation cancelled. Price moved ${(
-                                priceDeviation * 100
-                            ).toFixed(1)}% from flip price`
-                        );
-                        this._pendingEntries.delete(instrument);
-                    }
-                    // Handle based on what we're waiting for
-                    else if (pending.waitingFor === "RSI_COOLDOWN") {
-                        // Was blocked by high RSI - check if RSI cooled down
-                        if (adxOk && rsiOkForContinuation) {
-                            signalType = "BUY";
-                            entryType = "CONTINUATION_RSI";
-                            reason =
-                                `ðŸ”„ BUY: Continuation (RSI Cooldown) | RSI ${rsiVal.toFixed(
-                                    1
-                                )} < ${
-                                    this.config.continuationRsiThreshold
-                                } | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(
-                                    1
-                                )}% from flip | ` +
-                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    } else if (pending.waitingFor === "ADX_STRENGTHEN") {
-                        // Was blocked by weak ADX - check if ADX strengthened
-                        if (adxOk && rsiOkForFresh) {
-                            signalType = "BUY";
-                            entryType = "CONTINUATION_ADX";
-                            reason =
-                                `🔄 BUY: Continuation (ADX Strengthened) | ADX ${adxVal.toFixed(1)} >= ${this.config.minAdx} | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | ` +
-                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    } else if (pending.waitingFor === "ADX_SLOPE_RISING") {
-                        // Was blocked by falling ADX - check if ADX is now rising
-                        if (adxMeetsThreshold && adxRising && rsiOkForFresh) {
-                            signalType = "BUY";
-                            entryType = "CONTINUATION_ADX_SLOPE";
-                            reason =
-                                `🔄 BUY: Continuation (ADX Rising) | ADX ${adxVal.toFixed(1)}↑ | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | ` +
-                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    } else if (pending.waitingFor === "BOTH") {
-                        // Was blocked by both - need both to be OK
-                        if (adxOk && rsiOkForContinuation) {
-                            signalType = "BUY";
-                            entryType = "CONTINUATION_BOTH";
-                            reason =
-                                `ðŸ”„ BUY: Continuation (Both OK) | ADX ${adxVal.toFixed(
-                                    1
-                                )} RSI ${rsiVal.toFixed(1)} | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(
-                                    1
-                                )}% from flip | ` +
-                                `Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    } else {
-                        // Legacy pending entries without waitingFor field (backwards compat)
-                        if (adxOk && rsiOkForContinuation) {
-                            signalType = "BUY";
-                            entryType = "CONTINUATION";
-                            reason =
-                                `ðŸ”„ BUY: Continuation Entry | RSI cooled (${rsiVal.toFixed(
-                                    1
-                                )} < ${
-                                    this.config.continuationRsiThreshold
-                                }) | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(
-                                    1
-                                )}% from flip | Wait: ${(ageMs / 60000).toFixed(
-                                    0
-                                )}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    }
+                if (evaluation.signalType) {
+                    signalType = evaluation.signalType;
+                    entryType = evaluation.entryType;
+                    reason = evaluation.reason;
+                } else {
+                    reason = evaluation.reason;
                 }
             }
-            // 5. SHORT ENTRY: SuperTrend Flip (GREEN → RED)
-            // Always emits SELL (to close longs), but entryType indicates if short entry is valid
+            // 5. SHORT ENTRY: SuperTrend Flip (GREEN -> RED)
+            // Always emits SELL to close longs; entryType indicates whether a short is allowed.
             else if (prevDir === 1 && currentDir === -1) {
                 signalType = "SELL";
-                // Clear any pending LONG entries on direction change
                 const existingPending = this._pendingEntries.get(instrument);
                 if (existingPending && existingPending.direction !== "SHORT") {
                     this._pendingEntries.delete(instrument);
                 }
 
-                if (adxOk && rsiOkForShort) {
-                    // All conditions met - valid short entry
+                if (freshShortEntryOk) {
                     entryType = "SHORT_ENTRY";
-                    reason = `📉 SELL: ST Flip RED | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(1)}`;
+                    reason =
+                        `📉 SELL: ST Flip RED | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | ` +
+                        `-DI ${mdiVal.toFixed(1)} > +DI ${pdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
                     this._pendingEntries.delete(instrument);
-                } else if (adxMeetsThreshold && !adxSlopeOk && rsiOkForShort) {
-                    // ADX meets threshold but falling - wait for ADX to rise
+                } else if (shortContinuationEnabled && shortBaseRegimeOk) {
+                    const pendingSetup = this.createPullbackSetup({
+                        direction: "SHORT",
+                        flipTime: flipTimeMs,
+                        flipPrice: flipCandlePrice,
+                        flipAdx: adxVal,
+                        flipRsi: rsiVal,
+                        initialHigh: currentCandle.high,
+                        initialLow: currentCandle.low,
+                        signalCandleTime,
+                    });
+                    this._pendingEntries.set(instrument, pendingSetup);
                     entryType = "EXIT_ONLY";
-                    reason = `📉 EXIT: ST Flip RED (short blocked: falling ADX ${adxVal.toFixed(1)})`;
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "ADX_SLOPE_RISING",
-                            direction: "SHORT",
-                        });
-                        logger.info(`📉 ${instrument}: Short entry filtered - ADX falling (${adxVal.toFixed(1)} < prev ${prevAdxVal.toFixed(1)})`);
-                    }
-                } else if (adxOk && !rsiOkForShort) {
-                    // ADX strong but RSI oversold - wait for RSI recovery
+                    reason =
+                        `EXIT_ONLY: short trend valid but waiting for pullback | ` +
+                        `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
+                            1
+                        )}`;
+                } else if (!htfContext.shortAllowed) {
                     entryType = "EXIT_ONLY";
-                    reason = `📉 EXIT: ST Flip RED (short blocked: RSI oversold ${rsiVal.toFixed(1)})`;
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "RSI_RECOVERY",
-                            direction: "SHORT",
-                        });
-                    }
-                } else if (!adxMeetsThreshold && rsiOkForShort) {
-                    // RSI OK but ADX below threshold - wait for ADX to strengthen
+                    reason = `📉 EXIT: ST Flip RED (short blocked: ${htfContext.reason})`;
+                } else if (!adxMeetsThreshold) {
                     entryType = "EXIT_ONLY";
                     reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} < ${this.config.minAdx})`;
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "ADX_STRENGTHEN",
-                            direction: "SHORT",
-                        });
-                    }
-                } else {
-                    // Both ADX weak AND RSI oversold - wait for both
+                } else if (!shortDiOk) {
                     entryType = "EXIT_ONLY";
-                    reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} & RSI ${rsiVal.toFixed(1)})`;
-                    if (this.config.enableContinuationEntry) {
-                        this._pendingEntries.set(instrument, {
-                            flipTime: flipTimeMs,
-                            flipPrice: flipCandlePrice,
-                            flipAdx: adxVal,
-                            flipRsi: rsiVal,
-                            waitingFor: "BOTH",
-                            direction: "SHORT",
-                        });
-                    }
+                    reason =
+                        `📉 EXIT: ST Flip RED (short blocked: directional ADX -DI ${mdiVal.toFixed(
+                            1
+                        )} <= +DI ${pdiVal.toFixed(1)})`;
+                } else if (rsiVal > shortMomentumCeiling) {
+                    entryType = "EXIT_ONLY";
+                    reason =
+                        `📉 EXIT: ST Flip RED (short blocked: momentum too strong RSI ${rsiVal.toFixed(
+                            1
+                        )} > ${shortMomentumCeiling})`;
+                } else {
+                    entryType = "EXIT_ONLY";
+                    reason =
+                        `📉 EXIT: ST Flip RED (short filtered | ADX ${adxVal.toFixed(1)} | ` +
+                        `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)})`;
                 }
             }
-            // 6. SHORT CONTINUATION: Conditions improved after pending short flip
+            // 6. SHORT CONTINUATION: valid trend + pullback + breakdown
             else if (
                 currentDir === -1 &&
-                this.config.enableContinuationEntry &&
+                shortContinuationEnabled &&
                 this._pendingEntries.has(instrument) &&
                 this._pendingEntries.get(instrument).direction === "SHORT"
             ) {
+                signalType = "SELL";
+                entryType = "EXIT_ONLY";
                 const pending = this._pendingEntries.get(instrument);
-                const ageMs = Date.now() - pending.flipTime;
-                const maxAgeMs = this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
+                const evaluation = this.evaluateShortPullbackSetup({
+                    instrument,
+                    pending,
+                    signalCandleTime,
+                    currentOpen: currentCandle.open,
+                    currentClose: currentCandle.close,
+                    currentHigh: currentCandle.high,
+                    currentLow: currentCandle.low,
+                    previousCandle,
+                    atrVal,
+                    rsiVal,
+                    adxMeetsThreshold,
+                    adxOk,
+                    shortDiOk,
+                    htfContext,
+                });
 
-                if (ageMs > maxAgeMs) {
-                    logger.info(
-                        `⏰ ${instrument}: Short continuation window expired after ${(ageMs / 60000).toFixed(0)} minutes. Was waiting for: ${pending.waitingFor}`
-                    );
+                if (evaluation.clearPending) {
                     this._pendingEntries.delete(instrument);
-                } else {
-                    const maxDeviation = this.config.continuationMaxPriceDeviation || 0.005;
-                    // For shorts, price deviation is negative when price falls (favorable)
-                    const priceDeviation = (pending.flipPrice - currentPrice) / pending.flipPrice;
-                    const priceOk = Math.abs(priceDeviation) <= maxDeviation;
+                } else if (evaluation.pending) {
+                    this._pendingEntries.set(instrument, evaluation.pending);
+                }
 
-                    if (!priceOk) {
-                        logger.info(
-                            `❌ ${instrument}: Short continuation cancelled. Price moved ${(priceDeviation * 100).toFixed(1)}% from flip price`
-                        );
-                        this._pendingEntries.delete(instrument);
-                    } else if (pending.waitingFor === "RSI_RECOVERY") {
-                        if (adxOk && rsiOkForShortContinuation) {
-                            signalType = "SELL";
-                            entryType = "SHORT_CONTINUATION_RSI";
-                            reason = `🔄 SELL: Short Continuation (RSI Recovery) | RSI ${rsiVal.toFixed(1)} > ${(this.config.rsiOversold || 30) + 5} | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    } else if (pending.waitingFor === "ADX_STRENGTHEN") {
-                        if (adxOk && rsiOkForShort) {
-                            signalType = "SELL";
-                            entryType = "SHORT_CONTINUATION_ADX";
-                            reason = `🔄 SELL: Short Continuation (ADX Strengthened) | ADX ${adxVal.toFixed(1)} >= ${this.config.minAdx} | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    } else if (pending.waitingFor === "ADX_SLOPE_RISING") {
-                        if (adxMeetsThreshold && adxRising && rsiOkForShort) {
-                            signalType = "SELL";
-                            entryType = "SHORT_CONTINUATION_ADX_SLOPE";
-                            reason = `🔄 SELL: Short Continuation (ADX Rising) | ADX ${adxVal.toFixed(1)}↑ | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    } else if (pending.waitingFor === "BOTH") {
-                        if (adxOk && rsiOkForShortContinuation) {
-                            signalType = "SELL";
-                            entryType = "SHORT_CONTINUATION_BOTH";
-                            reason = `🔄 SELL: Short Continuation (Both OK) | ADX ${adxVal.toFixed(1)} RSI ${rsiVal.toFixed(1)} | ` +
-                                `Price: ${(priceDeviation * 100).toFixed(1)}% from flip | Wait: ${(ageMs / 60000).toFixed(0)}min`;
-                            this._pendingEntries.delete(instrument);
-                        }
-                    }
+                if (evaluation.signalType) {
+                    signalType = evaluation.signalType;
+                    entryType = evaluation.entryType;
+                    reason = evaluation.reason;
+                } else {
+                    reason = evaluation.reason;
                 }
             }
 
@@ -535,10 +854,14 @@ class SignalGenerator extends EventEmitter {
                     currentPrice,
                     rsi: rsiVal,
                     adx: adxVal,
+                    pdi: pdiVal,
+                    mdi: mdiVal,
                     adxRising: adxRising,
                     adxPrev: prevAdxVal,
                     supertrend_direction: currentDir,
                     atrPips: atrPips,
+                    htfDirection: htfContext.direction,
+                    htfTimeframe: htfContext.timeframe,
                 },
 
                 // Trading engine compatibility
@@ -546,10 +869,14 @@ class SignalGenerator extends EventEmitter {
                     currentPrice,
                     rsi: rsiVal,
                     adx: adxVal,
+                    pdi: pdiVal,
+                    mdi: mdiVal,
                     adxRising: adxRising,
                     adxPrev: prevAdxVal,
                     stDirection: currentDir,
                     atrPips: atrPips,
+                    htfDirection: htfContext.direction,
+                    htfTimeframe: htfContext.timeframe,
                 },
 
                 pendingEntry: this._pendingEntries.has(instrument)
@@ -560,8 +887,17 @@ class SignalGenerator extends EventEmitter {
                               this._pendingEntries.get(instrument).flipPrice,
                           flipAdx: this._pendingEntries.get(instrument).flipAdx,
                           flipRsi: this._pendingEntries.get(instrument).flipRsi,
+                          state: this._pendingEntries.get(instrument).state,
                           waitingFor:
                               this._pendingEntries.get(instrument).waitingFor,
+                          direction:
+                              this._pendingEntries.get(instrument).direction,
+                          pullbackDepthAtr:
+                              this._pendingEntries.get(instrument)
+                                  .pullbackDepthAtr,
+                          reaccelerationTrigger:
+                              this._pendingEntries.get(instrument)
+                                  .reaccelerationTrigger,
                           ageMinutes: (
                               (Date.now() -
                                   this._pendingEntries.get(instrument)
@@ -625,6 +961,7 @@ class SignalGenerator extends EventEmitter {
     }
 
     async generateAllSignals(dataService) {
+        this.dataService = dataService;
         const signals = [];
         for (const instrument of this.config.assets) {
             try {
@@ -674,7 +1011,11 @@ class SignalGenerator extends EventEmitter {
                     flipPrice: data.flipPrice,
                     flipAdx: data.flipAdx,
                     flipRsi: data.flipRsi,
+                    state: data.state || "UNKNOWN",
                     waitingFor: data.waitingFor || "UNKNOWN",
+                    direction: data.direction || "UNKNOWN",
+                    pullbackDepthAtr: data.pullbackDepthAtr ?? null,
+                    reaccelerationTrigger: data.reaccelerationTrigger ?? null,
                     ageMinutes: ((Date.now() - data.flipTime) / 60000).toFixed(
                         0
                     ),

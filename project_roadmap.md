@@ -72,6 +72,27 @@ This document tracks all planned features, enhancements, and technical improveme
 | LOW | Multi-timeframe confirmation | Complete (backtest) | M15 fills + H1 signal mode implemented in backtests |
 | LOW | Trailing stop improvements | Planned | Dynamic ATR-based trail still pending |
 
+### Live Signal Logic Hardening (Post-Production Review)
+
+| Priority | Feature | Status | Notes |
+| -------- | ------- | ------ | ----- |
+| HIGH | Directional ADX confirmation in live signal generation | Complete (code) | `signalGenerator` now requires `+DI > -DI` for longs and `-DI > +DI` for shorts, with the result included in live signal payloads. |
+| HIGH | Split continuation logic by side | Complete (code) | Long and short continuation flows are now controlled independently, with short continuation disabled by default and no longer sharing the long-side retry path. |
+| HIGH | Higher-timeframe live regime filter | Complete (code) | Live signal generation now requires HTF alignment and `OandaDataService` fetches the additional candle granularity needed to evaluate that filter in production. |
+| HIGH | Replace loose continuation with pullback-and-reacceleration rules | Complete (code) | Continuations are now setup-driven: valid flip -> wait for pullback -> wait for breakout/breakdown. The old time/price-band retry model is no longer the primary live entry path. |
+| MEDIUM | Add side-specific continuation config | Complete (code) | Added `enableLongContinuationEntry` and `enableShortContinuationEntry`, plus new momentum-floor and pullback-depth controls for the redesigned live signal model. |
+| HIGH | Add RSI momentum floors to live entries | Complete (code) | Longs now require RSI to already be in bullish territory and shorts require RSI to already be in bearish territory, which is closer to an actual momentum framework than the old “not too extreme” filter. |
+| MEDIUM | Add side-specific signal quality analytics | Planned | Extend analytics to track win rate / PnL by side + ADX bucket + RSI bucket so live strategy tuning is based on actual cohort behavior. |
+| HIGH | Validate long-only / New York-only live rollout before further signal rewrites | In progress | Production cohort review indicates long-only performs materially better than shorts and New York is the strongest session. Config narrowed first; signal-logic changes should be evaluated against that cleaner cohort. |
+
+### Production Cohort Findings To Preserve
+
+- 90-day live cohort: 71 closed trades, `-A$30.74` total P&L, `22.5%` win rate, `0.63` profit factor.
+- BUY side was near-flat to slightly positive; SELL side drove the loss. Short continuations were the worst entry family.
+- New York was the only clearly positive session; Tokyo was strongly negative.
+- Higher ADX did not improve results overall, and was especially harmful on SELL trades.
+- Continuation entries dominated the book, which means strategy quality is currently determined more by continuation behavior than by fresh flips.
+
 ---
 
 ## Dashboard & Monitoring
@@ -152,4 +173,4 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ---
 
-_Last updated: 2026-02-16_
+_Last updated: 2026-03-06_

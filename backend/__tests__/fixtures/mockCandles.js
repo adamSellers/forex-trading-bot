@@ -168,6 +168,12 @@ const generateChoppyCandles = (count = 200) => {
  */
 const createMockDataService = (candleData = {}, priceData = {}) => ({
     getCandles: jest.fn((instrument, timeframe) => {
+        const timeframeKey = timeframe
+            ? `${instrument}_${timeframe}`
+            : instrument;
+        if (candleData[timeframeKey]) {
+            return candleData[timeframeKey];
+        }
         return candleData[instrument] || generateCandles(200);
     }),
     getCurrentPrice: jest.fn((instrument) => {

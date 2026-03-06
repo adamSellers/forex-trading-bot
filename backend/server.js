@@ -65,13 +65,30 @@ const signalGenerator = new SignalGenerator({
     assets: INSTRUMENTS,
     timeframe: initialConfig.timeframe || "15m",
     minAdx: initialConfig.minAdx || 22,
+    adxSlopeFilter: initialConfig.adxSlopeFilter ?? true,
+    adxSlopeLookback: initialConfig.adxSlopeLookback || 3,
+    requireDirectionalAdx: initialConfig.requireDirectionalAdx ?? true,
+    longRsiMomentumFloor: initialConfig.longRsiMomentumFloor || 52,
+    shortRsiMomentumCeiling:
+        initialConfig.shortRsiMomentumCeiling || 48,
     rsiOverbought: initialConfig.rsiOverbought || 75,
+    rsiOversold: initialConfig.rsiOversold || 30,
     enableContinuationEntry: initialConfig.enableContinuationEntry ?? true,
+    enableLongContinuationEntry:
+        initialConfig.enableLongContinuationEntry ?? true,
+    enableShortContinuationEntry:
+        initialConfig.enableShortContinuationEntry ?? false,
     continuationWindowMs:
         initialConfig.continuationWindowMs || 4 * 60 * 60 * 1000,
     continuationRsiThreshold: initialConfig.continuationRsiThreshold || 70,
     continuationMaxPriceDeviation:
         initialConfig.continuationMaxPriceDeviation || 0.02,
+    continuationPullbackMinAtr:
+        initialConfig.continuationPullbackMinAtr || 0.5,
+    continuationPullbackMaxAtr:
+        initialConfig.continuationPullbackMaxAtr || 1.5,
+    enableHTFFilter: initialConfig.enableHTFFilter ?? true,
+    htfTimeframe: initialConfig.htfTimeframe || "1h",
 }, signalRepository);
 
 // Initialize S3 report scheduler

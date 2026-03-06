@@ -29,15 +29,26 @@ const DEFAULT_CONFIG = {
     minAdx: 22,
     adxSlopeFilter: true,
     adxSlopeLookback: 3,
+    requireDirectionalAdx: true,
+    longRsiMomentumFloor: 52,
+    shortRsiMomentumCeiling: 48,
     enableRsiFilter: true,
     rsiOverbought: 75,
     rsiOversold: 30,
 
     // Continuation Entry
     enableContinuationEntry: true,
+    enableLongContinuationEntry: true,
+    enableShortContinuationEntry: false,
     continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
     continuationRsiThreshold: 70,
     continuationMaxPriceDeviation: 0.005,
+    continuationPullbackMinAtr: 0.5,
+    continuationPullbackMaxAtr: 1.5,
+
+    // Higher-timeframe trend filter
+    enableHTFFilter: true,
+    htfTimeframe: "1h",
 
     // Short Selling
     enableShorting: false,
@@ -199,13 +210,27 @@ class ConfigService extends EventEmitter {
                 minAdx: this.config.minAdx,
                 adxSlopeFilter: this.config.adxSlopeFilter,
                 adxSlopeLookback: this.config.adxSlopeLookback,
+                requireDirectionalAdx: this.config.requireDirectionalAdx,
+                longRsiMomentumFloor: this.config.longRsiMomentumFloor,
+                shortRsiMomentumCeiling:
+                    this.config.shortRsiMomentumCeiling,
                 rsiOverbought: this.config.rsiOverbought,
                 rsiOversold: this.config.rsiOversold,
                 enableContinuationEntry: this.config.enableContinuationEntry,
+                enableLongContinuationEntry:
+                    this.config.enableLongContinuationEntry,
+                enableShortContinuationEntry:
+                    this.config.enableShortContinuationEntry,
                 continuationWindowMs: this.config.continuationWindowMs,
                 continuationRsiThreshold: this.config.continuationRsiThreshold,
                 continuationMaxPriceDeviation:
                     this.config.continuationMaxPriceDeviation,
+                continuationPullbackMinAtr:
+                    this.config.continuationPullbackMinAtr,
+                continuationPullbackMaxAtr:
+                    this.config.continuationPullbackMaxAtr,
+                enableHTFFilter: this.config.enableHTFFilter,
+                htfTimeframe: this.config.htfTimeframe,
                 signalCooldown: this.config.signalCooldown,
                 atrPeriod: this.config.supertrendPeriod,
                 factor: this.config.supertrendMultiplier,
@@ -215,6 +240,11 @@ class ConfigService extends EventEmitter {
 
         // Update DataService instruments
         if (this.dataService && this.config.assets) {
+            this.dataService.updateCandleConfig?.({
+                timeframe: this.config.timeframe,
+                enableHTFFilter: this.config.enableHTFFilter,
+                htfTimeframe: this.config.htfTimeframe,
+            });
             this.dataService.updateInstruments(this.config.assets);
             logger.debug("📡 DataService instruments updated");
         }
