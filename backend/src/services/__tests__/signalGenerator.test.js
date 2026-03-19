@@ -523,6 +523,48 @@ describe('SignalGenerator', () => {
             });
         });
 
+        test('should expire delayed HTF confirmation once the continuation window closes', () => {
+            const result = generator.evaluateLongHtfConfirmationSetup({
+                pending: {
+                    direction: 'LONG',
+                    state: 'AWAIT_HTF_CONFIRMATION',
+                    waitingFor: 'HTF_CONFIRMATION',
+                    flipTime: Date.now() - (generator.config.continuationWindowMs + 1000),
+                    flipPrice: 1.165,
+                    peakPrice: 1.166,
+                },
+                signalCandleTime: Date.now(),
+                currentDir: 1,
+                currentClose: 1.1658,
+                currentHigh: 1.166,
+                currentLow: 1.1652,
+                adxMeetsThreshold: true,
+                adxOk: true,
+                longDiOk: true,
+                longBaseRegimeOk: true,
+                longContinuationEnabled: true,
+                htfContext: {
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: -1,
+                    longAllowed: false,
+                    shortAllowed: true,
+                    reason: 'HTF 1h downtrend',
+                },
+                rsiVal: 61,
+                adxVal: 25,
+            });
+
+            expect(result).toEqual(
+                expect.objectContaining({
+                    clearPending: true,
+                    reasonCode: 'LONG_WAIT_HTF_EXPIRED',
+                    signalClass: 'FILTERED',
+                    intent: 'WAIT',
+                })
+            );
+        });
+
         test('should transition a pending long setup from pullback wait to breakout wait', async () => {
             const candles = generateCandles(250);
             const currentPrice = candles[candles.length - 1].close;
@@ -707,6 +749,27 @@ describe('SignalGenerator', () => {
             expect(validated2.signal).toBe('BUY');
         });
 
+        test('should store candle metadata for cooldown tracking after an actionable signal', () => {
+            const signal = {
+                symbol: 'AUD_USD',
+                signal: 'BUY',
+                strength: 25,
+                entryType: 'FRESH_FLIP',
+                signalCandleTime: '2026-03-06T00:00:00.000000000Z',
+                timestamp: Date.now(),
+            };
+
+            generator.validateSignal(signal);
+
+            expect(generator.lastSignals.get('AUD_USD_BUY')).toEqual(
+                expect.objectContaining({
+                    time: expect.any(Number),
+                    signalCandleTime: '2026-03-06T00:00:00.000000000Z',
+                    entryType: 'FRESH_FLIP',
+                })
+            );
+        });
+
         test('should not emit the same actionable signal twice for the same candle', () => {
             const signal1 = {
                 symbol: 'AUD_USD',
@@ -732,6 +795,46 @@ describe('SignalGenerator', () => {
             });
             expect(validated2.signal).toBe('COOLDOWN');
             expect(validated2.message).toContain('already emitted for this candle');
+        });
+
+        test('should preserve cooldown-relevant metadata on same-candle suppression', () => {
+            const signal = {
+                symbol: 'AUD_USD',
+                signal: 'BUY',
+                strength: 25,
+                entryType: 'FRESH_FLIP',
+                signalCandleTime: '2026-03-06T00:00:00.000000000Z',
+                reasonCode: 'LONG_FRESH_FLIP_ACTIONABLE',
+                decisionContext: {
+                    htfAligned: true,
+                },
+                timestamp: Date.now(),
+            };
+
+            generator.validateSignal(signal);
+            const suppressed = generator.validateSignal({
+                ...signal,
+                timestamp: Date.now() + 120000,
+            });
+
+            expect(suppressed).toEqual(
+                expect.objectContaining({
+                    symbol: 'AUD_USD',
+                    signal: 'COOLDOWN',
+                    entryType: 'FRESH_FLIP',
+                    signalCandleTime: '2026-03-06T00:00:00.000000000Z',
+                    reasonCode: 'COOLDOWN_DUPLICATE_CANDLE',
+                    signalClass: 'COOLDOWN',
+                    uniqueEvent: false,
+                    cooldownSuppressed: true,
+                    decisionContext: expect.objectContaining({
+                        htfAligned: true,
+                        originalSignal: 'BUY',
+                        originalEntryType: 'FRESH_FLIP',
+                        originalReasonCode: 'LONG_FRESH_FLIP_ACTIONABLE',
+                    }),
+                })
+            );
         });
 
         test('should allow different instruments without cooldown', () => {
@@ -1023,5 +1126,6 @@ describe('SignalGenerator', () => {
             // Should not throw even if saveBatch fails
             await expect(genWithErrorRepo.generateSignalCycle()).resolves.not.toThrow();
         });
+
     });
 });

@@ -2,12 +2,45 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Grid, Alert, AlertTitle, useTheme } from '@mui/material';
 import { socket } from '../config/api';
+import tradingConfigDefaults from '../../../shared/tradingConfigDefaults.json';
 
 // --- SUB-COMPONENTS ---
 import LabControls from './lab/LabControls';
 import SimulationReport from './lab/SimulationReport';
 import OptimizationReport from './lab/OptimizationReport';
 import { LoadingState, EmptyState } from './lab/LabStates';
+
+const cloneDefaults = () => JSON.parse(JSON.stringify(tradingConfigDefaults));
+
+const buildEqualWeights = (assets) => {
+    if (!assets.length) {
+        return {};
+    }
+
+    const weight = parseFloat((100 / assets.length).toFixed(1));
+    return assets.reduce((weights, asset) => {
+        weights[asset] = weight;
+        return weights;
+    }, {});
+};
+
+const createLabConfig = () => {
+    const defaults = cloneDefaults();
+    const assets = Array.isArray(defaults.assets) ? [...defaults.assets] : [];
+
+    return {
+        ...defaults,
+        balance: 1000,
+        spreadPips: 1.5,
+        commissionPerSide: 0,
+        enableSlippage: true,
+        slippagePct: 0.0005,
+        days: 30,
+        candidates: assets,
+        assets,
+        weights: buildEqualWeights(assets),
+    };
+};
 
 const BacktestLab = () => {
     const theme = useTheme();
@@ -20,48 +53,7 @@ const BacktestLab = () => {
     const [error, setError] = useState(null);
 
     // --- CONFIG STATE (V3.2.6 - Matches Live Trading) ---
-    const [config, setConfig] = useState({
-        // Entry Filters (match signalGenerator.js)
-        minAdx: 22,
-        rsiOverbought: 75,
-        rsiOversold: 30,
-        
-        // Position Sizing (match LiveTradingEngine.js)
-        balance: 1000,
-        riskPerTrade: 0.02,
-        
-        // Stop Loss
-        stopLossType: 'ATR',
-        stopLoss: 2.0,
-        stopLossATR: 2.0,
-        
-        // Trailing Stops
-        enableTrailingStops: true,
-        trailingStopPercent: 0.03,
-        
-        // Exposure cap
-        maxPortfolioExposure: 0.5,
-        
-        // FIX #6: Continuation Entry (NEW)
-        enableContinuationEntry: true,
-        continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
-        continuationRsiThreshold: 70,
-        continuationMaxPriceDeviation: 0.005,
-        
-        // Trading Costs & Slippage
-        spreadPips: 1.5,
-        commissionPerSide: 0,
-        enableSlippage: true,
-        slippagePct: 0.0005,  // 0.05%
-        
-        // Simulation Settings
-        days: 30,
-        burstMode: false,
-        
-        // Portfolio
-        assets: ['AUD_USD', 'EUR_USD'],
-        weights: { AUD_USD: 50, EUR_USD: 50 }
-    });
+    const [config, setConfig] = useState(createLabConfig);
 
     // --- WEBSOCKET LISTENERS ---
     useEffect(() => {
@@ -132,10 +124,7 @@ const BacktestLab = () => {
     const applyOptimizedConfig = () => {
         if (!optimizationReport) return;
         const newAssets = optimizationReport.optimizedPortfolio.assets;
-        const weight = parseFloat((100 / newAssets.length).toFixed(1));
-        const newWeights = {};
-        newAssets.forEach(a => newWeights[a] = weight);
-        setConfig(prev => ({ ...prev, assets: newAssets, weights: newWeights }));
+        setConfig(prev => ({ ...prev, assets: newAssets, weights: buildEqualWeights(newAssets) }));
     };
 
     // --- HELPERS FOR CONTROLS ---
@@ -145,17 +134,12 @@ const BacktestLab = () => {
     const addAsset = (a) => {
         if (!a || config.assets.includes(a)) return;
         const newAssets = [...config.assets, a];
-        const w = parseFloat((100 / newAssets.length).toFixed(1));
-        const newWeights = {};
-        newAssets.forEach(as => newWeights[as] = w);
-        setConfig(p => ({ ...p, assets: newAssets, weights: newWeights }));
+        setConfig(p => ({ ...p, assets: newAssets, weights: buildEqualWeights(newAssets) }));
     };
 
     const removeAsset = (a) => {
         const newAssets = config.assets.filter(as => as !== a);
-        const newWeights = { ...config.weights };
-        delete newWeights[a];
-        setConfig(p => ({ ...p, assets: newAssets, weights: newWeights }));
+        setConfig(p => ({ ...p, assets: newAssets, weights: buildEqualWeights(newAssets) }));
     };
 
     return (

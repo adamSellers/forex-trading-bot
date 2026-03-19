@@ -1,8 +1,9 @@
 // backend/src/workers/backtestWorker.js
 const BacktestEngine = require("../services/backtestEngine");
 const HistoricalDataService = require("../services/historicalDataService");
+const tradingConfigDefaults = require("../../../shared/tradingConfigDefaults.json");
 
-const DEFAULT_ASSETS = ["AUD_USD", "EUR_USD"];
+const DEFAULT_ASSETS = tradingConfigDefaults.assets || ["AUD_USD", "EUR_USD"];
 const DEFAULT_DAYS = 30;
 const M15_SECONDS = 15 * 60;
 
@@ -69,49 +70,161 @@ function normalizeWeights(assets, rawWeights) {
     return weights;
 }
 
+function getFiniteNumber(value, fallback) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function getBoolean(value, fallback) {
+    return value === undefined ? fallback : Boolean(value);
+}
+
+function getString(value, fallback) {
+    return typeof value === "string" && value.trim() ? value : fallback;
+}
+
 function mapToEngineConfig(config, initialBalance) {
-    const minAdx = Number(config.minAdx);
-    const rsiOverbought = Number(config.rsiOverbought ?? config.maxRsi);
-    const rsiOversold = Number(config.rsiOversold);
-    const riskPerTrade = Number(config.riskPerTrade);
-    const stopLossATR = Number(config.stopLossATR);
-    const spreadPips = Number(config.spreadPips);
-    const continuationWindowMs = Number(config.continuationWindowMs);
-    const continuationRsiThreshold = Number(config.continuationRsiThreshold);
-    const continuationMaxPriceDeviation = Number(
-        config.continuationMaxPriceDeviation
-    );
+    const defaults = tradingConfigDefaults;
 
     return {
-        minAdx: Number.isFinite(minAdx) ? minAdx : 22,
-        rsiOverbought: Number.isFinite(rsiOverbought) ? rsiOverbought : 75,
-        rsiOversold: Number.isFinite(rsiOversold) ? rsiOversold : 30,
+        atrPeriod: getFiniteNumber(
+            config.supertrendPeriod,
+            getFiniteNumber(defaults.supertrendPeriod, 10)
+        ),
+        factor: getFiniteNumber(
+            config.supertrendMultiplier,
+            getFiniteNumber(defaults.supertrendMultiplier, 3)
+        ),
+        minAdx: getFiniteNumber(config.minAdx, getFiniteNumber(defaults.minAdx, 22)),
+        adxSlopeFilter: getBoolean(
+            config.adxSlopeFilter,
+            getBoolean(defaults.adxSlopeFilter, true)
+        ),
+        adxSlopeLookback: getFiniteNumber(
+            config.adxSlopeLookback,
+            getFiniteNumber(defaults.adxSlopeLookback, 3)
+        ),
+        requireDirectionalAdx: getBoolean(
+            config.requireDirectionalAdx,
+            getBoolean(defaults.requireDirectionalAdx, true)
+        ),
+        longRsiMomentumFloor: getFiniteNumber(
+            config.longRsiMomentumFloor,
+            getFiniteNumber(defaults.longRsiMomentumFloor, 52)
+        ),
+        shortRsiMomentumCeiling: getFiniteNumber(
+            config.shortRsiMomentumCeiling,
+            getFiniteNumber(defaults.shortRsiMomentumCeiling, 48)
+        ),
+        rsiOverbought: getFiniteNumber(
+            config.rsiOverbought ?? config.maxRsi,
+            getFiniteNumber(defaults.rsiOverbought, 75)
+        ),
+        rsiOversold: getFiniteNumber(
+            config.rsiOversold,
+            getFiniteNumber(defaults.rsiOversold, 30)
+        ),
 
         initialBalance,
-        riskPerTrade: Number.isFinite(riskPerTrade) ? riskPerTrade : 0.02,
+        riskPerTrade: getFiniteNumber(
+            config.riskPerTrade,
+            getFiniteNumber(defaults.riskPerTrade, 0.02)
+        ),
+        leverage: getFiniteNumber(
+            config.leverage,
+            getFiniteNumber(defaults.leverage, 20)
+        ),
+        maxOpenPositions: getFiniteNumber(
+            config.maxOpenPositions,
+            getFiniteNumber(defaults.maxOpenPositions, 2)
+        ),
 
-        stopLossType:
-            typeof config.stopLossType === "string"
-                ? config.stopLossType.toUpperCase()
-                : "ATR",
-        stopLossAtrMultiplier: Number.isFinite(stopLossATR) ? stopLossATR : 2.0,
+        stopLossType: getString(config.stopLossType, defaults.stopLossType || "ATR").toUpperCase(),
+        stopLossPips: getFiniteNumber(
+            config.stopLossPips,
+            getFiniteNumber(defaults.stopLossPips, 30)
+        ),
+        stopLossAtrMultiplier: getFiniteNumber(
+            config.stopLossAtrMultiplier ?? config.stopLossATR,
+            getFiniteNumber(defaults.stopLossAtrMultiplier, 2)
+        ),
+        minStopLossPips: getFiniteNumber(
+            config.minStopLossPips,
+            getFiniteNumber(defaults.minStopLossPips, 15)
+        ),
 
-        enableTrailingStops: config.enableTrailingStops !== false,
+        enableTrailingStops: getBoolean(
+            config.enableTrailingStops,
+            getBoolean(defaults.enableTrailingStops, true)
+        ),
+        trailingStopPips: getFiniteNumber(
+            config.trailingStopPips,
+            getFiniteNumber(defaults.trailingStopPips, 25)
+        ),
+        trailingStopActivationPips: getFiniteNumber(
+            config.trailingStopActivationPips,
+            getFiniteNumber(defaults.trailingStopActivationPips, 20)
+        ),
 
-        enableContinuationEntry: config.enableContinuationEntry !== false,
-        continuationWindowSeconds: Number.isFinite(continuationWindowMs)
-            ? Math.max(1, Math.floor(continuationWindowMs / 1000))
+        enableTakeProfit: getBoolean(
+            config.enableTakeProfit,
+            getBoolean(defaults.enableTakeProfit, false)
+        ),
+        takeProfitPercent: getFiniteNumber(
+            config.takeProfitPercent,
+            getFiniteNumber(defaults.takeProfitPercent, 0.06)
+        ),
+        enableBreakeven: getBoolean(
+            config.enableBreakeven,
+            getBoolean(defaults.enableBreakeven, true)
+        ),
+        breakevenTriggerPips: getFiniteNumber(
+            config.breakevenTriggerPips,
+            getFiniteNumber(defaults.breakevenTriggerPips, 5)
+        ),
+
+        enableShorting: getBoolean(
+            config.enableShorting,
+            getBoolean(defaults.enableShorting, true)
+        ),
+        enableHTFFilter: getBoolean(
+            config.enableHTFFilter,
+            getBoolean(defaults.enableHTFFilter, true)
+        ),
+
+        enableContinuationEntry: getBoolean(
+            config.enableContinuationEntry,
+            getBoolean(defaults.enableContinuationEntry, true)
+        ),
+        enableLongContinuationEntry: getBoolean(
+            config.enableLongContinuationEntry,
+            getBoolean(defaults.enableLongContinuationEntry, true)
+        ),
+        enableShortContinuationEntry: getBoolean(
+            config.enableShortContinuationEntry,
+            getBoolean(defaults.enableShortContinuationEntry, true)
+        ),
+        continuationWindowSeconds: Number.isFinite(Number(config.continuationWindowMs))
+            ? Math.max(1, Math.floor(Number(config.continuationWindowMs) / 1000))
             : 4 * 60 * 60,
-        continuationRsiThreshold: Number.isFinite(continuationRsiThreshold)
-            ? continuationRsiThreshold
-            : 70,
-        continuationMaxPriceDeviation: Number.isFinite(
-            continuationMaxPriceDeviation
-        )
-            ? continuationMaxPriceDeviation
-            : 0.005,
+        continuationRsiThreshold: getFiniteNumber(
+            config.continuationRsiThreshold,
+            getFiniteNumber(defaults.continuationRsiThreshold, 70)
+        ),
+        continuationMaxPriceDeviation: getFiniteNumber(
+            config.continuationMaxPriceDeviation,
+            getFiniteNumber(defaults.continuationMaxPriceDeviation, 0.005)
+        ),
+        continuationPullbackMinAtr: getFiniteNumber(
+            config.continuationPullbackMinAtr,
+            getFiniteNumber(defaults.continuationPullbackMinAtr, 0.5)
+        ),
+        continuationPullbackMaxAtr: getFiniteNumber(
+            config.continuationPullbackMaxAtr,
+            getFiniteNumber(defaults.continuationPullbackMaxAtr, 1.5)
+        ),
 
-        spreadPips: Number.isFinite(spreadPips) ? spreadPips : 1.5,
+        spreadPips: getFiniteNumber(config.spreadPips, 1.5),
     };
 }
 

@@ -3,6 +3,87 @@ const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class TradeRepository {
+    _toNumber(value) {
+        if (value === null || value === undefined || value === "") {
+            return value ?? null;
+        }
+
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : value;
+    }
+
+    _serializeJson(value) {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+        return typeof value === "string" ? value : JSON.stringify(value);
+    }
+
+    _parseJson(value) {
+        if (!value) return null;
+        if (typeof value !== "string") return value;
+
+        try {
+            return JSON.parse(value);
+        } catch (error) {
+            logger.warn("Failed to parse trade repository JSON payload");
+            return null;
+        }
+    }
+
+    _buildTradeRecord(trade) {
+        return {
+            trade_id: trade.id,
+            oanda_trade_id: trade.oandaTradeId || null,
+            instrument: trade.instrument,
+            side: trade.side,
+            units: trade.units,
+            entry_price: trade.entryPrice,
+            exit_price: trade.exitPrice ?? null,
+            entry_cost_aud: trade.entryCostAud,
+            exit_value_aud: trade.exitValueAud ?? null,
+            pnl_aud: trade.pnlAud || 0,
+            pnl_pips: trade.pnlPips || 0,
+            pnl_percent: trade.pnlPercent || 0,
+            signal: trade.signal,
+            signal_strength: trade.signalStrength,
+            entry_type: trade.entryType,
+            atr_pips: trade.atrPips,
+            stop_loss_price: trade.stopLossPrice ?? null,
+            take_profit_price: trade.takeProfitPrice ?? null,
+            trailing_stop_price: trade.trailingStopPrice ?? null,
+            highest_price: trade.highestPrice ?? null,
+            lowest_price: trade.lowestPrice ?? null,
+            trailing_stop_pips: trade.trailingStopPips ?? null,
+            leverage_used: trade.leverageUsed || 1,
+            margin_used_aud: trade.marginUsedAud ?? null,
+            spread_pips: trade.spreadPips ?? null,
+            swap_aud: trade.swapAud ?? 0,
+            commission_aud: trade.commissionAud ?? 0,
+            holding_period_ms: trade.holdingPeriodMs ?? null,
+            entry_time: trade.entryTime || Date.now(),
+            exit_time: trade.exitTime ?? null,
+            exit_reason: trade.exitReason || null,
+            mode: trade.mode || "live",
+            is_open: trade.isOpen !== false,
+            breakeven_hit:
+                trade.breakevenHit === undefined
+                    ? null
+                    : Boolean(trade.breakevenHit),
+            active_stop_type: trade.activeStopType || null,
+            close_price_source: trade.closePriceSource || null,
+            reconciliation_status: trade.reconciliationStatus || null,
+            broker_exit_reason: trade.brokerExitReason || null,
+            broker_closed_at: trade.brokerClosedAt ?? null,
+            last_broker_sync_at: trade.lastBrokerSyncAt ?? null,
+            config_hash: trade.configHash || null,
+            broker_reconciliation_payload: this._serializeJson(
+                trade.brokerReconciliationPayload
+            ),
+            created_at: new Date(),
+            updated_at: new Date(),
+        };
+    }
+
     /**
      * Map DB record to trade object with consistent naming
      */
@@ -14,34 +95,50 @@ class TradeRepository {
             oandaTradeId: record.oanda_trade_id,
             instrument: record.instrument,
             side: record.side,
-            units: record.units,
-            entryPrice: record.entry_price,
-            exitPrice: record.exit_price,
-            entryCostAud: record.entry_cost_aud,
-            exitValueAud: record.exit_value_aud,
-            pnlAud: record.pnl_aud,
-            pnlPips: record.pnl_pips,
-            pnlPercent: record.pnl_percent,
+            units: this._toNumber(record.units),
+            entryPrice: this._toNumber(record.entry_price),
+            exitPrice: this._toNumber(record.exit_price),
+            entryCostAud: this._toNumber(record.entry_cost_aud),
+            exitValueAud: this._toNumber(record.exit_value_aud),
+            pnlAud: this._toNumber(record.pnl_aud),
+            pnlPips: this._toNumber(record.pnl_pips),
+            pnlPercent: this._toNumber(record.pnl_percent),
             signal: record.signal,
-            signalStrength: record.signal_strength,
+            signalStrength: this._toNumber(record.signal_strength),
             entryType: record.entry_type,
-            atrPips: record.atr_pips,
-            stopLossPrice: record.stop_loss_price,
-            takeProfitPrice: record.take_profit_price,
-            trailingStopPrice: record.trailing_stop_price,
-            highestPrice: record.highest_price,
-            trailingStopPips: record.trailing_stop_pips,
-            leverageUsed: record.leverage_used,
-            marginUsedAud: record.margin_used_aud,
-            spreadPips: record.spread_pips,
-            swapAud: record.swap_aud,
-            commissionAud: record.commission_aud,
-            holdingPeriodMs: record.holding_period_ms,
-            entryTime: record.entry_time,
-            exitTime: record.exit_time,
+            atrPips: this._toNumber(record.atr_pips),
+            stopLossPrice: this._toNumber(record.stop_loss_price),
+            takeProfitPrice: this._toNumber(record.take_profit_price),
+            trailingStopPrice: this._toNumber(record.trailing_stop_price),
+            highestPrice: this._toNumber(record.highest_price),
+            lowestPrice: this._toNumber(record.lowest_price),
+            trailingStopPips: this._toNumber(record.trailing_stop_pips),
+            leverageUsed: this._toNumber(record.leverage_used),
+            marginUsedAud: this._toNumber(record.margin_used_aud),
+            spreadPips: this._toNumber(record.spread_pips),
+            swapAud: this._toNumber(record.swap_aud),
+            commissionAud: this._toNumber(record.commission_aud),
+            holdingPeriodMs: this._toNumber(record.holding_period_ms),
+            entryTime: this._toNumber(record.entry_time),
+            exitTime: this._toNumber(record.exit_time),
             exitReason: record.exit_reason,
             mode: record.mode,
             isOpen: Boolean(record.is_open),
+            breakevenHit:
+                record.breakeven_hit === null ||
+                record.breakeven_hit === undefined
+                    ? null
+                    : Boolean(record.breakeven_hit),
+            activeStopType: record.active_stop_type,
+            closePriceSource: record.close_price_source,
+            reconciliationStatus: record.reconciliation_status,
+            brokerExitReason: record.broker_exit_reason,
+            brokerClosedAt: this._toNumber(record.broker_closed_at),
+            lastBrokerSyncAt: this._toNumber(record.last_broker_sync_at),
+            configHash: record.config_hash,
+            brokerReconciliationPayload: this._parseJson(
+                record.broker_reconciliation_payload
+            ),
             createdAt: record.created_at,
             updatedAt: record.updated_at,
         };
@@ -52,36 +149,7 @@ class TradeRepository {
      */
     async save(trade) {
         try {
-            await db("trades").insert({
-                trade_id: trade.id,
-                oanda_trade_id: trade.oandaTradeId || null,
-                instrument: trade.instrument,
-                side: trade.side,
-                units: trade.units,
-                entry_price: trade.entryPrice,
-                entry_cost_aud: trade.entryCostAud,
-                pnl_aud: trade.pnlAud || 0,
-                pnl_pips: trade.pnlPips || 0,
-                pnl_percent: trade.pnlPercent || 0,
-                signal: trade.signal,
-                signal_strength: trade.signalStrength,
-                entry_type: trade.entryType,
-                atr_pips: trade.atrPips,
-                stop_loss_price: trade.stopLossPrice,
-                take_profit_price: trade.takeProfitPrice,
-                trailing_stop_price: trade.trailingStopPrice,
-                highest_price: trade.highestPrice,
-                trailing_stop_pips: trade.trailingStopPips,
-                leverage_used: trade.leverageUsed || 1,
-                margin_used_aud: trade.marginUsedAud,
-                spread_pips: trade.spreadPips,
-                entry_time: trade.entryTime || Date.now(),
-                exit_reason: trade.exitReason || null,
-                mode: trade.mode || "live",
-                is_open: trade.isOpen !== false,
-                created_at: new Date(),
-                updated_at: new Date(),
-            });
+            await db("trades").insert(this._buildTradeRecord(trade));
 
             logger.debug(`Trade saved to database: ${trade.id}`);
         } catch (error) {
@@ -198,16 +266,41 @@ class TradeRepository {
                 dbUpdates.pnl_percent = updates.pnlPercent;
             if (updates.holdingPeriodMs !== undefined)
                 dbUpdates.holding_period_ms = updates.holdingPeriodMs;
+            if (updates.stopLossPrice !== undefined)
+                dbUpdates.stop_loss_price = updates.stopLossPrice;
             if (updates.takeProfitPrice !== undefined)
                 dbUpdates.take_profit_price = updates.takeProfitPrice;
             if (updates.trailingStopPrice !== undefined)
                 dbUpdates.trailing_stop_price = updates.trailingStopPrice;
             if (updates.highestPrice !== undefined)
                 dbUpdates.highest_price = updates.highestPrice;
+            if (updates.lowestPrice !== undefined)
+                dbUpdates.lowest_price = updates.lowestPrice;
             if (updates.trailingStopPips !== undefined)
                 dbUpdates.trailing_stop_pips = updates.trailingStopPips;
             if (updates.swapAud !== undefined)
                 dbUpdates.swap_aud = updates.swapAud;
+            if (updates.commissionAud !== undefined)
+                dbUpdates.commission_aud = updates.commissionAud;
+            if (updates.breakevenHit !== undefined)
+                dbUpdates.breakeven_hit = Boolean(updates.breakevenHit);
+            if (updates.activeStopType !== undefined)
+                dbUpdates.active_stop_type = updates.activeStopType;
+            if (updates.closePriceSource !== undefined)
+                dbUpdates.close_price_source = updates.closePriceSource;
+            if (updates.reconciliationStatus !== undefined)
+                dbUpdates.reconciliation_status = updates.reconciliationStatus;
+            if (updates.brokerExitReason !== undefined)
+                dbUpdates.broker_exit_reason = updates.brokerExitReason;
+            if (updates.brokerClosedAt !== undefined)
+                dbUpdates.broker_closed_at = updates.brokerClosedAt;
+            if (updates.lastBrokerSyncAt !== undefined)
+                dbUpdates.last_broker_sync_at = updates.lastBrokerSyncAt;
+            if (updates.configHash !== undefined)
+                dbUpdates.config_hash = updates.configHash;
+            if (updates.brokerReconciliationPayload !== undefined)
+                dbUpdates.broker_reconciliation_payload =
+                    this._serializeJson(updates.brokerReconciliationPayload);
 
             // Remove unchanged fields
             if (Object.keys(dbUpdates).length <= 1) {

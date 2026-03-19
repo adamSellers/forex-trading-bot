@@ -130,6 +130,70 @@ describe('SignalRepository', () => {
             expect(mockInsert).toHaveBeenCalled();
         });
 
+        test('should persist structured telemetry fields and cooldown metadata', async () => {
+            const mockInsert = jest.fn().mockResolvedValue([1]);
+            mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+
+            await repository.save({
+                symbol: 'AUD_USD',
+                signal: 'BUY',
+                strength: 31.2,
+                strategy: 'supertrend_momentum',
+                timeframe: '15m',
+                currentPrice: 1.16571,
+                message: 'BUY signal',
+                atrPips: 12.4,
+                trend: {
+                    rsi: 61.5,
+                    adx: 31.2,
+                    supertrend_direction: 1,
+                },
+                entryType: 'FRESH_FLIP',
+                timestamp: 1710000000123,
+                reasonCode: 'TREND_CONFIRMED',
+                signalClass: 'ACTIONABLE',
+                intent: 'ENTER_LONG',
+                setupId: 'setup-123',
+                signalCandleTime: '1710000000000',
+                uniqueEvent: true,
+                cooldownSuppressed: false,
+                pendingState: {
+                    direction: 'LONG',
+                    state: 'AWAIT_PULLBACK',
+                    waitingFor: 'PULLBACK',
+                },
+                configHash: 'cfg-123',
+                decisionContext: {
+                    htfAligned: true,
+                    momentumSlope: 'rising',
+                },
+            });
+
+            expect(mockInsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    instrument: 'AUD_USD',
+                    signal: 'BUY',
+                    reason_code: 'TREND_CONFIRMED',
+                    signal_class: 'ACTIONABLE',
+                    intent: 'ENTER_LONG',
+                    setup_id: 'setup-123',
+                    signal_candle_time: 1710000000000,
+                    unique_event: true,
+                    cooldown_suppressed: false,
+                    pending_direction: 'LONG',
+                    pending_state: 'AWAIT_PULLBACK',
+                    pending_waiting_for: 'PULLBACK',
+                    config_hash: 'cfg-123',
+                })
+            );
+            expect(mockInsert.mock.calls[0][0].decision_context).toBe(
+                JSON.stringify({
+                    htfAligned: true,
+                    momentumSlope: 'rising',
+                })
+            );
+        });
+
         test('should skip invalid signals', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
@@ -229,6 +293,70 @@ describe('SignalRepository', () => {
             expect(stats.byType).toEqual({});
             expect(stats.byAsset).toEqual({});
             expect(stats.averageStrength).toBe(0);
+        });
+    });
+
+    describe('getSignalsSince', () => {
+        test('should convert Date cutoffs to timestamps and map structured fields back out', async () => {
+            const row = {
+                id: 1,
+                instrument: 'AUD_USD',
+                signal: 'COOLDOWN',
+                strength: 0,
+                timestamp: 1710000000123,
+                reason_code: 'DUPLICATE_SIGNAL',
+                signal_class: 'SUPPRESSED',
+                intent: 'DEFER',
+                setup_id: 'setup-123',
+                signal_candle_time: 1710000000000,
+                unique_event: 1,
+                cooldown_suppressed: 0,
+                pending_direction: 'LONG',
+                pending_state: 'AWAIT_PULLBACK',
+                pending_waiting_for: 'PULLBACK',
+                config_hash: 'cfg-123',
+                decision_context: JSON.stringify({
+                    htfAligned: true,
+                    momentumSlope: 'rising',
+                }),
+            };
+            const mockOrderBy = jest.fn().mockResolvedValue([row]);
+            const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
+            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+
+            const cutoff = new Date(1710000000000);
+            const results = await repository.getSignalsSince(cutoff);
+
+            expect(mockWhere).toHaveBeenCalledWith(
+                'timestamp',
+                '>=',
+                cutoff.getTime()
+            );
+            expect(results).toEqual([
+                expect.objectContaining({
+                    symbol: 'AUD_USD',
+                    reasonCode: 'DUPLICATE_SIGNAL',
+                    signalClass: 'SUPPRESSED',
+                    intent: 'DEFER',
+                    setupId: 'setup-123',
+                    signalCandleTime: 1710000000000,
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                    pendingDirection: 'LONG',
+                    pendingStateCode: 'AWAIT_PULLBACK',
+                    pendingState: {
+                        direction: 'LONG',
+                        state: 'AWAIT_PULLBACK',
+                        waitingFor: 'PULLBACK',
+                    },
+                    pendingWaitingFor: 'PULLBACK',
+                    configHash: 'cfg-123',
+                    decisionContext: {
+                        htfAligned: true,
+                        momentumSlope: 'rising',
+                    },
+                }),
+            ]);
         });
     });
 });

@@ -3,94 +3,15 @@ const fs = require("fs");
 const path = require("path");
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
+const {
+    DEFAULT_TRADING_CONFIG,
+    cloneDefaultConfig,
+    normalizeTradingConfig,
+    computeConfigHash,
+    getProtectedConfigChanges,
+} = require("../config/tradingConfig");
 
-// Default Forex trading configuration
-const DEFAULT_CONFIG = {
-    // General
-    enableTrading: false,
-    maxCapitalAtRisk: 500,
-    maxOpenPositions: 2,
-    logLevel: "info",
-
-    // Instruments
-    assets: ["AUD_USD", "EUR_USD"],
-
-    // Strategy
-    strategy: "supertrend_momentum",
-    timeframe: "15m",
-    signalCooldown: 60000, // ms
-
-    // SuperTrend
-    supertrendPeriod: 10,
-    supertrendMultiplier: 3.0,
-
-    // Entry Filters
-    enableAdxFilter: true,
-    minAdx: 22,
-    adxSlopeFilter: true,
-    adxSlopeLookback: 3,
-    requireDirectionalAdx: true,
-    longRsiMomentumFloor: 52,
-    shortRsiMomentumCeiling: 48,
-    enableRsiFilter: true,
-    rsiOverbought: 75,
-    rsiOversold: 30,
-
-    // Continuation Entry
-    enableContinuationEntry: true,
-    enableLongContinuationEntry: true,
-    enableShortContinuationEntry: false,
-    continuationWindowMs: 4 * 60 * 60 * 1000, // 4 hours
-    continuationRsiThreshold: 70,
-    continuationMaxPriceDeviation: 0.005,
-    continuationPullbackMinAtr: 0.5,
-    continuationPullbackMaxAtr: 1.5,
-
-    // Higher-timeframe trend filter
-    enableHTFFilter: true,
-    htfTimeframe: "1h",
-
-    // Short Selling
-    enableShorting: false,
-
-    // Risk Management
-    riskPerTrade: 0.02,
-    maxPortfolioExposure: 0.5,
-    leverage: 10,
-    maxSpreadPips: 2.0,
-    maxPriceAgeMs: 15000,
-
-    // Position Sizing
-    positionSizeMethod: "RISK",
-    fixedPositionUnits: 1000,
-
-    // Stop Loss
-    stopLossType: "ATR",
-    stopLossPips: 30,
-    stopLossAtrMultiplier: 2.0,
-    minStopLossPips: 15,
-
-    // Trailing Stop
-    enableTrailingStops: true,
-    trailingStopPips: 25,
-    trailingStopActivationPips: 20,
-
-    // Take Profit
-    enableTakeProfit: true,
-    takeProfitPercent: 0.06,
-
-    // Breakeven
-    enableBreakeven: false,
-    breakevenTriggerPips: 12,
-
-    // Trading Sessions
-    enableSessionFilter: false,
-    activeSessions: ["sydney", "tokyo", "london", "newyork"],
-
-    // Notifications
-    enableEmailAlerts: false,
-    alertEmail: "",
-};
+const DEFAULT_CONFIG = cloneDefaultConfig();
 
 class ConfigService extends EventEmitter {
     constructor(configPath = null) {
@@ -98,7 +19,7 @@ class ConfigService extends EventEmitter {
         this.configPath =
             configPath ||
             path.join(__dirname, "../../data/trading_config.json");
-        this.config = { ...DEFAULT_CONFIG };
+        this.config = normalizeTradingConfig(DEFAULT_CONFIG);
         this.dataService = null;
         this.signalGenerator = null;
     }
@@ -129,7 +50,7 @@ class ConfigService extends EventEmitter {
             if (fs.existsSync(this.configPath)) {
                 const fileContent = fs.readFileSync(this.configPath, "utf8");
                 const fileConfig = JSON.parse(fileContent);
-                this.config = { ...DEFAULT_CONFIG, ...fileConfig };
+                this.config = normalizeTradingConfig(fileConfig);
                 delete this.config.tradingMode;
                 logger.info(`📋 Config loaded from ${this.configPath}`);
             } else {
@@ -142,7 +63,7 @@ class ConfigService extends EventEmitter {
             this.applyToServices();
         } catch (error) {
             logger.error(`❌ Config load error: ${error.message}`);
-            this.config = { ...DEFAULT_CONFIG };
+            this.config = normalizeTradingConfig(DEFAULT_CONFIG);
         }
     }
 
@@ -172,10 +93,25 @@ class ConfigService extends EventEmitter {
      */
     update(newConfig) {
         const oldAssets = [...(this.config.assets || [])];
-        const { tradingMode, ...sanitizedConfig } = newConfig;
+        const { tradingMode, configHash, ...sanitizedConfig } = newConfig;
+        const protectedChanges =
+            this.config.enforceConfigFreeze === true
+                ? getProtectedConfigChanges(this.config, sanitizedConfig)
+                : [];
+
+        if (protectedChanges.length > 0) {
+            throw new Error(
+                `Configuration freeze active. Protected keys cannot change: ${protectedChanges.join(
+                    ", "
+                )}`
+            );
+        }
 
         // Merge new config
-        this.config = { ...this.config, ...sanitizedConfig };
+        this.config = normalizeTradingConfig({
+            ...this.config,
+            ...sanitizedConfig,
+        });
 
         // Save to file
         this.save();
@@ -254,7 +190,11 @@ class ConfigService extends EventEmitter {
      * Get current config
      */
     get() {
-        return { ...this.config };
+        const config = normalizeTradingConfig(this.config);
+        return {
+            ...config,
+            configHash: computeConfigHash(config),
+        };
     }
 
     /**
@@ -268,7 +208,7 @@ class ConfigService extends EventEmitter {
      * Reset to defaults
      */
     reset() {
-        this.config = { ...DEFAULT_CONFIG };
+        this.config = normalizeTradingConfig(DEFAULT_CONFIG);
         this.save();
         this.applyToServices();
         this.emit("configReset", this.config);
@@ -279,3 +219,4 @@ class ConfigService extends EventEmitter {
 
 module.exports = ConfigService;
 module.exports.DEFAULT_CONFIG = DEFAULT_CONFIG;
+module.exports.computeConfigHash = computeConfigHash;

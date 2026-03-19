@@ -156,12 +156,14 @@ describe("BacktestEngine", () => {
             const candles = generateCandles(100);
             const result = engine.runOnCandles(candles, "AUD_USD");
 
-            expect(result.config.minAdx).toBe(22);
+            expect(result.config.minAdx).toBe(21);
             expect(result.config.riskPerTrade).toBe(0.02);
             expect(result.config.stopLossAtrMultiplier).toBe(2.0);
-            expect(result.config.enableTakeProfit).toBe(true);
+            expect(result.config.enableTakeProfit).toBe(false);
             expect(result.config.takeProfitPercent).toBe(0.06);
             expect(result.config.spreadPips).toBe(1.5);
+            expect(result.config.enableHTFFilter).toBe(true);
+            expect(result.config.htfTimeframe).toBe("1h");
         });
 
         test("should merge config overrides", () => {
@@ -177,6 +179,25 @@ describe("BacktestEngine", () => {
             expect(result.config.initialBalance).toBe(1000);
             // Defaults preserved for non-overridden
             expect(result.config.factor).toBe(3);
+        });
+
+        test("should normalize live-style config aliases for backtests", () => {
+            const candles = generateCandles(100);
+            const result = engine.runOnCandles(candles, "AUD_USD", {
+                supertrendPeriod: 11,
+                supertrendMultiplier: 4,
+                continuationWindowMs: 2 * 60 * 60 * 1000,
+                stopLossATR: 2.5,
+                maxRsi: 74,
+                enableShortContinuationEntry: true,
+            });
+
+            expect(result.config.atrPeriod).toBe(11);
+            expect(result.config.factor).toBe(4);
+            expect(result.config.continuationWindowSeconds).toBe(7200);
+            expect(result.config.stopLossAtrMultiplier).toBe(2.5);
+            expect(result.config.rsiOverbought).toBe(74);
+            expect(result.config.enableShortContinuationEntry).toBe(true);
         });
     });
 
@@ -227,13 +248,44 @@ describe("BacktestEngine", () => {
 
             const result = await e.run("AUD_USD", "M15", 1696118400, 1696204800, { initialBalance: 500 });
 
-            expect(mockService.getCandles).toHaveBeenCalledWith(
-                "AUD_USD", "M15", 1696118400, 1696204800
+            expect(mockService.getCandles).toHaveBeenNthCalledWith(
+                1,
+                "AUD_USD",
+                "M15",
+                1696118400,
+                1696204800
+            );
+            expect(mockService.getCandles).toHaveBeenNthCalledWith(
+                2,
+                "AUD_USD",
+                "H1",
+                1696118400,
+                1696204800
             );
             expect(result).toHaveProperty("trades");
             expect(result).toHaveProperty("summary");
             expect(result).toHaveProperty("equityCurve");
             expect(result).toHaveProperty("config");
+        });
+
+        test("should fetch configured higher timeframe granularity for HTF filter", async () => {
+            const candles = generateCandles(100);
+            const mockService = {
+                getCandles: jest.fn().mockResolvedValue(candles),
+            };
+            const e = new BacktestEngine(mockService);
+
+            await e.run("AUD_USD", "M15", 1696118400, 1696204800, {
+                htfTimeframe: "4h",
+            });
+
+            expect(mockService.getCandles).toHaveBeenNthCalledWith(
+                2,
+                "AUD_USD",
+                "H4",
+                1696118400,
+                1696204800
+            );
         });
     });
 
@@ -675,6 +727,97 @@ describe("BacktestEngine", () => {
                 (t) => t.entryType && t.entryType.includes("CONTINUATION")
             );
             expect(continuations.length).toBe(0);
+        });
+
+        test("should emit HTF_CONFIRMATION when delayed long confirmation becomes chaseable", () => {
+            const config = engine._normalizeConfig({
+                continuationWindowSeconds: 4 * 60 * 60,
+                continuationMaxPriceDeviation: 0.005,
+            });
+
+            const evaluation = engine.evaluateLongHtfConfirmationSetup({
+                pending: engine.createHtfConfirmationSetup({
+                    direction: "LONG",
+                    flipTime: 3600,
+                    flipPrice: 1.2000,
+                    flipAdx: 24,
+                    flipRsi: 59,
+                    initialHigh: 1.2005,
+                    initialLow: 1.1990,
+                }),
+                candle: {
+                    time: 5400,
+                    open: 1.2001,
+                    high: 1.2035,
+                    low: 1.2000,
+                    close: 1.2030,
+                },
+                currentDir: 1,
+                adxMeetsThreshold: true,
+                adxOk: true,
+                longDiOk: true,
+                longBaseRegimeOk: true,
+                longContinuationEnabled: true,
+                htfContext: {
+                    enabled: true,
+                    longAllowed: true,
+                    shortAllowed: false,
+                    reason: "HTF 1h uptrend",
+                },
+                rsiVal: 61,
+                adxVal: 26,
+                config,
+            });
+
+            expect(evaluation.signalType).toBe("BUY");
+            expect(evaluation.entryType).toBe("HTF_CONFIRMATION");
+            expect(evaluation.clearPending).toBe(true);
+        });
+
+        test("should hand off delayed short confirmation into pullback continuation when move is extended", () => {
+            const config = engine._normalizeConfig({
+                continuationWindowSeconds: 4 * 60 * 60,
+                continuationMaxPriceDeviation: 0.005,
+                enableShortContinuationEntry: true,
+            });
+
+            const evaluation = engine.evaluateShortHtfConfirmationSetup({
+                pending: engine.createHtfConfirmationSetup({
+                    direction: "SHORT",
+                    flipTime: 3600,
+                    flipPrice: 1.2000,
+                    flipAdx: 24,
+                    flipRsi: 44,
+                    initialHigh: 1.2010,
+                    initialLow: 1.1995,
+                }),
+                candle: {
+                    time: 5400,
+                    open: 1.1935,
+                    high: 1.1940,
+                    low: 1.1900,
+                    close: 1.1915,
+                },
+                currentDir: -1,
+                adxMeetsThreshold: true,
+                adxOk: true,
+                shortDiOk: true,
+                shortBaseRegimeOk: true,
+                shortContinuationEnabled: true,
+                htfContext: {
+                    enabled: true,
+                    longAllowed: false,
+                    shortAllowed: true,
+                    reason: "HTF 1h downtrend",
+                },
+                rsiVal: 40,
+                adxVal: 27,
+                config,
+            });
+
+            expect(evaluation.pending).toBeTruthy();
+            expect(evaluation.pending.state).toBe("AWAIT_PULLBACK");
+            expect(evaluation.pending.direction).toBe("SHORT");
         });
     });
 

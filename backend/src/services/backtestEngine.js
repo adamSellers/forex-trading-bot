@@ -8,57 +8,94 @@ const {
     calculateATR,
     getPipValue,
 } = require("../utils/indicators");
-const logger = require("../utils/logger");
+const sharedTradingDefaults = require("../../../shared/tradingConfigDefaults.json");
 
-// Default config matching live trading parameters
+function toFiniteNumber(value, fallback) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function toBoolean(value, fallback) {
+    if (value === undefined) return fallback;
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (["true", "1", "yes", "on"].includes(normalized)) return true;
+        if (["false", "0", "no", "off", ""].includes(normalized)) {
+            return false;
+        }
+    }
+
+    return Boolean(value);
+}
+
+function toString(value, fallback) {
+    return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+// Defaults tuned to the live signal/config surface. The engine still accepts
+// older backtest aliases and normalizes them in _normalizeConfig().
 const DEFAULTS = {
-    // Strategy (matches signalGenerator.js)
-    atrPeriod: 10,
-    factor: 3,
-    minAdx: 22,
-    adxSlopeFilter: true,
-    adxSlopeLookback: 3,
-    rsiOverbought: 75,
-    rsiOversold: 30,
+    // Strategy
+    atrPeriod: sharedTradingDefaults.supertrendPeriod,
+    factor: sharedTradingDefaults.supertrendMultiplier,
+    minAdx: sharedTradingDefaults.minAdx,
+    adxSlopeFilter: sharedTradingDefaults.adxSlopeFilter,
+    adxSlopeLookback: sharedTradingDefaults.adxSlopeLookback,
+    requireDirectionalAdx: sharedTradingDefaults.requireDirectionalAdx,
+    longRsiMomentumFloor: sharedTradingDefaults.longRsiMomentumFloor,
+    shortRsiMomentumCeiling: sharedTradingDefaults.shortRsiMomentumCeiling,
+    rsiOverbought: sharedTradingDefaults.rsiOverbought,
+    rsiOversold: sharedTradingDefaults.rsiOversold,
 
-    // Continuation (matches signalGenerator.js)
-    enableContinuationEntry: true,
-    continuationWindowSeconds: 4 * 60 * 60, // 4 hours in candle time
-    continuationRsiThreshold: 70,
-    continuationMaxPriceDeviation: 0.005,
+    // Continuation
+    enableContinuationEntry: sharedTradingDefaults.enableContinuationEntry,
+    enableLongContinuationEntry:
+        sharedTradingDefaults.enableLongContinuationEntry,
+    enableShortContinuationEntry:
+        sharedTradingDefaults.enableShortContinuationEntry,
+    continuationWindowSeconds:
+        sharedTradingDefaults.continuationWindowMs / 1000,
+    continuationRsiThreshold:
+        sharedTradingDefaults.continuationRsiThreshold,
+    continuationMaxPriceDeviation:
+        sharedTradingDefaults.continuationMaxPriceDeviation,
+    continuationPullbackMinAtr:
+        sharedTradingDefaults.continuationPullbackMinAtr,
+    continuationPullbackMaxAtr:
+        sharedTradingDefaults.continuationPullbackMaxAtr,
 
-    // Position sizing (matches LiveTradingEngine.js)
+    // Position sizing / risk
     initialBalance: 500,
-    riskPerTrade: 0.02,
-    leverage: 10,
+    riskPerTrade: sharedTradingDefaults.riskPerTrade,
+    leverage: sharedTradingDefaults.leverage,
     marginBuffer: 0.2,
-    maxOpenPositions: 2,
+    maxOpenPositions: sharedTradingDefaults.maxOpenPositions,
 
-    // Stop loss (matches LiveTradingEngine.js)
-    stopLossType: "ATR",
-    stopLossAtrMultiplier: 2.0,
-    minStopLossPips: 12,
+    // Stop loss / take profit
+    stopLossType: sharedTradingDefaults.stopLossType,
+    stopLossPips: sharedTradingDefaults.stopLossPips,
+    stopLossAtrMultiplier: sharedTradingDefaults.stopLossAtrMultiplier,
+    minStopLossPips: sharedTradingDefaults.minStopLossPips,
+    enableTakeProfit: sharedTradingDefaults.enableTakeProfit,
+    takeProfitPercent: sharedTradingDefaults.takeProfitPercent,
 
-    // Take profit (matches LiveTradingEngine.js)
-    enableTakeProfit: true,
-    takeProfitPercent: 0.06,
+    // Stop management
+    enableTrailingStops: sharedTradingDefaults.enableTrailingStops,
+    trailingStopPips: sharedTradingDefaults.trailingStopPips,
+    trailingStopActivationPips:
+        sharedTradingDefaults.trailingStopActivationPips,
+    enableBreakeven: sharedTradingDefaults.enableBreakeven,
+    breakevenTriggerPips: sharedTradingDefaults.breakevenTriggerPips,
 
-    // Trailing stop (matches LiveTradingEngine.js)
-    enableTrailingStops: true,
-    trailingStopPips: 25,
-    trailingStopActivationPips: 20,
+    // Directional controls
+    enableShorting: sharedTradingDefaults.enableShorting,
+    enableHTFFilter: sharedTradingDefaults.enableHTFFilter,
+    htfTimeframe: sharedTradingDefaults.htfTimeframe,
 
-    // Breakeven (matches LiveTradingEngine.js)
-    enableBreakeven: true,
-    breakevenTriggerPips: 12,
-
-    // Shorting
-    enableShorting: true,
-
-    // Higher-timeframe trend filter (H4 SuperTrend must agree with entry direction)
-    enableHTFFilter: false,
-
-    // Multi-timeframe simulation: M15 candles aggregated to H1 for signals, M15 used for fill resolution
+    // Simulation mode
     enableMultiTimeframe: false,
 
     // Costs
@@ -83,23 +120,37 @@ class BacktestEngine {
             throw new Error("historicalDataService is required for run()");
         }
 
-        const config = { ...DEFAULTS, ...configOverrides };
+        const config = this._normalizeConfig(configOverrides);
+        const baseGranularity = config.enableMultiTimeframe
+            ? "M15"
+            : this._normalizeGranularity(granularity, "M15");
 
-        // Multi-TF mode always fetches M15 candles (aggregated to H1 internally for signals)
-        const fetchGranularity = config.enableMultiTimeframe ? "M15" : granularity;
         const candles = await this.historicalDataService.getCandles(
-            instrument, fetchGranularity, fromTimestamp, toTimestamp
+            instrument,
+            baseGranularity,
+            fromTimestamp,
+            toTimestamp
         );
 
-        // Auto-fetch H4 candles for HTF filter
         let htfCandles = null;
         if (config.enableHTFFilter) {
-            htfCandles = await this.historicalDataService.getCandles(
-                instrument, "H4", fromTimestamp, toTimestamp
+            const htfGranularity = this._normalizeGranularity(
+                config.htfTimeframe,
+                "H1"
             );
+            if (htfGranularity === baseGranularity) {
+                htfCandles = candles;
+            } else {
+                htfCandles = await this.historicalDataService.getCandles(
+                    instrument,
+                    htfGranularity,
+                    fromTimestamp,
+                    toTimestamp
+                );
+            }
         }
 
-        return this.runOnCandles(candles, instrument, configOverrides, htfCandles);
+        return this.runOnCandles(candles, instrument, config, htfCandles);
     }
 
     /**
@@ -109,32 +160,15 @@ class BacktestEngine {
      * @param {object} configOverrides
      */
     runOnCandles(candles, instrument, configOverrides = {}, htfCandles = null) {
-        const config = { ...DEFAULTS, ...configOverrides };
+        const config = this._normalizeConfig(configOverrides);
         const pipValue = getPipValue(instrument);
 
-        // Need enough candles for indicator warmup
         if (!candles || candles.length < 50) {
             return this._emptyResult(config);
         }
 
-        // Pre-compute HTF SuperTrend if filter enabled and H4 candles provided
-        let htfDirections = null;
-        let htfTimes = null;
-        if (config.enableHTFFilter && htfCandles && htfCandles.length >= 50) {
-            const htfHighs = htfCandles.map(c => c.high);
-            const htfLows = htfCandles.map(c => c.low);
-            const htfCloses = htfCandles.map(c => c.close);
-            const htfST = calculateSuperTrend(htfHighs, htfLows, htfCloses, config.atrPeriod, config.factor);
-            htfDirections = htfST.direction;
-            htfTimes = htfCandles.map(c => c.time);
-        }
-
-        // === Multi-TF setup: choose indicator source candles ===
-        // In multi-TF mode, indicators are computed on aggregated H1 bars while
-        // the main loop iterates M15 candles for finer exit resolution.
-        let m15ToH1Index = null;      // Maps M15 iteration index → H1 indicator index (null if single-TF)
-        let shouldEvaluateSignal;     // Predicate: should signal eval run at this iteration index?
-
+        let m15ToH1Index = null;
+        let shouldEvaluateSignal;
         let indicatorCandles;
         if (config.enableMultiTimeframe) {
             const agg = this._aggregateToH1(candles);
@@ -150,37 +184,48 @@ class BacktestEngine {
             shouldEvaluateSignal = () => true;
         }
 
-        // Pre-compute all indicators on indicator candle array (H1 in multi-TF, input candles otherwise)
+        const resolvedHtfCandles = this._deriveHtfCandles(
+            candles,
+            indicatorCandles,
+            config,
+            htfCandles
+        );
+        const htfTrend = this._buildHtfTrend(resolvedHtfCandles, config);
+        const htfDirections = htfTrend?.directions || null;
+        const htfTimes = htfTrend?.times || null;
+
         const highs = indicatorCandles.map((c) => c.high);
         const lows = indicatorCandles.map((c) => c.low);
         const closes = indicatorCandles.map((c) => c.close);
 
-        const stData = calculateSuperTrend(highs, lows, closes, config.atrPeriod, config.factor);
+        const stData = calculateSuperTrend(
+            highs,
+            lows,
+            closes,
+            config.atrPeriod,
+            config.factor
+        );
         const rsiValues = calculateRSI(closes, 14);
         const adxValues = calculateADX(highs, lows, closes, 14);
         const atrValues = calculateATR(highs, lows, closes, 14);
 
-        // Calculate offset for each indicator (they return shorter arrays than input)
         const rsiOffset = indicatorCandles.length - rsiValues.length;
         const adxOffset = indicatorCandles.length - adxValues.length;
         const atrOffset = indicatorCandles.length - atrValues.length;
+        const indicatorStartIndex =
+            Math.max(rsiOffset, adxOffset, atrOffset) + 1;
 
-        // Indicator warmup index (on indicator candle array)
-        const indicatorStartIndex = Math.max(rsiOffset, adxOffset, atrOffset) + 1;
-
-        // Determine main loop start index (on iteration candle array)
         let startIndex;
         if (config.enableMultiTimeframe) {
-            // Find first M15 index whose H1 index >= warmup threshold
-            startIndex = candles.findIndex((_, idx) => m15ToH1Index[idx] >= indicatorStartIndex);
+            startIndex = candles.findIndex(
+                (_, idx) => m15ToH1Index[idx] >= indicatorStartIndex
+            );
             if (startIndex < 0) return this._emptyResult(config);
         } else {
             startIndex = indicatorStartIndex;
             if (startIndex >= candles.length) return this._emptyResult(config);
         }
 
-        // Helper to get indicators at iteration index i
-        // In multi-TF mode, maps M15 index → H1 indicator index via m15ToH1Index
         const getIndicators = (i) => {
             const indIdx = m15ToH1Index ? m15ToH1Index[i] : i;
 
@@ -190,64 +235,82 @@ class BacktestEngine {
 
             const currentDir = stData.direction[indIdx];
             const prevDir = stData.direction[indIdx - 1];
-            const rsiVal = rsiIdx >= 0 && rsiIdx < rsiValues.length ? rsiValues[rsiIdx] : 0;
+            const rsiVal =
+                rsiIdx >= 0 && rsiIdx < rsiValues.length ? rsiValues[rsiIdx] : 0;
 
-            const adxResult = adxIdx >= 0 && adxIdx < adxValues.length ? adxValues[adxIdx] : null;
+            const adxResult =
+                adxIdx >= 0 && adxIdx < adxValues.length
+                    ? adxValues[adxIdx]
+                    : null;
             const adxVal = adxResult?.adx || 0;
+            const pdiVal = adxResult?.pdi || 0;
+            const mdiVal = adxResult?.mdi || 0;
 
-            // ADX slope: compare to N bars ago
             const lookback = config.adxSlopeLookback || 3;
             const prevAdxIdx = adxIdx - lookback;
             const prevAdxResult = prevAdxIdx >= 0 ? adxValues[prevAdxIdx] : null;
             const prevAdxVal = prevAdxResult?.adx || adxVal;
             const adxRising = adxVal > prevAdxVal;
 
-            const atrVal = atrIdx >= 0 && atrIdx < atrValues.length ? atrValues[atrIdx] : 0;
+            const atrVal =
+                atrIdx >= 0 && atrIdx < atrValues.length ? atrValues[atrIdx] : 0;
             const atrPips = atrVal / pipValue;
 
-            return { currentDir, prevDir, rsiVal, adxVal, adxRising, prevAdxVal, atrVal, atrPips };
+            return {
+                currentDir,
+                prevDir,
+                rsiVal,
+                adxVal,
+                pdiVal,
+                mdiVal,
+                adxRising,
+                prevAdxVal,
+                atrVal,
+                atrPips,
+            };
         };
 
-        // Simulation state
         let balance = config.initialBalance;
-        const openPositions = []; // Array of open trade objects
+        const openPositions = [];
         let pendingEntry = null;
-        const pendingContinuations = new Map(); // instrument -> pending data
+        let pendingSignal = null;
         const closedTrades = [];
         const equityCurve = [];
 
-        // Main loop: iterate candles from startIndex
+        const longContinuationEnabled = this.isLongContinuationEnabled(config);
+        const shortContinuationEnabled = this.isShortContinuationEnabled(config);
+
         for (let i = startIndex; i < candles.length; i++) {
             const candle = candles[i];
 
-            // === 1. EXECUTE PENDING ENTRY at open ===
             if (pendingEntry && openPositions.length < config.maxOpenPositions) {
                 const entryPrice = candle.open;
                 const ind = getIndicators(pendingEntry.signalCandle);
                 const trade = this._openTrade(
-                    instrument, pendingEntry.side, pendingEntry.entryType,
-                    entryPrice, ind, config, balance, pipValue
+                    instrument,
+                    pendingEntry.side,
+                    pendingEntry.entryType,
+                    entryPrice,
+                    ind,
+                    config,
+                    balance,
+                    pipValue
                 );
 
                 if (trade) {
                     trade.entryTime = candle.time;
                     trade.entryCandle = i;
                     openPositions.push(trade);
-                    // Reserve margin
-                    balance -= 0; // margin is tracked on the trade, not deducted from balance
                 }
                 pendingEntry = null;
             } else if (pendingEntry) {
-                // Max positions reached, discard pending entry
                 pendingEntry = null;
             }
 
-            // === 2. CHECK EXITS on open positions ===
             for (let p = openPositions.length - 1; p >= 0; p--) {
                 const trade = openPositions[p];
                 const isBuy = trade.side === "BUY";
 
-                // 2a. Breakeven check
                 if (config.enableBreakeven && !trade.breakevenHit) {
                     const profitPips = isBuy
                         ? (candle.high - trade.entryPrice) / pipValue
@@ -258,36 +321,47 @@ class BacktestEngine {
                     }
                 }
 
-                // 2b. Trailing stop update
                 if (config.enableTrailingStops) {
                     this._updateTrailingStop(trade, candle, config, pipValue);
                 }
 
-                // Effective stop loss (trailing overrides original if set)
                 const effectiveSL = trade.trailingStopPrice || trade.stopLossPrice;
-
-                // 2c. Stop loss check (priority over TP)
                 const slHit = isBuy
                     ? candle.low <= effectiveSL
                     : candle.high >= effectiveSL;
 
                 if (slHit) {
-                    const exitReason = trade.trailingStopPrice ? "TRAILING_STOP" : "STOP_LOSS";
-                    this._closeTrade(trade, effectiveSL, exitReason, candle.time, config, pipValue);
+                    const exitReason = trade.trailingStopPrice
+                        ? "TRAILING_STOP"
+                        : "STOP_LOSS";
+                    this._closeTrade(
+                        trade,
+                        effectiveSL,
+                        exitReason,
+                        candle.time,
+                        config,
+                        pipValue
+                    );
                     closedTrades.push(trade);
                     balance += trade.pnlNet;
                     openPositions.splice(p, 1);
                     continue;
                 }
 
-                // 2d. Take profit check
                 if (trade.takeProfitPrice) {
                     const tpHit = isBuy
                         ? candle.high >= trade.takeProfitPrice
                         : candle.low <= trade.takeProfitPrice;
 
                     if (tpHit) {
-                        this._closeTrade(trade, trade.takeProfitPrice, "TAKE_PROFIT", candle.time, config, pipValue);
+                        this._closeTrade(
+                            trade,
+                            trade.takeProfitPrice,
+                            "TAKE_PROFIT",
+                            candle.time,
+                            config,
+                            pipValue
+                        );
                         closedTrades.push(trade);
                         balance += trade.pnlNet;
                         openPositions.splice(p, 1);
@@ -296,268 +370,1222 @@ class BacktestEngine {
                 }
             }
 
-            // === 3. EVALUATE SIGNAL at close ===
-            // In multi-TF mode, only evaluate signals when an H1 bar completes
             if (shouldEvaluateSignal(i)) {
-            const ind = getIndicators(i);
-            const { currentDir, prevDir, rsiVal, adxVal, adxRising, prevAdxVal, atrPips } = ind;
+                const previousCandle = candles[i - 1];
+                const ind = getIndicators(i);
+                const {
+                    currentDir,
+                    prevDir,
+                    rsiVal,
+                    adxVal,
+                    pdiVal,
+                    mdiVal,
+                    adxRising,
+                    atrVal,
+                } = ind;
 
-            const adxMeetsThreshold = adxVal >= config.minAdx;
-            const adxSlopeOk = !config.adxSlopeFilter || adxRising;
-            const adxOk = adxMeetsThreshold && adxSlopeOk;
-            const rsiOkForFresh = rsiVal < config.rsiOverbought;
-            const rsiOkForContinuation = rsiVal < config.continuationRsiThreshold;
-            const rsiOkForShort = rsiVal > config.rsiOversold;
-            const rsiOkForShortContinuation = rsiVal > (config.rsiOversold + 5);
+                const adxMeetsThreshold = adxVal >= config.minAdx;
+                const adxSlopeOk = !config.adxSlopeFilter || adxRising;
+                const adxOk = adxMeetsThreshold && adxSlopeOk;
+                const longDiOk =
+                    config.requireDirectionalAdx === false || pdiVal > mdiVal;
+                const shortDiOk =
+                    config.requireDirectionalAdx === false || mdiVal > pdiVal;
+                const htfContext = this.getHtfTrendContext(
+                    htfDirections,
+                    htfTimes,
+                    candle.time,
+                    config
+                );
 
-            let signalType = null;
-            let entryType = null;
-            let signalSide = null;
+                const longBaseRegimeOk =
+                    adxMeetsThreshold &&
+                    longDiOk &&
+                    htfContext.longAllowed &&
+                    rsiVal >= config.longRsiMomentumFloor;
+                const shortBaseRegimeOk =
+                    adxMeetsThreshold &&
+                    shortDiOk &&
+                    htfContext.shortAllowed &&
+                    rsiVal <= config.shortRsiMomentumCeiling;
+                const freshLongEntryOk =
+                    longBaseRegimeOk &&
+                    adxSlopeOk &&
+                    rsiVal < config.rsiOverbought;
+                const freshShortEntryOk =
+                    shortBaseRegimeOk &&
+                    adxSlopeOk &&
+                    rsiVal > config.rsiOversold;
 
-            // 3a. LONG: Fresh SuperTrend flip RED→GREEN
-            if (prevDir === -1 && currentDir === 1) {
-                // Clear short continuations on direction change
-                if (pendingContinuations.has(instrument) && pendingContinuations.get(instrument).direction === "SHORT") {
-                    pendingContinuations.delete(instrument);
-                }
+                let signalType = null;
+                let entryType = null;
+                let signalSide = null;
 
-                if (adxOk && rsiOkForFresh) {
-                    signalType = "BUY";
-                    entryType = "FRESH_FLIP";
-                    signalSide = "BUY";
-                    pendingContinuations.delete(instrument);
-                } else if (config.enableContinuationEntry) {
-                    // Determine what we're waiting for
-                    let waitingFor = null;
-                    if (adxMeetsThreshold && !adxSlopeOk && rsiOkForFresh) {
-                        waitingFor = "ADX_SLOPE_RISING";
-                    } else if (adxOk && !rsiOkForFresh) {
-                        waitingFor = "RSI_COOLDOWN";
-                    } else if (!adxMeetsThreshold && rsiOkForFresh) {
-                        waitingFor = "ADX_STRENGTHEN";
-                    } else {
-                        waitingFor = "BOTH";
+                if (prevDir === -1 && currentDir === 1) {
+                    if (pendingSignal && pendingSignal.direction === "SHORT") {
+                        pendingSignal = null;
                     }
 
-                    pendingContinuations.set(instrument, {
-                        flipTime: candle.time,
-                        flipPrice: candle.close,
-                        flipAdx: adxVal,
-                        flipRsi: rsiVal,
-                        waitingFor,
-                        direction: "LONG",
-                    });
-                }
-            }
-            // 3b. LONG CONTINUATION
-            else if (
-                currentDir === 1 &&
-                config.enableContinuationEntry &&
-                pendingContinuations.has(instrument) &&
-                pendingContinuations.get(instrument).direction === "LONG"
-            ) {
-                const pending = pendingContinuations.get(instrument);
-                const ageSec = candle.time - pending.flipTime;
-
-                if (ageSec > config.continuationWindowSeconds) {
-                    pendingContinuations.delete(instrument);
-                } else {
-                    const priceDeviation = (candle.close - pending.flipPrice) / pending.flipPrice;
-                    if (Math.abs(priceDeviation) > config.continuationMaxPriceDeviation) {
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "RSI_COOLDOWN" && adxOk && rsiOkForContinuation) {
+                    if (freshLongEntryOk) {
                         signalType = "BUY";
-                        entryType = "CONTINUATION_RSI";
+                        entryType = "FRESH_FLIP";
                         signalSide = "BUY";
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "ADX_STRENGTHEN" && adxOk && rsiOkForFresh) {
-                        signalType = "BUY";
-                        entryType = "CONTINUATION_ADX";
-                        signalSide = "BUY";
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "ADX_SLOPE_RISING" && adxMeetsThreshold && adxRising && rsiOkForFresh) {
-                        signalType = "BUY";
-                        entryType = "CONTINUATION_ADX_SLOPE";
-                        signalSide = "BUY";
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "BOTH" && adxOk && rsiOkForContinuation) {
-                        signalType = "BUY";
-                        entryType = "CONTINUATION_BOTH";
-                        signalSide = "BUY";
-                        pendingContinuations.delete(instrument);
-                    }
-                }
-            }
-            // 3c. SHORT: Fresh SuperTrend flip GREEN→RED
-            else if (prevDir === 1 && currentDir === -1) {
-                // Clear long continuations on direction change
-                if (pendingContinuations.has(instrument) && pendingContinuations.get(instrument).direction !== "SHORT") {
-                    pendingContinuations.delete(instrument);
-                }
-
-                // Always emit SELL to close longs (signal reversal)
-                signalType = "SELL";
-
-                if (adxOk && rsiOkForShort) {
-                    entryType = "SHORT_ENTRY";
-                    signalSide = "SELL";
-                } else {
-                    entryType = "EXIT_ONLY";
-                    signalSide = null; // No new short position
-
-                    if (config.enableContinuationEntry && config.enableShorting) {
-                        let waitingFor = null;
-                        if (adxMeetsThreshold && !adxSlopeOk && rsiOkForShort) {
-                            waitingFor = "ADX_SLOPE_RISING";
-                        } else if (adxOk && !rsiOkForShort) {
-                            waitingFor = "RSI_RECOVERY";
-                        } else if (!adxMeetsThreshold && rsiOkForShort) {
-                            waitingFor = "ADX_STRENGTHEN";
-                        } else {
-                            waitingFor = "BOTH";
-                        }
-
-                        pendingContinuations.set(instrument, {
+                        pendingSignal = null;
+                    } else if (longContinuationEnabled && longBaseRegimeOk) {
+                        pendingSignal = this.createPullbackSetup({
+                            direction: "LONG",
                             flipTime: candle.time,
                             flipPrice: candle.close,
                             flipAdx: adxVal,
                             flipRsi: rsiVal,
-                            waitingFor,
-                            direction: "SHORT",
+                            initialHigh: candle.high,
+                            initialLow: candle.low,
+                        });
+                    } else if (
+                        htfContext.enabled &&
+                        !htfContext.longAllowed &&
+                        adxMeetsThreshold &&
+                        longDiOk &&
+                        rsiVal >= config.longRsiMomentumFloor
+                    ) {
+                        pendingSignal = this.createHtfConfirmationSetup({
+                            direction: "LONG",
+                            flipTime: candle.time,
+                            flipPrice: candle.close,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            initialHigh: candle.high,
+                            initialLow: candle.low,
                         });
                     }
-                }
-            }
-            // 3d. SHORT CONTINUATION
-            else if (
-                currentDir === -1 &&
-                config.enableContinuationEntry &&
-                config.enableShorting &&
-                pendingContinuations.has(instrument) &&
-                pendingContinuations.get(instrument).direction === "SHORT"
-            ) {
-                const pending = pendingContinuations.get(instrument);
-                const ageSec = candle.time - pending.flipTime;
+                } else if (
+                    currentDir === 1 &&
+                    pendingSignal &&
+                    pendingSignal.direction === "LONG"
+                ) {
+                    const evaluation =
+                        pendingSignal.state === "AWAIT_HTF_CONFIRMATION"
+                            ? this.evaluateLongHtfConfirmationSetup({
+                                  pending: pendingSignal,
+                                  candle,
+                                  currentDir,
+                                  adxMeetsThreshold,
+                                  adxOk,
+                                  longDiOk,
+                                  longBaseRegimeOk,
+                                  longContinuationEnabled,
+                                  htfContext,
+                                  rsiVal,
+                                  adxVal,
+                                  config,
+                              })
+                            : this.evaluateLongPullbackSetup({
+                                  pending: pendingSignal,
+                                  candle,
+                                  previousCandle,
+                                  atrVal,
+                                  rsiVal,
+                                  adxMeetsThreshold,
+                                  adxOk,
+                                  longDiOk,
+                                  htfContext,
+                                  config,
+                              });
 
-                if (ageSec > config.continuationWindowSeconds) {
-                    pendingContinuations.delete(instrument);
-                } else {
-                    // For shorts, price deviation is inverted (favorable when price falls)
-                    const priceDeviation = (pending.flipPrice - candle.close) / pending.flipPrice;
-                    if (Math.abs(priceDeviation) > config.continuationMaxPriceDeviation) {
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "RSI_RECOVERY" && adxOk && rsiOkForShortContinuation) {
-                        signalType = "SELL";
-                        entryType = "SHORT_CONTINUATION_RSI";
+                    if (evaluation.clearPending) {
+                        pendingSignal = null;
+                    } else if (evaluation.pending) {
+                        pendingSignal = evaluation.pending;
+                    }
+
+                    if (evaluation.signalType) {
+                        signalType = evaluation.signalType;
+                        entryType = evaluation.entryType;
+                        signalSide = "BUY";
+                    }
+                } else if (prevDir === 1 && currentDir === -1) {
+                    signalType = "SELL";
+
+                    if (pendingSignal && pendingSignal.direction !== "SHORT") {
+                        pendingSignal = null;
+                    }
+
+                    if (freshShortEntryOk) {
+                        entryType = "SHORT_ENTRY";
                         signalSide = "SELL";
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "ADX_STRENGTHEN" && adxOk && rsiOkForShort) {
-                        signalType = "SELL";
-                        entryType = "SHORT_CONTINUATION_ADX";
+                        pendingSignal = null;
+                    } else if (
+                        htfContext.enabled &&
+                        !htfContext.shortAllowed &&
+                        adxMeetsThreshold &&
+                        shortDiOk &&
+                        rsiVal <= config.shortRsiMomentumCeiling
+                    ) {
+                        pendingSignal = this.createHtfConfirmationSetup({
+                            direction: "SHORT",
+                            flipTime: candle.time,
+                            flipPrice: candle.close,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            initialHigh: candle.high,
+                            initialLow: candle.low,
+                        });
+                        entryType = "EXIT_ONLY";
+                    } else if (shortContinuationEnabled && shortBaseRegimeOk) {
+                        pendingSignal = this.createPullbackSetup({
+                            direction: "SHORT",
+                            flipTime: candle.time,
+                            flipPrice: candle.close,
+                            flipAdx: adxVal,
+                            flipRsi: rsiVal,
+                            initialHigh: candle.high,
+                            initialLow: candle.low,
+                        });
+                        entryType = "EXIT_ONLY";
+                    } else {
+                        entryType = "EXIT_ONLY";
+                    }
+                } else if (
+                    currentDir === -1 &&
+                    pendingSignal &&
+                    pendingSignal.direction === "SHORT"
+                ) {
+                    const evaluation =
+                        pendingSignal.state === "AWAIT_HTF_CONFIRMATION"
+                            ? this.evaluateShortHtfConfirmationSetup({
+                                  pending: pendingSignal,
+                                  candle,
+                                  currentDir,
+                                  adxMeetsThreshold,
+                                  adxOk,
+                                  shortDiOk,
+                                  shortBaseRegimeOk,
+                                  shortContinuationEnabled,
+                                  htfContext,
+                                  rsiVal,
+                                  adxVal,
+                                  config,
+                              })
+                            : this.evaluateShortPullbackSetup({
+                                  pending: pendingSignal,
+                                  candle,
+                                  previousCandle,
+                                  atrVal,
+                                  rsiVal,
+                                  adxMeetsThreshold,
+                                  adxOk,
+                                  shortDiOk,
+                                  htfContext,
+                                  config,
+                              });
+
+                    if (evaluation.clearPending) {
+                        pendingSignal = null;
+                    } else if (evaluation.pending) {
+                        pendingSignal = evaluation.pending;
+                    }
+
+                    if (evaluation.signalType) {
+                        signalType = evaluation.signalType;
+                        entryType = evaluation.entryType;
                         signalSide = "SELL";
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "ADX_SLOPE_RISING" && adxMeetsThreshold && adxRising && rsiOkForShort) {
-                        signalType = "SELL";
-                        entryType = "SHORT_CONTINUATION_ADX_SLOPE";
-                        signalSide = "SELL";
-                        pendingContinuations.delete(instrument);
-                    } else if (pending.waitingFor === "BOTH" && adxOk && rsiOkForShortContinuation) {
-                        signalType = "SELL";
-                        entryType = "SHORT_CONTINUATION_BOTH";
-                        signalSide = "SELL";
-                        pendingContinuations.delete(instrument);
                     }
                 }
-            }
 
-            // === 3e. SIGNAL REVERSAL: close opposite positions ===
-            if (signalType === "BUY") {
-                // Close any open SHORT positions
-                for (let p = openPositions.length - 1; p >= 0; p--) {
-                    if (openPositions[p].side === "SELL" && openPositions[p].instrument === instrument) {
-                        const trade = openPositions[p];
-                        this._closeTrade(trade, candle.close, "SIGNAL_REVERSAL", candle.time, config, pipValue);
-                        closedTrades.push(trade);
-                        balance += trade.pnlNet;
-                        openPositions.splice(p, 1);
+                if (signalType === "BUY") {
+                    for (let p = openPositions.length - 1; p >= 0; p--) {
+                        if (
+                            openPositions[p].side === "SELL" &&
+                            openPositions[p].instrument === instrument
+                        ) {
+                            const trade = openPositions[p];
+                            this._closeTrade(
+                                trade,
+                                candle.close,
+                                "SIGNAL_REVERSAL",
+                                candle.time,
+                                config,
+                                pipValue
+                            );
+                            closedTrades.push(trade);
+                            balance += trade.pnlNet;
+                            openPositions.splice(p, 1);
+                        }
+                    }
+                } else if (signalType === "SELL") {
+                    for (let p = openPositions.length - 1; p >= 0; p--) {
+                        if (
+                            openPositions[p].side === "BUY" &&
+                            openPositions[p].instrument === instrument
+                        ) {
+                            const trade = openPositions[p];
+                            this._closeTrade(
+                                trade,
+                                candle.close,
+                                "SIGNAL_REVERSAL",
+                                candle.time,
+                                config,
+                                pipValue
+                            );
+                            closedTrades.push(trade);
+                            balance += trade.pnlNet;
+                            openPositions.splice(p, 1);
+                        }
                     }
                 }
-            } else if (signalType === "SELL") {
-                // Close any open LONG positions
-                for (let p = openPositions.length - 1; p >= 0; p--) {
-                    if (openPositions[p].side === "BUY" && openPositions[p].instrument === instrument) {
-                        const trade = openPositions[p];
-                        this._closeTrade(trade, candle.close, "SIGNAL_REVERSAL", candle.time, config, pipValue);
-                        closedTrades.push(trade);
-                        balance += trade.pnlNet;
-                        openPositions.splice(p, 1);
+
+                if (signalSide && i < candles.length - 1) {
+                    const alreadyHolding = openPositions.some(
+                        (t) =>
+                            t.instrument === instrument && t.side === signalSide
+                    );
+
+                    if (!alreadyHolding) {
+                        pendingEntry = {
+                            side: signalSide,
+                            entryType,
+                            signalCandle: i,
+                        };
                     }
                 }
+
             }
 
-            // === 4. QUEUE NEXT ENTRY (no look-ahead) ===
-            if (signalSide && i < candles.length - 1) {
-                // Check if we already hold a position in this direction
-                const alreadyHolding = openPositions.some(
-                    (t) => t.instrument === instrument && t.side === signalSide
-                );
-
-                // For shorts, check enableShorting
-                const shortAllowed = signalSide === "BUY" || config.enableShorting;
-
-                // HTF filter: H4 SuperTrend must agree with entry direction
-                const htfAllowed = !htfDirections || this._checkHTFFilter(htfDirections, htfTimes, candle.time, signalSide);
-
-                if (!alreadyHolding && shortAllowed && htfAllowed) {
-                    pendingEntry = {
-                        side: signalSide,
-                        entryType,
-                        signalCandle: i,
-                    };
-                }
-            }
-            } // end shouldEvaluateSignal
-
-            // === 5. TRACK EQUITY ===
             let unrealizedPnl = 0;
             for (const pos of openPositions) {
-                const priceChange = pos.side === "BUY"
-                    ? candle.close - pos.entryPrice
-                    : pos.entryPrice - candle.close;
+                const priceChange =
+                    pos.side === "BUY"
+                        ? candle.close - pos.entryPrice
+                        : pos.entryPrice - candle.close;
                 unrealizedPnl += pos.units * priceChange;
             }
             equityCurve.push({ time: candle.time, equity: balance + unrealizedPnl });
         }
 
-        // Close any remaining open positions at last candle close
         const lastCandle = candles[candles.length - 1];
         for (const trade of openPositions) {
-            this._closeTrade(trade, lastCandle.close, "BACKTEST_END", lastCandle.time, config, pipValue);
+            this._closeTrade(
+                trade,
+                lastCandle.close,
+                "BACKTEST_END",
+                lastCandle.time,
+                config,
+                pipValue
+            );
             closedTrades.push(trade);
             balance += trade.pnlNet;
         }
-        openPositions.length = 0;
 
-        // Ensure the curve ends at realized portfolio value after forced closeouts.
-        // The in-loop point at the final candle tracks unrealized P&L pre-close.
         equityCurve.push({ time: lastCandle.time, equity: balance });
 
         return this._buildResult(closedTrades, equityCurve, config);
     }
 
-    // === Trade helpers ===
+    isLongContinuationEnabled(config) {
+        if (config.enableContinuationEntry === false) return false;
+        return config.enableLongContinuationEntry !== false;
+    }
 
-    /**
-     * Open a new trade with position sizing, SL, and TP
-     */
+    isShortContinuationEnabled(config) {
+        if (config.enableContinuationEntry === false) return false;
+        return config.enableShortContinuationEntry !== false;
+    }
+
+    createPullbackSetup({
+        direction,
+        flipTime,
+        flipPrice,
+        flipAdx,
+        flipRsi,
+        initialHigh,
+        initialLow,
+    }) {
+        return {
+            direction,
+            state: "AWAIT_PULLBACK",
+            waitingFor: "PULLBACK",
+            flipTime,
+            flipPrice,
+            flipAdx,
+            flipRsi,
+            peakPrice: initialHigh,
+            troughPrice: initialLow,
+            pullbackLow: null,
+            pullbackHigh: null,
+            pullbackDepthAtr: null,
+            reaccelerationTrigger: null,
+            pullbackDetectedTime: null,
+        };
+    }
+
+    createHtfConfirmationSetup({
+        direction,
+        flipTime,
+        flipPrice,
+        flipAdx,
+        flipRsi,
+        initialHigh,
+        initialLow,
+    }) {
+        return {
+            direction,
+            state: "AWAIT_HTF_CONFIRMATION",
+            waitingFor: "HTF_CONFIRMATION",
+            flipTime,
+            flipPrice,
+            flipAdx,
+            flipRsi,
+            peakPrice: initialHigh,
+            troughPrice: initialLow,
+            pullbackLow: null,
+            pullbackHigh: null,
+            pullbackDepthAtr: null,
+            reaccelerationTrigger: null,
+            pullbackDetectedTime: null,
+        };
+    }
+
+    createImmediatePullbackSetup({
+        direction,
+        currentTime,
+        currentPrice,
+        currentAdx,
+        currentRsi,
+        currentHigh,
+        currentLow,
+    }) {
+        return this.createPullbackSetup({
+            direction,
+            flipTime: currentTime,
+            flipPrice: currentPrice,
+            flipAdx: currentAdx,
+            flipRsi: currentRsi,
+            initialHigh: currentHigh,
+            initialLow: currentLow,
+        });
+    }
+
+    evaluateLongHtfConfirmationSetup({
+        pending,
+        candle,
+        currentDir,
+        adxMeetsThreshold,
+        adxOk,
+        longDiOk,
+        longBaseRegimeOk,
+        longContinuationEnabled,
+        htfContext,
+        rsiVal,
+        adxVal,
+        config,
+    }) {
+        const ageSec = candle.time - pending.flipTime;
+        if (ageSec > config.continuationWindowSeconds) {
+            return { clearPending: true };
+        }
+
+        if (currentDir !== 1) {
+            return { clearPending: true };
+        }
+
+        const updatedPeakPrice = Math.max(
+            pending.peakPrice || pending.flipPrice,
+            candle.high
+        );
+
+        if (htfContext.enabled && !htfContext.longAllowed) {
+            if (
+                !adxMeetsThreshold ||
+                !longDiOk ||
+                rsiVal < config.longRsiMomentumFloor
+            ) {
+                return { clearPending: true };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    peakPrice: updatedPeakPrice,
+                },
+            };
+        }
+
+        if (!longBaseRegimeOk) {
+            return { clearPending: true };
+        }
+
+        const priceDeviation =
+            pending.flipPrice > 0
+                ? Math.max(
+                      0,
+                      (candle.close - pending.flipPrice) / pending.flipPrice
+                  )
+                : 0;
+        const isChaseable = priceDeviation <= config.continuationMaxPriceDeviation;
+
+        if (adxOk && rsiVal < config.rsiOverbought && isChaseable) {
+            return {
+                signalType: "BUY",
+                entryType: "HTF_CONFIRMATION",
+                clearPending: true,
+            };
+        }
+
+        if (longContinuationEnabled) {
+            return {
+                pending: {
+                    ...this.createPullbackSetup({
+                        direction: "LONG",
+                        flipTime: pending.flipTime,
+                        flipPrice: pending.flipPrice,
+                        flipAdx: pending.flipAdx,
+                        flipRsi: pending.flipRsi,
+                        initialHigh: updatedPeakPrice,
+                        initialLow: candle.low,
+                    }),
+                    peakPrice: updatedPeakPrice,
+                },
+            };
+        }
+
+        return { clearPending: true };
+    }
+
+    evaluateShortHtfConfirmationSetup({
+        pending,
+        candle,
+        currentDir,
+        adxMeetsThreshold,
+        adxOk,
+        shortDiOk,
+        shortBaseRegimeOk,
+        shortContinuationEnabled,
+        htfContext,
+        rsiVal,
+        adxVal,
+        config,
+    }) {
+        const ageSec = candle.time - pending.flipTime;
+        if (ageSec > config.continuationWindowSeconds) {
+            return { clearPending: true };
+        }
+
+        if (currentDir !== -1) {
+            return { clearPending: true };
+        }
+
+        const updatedTroughPrice = Math.min(
+            pending.troughPrice || pending.flipPrice,
+            candle.low
+        );
+
+        if (htfContext.enabled && !htfContext.shortAllowed) {
+            if (
+                !adxMeetsThreshold ||
+                !shortDiOk ||
+                rsiVal > config.shortRsiMomentumCeiling
+            ) {
+                return { clearPending: true };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    troughPrice: updatedTroughPrice,
+                },
+            };
+        }
+
+        if (!shortBaseRegimeOk) {
+            return { clearPending: true };
+        }
+
+        const priceDeviation =
+            pending.flipPrice > 0
+                ? Math.max(
+                      0,
+                      (pending.flipPrice - candle.close) / pending.flipPrice
+                  )
+                : 0;
+        const isChaseable = priceDeviation <= config.continuationMaxPriceDeviation;
+
+        if (adxOk && rsiVal > config.rsiOversold && isChaseable) {
+            return {
+                signalType: "SELL",
+                entryType: "SHORT_HTF_CONFIRMATION",
+                clearPending: true,
+            };
+        }
+
+        if (shortContinuationEnabled) {
+            return {
+                pending: {
+                    ...this.createPullbackSetup({
+                        direction: "SHORT",
+                        flipTime: pending.flipTime,
+                        flipPrice: pending.flipPrice,
+                        flipAdx: pending.flipAdx,
+                        flipRsi: pending.flipRsi,
+                        initialHigh: candle.high,
+                        initialLow: updatedTroughPrice,
+                    }),
+                    troughPrice: updatedTroughPrice,
+                },
+            };
+        }
+
+        return { clearPending: true };
+    }
+
+    evaluateLongPullbackSetup({
+        pending,
+        candle,
+        previousCandle,
+        atrVal,
+        rsiVal,
+        adxMeetsThreshold,
+        adxOk,
+        longDiOk,
+        htfContext,
+        config,
+    }) {
+        if (!previousCandle) {
+            return { pending };
+        }
+
+        const ageSec = candle.time - pending.flipTime;
+        if (ageSec > config.continuationWindowSeconds) {
+            return { clearPending: true };
+        }
+
+        if (
+            (htfContext.enabled && !htfContext.longAllowed) ||
+            !adxMeetsThreshold ||
+            !longDiOk
+        ) {
+            return { clearPending: true };
+        }
+
+        const trackedPeakPrice =
+            pending.state === "AWAIT_PULLBACK"
+                ? Math.max(pending.peakPrice || pending.flipPrice, candle.high)
+                : pending.peakPrice || pending.flipPrice;
+        const pullbackDepthAtr =
+            atrVal > 0 ? (trackedPeakPrice - candle.low) / atrVal : 0;
+        const bearishPullbackCandle =
+            candle.close < previousCandle.close || candle.low < previousCandle.low;
+        const rsiCooled = rsiVal <= config.continuationRsiThreshold;
+
+        if (pending.state === "AWAIT_PULLBACK") {
+            if (pullbackDepthAtr > config.continuationPullbackMaxAtr) {
+                return { clearPending: true };
+            }
+
+            if (
+                bearishPullbackCandle &&
+                pullbackDepthAtr >= config.continuationPullbackMinAtr &&
+                rsiCooled
+            ) {
+                return {
+                    pending: {
+                        ...pending,
+                        state: "AWAIT_REACCELERATION",
+                        waitingFor: "REACCELERATION",
+                        peakPrice: trackedPeakPrice,
+                        pullbackLow: candle.low,
+                        pullbackHigh: candle.high,
+                        pullbackDepthAtr,
+                        reaccelerationTrigger: candle.high,
+                        pullbackDetectedTime: candle.time,
+                    },
+                };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    peakPrice: trackedPeakPrice,
+                },
+            };
+        }
+
+        const breakoutTrigger =
+            pending.reaccelerationTrigger ||
+            pending.pullbackHigh ||
+            previousCandle.high;
+        const updatedPullbackLow =
+            pending.pullbackLow == null
+                ? candle.low
+                : Math.min(pending.pullbackLow, candle.low);
+        const updatedPullbackHigh =
+            pending.pullbackHigh == null
+                ? candle.high
+                : Math.max(pending.pullbackHigh, candle.high);
+        const updatedTrigger = Math.max(breakoutTrigger, candle.high);
+        const updatedDepthAtr =
+            atrVal > 0
+                ? (pending.peakPrice - updatedPullbackLow) / atrVal
+                : pending.pullbackDepthAtr || 0;
+
+        if (updatedDepthAtr > config.continuationPullbackMaxAtr) {
+            return { clearPending: true };
+        }
+
+        const bullishBreakout =
+            candle.close > breakoutTrigger &&
+            candle.close > previousCandle.high &&
+            candle.close > candle.open;
+        const reaccelerationConfirmed =
+            bullishBreakout &&
+            adxOk &&
+            longDiOk &&
+            rsiVal >= config.longRsiMomentumFloor &&
+            rsiVal < config.rsiOverbought &&
+            htfContext.longAllowed;
+
+        if (reaccelerationConfirmed) {
+            return {
+                signalType: "BUY",
+                entryType: "CONTINUATION_PULLBACK",
+                clearPending: true,
+            };
+        }
+
+        return {
+            pending: {
+                ...pending,
+                state: "AWAIT_REACCELERATION",
+                waitingFor: "REACCELERATION",
+                pullbackLow: updatedPullbackLow,
+                pullbackHigh: updatedPullbackHigh,
+                pullbackDepthAtr: updatedDepthAtr,
+                reaccelerationTrigger: updatedTrigger,
+            },
+        };
+    }
+
+    evaluateShortPullbackSetup({
+        pending,
+        candle,
+        previousCandle,
+        atrVal,
+        rsiVal,
+        adxMeetsThreshold,
+        adxOk,
+        shortDiOk,
+        htfContext,
+        config,
+    }) {
+        if (!previousCandle) {
+            return { pending };
+        }
+
+        const ageSec = candle.time - pending.flipTime;
+        if (ageSec > config.continuationWindowSeconds) {
+            return { clearPending: true };
+        }
+
+        if (
+            (htfContext.enabled && !htfContext.shortAllowed) ||
+            !adxMeetsThreshold ||
+            !shortDiOk
+        ) {
+            return { clearPending: true };
+        }
+
+        const trackedTroughPrice =
+            pending.state === "AWAIT_PULLBACK"
+                ? Math.min(pending.troughPrice || pending.flipPrice, candle.low)
+                : pending.troughPrice || pending.flipPrice;
+        const pullbackDepthAtr =
+            atrVal > 0 ? (candle.high - trackedTroughPrice) / atrVal : 0;
+        const bullishPullbackCandle =
+            candle.close > previousCandle.close ||
+            candle.high > previousCandle.high;
+        const rsiRecovered = rsiVal >= config.shortRsiMomentumCeiling;
+
+        if (pending.state === "AWAIT_PULLBACK") {
+            if (pullbackDepthAtr > config.continuationPullbackMaxAtr) {
+                return { clearPending: true };
+            }
+
+            if (
+                bullishPullbackCandle &&
+                pullbackDepthAtr >= config.continuationPullbackMinAtr &&
+                rsiRecovered
+            ) {
+                return {
+                    pending: {
+                        ...pending,
+                        state: "AWAIT_REACCELERATION",
+                        waitingFor: "REACCELERATION",
+                        troughPrice: trackedTroughPrice,
+                        pullbackLow: candle.low,
+                        pullbackHigh: candle.high,
+                        pullbackDepthAtr,
+                        reaccelerationTrigger: candle.low,
+                        pullbackDetectedTime: candle.time,
+                    },
+                };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    troughPrice: trackedTroughPrice,
+                },
+            };
+        }
+
+        const breakdownTrigger =
+            pending.reaccelerationTrigger ||
+            pending.pullbackLow ||
+            previousCandle.low;
+        const updatedPullbackLow =
+            pending.pullbackLow == null
+                ? candle.low
+                : Math.min(pending.pullbackLow, candle.low);
+        const updatedPullbackHigh =
+            pending.pullbackHigh == null
+                ? candle.high
+                : Math.max(pending.pullbackHigh, candle.high);
+        const updatedTrigger = Math.min(breakdownTrigger, candle.low);
+        const updatedDepthAtr =
+            atrVal > 0
+                ? (updatedPullbackHigh - pending.troughPrice) / atrVal
+                : pending.pullbackDepthAtr || 0;
+
+        if (updatedDepthAtr > config.continuationPullbackMaxAtr) {
+            return { clearPending: true };
+        }
+
+        const bearishBreakdown =
+            candle.close < breakdownTrigger &&
+            candle.close < previousCandle.low &&
+            candle.close < candle.open;
+        const reaccelerationConfirmed =
+            bearishBreakdown &&
+            adxOk &&
+            shortDiOk &&
+            rsiVal <= config.shortRsiMomentumCeiling &&
+            rsiVal > config.rsiOversold &&
+            htfContext.shortAllowed;
+
+        if (reaccelerationConfirmed) {
+            return {
+                signalType: "SELL",
+                entryType: "SHORT_CONTINUATION_PULLBACK",
+                clearPending: true,
+            };
+        }
+
+        return {
+            pending: {
+                ...pending,
+                state: "AWAIT_REACCELERATION",
+                waitingFor: "REACCELERATION",
+                pullbackLow: updatedPullbackLow,
+                pullbackHigh: updatedPullbackHigh,
+                pullbackDepthAtr: updatedDepthAtr,
+                reaccelerationTrigger: updatedTrigger,
+            },
+        };
+    }
+
+    getHtfTrendContext(htfDirections, htfTimes, timestamp, config) {
+        if (
+            !config.enableHTFFilter ||
+            !Array.isArray(htfDirections) ||
+            !Array.isArray(htfTimes) ||
+            htfDirections.length === 0 ||
+            htfTimes.length === 0
+        ) {
+            return {
+                enabled: false,
+                timeframe: config.htfTimeframe,
+                direction: 0,
+                longAllowed: true,
+                shortAllowed: true,
+                reason: null,
+            };
+        }
+
+        const direction = this._getHTFDirection(htfDirections, htfTimes, timestamp);
+        if (direction === 0) {
+            return {
+                enabled: true,
+                timeframe: config.htfTimeframe,
+                direction: 0,
+                longAllowed: false,
+                shortAllowed: false,
+                reason: `HTF ${config.htfTimeframe} unavailable`,
+            };
+        }
+
+        return {
+            enabled: true,
+            timeframe: config.htfTimeframe,
+            direction,
+            longAllowed: direction === 1,
+            shortAllowed: direction === -1,
+            reason:
+                direction === 1
+                    ? `HTF ${config.htfTimeframe} uptrend`
+                    : `HTF ${config.htfTimeframe} downtrend`,
+        };
+    }
+
+    _normalizeConfig(configOverrides = {}) {
+        const config = {
+            ...DEFAULTS,
+        };
+
+        config.atrPeriod = toFiniteNumber(
+            configOverrides.atrPeriod ?? configOverrides.supertrendPeriod,
+            config.atrPeriod
+        );
+        config.factor = toFiniteNumber(
+            configOverrides.factor ?? configOverrides.supertrendMultiplier,
+            config.factor
+        );
+        config.minAdx = toFiniteNumber(configOverrides.minAdx, config.minAdx);
+        config.adxSlopeFilter = toBoolean(
+            configOverrides.adxSlopeFilter,
+            config.adxSlopeFilter
+        );
+        config.adxSlopeLookback = Math.max(
+            1,
+            Math.floor(
+                toFiniteNumber(
+                    configOverrides.adxSlopeLookback,
+                    config.adxSlopeLookback
+                )
+            )
+        );
+        config.requireDirectionalAdx = toBoolean(
+            configOverrides.requireDirectionalAdx,
+            config.requireDirectionalAdx
+        );
+        config.longRsiMomentumFloor = toFiniteNumber(
+            configOverrides.longRsiMomentumFloor,
+            config.longRsiMomentumFloor
+        );
+        config.shortRsiMomentumCeiling = toFiniteNumber(
+            configOverrides.shortRsiMomentumCeiling,
+            config.shortRsiMomentumCeiling
+        );
+        config.rsiOverbought = toFiniteNumber(
+            configOverrides.rsiOverbought ?? configOverrides.maxRsi,
+            config.rsiOverbought
+        );
+        config.rsiOversold = toFiniteNumber(
+            configOverrides.rsiOversold,
+            config.rsiOversold
+        );
+
+        config.enableContinuationEntry = toBoolean(
+            configOverrides.enableContinuationEntry,
+            config.enableContinuationEntry
+        );
+        config.enableLongContinuationEntry = toBoolean(
+            configOverrides.enableLongContinuationEntry,
+            config.enableLongContinuationEntry
+        );
+        config.enableShortContinuationEntry = toBoolean(
+            configOverrides.enableShortContinuationEntry,
+            config.enableShortContinuationEntry
+        );
+        const continuationWindowSeconds = Number(
+            configOverrides.continuationWindowSeconds
+        );
+        const continuationWindowMs = Number(configOverrides.continuationWindowMs);
+        config.continuationWindowSeconds = Number.isFinite(
+            continuationWindowSeconds
+        )
+            ? Math.max(1, Math.floor(continuationWindowSeconds))
+            : Number.isFinite(continuationWindowMs)
+            ? Math.max(1, Math.floor(continuationWindowMs / 1000))
+            : config.continuationWindowSeconds;
+        config.continuationRsiThreshold = toFiniteNumber(
+            configOverrides.continuationRsiThreshold,
+            config.continuationRsiThreshold
+        );
+        config.continuationMaxPriceDeviation = toFiniteNumber(
+            configOverrides.continuationMaxPriceDeviation,
+            config.continuationMaxPriceDeviation
+        );
+        config.continuationPullbackMinAtr = toFiniteNumber(
+            configOverrides.continuationPullbackMinAtr,
+            config.continuationPullbackMinAtr
+        );
+        config.continuationPullbackMaxAtr = toFiniteNumber(
+            configOverrides.continuationPullbackMaxAtr,
+            config.continuationPullbackMaxAtr
+        );
+
+        config.initialBalance = toFiniteNumber(
+            configOverrides.initialBalance ?? configOverrides.balance,
+            config.initialBalance
+        );
+        config.riskPerTrade = toFiniteNumber(
+            configOverrides.riskPerTrade,
+            config.riskPerTrade
+        );
+        config.leverage = toFiniteNumber(
+            configOverrides.leverage,
+            config.leverage
+        );
+        config.marginBuffer = toFiniteNumber(
+            configOverrides.marginBuffer,
+            config.marginBuffer
+        );
+        config.maxOpenPositions = Math.max(
+            1,
+            Math.floor(
+                toFiniteNumber(
+                    configOverrides.maxOpenPositions,
+                    config.maxOpenPositions
+                )
+            )
+        );
+
+        config.stopLossType = toString(
+            configOverrides.stopLossType,
+            config.stopLossType
+        ).toUpperCase();
+        config.stopLossPips = toFiniteNumber(
+            configOverrides.stopLossPips,
+            config.stopLossPips
+        );
+        config.stopLossAtrMultiplier = toFiniteNumber(
+            configOverrides.stopLossAtrMultiplier ?? configOverrides.stopLossATR,
+            config.stopLossAtrMultiplier
+        );
+        config.minStopLossPips = toFiniteNumber(
+            configOverrides.minStopLossPips,
+            config.minStopLossPips
+        );
+
+        config.enableTakeProfit = toBoolean(
+            configOverrides.enableTakeProfit,
+            config.enableTakeProfit
+        );
+        config.takeProfitPercent = toFiniteNumber(
+            configOverrides.takeProfitPercent,
+            config.takeProfitPercent
+        );
+
+        config.enableTrailingStops = toBoolean(
+            configOverrides.enableTrailingStops,
+            config.enableTrailingStops
+        );
+        config.trailingStopPips = toFiniteNumber(
+            configOverrides.trailingStopPips,
+            config.trailingStopPips
+        );
+        config.trailingStopActivationPips = toFiniteNumber(
+            configOverrides.trailingStopActivationPips,
+            config.trailingStopActivationPips
+        );
+
+        config.enableBreakeven = toBoolean(
+            configOverrides.enableBreakeven,
+            config.enableBreakeven
+        );
+        config.breakevenTriggerPips = toFiniteNumber(
+            configOverrides.breakevenTriggerPips,
+            config.breakevenTriggerPips
+        );
+
+        config.enableShorting = toBoolean(
+            configOverrides.enableShorting,
+            config.enableShorting
+        );
+        config.enableHTFFilter = toBoolean(
+            configOverrides.enableHTFFilter,
+            config.enableHTFFilter
+        );
+        config.htfTimeframe = toString(
+            configOverrides.htfTimeframe,
+            config.htfTimeframe
+        ).toLowerCase();
+        config.enableMultiTimeframe = toBoolean(
+            configOverrides.enableMultiTimeframe,
+            config.enableMultiTimeframe
+        );
+        config.spreadPips = toFiniteNumber(
+            configOverrides.spreadPips,
+            config.spreadPips
+        );
+
+        return config;
+    }
+
+    _normalizeGranularity(value, fallback = "M15") {
+        const raw = toString(value, fallback)
+            .toUpperCase()
+            .replace(/\s+/g, "");
+
+        switch (raw) {
+            case "15M":
+            case "M15":
+                return "M15";
+            case "1H":
+            case "H1":
+            case "60M":
+                return "H1";
+            case "4H":
+            case "H4":
+            case "240M":
+                return "H4";
+            case "1D":
+            case "D":
+            case "D1":
+                return "D";
+            default:
+                return raw;
+        }
+    }
+
+    _intervalSecondsForGranularity(granularity) {
+        switch (this._normalizeGranularity(granularity, "M15")) {
+            case "M15":
+                return 15 * 60;
+            case "H1":
+                return 60 * 60;
+            case "H4":
+                return 4 * 60 * 60;
+            case "D":
+                return 24 * 60 * 60;
+            default:
+                return null;
+        }
+    }
+
+    _inferCandleSeconds(candles) {
+        if (!Array.isArray(candles) || candles.length < 2) {
+            return null;
+        }
+
+        let smallestPositive = null;
+        for (let i = 1; i < candles.length; i++) {
+            const delta = Number(candles[i].time) - Number(candles[i - 1].time);
+            if (delta > 0 && (smallestPositive == null || delta < smallestPositive)) {
+                smallestPositive = delta;
+            }
+        }
+
+        return smallestPositive;
+    }
+
+    _aggregateCandles(candles, intervalSeconds) {
+        const targetCandles = [];
+        const sourceToTargetIndex = new Array(candles.length);
+        const completionIndices = new Set();
+
+        let currentBucket = null;
+        let targetIdx = -1;
+
+        for (let i = 0; i < candles.length; i++) {
+            const candle = candles[i];
+            const bucket = Math.floor(candle.time / intervalSeconds) * intervalSeconds;
+
+            if (bucket !== currentBucket) {
+                if (targetIdx >= 0 && i > 0) {
+                    completionIndices.add(i - 1);
+                }
+
+                currentBucket = bucket;
+                targetIdx++;
+                targetCandles.push({
+                    time: bucket,
+                    open: candle.open,
+                    high: candle.high,
+                    low: candle.low,
+                    close: candle.close,
+                    volume: candle.volume || 0,
+                });
+            } else {
+                const target = targetCandles[targetIdx];
+                target.high = Math.max(target.high, candle.high);
+                target.low = Math.min(target.low, candle.low);
+                target.close = candle.close;
+                target.volume += candle.volume || 0;
+            }
+
+            sourceToTargetIndex[i] = targetIdx;
+        }
+
+        return { targetCandles, sourceToTargetIndex, completionIndices };
+    }
+
+    _deriveHtfCandles(candles, indicatorCandles, config, explicitHtfCandles) {
+        if (Array.isArray(explicitHtfCandles) && explicitHtfCandles.length > 0) {
+            return explicitHtfCandles;
+        }
+
+        if (!config.enableHTFFilter) {
+            return null;
+        }
+
+        const htfGranularity = this._normalizeGranularity(config.htfTimeframe, "H1");
+        if (
+            config.enableMultiTimeframe &&
+            htfGranularity === "H1" &&
+            Array.isArray(indicatorCandles)
+        ) {
+            return indicatorCandles;
+        }
+
+        const targetSeconds = this._intervalSecondsForGranularity(htfGranularity);
+        const baseSeconds = this._inferCandleSeconds(candles);
+        if (!targetSeconds || !baseSeconds) {
+            return null;
+        }
+
+        if (targetSeconds === baseSeconds) {
+            return candles;
+        }
+
+        if (targetSeconds > baseSeconds && targetSeconds % baseSeconds === 0) {
+            return this._aggregateCandles(candles, targetSeconds).targetCandles;
+        }
+
+        return null;
+    }
+
+    _buildHtfTrend(htfCandles, config) {
+        if (!Array.isArray(htfCandles) || htfCandles.length < 50) {
+            return null;
+        }
+
+        const highs = htfCandles.map((c) => c.high);
+        const lows = htfCandles.map((c) => c.low);
+        const closes = htfCandles.map((c) => c.close);
+        const stData = calculateSuperTrend(
+            highs,
+            lows,
+            closes,
+            config.atrPeriod,
+            config.factor
+        );
+
+        return {
+            directions: stData.direction,
+            times: htfCandles.map((c) => c.time),
+        };
+    }
+
     _openTrade(instrument, side, entryType, entryPrice, indicators, config, balance, pipValue) {
-        // Calculate stop loss
-        const stopLossPips = this._calculateStopLossPips(indicators.atrPips, config);
-        const stopLossPrice = side === "BUY"
-            ? entryPrice - stopLossPips * pipValue
-            : entryPrice + stopLossPips * pipValue;
+        const stopLossPips = this._calculateStopLossPips(
+            indicators.atrPips,
+            config
+        );
+        const stopLossPrice =
+            side === "BUY"
+                ? entryPrice - stopLossPips * pipValue
+                : entryPrice + stopLossPips * pipValue;
 
-        // Position sizing
         const safeMargin = balance * (1 - config.marginBuffer);
         if (safeMargin <= 0) return null;
 
@@ -567,14 +1595,14 @@ class BacktestEngine {
 
         const marginUsed = (units * entryPrice) / config.leverage;
 
-        // Take profit (margin-based)
         let takeProfitPrice = null;
         if (config.enableTakeProfit && marginUsed > 0) {
             const targetProfit = marginUsed * config.takeProfitPercent;
             const priceChange = targetProfit / units;
-            takeProfitPrice = side === "BUY"
-                ? entryPrice + priceChange
-                : entryPrice - priceChange;
+            takeProfitPrice =
+                side === "BUY"
+                    ? entryPrice + priceChange
+                    : entryPrice - priceChange;
         }
 
         return {
@@ -591,52 +1619,47 @@ class BacktestEngine {
             breakevenHit: false,
             highestPrice: entryPrice,
             lowestPrice: entryPrice,
-            entryTime: null, // Set by caller
+            entryTime: null,
             entryCandle: null,
         };
     }
 
-    /**
-     * Calculate stop loss distance in pips
-     */
     _calculateStopLossPips(atrPips, config) {
         let stopLossPips;
         if (config.stopLossType === "ATR" && atrPips > 0) {
             stopLossPips = atrPips * config.stopLossAtrMultiplier;
         } else {
-            stopLossPips = 30; // Fixed fallback
+            stopLossPips = config.stopLossPips || 30;
         }
         return Math.max(stopLossPips, config.minStopLossPips);
     }
 
-    /**
-     * Update trailing stop based on candle high/low
-     */
     _updateTrailingStop(trade, candle, config, pipValue) {
         const isBuy = trade.side === "BUY";
         const trailingPips = config.trailingStopPips;
         const activationPips = config.trailingStopActivationPips;
 
-        // Track extreme price
         if (isBuy) {
-            trade.highestPrice = Math.max(trade.highestPrice || trade.entryPrice, candle.high);
+            trade.highestPrice = Math.max(
+                trade.highestPrice || trade.entryPrice,
+                candle.high
+            );
         } else {
-            trade.lowestPrice = Math.min(trade.lowestPrice || trade.entryPrice, candle.low);
+            trade.lowestPrice = Math.min(
+                trade.lowestPrice || trade.entryPrice,
+                candle.low
+            );
         }
 
-        // Check activation
         const profitPips = isBuy
             ? (trade.highestPrice - trade.entryPrice) / pipValue
             : (trade.entryPrice - trade.lowestPrice) / pipValue;
 
         if (profitPips < activationPips) return;
 
-        // Calculate new trailing stop
         const newStop = isBuy
             ? trade.highestPrice - trailingPips * pipValue
             : trade.lowestPrice + trailingPips * pipValue;
-
-        // Only move in favorable direction
         const shouldUpdate = isBuy
             ? !trade.trailingStopPrice || newStop > trade.trailingStopPrice
             : !trade.trailingStopPrice || newStop < trade.trailingStopPrice;
@@ -646,13 +1669,11 @@ class BacktestEngine {
         }
     }
 
-    /**
-     * Binary search to find H4 SuperTrend direction at a given timestamp.
-     * Returns direction (1=uptrend, -1=downtrend) of the most recent H4 candle <= timestamp.
-     */
     _getHTFDirection(htfDirections, htfTimes, timestamp) {
-        let lo = 0, hi = htfTimes.length - 1;
+        let lo = 0;
+        let hi = htfTimes.length - 1;
         let result = -1;
+
         while (lo <= hi) {
             const mid = (lo + hi) >>> 1;
             if (htfTimes[mid] <= timestamp) {
@@ -662,91 +1683,37 @@ class BacktestEngine {
                 hi = mid - 1;
             }
         }
-        if (result < 0) return 0; // no HTF data before this timestamp
+
+        if (result < 0) return 0;
         return htfDirections[result];
     }
 
-    /**
-     * Check if HTF trend agrees with entry direction.
-     * BUY requires H4 uptrend (1), SELL requires H4 downtrend (-1).
-     */
     _checkHTFFilter(htfDirections, htfTimes, timestamp, signalSide) {
         const htfDir = this._getHTFDirection(htfDirections, htfTimes, timestamp);
-        if (htfDir === 0) return true; // no data yet, allow entry
+        if (htfDir === 0) return true;
         if (signalSide === "BUY") return htfDir === 1;
         if (signalSide === "SELL") return htfDir === -1;
         return true;
     }
 
-    /**
-     * Aggregate M15 candles into H1 candles by hour boundary.
-     * Groups by floor(time / 3600) * 3600. Returns H1 OHLC candles plus mapping
-     * structures for the multi-TF simulation loop.
-     *
-     * @param {Array} m15Candles - Array of M15 candle objects with time, open, high, low, close, volume
-     * @returns {{ h1Candles: Array, m15ToH1Index: number[], h1CompletionM15Indices: Set<number> }}
-     *   - h1Candles: Aggregated H1 bars (open=first M15 open, high=max, low=min, close=last M15 close)
-     *   - m15ToH1Index: Maps each M15 index to its parent H1 index
-     *   - h1CompletionM15Indices: Set of M15 indices where each H1 bar's last candle falls
-     *     (last H1 bar excluded — incomplete bars don't trigger signals)
-     */
     _aggregateToH1(m15Candles) {
-        const h1Candles = [];
-        const m15ToH1Index = new Array(m15Candles.length);
-        const h1CompletionM15Indices = new Set();
-
-        let currentHour = -1;
-        let h1Idx = -1;
-
-        for (let i = 0; i < m15Candles.length; i++) {
-            const candle = m15Candles[i];
-            const hourKey = Math.floor(candle.time / 3600) * 3600;
-
-            if (hourKey !== currentHour) {
-                // Mark previous group's last M15 as H1 completion
-                if (h1Idx >= 0 && i > 0) {
-                    h1CompletionM15Indices.add(i - 1);
-                }
-
-                // Start new H1 bar
-                currentHour = hourKey;
-                h1Idx++;
-                h1Candles.push({
-                    time: hourKey,
-                    open: candle.open,
-                    high: candle.high,
-                    low: candle.low,
-                    close: candle.close,
-                    volume: candle.volume || 0,
-                });
-            } else {
-                // Extend current H1 bar
-                const h1 = h1Candles[h1Idx];
-                h1.high = Math.max(h1.high, candle.high);
-                h1.low = Math.min(h1.low, candle.low);
-                h1.close = candle.close;
-                h1.volume += candle.volume || 0;
-            }
-
-            m15ToH1Index[i] = h1Idx;
-        }
-
-        // Last H1 bar is NOT marked complete — prevents signals on partial bars
-
-        return { h1Candles, m15ToH1Index, h1CompletionM15Indices };
+        const agg = this._aggregateCandles(m15Candles, 60 * 60);
+        return {
+            h1Candles: agg.targetCandles,
+            m15ToH1Index: agg.sourceToTargetIndex,
+            h1CompletionM15Indices: agg.completionIndices,
+        };
     }
 
-    /**
-     * Close a trade and calculate P&L
-     */
     _closeTrade(trade, exitPrice, exitReason, exitTime, config, pipValue) {
         trade.exitPrice = exitPrice;
         trade.exitReason = exitReason;
         trade.exitTime = exitTime;
 
-        const priceChange = trade.side === "BUY"
-            ? exitPrice - trade.entryPrice
-            : trade.entryPrice - exitPrice;
+        const priceChange =
+            trade.side === "BUY"
+                ? exitPrice - trade.entryPrice
+                : trade.entryPrice - exitPrice;
 
         const pnlGross = trade.units * priceChange;
         const spreadCost = config.spreadPips * pipValue * trade.units;
@@ -758,9 +1725,6 @@ class BacktestEngine {
         trade.holdingPeriodSeconds = exitTime - trade.entryTime;
     }
 
-    /**
-     * Build the final result object with summary stats
-     */
     _buildResult(trades, equityCurve, config) {
         if (trades.length === 0) {
             return {
@@ -775,20 +1739,25 @@ class BacktestEngine {
         const losers = trades.filter((t) => t.pnlNet <= 0);
 
         const totalPnl = trades.reduce((sum, t) => sum + t.pnlNet, 0);
-        const avgWin = winners.length > 0
-            ? winners.reduce((sum, t) => sum + t.pnlNet, 0) / winners.length
-            : 0;
-        const avgLoss = losers.length > 0
-            ? Math.abs(losers.reduce((sum, t) => sum + t.pnlNet, 0) / losers.length)
-            : 0;
+        const avgWin =
+            winners.length > 0
+                ? winners.reduce((sum, t) => sum + t.pnlNet, 0) / winners.length
+                : 0;
+        const avgLoss =
+            losers.length > 0
+                ? Math.abs(
+                      losers.reduce((sum, t) => sum + t.pnlNet, 0) /
+                          losers.length
+                  )
+                : 0;
 
         const grossProfit = winners.reduce((sum, t) => sum + t.pnlNet, 0);
         const grossLoss = Math.abs(losers.reduce((sum, t) => sum + t.pnlNet, 0));
-        const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+        const profitFactor =
+            grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
 
-        const expectancy = trades.reduce((sum, t) => sum + t.pnlNet, 0) / trades.length;
+        const expectancy = totalPnl / trades.length;
 
-        // Calculate max drawdown from equity curve
         let peak = config.initialBalance;
         let maxDrawdown = 0;
         let maxDrawdownPercent = 0;
@@ -801,10 +1770,8 @@ class BacktestEngine {
             }
         }
 
-        // Average risk:reward ratio
         const avgRR = avgLoss > 0 ? avgWin / avgLoss : 0;
 
-        // Breakdown by entry type
         const byEntryType = {};
         for (const trade of trades) {
             const type = trade.entryType || "UNKNOWN";
@@ -816,12 +1783,12 @@ class BacktestEngine {
             byEntryType[type].pnl += trade.pnlNet;
         }
         for (const key of Object.keys(byEntryType)) {
-            byEntryType[key].winRate = byEntryType[key].count > 0
-                ? byEntryType[key].wins / byEntryType[key].count
-                : 0;
+            byEntryType[key].winRate =
+                byEntryType[key].count > 0
+                    ? byEntryType[key].wins / byEntryType[key].count
+                    : 0;
         }
 
-        // Breakdown by exit reason
         const byExitReason = {};
         for (const trade of trades) {
             const reason = trade.exitReason || "UNKNOWN";
@@ -853,7 +1820,10 @@ class BacktestEngine {
                 byExitReason,
                 startBalance: config.initialBalance,
                 endBalance,
-                returnPercent: ((endBalance - config.initialBalance) / config.initialBalance) * 100,
+                returnPercent:
+                    ((endBalance - config.initialBalance) /
+                        config.initialBalance) *
+                    100,
             },
             equityCurve,
             config,

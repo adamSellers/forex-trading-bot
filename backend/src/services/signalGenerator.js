@@ -3,6 +3,7 @@ const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const { RSI, ADX, ATR } = require("technicalindicators");
 const { calculateSuperTrend } = require("../utils/indicators");
+const { computeConfigHash } = require("../config/tradingConfig");
 
 class SignalGenerator extends EventEmitter {
     constructor(config = {}, signalRepository = null) {
@@ -115,6 +116,203 @@ class SignalGenerator extends EventEmitter {
 
         const parsed = Date.parse(candleTime);
         return Number.isFinite(parsed) ? parsed : Date.now();
+    }
+
+    createSetupId(instrument, direction, signalCandleTime, entryType = null) {
+        return [
+            instrument,
+            direction || "UNKNOWN",
+            this.getCandleTimestampMs(signalCandleTime),
+            entryType || "BASE",
+        ].join(":");
+    }
+
+    createPendingSnapshot(pending) {
+        if (!pending) return null;
+
+        const ageMs = Math.max(0, Date.now() - (pending.flipTime || Date.now()));
+
+        return {
+            direction: pending.direction || null,
+            state: pending.state || null,
+            waitingFor: pending.waitingFor || null,
+            flipTime: pending.flipTime || null,
+            flipPrice: pending.flipPrice || null,
+            flipAdx: pending.flipAdx || null,
+            flipRsi: pending.flipRsi || null,
+            peakPrice: pending.peakPrice ?? null,
+            troughPrice: pending.troughPrice ?? null,
+            pullbackLow: pending.pullbackLow ?? null,
+            pullbackHigh: pending.pullbackHigh ?? null,
+            pullbackDepthAtr: pending.pullbackDepthAtr ?? null,
+            reaccelerationTrigger: pending.reaccelerationTrigger ?? null,
+            pullbackDetectedTime: pending.pullbackDetectedTime ?? null,
+            signalCandleTime: pending.signalCandleTime ?? null,
+            ageMs,
+            ageMinutes: Math.round(ageMs / 60000),
+        };
+    }
+
+    createDecisionContext({
+        currentDir,
+        prevDir,
+        adxVal,
+        adxRising,
+        prevAdxVal,
+        pdiVal,
+        mdiVal,
+        rsiVal,
+        atrVal,
+        atrPips,
+        htfContext,
+        pending,
+        currentPrice,
+    }) {
+        return {
+            currentDirection: currentDir,
+            previousDirection: prevDir,
+            currentPrice,
+            adx: adxVal,
+            adxRising,
+            previousAdx: prevAdxVal,
+            pdi: pdiVal,
+            mdi: mdiVal,
+            rsi: rsiVal,
+            atr: atrVal,
+            atrPips,
+            htf: htfContext
+                ? {
+                      enabled: htfContext.enabled,
+                      timeframe: htfContext.timeframe,
+                      direction: htfContext.direction,
+                      longAllowed: htfContext.longAllowed,
+                      shortAllowed: htfContext.shortAllowed,
+                      reason: htfContext.reason || null,
+                  }
+                : null,
+            pending: this.createPendingSnapshot(pending),
+        };
+    }
+
+    buildSignalPayload({
+        instrument,
+        signalType,
+        reason,
+        reasonCode,
+        signalClass,
+        intent,
+        entryType,
+        signalCandleTime,
+        atrVal,
+        atrPips,
+        currentPrice,
+        rsiVal,
+        adxVal,
+        pdiVal,
+        mdiVal,
+        adxRising,
+        prevAdxVal,
+        currentDir,
+        prevDir,
+        htfContext,
+        pending,
+    }) {
+        const pendingSnapshot = this.createPendingSnapshot(pending);
+        const setupDirection =
+            signalType === "BUY"
+                ? "LONG"
+                : signalType === "SELL" && entryType !== "EXIT_ONLY"
+                ? "SHORT"
+                : pendingSnapshot?.direction || (currentDir === 1 ? "LONG" : "SHORT");
+        const setupId = this.createSetupId(
+            instrument,
+            setupDirection,
+            pendingSnapshot?.flipTime || signalCandleTime,
+            entryType
+        );
+        const configHash = computeConfigHash(this.config);
+
+        return {
+            symbol: instrument,
+            signal: signalType,
+            strength: adxVal,
+            message: reason,
+            reasonCode,
+            signalClass,
+            intent,
+            setupId,
+            uniqueEvent: true,
+            cooldownSuppressed: false,
+            timestamp: Date.now(),
+            signalCandleTime: this.getCandleTimestampMs(signalCandleTime),
+            atr: atrVal,
+            atrPips: atrPips,
+            currentPrice: currentPrice,
+            entryType,
+            strategy: this.config.strategy || "supertrend_momentum",
+            timeframe: this.config.timeframe || "15m",
+            configHash,
+            decisionContext: this.createDecisionContext({
+                currentDir,
+                prevDir,
+                adxVal,
+                adxRising,
+                prevAdxVal,
+                pdiVal,
+                mdiVal,
+                rsiVal,
+                atrVal,
+                atrPips,
+                htfContext,
+                pending,
+                currentPrice,
+            }),
+
+            trend: {
+                currentPrice,
+                rsi: rsiVal,
+                adx: adxVal,
+                pdi: pdiVal,
+                mdi: mdiVal,
+                adxRising: adxRising,
+                adxPrev: prevAdxVal,
+                supertrend_direction: currentDir,
+                atrPips: atrPips,
+                htfDirection: htfContext.direction,
+                htfTimeframe: htfContext.timeframe,
+            },
+
+            data: {
+                currentPrice,
+                rsi: rsiVal,
+                adx: adxVal,
+                pdi: pdiVal,
+                mdi: mdiVal,
+                adxRising: adxRising,
+                adxPrev: prevAdxVal,
+                stDirection: currentDir,
+                atrPips: atrPips,
+                htfDirection: htfContext.direction,
+                htfTimeframe: htfContext.timeframe,
+            },
+
+            pendingState: pendingSnapshot,
+            pendingEntry: pendingSnapshot
+                ? {
+                      flipTime: pendingSnapshot.flipTime,
+                      flipPrice: pendingSnapshot.flipPrice,
+                      flipAdx: pendingSnapshot.flipAdx,
+                      flipRsi: pendingSnapshot.flipRsi,
+                      state: pendingSnapshot.state,
+                      waitingFor: pendingSnapshot.waitingFor,
+                      direction: pendingSnapshot.direction,
+                      pullbackDepthAtr: pendingSnapshot.pullbackDepthAtr,
+                      reaccelerationTrigger:
+                          pendingSnapshot.reaccelerationTrigger,
+                      ageMinutes: pendingSnapshot.ageMinutes,
+                  }
+                : null,
+        };
     }
 
     isLongContinuationEnabled() {
@@ -279,6 +477,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "HOLD: waiting for HTF confirmation expired",
+                reasonCode: "LONG_WAIT_HTF_EXPIRED",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -286,6 +487,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "HOLD: HTF confirmation invalidated (trend lost)",
+                reasonCode: "LONG_WAIT_HTF_TREND_LOST",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -304,6 +508,9 @@ class SignalGenerator extends EventEmitter {
                 return {
                     clearPending: true,
                     reason: "HOLD: HTF confirmation invalidated (momentum faded)",
+                    reasonCode: "LONG_WAIT_HTF_MOMENTUM_FADED",
+                    signalClass: "FILTERED",
+                    intent: "WAIT",
                 };
             }
 
@@ -313,6 +520,9 @@ class SignalGenerator extends EventEmitter {
                     peakPrice: updatedPeakPrice,
                 },
                 reason: `HOLD: waiting for HTF confirmation (${htfContext.reason})`,
+                reasonCode: "LONG_WAIT_HTF_PENDING",
+                signalClass: "PENDING",
+                intent: "WAIT",
             };
         }
 
@@ -320,6 +530,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "HOLD: HTF confirmed but long setup invalidated",
+                reasonCode: "LONG_HTF_CONFIRMED_INVALIDATED",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -344,24 +557,34 @@ class SignalGenerator extends EventEmitter {
                     `deviation ${(priceDeviation * 100).toFixed(2)}% | ADX ${adxVal.toFixed(
                         1
                     )} | RSI ${rsiVal.toFixed(1)}`,
+                reasonCode: "LONG_HTF_CONFIRMED_ENTRY",
+                signalClass: "ACTIONABLE",
+                intent: "ENTER_LONG",
             };
         }
 
         if (longContinuationEnabled) {
             return {
-                pending: this.createImmediatePullbackSetup({
-                    direction: "LONG",
-                    currentTime: Date.now(),
-                    currentPrice: currentClose,
-                    currentAdx: adxVal,
-                    currentRsi: rsiVal,
-                    currentHigh: updatedPeakPrice,
-                    currentLow,
-                    signalCandleTime,
-                }),
+                pending: {
+                    ...this.createPullbackSetup({
+                        direction: "LONG",
+                        flipTime: pending.flipTime,
+                        flipPrice: pending.flipPrice,
+                        flipAdx: pending.flipAdx,
+                        flipRsi: pending.flipRsi,
+                        initialHigh: updatedPeakPrice,
+                        initialLow: currentLow,
+                        signalCandleTime:
+                            pending.signalCandleTime || signalCandleTime,
+                    }),
+                    peakPrice: updatedPeakPrice,
+                },
                 reason:
                     `HOLD: HTF confirmed but move extended | ` +
                     `deviation ${(priceDeviation * 100).toFixed(2)}% | waiting for pullback`,
+                reasonCode: "LONG_HTF_CONFIRMED_PULLBACK",
+                signalClass: "PENDING",
+                intent: "WAIT",
             };
         }
 
@@ -371,6 +594,9 @@ class SignalGenerator extends EventEmitter {
                 `HOLD: HTF confirmed but entry not chaseable (${(
                     priceDeviation * 100
                 ).toFixed(2)}%)`,
+            reasonCode: "LONG_HTF_CONFIRMED_NOT_CHASEABLE",
+            signalClass: "FILTERED",
+            intent: "WAIT",
         };
     }
 
@@ -397,6 +623,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "HOLD: waiting for HTF confirmation expired",
+                reasonCode: "SHORT_WAIT_HTF_EXPIRED",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -404,6 +633,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "HOLD: HTF confirmation invalidated (trend lost)",
+                reasonCode: "SHORT_WAIT_HTF_TREND_LOST",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -423,6 +655,9 @@ class SignalGenerator extends EventEmitter {
                 return {
                     clearPending: true,
                     reason: "HOLD: HTF confirmation invalidated (momentum faded)",
+                    reasonCode: "SHORT_WAIT_HTF_MOMENTUM_FADED",
+                    signalClass: "FILTERED",
+                    intent: "WAIT",
                 };
             }
 
@@ -432,6 +667,9 @@ class SignalGenerator extends EventEmitter {
                     troughPrice: updatedTroughPrice,
                 },
                 reason: `HOLD: waiting for HTF confirmation (${htfContext.reason})`,
+                reasonCode: "SHORT_WAIT_HTF_PENDING",
+                signalClass: "PENDING",
+                intent: "WAIT",
             };
         }
 
@@ -439,6 +677,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "HOLD: HTF confirmed but short setup invalidated",
+                reasonCode: "SHORT_HTF_CONFIRMED_INVALIDATED",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -463,24 +704,34 @@ class SignalGenerator extends EventEmitter {
                     `deviation ${(priceDeviation * 100).toFixed(2)}% | ADX ${adxVal.toFixed(
                         1
                     )} | RSI ${rsiVal.toFixed(1)}`,
+                reasonCode: "SHORT_HTF_CONFIRMED_ENTRY",
+                signalClass: "ACTIONABLE",
+                intent: "ENTER_SHORT",
             };
         }
 
         if (shortContinuationEnabled) {
             return {
-                pending: this.createImmediatePullbackSetup({
-                    direction: "SHORT",
-                    currentTime: Date.now(),
-                    currentPrice: currentClose,
-                    currentAdx: adxVal,
-                    currentRsi: rsiVal,
-                    currentHigh,
-                    currentLow: updatedTroughPrice,
-                    signalCandleTime,
-                }),
+                pending: {
+                    ...this.createPullbackSetup({
+                        direction: "SHORT",
+                        flipTime: pending.flipTime,
+                        flipPrice: pending.flipPrice,
+                        flipAdx: pending.flipAdx,
+                        flipRsi: pending.flipRsi,
+                        initialHigh: currentHigh,
+                        initialLow: updatedTroughPrice,
+                        signalCandleTime:
+                            pending.signalCandleTime || signalCandleTime,
+                    }),
+                    troughPrice: updatedTroughPrice,
+                },
                 reason:
                     `HOLD: HTF confirmed but move extended | ` +
                     `deviation ${(priceDeviation * 100).toFixed(2)}% | waiting for pullback`,
+                reasonCode: "SHORT_HTF_CONFIRMED_PULLBACK",
+                signalClass: "PENDING",
+                intent: "WAIT",
             };
         }
 
@@ -490,6 +741,9 @@ class SignalGenerator extends EventEmitter {
                 `HOLD: HTF confirmed but entry not chaseable (${(
                     priceDeviation * 100
                 ).toFixed(2)}%)`,
+            reasonCode: "SHORT_HTF_CONFIRMED_NOT_CHASEABLE",
+            signalClass: "FILTERED",
+            intent: "WAIT",
         };
     }
 
@@ -521,6 +775,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "HOLD: long setup expired",
+                reasonCode: "LONG_CONTINUATION_EXPIRED",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -528,6 +785,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: `HOLD: long setup invalidated (${htfContext.reason || "trend lost"})`,
+                reasonCode: "LONG_CONTINUATION_INVALIDATED",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -553,6 +813,9 @@ class SignalGenerator extends EventEmitter {
                     reason: `HOLD: long pullback too deep (${pullbackDepthAtr.toFixed(
                         2
                     )} ATR)`,
+                    reasonCode: "LONG_PULLBACK_TOO_DEEP",
+                    signalClass: "FILTERED",
+                    intent: "WAIT",
                 };
             }
 
@@ -576,6 +839,9 @@ class SignalGenerator extends EventEmitter {
                         `HOLD: long pullback detected (${pullbackDepthAtr.toFixed(
                             2
                         )} ATR) - waiting for breakout`,
+                    reasonCode: "LONG_PULLBACK_DETECTED",
+                    signalClass: "PENDING",
+                    intent: "WAIT",
                 };
             }
 
@@ -588,6 +854,9 @@ class SignalGenerator extends EventEmitter {
                     `HOLD: long setup waiting for pullback | peak ${trackedPeakPrice.toFixed(
                         5
                     )}`,
+                reasonCode: "LONG_PULLBACK_WAIT",
+                signalClass: "PENDING",
+                intent: "WAIT",
             };
         }
 
@@ -615,6 +884,9 @@ class SignalGenerator extends EventEmitter {
                 reason: `HOLD: long pullback invalidated (${updatedDepthAtr.toFixed(
                     2
                 )} ATR)`,
+                reasonCode: "LONG_REACCELERATION_INVALIDATED",
+                signalClass: "FILTERED",
+                intent: "WAIT",
             };
         }
 
@@ -640,6 +912,9 @@ class SignalGenerator extends EventEmitter {
                         2
                     )} ATR | RSI ${rsiVal.toFixed(1)} | ` +
                     `+DI breakout confirmed`,
+                reasonCode: "LONG_PULLBACK_REACCELERATION",
+                signalClass: "ACTIONABLE",
+                intent: "ENTER_LONG",
             };
         }
 
@@ -657,6 +932,9 @@ class SignalGenerator extends EventEmitter {
                 `HOLD: long setup waiting for breakout | depth ${updatedDepthAtr.toFixed(
                     2
                 )} ATR`,
+            reasonCode: "LONG_REACCELERATION_WAIT",
+            signalClass: "PENDING",
+            intent: "WAIT",
         };
     }
 
@@ -688,6 +966,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: "EXIT_ONLY: short setup expired",
+                reasonCode: "SHORT_CONTINUATION_EXPIRED",
+                signalClass: "EXIT_ONLY",
+                intent: "EXIT_LONG_ONLY",
             };
         }
 
@@ -695,6 +976,9 @@ class SignalGenerator extends EventEmitter {
             return {
                 clearPending: true,
                 reason: `EXIT_ONLY: short setup invalidated (${htfContext.reason || "trend lost"})`,
+                reasonCode: "SHORT_CONTINUATION_INVALIDATED",
+                signalClass: "EXIT_ONLY",
+                intent: "EXIT_LONG_ONLY",
             };
         }
 
@@ -720,6 +1004,9 @@ class SignalGenerator extends EventEmitter {
                     reason: `EXIT_ONLY: short pullback too deep (${pullbackDepthAtr.toFixed(
                         2
                     )} ATR)`,
+                    reasonCode: "SHORT_PULLBACK_TOO_DEEP",
+                    signalClass: "EXIT_ONLY",
+                    intent: "EXIT_LONG_ONLY",
                 };
             }
 
@@ -743,6 +1030,9 @@ class SignalGenerator extends EventEmitter {
                         `EXIT_ONLY: short pullback detected (${pullbackDepthAtr.toFixed(
                             2
                         )} ATR) - waiting for breakdown`,
+                    reasonCode: "SHORT_PULLBACK_DETECTED",
+                    signalClass: "EXIT_ONLY",
+                    intent: "EXIT_LONG_ONLY",
                 };
             }
 
@@ -755,6 +1045,9 @@ class SignalGenerator extends EventEmitter {
                     `EXIT_ONLY: short setup waiting for pullback | trough ${trackedTroughPrice.toFixed(
                         5
                     )}`,
+                reasonCode: "SHORT_PULLBACK_WAIT",
+                signalClass: "EXIT_ONLY",
+                intent: "EXIT_LONG_ONLY",
             };
         }
 
@@ -782,6 +1075,9 @@ class SignalGenerator extends EventEmitter {
                 reason: `EXIT_ONLY: short pullback invalidated (${updatedDepthAtr.toFixed(
                     2
                 )} ATR)`,
+                reasonCode: "SHORT_REACCELERATION_INVALIDATED",
+                signalClass: "EXIT_ONLY",
+                intent: "EXIT_LONG_ONLY",
             };
         }
 
@@ -807,6 +1103,9 @@ class SignalGenerator extends EventEmitter {
                         2
                     )} ATR | RSI ${rsiVal.toFixed(1)} | ` +
                     `-DI breakdown confirmed`,
+                reasonCode: "SHORT_PULLBACK_REACCELERATION",
+                signalClass: "ACTIONABLE",
+                intent: "ENTER_SHORT",
             };
         }
 
@@ -824,6 +1123,9 @@ class SignalGenerator extends EventEmitter {
                 `EXIT_ONLY: short setup waiting for breakdown | depth ${updatedDepthAtr.toFixed(
                     2
                 )} ATR`,
+            reasonCode: "SHORT_REACCELERATION_WAIT",
+            signalClass: "EXIT_ONLY",
+            intent: "EXIT_LONG_ONLY",
         };
     }
 
@@ -835,6 +1137,12 @@ class SignalGenerator extends EventEmitter {
                     signal: "HOLD",
                     strength: 0,
                     message: "Insufficient data",
+                    reasonCode: "INSUFFICIENT_DATA",
+                    signalClass: "FILTERED",
+                    intent: "WAIT",
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                    configHash: computeConfigHash(this.config),
                     timestamp: Date.now(),
                 };
             }
@@ -906,6 +1214,9 @@ class SignalGenerator extends EventEmitter {
                 1
             )} ATR:${atrPips.toFixed(1)}pips`;
             let entryType = null;
+            let reasonCode = "BASE_TREND_STATE";
+            let signalClass = "INFO";
+            let intent = "NONE";
 
             const adxMeetsThreshold = adxVal >= (this.config.minAdx || 22);
             const adxSlopeOk = !this.config.adxSlopeFilter || adxRising;
@@ -946,6 +1257,9 @@ class SignalGenerator extends EventEmitter {
                 if (freshLongEntryOk) {
                     signalType = "BUY";
                     entryType = "FRESH_FLIP";
+                    reasonCode = "LONG_FRESH_FLIP_ACTIONABLE";
+                    signalClass = "ACTIONABLE";
+                    intent = "ENTER_LONG";
                     reason =
                         `🚀 BUY: ST Flip GREEN | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | ` +
                         `+DI ${pdiVal.toFixed(1)} > -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
@@ -962,6 +1276,9 @@ class SignalGenerator extends EventEmitter {
                         signalCandleTime,
                     });
                     this._pendingEntries.set(instrument, pendingSetup);
+                    reasonCode = "LONG_FRESH_FLIP_PULLBACK_PENDING";
+                    signalClass = "PENDING";
+                    intent = "WAIT";
                     reason =
                         `HOLD: long trend valid but not chaseable | ` +
                         `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
@@ -984,22 +1301,40 @@ class SignalGenerator extends EventEmitter {
                         signalCandleTime,
                     });
                     this._pendingEntries.set(instrument, pendingSetup);
+                    reasonCode = "LONG_FRESH_FLIP_WAIT_HTF";
+                    signalClass = "PENDING";
+                    intent = "WAIT";
                     reason = `HOLD: waiting for HTF confirmation (${htfContext.reason})`;
                 } else if (!htfContext.longAllowed) {
+                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_HTF";
+                    signalClass = "FILTERED";
+                    intent = "WAIT";
                     reason = `HOLD: ST Flip blocked by ${htfContext.reason}`;
                 } else if (!adxMeetsThreshold) {
+                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_ADX";
+                    signalClass = "FILTERED";
+                    intent = "WAIT";
                     reason = `HOLD: ST Flip blocked by weak ADX ${adxVal.toFixed(1)} < ${this.config.minAdx}`;
                 } else if (!longDiOk) {
+                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_DIRECTIONAL_ADX";
+                    signalClass = "FILTERED";
+                    intent = "WAIT";
                     reason =
                         `HOLD: ST Flip blocked by directional ADX (+DI ${pdiVal.toFixed(
                             1
                         )} <= -DI ${mdiVal.toFixed(1)})`;
                 } else if (rsiVal < longMomentumFloor) {
+                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_MOMENTUM";
+                    signalClass = "FILTERED";
+                    intent = "WAIT";
                     reason =
                         `HOLD: ST Flip blocked by weak momentum RSI ${rsiVal.toFixed(
                             1
                         )} < ${longMomentumFloor}`;
                 } else {
+                    reasonCode = "LONG_FRESH_FLIP_FILTERED";
+                    signalClass = "FILTERED";
+                    intent = "WAIT";
                     reason =
                         `HOLD: ST Flip filtered | ADX ${adxVal.toFixed(1)} | ` +
                         `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
@@ -1059,6 +1394,9 @@ class SignalGenerator extends EventEmitter {
                 } else {
                     reason = evaluation.reason;
                 }
+                reasonCode = evaluation.reasonCode || reasonCode;
+                signalClass = evaluation.signalClass || signalClass;
+                intent = evaluation.intent || intent;
             }
             // 5. SHORT ENTRY: SuperTrend Flip (GREEN -> RED)
             // Always emits SELL to close longs; entryType indicates whether a short is allowed.
@@ -1071,6 +1409,9 @@ class SignalGenerator extends EventEmitter {
 
                 if (freshShortEntryOk) {
                     entryType = "SHORT_ENTRY";
+                    reasonCode = "SHORT_FRESH_FLIP_ACTIONABLE";
+                    signalClass = "ACTIONABLE";
+                    intent = "ENTER_SHORT";
                     reason =
                         `📉 SELL: ST Flip RED | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | ` +
                         `-DI ${mdiVal.toFixed(1)} > +DI ${pdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
@@ -1093,6 +1434,9 @@ class SignalGenerator extends EventEmitter {
                     });
                     this._pendingEntries.set(instrument, pendingSetup);
                     entryType = "EXIT_ONLY";
+                    reasonCode = "SHORT_FRESH_FLIP_WAIT_HTF";
+                    signalClass = "EXIT_ONLY";
+                    intent = "EXIT_LONG_ONLY";
                     reason =
                         `📉 EXIT: ST Flip RED (short waiting for HTF confirmation: ${htfContext.reason})`;
                 } else if (shortContinuationEnabled && shortBaseRegimeOk) {
@@ -1108,6 +1452,9 @@ class SignalGenerator extends EventEmitter {
                     });
                     this._pendingEntries.set(instrument, pendingSetup);
                     entryType = "EXIT_ONLY";
+                    reasonCode = "SHORT_FRESH_FLIP_PULLBACK_PENDING";
+                    signalClass = "EXIT_ONLY";
+                    intent = "EXIT_LONG_ONLY";
                     reason =
                         `EXIT_ONLY: short trend valid but waiting for pullback | ` +
                         `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
@@ -1115,24 +1462,39 @@ class SignalGenerator extends EventEmitter {
                         )}`;
                 } else if (!htfContext.shortAllowed) {
                     entryType = "EXIT_ONLY";
+                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_HTF";
+                    signalClass = "EXIT_ONLY";
+                    intent = "EXIT_LONG_ONLY";
                     reason = `📉 EXIT: ST Flip RED (short blocked: ${htfContext.reason})`;
                 } else if (!adxMeetsThreshold) {
                     entryType = "EXIT_ONLY";
+                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_ADX";
+                    signalClass = "EXIT_ONLY";
+                    intent = "EXIT_LONG_ONLY";
                     reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} < ${this.config.minAdx})`;
                 } else if (!shortDiOk) {
                     entryType = "EXIT_ONLY";
+                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_DIRECTIONAL_ADX";
+                    signalClass = "EXIT_ONLY";
+                    intent = "EXIT_LONG_ONLY";
                     reason =
                         `📉 EXIT: ST Flip RED (short blocked: directional ADX -DI ${mdiVal.toFixed(
                             1
                         )} <= +DI ${pdiVal.toFixed(1)})`;
                 } else if (rsiVal > shortMomentumCeiling) {
                     entryType = "EXIT_ONLY";
+                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_MOMENTUM";
+                    signalClass = "EXIT_ONLY";
+                    intent = "EXIT_LONG_ONLY";
                     reason =
                         `📉 EXIT: ST Flip RED (short blocked: momentum too strong RSI ${rsiVal.toFixed(
                             1
                         )} > ${shortMomentumCeiling})`;
                 } else {
                     entryType = "EXIT_ONLY";
+                    reasonCode = "SHORT_FRESH_FLIP_FILTERED";
+                    signalClass = "EXIT_ONLY";
+                    intent = "EXIT_LONG_ONLY";
                     reason =
                         `📉 EXIT: ST Flip RED (short filtered | ADX ${adxVal.toFixed(1)} | ` +
                         `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)})`;
@@ -1200,78 +1562,38 @@ class SignalGenerator extends EventEmitter {
                             : "EXIT_ONLY";
                     reason = evaluation.reason;
                 }
+                reasonCode = evaluation.reasonCode || reasonCode;
+                signalClass =
+                    evaluation.signalClass ||
+                    (signalType === "SELL" && entryType === "EXIT_ONLY"
+                        ? "EXIT_ONLY"
+                        : signalClass);
+                intent = evaluation.intent || intent;
             }
 
-            return {
-                symbol: instrument,
-                signal: signalType,
-                strength: adxVal,
-                message: reason,
-                timestamp: Date.now(),
-                signalCandleTime,
-                atr: atrVal,
-                atrPips: atrPips,
-                currentPrice: currentPrice,
+            return this.buildSignalPayload({
+                instrument,
+                signalType,
+                reason,
+                reasonCode,
+                signalClass,
+                intent,
                 entryType,
-
-                // Trend data for dashboard
-                trend: {
-                    currentPrice,
-                    rsi: rsiVal,
-                    adx: adxVal,
-                    pdi: pdiVal,
-                    mdi: mdiVal,
-                    adxRising: adxRising,
-                    adxPrev: prevAdxVal,
-                    supertrend_direction: currentDir,
-                    atrPips: atrPips,
-                    htfDirection: htfContext.direction,
-                    htfTimeframe: htfContext.timeframe,
-                },
-
-                // Trading engine compatibility
-                data: {
-                    currentPrice,
-                    rsi: rsiVal,
-                    adx: adxVal,
-                    pdi: pdiVal,
-                    mdi: mdiVal,
-                    adxRising: adxRising,
-                    adxPrev: prevAdxVal,
-                    stDirection: currentDir,
-                    atrPips: atrPips,
-                    htfDirection: htfContext.direction,
-                    htfTimeframe: htfContext.timeframe,
-                },
-
-                pendingEntry: this._pendingEntries.has(instrument)
-                    ? {
-                          flipTime:
-                              this._pendingEntries.get(instrument).flipTime,
-                          flipPrice:
-                              this._pendingEntries.get(instrument).flipPrice,
-                          flipAdx: this._pendingEntries.get(instrument).flipAdx,
-                          flipRsi: this._pendingEntries.get(instrument).flipRsi,
-                          state: this._pendingEntries.get(instrument).state,
-                          waitingFor:
-                              this._pendingEntries.get(instrument).waitingFor,
-                          direction:
-                              this._pendingEntries.get(instrument).direction,
-                          pullbackDepthAtr:
-                              this._pendingEntries.get(instrument)
-                                  .pullbackDepthAtr,
-                          reaccelerationTrigger:
-                              this._pendingEntries.get(instrument)
-                                  .reaccelerationTrigger,
-                          ageMinutes: (
-                              (Date.now() -
-                                  this._pendingEntries.get(instrument)
-                                      .flipTime) /
-                              60000
-                          ).toFixed(0),
-                      }
-                    : null,
-            };
+                signalCandleTime,
+                atrVal,
+                atrPips,
+                currentPrice,
+                rsiVal,
+                adxVal,
+                pdiVal,
+                mdiVal,
+                adxRising,
+                prevAdxVal,
+                currentDir,
+                prevDir,
+                htfContext,
+                pending: this._pendingEntries.get(instrument) || null,
+            });
         } catch (error) {
             logger.error(
                 `âŒ Signal calculation error for ${instrument}:`,
@@ -1303,6 +1625,16 @@ class SignalGenerator extends EventEmitter {
                     ...signal,
                     signal: "COOLDOWN",
                     message: "Signal already emitted for this candle",
+                    reasonCode: "COOLDOWN_DUPLICATE_CANDLE",
+                    signalClass: "COOLDOWN",
+                    uniqueEvent: false,
+                    cooldownSuppressed: true,
+                    decisionContext: {
+                        ...(signal.decisionContext || {}),
+                        originalSignal: signal.signal,
+                        originalEntryType: signal.entryType || null,
+                        originalReasonCode: signal.reasonCode || null,
+                    },
                 };
             }
 
@@ -1311,6 +1643,16 @@ class SignalGenerator extends EventEmitter {
                     ...signal,
                     signal: "COOLDOWN",
                     message: "Signal Spam Filter",
+                    reasonCode: "COOLDOWN_RATE_LIMIT",
+                    signalClass: "COOLDOWN",
+                    uniqueEvent: false,
+                    cooldownSuppressed: true,
+                    decisionContext: {
+                        ...(signal.decisionContext || {}),
+                        originalSignal: signal.signal,
+                        originalEntryType: signal.entryType || null,
+                        originalReasonCode: signal.reasonCode || null,
+                    },
                 };
             }
         }

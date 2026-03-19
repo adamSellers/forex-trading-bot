@@ -13,6 +13,7 @@ import {
     AttachMoney, Speed, TrendingUp, Security, Cancel
 } from '@mui/icons-material';
 import { GlassCard } from '../dashboard/Shared';
+import { SUPPORTED_INSTRUMENTS } from '../config/ConfigShared';
 
 const SectionHeader = ({ icon, title, subtitle, action }) => {
     const theme = useTheme();
@@ -32,10 +33,7 @@ const SectionHeader = ({ icon, title, subtitle, action }) => {
     );
 };
 
-const AVAILABLE_ASSETS = [
-    'AUD_USD', 'EUR_USD', 'GBP_USD', 'NZD_USD', 'USD_CAD', 'USD_CHF',
-    'USD_JPY', 'EUR_GBP', 'EUR_JPY', 'GBP_JPY'
-];
+const AVAILABLE_ASSETS = SUPPORTED_INSTRUMENTS;
 
 const LabControls = ({ 
     config, updateConfig, updateWeight, 
@@ -205,15 +203,15 @@ const LabControls = ({
                         />
                     </Grid>
                     <Grid item xs={12}>
-                        <Box display="flex" alignItems="center" justifyContent="space-between" p={1} border={1} borderColor="divider" borderRadius={1} bgcolor={config.burstMode ? alpha(theme.palette.warning.main, 0.1) : 'transparent'}>
+                        <Box display="flex" alignItems="center" justifyContent="space-between" p={1} border={1} borderColor="divider" borderRadius={1}>
                             <Box display="flex" alignItems="center" gap={1}>
-                                <FlashOn fontSize="small" color={config.burstMode ? "warning" : "disabled"} />
+                                <FlashOn fontSize="small" color={config.enableShorting ? "warning" : "disabled"} />
                                 <Box>
-                                    <Typography variant="body2" fontWeight="bold" fontSize="0.8rem">Burst Mode</Typography>
-                                    <Typography variant="caption" color="text.secondary" display="block" fontSize="0.65rem">RSI &gt; 50 Entry</Typography>
+                                    <Typography variant="body2" fontWeight="bold" fontSize="0.8rem">Short Selling</Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block" fontSize="0.65rem">Allow SELL entries during the backtest</Typography>
                                 </Box>
                             </Box>
-                            <Switch size="small" checked={config.burstMode} onChange={(e) => updateConfig('burstMode', e.target.checked)} color="warning" />
+                            <Switch size="small" checked={config.enableShorting ?? true} onChange={(e) => updateConfig('enableShorting', e.target.checked)} color="warning" />
                         </Box>
                     </Grid>
                 </Grid>
@@ -306,11 +304,11 @@ const LabControls = ({
                         <FormControl fullWidth size="small">
                             <InputLabel>Stop Type</InputLabel>
                             <Select 
-                                value={config.stopLossType || 'FIXED'} 
+                                value={config.stopLossType || 'ATR'} 
                                 label="Stop Type"
                                 onChange={(e) => updateConfig('stopLossType', e.target.value)}
                             >
-                                <MenuItem value="FIXED">Fixed %</MenuItem>
+                                <MenuItem value="FIXED">Fixed Pips</MenuItem>
                                 <MenuItem value="ATR">ATR-Based</MenuItem>
                             </Select>
                         </FormControl>
@@ -322,19 +320,19 @@ const LabControls = ({
                                 type="number" 
                                 fullWidth 
                                 size="small" 
-                                value={config.stopLossATR} 
-                                onChange={(e) => updateConfig('stopLossATR', parseFloat(e.target.value))}
+                                value={config.stopLossAtrMultiplier ?? 2} 
+                                onChange={(e) => updateConfig('stopLossAtrMultiplier', parseFloat(e.target.value))}
                                 inputProps={{ step: 0.1 }}
                             />
                         ) : (
                             <TextField 
-                                label="Stop Loss %" 
+                                label="Stop Loss" 
                                 type="number" 
                                 fullWidth 
                                 size="small" 
-                                value={config.stopLoss} 
-                                onChange={(e) => updateConfig('stopLoss', parseFloat(e.target.value))}
-                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                value={config.stopLossPips ?? 30} 
+                                onChange={(e) => updateConfig('stopLossPips', parseFloat(e.target.value))}
+                                InputProps={{ endAdornment: <InputAdornment position="end">pips</InputAdornment> }}
                             />
                         )}
                     </Grid>
@@ -343,7 +341,9 @@ const LabControls = ({
                             <Box>
                                 <Typography variant="body2" fontWeight="bold" fontSize="0.8rem">Trailing Stop</Typography>
                                 <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
-                                    {config.enableTrailingStops ? `${(config.trailingStopPercent * 100).toFixed(1)}% distance` : 'Disabled'}
+                                    {config.enableTrailingStops
+                                        ? `${config.trailingStopPips ?? 25} pip trail after ${config.trailingStopActivationPips ?? 20} pips profit`
+                                        : 'Disabled'}
                                 </Typography>
                             </Box>
                             <Switch 
@@ -353,15 +353,30 @@ const LabControls = ({
                             />
                         </Box>
                         {config.enableTrailingStops && (
-                            <Slider
-                                value={config.trailingStopPercent * 100}
-                                min={0.5}
-                                max={10}
-                                step={0.1}
-                                onChange={(_, v) => updateConfig('trailingStopPercent', v / 100)}
-                                size="small"
-                                sx={{ mt: 1 }}
-                            />
+                            <Grid container spacing={2} mt={0.5}>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        label="Trail Distance"
+                                        type="number"
+                                        fullWidth
+                                        size="small"
+                                        value={config.trailingStopPips ?? 25}
+                                        onChange={(e) => updateConfig('trailingStopPips', parseFloat(e.target.value))}
+                                        InputProps={{ endAdornment: <InputAdornment position="end">pips</InputAdornment> }}
+                                    />
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        label="Activation"
+                                        type="number"
+                                        fullWidth
+                                        size="small"
+                                        value={config.trailingStopActivationPips ?? 20}
+                                        onChange={(e) => updateConfig('trailingStopActivationPips', parseFloat(e.target.value))}
+                                        InputProps={{ endAdornment: <InputAdornment position="end">pips</InputAdornment> }}
+                                    />
+                                </Grid>
+                            </Grid>
                         )}
                     </Grid>
                     <Grid item xs={12}>

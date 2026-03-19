@@ -8,7 +8,7 @@ import {
   CurrencyExchange, Email
 } from '@mui/icons-material';
 import { configAPI } from '../config/api';
-import { DEFAULT_CONFIG } from './config/ConfigShared';
+import { createDefaultConfig } from './config/ConfigShared';
 
 // Import settings panels
 import GeneralSettings from './config/GeneralSettings';
@@ -20,7 +20,7 @@ import NotificationSettings from './config/NotificationSettings';
 const TradingConfig = () => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
-  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [config, setConfig] = useState(createDefaultConfig);
   const [originalConfig, setOriginalConfig] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,10 +35,14 @@ const TradingConfig = () => {
     try {
       setLoading(true);
       const data = await configAPI.get();
+      const defaultConfig = createDefaultConfig();
+      const rawSignalCooldown = Number(data?.signalCooldown);
       const fetchedConfig = {
-        ...DEFAULT_CONFIG,
+        ...defaultConfig,
         ...data,
-        signalCooldown: (data.signalCooldown / 1000) || 60,
+        signalCooldown: Number.isFinite(rawSignalCooldown)
+          ? rawSignalCooldown / 1000
+          : defaultConfig.signalCooldown,
       };
       setConfig(fetchedConfig);
       setOriginalConfig(fetchedConfig);
@@ -64,9 +68,12 @@ const TradingConfig = () => {
     setSaving(true);
     setError(null);
     try {
+      const signalCooldownSeconds = Number(config.signalCooldown);
       const configToSave = {
         ...config,
-        signalCooldown: config.signalCooldown * 1000,
+        signalCooldown: Number.isFinite(signalCooldownSeconds)
+          ? signalCooldownSeconds * 1000
+          : createDefaultConfig().signalCooldown * 1000,
       };
       await configAPI.update(configToSave);
       setOriginalConfig(config);

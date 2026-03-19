@@ -3,6 +3,124 @@ const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class SignalRepository {
+    _buildLegacySignalRecord(signal) {
+        const trend = signal.trend || {};
+
+        return {
+            instrument: signal.symbol,
+            signal: signal.signal,
+            strength: signal.strength || 0,
+            strategy: signal.strategy || "supertrend_momentum",
+            timeframe: signal.timeframe || "15m",
+            price: signal.currentPrice || null,
+            message: signal.message || "",
+            atr_pips: signal.atrPips || signal.atr || null,
+            rsi: trend.rsi || null,
+            adx: trend.adx || signal.strength || null,
+            supertrend_direction: trend.supertrend_direction || null,
+            entry_type: signal.entryType || null,
+            timestamp: signal.timestamp || Date.now(),
+        };
+    }
+
+    _isMissingColumnError(error) {
+        const message = error?.message || "";
+        return (
+            message.includes("has no column named") ||
+            message.includes("no such column")
+        );
+    }
+
+    _buildSignalRecord(signal) {
+        const trend = signal.trend || {};
+        const decisionContext = signal.decisionContext || null;
+
+        return {
+            instrument: signal.symbol,
+            signal: signal.signal,
+            strength: signal.strength || 0,
+            strategy: signal.strategy || "supertrend_momentum",
+            timeframe: signal.timeframe || "15m",
+            price: signal.currentPrice || null,
+            message: signal.message || "",
+            atr_pips: signal.atrPips || signal.atr || null,
+            rsi: trend.rsi || null,
+            adx: trend.adx || signal.strength || null,
+            supertrend_direction: trend.supertrend_direction || null,
+            entry_type: signal.entryType || null,
+            timestamp: signal.timestamp || Date.now(),
+            reason_code: signal.reasonCode || null,
+            signal_class: signal.signalClass || null,
+            intent: signal.intent || null,
+            setup_id: signal.setupId || null,
+            signal_candle_time: signal.signalCandleTime
+                ? Number(signal.signalCandleTime)
+                : null,
+            unique_event:
+                signal.uniqueEvent === undefined
+                    ? null
+                    : Boolean(signal.uniqueEvent),
+            cooldown_suppressed:
+                signal.cooldownSuppressed === undefined
+                    ? null
+                    : Boolean(signal.cooldownSuppressed),
+            pending_direction:
+                signal.pendingState?.direction ||
+                signal.pendingEntry?.direction ||
+                null,
+            pending_state:
+                signal.pendingState?.state ||
+                signal.pendingEntry?.state ||
+                null,
+            pending_waiting_for:
+                signal.pendingState?.waitingFor ||
+                signal.pendingEntry?.waitingFor ||
+                null,
+            config_hash: signal.configHash || null,
+            decision_context: decisionContext
+                ? JSON.stringify(decisionContext)
+                : null,
+        };
+    }
+
+    _mapRow(row) {
+        return {
+            ...row,
+            symbol: row.instrument,
+            reasonCode: row.reason_code,
+            signalClass: row.signal_class,
+            intent: row.intent,
+            setupId: row.setup_id,
+            signalCandleTime: row.signal_candle_time,
+            uniqueEvent:
+                row.unique_event === null || row.unique_event === undefined
+                    ? null
+                    : Boolean(row.unique_event),
+            cooldownSuppressed:
+                row.cooldown_suppressed === null ||
+                row.cooldown_suppressed === undefined
+                    ? null
+                    : Boolean(row.cooldown_suppressed),
+            pendingDirection: row.pending_direction,
+            pendingStateCode: row.pending_state,
+            pendingWaitingFor: row.pending_waiting_for,
+            configHash: row.config_hash,
+            pendingState:
+                row.pending_state || row.pending_direction || row.pending_waiting_for
+                    ? {
+                          direction: row.pending_direction,
+                          state: row.pending_state,
+                          waitingFor: row.pending_waiting_for,
+                      }
+                    : null,
+            decisionContext: row.decision_context
+                ? typeof row.decision_context === "string"
+                    ? JSON.parse(row.decision_context)
+                    : row.decision_context
+                : null,
+        };
+    }
+
     async save(signal) {
         try {
             if (!signal || !signal.symbol || !signal.signal) {
@@ -10,24 +128,15 @@ class SignalRepository {
                 return;
             }
 
-            // Extract trend data fields
-            const trend = signal.trend || {};
+            try {
+                await db("signals").insert(this._buildSignalRecord(signal));
+            } catch (error) {
+                if (!this._isMissingColumnError(error)) {
+                    throw error;
+                }
 
-            await db("signals").insert({
-                instrument: signal.symbol,
-                signal: signal.signal,
-                strength: signal.strength || 0,
-                strategy: signal.strategy || "supertrend_momentum",
-                timeframe: signal.timeframe || "15m",
-                price: signal.currentPrice || null,
-                message: signal.message || "",
-                atr_pips: signal.atrPips || signal.atr || null,
-                rsi: trend.rsi || null,
-                adx: trend.adx || signal.strength || null,
-                supertrend_direction: trend.supertrend_direction || null,
-                entry_type: signal.entryType || null,
-                timestamp: signal.timestamp || Date.now(),
-            });
+                await db("signals").insert(this._buildLegacySignalRecord(signal));
+            }
 
             logger.debug(
                 "Signal saved to database:",
@@ -51,26 +160,22 @@ class SignalRepository {
                 return;
             }
 
-            const signalRecords = validSignals.map((signal) => {
-                const trend = signal.trend || {};
-                return {
-                    instrument: signal.symbol,
-                    signal: signal.signal,
-                    strength: signal.strength || 0,
-                    strategy: signal.strategy || "supertrend_momentum",
-                    timeframe: signal.timeframe || "15m",
-                    price: signal.currentPrice || null,
-                    message: signal.message || "",
-                    atr_pips: signal.atrPips || signal.atr || null,
-                    rsi: trend.rsi || null,
-                    adx: trend.adx || signal.strength || null,
-                    supertrend_direction: trend.supertrend_direction || null,
-                    entry_type: signal.entryType || null,
-                    timestamp: signal.timestamp || Date.now(),
-                };
-            });
+            const signalRecords = validSignals.map((signal) =>
+                this._buildSignalRecord(signal)
+            );
 
-            await db("signals").insert(signalRecords);
+            try {
+                await db("signals").insert(signalRecords);
+            } catch (error) {
+                if (!this._isMissingColumnError(error)) {
+                    throw error;
+                }
+
+                const legacyRecords = validSignals.map((signal) =>
+                    this._buildLegacySignalRecord(signal)
+                );
+                await db("signals").insert(legacyRecords);
+            }
             logger.debug(`${signalRecords.length} signals saved to database`);
         } catch (error) {
             logger.error("Error saving signal batch:", error);
@@ -83,8 +188,7 @@ class SignalRepository {
             const rows = await db("signals")
                 .orderBy("timestamp", "desc")
                 .limit(limit);
-            // Map instrument back to symbol for frontend consistency
-            return rows.map(row => ({ ...row, symbol: row.instrument }));
+            return rows.map((row) => this._mapRow(row));
         } catch (error) {
             logger.error("Error getting recent signals:", error);
             return [];
@@ -97,8 +201,7 @@ class SignalRepository {
                 .where("instrument", symbol)
                 .orderBy("timestamp", "desc")
                 .limit(limit);
-            // Map instrument back to symbol for frontend consistency
-            return rows.map(row => ({ ...row, symbol: row.instrument }));
+            return rows.map((row) => this._mapRow(row));
         } catch (error) {
             logger.error("Error getting signals by symbol:", error);
             return [];
@@ -107,11 +210,12 @@ class SignalRepository {
 
     async getSignalsSince(cutoffTime) {
         try {
+            const timestamp =
+                cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
             const rows = await db("signals")
-                .where("timestamp", ">=", cutoffTime)
+                .where("timestamp", ">=", timestamp)
                 .orderBy("timestamp", "desc");
-            // Map instrument back to symbol for frontend consistency
-            return rows.map(row => ({ ...row, symbol: row.instrument }));
+            return rows.map((row) => this._mapRow(row));
         } catch (error) {
             logger.error("Error getting signals since cutoff:", error);
             throw error;
@@ -148,8 +252,7 @@ class SignalRepository {
                 ">=",
                 cutoffTime
             );
-            // Map instrument back to symbol for consistency
-            const signals = rows.map(row => ({ ...row, symbol: row.instrument }));
+            const signals = rows.map((row) => this._mapRow(row));
 
             return this.calculateSignalStats(signals);
         } catch (error) {

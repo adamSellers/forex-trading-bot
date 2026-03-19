@@ -11,6 +11,20 @@
 //   --spreadPips  Optional. Override spread cost in pips
 //   --initialBalance  Optional. Override starting balance
 //   --enableShorting  Optional. true/false
+//   --maxOpenPositions Optional. Override concurrent open positions
+//   --leverage        Optional. Override leverage
+//   --stopLossType    Optional. ATR or FIXED
+//   --stopLossPips    Optional. Fixed stop distance in pips
+//   --stopLossAtrMultiplier Optional. ATR stop multiplier
+//   --minStopLossPips Optional. Minimum stop floor in pips
+//   --enableTrailingStops Optional. true/false
+//   --trailingStopPips Optional. Trailing distance in pips
+//   --trailingStopActivationPips Optional. Profit threshold before trailing activates
+//   --enableTakeProfit Optional. true/false
+//   --takeProfitPercent Optional. Take-profit target as decimal fraction
+//   --enableBreakeven Optional. true/false
+//   --breakevenTriggerPips Optional. Profit threshold before SL moves to breakeven
+//   --enableHTFFilter Optional. true/false
 //   --htfFilter       Optional flag. Enable H4 SuperTrend higher-timeframe filter
 //   --multiTF         Optional flag. M15 candles aggregated to H1 for signals, M15 for fill resolution
 
@@ -62,6 +76,20 @@ Optional:
   --spreadPips    Override spread cost in pips (default: 1.5)
   --initialBalance Override starting balance (default: 500)
   --enableShorting Enable/disable shorts (default: true)
+  --maxOpenPositions Override open-position cap
+  --leverage      Override leverage
+  --stopLossType  ATR or FIXED
+  --stopLossPips  Fixed stop distance in pips
+  --stopLossAtrMultiplier ATR stop multiplier
+  --minStopLossPips Minimum stop floor in pips
+  --enableTrailingStops Enable/disable trailing stop logic
+  --trailingStopPips Trailing distance in pips
+  --trailingStopActivationPips Profit threshold before trailing starts
+  --enableTakeProfit Enable/disable take profit
+  --takeProfitPercent Take-profit target as decimal fraction
+  --enableBreakeven Enable/disable breakeven protection
+  --breakevenTriggerPips Breakeven trigger in pips
+  --enableHTFFilter Enable/disable H4 SuperTrend confirmation
   --htfFilter     Enable H4 SuperTrend higher-timeframe trend filter
   --multiTF       Multi-timeframe: M15 fills + H1 signals (aggregates M15→H1)
 
@@ -160,9 +188,20 @@ async function main() {
     if (args.spreadPips) configOverrides.spreadPips = parseFloat(args.spreadPips);
     if (args.initialBalance) configOverrides.initialBalance = parseFloat(args.initialBalance);
     if (args.enableShorting !== undefined) configOverrides.enableShorting = args.enableShorting === "true";
+    if (args.maxOpenPositions) configOverrides.maxOpenPositions = parseInt(args.maxOpenPositions, 10);
+    if (args.leverage) configOverrides.leverage = parseFloat(args.leverage);
+    if (args.stopLossType) configOverrides.stopLossType = args.stopLossType.toUpperCase();
+    if (args.stopLossPips) configOverrides.stopLossPips = parseFloat(args.stopLossPips);
+    if (args.stopLossAtrMultiplier) configOverrides.stopLossAtrMultiplier = parseFloat(args.stopLossAtrMultiplier);
+    if (args.minStopLossPips) configOverrides.minStopLossPips = parseFloat(args.minStopLossPips);
+    if (args.enableTrailingStops !== undefined) configOverrides.enableTrailingStops = args.enableTrailingStops === "true";
     if (args.enableTakeProfit !== undefined) configOverrides.enableTakeProfit = args.enableTakeProfit === "true";
+    if (args.takeProfitPercent) configOverrides.takeProfitPercent = parseFloat(args.takeProfitPercent);
     if (args.trailingStopPips) configOverrides.trailingStopPips = parseFloat(args.trailingStopPips);
     if (args.trailingStopActivationPips) configOverrides.trailingStopActivationPips = parseFloat(args.trailingStopActivationPips);
+    if (args.enableBreakeven !== undefined) configOverrides.enableBreakeven = args.enableBreakeven === "true";
+    if (args.breakevenTriggerPips) configOverrides.breakevenTriggerPips = parseFloat(args.breakevenTriggerPips);
+    if (args.enableHTFFilter !== undefined) configOverrides.enableHTFFilter = args.enableHTFFilter === "true";
     if (args.htfFilter) configOverrides.enableHTFFilter = true;
     if (args.multiTF) configOverrides.enableMultiTimeframe = true;
 

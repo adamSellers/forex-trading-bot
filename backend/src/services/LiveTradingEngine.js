@@ -4,6 +4,8 @@ const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
 const emailService = require("./emailService");
+const { computeConfigHash } = require("../config/tradingConfig");
+const TradeReconciliationService = require("./tradeReconciliationService");
 
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator
@@ -48,6 +50,7 @@ class LiveTradingEngine extends EventEmitter {
             lastSignalTime: null,
             lastTradeTime: null,
         };
+        this.tradeReconciliation = new TradeReconciliationService();
 
         logger.info("⚙️ LiveTradingEngine v1.0 initialized");
     }
@@ -190,33 +193,41 @@ class LiveTradingEngine extends EventEmitter {
      * Handle a trade that was closed externally (stop loss, take profit hit)
      */
     async handleExternalClose(trade) {
+        const fallback = this.getFallbackCloseResolution(trade);
+
         try {
             // Get trade details from Oanda to determine exit price and reason
             const tradeDetails = await oandaClient.getTrade(trade.oandaTradeId);
-
-            const exitPrice = parseFloat(
-                tradeDetails.trade?.averageClosePrice || trade.entryPrice
-            );
-            const exitReason = this.determineExitReason(tradeDetails);
-
-            // Extract Oanda's actual P/L (includes spreads, conversion, etc.)
-            const oandaRealizedPL = tradeDetails.trade?.realizedPL
-                ? parseFloat(tradeDetails.trade.realizedPL)
-                : null;
-            const oandaFinancing = tradeDetails.trade?.financing
-                ? parseFloat(tradeDetails.trade.financing)
-                : 0;
-
-            await this.closeTrade(trade.id, exitPrice, exitReason, {
-                oandaRealizedPL,
-                oandaFinancing,
+            const closeContext = this.tradeReconciliation.resolveExternalClose({
+                localTrade: trade,
+                tradeDetails,
+                fallbackExitPrice: fallback.exitPrice,
+                fallbackPriceSource: fallback.closePriceSource,
             });
+            await this.closeTrade(
+                trade.id,
+                closeContext.exitPrice,
+                closeContext.exitReason,
+                closeContext
+            );
         } catch (error) {
             // Trade might not exist anymore, mark as closed with unknown reason
             logger.warn(
                 `⚠️ Could not get details for externally closed trade ${trade.id}`
             );
-            await this.closeTrade(trade.id, trade.entryPrice, "EXTERNAL");
+            const closeContext = this.tradeReconciliation.resolveExternalClose({
+                localTrade: trade,
+                tradeDetails: null,
+                fallbackExitPrice: fallback.exitPrice,
+                fallbackPriceSource: fallback.closePriceSource,
+                lookupError: error,
+            });
+            await this.closeTrade(
+                trade.id,
+                closeContext.exitPrice,
+                closeContext.exitReason,
+                closeContext
+            );
         }
     }
 
@@ -224,31 +235,72 @@ class LiveTradingEngine extends EventEmitter {
      * Determine exit reason from Oanda trade details
      * Checks if stop loss, take profit, or trailing stop orders were filled
      */
-    determineExitReason(tradeDetails) {
-        const trade = tradeDetails.trade;
-        if (!trade) return "UNKNOWN";
+    determineExitReason(tradeDetails, trade = null) {
+        return this.tradeReconciliation.determineExitReason(
+            tradeDetails,
+            trade,
+            "EXTERNAL"
+        ).exitReason;
+    }
 
-        // Check if stop loss order was filled
-        if (trade.stopLossOrder?.state === "FILLED") {
-            return "STOP_LOSS";
+    emitEngineTelemetry(type, payload = {}) {
+        const event = {
+            type,
+            timestamp: Date.now(),
+            ...payload,
+        };
+
+        if (this.io) {
+            this.io.emit("engineTelemetry", event);
         }
 
-        // Check if take profit order was filled
-        if (trade.takeProfitOrder?.state === "FILLED") {
-            return "TAKE_PROFIT";
+        this.emit("engineTelemetry", event);
+        return event;
+    }
+
+    buildSignalTelemetry(signal, config = null) {
+        return {
+            symbol: signal?.symbol || null,
+            signal: signal?.signal || null,
+            entryType: signal?.entryType || null,
+            reasonCode: signal?.reasonCode || null,
+            signalClass: signal?.signalClass || null,
+            intent: signal?.intent || null,
+            setupId: signal?.setupId || null,
+            configHash:
+                signal?.configHash ||
+                config?.configHash ||
+                computeConfigHash(config || {}),
+            currentPrice: signal?.currentPrice ?? null,
+        };
+    }
+
+    getFallbackCloseResolution(trade) {
+        const activeStopPrice =
+            trade.trailingStopPrice ||
+            trade.stopLossPrice ||
+            trade.takeProfitPrice ||
+            null;
+        if (Number.isFinite(activeStopPrice)) {
+            return {
+                exitPrice: activeStopPrice,
+                closePriceSource: "ACTIVE_STOP_FALLBACK",
+            };
         }
 
-        // Check if trailing stop loss order was filled
-        if (trade.trailingStopLossOrder?.state === "FILLED") {
-            return "TRAILING_STOP";
+        const livePrice =
+            this.dataService?.getCurrentPrice?.(trade.instrument)?.price ?? null;
+        if (Number.isFinite(livePrice)) {
+            return {
+                exitPrice: livePrice,
+                closePriceSource: "LOCAL_MARKET_FALLBACK",
+            };
         }
 
-        // Trade is closed but not by SL/TP - likely manual close on Oanda
-        if (trade.state === "CLOSED") {
-            return "EXTERNAL";
-        }
-
-        return "UNKNOWN";
+        return {
+            exitPrice: trade.entryPrice,
+            closePriceSource: "ENTRY_PRICE_FALLBACK",
+        };
     }
 
     // ==================== SIGNAL HANDLING ====================
@@ -263,6 +315,10 @@ class LiveTradingEngine extends EventEmitter {
         logger.debug(
             `📨 Received signal: ${signal.symbol} - ${signal.signal
             } (ADX: ${signal.strength?.toFixed(1)})`
+        );
+        this.emitEngineTelemetry(
+            "signalReceived",
+            this.buildSignalTelemetry(signal)
         );
 
         // Queue signal for processing
@@ -332,6 +388,10 @@ class LiveTradingEngine extends EventEmitter {
                     `⏸️ Skipping BUY for ${symbol} - already in position`
                 );
                 this.stats.signalsRejected++;
+                this.emitEngineTelemetry("validationRejected", {
+                    ...this.buildSignalTelemetry(signal, config),
+                    reason: "Already in position for this instrument",
+                });
                 return;
             }
 
@@ -342,6 +402,10 @@ class LiveTradingEngine extends EventEmitter {
                     `⏸️ Entry rejected for ${symbol}: ${validation.reason}`
                 );
                 this.stats.signalsRejected++;
+                this.emitEngineTelemetry("validationRejected", {
+                    ...this.buildSignalTelemetry(signal, config),
+                    reason: validation.reason,
+                });
                 this.emit("entryRejected", {
                     signal,
                     reason: validation.reason,
@@ -371,6 +435,10 @@ class LiveTradingEngine extends EventEmitter {
                         `⏸️ Skipping SELL for ${symbol} - already in short position`
                     );
                     this.stats.signalsRejected++;
+                    this.emitEngineTelemetry("validationRejected", {
+                        ...this.buildSignalTelemetry(signal, config),
+                        reason: "Already in position for this instrument",
+                    });
                     return;
                 }
 
@@ -381,6 +449,10 @@ class LiveTradingEngine extends EventEmitter {
                         `⏸️ Short Entry rejected for ${symbol}: ${validation.reason}`
                     );
                     this.stats.signalsRejected++;
+                    this.emitEngineTelemetry("validationRejected", {
+                        ...this.buildSignalTelemetry(signal, config),
+                        reason: validation.reason,
+                    });
                     this.emit("entryRejected", {
                         signal,
                         reason: validation.reason,
@@ -988,6 +1060,10 @@ class LiveTradingEngine extends EventEmitter {
             signal,
             config
         );
+        const configHash =
+            signal.configHash ||
+            config.configHash ||
+            computeConfigHash(config);
 
 
         // Calculate position size
@@ -1001,12 +1077,22 @@ class LiveTradingEngine extends EventEmitter {
             logger.warn(
                 `⚠️ Position size calculation returned 0 units - skipping trade`
             );
+            this.emitEngineTelemetry("validationRejected", {
+                ...this.buildSignalTelemetry(signal, config),
+                reason: "Position size too small",
+            });
             this.emit("entryRejected", {
                 signal,
                 reason: "Position size too small",
             });
             return;
         }
+        this.emitEngineTelemetry("sizingComputed", {
+            ...this.buildSignalTelemetry(signal, config),
+            stopLossPips,
+            initialStopLossPrice,
+            units,
+        });
 
         // Note: Take profit will be calculated AFTER order fills using actual margin from Oanda
 
@@ -1026,6 +1112,12 @@ class LiveTradingEngine extends EventEmitter {
             // For SELL signals, negate units to open SHORT position in Oanda
             // Oanda API: positive units = BUY, negative units = SELL
             const orderUnits = signal.signal === "SELL" ? -units : units;
+            this.emitEngineTelemetry("orderSubmitted", {
+                ...this.buildSignalTelemetry(signal, config),
+                units,
+                orderUnits,
+                stopLossPrice: initialStopLossPrice,
+            });
 
             const orderResult = await oandaClient.placeMarketOrder(
                 symbol,
@@ -1124,12 +1216,18 @@ class LiveTradingEngine extends EventEmitter {
                 atrPips,
                 stopLossPrice,
                 takeProfitPrice,
+                highestPrice: signal.signal === "BUY" ? fillPrice : null,
+                lowestPrice: signal.signal === "SELL" ? fillPrice : null,
                 trailingStopPips: config.trailingStopPips,
                 breakevenHit: false,
+                activeStopType: "INITIAL_STOP",
                 leverageUsed: config.leverage || 10,
                 marginUsedAud: marginUsed || (units * fillPrice) / (config.leverage || 10),
                 spreadPips,
                 entryTime: Date.now(),
+                lastBrokerSyncAt: Date.now(),
+                reconciliationStatus: "OPEN",
+                configHash,
                 mode: "live",
                 isOpen: true,
             };
@@ -1143,6 +1241,16 @@ class LiveTradingEngine extends EventEmitter {
             // Update stats
             this.stats.tradesExecuted++;
             this.stats.lastTradeTime = Date.now();
+            this.emitEngineTelemetry("filled", {
+                ...this.buildSignalTelemetry(signal, config),
+                tradeId: trade.id,
+                oandaTradeId,
+                units,
+                fillPrice,
+                stopLossPrice,
+                takeProfitPrice,
+                configHash,
+            });
 
             // Broadcast trade event
             this.broadcastTradeOpened(trade);
@@ -1176,7 +1284,17 @@ class LiveTradingEngine extends EventEmitter {
             `🎯 Executing exit for ${trade.instrument} at ${exitPrice} (${reason})`
         );
 
-        let oandaData = {};
+        let closeContext = {
+            exitPrice,
+            exitReason: reason,
+            closePriceSource: "LOCAL_MARKET_FALLBACK",
+            reconciliationStatus: "LOCAL_ONLY",
+            brokerExitReason: reason,
+            brokerClosedAt: Date.now(),
+            lastBrokerSyncAt: Date.now(),
+            brokerReconciliationPayload: null,
+            activeStopType: trade.activeStopType || null,
+        };
 
         if (trade.oandaTradeId) {
             // Live trading - close via Oanda
@@ -1184,27 +1302,22 @@ class LiveTradingEngine extends EventEmitter {
                 const closeResult = await oandaClient.closeTrade(
                     trade.oandaTradeId
                 );
-
-                // Extract actual P/L from Oanda's response
-                const orderFill = closeResult.orderFillTransaction;
-                if (orderFill) {
-                    oandaData.oandaRealizedPL = orderFill.pl
-                        ? parseFloat(orderFill.pl)
-                        : null;
-                    oandaData.oandaFinancing = orderFill.financing
-                        ? parseFloat(orderFill.financing)
-                        : 0;
-
-                    // Use Oanda's actual exit price if available
-                    if (orderFill.price) {
-                        exitPrice = parseFloat(orderFill.price);
-                    }
-                }
+                closeContext = this.tradeReconciliation.resolveDirectClose({
+                    localTrade: trade,
+                    closeResult,
+                    fallbackExitPrice: exitPrice,
+                    fallbackExitReason: reason,
+                });
             } catch (error) {
                 // Trade might already be closed externally
                 logger.warn(
                     `⚠️ Error closing trade on Oanda: ${error.message}`
                 );
+                closeContext.brokerReconciliationPayload = {
+                    error: error.message,
+                    type: error.name || "Error",
+                };
+                closeContext.reconciliationStatus = "UNRESOLVED";
             }
         } else {
             logger.warn(
@@ -1213,7 +1326,12 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // Close in our system
-        await this.closeTrade(trade.id, exitPrice, reason, oandaData);
+        await this.closeTrade(
+            trade.id,
+            closeContext.exitPrice,
+            closeContext.exitReason,
+            closeContext
+        );
     }
 
     /**
@@ -1221,16 +1339,26 @@ class LiveTradingEngine extends EventEmitter {
      * @param {string} tradeId - Internal trade ID
      * @param {number} exitPrice - Exit price
      * @param {string} exitReason - Reason for exit
-     * @param {object} oandaData - Optional Oanda P/L data
-     * @param {number} oandaData.oandaRealizedPL - Oanda's realized P/L (source of truth)
-     * @param {number} oandaData.oandaFinancing - Overnight financing charges
+     * @param {object} closeContext - Optional broker reconciliation / pricing data
      */
-    async closeTrade(tradeId, exitPrice, exitReason, oandaData = {}) {
+    async closeTrade(tradeId, exitPrice, exitReason, closeContext = {}) {
         const trade = this.openTrades.get(tradeId);
         if (!trade) {
             logger.warn(`⚠️ Trade ${tradeId} not found in open trades`);
             return;
         }
+
+        const closeTimestamp =
+            closeContext.brokerClosedAt || Date.now();
+        const closePriceSource =
+            closeContext.closePriceSource || "LOCAL_MARKET_FALLBACK";
+        const reconciliationStatus =
+            closeContext.reconciliationStatus || "LOCAL_ONLY";
+        const brokerExitReason = closeContext.brokerExitReason || null;
+        const lastBrokerSyncAt =
+            closeContext.lastBrokerSyncAt || Date.now();
+        const brokerReconciliationPayload =
+            closeContext.brokerReconciliationPayload || null;
 
         // Calculate P/L - use Oanda's realizedPL if available (includes all costs)
         const pipValue = oandaClient.getPipValue(trade.instrument);
@@ -1243,30 +1371,37 @@ class LiveTradingEngine extends EventEmitter {
         // Use Oanda's realizedPL as source of truth when available
         // This includes spreads, currency conversion, and all fees
         const pnlAud =
-            oandaData.oandaRealizedPL !== null &&
-                oandaData.oandaRealizedPL !== undefined
-                ? oandaData.oandaRealizedPL
+            closeContext.oandaRealizedPL !== null &&
+                closeContext.oandaRealizedPL !== undefined
+                ? closeContext.oandaRealizedPL
                 : trade.units * priceChange; // Fallback when Oanda P/L is unavailable
 
         const pnlPercent = (pnlAud / trade.entryCostAud) * 100;
 
         // Extract financing (swap) charges
-        const swapAud = oandaData.oandaFinancing || 0;
+        const swapAud = closeContext.oandaFinancing || 0;
 
         // Calculate holding period
-        const holdingPeriodMs = Date.now() - trade.entryTime;
+        const holdingPeriodMs = Math.max(0, closeTimestamp - trade.entryTime);
 
         // Update trade object
         const closedTrade = {
             ...trade,
             exitPrice,
-            exitTime: Date.now(),
+            exitTime: closeTimestamp,
             exitReason,
             pnlAud,
             pnlPips,
             pnlPercent,
             swapAud,
             holdingPeriodMs,
+            closePriceSource,
+            reconciliationStatus,
+            brokerExitReason,
+            brokerClosedAt: closeTimestamp,
+            lastBrokerSyncAt,
+            brokerReconciliationPayload,
+            activeStopType: closeContext.activeStopType || trade.activeStopType || null,
             isOpen: false,
         };
 
@@ -1281,6 +1416,13 @@ class LiveTradingEngine extends EventEmitter {
             pnlPercent,
             swapAud,
             holdingPeriodMs,
+            closePriceSource,
+            reconciliationStatus,
+            brokerExitReason,
+            brokerClosedAt: closeTimestamp,
+            lastBrokerSyncAt,
+            brokerReconciliationPayload,
+            activeStopType: closeContext.activeStopType || trade.activeStopType || null,
             isOpen: false,
         });
 
@@ -1301,6 +1443,21 @@ class LiveTradingEngine extends EventEmitter {
                 1
             )} pips)${swapNote} | Reason: ${exitReason}`
         );
+        this.emitEngineTelemetry("exitRecorded", {
+            tradeId,
+            instrument: trade.instrument,
+            side: trade.side,
+            exitPrice,
+            exitReason,
+            pnlAud,
+            pnlPips,
+            closePriceSource,
+            reconciliationStatus,
+            brokerExitReason,
+            activeStopType:
+                closeContext.activeStopType || trade.activeStopType || null,
+            configHash: trade.configHash || null,
+        });
 
         return closedTrade;
     }
@@ -1394,6 +1551,9 @@ class LiveTradingEngine extends EventEmitter {
 
         const updatePayload = {
             stopLossPrice: breakevenPrice,
+            breakevenHit: true,
+            activeStopType: "BREAKEVEN",
+            lastBrokerSyncAt: Date.now(),
         };
 
         trade.stopLossPrice = breakevenPrice;
@@ -1402,6 +1562,7 @@ class LiveTradingEngine extends EventEmitter {
             updatePayload.trailingStopPrice = breakevenPrice;
         }
         trade.breakevenHit = true;
+        trade.activeStopType = "BREAKEVEN";
 
         await this.tradeRepository.updateTrade(trade.id, updatePayload);
 
@@ -1421,6 +1582,15 @@ class LiveTradingEngine extends EventEmitter {
         logger.info(
             `🛡️ Breakeven activated for ${trade.instrument} (${trade.side}): SL moved to ${breakevenPrice.toFixed(5)}`
         );
+        this.emitEngineTelemetry("stopUpdated", {
+            tradeId: trade.id,
+            instrument: trade.instrument,
+            side: trade.side,
+            stopType: "BREAKEVEN",
+            stopLossPrice: trade.stopLossPrice,
+            trailingStopPrice: trade.trailingStopPrice || null,
+            configHash: trade.configHash || null,
+        });
     }
 
     /**
@@ -1460,6 +1630,8 @@ class LiveTradingEngine extends EventEmitter {
 
             // Update in memory
             trade.trailingStopPrice = newStopLossPrice;
+            trade.stopLossPrice = newStopLossPrice;
+            trade.activeStopType = "TRAILING";
 
             // Track extreme price (highest for BUY, lowest for SELL)
             if (isBuy) {
@@ -1476,9 +1648,12 @@ class LiveTradingEngine extends EventEmitter {
 
             // Update in database
             await this.tradeRepository.updateTrade(trade.id, {
+                stopLossPrice: newStopLossPrice,
                 trailingStopPrice: newStopLossPrice,
                 highestPrice: trade.highestPrice,
                 lowestPrice: trade.lowestPrice,
+                activeStopType: "TRAILING",
+                lastBrokerSyncAt: Date.now(),
             });
 
             // Update Oanda stop loss
@@ -1501,6 +1676,16 @@ class LiveTradingEngine extends EventEmitter {
             logger.debug(
                 `📈 Trailing stop updated for ${trade.instrument} (${trade.side}): ${previousStop?.toFixed(5)} → ${newStopLossPrice.toFixed(5)}`
             );
+            this.emitEngineTelemetry("stopUpdated", {
+                tradeId: trade.id,
+                instrument: trade.instrument,
+                side: trade.side,
+                stopType: "TRAILING",
+                previousStop,
+                stopLossPrice: trade.stopLossPrice,
+                trailingStopPrice: trade.trailingStopPrice,
+                configHash: trade.configHash || null,
+            });
         }
     }
 
@@ -1519,6 +1704,8 @@ class LiveTradingEngine extends EventEmitter {
             entryPrice: trade.entryPrice,
             stopLossPrice: trade.stopLossPrice,
             takeProfitPrice: trade.takeProfitPrice,
+            activeStopType: trade.activeStopType || null,
+            configHash: trade.configHash || null,
             mode: trade.mode,
             timestamp: Date.now(),
         };
@@ -1547,6 +1734,8 @@ class LiveTradingEngine extends EventEmitter {
             pnlAud: trade.pnlAud,
             pnlPips: trade.pnlPips,
             exitReason: trade.exitReason,
+            closePriceSource: trade.closePriceSource || null,
+            reconciliationStatus: trade.reconciliationStatus || null,
             mode: trade.mode,
             timestamp: Date.now(),
         };
@@ -1616,6 +1805,7 @@ class LiveTradingEngine extends EventEmitter {
                 stopLossPrice: t.stopLossPrice,
                 trailingStopPrice: t.trailingStopPrice,
                 breakevenHit: !!t.breakevenHit,
+                activeStopType: t.activeStopType || null,
                 takeProfitPrice: t.takeProfitPrice,
                 entryTime: t.entryTime,
                 mode: t.mode,

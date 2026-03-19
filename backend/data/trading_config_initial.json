@@ -5,7 +5,9 @@
     "logLevel": "info",
     "assets": [
         "AUD_USD",
-        "EUR_USD"
+        "EUR_USD",
+        "GBP_USD",
+        "USD_JPY"
     ],
     "strategy": "supertrend_momentum",
     "timeframe": "15m",
@@ -24,7 +26,7 @@
     "rsiOversold": 30,
     "enableContinuationEntry": true,
     "enableLongContinuationEntry": true,
-    "enableShortContinuationEntry": false,
+    "enableShortContinuationEntry": true,
     "continuationWindowMs": 14400000,
     "continuationRsiThreshold": 70,
     "continuationMaxPriceDeviation": 0.005,
@@ -32,7 +34,7 @@
     "continuationPullbackMaxAtr": 1.5,
     "enableHTFFilter": true,
     "htfTimeframe": "1h",
-    "enableShorting": false,
+    "enableShorting": true,
     "riskPerTrade": 0.02,
     "maxPortfolioExposure": 0.5,
     "leverage": 20,
@@ -53,6 +55,9 @@
     "breakevenTriggerPips": 5,
     "enableSessionFilter": true,
     "activeSessions": [
+        "sydney",
+        "tokyo",
+        "london",
         "newyork"
     ],
     "enableEmailAlerts": false,

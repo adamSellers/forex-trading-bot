@@ -1,6 +1,7 @@
 // frontend/src/components/config/ConfigShared.jsx
 import React from 'react';
 import { Box, Typography, Avatar, styled, alpha, useTheme } from '@mui/material';
+import tradingConfigDefaults from '../../../../shared/tradingConfigDefaults.json';
 
 // ============================================
 // STYLED COMPONENTS
@@ -37,8 +38,10 @@ export const SectionHeader = ({ icon, title, subtitle }) => {
 // CONSTANTS
 // ============================================
 
+const cloneDefaults = () => JSON.parse(JSON.stringify(tradingConfigDefaults));
+
 // Forex pairs available for trading
-export const SUPPORTED_INSTRUMENTS = ['AUD_USD', 'EUR_USD', 'GBP_USD', 'USD_JPY'];
+export const SUPPORTED_INSTRUMENTS = [...(tradingConfigDefaults.assets || [])];
 
 // Trading session times (UTC)
 export const TRADING_SESSIONS = {
@@ -51,77 +54,18 @@ export const TRADING_SESSIONS = {
 // ============================================
 // DEFAULT CONFIGURATION
 // ============================================
-export const DEFAULT_CONFIG = {
-  // General
-  maxCapitalAtRisk: 500,
-  enableTrading: false,
-  maxOpenPositions: 2,
-  logLevel: 'info',
-  
-  // Strategy
-  strategy: 'supertrend_momentum',
-  timeframe: '15m',
-  signalCooldown: 60,
-  
-  // SuperTrend Settings
-  supertrendPeriod: 10,
-  supertrendMultiplier: 3.0,
-  
-  // Entry Filters
-  enableAdxFilter: true,
-  minAdx: 22,
-  adxSlopeFilter: true,
-  adxSlopeLookback: 3,
-  enableRsiFilter: true,
-  rsiOverbought: 75,
-  rsiOversold: 30,
-  
-  // Continuation Entry
-  enableContinuationEntry: true,
-  continuationWindowMs: 4 * 60 * 60 * 1000,
-  continuationRsiThreshold: 70,
-  continuationMaxPriceDeviation: 0.005,
-  
-  // Risk Management
-  riskPerTrade: 0.02,
-  maxPortfolioExposure: 0.50,
-  
-  // Position Sizing
-  positionSizeMethod: 'RISK',
-  fixedPositionUnits: 1000,
-  leverage: 10,
-  maxLeverage: 30,
-  
-  // Stop Loss
-  stopLossType: 'ATR',
-  stopLossPips: 30,
-  stopLossAtrMultiplier: 2.0,
-  minStopLossPips: 12,
-  
-  // Take Profit (% of margin used for the trade)
-  enableTakeProfit: true,
-  takeProfitPercent: 0.06,
-  
-  // Trailing Stop
-  enableTrailingStops: true,
-  trailingStopPips: 25,
-  trailingStopActivationPips: 20,
+export const createDefaultConfig = () => {
+  const defaults = cloneDefaults();
 
-  // Breakeven
-  enableBreakeven: false,
-  breakevenTriggerPips: 12,
-  
-  // Trading Sessions
-  enableSessionFilter: false,
-  activeSessions: ['sydney', 'tokyo', 'london', 'newyork'],
-  
-  // Assets
-  assets: ['AUD_USD', 'EUR_USD'],
-  
-  // Notifications
-  enableEmailAlerts: false,
-  alertEmail: '',
+  return {
+    ...defaults,
+    signalCooldown: Number.isFinite(Number(defaults.signalCooldown))
+      ? Number(defaults.signalCooldown) / 1000
+      : 60,
+  };
 };
+
+export const DEFAULT_CONFIG = createDefaultConfig();
 
 // ============================================
 // HELPER FUNCTIONS

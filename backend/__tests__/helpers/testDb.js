@@ -46,7 +46,17 @@ const runMigrations = async (db) => {
         table.decimal('take_profit_price', 10, 5);
         table.decimal('trailing_stop_price', 10, 5);
         table.decimal('highest_price', 10, 5);
+        table.decimal('lowest_price', 10, 5);
         table.decimal('trailing_stop_pips', 10, 2);
+        table.boolean('breakeven_hit');
+        table.string('active_stop_type');
+        table.string('close_price_source');
+        table.string('reconciliation_status');
+        table.string('broker_exit_reason');
+        table.bigInteger('broker_closed_at');
+        table.bigInteger('last_broker_sync_at');
+        table.string('config_hash');
+        table.json('broker_reconciliation_payload');
         table.decimal('leverage_used', 10, 2);
         table.decimal('margin_used_aud', 10, 2);
         table.decimal('spread_pips', 10, 2);
@@ -77,6 +87,18 @@ const runMigrations = async (db) => {
         table.integer('supertrend_direction');
         table.bigInteger('timestamp');
         table.string('entry_type');
+        table.string('reason_code');
+        table.string('signal_class');
+        table.string('intent');
+        table.string('setup_id');
+        table.bigInteger('signal_candle_time');
+        table.boolean('unique_event');
+        table.boolean('cooldown_suppressed');
+        table.string('pending_direction');
+        table.string('pending_state');
+        table.string('pending_waiting_for');
+        table.string('config_hash');
+        table.json('decision_context');
     });
 
     // Create portfolio_snapshots table

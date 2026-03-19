@@ -990,6 +990,33 @@ describe('LiveTradingEngine', () => {
             );
         });
 
+        test('should persist exit value, pnl percent, and holding period on close', async () => {
+            const now = new Date('2026-03-20T00:00:00.000Z').getTime();
+            jest.spyOn(Date, 'now').mockReturnValue(now);
+
+            const trade = createMockTrade({
+                id: 'trade-close-metrics',
+                entryPrice: 1.16571,
+                entryCostAud: 50,
+                units: 100,
+                entryTime: now - 300000,
+            });
+            engine.openTrades.set(trade.id, trade);
+
+            await engine.closeTrade(trade.id, 1.16784, 'TAKE_PROFIT', {
+                oandaRealizedPL: 2.5,
+                oandaFinancing: -0.02,
+            });
+
+            const updatePayload = mockTradeRepository.updateTrade.mock.calls.find(
+                ([tradeId]) => tradeId === 'trade-close-metrics'
+            )[1];
+            expect(updatePayload.exitValueAud).toBeCloseTo(116.784, 6);
+            expect(updatePayload.pnlPercent).toBe(5);
+            expect(updatePayload.holdingPeriodMs).toBe(300000);
+            expect(updatePayload.swapAud).toBe(-0.02);
+        });
+
         test('should update stats on trade close', async () => {
             const trade = createMockTrade({ id: 'trade-123' });
             engine.openTrades.set(trade.id, trade);
@@ -1137,6 +1164,70 @@ describe('LiveTradingEngine', () => {
                 })
             );
         });
+
+        test('should fall back to an EXTERNAL close when broker reconciliation lookup fails', async () => {
+            const trade = createMockTrade({
+                id: 'trade-reconcile-fallback',
+                oandaTradeId: '489',
+                entryPrice: 1.16571,
+            });
+            engine.openTrades.set(trade.id, trade);
+
+            oandaClient.getTrade.mockRejectedValueOnce(new Error('trade not found'));
+
+            await engine.handleExternalClose(trade);
+
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-reconcile-fallback',
+                expect.objectContaining({
+                    exitPrice: 1.1632,
+                    exitReason: 'EXTERNAL',
+                    closePriceSource: 'ACTIVE_STOP_FALLBACK',
+                    reconciliationStatus: 'UNRESOLVED',
+                    isOpen: false,
+                })
+            );
+        });
+
+        test('should persist reconciliation metadata when broker details are available', async () => {
+            const trade = createMockTrade({
+                id: 'trade-reconcile-success',
+                oandaTradeId: '489',
+                breakevenHit: true,
+            });
+            engine.openTrades.set(trade.id, trade);
+
+            oandaClient.getTrade.mockResolvedValueOnce({
+                trade: {
+                    id: '489',
+                    state: 'CLOSED',
+                    averageClosePrice: '1.16572',
+                    realizedPL: '0.02',
+                    financing: '-0.01',
+                    stopLossOrder: {
+                        state: 'FILLED',
+                    },
+                },
+            });
+
+            await engine.handleExternalClose(trade);
+
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-reconcile-success',
+                expect.objectContaining({
+                    exitReason: 'BREAKEVEN_STOP',
+                    closePriceSource: 'BROKER_CLOSE',
+                    reconciliationStatus: 'RECONCILED',
+                    brokerExitReason: 'STOP_LOSS_ORDER_FILLED',
+                    brokerReconciliationPayload: expect.objectContaining({
+                        trade: expect.objectContaining({
+                            id: '489',
+                        }),
+                    }),
+                    isOpen: false,
+                })
+            );
+        });
     });
 
     describe('Engine Lifecycle', () => {
@@ -1181,6 +1272,33 @@ describe('LiveTradingEngine', () => {
 
             expect(mockTradeRepository.getOpenTrades).toHaveBeenCalled();
             expect(engine.openTrades.size).toBe(2);
+        });
+
+        test('should preserve stop loss, trailing stop, and breakeven fields across restart sync', async () => {
+            mockTradeRepository.getOpenTrades.mockResolvedValue([
+                createMockTrade({
+                    id: 'trade-persisted-protection',
+                    oandaTradeId: '501',
+                    stopLossPrice: 1.1632,
+                    trailingStopPrice: 1.1645,
+                    breakevenHit: true,
+                }),
+            ]);
+            oandaClient.getOpenTrades.mockResolvedValue({
+                trades: [
+                    { id: '501', instrument: 'AUD_USD', currentUnits: '795' },
+                ],
+            });
+
+            await engine.start();
+
+            expect(engine.openTrades.get('trade-persisted-protection')).toEqual(
+                expect.objectContaining({
+                    stopLossPrice: 1.1632,
+                    trailingStopPrice: 1.1645,
+                    breakevenHit: true,
+                })
+            );
         });
     });
 

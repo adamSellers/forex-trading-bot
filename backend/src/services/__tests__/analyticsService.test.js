@@ -57,6 +57,21 @@ describe('AnalyticsService', () => {
             expect(result.summary.winRate).toBe(0);
             expect(result.summary.totalPnLAud).toBe(0);
         });
+
+        test('should pass a matched cutoff to repositories using their expected argument types', async () => {
+            const now = new Date('2026-03-20T00:00:00.000Z').getTime();
+            jest.spyOn(Date, 'now').mockReturnValue(now);
+
+            await service.getAnalytics('24h');
+
+            const expectedCutoff = now - 24 * 60 * 60 * 1000;
+            expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(expectedCutoff);
+            expect(mockSignalRepo.getSignalsSince).toHaveBeenCalledTimes(1);
+
+            const signalCutoff = mockSignalRepo.getSignalsSince.mock.calls[0][0];
+            expect(signalCutoff).toBeInstanceOf(Date);
+            expect(signalCutoff.getTime()).toBe(expectedCutoff);
+        });
     });
 
     describe('calculateSummary', () => {
@@ -148,6 +163,53 @@ describe('AnalyticsService', () => {
             const summary = service.calculateSummary(trades);
 
             expect(summary.profitFactor).toBe(999); // No losses = infinite profit factor
+        });
+    });
+
+    describe('calculateSignalAnalysis', () => {
+        test('should separate actionable signals from cooldown-suppressed signals in its top-level breakdown', () => {
+            const signals = [
+                createMockSignal({
+                    signalClass: 'ACTIONABLE',
+                    intent: 'ENTER_LONG',
+                    reasonCode: 'LONG_FRESH_FLIP_ACTIONABLE',
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                }),
+                createMockSignal({
+                    signal: 'COOLDOWN',
+                    signalClass: 'COOLDOWN',
+                    intent: 'ENTER_LONG',
+                    reasonCode: 'COOLDOWN_DUPLICATE_CANDLE',
+                    uniqueEvent: false,
+                    cooldownSuppressed: true,
+                }),
+                createHoldSignal({
+                    signalClass: 'PENDING',
+                    intent: 'WAIT',
+                    reasonCode: 'LONG_PULLBACK_WAIT',
+                }),
+            ];
+
+            const analysis = service.calculateSignalAnalysis(signals);
+
+            expect(analysis.actionableTotal).toBe(1);
+            expect(analysis.actionableUnique).toBe(1);
+            expect(analysis.triggered).toBe(1);
+            expect(analysis.cooldownDuplicates).toBe(1);
+            expect(analysis.pending).toBe(1);
+            expect(analysis.filterBreakdown).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        label: 'Triggered',
+                        value: 1,
+                    }),
+                    expect.objectContaining({
+                        label: 'Cooldown Duplicates',
+                        value: 1,
+                    }),
+                ])
+            );
         });
     });
 

@@ -145,6 +145,31 @@ describe('TradeRepository', () => {
             expect(saved.margin_used_aud).toBe(46.17);
         });
 
+        test('should persist currently wired trade telemetry fields on save', async () => {
+            const trade = createMockTrade({
+                id: 'trade-save-telemetry',
+                trailingStopPrice: 1.1645,
+                highestPrice: 1.167,
+                trailingStopPips: 18,
+                leverageUsed: 15,
+                spreadPips: 1.4,
+                swapAud: -0.0123,
+                exitReason: 'TRAILING_STOP',
+            });
+
+            await repository.save(trade);
+
+            const saved = await testDb('trades')
+                .where('trade_id', 'trade-save-telemetry')
+                .first();
+            expect(saved.trailing_stop_price).toBe(1.1645);
+            expect(saved.highest_price).toBe(1.167);
+            expect(saved.trailing_stop_pips).toBe(18);
+            expect(saved.leverage_used).toBe(15);
+            expect(saved.spread_pips).toBe(1.4);
+            expect(saved.exit_reason).toBe('TRAILING_STOP');
+        });
+
         test('should throw error on duplicate trade_id', async () => {
             const trade1 = createMockTrade({ id: 'trade-dup' });
             const trade2 = createMockTrade({ id: 'trade-dup' });
@@ -318,6 +343,26 @@ describe('TradeRepository', () => {
             expect(updated.swap_aud).toBe(-0.05);
         });
 
+        test('should update exit valuation and holding metrics', async () => {
+            const trade = createMockTrade({ id: 'trade-close-metrics' });
+            await repository.save(trade);
+
+            await repository.updateTrade('trade-close-metrics', {
+                exitValueAud: 928.43,
+                pnlPercent: 2.75,
+                holdingPeriodMs: 3600000,
+                takeProfitPrice: 1.16918,
+            });
+
+            const updated = await testDb('trades')
+                .where('trade_id', 'trade-close-metrics')
+                .first();
+            expect(updated.exit_value_aud).toBe(928.43);
+            expect(updated.pnl_percent).toBe(2.75);
+            expect(updated.holding_period_ms).toBe(3600000);
+            expect(updated.take_profit_price).toBe(1.16918);
+        });
+
         test('should not update if no valid fields provided', async () => {
             const trade = createMockTrade({ id: 'trade-noop' });
             await repository.save(trade);
@@ -332,6 +377,55 @@ describe('TradeRepository', () => {
 
             // Only updated_at should change, but values should be same
             expect(afterUpdate.instrument).toBe(beforeUpdate.instrument);
+        });
+
+        test('should persist and map reconciliation and stop-state telemetry fields', async () => {
+            const trade = createMockTrade({
+                id: 'trade-telemetry-fields',
+                lowestPrice: 1.1628,
+                breakevenHit: true,
+                activeStopType: 'BREAKEVEN',
+                closePriceSource: 'BROKER_CLOSE',
+                reconciliationStatus: 'RECONCILED',
+                brokerExitReason: 'STOP_LOSS_ORDER_FILLED',
+                brokerClosedAt: 1710000000000,
+                lastBrokerSyncAt: 1710000001000,
+                configHash: 'cfg-telemetry',
+                brokerReconciliationPayload: {
+                    trade: { id: '489', state: 'CLOSED' },
+                },
+            });
+            await repository.save(trade);
+
+            await repository.updateTrade('trade-telemetry-fields', {
+                activeStopType: 'TRAILING',
+                closePriceSource: 'ACTIVE_STOP_FALLBACK',
+                reconciliationStatus: 'UNRESOLVED',
+                brokerExitReason: 'BROKER_REPORTED_CLOSED',
+                brokerClosedAt: 1710000002000,
+                lastBrokerSyncAt: 1710000003000,
+                brokerReconciliationPayload: {
+                    error: 'lookup failed',
+                },
+            });
+
+            const [mappedTrade] = await repository.getOpenTrades();
+            expect(mappedTrade).toEqual(
+                expect.objectContaining({
+                    lowestPrice: 1.1628,
+                    breakevenHit: true,
+                    activeStopType: 'TRAILING',
+                    closePriceSource: 'ACTIVE_STOP_FALLBACK',
+                    reconciliationStatus: 'UNRESOLVED',
+                    brokerExitReason: 'BROKER_REPORTED_CLOSED',
+                    brokerClosedAt: 1710000002000,
+                    lastBrokerSyncAt: 1710000003000,
+                    configHash: 'cfg-telemetry',
+                    brokerReconciliationPayload: {
+                        error: 'lookup failed',
+                    },
+                })
+            );
         });
     });
 

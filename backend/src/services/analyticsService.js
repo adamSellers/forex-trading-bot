@@ -1,6 +1,9 @@
 // backend/src/services/analyticsService.js - Forex Analytics Service
 const logger = require("../utils/logger");
 
+const ACTIONABLE_SIGNAL_CLASSES = new Set(["ACTIONABLE", "EXIT_ONLY"]);
+const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
+
 /**
  * Trading session definitions (UTC times)
  * Sessions overlap, so we categorize by PRIMARY session at entry time
@@ -54,6 +57,187 @@ function parsePeriod(period) {
     return periods[period] || periods["30d"];
 }
 
+function normalizeString(value) {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeUpper(value) {
+    return normalizeString(value).toUpperCase();
+}
+
+function toFiniteNumber(value, fallback = 0) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function roundTo(value, decimals = 2) {
+    return Number.parseFloat(toFiniteNumber(value).toFixed(decimals));
+}
+
+function hasStructuredSignalTelemetry(signal) {
+    return Boolean(
+        normalizeString(signal?.signalClass) ||
+            normalizeString(signal?.reasonCode) ||
+            normalizeString(signal?.intent) ||
+            normalizeString(signal?.setupId) ||
+            normalizeString(signal?.configHash) ||
+            (signal?.signalCandleTime !== null &&
+                signal?.signalCandleTime !== undefined) ||
+            (signal?.uniqueEvent !== null && signal?.uniqueEvent !== undefined) ||
+            (signal?.cooldownSuppressed !== null &&
+                signal?.cooldownSuppressed !== undefined)
+    );
+}
+
+function deriveSignalSide(signal) {
+    const intent = normalizeUpper(signal?.intent);
+    if (intent.startsWith("ENTER_LONG")) return "BUY";
+    if (intent.startsWith("ENTER_SHORT")) return "SELL";
+    if (intent.startsWith("EXIT_LONG")) return "SELL";
+    if (intent.startsWith("EXIT_SHORT")) return "BUY";
+
+    const signalType = normalizeUpper(signal?.signal);
+    if (signalType === "BUY" || signalType === "SELL") {
+        return signalType;
+    }
+
+    return "UNKNOWN";
+}
+
+function isCooldownDuplicate(signal) {
+    const signalClass = normalizeUpper(signal?.signalClass);
+    const signalType = normalizeUpper(signal?.signal);
+    const reasonCode = normalizeUpper(signal?.reasonCode);
+
+    return (
+        signal?.cooldownSuppressed === true ||
+        COOLDOWN_SIGNAL_CLASSES.has(signalClass) ||
+        signalType === "COOLDOWN" ||
+        reasonCode.startsWith("COOLDOWN_")
+    );
+}
+
+function isActionableSignal(signal) {
+    const signalClass = normalizeUpper(signal?.signalClass);
+    const intent = normalizeUpper(signal?.intent);
+    const signalType = normalizeUpper(signal?.signal);
+
+    if (isCooldownDuplicate(signal)) {
+        return false;
+    }
+
+    if (ACTIONABLE_SIGNAL_CLASSES.has(signalClass)) {
+        return true;
+    }
+
+    if (intent.startsWith("ENTER_") || intent.startsWith("EXIT_")) {
+        return true;
+    }
+
+    return signalType === "BUY" || signalType === "SELL";
+}
+
+function getSignalEventKey(signal) {
+    const symbol =
+        normalizeString(signal?.symbol) ||
+        normalizeString(signal?.instrument) ||
+        "UNKNOWN";
+    const side = deriveSignalSide(signal);
+    const cohortType =
+        normalizeString(signal?.entryType) ||
+        normalizeString(signal?.intent) ||
+        normalizeString(signal?.signalClass) ||
+        normalizeString(signal?.signal) ||
+        "UNKNOWN";
+    const setupId = normalizeString(signal?.setupId);
+
+    if (setupId) {
+        return `${symbol}|${side}|${setupId}`;
+    }
+
+    const signalCandleTime = toFiniteNumber(signal?.signalCandleTime, NaN);
+    if (Number.isFinite(signalCandleTime) && signalCandleTime > 0) {
+        return `${symbol}|${side}|${cohortType}|${signalCandleTime}`;
+    }
+
+    const timestampBucket = Math.floor(toFiniteNumber(signal?.timestamp, 0) / 60000);
+    return `${symbol}|${side}|${cohortType}|${timestampBucket}`;
+}
+
+function isUniqueActionableSignal(signal, seenActionableKeys) {
+    if (!isActionableSignal(signal)) {
+        return false;
+    }
+
+    if (!hasStructuredSignalTelemetry(signal)) {
+        return true;
+    }
+
+    if (signal?.uniqueEvent !== null && signal?.uniqueEvent !== undefined) {
+        return Boolean(signal.uniqueEvent);
+    }
+
+    if (
+        signal?.cooldownSuppressed !== null &&
+        signal?.cooldownSuppressed !== undefined
+    ) {
+        return !Boolean(signal.cooldownSuppressed);
+    }
+
+    const dedupeKey = getSignalEventKey(signal);
+    if (seenActionableKeys.has(dedupeKey)) {
+        return false;
+    }
+
+    seenActionableKeys.add(dedupeKey);
+    return true;
+}
+
+function createSignalCohort(signal) {
+    const instrument =
+        normalizeString(signal?.symbol) ||
+        normalizeString(signal?.instrument) ||
+        "UNKNOWN";
+    const side = deriveSignalSide(signal);
+    const cohortType =
+        normalizeString(signal?.entryType) ||
+        normalizeString(signal?.intent) ||
+        normalizeString(signal?.signalClass) ||
+        normalizeString(signal?.signal) ||
+        "UNKNOWN";
+    const configHash = normalizeString(signal?.configHash) || "unknown";
+
+    return {
+        configHash,
+        instrument,
+        side,
+        cohortType,
+        cohort: `${instrument}|${side}|${cohortType}`,
+    };
+}
+
+function createTradeCohort(trade) {
+    const instrument = normalizeString(trade?.instrument) || "UNKNOWN";
+    const side = normalizeUpper(trade?.side) || "UNKNOWN";
+    const cohortType =
+        normalizeString(trade?.entryType) ||
+        normalizeString(trade?.signal) ||
+        "UNKNOWN";
+    const configHash =
+        normalizeString(trade?.configHash) ||
+        normalizeString(trade?.strategyConfigHash) ||
+        normalizeString(trade?.config_hash) ||
+        "unknown";
+
+    return {
+        configHash,
+        instrument,
+        side,
+        cohortType,
+        cohort: `${instrument}|${side}|${cohortType}`,
+    };
+}
+
 /**
  * Calculate comprehensive analytics from trades and signals
  */
@@ -83,16 +267,25 @@ class AnalyticsService {
                 (t) => !t.isOpen && t.pnlAud !== null && t.pnlAud !== undefined
             );
 
+            const signalEventSummary = this.extractSignalEventSummary(signals);
+
             // Calculate all metrics
             const summary = this.calculateSummary(closedTrades);
             const pairPerformance = this.calculatePairPerformance(closedTrades);
             const sessionPerformance =
                 this.calculateSessionPerformance(closedTrades);
-            const signalAnalysis = this.calculateSignalAnalysis(signals);
+            const signalAnalysis = this.calculateSignalAnalysis(
+                signals,
+                signalEventSummary
+            );
             const exitAnalysis = this.calculateExitAnalysis(closedTrades);
             const equityData = this.calculateEquityData(closedTrades);
             const adxAnalysis = this.calculateAdxAnalysis(closedTrades);
             const sidePerformance = this.calculateSidePerformance(closedTrades);
+            const expectationVsActual = this.calculateExpectationVsActual(
+                signalEventSummary.uniqueActionableSignals,
+                closedTrades
+            );
 
             return {
                 period,
@@ -106,11 +299,16 @@ class AnalyticsService {
                 equityData,
                 adxAnalysis,
                 sidePerformance,
+                expectationVsActual,
                 rawCounts: {
                     totalTrades: trades.length,
                     closedTrades: closedTrades.length,
                     openTrades: trades.filter((t) => t.isOpen).length,
                     totalSignals: signals.length,
+                    uniqueActionableSignals:
+                        signalEventSummary.uniqueActionableSignals.length,
+                    cooldownDuplicateSignals:
+                        signalEventSummary.cooldownDuplicates.length,
                 },
             };
         } catch (error) {
@@ -380,54 +578,148 @@ class AnalyticsService {
             }));
     }
 
+    extractSignalEventSummary(signals) {
+        const seenActionableKeys = new Set();
+        const uniqueActionableSignals = [];
+        const cooldownDuplicates = [];
+        const telemetryCoverage = {
+            signalClass: 0,
+            reasonCode: 0,
+            intent: 0,
+            setupId: 0,
+            signalCandleTime: 0,
+            uniqueEvent: 0,
+            cooldownSuppressed: 0,
+            configHash: 0,
+        };
+
+        let actionableTotal = 0;
+
+        signals.forEach((signal) => {
+            if (normalizeString(signal?.signalClass)) telemetryCoverage.signalClass++;
+            if (normalizeString(signal?.reasonCode)) telemetryCoverage.reasonCode++;
+            if (normalizeString(signal?.intent)) telemetryCoverage.intent++;
+            if (normalizeString(signal?.setupId)) telemetryCoverage.setupId++;
+            if (
+                signal?.signalCandleTime !== null &&
+                signal?.signalCandleTime !== undefined
+            ) {
+                telemetryCoverage.signalCandleTime++;
+            }
+            if (signal?.uniqueEvent !== null && signal?.uniqueEvent !== undefined) {
+                telemetryCoverage.uniqueEvent++;
+            }
+            if (
+                signal?.cooldownSuppressed !== null &&
+                signal?.cooldownSuppressed !== undefined
+            ) {
+                telemetryCoverage.cooldownSuppressed++;
+            }
+            if (normalizeString(signal?.configHash)) telemetryCoverage.configHash++;
+
+            const actionable = isActionableSignal(signal);
+            const cooldownDuplicate = isCooldownDuplicate(signal);
+
+            if (actionable) {
+                actionableTotal++;
+            }
+
+            if (actionable && isUniqueActionableSignal(signal, seenActionableKeys)) {
+                uniqueActionableSignals.push(signal);
+                return;
+            }
+
+            if (cooldownDuplicate || actionable) {
+                cooldownDuplicates.push(signal);
+            }
+        });
+
+        return {
+            actionableTotal,
+            uniqueActionableSignals,
+            cooldownDuplicates,
+            telemetryCoverage,
+        };
+    }
+
     /**
      * Analyze signal quality and filtering
      */
-    calculateSignalAnalysis(signals) {
+    calculateSignalAnalysis(signals, eventSummary = null) {
+        const summary = eventSummary || this.extractSignalEventSummary(signals);
         const stats = {
             total: signals.length,
-            triggered: 0,
+            triggered: summary.uniqueActionableSignals.length,
+            actionableTotal: summary.actionableTotal,
+            actionableUnique: summary.uniqueActionableSignals.length,
+            triggeredIncludingDuplicates: summary.actionableTotal,
+            cooldownDuplicates: summary.cooldownDuplicates.length,
+            exitOnlyUnique: 0,
             filteredChoppy: 0,
             filteredAdxSlope: 0,
             filteredOverbought: 0,
             filteredOversold: 0,
+            pending: 0,
             hold: 0,
             byType: {},
             byPair: {},
+            bySignalClass: {},
+            byIntent: {},
+            byReasonCode: {},
             avgStrength: 0,
+            telemetryCoverage: summary.telemetryCoverage,
         };
 
         let totalStrength = 0;
+        const uniqueActionableSet = new Set(summary.uniqueActionableSignals);
 
         signals.forEach((signal) => {
             const type = signal.signal || "UNKNOWN";
+            const signalClass = normalizeUpper(signal.signalClass) || "UNCLASSIFIED";
+            const intent = normalizeUpper(signal.intent) || "UNSPECIFIED";
+            const reasonCode = normalizeUpper(signal.reasonCode) || "UNKNOWN";
             const message = (signal.message || "").toLowerCase();
+            const uniqueActionable = uniqueActionableSet.has(signal);
+            const actionable = isActionableSignal(signal);
+            const cooldownDuplicate = isCooldownDuplicate(signal);
 
-            // Categorize signal
-            if (
-                type === "BUY" ||
-                type === "SELL" ||
-                type.includes("BUY") ||
-                type.includes("SELL")
+            if (uniqueActionable) {
+                const exitOnly =
+                    signalClass === "EXIT_ONLY" || intent.startsWith("EXIT_");
+                if (exitOnly) {
+                    stats.exitOnlyUnique++;
+                }
+            } else if (
+                cooldownDuplicate ||
+                (actionable && signal.uniqueEvent === false)
             ) {
-                stats.triggered++;
+                // Accounted for separately; don't blend suppressed duplicates into hold/filter buckets.
+            } else if (signalClass === "PENDING" || intent === "WAIT") {
+                stats.pending++;
+                stats.hold++;
             } else if (
                 message.includes("falling adx") ||
-                message.includes("adx_slope")
+                message.includes("adx_slope") ||
+                reasonCode.includes("ADX_SLOPE")
             ) {
                 stats.filteredAdxSlope++;
             } else if (
                 message.includes("choppy") ||
                 message.includes("adx") ||
-                message.includes("weak")
+                message.includes("weak") ||
+                reasonCode.includes("BLOCKED_ADX")
             ) {
                 stats.filteredChoppy++;
             } else if (
                 message.includes("overbought") ||
-                message.includes("rsi")
+                reasonCode.includes("OVERBOUGHT")
             ) {
                 stats.filteredOverbought++;
             } else if (message.includes("oversold")) {
+                stats.filteredOversold++;
+            } else if (message.includes("momentum") && deriveSignalSide(signal) !== "SELL") {
+                stats.filteredOverbought++;
+            } else if (message.includes("momentum") && deriveSignalSide(signal) === "SELL") {
                 stats.filteredOversold++;
             } else {
                 stats.hold++;
@@ -435,10 +727,15 @@ class AnalyticsService {
 
             // Count by type
             stats.byType[type] = (stats.byType[type] || 0) + 1;
+            stats.bySignalClass[signalClass] =
+                (stats.bySignalClass[signalClass] || 0) + 1;
+            stats.byIntent[intent] = (stats.byIntent[intent] || 0) + 1;
+            stats.byReasonCode[reasonCode] =
+                (stats.byReasonCode[reasonCode] || 0) + 1;
 
             // Count by pair
-            stats.byPair[signal.symbol] =
-                (stats.byPair[signal.symbol] || 0) + 1;
+            const pairKey = signal.symbol || signal.instrument || "UNKNOWN";
+            stats.byPair[pairKey] = (stats.byPair[pairKey] || 0) + 1;
 
             // Sum strength
             totalStrength += signal.strength || 0;
@@ -450,6 +747,11 @@ class AnalyticsService {
         // Convert to pie chart format
         stats.filterBreakdown = [
             { label: "Triggered", value: stats.triggered, color: "success" },
+            {
+                label: "Cooldown Duplicates",
+                value: stats.cooldownDuplicates,
+                color: "secondary",
+            },
             {
                 label: "Filtered (Choppy)",
                 value: stats.filteredChoppy,
@@ -468,7 +770,7 @@ class AnalyticsService {
             {
                 label: "Filtered (Oversold)",
                 value: stats.filteredOversold,
-                color: "secondary",
+                color: "info",
             },
             { label: "Hold/Wait", value: stats.hold, color: "default" },
         ].filter((d) => d.value > 0);
@@ -736,6 +1038,194 @@ class AnalyticsService {
             totalTrades,
             sellSharePercent: parseFloat(sellSharePercent.toFixed(1)),
             byEntryType,
+        };
+    }
+
+    calculateExpectationVsActual(uniqueActionableSignals, trades) {
+        const expectedByConfigAndCohort = new Map();
+        const actualByConfigAndCohort = new Map();
+        const expectedByCohort = new Map();
+        const actualByCohort = new Map();
+
+        uniqueActionableSignals.forEach((signal) => {
+            const cohort = createSignalCohort(signal);
+            const configKey = `${cohort.configHash}|${cohort.cohort}`;
+            const cohortKey = cohort.cohort;
+
+            if (!expectedByConfigAndCohort.has(configKey)) {
+                expectedByConfigAndCohort.set(configKey, {
+                    configHash: cohort.configHash,
+                    cohort: cohort.cohort,
+                    instrument: cohort.instrument,
+                    side: cohort.side,
+                    cohortType: cohort.cohortType,
+                    expectedSignals: 0,
+                    avgSignalStrength: 0,
+                    signalStrengthSum: 0,
+                });
+            }
+
+            if (!expectedByCohort.has(cohortKey)) {
+                expectedByCohort.set(cohortKey, {
+                    cohort: cohort.cohort,
+                    instrument: cohort.instrument,
+                    side: cohort.side,
+                    cohortType: cohort.cohortType,
+                    expectedSignals: 0,
+                    avgSignalStrength: 0,
+                    signalStrengthSum: 0,
+                });
+            }
+
+            const configBucket = expectedByConfigAndCohort.get(configKey);
+            configBucket.expectedSignals++;
+            configBucket.signalStrengthSum += toFiniteNumber(signal.strength);
+
+            const cohortBucket = expectedByCohort.get(cohortKey);
+            cohortBucket.expectedSignals++;
+            cohortBucket.signalStrengthSum += toFiniteNumber(signal.strength);
+        });
+
+        trades.forEach((trade) => {
+            const cohort = createTradeCohort(trade);
+            const configKey = `${cohort.configHash}|${cohort.cohort}`;
+            const cohortKey = cohort.cohort;
+
+            if (!actualByConfigAndCohort.has(configKey)) {
+                actualByConfigAndCohort.set(configKey, {
+                    configHash: cohort.configHash,
+                    cohort: cohort.cohort,
+                    instrument: cohort.instrument,
+                    side: cohort.side,
+                    cohortType: cohort.cohortType,
+                    actualTrades: 0,
+                    wins: 0,
+                    totalPnLAud: 0,
+                    totalPnLPips: 0,
+                });
+            }
+
+            if (!actualByCohort.has(cohortKey)) {
+                actualByCohort.set(cohortKey, {
+                    cohort: cohort.cohort,
+                    instrument: cohort.instrument,
+                    side: cohort.side,
+                    cohortType: cohort.cohortType,
+                    actualTrades: 0,
+                    wins: 0,
+                    totalPnLAud: 0,
+                    totalPnLPips: 0,
+                });
+            }
+
+            const configBucket = actualByConfigAndCohort.get(configKey);
+            configBucket.actualTrades++;
+            configBucket.totalPnLAud += toFiniteNumber(trade.pnlAud);
+            configBucket.totalPnLPips += toFiniteNumber(trade.pnlPips);
+            if (toFiniteNumber(trade.pnlAud) > 0) {
+                configBucket.wins++;
+            }
+
+            const cohortBucket = actualByCohort.get(cohortKey);
+            cohortBucket.actualTrades++;
+            cohortBucket.totalPnLAud += toFiniteNumber(trade.pnlAud);
+            cohortBucket.totalPnLPips += toFiniteNumber(trade.pnlPips);
+            if (toFiniteNumber(trade.pnlAud) > 0) {
+                cohortBucket.wins++;
+            }
+        });
+
+        const byConfigAndCohort = Array.from(
+            new Set([
+                ...expectedByConfigAndCohort.keys(),
+                ...actualByConfigAndCohort.keys(),
+            ])
+        )
+            .map((key) => {
+                const expected = expectedByConfigAndCohort.get(key) || {};
+                const actual = actualByConfigAndCohort.get(key) || {};
+                const actualTrades = actual.actualTrades || 0;
+                return {
+                    configHash: expected.configHash || actual.configHash || "unknown",
+                    cohort: expected.cohort || actual.cohort || "UNKNOWN",
+                    instrument: expected.instrument || actual.instrument || "UNKNOWN",
+                    side: expected.side || actual.side || "UNKNOWN",
+                    cohortType: expected.cohortType || actual.cohortType || "UNKNOWN",
+                    expectedSignals: expected.expectedSignals || 0,
+                    actualTrades,
+                    executionRatePct:
+                        (expected.expectedSignals || 0) > 0
+                            ? roundTo(
+                                  (actualTrades / expected.expectedSignals) * 100,
+                                  1
+                              )
+                            : 0,
+                    actualWinRatePct:
+                        actualTrades > 0
+                            ? roundTo((actual.wins / actualTrades) * 100, 1)
+                            : 0,
+                    actualPnLAud: roundTo(actual.totalPnLAud || 0, 2),
+                    actualPnLPips: roundTo(actual.totalPnLPips || 0, 1),
+                    avgSignalStrength:
+                        (expected.expectedSignals || 0) > 0
+                            ? roundTo(
+                                  expected.signalStrengthSum /
+                                      expected.expectedSignals,
+                                  2
+                              )
+                            : 0,
+                };
+            })
+            .sort((a, b) => b.expectedSignals - a.expectedSignals);
+
+        const byCohort = Array.from(
+            new Set([...expectedByCohort.keys(), ...actualByCohort.keys()])
+        )
+            .map((key) => {
+                const expected = expectedByCohort.get(key) || {};
+                const actual = actualByCohort.get(key) || {};
+                const actualTrades = actual.actualTrades || 0;
+                return {
+                    cohort: expected.cohort || actual.cohort || "UNKNOWN",
+                    instrument: expected.instrument || actual.instrument || "UNKNOWN",
+                    side: expected.side || actual.side || "UNKNOWN",
+                    cohortType: expected.cohortType || actual.cohortType || "UNKNOWN",
+                    expectedSignals: expected.expectedSignals || 0,
+                    actualTrades,
+                    executionRatePct:
+                        (expected.expectedSignals || 0) > 0
+                            ? roundTo(
+                                  (actualTrades / expected.expectedSignals) * 100,
+                                  1
+                              )
+                            : 0,
+                    actualWinRatePct:
+                        actualTrades > 0
+                            ? roundTo((actual.wins / actualTrades) * 100, 1)
+                            : 0,
+                    actualPnLAud: roundTo(actual.totalPnLAud || 0, 2),
+                    actualPnLPips: roundTo(actual.totalPnLPips || 0, 1),
+                    avgSignalStrength:
+                        (expected.expectedSignals || 0) > 0
+                            ? roundTo(
+                                  expected.signalStrengthSum /
+                                      expected.expectedSignals,
+                                  2
+                              )
+                            : 0,
+                };
+            })
+            .sort((a, b) => b.expectedSignals - a.expectedSignals);
+
+        return {
+            summary: {
+                totalUniqueActionableSignals: uniqueActionableSignals.length,
+                totalClosedTrades: trades.length,
+                configScopedCohorts: byConfigAndCohort.length,
+                cohortScopedCohorts: byCohort.length,
+            },
+            byConfigAndCohort,
+            byCohort,
         };
     }
 }
