@@ -205,6 +205,294 @@ class SignalGenerator extends EventEmitter {
         };
     }
 
+    createHtfConfirmationSetup({
+        direction,
+        flipTime,
+        flipPrice,
+        flipAdx,
+        flipRsi,
+        initialHigh,
+        initialLow,
+        signalCandleTime,
+    }) {
+        return {
+            direction,
+            state: "AWAIT_HTF_CONFIRMATION",
+            waitingFor: "HTF_CONFIRMATION",
+            flipTime,
+            flipPrice,
+            flipAdx,
+            flipRsi,
+            peakPrice: initialHigh,
+            troughPrice: initialLow,
+            signalCandleTime,
+            pullbackLow: null,
+            pullbackHigh: null,
+            pullbackDepthAtr: null,
+            reaccelerationTrigger: null,
+            pullbackDetectedTime: null,
+        };
+    }
+
+    createImmediatePullbackSetup({
+        direction,
+        currentTime,
+        currentPrice,
+        currentAdx,
+        currentRsi,
+        currentHigh,
+        currentLow,
+        signalCandleTime,
+    }) {
+        return this.createPullbackSetup({
+            direction,
+            flipTime: currentTime,
+            flipPrice: currentPrice,
+            flipAdx: currentAdx,
+            flipRsi: currentRsi,
+            initialHigh: currentHigh,
+            initialLow: currentLow,
+            signalCandleTime,
+        });
+    }
+
+    evaluateLongHtfConfirmationSetup({
+        pending,
+        signalCandleTime,
+        currentDir,
+        currentClose,
+        currentHigh,
+        currentLow,
+        adxMeetsThreshold,
+        adxOk,
+        longDiOk,
+        longBaseRegimeOk,
+        longContinuationEnabled,
+        htfContext,
+        rsiVal,
+        adxVal,
+    }) {
+        const ageMs = Date.now() - pending.flipTime;
+        const maxAgeMs =
+            this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
+        if (ageMs > maxAgeMs) {
+            return {
+                clearPending: true,
+                reason: "HOLD: waiting for HTF confirmation expired",
+            };
+        }
+
+        if (currentDir !== 1) {
+            return {
+                clearPending: true,
+                reason: "HOLD: HTF confirmation invalidated (trend lost)",
+            };
+        }
+
+        const updatedPeakPrice = Math.max(
+            pending.peakPrice || pending.flipPrice,
+            currentHigh
+        );
+        const longMomentumFloor = this.config.longRsiMomentumFloor || 52;
+
+        if (!htfContext.longAllowed) {
+            if (
+                !adxMeetsThreshold ||
+                !longDiOk ||
+                rsiVal < longMomentumFloor
+            ) {
+                return {
+                    clearPending: true,
+                    reason: "HOLD: HTF confirmation invalidated (momentum faded)",
+                };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    peakPrice: updatedPeakPrice,
+                },
+                reason: `HOLD: waiting for HTF confirmation (${htfContext.reason})`,
+            };
+        }
+
+        if (!longBaseRegimeOk) {
+            return {
+                clearPending: true,
+                reason: "HOLD: HTF confirmed but long setup invalidated",
+            };
+        }
+
+        const maxDeviation =
+            this.config.continuationMaxPriceDeviation || 0.005;
+        const priceDeviation =
+            pending.flipPrice > 0
+                ? Math.max(
+                      0,
+                      (currentClose - pending.flipPrice) / pending.flipPrice
+                  )
+                : 0;
+        const isChaseable = priceDeviation <= maxDeviation;
+
+        if (adxOk && rsiVal < (this.config.rsiOverbought || 75) && isChaseable) {
+            return {
+                signalType: "BUY",
+                entryType: "HTF_CONFIRMATION",
+                clearPending: true,
+                reason:
+                    `BUY: HTF confirmed after M15 flip | ` +
+                    `deviation ${(priceDeviation * 100).toFixed(2)}% | ADX ${adxVal.toFixed(
+                        1
+                    )} | RSI ${rsiVal.toFixed(1)}`,
+            };
+        }
+
+        if (longContinuationEnabled) {
+            return {
+                pending: this.createImmediatePullbackSetup({
+                    direction: "LONG",
+                    currentTime: Date.now(),
+                    currentPrice: currentClose,
+                    currentAdx: adxVal,
+                    currentRsi: rsiVal,
+                    currentHigh: updatedPeakPrice,
+                    currentLow,
+                    signalCandleTime,
+                }),
+                reason:
+                    `HOLD: HTF confirmed but move extended | ` +
+                    `deviation ${(priceDeviation * 100).toFixed(2)}% | waiting for pullback`,
+            };
+        }
+
+        return {
+            clearPending: true,
+            reason:
+                `HOLD: HTF confirmed but entry not chaseable (${(
+                    priceDeviation * 100
+                ).toFixed(2)}%)`,
+        };
+    }
+
+    evaluateShortHtfConfirmationSetup({
+        pending,
+        signalCandleTime,
+        currentDir,
+        currentClose,
+        currentHigh,
+        currentLow,
+        adxMeetsThreshold,
+        adxOk,
+        shortDiOk,
+        shortBaseRegimeOk,
+        shortContinuationEnabled,
+        htfContext,
+        rsiVal,
+        adxVal,
+    }) {
+        const ageMs = Date.now() - pending.flipTime;
+        const maxAgeMs =
+            this.config.continuationWindowMs || 4 * 60 * 60 * 1000;
+        if (ageMs > maxAgeMs) {
+            return {
+                clearPending: true,
+                reason: "HOLD: waiting for HTF confirmation expired",
+            };
+        }
+
+        if (currentDir !== -1) {
+            return {
+                clearPending: true,
+                reason: "HOLD: HTF confirmation invalidated (trend lost)",
+            };
+        }
+
+        const updatedTroughPrice = Math.min(
+            pending.troughPrice || pending.flipPrice,
+            currentLow
+        );
+        const shortMomentumCeiling =
+            this.config.shortRsiMomentumCeiling || 48;
+
+        if (!htfContext.shortAllowed) {
+            if (
+                !adxMeetsThreshold ||
+                !shortDiOk ||
+                rsiVal > shortMomentumCeiling
+            ) {
+                return {
+                    clearPending: true,
+                    reason: "HOLD: HTF confirmation invalidated (momentum faded)",
+                };
+            }
+
+            return {
+                pending: {
+                    ...pending,
+                    troughPrice: updatedTroughPrice,
+                },
+                reason: `HOLD: waiting for HTF confirmation (${htfContext.reason})`,
+            };
+        }
+
+        if (!shortBaseRegimeOk) {
+            return {
+                clearPending: true,
+                reason: "HOLD: HTF confirmed but short setup invalidated",
+            };
+        }
+
+        const maxDeviation =
+            this.config.continuationMaxPriceDeviation || 0.005;
+        const priceDeviation =
+            pending.flipPrice > 0
+                ? Math.max(
+                      0,
+                      (pending.flipPrice - currentClose) / pending.flipPrice
+                  )
+                : 0;
+        const isChaseable = priceDeviation <= maxDeviation;
+
+        if (adxOk && rsiVal > (this.config.rsiOversold || 30) && isChaseable) {
+            return {
+                signalType: "SELL",
+                entryType: "SHORT_HTF_CONFIRMATION",
+                clearPending: true,
+                reason:
+                    `SELL: HTF confirmed after M15 flip | ` +
+                    `deviation ${(priceDeviation * 100).toFixed(2)}% | ADX ${adxVal.toFixed(
+                        1
+                    )} | RSI ${rsiVal.toFixed(1)}`,
+            };
+        }
+
+        if (shortContinuationEnabled) {
+            return {
+                pending: this.createImmediatePullbackSetup({
+                    direction: "SHORT",
+                    currentTime: Date.now(),
+                    currentPrice: currentClose,
+                    currentAdx: adxVal,
+                    currentRsi: rsiVal,
+                    currentHigh,
+                    currentLow: updatedTroughPrice,
+                    signalCandleTime,
+                }),
+                reason:
+                    `HOLD: HTF confirmed but move extended | ` +
+                    `deviation ${(priceDeviation * 100).toFixed(2)}% | waiting for pullback`,
+            };
+        }
+
+        return {
+            clearPending: true,
+            reason:
+                `HOLD: HTF confirmed but entry not chaseable (${(
+                    priceDeviation * 100
+                ).toFixed(2)}%)`,
+        };
+    }
+
     evaluateLongPullbackSetup({
         instrument,
         pending,
@@ -606,6 +894,7 @@ class SignalGenerator extends EventEmitter {
             const shortContinuationEnabled = this.isShortContinuationEnabled();
             const currentCandle = candles[idx];
             const previousCandle = candles[idx - 1];
+            const pending = this._pendingEntries.get(instrument);
 
             // 2. Base state
             let signalType = "HOLD";
@@ -678,6 +967,24 @@ class SignalGenerator extends EventEmitter {
                         `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
                             1
                         )} | waiting for pullback`;
+                } else if (
+                    !htfContext.longAllowed &&
+                    adxMeetsThreshold &&
+                    longDiOk &&
+                    rsiVal >= longMomentumFloor
+                ) {
+                    const pendingSetup = this.createHtfConfirmationSetup({
+                        direction: "LONG",
+                        flipTime: flipTimeMs,
+                        flipPrice: flipCandlePrice,
+                        flipAdx: adxVal,
+                        flipRsi: rsiVal,
+                        initialHigh: currentCandle.high,
+                        initialLow: currentCandle.low,
+                        signalCandleTime,
+                    });
+                    this._pendingEntries.set(instrument, pendingSetup);
+                    reason = `HOLD: waiting for HTF confirmation (${htfContext.reason})`;
                 } else if (!htfContext.longAllowed) {
                     reason = `HOLD: ST Flip blocked by ${htfContext.reason}`;
                 } else if (!adxMeetsThreshold) {
@@ -698,30 +1005,46 @@ class SignalGenerator extends EventEmitter {
                         `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
                 }
             }
-            // 4. CONTINUATION ENTRY: valid trend + real pullback + breakout
+            // 4. DELAYED HTF CONFIRMATION OR LONG CONTINUATION
             else if (
                 currentDir === 1 &&
-                longContinuationEnabled &&
-                this._pendingEntries.has(instrument) &&
-                this._pendingEntries.get(instrument).direction === "LONG"
+                pending &&
+                pending.direction === "LONG"
             ) {
-                const pending = this._pendingEntries.get(instrument);
-                const evaluation = this.evaluateLongPullbackSetup({
-                    instrument,
-                    pending,
-                    signalCandleTime,
-                    currentOpen: currentCandle.open,
-                    currentClose: currentCandle.close,
-                    currentHigh: currentCandle.high,
-                    currentLow: currentCandle.low,
-                    previousCandle,
-                    atrVal,
-                    rsiVal,
-                    adxMeetsThreshold,
-                    adxOk,
-                    longDiOk,
-                    htfContext,
-                });
+                const evaluation =
+                    pending.state === "AWAIT_HTF_CONFIRMATION"
+                        ? this.evaluateLongHtfConfirmationSetup({
+                              pending,
+                              signalCandleTime,
+                              currentDir,
+                              currentClose: currentCandle.close,
+                              currentHigh: currentCandle.high,
+                              currentLow: currentCandle.low,
+                              adxMeetsThreshold,
+                              adxOk,
+                              longDiOk,
+                              longBaseRegimeOk,
+                              longContinuationEnabled,
+                              htfContext,
+                              rsiVal,
+                              adxVal,
+                          })
+                        : this.evaluateLongPullbackSetup({
+                              instrument,
+                              pending,
+                              signalCandleTime,
+                              currentOpen: currentCandle.open,
+                              currentClose: currentCandle.close,
+                              currentHigh: currentCandle.high,
+                              currentLow: currentCandle.low,
+                              previousCandle,
+                              atrVal,
+                              rsiVal,
+                              adxMeetsThreshold,
+                              adxOk,
+                              longDiOk,
+                              htfContext,
+                          });
 
                 if (evaluation.clearPending) {
                     this._pendingEntries.delete(instrument);
@@ -752,6 +1075,26 @@ class SignalGenerator extends EventEmitter {
                         `📉 SELL: ST Flip RED | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | ` +
                         `-DI ${mdiVal.toFixed(1)} > +DI ${pdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
                     this._pendingEntries.delete(instrument);
+                } else if (
+                    !htfContext.shortAllowed &&
+                    adxMeetsThreshold &&
+                    shortDiOk &&
+                    rsiVal <= shortMomentumCeiling
+                ) {
+                    const pendingSetup = this.createHtfConfirmationSetup({
+                        direction: "SHORT",
+                        flipTime: flipTimeMs,
+                        flipPrice: flipCandlePrice,
+                        flipAdx: adxVal,
+                        flipRsi: rsiVal,
+                        initialHigh: currentCandle.high,
+                        initialLow: currentCandle.low,
+                        signalCandleTime,
+                    });
+                    this._pendingEntries.set(instrument, pendingSetup);
+                    entryType = "EXIT_ONLY";
+                    reason =
+                        `📉 EXIT: ST Flip RED (short waiting for HTF confirmation: ${htfContext.reason})`;
                 } else if (shortContinuationEnabled && shortBaseRegimeOk) {
                     const pendingSetup = this.createPullbackSetup({
                         direction: "SHORT",
@@ -795,32 +1138,46 @@ class SignalGenerator extends EventEmitter {
                         `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)})`;
                 }
             }
-            // 6. SHORT CONTINUATION: valid trend + pullback + breakdown
+            // 6. DELAYED HTF CONFIRMATION OR SHORT CONTINUATION
             else if (
                 currentDir === -1 &&
-                shortContinuationEnabled &&
-                this._pendingEntries.has(instrument) &&
-                this._pendingEntries.get(instrument).direction === "SHORT"
+                pending &&
+                pending.direction === "SHORT"
             ) {
-                signalType = "SELL";
-                entryType = "EXIT_ONLY";
-                const pending = this._pendingEntries.get(instrument);
-                const evaluation = this.evaluateShortPullbackSetup({
-                    instrument,
-                    pending,
-                    signalCandleTime,
-                    currentOpen: currentCandle.open,
-                    currentClose: currentCandle.close,
-                    currentHigh: currentCandle.high,
-                    currentLow: currentCandle.low,
-                    previousCandle,
-                    atrVal,
-                    rsiVal,
-                    adxMeetsThreshold,
-                    adxOk,
-                    shortDiOk,
-                    htfContext,
-                });
+                const evaluation =
+                    pending.state === "AWAIT_HTF_CONFIRMATION"
+                        ? this.evaluateShortHtfConfirmationSetup({
+                              pending,
+                              signalCandleTime,
+                              currentDir,
+                              currentClose: currentCandle.close,
+                              currentHigh: currentCandle.high,
+                              currentLow: currentCandle.low,
+                              adxMeetsThreshold,
+                              adxOk,
+                              shortDiOk,
+                              shortBaseRegimeOk,
+                              shortContinuationEnabled,
+                              htfContext,
+                              rsiVal,
+                              adxVal,
+                          })
+                        : this.evaluateShortPullbackSetup({
+                              instrument,
+                              pending,
+                              signalCandleTime,
+                              currentOpen: currentCandle.open,
+                              currentClose: currentCandle.close,
+                              currentHigh: currentCandle.high,
+                              currentLow: currentCandle.low,
+                              previousCandle,
+                              atrVal,
+                              rsiVal,
+                              adxMeetsThreshold,
+                              adxOk,
+                              shortDiOk,
+                              htfContext,
+                          });
 
                 if (evaluation.clearPending) {
                     this._pendingEntries.delete(instrument);
@@ -833,6 +1190,14 @@ class SignalGenerator extends EventEmitter {
                     entryType = evaluation.entryType;
                     reason = evaluation.reason;
                 } else {
+                    signalType =
+                        pending.state === "AWAIT_HTF_CONFIRMATION"
+                            ? "HOLD"
+                            : "SELL";
+                    entryType =
+                        pending.state === "AWAIT_HTF_CONFIRMATION"
+                            ? null
+                            : "EXIT_ONLY";
                     reason = evaluation.reason;
                 }
             }

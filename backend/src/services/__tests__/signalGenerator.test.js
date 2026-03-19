@@ -285,7 +285,7 @@ describe('SignalGenerator', () => {
             expect(generator._pendingEntries.has('AUD_USD')).toBe(false);
         });
 
-        test('should block fresh long entries when higher timeframe trend disagrees', async () => {
+        test('should keep a fresh long flip pending when higher timeframe trend disagrees', async () => {
             const m15Candles = generateCandles(250);
             const h1Candles = generateCandles(120, 1.165, 'AUD_USD', 'down');
             const currentPrice = m15Candles[m15Candles.length - 1].close;
@@ -321,8 +321,12 @@ describe('SignalGenerator', () => {
             const signal = await generator.generateSignal('AUD_USD', m15Candles, currentPrice);
 
             expect(signal.signal).toBe('HOLD');
-            expect(signal.message).toContain('HTF 1h downtrend');
-            expect(generator._pendingEntries.has('AUD_USD')).toBe(false);
+            expect(signal.message).toContain('waiting for HTF confirmation');
+            expect(generator._pendingEntries.get('AUD_USD')).toMatchObject({
+                state: 'AWAIT_HTF_CONFIRMATION',
+                waitingFor: 'HTF_CONFIRMATION',
+                direction: 'LONG',
+            });
         });
 
         test('should not queue short continuations when short continuation is disabled', async () => {
@@ -357,6 +361,168 @@ describe('SignalGenerator', () => {
     });
 
     describe('Continuation Entries', () => {
+        test('should enter after higher timeframe confirmation if price is still chaseable', async () => {
+            const firstCandles = generateCandles(250);
+            const firstCurrent = firstCandles[firstCandles.length - 1];
+            firstCurrent.open = 1.1647;
+            firstCurrent.low = 1.1645;
+            firstCurrent.high = 1.1652;
+            firstCurrent.close = 1.1650;
+            const firstPrice = firstCurrent.close;
+            const confirmedCandles = firstCandles.map((c) => ({ ...c }));
+            const confirmedCurrent = confirmedCandles[confirmedCandles.length - 1];
+            confirmedCurrent.open = 1.1654;
+            confirmedCurrent.low = 1.1651;
+            confirmedCurrent.high = 1.1663;
+            confirmedCurrent.close = 1.1662;
+
+            generator.dataService = createMockDataService();
+            jest.spyOn(generator, 'calculateSuperTrend')
+                .mockImplementationOnce((highs) => ({
+                    superTrend: new Array(highs.length).fill(firstPrice),
+                    direction: [...new Array(highs.length - 2).fill(-1), -1, 1],
+                    atr: new Array(highs.length).fill(0.001),
+                }))
+                .mockImplementation((highs) => ({
+                    superTrend: new Array(highs.length).fill(firstPrice),
+                    direction: new Array(highs.length).fill(1),
+                    atr: new Array(highs.length).fill(0.001),
+                }))
+                .mockImplementationOnce((highs) => ({
+                    superTrend: new Array(highs.length).fill(firstPrice),
+                    direction: new Array(highs.length).fill(1),
+                    atr: new Array(highs.length).fill(0.001),
+                }));
+            jest.spyOn(generator, 'getHtfTrendContext')
+                .mockReturnValueOnce({
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: -1,
+                    longAllowed: false,
+                    shortAllowed: true,
+                    reason: 'HTF 1h downtrend',
+                })
+                .mockReturnValueOnce({
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: 1,
+                    longAllowed: true,
+                    shortAllowed: false,
+                    reason: 'HTF 1h uptrend',
+                })
+                .mockReturnValue({
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: 1,
+                    longAllowed: true,
+                    shortAllowed: false,
+                    reason: 'HTF 1h uptrend',
+                });
+            jest.spyOn(RSI, 'calculate').mockImplementation(() => [61]);
+            jest.spyOn(ATR, 'calculate').mockImplementation(() => [0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 18, mdi: 12 },
+                { adx: 21, pdi: 20, mdi: 12 },
+                { adx: 22, pdi: 21, mdi: 11 },
+                { adx: 25, pdi: 24, mdi: 10 },
+            ]);
+
+            const firstSignal = await generator.generateSignal('AUD_USD', firstCandles, firstPrice);
+
+            expect(firstSignal.signal).toBe('HOLD');
+            expect(generator._pendingEntries.get('AUD_USD')).toMatchObject({
+                state: 'AWAIT_HTF_CONFIRMATION',
+                waitingFor: 'HTF_CONFIRMATION',
+                direction: 'LONG',
+            });
+
+            const secondSignal = await generator.generateSignal('AUD_USD', confirmedCandles, confirmedCurrent.close);
+
+            expect(secondSignal.signal).toBe('BUY');
+            expect(secondSignal.entryType).toBe('HTF_CONFIRMATION');
+            expect(secondSignal.message).toContain('HTF confirmed after M15 flip');
+            expect(generator._pendingEntries.has('AUD_USD')).toBe(false);
+        });
+
+        test('should hand off to pullback continuation when HTF confirms after an extended move', async () => {
+            const firstCandles = generateCandles(250);
+            const firstCurrent = firstCandles[firstCandles.length - 1];
+            firstCurrent.open = 1.1647;
+            firstCurrent.low = 1.1645;
+            firstCurrent.high = 1.1652;
+            firstCurrent.close = 1.1650;
+            const firstPrice = firstCurrent.close;
+            const extendedCandles = firstCandles.map((c) => ({ ...c }));
+            const extendedCurrent = extendedCandles[extendedCandles.length - 1];
+            extendedCurrent.open = 1.1708;
+            extendedCurrent.low = 1.1705;
+            extendedCurrent.high = 1.1718;
+            extendedCurrent.close = 1.1715;
+
+            generator.dataService = createMockDataService();
+            jest.spyOn(generator, 'calculateSuperTrend')
+                .mockImplementationOnce((highs) => ({
+                    superTrend: new Array(highs.length).fill(firstPrice),
+                    direction: [...new Array(highs.length - 2).fill(-1), -1, 1],
+                    atr: new Array(highs.length).fill(0.001),
+                }))
+                .mockImplementation((highs) => ({
+                    superTrend: new Array(highs.length).fill(firstPrice),
+                    direction: new Array(highs.length).fill(1),
+                    atr: new Array(highs.length).fill(0.001),
+                }))
+                .mockImplementationOnce((highs) => ({
+                    superTrend: new Array(highs.length).fill(firstPrice),
+                    direction: new Array(highs.length).fill(1),
+                    atr: new Array(highs.length).fill(0.001),
+                }));
+            jest.spyOn(generator, 'getHtfTrendContext')
+                .mockReturnValueOnce({
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: -1,
+                    longAllowed: false,
+                    shortAllowed: true,
+                    reason: 'HTF 1h downtrend',
+                })
+                .mockReturnValueOnce({
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: 1,
+                    longAllowed: true,
+                    shortAllowed: false,
+                    reason: 'HTF 1h uptrend',
+                })
+                .mockReturnValue({
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: 1,
+                    longAllowed: true,
+                    shortAllowed: false,
+                    reason: 'HTF 1h uptrend',
+                });
+            jest.spyOn(RSI, 'calculate').mockImplementation(() => [67]);
+            jest.spyOn(ATR, 'calculate').mockImplementation(() => [0.001]);
+            jest.spyOn(ADX, 'calculate').mockReturnValue([
+                { adx: 20, pdi: 18, mdi: 12 },
+                { adx: 21, pdi: 20, mdi: 12 },
+                { adx: 22, pdi: 21, mdi: 11 },
+                { adx: 25, pdi: 24, mdi: 10 },
+            ]);
+
+            await generator.generateSignal('AUD_USD', firstCandles, firstPrice);
+
+            const secondSignal = await generator.generateSignal('AUD_USD', extendedCandles, extendedCurrent.close);
+
+            expect(secondSignal.signal).toBe('HOLD');
+            expect(secondSignal.message).toContain('HTF confirmed but move extended');
+            expect(generator._pendingEntries.get('AUD_USD')).toMatchObject({
+                state: 'AWAIT_PULLBACK',
+                waitingFor: 'PULLBACK',
+                direction: 'LONG',
+            });
+        });
+
         test('should transition a pending long setup from pullback wait to breakout wait', async () => {
             const candles = generateCandles(250);
             const currentPrice = candles[candles.length - 1].close;

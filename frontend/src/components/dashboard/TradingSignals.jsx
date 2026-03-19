@@ -148,6 +148,9 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
               case 'RSI_RECOVERY':
                   badges.push({ label: 'RSI', color: 'error' });
                   break;
+              case 'HTF_CONFIRMATION':
+                  badges.push({ label: 'HTF', color: 'warning' });
+                  break;
               case 'BOTH':
                   badges.push({ label: 'ADX', color: 'error' });
                   badges.push({ label: 'RSI', color: 'error' });
@@ -255,6 +258,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                                          )}
                                          <Chip
                                              label={
+                                                 signal.pendingEntry.waitingFor === 'HTF_CONFIRMATION' ? 'HTF' :
                                                  signal.pendingEntry.waitingFor === 'ADX_SLOPE_RISING' ? 'SLOPE' :
                                                  signal.pendingEntry.waitingFor === 'ADX_STRENGTHEN' ? 'ADX' :
                                                  signal.pendingEntry.waitingFor === 'RSI_COOLDOWN' ? 'RSI' :
@@ -262,7 +266,11 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                                                  signal.pendingEntry.waitingFor === 'BOTH' ? 'ADX' : 'WAIT'
                                              }
                                              size="small"
-                                             color="error"
+                                             color={
+                                                 signal.pendingEntry.waitingFor === 'HTF_CONFIRMATION'
+                                                     ? 'warning'
+                                                     : 'error'
+                                             }
                                              sx={{ height: 14, fontSize: '0.55rem', '& .MuiChip-label': { px: 0.5 } }}
                                          />
                                      </>
