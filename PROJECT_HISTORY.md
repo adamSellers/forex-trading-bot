@@ -24,6 +24,81 @@ When a feature is **fully completed AND deployed to production**:
 
 ## Completed Features
 
+### 2026-03-20 - Trading Telemetry, Reconciliation, and Parity Hardening (Deployed)
+
+**Summary**: Deployed the March 20 hardening pass across live signal generation, execution persistence, broker-close reconciliation, analytics/export, and backtest/lab parity. This deployment is the baseline for the next 2-week live review window.
+
+**Deployed Changes**:
+1. **Canonical config/default contract**
+   - Added shared config defaults used across backend, frontend, and lab
+   - Normalized config coercion and protected config-freeze keys
+   - Added strategy-scoped `configHash` generation for telemetry cohorts
+   - Aligned committed runtime templates to the approved live cohort:
+     - `AUD_USD`, `EUR_USD`, `GBP_USD`, `USD_JPY`
+     - `enableShorting=true`
+     - `enableShortContinuationEntry=true`
+     - `enableHTFFilter=true`
+     - all four major sessions enabled
+
+2. **Live signal logic hardening**
+   - Added delayed higher-timeframe confirmation handling so valid M15 flips are not discarded when H1 is late
+   - Preserved stable setup identity across pending-state transitions
+   - Added structured signal telemetry:
+     - `reasonCode`
+     - `signalClass`
+     - `intent`
+     - `setupId`
+     - `signalCandleTime`
+     - `uniqueEvent`
+     - `cooldownSuppressed`
+     - `pendingState`
+     - `decisionContext`
+
+3. **Execution persistence and broker reconciliation**
+   - Persisted stop-management state used by live monitoring and restart recovery:
+     - `stopLossPrice`
+     - `lowestPrice`
+     - `breakevenHit`
+     - `activeStopType`
+   - Added broker-close reconciliation metadata:
+     - `closePriceSource`
+     - `reconciliationStatus`
+     - `brokerExitReason`
+     - `brokerClosedAt`
+     - `lastBrokerSyncAt`
+     - `brokerReconciliationPayload`
+   - Hardened external-close handling so broker-side exits are recovered and classified instead of silently flattening to entry price
+
+4. **Analytics/export uplift**
+   - Fixed signal cutoff handling in analytics
+   - Split unique actionable events from cooldown duplicates
+   - Added expectation-vs-actual reporting keyed by cohort/config hash
+   - Updated export script to emit structured signal telemetry, cooldown duplicate exports, and expectation-vs-actual CSV output
+
+5. **Backtest and lab parity**
+   - Moved backtest defaults closer to live config behavior
+   - Kept delayed HTF confirmation and pullback continuation taxonomy aligned with live strategy
+   - Updated lab/worker/CLI config mapping to the canonical config contract
+   - Updated frontend config surfaces to use shared defaults and current live field names
+
+6. **Operational safety**
+   - Added additive migration `003_add_strategy_telemetry_and_reconciliation.js`
+   - Confirmed deploy scripts run `npm run db:migrate` during deployment
+   - Confirmed the March 20 migration is additive only and does not destroy existing rows during normal deploys
+
+**Validation**:
+- Targeted backend verification: **244 passing, 0 failing**
+  - `signalGenerator.test.js`
+  - `LiveTradingEngine.test.js`
+  - `analyticsService.test.js`
+  - `signalRepository.test.js`
+  - `tradeRepository.test.js`
+  - `backtestEngine.test.js`
+- Frontend production build: **passing**
+
+**Operational Note**:
+- This deployment is the measurement baseline for the next live review after 2 weeks of trading.
+
 ### 2026-02-16 - Forex Migration Completion Sweep (Deployed)
 
 **Summary**: Completed a full forex migration cleanup pass across Strategy Lab wiring, simulation cost model, operational configs, and active UI terminology.

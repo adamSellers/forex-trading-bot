@@ -12,6 +12,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 
 -   **LiveTradingEngine**: Fully automated trade execution based on signals
 -   **SuperTrend + ADX Strategy**: Trend-following approach optimized for Forex markets
+-   **Delayed HTF Confirmation**: Lower-timeframe flips can wait for higher-timeframe alignment instead of being discarded immediately
 -   **Multiple Pairs**: AUD/USD, EUR/USD, GBP/USD, USD/JPY
 -   **Oanda Integration**: Live trading via REST v20 API (ASIC regulated)
 -   **Live Runtime**: Production engine runs live-only execution path
@@ -20,6 +21,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 
 -   **ATR-Based Stop Loss**: Dynamic stops that adapt to market volatility
 -   **Trailing Stops**: Lock in profits as price moves in your favor
+-   **Breakeven + Reconciliation Persistence**: Stop-state and broker-close metadata survive persistence and restart recovery
 -   **Margin-Based Take Profit**: Automatic profit target (default 6% of used margin) with quote-to-account currency conversion
 -   **Risk-Based Position Sizing**: Consistent risk per trade (default 2%)
 -   **Leverage Limits**: Enforces ASIC 30:1 max (configurable, default 10:1)
@@ -38,7 +40,8 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   **Signal Monitoring**: SuperTrend flip detection with ADX/RSI filters
 -   **Portfolio Tracking**: Live positions, P/L, margin usage
 -   **Performance Analytics**: Win rate, profit factor, Sharpe ratio, equity curves
- -   **Strategy Lab**: Interactive simulation/optimization workflow with forex-oriented spread/commission realism
+-   **Expectation vs Actual Analytics**: Unique actionable signals separated from cooldown duplicates for cleaner review
+-   **Strategy Lab**: Interactive simulation/optimization workflow with forex-oriented spread/commission realism
 -   **System Health**: Service status, API latency, memory monitoring
 -   **Trading Sessions**: Visual session indicators with best trading windows
 
@@ -48,6 +51,7 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   **Frontend**: React 18 + Material UI + Recharts
 -   **Database**: SQLite via Knex.js
 -   **Deployment**: PM2 process management
+-   **Shared Config Contract**: Canonical trading defaults shared across live runtime, frontend config, and backtest/lab flows
 
 ---
 
@@ -97,6 +101,10 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] Email notifications for trades (open/close alerts)
 -   [x] Stop loss tuning (ATR 2.0x, 12 pip minimum floor)
 -   [x] S3 analytics reports (daily/weekly auto-upload)
+-   [x] Delayed HTF confirmation for late higher-timeframe alignment
+-   [x] Structured signal/trade telemetry + cooldown dedupe tracking
+-   [x] Trade reconciliation metadata + restart-safe stop-state persistence
+-   [x] Expectation-vs-actual analytics/export reporting
 -   [ ] Extended monitoring period
 
 ### Phase 4: Backtesting & Lab 🔄 IN PROGRESS
@@ -105,8 +113,18 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   [x] Backtest engine
 -   [x] Strategy Lab wiring (frontend + worker flow)
 -   [x] Forex cost realism controls (spread + commission)
+-   [x] Shared config/default contract across live + lab + backtest
+-   [x] Backtest/live continuation and HTF-confirmation parity pass
 -   [ ] Walk-forward analysis
 -   [ ] Parameter optimization hardening
+
+### Current Live Baseline
+
+-   Deployment baseline: `2026-03-20`
+-   Active cohort: `AUD_USD`, `EUR_USD`, `GBP_USD`, `USD_JPY`
+-   HTF filter: enabled on `1h`
+-   Shorting: enabled
+-   Review cadence: compare live results against expectation-vs-actual exports after 2 weeks of trading
 
 ---
 
@@ -211,6 +229,8 @@ EOF
 cd backend
 npm run db:migrate
 ```
+
+`deploy.sh` and `update.sh` also run `npm run db:migrate` automatically before restart.
 
 ### 4. Start Development
 

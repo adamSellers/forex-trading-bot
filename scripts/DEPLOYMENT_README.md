@@ -83,6 +83,10 @@ cd /opt/forex-trading-bot
 ./scripts/update.sh
 ```
 
+Both `deploy.sh` and `update.sh` run `npm run db:migrate` before restarting services.
+The current March 2026 migration is additive only: it adds telemetry/reconciliation
+columns and indexes without deleting existing rows during normal deploys.
+
 ---
 
 ## Daily Operations
@@ -171,6 +175,15 @@ curl http://localhost:3101/api/health
 ```bash
 sqlite3 /opt/forex-trading-bot/backend/data/trading.db ".tables"
 sqlite3 /opt/forex-trading-bot/backend/data/trading.db "SELECT COUNT(*) FROM trades;"
+```
+
+To confirm migrations were applied:
+
+```bash
+cd /opt/forex-trading-bot/backend
+npm run db:migrate
+sqlite3 data/trading.db "PRAGMA table_info(signals);"
+sqlite3 data/trading.db "PRAGMA table_info(trades);"
 ```
 
 ### Oanda connection errors

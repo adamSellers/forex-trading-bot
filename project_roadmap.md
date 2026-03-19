@@ -42,13 +42,18 @@ This document tracks all planned features, enhancements, and technical improveme
 | HIGH | Continuation ADX hard floor parity (`ADX_SLOPE_RISING`) | Complete (deployed) | Continuations now require ADX slope + ADX threshold in both live and backtest |
 | MEDIUM | Strategy Lab/worker parity cleanup | Complete (deployed) | Fixed stale simulation route/socket wiring and removed crypto-biased lab defaults |
 | HIGH | Forex migration completion sweep | Complete (deployed) | Lab restored in UI/backend, Binance fee tiers replaced by forex spread/commission model, active UI/ops configs de-crypto'd |
+| HIGH | Delayed HTF confirmation in live strategy | Complete (deployed) | M15 flips can now wait for H1 alignment instead of being discarded immediately |
+| HIGH | Structured signal and trade telemetry | Complete (deployed) | Signals/trades now carry reason codes, pending states, config hash, and reconciliation metadata |
+| HIGH | Trade reconciliation + restart-safe stop-state persistence | Complete (deployed) | Breakeven/trailing/reconciliation state now survives persistence and broker-close recovery |
+| MEDIUM | Analytics/export expectation-vs-actual reporting | Complete (deployed) | Analytics now separates unique actionable events from cooldown duplicates and exports expectation-vs-actual cohorts |
+| MEDIUM | Backtest/live config and continuation parity | Complete (deployed) | Shared defaults and backtest continuation flow now match the live strategy much more closely |
 
 ### Not Yet Implemented (High-Value Follow-Up)
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
-| HIGH | Improve TP/account-currency conversion model | Complete (deployed) | Live TP uses quote->account conversion with direct/inverse/USD-bridge fallback |
-| HIGH | Backtest/live margin realism parity | In progress | Cost parity improved in lab worker; remaining work is margin/exposure behavior alignment in historical engine path |
+| HIGH | 2-week live cohort review on March 20 deployment baseline | In progress | Review missed entries, HTF-wait conversions, execution rejects, and expectation-vs-actual after 2 weeks of live data |
+| HIGH | Backtest/live margin realism parity | In progress | Config and continuation parity are now deployed; remaining work is margin/exposure behavior alignment in historical engine path |
 
 ---
 
@@ -83,7 +88,8 @@ This document tracks all planned features, enhancements, and technical improveme
 | MEDIUM | Add side-specific continuation config | Complete (code) | Added `enableLongContinuationEntry` and `enableShortContinuationEntry`, plus new momentum-floor and pullback-depth controls for the redesigned live signal model. |
 | HIGH | Add RSI momentum floors to live entries | Complete (code) | Longs now require RSI to already be in bullish territory and shorts require RSI to already be in bearish territory, which is closer to an actual momentum framework than the old “not too extreme” filter. |
 | MEDIUM | Add side-specific signal quality analytics | Planned | Extend analytics to track win rate / PnL by side + ADX bucket + RSI bucket so live strategy tuning is based on actual cohort behavior. |
-| HIGH | Validate long-only / New York-only live rollout before further signal rewrites | In progress | Production cohort review indicates long-only performs materially better than shorts and New York is the strongest session. Config narrowed first; signal-logic changes should be evaluated against that cleaner cohort. |
+| HIGH | Preserve long-only / New York-only cohort finding as a comparison benchmark | In progress | Earlier cohort analysis favored long-only and New York. Keep that as a benchmark when reviewing the broader March 20 cohort rather than treating it as the current live deployment. |
+| HIGH | Review March 20 broadened 4-pair / short-enabled cohort before further filter tuning | In progress | Current deployed cohort re-enabled shorts, all 4 major sessions, and delayed HTF confirmation. Hold filter thresholds steady until 2-week live review is complete. |
 
 ### Production Cohort Findings To Preserve
 
@@ -92,6 +98,15 @@ This document tracks all planned features, enhancements, and technical improveme
 - New York was the only clearly positive session; Tokyo was strongly negative.
 - Higher ADX did not improve results overall, and was especially harmful on SELL trades.
 - Continuation entries dominated the book, which means strategy quality is currently determined more by continuation behavior than by fresh flips.
+
+### Current Deployed Cohort (2026-03-20 Baseline)
+
+- Assets: `AUD_USD`, `EUR_USD`, `GBP_USD`, `USD_JPY`
+- HTF filter: enabled (`1h`)
+- Shorting: enabled
+- Short continuation: enabled
+- Sessions: `sydney`, `tokyo`, `london`, `newyork`
+- Review cadence: compare actual live results to expectation-vs-actual exports after 2 weeks of trading
 
 ---
 
@@ -153,7 +168,7 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ## Ideas / Backlog
 
-- [ ] Add more currency pairs (GBP_USD, USD_JPY)
+- [ ] Add more currency pairs beyond the current 4-pair cohort
 - [ ] Strategy comparison mode (run multiple strategies in parallel)
 - [ ] Telegram bot integration for alerts
 - [ ] Performance comparison vs benchmark (buy-and-hold)
@@ -170,7 +185,8 @@ This document tracks all planned features, enhancements, and technical improveme
 | -------------------- | --------- | -------------------------------------------- |
 | Add trade_notes col  | Planned   | For trade annotation feature                 |
 | Add drawdown metrics | Planned   | For drawdown tracking feature                |
+| Add structured signal/trade telemetry columns | Complete (deployed) | Migration `003_add_strategy_telemetry_and_reconciliation.js` |
 
 ---
 
-_Last updated: 2026-03-06_
+_Last updated: 2026-03-20_
