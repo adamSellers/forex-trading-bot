@@ -6,10 +6,15 @@ const AnalyticsService = require("./analyticsService");
 const logger = require("../utils/logger");
 
 class S3ReportScheduler {
-    constructor(tradeRepository, signalRepository) {
+    constructor(tradeRepository, signalRepository, entryDecisionRepository = null) {
         this.tradeRepo = tradeRepository;
         this.signalRepo = signalRepository;
-        this.analyticsService = new AnalyticsService(tradeRepository, signalRepository);
+        this.entryDecisionRepo = entryDecisionRepository;
+        this.analyticsService = new AnalyticsService(
+            tradeRepository,
+            signalRepository,
+            entryDecisionRepository
+        );
         this.schedulerInterval = null;
         this.isRunning = false;
 

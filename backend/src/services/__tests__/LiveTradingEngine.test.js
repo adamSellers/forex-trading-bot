@@ -4,9 +4,11 @@ const {
     createMockConfigService,
     createMockTradeRepository,
     createMockSignalGenerator,
+    createMockEntryDecisionRepository,
 } = require('../../../__tests__/helpers/mockServices');
 const { createMockSignal, createSellSignal } = require('../../../__tests__/fixtures/mockSignals');
 const { createMockTrade } = require('../../../__tests__/fixtures/mockTrades');
+const { ENTRY_REJECTION_CODES } = require('../../constants/entryDecisionCodes');
 
 // Mock the oandaClient module - must use inline factory due to jest hoisting
 jest.mock('../Oandaclient', () => ({
@@ -141,6 +143,7 @@ describe('LiveTradingEngine', () => {
     let mockTradeRepository;
     let mockSignalGenerator;
     let mockDataService;
+    let mockEntryDecisionRepository;
     let oandaClient;
 
     beforeEach(() => {
@@ -196,6 +199,7 @@ describe('LiveTradingEngine', () => {
         });
 
         mockTradeRepository = createMockTradeRepository();
+        mockEntryDecisionRepository = createMockEntryDecisionRepository();
 
         mockSignalGenerator = createMockSignalGenerator();
 
@@ -218,7 +222,8 @@ describe('LiveTradingEngine', () => {
             mockDataService,
             mockTradeRepository,
             mockSignalGenerator,
-            null // io
+            null, // io
+            mockEntryDecisionRepository
         );
     });
 
@@ -258,6 +263,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.TRADING_DISABLED);
             expect(result.reason).toBe('Trading is disabled');
         });
 
@@ -268,6 +274,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.INACTIVE_ASSET);
             expect(result.reason).toContain('not in active list');
         });
 
@@ -280,7 +287,28 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.NO_LIVE_PRICE);
             expect(result.reason).toContain('No live price data');
+        });
+
+        test('should reject when instrument is not currently tradeable', async () => {
+            const signal = createMockSignal();
+            const config = mockConfigService.get();
+
+            mockDataService.getCurrentPrice.mockReturnValue({
+                price: 1.16571,
+                bid: 1.16566,
+                ask: 1.16576,
+                spread: 1.0,
+                tradeable: false,
+                timestamp: Date.now(),
+            });
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.NOT_TRADEABLE);
+            expect(result.reason).toContain('not currently tradeable');
         });
 
         test('should reject when live price data is stale', async () => {
@@ -299,6 +327,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.STALE_PRICE);
             expect(result.reason).toContain('Price data stale');
         });
 
@@ -318,6 +347,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.SPREAD_TOO_WIDE);
             expect(result.reason).toContain('Spread too wide');
         });
 
@@ -332,6 +362,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.MAX_POSITIONS);
             expect(result.reason).toContain('Max positions reached');
         });
 
@@ -345,6 +376,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.ALREADY_IN_POSITION);
             expect(result.reason).toBe('Already in position for this instrument');
         });
 
@@ -355,6 +387,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.ADX_TOO_LOW);
             expect(result.reason).toContain('ADX too low');
         });
 
@@ -365,6 +398,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.SHORT_DISABLED);
             expect(result.reason).toBe('Short selling is disabled');
         });
 
@@ -381,7 +415,19 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.OUTSIDE_SESSION);
             expect(result.reason).toContain('Outside active sessions');
+        });
+
+        test('should reject invalid non-entry signal types', async () => {
+            const signal = createMockSignal({ signal: 'HOLD' });
+            const config = mockConfigService.get();
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.INVALID_SIGNAL);
+            expect(result.reason).toBe('Invalid signal type');
         });
 
         test('should reject entry when portfolio exposure limit is reached', async () => {
@@ -402,6 +448,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT);
             expect(result.reason).toContain('Portfolio exposure limit reached');
         });
 
@@ -424,6 +471,7 @@ describe('LiveTradingEngine', () => {
             const result = await engine.validateEntry(signal, config);
 
             expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT);
             expect(result.reason).toContain('Portfolio exposure limit reached');
             expect(result.reason).toContain('projected');
         });
@@ -778,6 +826,15 @@ describe('LiveTradingEngine', () => {
 
             expect(engine.stats.signalsRejected).toBe(1);
             expect(mockTradeRepository.save).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.save).toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.objectContaining({
+                    stage: 'REJECTED',
+                    outcome: 'REJECTED',
+                    rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                })
+            );
         });
 
         test('should close LONG position on SELL signal', async () => {
@@ -822,6 +879,34 @@ describe('LiveTradingEngine', () => {
             expect(mockTradeRepository.save).not.toHaveBeenCalled();
             expect(engine.stats.signalsRejected).toBe(0);
         });
+
+        test('should reject SELL signal when already in short position', async () => {
+            const signal = createSellSignal({
+                symbol: 'AUD_USD',
+                entryType: 'SHORT_ENTRY',
+            });
+
+            engine.openTrades.set(
+                'existing-short',
+                createMockTrade({
+                    instrument: 'AUD_USD',
+                    side: 'SELL',
+                    signal: 'SELL',
+                })
+            );
+
+            await engine.processSignal(signal);
+
+            expect(mockTradeRepository.save).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.objectContaining({
+                    stage: 'REJECTED',
+                    outcome: 'REJECTED',
+                    rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                })
+            );
+        });
     });
 
     describe('Trade Execution', () => {
@@ -853,13 +938,29 @@ describe('LiveTradingEngine', () => {
             const signal = createMockSignal();
             const config = mockConfigService.get();
 
-            const trade = await engine.executeEntry(signal, config);
+            await mockEntryDecisionRepository.save({
+                decisionId: 'decision-fill',
+                decisionTime: Date.now(),
+                instrument: signal.symbol,
+                side: 'BUY',
+                signal: signal.signal,
+            });
+
+            const trade = await engine.executeEntry(signal, config, 'decision-fill');
 
             expect(trade).toBeDefined();
             expect(trade.instrument).toBe('AUD_USD');
             expect(trade.isOpen).toBe(true);
             expect(mockTradeRepository.save).toHaveBeenCalled();
             expect(engine.openTrades.size).toBe(1);
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenCalledWith(
+                'decision-fill',
+                expect.objectContaining({
+                    stage: 'FILLED',
+                    outcome: 'FILLED',
+                    tradeId: trade.id,
+                })
+            );
         });
 
         test('should set take profit after order fills', async () => {
@@ -891,10 +992,60 @@ describe('LiveTradingEngine', () => {
             const signal = createMockSignal();
             const config = mockConfigService.get();
 
-            const result = await engine.executeEntry(signal, config);
+            await mockEntryDecisionRepository.save({
+                decisionId: 'decision-too-small',
+                decisionTime: Date.now(),
+                instrument: signal.symbol,
+                side: 'BUY',
+                signal: signal.signal,
+            });
+
+            const result = await engine.executeEntry(
+                signal,
+                config,
+                'decision-too-small'
+            );
 
             expect(result).toBeUndefined();
             expect(mockTradeRepository.save).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenCalledWith(
+                'decision-too-small',
+                expect.objectContaining({
+                    stage: 'REJECTED',
+                    outcome: 'REJECTED',
+                    rejectionCode: ENTRY_REJECTION_CODES.POSITION_SIZE_TOO_SMALL,
+                })
+            );
+        });
+
+        test('should mark decision as rejected when order submission fails', async () => {
+            oandaClient.placeMarketOrder.mockRejectedValue(
+                new Error('broker unavailable')
+            );
+
+            const signal = createMockSignal();
+            const config = mockConfigService.get();
+
+            await mockEntryDecisionRepository.save({
+                decisionId: 'decision-error',
+                decisionTime: Date.now(),
+                instrument: signal.symbol,
+                side: 'BUY',
+                signal: signal.signal,
+            });
+
+            await expect(
+                engine.executeEntry(signal, config, 'decision-error')
+            ).rejects.toThrow('broker unavailable');
+
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenCalledWith(
+                'decision-error',
+                expect.objectContaining({
+                    stage: 'REJECTED',
+                    outcome: 'REJECTED',
+                    rejectionCode: ENTRY_REJECTION_CODES.ORDER_SUBMIT_FAILED,
+                })
+            );
         });
 
         test('should update stats after successful trade', async () => {

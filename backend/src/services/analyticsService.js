@@ -245,13 +245,32 @@ function createTradeCohort(trade) {
     };
 }
 
+function createEntryDecisionCohort(decision) {
+    const instrument = normalizeString(decision?.instrument) || "UNKNOWN";
+    const side = normalizeUpper(decision?.side) || "UNKNOWN";
+    const cohortType =
+        normalizeString(decision?.entryType) ||
+        normalizeString(decision?.signal) ||
+        "UNKNOWN";
+    const configHash = normalizeString(decision?.configHash) || "unknown";
+
+    return {
+        configHash,
+        instrument,
+        side,
+        cohortType,
+        cohort: `${instrument}|${side}|${cohortType}`,
+    };
+}
+
 /**
  * Calculate comprehensive analytics from trades and signals
  */
 class AnalyticsService {
-    constructor(tradeRepository, signalRepository) {
+    constructor(tradeRepository, signalRepository, entryDecisionRepository = null) {
         this.tradeRepo = tradeRepository;
         this.signalRepo = signalRepository;
+        this.entryDecisionRepo = entryDecisionRepository;
     }
 
     /**
@@ -265,9 +284,12 @@ class AnalyticsService {
             const cutoffTime = now - periodMs;
 
             // Fetch raw data
-            const [trades, signals] = await Promise.all([
+            const [trades, signals, entryDecisions] = await Promise.all([
                 this.tradeRepo.getTradesSince(cutoffTime),
                 this.signalRepo.getSignalsSince(new Date(cutoffTime)),
+                this.entryDecisionRepo
+                    ? this.entryDecisionRepo.getDecisionsSince(cutoffTime)
+                    : Promise.resolve([]),
             ]);
 
             // Filter to closed trades only for performance metrics
@@ -297,6 +319,18 @@ class AnalyticsService {
                 signalEventSummary.uniqueActionableSignals,
                 closedTrades
             );
+            const entryFunnel = this.calculateEntryFunnel(
+                signalEventSummary.uniqueActionableSignals,
+                entryDecisions,
+                closedTrades
+            );
+            const rejectionBreakdown =
+                this.calculateRejectionBreakdown(entryDecisions);
+            const executionGapByCohort = this.calculateExecutionGapByCohort(
+                signalEventSummary.uniqueActionableSignals,
+                entryDecisions,
+                closedTrades
+            );
 
             return {
                 period,
@@ -311,6 +345,9 @@ class AnalyticsService {
                 adxAnalysis,
                 sidePerformance,
                 expectationVsActual,
+                entryFunnel,
+                rejectionBreakdown,
+                executionGapByCohort,
                 rawCounts: {
                     totalTrades: trades.length,
                     closedTrades: closedTrades.length,
@@ -323,6 +360,7 @@ class AnalyticsService {
                     exitOnlySignals: signalEventSummary.exitOnlyTotal,
                     cooldownDuplicateSignals:
                         signalEventSummary.cooldownDuplicates.length,
+                    entryDecisions: entryDecisions.length,
                 },
             };
         } catch (error) {
@@ -843,6 +881,305 @@ class AnalyticsService {
         ].filter((d) => d.value > 0);
 
         return stats;
+    }
+
+    calculateEntryFunnel(uniqueActionableSignals, entryDecisions, closedTrades) {
+        const decisions = Array.isArray(entryDecisions) ? entryDecisions : [];
+        const validated = decisions.filter((decision) =>
+            ["VALIDATED", "SIZED", "ORDER_SUBMITTED", "FILLED"].includes(
+                normalizeUpper(decision.stage)
+            )
+        ).length;
+        const sized = decisions.filter((decision) =>
+            ["SIZED", "ORDER_SUBMITTED", "FILLED"].includes(
+                normalizeUpper(decision.stage)
+            )
+        ).length;
+        const submitted = decisions.filter((decision) =>
+            ["ORDER_SUBMITTED", "FILLED"].includes(
+                normalizeUpper(decision.stage)
+            )
+        ).length;
+        const filled = decisions.filter(
+            (decision) =>
+                normalizeUpper(decision.outcome) === "FILLED" ||
+                normalizeUpper(decision.stage) === "FILLED" ||
+                normalizeString(decision.tradeId)
+        ).length;
+        const rejected = decisions.filter(
+            (decision) => normalizeUpper(decision.outcome) === "REJECTED"
+        ).length;
+        const generated = uniqueActionableSignals.length;
+        const tracked = decisions.length;
+
+        const toRate = (value, total) =>
+            total > 0 ? roundTo((value / total) * 100, 1) : 0;
+
+        return {
+            summary: {
+                generatedSignals: generated,
+                trackedDecisions: tracked,
+                telemetryCoveragePct: toRate(tracked, generated),
+                validatedEntries: validated,
+                sizedEntries: sized,
+                submittedOrders: submitted,
+                filledTrades: filled,
+                rejectedEntries: rejected,
+                closedTrades: closedTrades.length,
+            },
+            rates: {
+                validationRatePct: toRate(validated, tracked || generated),
+                fillRatePct: toRate(filled, tracked || generated),
+                closeRatePct: toRate(closedTrades.length, filled),
+                rejectionRatePct: toRate(rejected, tracked || generated),
+            },
+        };
+    }
+
+    calculateRejectionBreakdown(entryDecisions) {
+        const rejected = (entryDecisions || []).filter(
+            (decision) => normalizeUpper(decision.outcome) === "REJECTED"
+        );
+        const buckets = new Map();
+
+        rejected.forEach((decision) => {
+            const code = normalizeUpper(decision.rejectionCode) || "UNKNOWN";
+            if (!buckets.has(code)) {
+                buckets.set(code, {
+                    rejectionCode: code,
+                    count: 0,
+                    instruments: new Set(),
+                    totalSpreadPips: 0,
+                    spreadCount: 0,
+                    totalPriceAgeMs: 0,
+                    priceAgeCount: 0,
+                    avgProjectedExposure: 0,
+                    projectedExposureTotal: 0,
+                    projectedExposureCount: 0,
+                });
+            }
+
+            const bucket = buckets.get(code);
+            bucket.count++;
+            bucket.instruments.add(normalizeString(decision.instrument) || "UNKNOWN");
+
+            if (Number.isFinite(Number(decision.spreadPips))) {
+                bucket.totalSpreadPips += Number(decision.spreadPips);
+                bucket.spreadCount++;
+            }
+            if (Number.isFinite(Number(decision.priceAgeMs))) {
+                bucket.totalPriceAgeMs += Number(decision.priceAgeMs);
+                bucket.priceAgeCount++;
+            }
+            if (Number.isFinite(Number(decision.projectedExposure))) {
+                bucket.projectedExposureTotal += Number(decision.projectedExposure);
+                bucket.projectedExposureCount++;
+            }
+        });
+
+        const breakdown = Array.from(buckets.values())
+            .map((bucket) => ({
+                rejectionCode: bucket.rejectionCode,
+                count: bucket.count,
+                instruments: Array.from(bucket.instruments).sort(),
+                avgSpreadPips:
+                    bucket.spreadCount > 0
+                        ? roundTo(bucket.totalSpreadPips / bucket.spreadCount, 2)
+                        : 0,
+                avgPriceAgeMs:
+                    bucket.priceAgeCount > 0
+                        ? roundTo(
+                              bucket.totalPriceAgeMs / bucket.priceAgeCount,
+                              0
+                          )
+                        : 0,
+                avgProjectedExposure:
+                    bucket.projectedExposureCount > 0
+                        ? roundTo(
+                              bucket.projectedExposureTotal /
+                                  bucket.projectedExposureCount,
+                              4
+                          )
+                        : 0,
+            }))
+            .sort((a, b) => b.count - a.count);
+
+        return {
+            totalRejected: rejected.length,
+            breakdown,
+        };
+    }
+
+    calculateExecutionGapByCohort(
+        uniqueActionableSignals,
+        entryDecisions,
+        closedTrades
+    ) {
+        const expectedByCohort = new Map();
+        const decisionsByCohort = new Map();
+        const closedByCohort = new Map();
+
+        uniqueActionableSignals.forEach((signal) => {
+            const cohort = createSignalCohort(signal);
+            const key = `${cohort.configHash}|${cohort.cohort}`;
+            if (!expectedByCohort.has(key)) {
+                expectedByCohort.set(key, {
+                    configHash: cohort.configHash,
+                    cohort: cohort.cohort,
+                    instrument: cohort.instrument,
+                    side: cohort.side,
+                    cohortType: cohort.cohortType,
+                    expectedSignals: 0,
+                    signalStrengthSum: 0,
+                });
+            }
+
+            const bucket = expectedByCohort.get(key);
+            bucket.expectedSignals++;
+            bucket.signalStrengthSum += toFiniteNumber(signal.strength);
+        });
+
+        (entryDecisions || []).forEach((decision) => {
+            const cohort = createEntryDecisionCohort(decision);
+            const key = `${cohort.configHash}|${cohort.cohort}`;
+            if (!decisionsByCohort.has(key)) {
+                decisionsByCohort.set(key, {
+                    configHash: cohort.configHash,
+                    cohort: cohort.cohort,
+                    instrument: cohort.instrument,
+                    side: cohort.side,
+                    cohortType: cohort.cohortType,
+                    trackedDecisions: 0,
+                    validatedEntries: 0,
+                    submittedOrders: 0,
+                    filledTrades: 0,
+                    rejectedEntries: 0,
+                });
+            }
+
+            const bucket = decisionsByCohort.get(key);
+            bucket.trackedDecisions++;
+
+            const stage = normalizeUpper(decision.stage);
+            const outcome = normalizeUpper(decision.outcome);
+            if (["VALIDATED", "SIZED", "ORDER_SUBMITTED", "FILLED"].includes(stage)) {
+                bucket.validatedEntries++;
+            }
+            if (["ORDER_SUBMITTED", "FILLED"].includes(stage)) {
+                bucket.submittedOrders++;
+            }
+            if (outcome === "FILLED" || stage === "FILLED" || normalizeString(decision.tradeId)) {
+                bucket.filledTrades++;
+            }
+            if (outcome === "REJECTED") {
+                bucket.rejectedEntries++;
+            }
+        });
+
+        closedTrades.forEach((trade) => {
+            const cohort = createTradeCohort(trade);
+            const key = `${cohort.configHash}|${cohort.cohort}`;
+            if (!closedByCohort.has(key)) {
+                closedByCohort.set(key, {
+                    configHash: cohort.configHash,
+                    cohort: cohort.cohort,
+                    instrument: cohort.instrument,
+                    side: cohort.side,
+                    cohortType: cohort.cohortType,
+                    closedTrades: 0,
+                    totalPnLAud: 0,
+                    totalPnLPips: 0,
+                });
+            }
+
+            const bucket = closedByCohort.get(key);
+            bucket.closedTrades++;
+            bucket.totalPnLAud += toFiniteNumber(trade.pnlAud);
+            bucket.totalPnLPips += toFiniteNumber(trade.pnlPips);
+        });
+
+        const keys = Array.from(
+            new Set([
+                ...expectedByCohort.keys(),
+                ...decisionsByCohort.keys(),
+                ...closedByCohort.keys(),
+            ])
+        );
+
+        const byCohort = keys
+            .map((key) => {
+                const expected = expectedByCohort.get(key) || {};
+                const decision = decisionsByCohort.get(key) || {};
+                const closed = closedByCohort.get(key) || {};
+                const expectedSignals = expected.expectedSignals || 0;
+
+                return {
+                    configHash:
+                        expected.configHash ||
+                        decision.configHash ||
+                        closed.configHash ||
+                        "unknown",
+                    cohort:
+                        expected.cohort ||
+                        decision.cohort ||
+                        closed.cohort ||
+                        "UNKNOWN",
+                    instrument:
+                        expected.instrument ||
+                        decision.instrument ||
+                        closed.instrument ||
+                        "UNKNOWN",
+                    side: expected.side || decision.side || closed.side || "UNKNOWN",
+                    cohortType:
+                        expected.cohortType ||
+                        decision.cohortType ||
+                        closed.cohortType ||
+                        "UNKNOWN",
+                    expectedSignals,
+                    trackedDecisions: decision.trackedDecisions || 0,
+                    validatedEntries: decision.validatedEntries || 0,
+                    submittedOrders: decision.submittedOrders || 0,
+                    filledTrades: decision.filledTrades || 0,
+                    rejectedEntries: decision.rejectedEntries || 0,
+                    closedTrades: closed.closedTrades || 0,
+                    executionRatePct:
+                        expectedSignals > 0
+                            ? roundTo(
+                                  ((decision.filledTrades || 0) / expectedSignals) *
+                                      100,
+                                  1
+                              )
+                            : 0,
+                    rejectionRatePct:
+                        expectedSignals > 0
+                            ? roundTo(
+                                  ((decision.rejectedEntries || 0) /
+                                      expectedSignals) *
+                                      100,
+                                  1
+                              )
+                            : 0,
+                    totalPnLAud: roundTo(closed.totalPnLAud || 0, 2),
+                    totalPnLPips: roundTo(closed.totalPnLPips || 0, 1),
+                    avgSignalStrength:
+                        expectedSignals > 0
+                            ? roundTo(
+                                  expected.signalStrengthSum / expectedSignals,
+                                  2
+                              )
+                            : 0,
+                };
+            })
+            .sort((a, b) => b.expectedSignals - a.expectedSignals);
+
+        return {
+            summary: {
+                cohorts: byCohort.length,
+                actionableSignals: uniqueActionableSignals.length,
+                trackedDecisions: (entryDecisions || []).length,
+            },
+            byCohort,
+        };
     }
 
     /**

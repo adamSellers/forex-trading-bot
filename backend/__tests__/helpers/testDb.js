@@ -101,6 +101,35 @@ const runMigrations = async (db) => {
         table.json('decision_context');
     });
 
+    await db.schema.createTable('entry_decisions', (table) => {
+        table.increments('id').primary();
+        table.string('decision_id').notNullable().unique();
+        table.string('setup_id');
+        table.bigInteger('signal_candle_time');
+        table.bigInteger('decision_time').notNullable();
+        table.string('instrument').notNullable();
+        table.string('side').notNullable();
+        table.string('signal').notNullable();
+        table.string('entry_type');
+        table.string('config_hash');
+        table.json('config_snapshot');
+        table.string('outcome').notNullable().defaultTo('PENDING');
+        table.string('stage').notNullable().defaultTo('RECEIVED');
+        table.string('rejection_code');
+        table.text('rejection_reason');
+        table.decimal('spread_pips', 10, 2);
+        table.bigInteger('price_age_ms');
+        table.integer('open_positions');
+        table.decimal('projected_exposure', 10, 4);
+        table.decimal('signal_strength', 10, 4);
+        table.decimal('adx', 10, 4);
+        table.decimal('rsi', 10, 4);
+        table.decimal('atr_pips', 10, 4);
+        table.string('trade_id');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('updated_at').defaultTo(db.fn.now());
+    });
+
     // Create portfolio_snapshots table
     await db.schema.createTable('portfolio_snapshots', (table) => {
         table.increments('id').primary();
@@ -133,6 +162,7 @@ const seedTestData = async (db, trades = [], signals = []) => {
 const cleanupTestDb = async (db) => {
     await db('trades').del();
     await db('signals').del();
+    await db('entry_decisions').del();
     await db('portfolio_snapshots').del();
 };
 

@@ -4,8 +4,16 @@ const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
 const emailService = require("./emailService");
-const { computeConfigHash } = require("../config/tradingConfig");
+const {
+    computeConfigHash,
+    normalizeTradingConfig,
+} = require("../config/tradingConfig");
 const TradeReconciliationService = require("./tradeReconciliationService");
+const {
+    ENTRY_REJECTION_CODES,
+    ENTRY_DECISION_STAGES,
+    ENTRY_DECISION_OUTCOMES,
+} = require("../constants/entryDecisionCodes");
 
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator
@@ -29,6 +37,7 @@ class LiveTradingEngine extends EventEmitter {
         this.tradeRepository = null;
         this.signalGenerator = null;
         this.io = null;
+        this.entryDecisionRepository = null;
 
         // Engine state
         this.isRunning = false;
@@ -58,12 +67,20 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Initialize with dependencies
      */
-    init(configService, dataService, tradeRepository, signalGenerator, io) {
+    init(
+        configService,
+        dataService,
+        tradeRepository,
+        signalGenerator,
+        io,
+        entryDecisionRepository = null
+    ) {
         this.configService = configService;
         this.dataService = dataService;
         this.tradeRepository = tradeRepository;
         this.signalGenerator = signalGenerator;
         this.io = io;
+        this.entryDecisionRepository = entryDecisionRepository;
 
         logger.info("⚙️ LiveTradingEngine dependencies injected");
         return this;
@@ -275,6 +292,108 @@ class LiveTradingEngine extends EventEmitter {
         };
     }
 
+    shouldTrackEntryDecision(signal) {
+        if (!signal || !signal.symbol) return false;
+        if (signal.signal !== "BUY" && signal.signal !== "SELL") return false;
+        if (signal.signal === "SELL" && signal.entryType === "EXIT_ONLY") {
+            return false;
+        }
+        return true;
+    }
+
+    buildEntryDecisionId(signal, decisionTime) {
+        if (signal?.setupId && Number.isFinite(decisionTime)) {
+            return `${signal.setupId}:${decisionTime}`;
+        }
+
+        return uuidv4();
+    }
+
+    buildDecisionContext(signal, config, extras = {}) {
+        const priceData = extras.priceData || this.dataService?.getCurrentPrice?.(signal.symbol);
+        const priceAgeMs = Number.isFinite(priceData?.timestamp)
+            ? Math.max(0, Date.now() - priceData.timestamp)
+            : null;
+        const configSnapshot = normalizeTradingConfig(config || {});
+        delete configSnapshot.configHash;
+        const decisionTime = extras.decisionTime || Date.now();
+
+        return {
+            decisionId:
+                extras.decisionId ||
+                this.buildEntryDecisionId(signal, decisionTime),
+            setupId: signal?.setupId || null,
+            signalCandleTime: signal?.signalCandleTime ?? null,
+            decisionTime,
+            instrument: signal?.symbol,
+            side: signal?.signal === "SELL" ? "SELL" : "BUY",
+            signal: signal?.signal,
+            entryType: signal?.entryType || null,
+            configHash:
+                signal?.configHash ||
+                config?.configHash ||
+                computeConfigHash(config || {}),
+            configSnapshot,
+            outcome: ENTRY_DECISION_OUTCOMES.PENDING,
+            stage: ENTRY_DECISION_STAGES.RECEIVED,
+            spreadPips:
+                extras.spreadPips !== undefined
+                    ? extras.spreadPips
+                    : Number(priceData?.spread),
+            priceAgeMs:
+                extras.priceAgeMs !== undefined ? extras.priceAgeMs : priceAgeMs,
+            openPositions:
+                extras.openPositions !== undefined
+                    ? extras.openPositions
+                    : this.openTrades.size,
+            projectedExposure:
+                extras.projectedExposure !== undefined
+                    ? extras.projectedExposure
+                    : null,
+            signalStrength:
+                extras.signalStrength !== undefined
+                    ? extras.signalStrength
+                    : signal?.strength ?? null,
+            adx:
+                extras.adx !== undefined
+                    ? extras.adx
+                    : signal?.trend?.adx ?? signal?.strength ?? null,
+            rsi:
+                extras.rsi !== undefined
+                    ? extras.rsi
+                    : signal?.trend?.rsi ?? signal?.data?.rsi ?? null,
+            atrPips:
+                extras.atrPips !== undefined
+                    ? extras.atrPips
+                    : signal?.atrPips ?? signal?.trend?.atrPips ?? null,
+            tradeId: extras.tradeId || null,
+        };
+    }
+
+    async createEntryDecision(signal, config, extras = {}) {
+        if (!this.entryDecisionRepository || !this.shouldTrackEntryDecision(signal)) {
+            return null;
+        }
+
+        const decision = this.buildDecisionContext(signal, config, extras);
+        await this.entryDecisionRepository.save(decision);
+        return decision;
+    }
+
+    async updateEntryDecision(decisionId, updates = {}) {
+        if (!this.entryDecisionRepository || !decisionId) return;
+        await this.entryDecisionRepository.updateDecision(decisionId, updates);
+    }
+
+    async rejectEntryDecision(decisionId, updates = {}) {
+        if (!decisionId) return;
+        await this.updateEntryDecision(decisionId, {
+            stage: ENTRY_DECISION_STAGES.REJECTED,
+            outcome: ENTRY_DECISION_OUTCOMES.REJECTED,
+            ...updates,
+        });
+    }
+
     getFallbackCloseResolution(trade) {
         const activeStopPrice =
             trade.trailingStopPrice ||
@@ -366,6 +485,8 @@ class LiveTradingEngine extends EventEmitter {
 
         // Get current config
         const config = this.configService.get();
+        const entryDecision = await this.createEntryDecision(signal, config);
+        const decisionId = entryDecision?.decisionId || null;
 
         // Check if we have an open position for this instrument
         const existingTrade = this.getOpenTradeByInstrument(symbol);
@@ -392,6 +513,11 @@ class LiveTradingEngine extends EventEmitter {
                     ...this.buildSignalTelemetry(signal, config),
                     reason: "Already in position for this instrument",
                 });
+                await this.rejectEntryDecision(decisionId, {
+                    rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                    rejectionReason: "Already in position for this instrument",
+                    openPositions: this.openTrades.size,
+                });
                 return;
             }
 
@@ -410,10 +536,20 @@ class LiveTradingEngine extends EventEmitter {
                     signal,
                     reason: validation.reason,
                 });
+                await this.rejectEntryDecision(decisionId, {
+                    rejectionCode:
+                        validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                    rejectionReason: validation.reason,
+                    ...validation.context,
+                });
                 return;
             }
 
-            await this.executeEntry(signal, config);
+            await this.updateEntryDecision(decisionId, {
+                stage: ENTRY_DECISION_STAGES.VALIDATED,
+                ...validation.context,
+            });
+            await this.executeEntry(signal, config, decisionId, validation.context);
         } else if (signalType === "SELL") {
             // Check if we have an open position for this instrument
             if (existingTrade) {
@@ -427,9 +563,9 @@ class LiveTradingEngine extends EventEmitter {
                 }
             }
 
-            // Execute SHORT Entry if shorting is enabled AND signal qualifies for short entry
-            // entryType "EXIT_ONLY" means conditions weren't met for short (pending continuation)
-            if (config.enableShorting && signal.entryType !== "EXIT_ONLY") {
+            // Execute SHORT entry when the generator marks it as actionable.
+            // validateEntry will enforce the live shorting toggle.
+            if (signal.entryType !== "EXIT_ONLY") {
                 if (existingTrade && existingTrade.side === "SELL") {
                     logger.debug(
                         `⏸️ Skipping SELL for ${symbol} - already in short position`
@@ -438,6 +574,11 @@ class LiveTradingEngine extends EventEmitter {
                     this.emitEngineTelemetry("validationRejected", {
                         ...this.buildSignalTelemetry(signal, config),
                         reason: "Already in position for this instrument",
+                    });
+                    await this.rejectEntryDecision(decisionId, {
+                        rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                        rejectionReason: "Already in position for this instrument",
+                        openPositions: this.openTrades.size,
                     });
                     return;
                 }
@@ -457,13 +598,23 @@ class LiveTradingEngine extends EventEmitter {
                         signal,
                         reason: validation.reason,
                     });
+                    await this.rejectEntryDecision(decisionId, {
+                        rejectionCode:
+                            validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                        rejectionReason: validation.reason,
+                        ...validation.context,
+                    });
                     return;
                 }
 
                 logger.info(
                     `📉 Short Entry approved for ${symbol} | Type: ${signal.entryType || "FRESH_FLIP"}`
                 );
-                await this.executeEntry(signal, config);
+                await this.updateEntryDecision(decisionId, {
+                    stage: ENTRY_DECISION_STAGES.VALIDATED,
+                    ...validation.context,
+                });
+                await this.executeEntry(signal, config, decisionId, validation.context);
             } else if (config.enableShorting && signal.entryType === "EXIT_ONLY") {
                 logger.info(
                     `⏸️ Short Entry skipped for ${symbol} - signal filtered at generator (pending continuation)`
@@ -491,39 +642,58 @@ class LiveTradingEngine extends EventEmitter {
      * Validate entry conditions
      */
     async validateEntry(signal, config) {
+        const priceData = this.dataService?.getCurrentPrice?.(signal.symbol);
+        const priceAgeMs = Number.isFinite(priceData?.timestamp)
+            ? Date.now() - priceData.timestamp
+            : null;
+        const spreadPips = Number(priceData?.spread);
+        const baseContext = {
+            spreadPips: Number.isFinite(spreadPips) ? spreadPips : null,
+            priceAgeMs: Number.isFinite(priceAgeMs) ? priceAgeMs : null,
+            openPositions: this.openTrades.size,
+            projectedExposure: null,
+        };
+
         // 1. Trading must be enabled
         if (!config.enableTrading) {
-            return { valid: false, reason: "Trading is disabled" };
+            return {
+                valid: false,
+                code: ENTRY_REJECTION_CODES.TRADING_DISABLED,
+                reason: "Trading is disabled",
+                context: baseContext,
+            };
         }
 
         // 2. Check instrument is in active list
         if (!config.assets.includes(signal.symbol)) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.INACTIVE_ASSET,
                 reason: `Instrument ${signal.symbol} not in active list`,
+                context: baseContext,
             };
         }
 
         // 3. Live price must be available and fresh
-        const priceData = this.dataService?.getCurrentPrice?.(signal.symbol);
         if (!priceData) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.NO_LIVE_PRICE,
                 reason: `No live price data for ${signal.symbol}`,
+                context: baseContext,
             };
         }
 
         if (priceData.tradeable === false) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.NOT_TRADEABLE,
                 reason: `${signal.symbol} is not currently tradeable`,
+                context: baseContext,
             };
         }
 
         const maxPriceAgeMs = Number(config.maxPriceAgeMs);
-        const priceAgeMs = Number.isFinite(priceData.timestamp)
-            ? Date.now() - priceData.timestamp
-            : null;
         if (
             Number.isFinite(maxPriceAgeMs) &&
             maxPriceAgeMs > 0 &&
@@ -532,12 +702,13 @@ class LiveTradingEngine extends EventEmitter {
         ) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.STALE_PRICE,
                 reason: `Price data stale (${priceAgeMs}ms > ${maxPriceAgeMs}ms)`,
+                context: baseContext,
             };
         }
 
         const maxSpreadPips = Number(config.maxSpreadPips);
-        const spreadPips = Number(priceData.spread);
         if (
             Number.isFinite(maxSpreadPips) &&
             maxSpreadPips > 0 &&
@@ -546,7 +717,9 @@ class LiveTradingEngine extends EventEmitter {
         ) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.SPREAD_TOO_WIDE,
                 reason: `Spread too wide (${spreadPips.toFixed(1)} > ${maxSpreadPips.toFixed(1)} pips)`,
+                context: baseContext,
             };
         }
 
@@ -555,7 +728,12 @@ class LiveTradingEngine extends EventEmitter {
         if (openCount >= config.maxOpenPositions) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.MAX_POSITIONS,
                 reason: `Max positions reached (${openCount}/${config.maxOpenPositions})`,
+                context: {
+                    ...baseContext,
+                    openPositions: openCount,
+                },
             };
         }
 
@@ -563,16 +741,20 @@ class LiveTradingEngine extends EventEmitter {
         if (this.getOpenTradeByInstrument(signal.symbol)) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
                 reason: "Already in position for this instrument",
+                context: baseContext,
             };
         }
 
         // 6. Check minimum ADX strength
-        if (signal.strength < config.minAdx) {
+        if (config.enableAdxFilter !== false && signal.strength < config.minAdx) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.ADX_TOO_LOW,
                 reason: `ADX too low (${signal.strength?.toFixed(1)} < ${config.minAdx
                     })`,
+                context: baseContext,
             };
         }
 
@@ -585,7 +767,9 @@ class LiveTradingEngine extends EventEmitter {
             if (activeSessions.length === 0) {
                 return {
                     valid: false,
+                    code: ENTRY_REJECTION_CODES.OUTSIDE_SESSION,
                     reason: "Session filter enabled but no active sessions configured",
+                    context: baseContext,
                 };
             }
 
@@ -593,19 +777,31 @@ class LiveTradingEngine extends EventEmitter {
             if (!this.isWithinActiveSession(hourUtc, activeSessions)) {
                 return {
                     valid: false,
+                    code: ENTRY_REJECTION_CODES.OUTSIDE_SESSION,
                     reason: `Outside active sessions (${activeSessions.join(", ")}) at ${hourUtc}:00 UTC`,
+                    context: baseContext,
                 };
             }
         }
 
         // 8. Signal direction check
         if (signal.signal !== "BUY" && signal.signal !== "SELL") {
-            return { valid: false, reason: "Invalid signal type" };
+            return {
+                valid: false,
+                code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                reason: "Invalid signal type",
+                context: baseContext,
+            };
         }
 
         // 9. Shorting enabled check
         if (signal.signal === "SELL" && !config.enableShorting) {
-            return { valid: false, reason: "Short selling is disabled" };
+            return {
+                valid: false,
+                code: ENTRY_REJECTION_CODES.SHORT_DISABLED,
+                reason: "Short selling is disabled",
+                context: baseContext,
+            };
         }
 
         // 10. Max portfolio exposure check (margin used / balance), including projected new trade margin
@@ -615,7 +811,9 @@ class LiveTradingEngine extends EventEmitter {
             if (!Number.isFinite(projectedMargin) || projectedMargin <= 0) {
                 return {
                     valid: false,
+                    code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                     reason: "Unable to validate projected entry margin",
+                    context: baseContext,
                 };
             }
             const exposureCheck = await this.checkPortfolioExposure(
@@ -623,11 +821,22 @@ class LiveTradingEngine extends EventEmitter {
                 projectedMargin
             );
             if (!exposureCheck.valid) {
-                return exposureCheck;
+                return {
+                    valid: false,
+                    code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
+                    reason: exposureCheck.reason,
+                    context: {
+                        ...baseContext,
+                        projectedExposure: exposureCheck.projectedExposure ?? null,
+                    },
+                };
             }
+
+            baseContext.projectedExposure =
+                exposureCheck.projectedExposure ?? null;
         }
 
-        return { valid: true };
+        return { valid: true, context: baseContext };
     }
 
     /**
@@ -639,7 +848,8 @@ class LiveTradingEngine extends EventEmitter {
             signal.symbol,
             stopLossPips,
             signal.currentPrice,
-            config
+            config,
+            signal.entryType
         );
 
         if (!Number.isFinite(units) || units <= 0) return 0;
@@ -713,10 +923,16 @@ class LiveTradingEngine extends EventEmitter {
                 return {
                     valid: false,
                     reason: `Portfolio exposure limit reached (current ${(currentExposure * 100).toFixed(1)}%, projected ${(projectedExposure * 100).toFixed(1)}%, max ${(maxPortfolioExposure * 100).toFixed(1)}%)`,
+                    currentExposure,
+                    projectedExposure,
                 };
             }
 
-            return { valid: true };
+            return {
+                valid: true,
+                currentExposure,
+                projectedExposure,
+            };
         } catch (error) {
             logger.error(
                 `❌ Failed to validate portfolio exposure: ${error.message}`
@@ -724,6 +940,7 @@ class LiveTradingEngine extends EventEmitter {
             return {
                 valid: false,
                 reason: "Unable to validate portfolio exposure",
+                projectedExposure: null,
             };
         }
     }
@@ -738,7 +955,8 @@ class LiveTradingEngine extends EventEmitter {
         instrument,
         stopLossPips,
         currentPrice,
-        config
+        config,
+        entryType = null
     ) {
         // Get account info from Oanda including available margin
         let accountBalance, marginAvailable;
@@ -780,7 +998,15 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // Calculate risk amount on the effective balance
-        const riskPercent = config.riskPerTrade || 0.02;
+        const freshFlipRiskMultiplier = Number.isFinite(
+            Number(config.freshFlipRiskMultiplier)
+        )
+            ? Number(config.freshFlipRiskMultiplier)
+            : 1;
+        const riskPercent =
+            entryType === "FRESH_FLIP"
+                ? (config.riskPerTrade || 0.02) * freshFlipRiskMultiplier
+                : config.riskPerTrade || 0.02;
         const riskAmount = effectiveBalance * riskPercent;
 
         // Calculate pip value in account currency (AUD)
@@ -1049,7 +1275,12 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Execute a trade entry
      */
-    async executeEntry(signal, config) {
+    async executeEntry(
+        signal,
+        config,
+        decisionId = null,
+        validationContext = {}
+    ) {
         const { symbol, currentPrice, strength, entryType, atr, atrPips } =
             signal;
 
@@ -1071,7 +1302,8 @@ class LiveTradingEngine extends EventEmitter {
             symbol,
             stopLossPips,
             currentPrice,
-            config
+            config,
+            entryType
         );
         if (units === 0) {
             logger.warn(
@@ -1085,8 +1317,17 @@ class LiveTradingEngine extends EventEmitter {
                 signal,
                 reason: "Position size too small",
             });
+            await this.rejectEntryDecision(decisionId, {
+                rejectionCode: ENTRY_REJECTION_CODES.POSITION_SIZE_TOO_SMALL,
+                rejectionReason: "Position size too small",
+                ...validationContext,
+            });
             return;
         }
+        await this.updateEntryDecision(decisionId, {
+            stage: ENTRY_DECISION_STAGES.SIZED,
+            ...validationContext,
+        });
         this.emitEngineTelemetry("sizingComputed", {
             ...this.buildSignalTelemetry(signal, config),
             stopLossPips,
@@ -1112,6 +1353,11 @@ class LiveTradingEngine extends EventEmitter {
             // For SELL signals, negate units to open SHORT position in Oanda
             // Oanda API: positive units = BUY, negative units = SELL
             const orderUnits = signal.signal === "SELL" ? -units : units;
+            await this.updateEntryDecision(decisionId, {
+                stage: ENTRY_DECISION_STAGES.ORDER_SUBMITTED,
+                spreadPips,
+                ...validationContext,
+            });
             this.emitEngineTelemetry("orderSubmitted", {
                 ...this.buildSignalTelemetry(signal, config),
                 units,
@@ -1137,6 +1383,12 @@ class LiveTradingEngine extends EventEmitter {
                 this.emit("orderError", {
                     signal,
                     error: "No fill transaction",
+                });
+                await this.rejectEntryDecision(decisionId, {
+                    rejectionCode: ENTRY_REJECTION_CODES.ORDER_SUBMIT_FAILED,
+                    rejectionReason: "No fill transaction",
+                    spreadPips,
+                    ...validationContext,
                 });
                 return;
             }
@@ -1235,6 +1487,14 @@ class LiveTradingEngine extends EventEmitter {
             // Save to database
             await this.tradeRepository.save(trade);
 
+            await this.updateEntryDecision(decisionId, {
+                stage: ENTRY_DECISION_STAGES.FILLED,
+                outcome: ENTRY_DECISION_OUTCOMES.FILLED,
+                tradeId: trade.id,
+                spreadPips,
+                ...validationContext,
+            });
+
             // Track in memory
             this.openTrades.set(trade.id, trade);
 
@@ -1270,6 +1530,11 @@ class LiveTradingEngine extends EventEmitter {
             );
             this.stats.errors++;
             this.emit("orderError", { signal, error: error.message });
+            await this.rejectEntryDecision(decisionId, {
+                rejectionCode: ENTRY_REJECTION_CODES.ORDER_SUBMIT_FAILED,
+                rejectionReason: error.message,
+                ...validationContext,
+            });
             throw error;
         }
     }

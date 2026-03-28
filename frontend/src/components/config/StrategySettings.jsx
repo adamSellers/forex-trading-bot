@@ -226,6 +226,17 @@ const StrategySettings = ({ config, updateConfig }) => {
             disabled={!config.enableRsiFilter}
             helperText="Block BUY signals when RSI exceeds this value"
           />
+          <TextField
+            fullWidth
+            sx={{ mt: 2 }}
+            label="Fresh Long RSI Ceiling"
+            type="number"
+            value={config.freshLongRsiCeiling ?? 68}
+            onChange={(e) => updateConfig('freshLongRsiCeiling', parseFloat(e.target.value))}
+            size="small"
+            disabled={!config.enableRsiFilter}
+            helperText="Applies only to fresh long flips; HTF confirmations can still use the broader ceiling"
+          />
         </Box>
       </GlassCard>
 

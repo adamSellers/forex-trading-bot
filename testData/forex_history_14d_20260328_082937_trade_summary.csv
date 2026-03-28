@@ -1,0 +1,4 @@
+instrument,side,entry_type,trades,win_rate_pct,total_pnl_aud,avg_pnl_aud,avg_pnl_pips,avg_win_aud,avg_loss_aud,profit_factor
+EUR_USD,BUY,HTF_CONFIRMATION,1,100.0,1.31,1.31,34.3,1.31,,
+GBP_USD,SELL,SHORT_ENTRY,1,0.0,0.0,0.0,0.0,,,
+GBP_USD,BUY,FRESH_FLIP,1,0.0,-1.94,-1.94,-22.8,,1.94,0.0

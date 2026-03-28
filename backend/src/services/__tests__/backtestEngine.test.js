@@ -393,6 +393,52 @@ describe("BacktestEngine", () => {
             // Verify it doesn't crash and produces valid results
             expect(result).toHaveProperty("trades");
         });
+
+        test("should disable ADX-derived gates when enableAdxFilter is false", () => {
+            const config = engine._normalizeConfig({
+                enableAdxFilter: false,
+                minAdx: 60,
+                adxSlopeFilter: true,
+                requireDirectionalAdx: true,
+            });
+
+            const adxVal = 12;
+            const pdiVal = 10;
+            const mdiVal = 20;
+            const adxRising = false;
+            const adxMeetsThreshold =
+                !engine.isAdxFilterEnabled(config) || adxVal >= config.minAdx;
+            const adxSlopeOk =
+                !engine.isAdxFilterEnabled(config) ||
+                !config.adxSlopeFilter ||
+                adxRising;
+            const longDiOk =
+                !engine.isAdxFilterEnabled(config) ||
+                config.requireDirectionalAdx === false ||
+                pdiVal > mdiVal;
+
+            expect(adxMeetsThreshold).toBe(true);
+            expect(adxSlopeOk).toBe(true);
+            expect(longDiOk).toBe(true);
+        });
+
+        test("should honor enableRsiFilter by allowing entries that freshLongRsiCeiling would otherwise block", () => {
+            const candles = generateFlipCandles();
+            const blocked = engine.runOnCandles(candles, "AUD_USD", {
+                enableHTFFilter: false,
+                enableContinuationEntry: false,
+                freshLongRsiCeiling: 10,
+            });
+            const allowed = engine.runOnCandles(candles, "AUD_USD", {
+                enableHTFFilter: false,
+                enableContinuationEntry: false,
+                freshLongRsiCeiling: 10,
+                enableRsiFilter: false,
+            });
+
+            expect(blocked.summary.totalTrades).toBe(0);
+            expect(allowed.summary.totalTrades).toBeGreaterThan(0);
+        });
     });
 
     // ==========================================================================
@@ -522,6 +568,44 @@ describe("BacktestEngine", () => {
                     expect(trade.exitPrice).toBe(trade.takeProfitPrice);
                 }
             }
+        });
+
+        test("should apply freshFlipRiskMultiplier to FRESH_FLIP sizing", () => {
+            const indicators = { atrPips: 12 };
+            const pipValue = getPipValue("AUD_USD");
+            const baseConfig = engine._normalizeConfig({
+                enableHTFFilter: false,
+                enableContinuationEntry: false,
+                freshFlipRiskMultiplier: 1.0,
+            });
+            const reducedConfig = engine._normalizeConfig({
+                enableHTFFilter: false,
+                enableContinuationEntry: false,
+                freshFlipRiskMultiplier: 0.5,
+            });
+
+            const baseTrade = engine._openTrade(
+                "AUD_USD",
+                "BUY",
+                "FRESH_FLIP",
+                1.165,
+                indicators,
+                baseConfig,
+                baseConfig.initialBalance,
+                pipValue
+            );
+            const reducedTrade = engine._openTrade(
+                "AUD_USD",
+                "BUY",
+                "FRESH_FLIP",
+                1.165,
+                indicators,
+                reducedConfig,
+                reducedConfig.initialBalance,
+                pipValue
+            );
+
+            expect(baseTrade.units).toBeGreaterThan(reducedTrade.units);
         });
 
         test("should track trailing stop and close at trailing stop price", () => {
@@ -905,6 +989,19 @@ describe("BacktestEngine", () => {
 
             expect(result.config.minAdx).toBe(18);
             expect(result.config.spreadPips).toBe(2.5);
+        });
+
+        test("should simulate live spread gating when simulateLiveEntryFilters is enabled", () => {
+            const candles = generateFlipCandles();
+            const result = engine.runOnCandles(candles, "AUD_USD", {
+                enableHTFFilter: false,
+                enableContinuationEntry: false,
+                simulateLiveEntryFilters: true,
+                maxSpreadPips: 1.0,
+                spreadPips: 1.5,
+            });
+
+            expect(result.summary.totalTrades).toBe(0);
         });
     });
 

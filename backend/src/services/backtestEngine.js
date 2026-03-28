@@ -41,12 +41,15 @@ const DEFAULTS = {
     // Strategy
     atrPeriod: sharedTradingDefaults.supertrendPeriod,
     factor: sharedTradingDefaults.supertrendMultiplier,
+    enableAdxFilter: sharedTradingDefaults.enableAdxFilter,
     minAdx: sharedTradingDefaults.minAdx,
     adxSlopeFilter: sharedTradingDefaults.adxSlopeFilter,
     adxSlopeLookback: sharedTradingDefaults.adxSlopeLookback,
     requireDirectionalAdx: sharedTradingDefaults.requireDirectionalAdx,
+    enableRsiFilter: sharedTradingDefaults.enableRsiFilter,
     longRsiMomentumFloor: sharedTradingDefaults.longRsiMomentumFloor,
     shortRsiMomentumCeiling: sharedTradingDefaults.shortRsiMomentumCeiling,
+    freshLongRsiCeiling: sharedTradingDefaults.freshLongRsiCeiling,
     rsiOverbought: sharedTradingDefaults.rsiOverbought,
     rsiOversold: sharedTradingDefaults.rsiOversold,
 
@@ -70,9 +73,11 @@ const DEFAULTS = {
     // Position sizing / risk
     initialBalance: 500,
     riskPerTrade: sharedTradingDefaults.riskPerTrade,
+    freshFlipRiskMultiplier: sharedTradingDefaults.freshFlipRiskMultiplier,
     leverage: sharedTradingDefaults.leverage,
     marginBuffer: 0.2,
     maxOpenPositions: sharedTradingDefaults.maxOpenPositions,
+    maxPortfolioExposure: sharedTradingDefaults.maxPortfolioExposure,
 
     // Stop loss / take profit
     stopLossType: sharedTradingDefaults.stopLossType,
@@ -94,12 +99,17 @@ const DEFAULTS = {
     enableShorting: sharedTradingDefaults.enableShorting,
     enableHTFFilter: sharedTradingDefaults.enableHTFFilter,
     htfTimeframe: sharedTradingDefaults.htfTimeframe,
+    assets: sharedTradingDefaults.assets,
+    enableSessionFilter: sharedTradingDefaults.enableSessionFilter,
+    activeSessions: sharedTradingDefaults.activeSessions,
 
     // Simulation mode
     enableMultiTimeframe: false,
+    simulateLiveEntryFilters: false,
 
     // Costs
     spreadPips: 1.5,
+    maxSpreadPips: sharedTradingDefaults.maxSpreadPips,
 };
 
 class BacktestEngine {
@@ -283,27 +293,41 @@ class BacktestEngine {
         for (let i = startIndex; i < candles.length; i++) {
             const candle = candles[i];
 
-            if (pendingEntry && openPositions.length < config.maxOpenPositions) {
+            if (pendingEntry) {
                 const entryPrice = candle.open;
                 const ind = getIndicators(pendingEntry.signalCandle);
-                const trade = this._openTrade(
+                const filterResult = this._passesSimulatedLiveEntryFilters({
                     instrument,
-                    pendingEntry.side,
-                    pendingEntry.entryType,
+                    side: pendingEntry.side,
+                    entryType: pendingEntry.entryType,
                     entryPrice,
-                    ind,
-                    config,
+                    candleTime: candle.time,
+                    indicators: ind,
+                    openPositions,
                     balance,
-                    pipValue
-                );
+                    config,
+                    pipValue,
+                });
+
+                const trade =
+                    filterResult.valid && openPositions.length < config.maxOpenPositions
+                        ? this._openTrade(
+                              instrument,
+                              pendingEntry.side,
+                              pendingEntry.entryType,
+                              entryPrice,
+                              ind,
+                              config,
+                              balance,
+                              pipValue
+                          )
+                        : null;
 
                 if (trade) {
                     trade.entryTime = candle.time;
                     trade.entryCandle = i;
                     openPositions.push(trade);
                 }
-                pendingEntry = null;
-            } else if (pendingEntry) {
                 pendingEntry = null;
             }
 
@@ -384,13 +408,20 @@ class BacktestEngine {
                     atrVal,
                 } = ind;
 
-                const adxMeetsThreshold = adxVal >= config.minAdx;
-                const adxSlopeOk = !config.adxSlopeFilter || adxRising;
+                const adxFilterEnabled = this.isAdxFilterEnabled(config);
+                const adxMeetsThreshold =
+                    !adxFilterEnabled || adxVal >= config.minAdx;
+                const adxSlopeOk =
+                    !adxFilterEnabled || !config.adxSlopeFilter || adxRising;
                 const adxOk = adxMeetsThreshold && adxSlopeOk;
                 const longDiOk =
-                    config.requireDirectionalAdx === false || pdiVal > mdiVal;
+                    !adxFilterEnabled ||
+                    config.requireDirectionalAdx === false ||
+                    pdiVal > mdiVal;
                 const shortDiOk =
-                    config.requireDirectionalAdx === false || mdiVal > pdiVal;
+                    !adxFilterEnabled ||
+                    config.requireDirectionalAdx === false ||
+                    mdiVal > pdiVal;
                 const htfContext = this.getHtfTrendContext(
                     htfDirections,
                     htfTimes,
@@ -402,20 +433,20 @@ class BacktestEngine {
                     adxMeetsThreshold &&
                     longDiOk &&
                     htfContext.longAllowed &&
-                    rsiVal >= config.longRsiMomentumFloor;
+                    this.passesLongMomentum(rsiVal, config);
                 const shortBaseRegimeOk =
                     adxMeetsThreshold &&
                     shortDiOk &&
                     htfContext.shortAllowed &&
-                    rsiVal <= config.shortRsiMomentumCeiling;
+                    this.passesShortMomentum(rsiVal, config);
                 const freshLongEntryOk =
                     longBaseRegimeOk &&
                     adxSlopeOk &&
-                    rsiVal < config.rsiOverbought;
+                    this.passesFreshLongRsiCeiling(rsiVal, config);
                 const freshShortEntryOk =
                     shortBaseRegimeOk &&
                     adxSlopeOk &&
-                    rsiVal > config.rsiOversold;
+                    this.passesFreshShortRsiFloor(rsiVal, config);
 
                 let signalType = null;
                 let entryType = null;
@@ -446,7 +477,7 @@ class BacktestEngine {
                         !htfContext.longAllowed &&
                         adxMeetsThreshold &&
                         longDiOk &&
-                        rsiVal >= config.longRsiMomentumFloor
+                        this.passesLongMomentum(rsiVal, config)
                     ) {
                         pendingSignal = this.createHtfConfirmationSetup({
                             direction: "LONG",
@@ -519,7 +550,7 @@ class BacktestEngine {
                         !htfContext.shortAllowed &&
                         adxMeetsThreshold &&
                         shortDiOk &&
-                        rsiVal <= config.shortRsiMomentumCeiling
+                        this.passesShortMomentum(rsiVal, config)
                     ) {
                         pendingSignal = this.createHtfConfirmationSetup({
                             direction: "SHORT",
@@ -681,6 +712,46 @@ class BacktestEngine {
         return this._buildResult(closedTrades, equityCurve, config);
     }
 
+    isAdxFilterEnabled(config) {
+        return config.enableAdxFilter !== false;
+    }
+
+    isRsiFilterEnabled(config) {
+        return config.enableRsiFilter !== false;
+    }
+
+    getLongMomentumFloor(config) {
+        return config.longRsiMomentumFloor || 52;
+    }
+
+    getShortMomentumCeiling(config) {
+        return config.shortRsiMomentumCeiling || 48;
+    }
+
+    getFreshLongRsiCeiling(config) {
+        return config.freshLongRsiCeiling || config.rsiOverbought || 75;
+    }
+
+    passesLongMomentum(rsiVal, config) {
+        return !this.isRsiFilterEnabled(config) || rsiVal >= this.getLongMomentumFloor(config);
+    }
+
+    passesShortMomentum(rsiVal, config) {
+        return !this.isRsiFilterEnabled(config) || rsiVal <= this.getShortMomentumCeiling(config);
+    }
+
+    passesFreshLongRsiCeiling(rsiVal, config) {
+        return !this.isRsiFilterEnabled(config) || rsiVal < this.getFreshLongRsiCeiling(config);
+    }
+
+    passesLongOverboughtCeiling(rsiVal, config) {
+        return !this.isRsiFilterEnabled(config) || rsiVal < config.rsiOverbought;
+    }
+
+    passesFreshShortRsiFloor(rsiVal, config) {
+        return !this.isRsiFilterEnabled(config) || rsiVal > config.rsiOversold;
+    }
+
     isLongContinuationEnabled(config) {
         if (config.enableContinuationEntry === false) return false;
         return config.enableLongContinuationEntry !== false;
@@ -797,7 +868,7 @@ class BacktestEngine {
             if (
                 !adxMeetsThreshold ||
                 !longDiOk ||
-                rsiVal < config.longRsiMomentumFloor
+                !this.passesLongMomentum(rsiVal, config)
             ) {
                 return { clearPending: true };
             }
@@ -823,7 +894,7 @@ class BacktestEngine {
                 : 0;
         const isChaseable = priceDeviation <= config.continuationMaxPriceDeviation;
 
-        if (adxOk && rsiVal < config.rsiOverbought && isChaseable) {
+        if (adxOk && this.passesLongOverboughtCeiling(rsiVal, config) && isChaseable) {
             return {
                 signalType: "BUY",
                 entryType: "HTF_CONFIRMATION",
@@ -883,7 +954,7 @@ class BacktestEngine {
             if (
                 !adxMeetsThreshold ||
                 !shortDiOk ||
-                rsiVal > config.shortRsiMomentumCeiling
+                !this.passesShortMomentum(rsiVal, config)
             ) {
                 return { clearPending: true };
             }
@@ -909,7 +980,7 @@ class BacktestEngine {
                 : 0;
         const isChaseable = priceDeviation <= config.continuationMaxPriceDeviation;
 
-        if (adxOk && rsiVal > config.rsiOversold && isChaseable) {
+        if (adxOk && this.passesFreshShortRsiFloor(rsiVal, config) && isChaseable) {
             return {
                 signalType: "SELL",
                 entryType: "SHORT_HTF_CONFIRMATION",
@@ -1039,8 +1110,8 @@ class BacktestEngine {
             bullishBreakout &&
             adxOk &&
             longDiOk &&
-            rsiVal >= config.longRsiMomentumFloor &&
-            rsiVal < config.rsiOverbought &&
+            this.passesLongMomentum(rsiVal, config) &&
+            this.passesLongOverboughtCeiling(rsiVal, config) &&
             htfContext.longAllowed;
 
         if (reaccelerationConfirmed) {
@@ -1102,7 +1173,9 @@ class BacktestEngine {
         const bullishPullbackCandle =
             candle.close > previousCandle.close ||
             candle.high > previousCandle.high;
-        const rsiRecovered = rsiVal >= config.shortRsiMomentumCeiling;
+        const rsiRecovered =
+            !this.isRsiFilterEnabled(config) ||
+            rsiVal >= this.getShortMomentumCeiling(config);
 
         if (pending.state === "AWAIT_PULLBACK") {
             if (pullbackDepthAtr > config.continuationPullbackMaxAtr) {
@@ -1167,8 +1240,8 @@ class BacktestEngine {
             bearishBreakdown &&
             adxOk &&
             shortDiOk &&
-            rsiVal <= config.shortRsiMomentumCeiling &&
-            rsiVal > config.rsiOversold &&
+            this.passesShortMomentum(rsiVal, config) &&
+            this.passesFreshShortRsiFloor(rsiVal, config) &&
             htfContext.shortAllowed;
 
         if (reaccelerationConfirmed) {
@@ -1248,6 +1321,10 @@ class BacktestEngine {
             configOverrides.factor ?? configOverrides.supertrendMultiplier,
             config.factor
         );
+        config.enableAdxFilter = toBoolean(
+            configOverrides.enableAdxFilter,
+            config.enableAdxFilter
+        );
         config.minAdx = toFiniteNumber(configOverrides.minAdx, config.minAdx);
         config.adxSlopeFilter = toBoolean(
             configOverrides.adxSlopeFilter,
@@ -1266,6 +1343,10 @@ class BacktestEngine {
             configOverrides.requireDirectionalAdx,
             config.requireDirectionalAdx
         );
+        config.enableRsiFilter = toBoolean(
+            configOverrides.enableRsiFilter,
+            config.enableRsiFilter
+        );
         config.longRsiMomentumFloor = toFiniteNumber(
             configOverrides.longRsiMomentumFloor,
             config.longRsiMomentumFloor
@@ -1273,6 +1354,10 @@ class BacktestEngine {
         config.shortRsiMomentumCeiling = toFiniteNumber(
             configOverrides.shortRsiMomentumCeiling,
             config.shortRsiMomentumCeiling
+        );
+        config.freshLongRsiCeiling = toFiniteNumber(
+            configOverrides.freshLongRsiCeiling,
+            config.freshLongRsiCeiling
         );
         config.rsiOverbought = toFiniteNumber(
             configOverrides.rsiOverbought ?? configOverrides.maxRsi,
@@ -1331,6 +1416,10 @@ class BacktestEngine {
             configOverrides.riskPerTrade,
             config.riskPerTrade
         );
+        config.freshFlipRiskMultiplier = toFiniteNumber(
+            configOverrides.freshFlipRiskMultiplier,
+            config.freshFlipRiskMultiplier
+        );
         config.leverage = toFiniteNumber(
             configOverrides.leverage,
             config.leverage
@@ -1347,6 +1436,10 @@ class BacktestEngine {
                     config.maxOpenPositions
                 )
             )
+        );
+        config.maxPortfolioExposure = toFiniteNumber(
+            configOverrides.maxPortfolioExposure,
+            config.maxPortfolioExposure
         );
 
         config.stopLossType = toString(
@@ -1401,6 +1494,9 @@ class BacktestEngine {
             configOverrides.enableShorting,
             config.enableShorting
         );
+        config.assets = Array.isArray(configOverrides.assets)
+            ? configOverrides.assets.filter(Boolean)
+            : config.assets;
         config.enableHTFFilter = toBoolean(
             configOverrides.enableHTFFilter,
             config.enableHTFFilter
@@ -1413,9 +1509,24 @@ class BacktestEngine {
             configOverrides.enableMultiTimeframe,
             config.enableMultiTimeframe
         );
+        config.simulateLiveEntryFilters = toBoolean(
+            configOverrides.simulateLiveEntryFilters,
+            config.simulateLiveEntryFilters
+        );
+        config.enableSessionFilter = toBoolean(
+            configOverrides.enableSessionFilter,
+            config.enableSessionFilter
+        );
+        config.activeSessions = Array.isArray(configOverrides.activeSessions)
+            ? configOverrides.activeSessions.filter(Boolean)
+            : config.activeSessions;
         config.spreadPips = toFiniteNumber(
             configOverrides.spreadPips,
             config.spreadPips
+        );
+        config.maxSpreadPips = toFiniteNumber(
+            configOverrides.maxSpreadPips,
+            config.maxSpreadPips
         );
 
         return config;
@@ -1576,7 +1687,31 @@ class BacktestEngine {
         };
     }
 
-    _openTrade(instrument, side, entryType, entryPrice, indicators, config, balance, pipValue) {
+    _calculateRiskPerTrade(entryType, config) {
+        const baseRisk = toFiniteNumber(config.riskPerTrade, DEFAULTS.riskPerTrade);
+        if (entryType === "FRESH_FLIP") {
+            return Math.max(
+                0,
+                baseRisk *
+                    toFiniteNumber(
+                        config.freshFlipRiskMultiplier,
+                        DEFAULTS.freshFlipRiskMultiplier
+                    )
+            );
+        }
+
+        return Math.max(0, baseRisk);
+    }
+
+    _estimateTradeSizing(
+        side,
+        entryType,
+        entryPrice,
+        indicators,
+        config,
+        balance,
+        pipValue
+    ) {
         const stopLossPips = this._calculateStopLossPips(
             indicators.atrPips,
             config
@@ -1589,11 +1724,142 @@ class BacktestEngine {
         const safeMargin = balance * (1 - config.marginBuffer);
         if (safeMargin <= 0) return null;
 
-        const riskAmount = safeMargin * config.riskPerTrade;
+        const riskAmount = safeMargin * this._calculateRiskPerTrade(entryType, config);
         const units = Math.floor(riskAmount / (stopLossPips * pipValue));
         if (units < 1) return null;
 
         const marginUsed = (units * entryPrice) / config.leverage;
+
+        return {
+            stopLossPips,
+            stopLossPrice,
+            units,
+            marginUsed,
+            riskAmount,
+        };
+    }
+
+    _isWithinActiveSession(hourUtc, activeSessions = []) {
+        const sessionHours = {
+            sydney: { start: 21, end: 6 },
+            tokyo: { start: 0, end: 9 },
+            london: { start: 7, end: 16 },
+            newyork: { start: 12, end: 21 },
+        };
+
+        return activeSessions.some((sessionName) => {
+            const session = sessionHours[sessionName];
+            if (!session) return false;
+
+            if (session.start > session.end) {
+                return hourUtc >= session.start || hourUtc < session.end;
+            }
+
+            return hourUtc >= session.start && hourUtc < session.end;
+        });
+    }
+
+    _passesSimulatedLiveEntryFilters({
+        instrument,
+        side,
+        entryType,
+        entryPrice,
+        candleTime,
+        indicators,
+        openPositions,
+        balance,
+        config,
+        pipValue,
+    }) {
+        if (!config.simulateLiveEntryFilters) {
+            return { valid: true };
+        }
+
+        if (Array.isArray(config.assets) && config.assets.length > 0) {
+            if (!config.assets.includes(instrument)) {
+                return { valid: false, reason: "inactive_asset" };
+            }
+        }
+
+        if (side === "SELL" && !config.enableShorting) {
+            return { valid: false, reason: "short_disabled" };
+        }
+
+        if (config.enableSessionFilter) {
+            const activeSessions = Array.isArray(config.activeSessions)
+                ? config.activeSessions
+                : [];
+            if (
+                activeSessions.length === 0 ||
+                !this._isWithinActiveSession(
+                    new Date(candleTime * 1000).getUTCHours(),
+                    activeSessions
+                )
+            ) {
+                return { valid: false, reason: "outside_session" };
+            }
+        }
+
+        if (openPositions.length >= config.maxOpenPositions) {
+            return { valid: false, reason: "max_positions" };
+        }
+
+        if (
+            Number.isFinite(config.maxSpreadPips) &&
+            config.maxSpreadPips > 0 &&
+            Number.isFinite(config.spreadPips) &&
+            config.spreadPips > config.maxSpreadPips
+        ) {
+            return { valid: false, reason: "spread_too_wide" };
+        }
+
+        if (
+            Number.isFinite(config.maxPortfolioExposure) &&
+            config.maxPortfolioExposure > 0
+        ) {
+            const estimate = this._estimateTradeSizing(
+                side,
+                entryType,
+                entryPrice,
+                indicators,
+                config,
+                balance,
+                pipValue
+            );
+            if (!estimate) {
+                return { valid: false, reason: "position_size_too_small" };
+            }
+
+            const currentMarginUsed = openPositions.reduce(
+                (sum, position) => sum + toFiniteNumber(position.marginUsed, 0),
+                0
+            );
+            const projectedExposure =
+                balance > 0
+                    ? (currentMarginUsed + estimate.marginUsed) / balance
+                    : Infinity;
+
+            if (projectedExposure >= config.maxPortfolioExposure) {
+                return { valid: false, reason: "exposure_limit" };
+            }
+        }
+
+        return { valid: true };
+    }
+
+    _openTrade(instrument, side, entryType, entryPrice, indicators, config, balance, pipValue) {
+        const sizing = this._estimateTradeSizing(
+            side,
+            entryType,
+            entryPrice,
+            indicators,
+            config,
+            balance,
+            pipValue
+        );
+        if (!sizing) return null;
+
+        const { stopLossPips, stopLossPrice, units, marginUsed } = sizing;
 
         let takeProfitPrice = null;
         if (config.enableTakeProfit && marginUsed > 0) {

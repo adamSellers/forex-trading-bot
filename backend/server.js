@@ -14,6 +14,7 @@ const ConfigService = require("./src/services/configService");
 const LiveTradingEngine = require("./src/services/LiveTradingEngine");
 const TradeRepository = require("./src/repositories/tradeRepository");
 const SignalRepository = require("./src/repositories/signalRepository");
+const EntryDecisionRepository = require("./src/repositories/entryDecisionRepository");
 const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 const BacktestRepository = require("./src/repositories/backtestRepository");
@@ -59,18 +60,22 @@ const dataService = new OandaDataService(INSTRUMENTS);
 // Initialize repositories (before SignalGenerator so we can pass signalRepository)
 const tradeRepository = new TradeRepository();
 const signalRepository = new SignalRepository();
+const entryDecisionRepository = new EntryDecisionRepository();
 
 // Initialize SignalGenerator with repository for persistence
 const signalGenerator = new SignalGenerator({
     assets: INSTRUMENTS,
     timeframe: initialConfig.timeframe || "15m",
+    enableAdxFilter: initialConfig.enableAdxFilter ?? true,
     minAdx: initialConfig.minAdx || 22,
     adxSlopeFilter: initialConfig.adxSlopeFilter ?? true,
     adxSlopeLookback: initialConfig.adxSlopeLookback || 3,
     requireDirectionalAdx: initialConfig.requireDirectionalAdx ?? true,
+    enableRsiFilter: initialConfig.enableRsiFilter ?? true,
     longRsiMomentumFloor: initialConfig.longRsiMomentumFloor || 52,
     shortRsiMomentumCeiling:
         initialConfig.shortRsiMomentumCeiling || 48,
+    freshLongRsiCeiling: initialConfig.freshLongRsiCeiling || 68,
     rsiOverbought: initialConfig.rsiOverbought || 75,
     rsiOversold: initialConfig.rsiOversold || 30,
     enableContinuationEntry: initialConfig.enableContinuationEntry ?? true,
@@ -92,7 +97,11 @@ const signalGenerator = new SignalGenerator({
 }, signalRepository);
 
 // Initialize S3 report scheduler
-const s3ReportScheduler = new S3ReportScheduler(tradeRepository, signalRepository);
+const s3ReportScheduler = new S3ReportScheduler(
+    tradeRepository,
+    signalRepository,
+    entryDecisionRepository
+);
 
 // Initialize backtest repository (for storing backtest results)
 const backtestRepository = new BacktestRepository();
@@ -111,7 +120,8 @@ tradingEngine.init(
     dataService,
     tradeRepository,
     signalGenerator,
-    io
+    io,
+    entryDecisionRepository
 );
 
 // Initialize email service (will log status)
@@ -124,6 +134,7 @@ app.locals.configService = configService;
 app.locals.tradingEngine = tradingEngine;
 app.locals.tradeRepository = tradeRepository;
 app.locals.signalRepository = signalRepository;
+app.locals.entryDecisionRepository = entryDecisionRepository;
 app.locals.emailService = emailService;
 app.locals.s3ReportScheduler = s3ReportScheduler;
 app.locals.backtestRepository = backtestRepository;

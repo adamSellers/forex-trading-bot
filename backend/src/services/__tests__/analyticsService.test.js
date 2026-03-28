@@ -7,6 +7,7 @@ describe('AnalyticsService', () => {
     let service;
     let mockTradeRepo;
     let mockSignalRepo;
+    let mockEntryDecisionRepo;
 
     beforeEach(() => {
         mockTradeRepo = {
@@ -15,7 +16,14 @@ describe('AnalyticsService', () => {
         mockSignalRepo = {
             getSignalsSince: jest.fn().mockResolvedValue([]),
         };
-        service = new AnalyticsService(mockTradeRepo, mockSignalRepo);
+        mockEntryDecisionRepo = {
+            getDecisionsSince: jest.fn().mockResolvedValue([]),
+        };
+        service = new AnalyticsService(
+            mockTradeRepo,
+            mockSignalRepo,
+            mockEntryDecisionRepo
+        );
     });
 
     describe('getAnalytics', () => {
@@ -33,6 +41,9 @@ describe('AnalyticsService', () => {
             expect(result).toHaveProperty('equityData');
             expect(result).toHaveProperty('adxAnalysis');
             expect(result).toHaveProperty('sidePerformance');
+            expect(result).toHaveProperty('entryFunnel');
+            expect(result).toHaveProperty('rejectionBreakdown');
+            expect(result).toHaveProperty('executionGapByCohort');
             expect(result).toHaveProperty('rawCounts');
         });
 
@@ -67,6 +78,7 @@ describe('AnalyticsService', () => {
             const expectedCutoff = now - 24 * 60 * 60 * 1000;
             expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(expectedCutoff);
             expect(mockSignalRepo.getSignalsSince).toHaveBeenCalledTimes(1);
+            expect(mockEntryDecisionRepo.getDecisionsSince).toHaveBeenCalledWith(expectedCutoff);
 
             const signalCutoff = mockSignalRepo.getSignalsSince.mock.calls[0][0];
             expect(signalCutoff).toBeInstanceOf(Date);
@@ -221,6 +233,98 @@ describe('AnalyticsService', () => {
                     expect.objectContaining({
                         label: 'Cooldown Duplicates',
                         value: 1,
+                    }),
+                ])
+            );
+        });
+    });
+
+    describe('entry decision analytics', () => {
+        test('should calculate entry funnel and rejection breakdown from entry decisions', () => {
+            const signals = [
+                createMockSignal({
+                    symbol: 'GBP_USD',
+                    signalClass: 'ACTIONABLE',
+                    intent: 'ENTER_LONG',
+                    reasonCode: 'LONG_FRESH_FLIP_ACTIONABLE',
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                }),
+                createMockSignal({
+                    symbol: 'EUR_USD',
+                    signalClass: 'ACTIONABLE',
+                    intent: 'ENTER_LONG',
+                    entryType: 'HTF_CONFIRMATION',
+                    reasonCode: 'LONG_HTF_CONFIRMED_ENTRY',
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                }),
+            ];
+            const summary = service.extractSignalEventSummary(signals);
+            const entryDecisions = [
+                {
+                    instrument: 'GBP_USD',
+                    side: 'BUY',
+                    signal: 'BUY',
+                    entryType: 'FRESH_FLIP',
+                    configHash: 'cfg-1',
+                    stage: 'REJECTED',
+                    outcome: 'REJECTED',
+                    rejectionCode: 'SPREAD_TOO_WIDE',
+                    spreadPips: 1.7,
+                },
+                {
+                    instrument: 'EUR_USD',
+                    side: 'BUY',
+                    signal: 'BUY',
+                    entryType: 'HTF_CONFIRMATION',
+                    configHash: 'cfg-1',
+                    stage: 'FILLED',
+                    outcome: 'FILLED',
+                    tradeId: 'trade-1',
+                },
+            ];
+            const closedTrades = [
+                createClosedTrade({
+                    instrument: 'EUR_USD',
+                    entryType: 'HTF_CONFIRMATION',
+                    configHash: 'cfg-1',
+                }),
+            ];
+
+            const funnel = service.calculateEntryFunnel(
+                summary.uniqueActionableSignals,
+                entryDecisions,
+                closedTrades
+            );
+            const rejectionBreakdown =
+                service.calculateRejectionBreakdown(entryDecisions);
+            const executionGap = service.calculateExecutionGapByCohort(
+                summary.uniqueActionableSignals,
+                entryDecisions,
+                closedTrades
+            );
+
+            expect(funnel.summary.generatedSignals).toBe(2);
+            expect(funnel.summary.filledTrades).toBe(1);
+            expect(funnel.summary.rejectedEntries).toBe(1);
+            expect(rejectionBreakdown.breakdown).toEqual([
+                expect.objectContaining({
+                    rejectionCode: 'SPREAD_TOO_WIDE',
+                    count: 1,
+                }),
+            ]);
+            expect(executionGap.byCohort).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        instrument: 'EUR_USD',
+                        filledTrades: 1,
+                        closedTrades: 1,
+                    }),
+                    expect.objectContaining({
+                        instrument: 'GBP_USD',
+                        rejectedEntries: 1,
+                        executionRatePct: 0,
                     }),
                 ])
             );

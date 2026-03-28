@@ -21,12 +21,15 @@ class SignalGenerator extends EventEmitter {
             assets: [],
 
             // Forex default ADX threshold
+            enableAdxFilter: true,
             minAdx: 22,
             adxSlopeFilter: true, // Only enter when ADX is rising
             adxSlopeLookback: 3, // Compare current ADX vs N bars ago
             requireDirectionalAdx: true,
+            enableRsiFilter: true,
             longRsiMomentumFloor: 52,
             shortRsiMomentumCeiling: 48,
+            freshLongRsiCeiling: 68,
             rsiOverbought: 75,
             rsiOversold: 30,
             atrPeriod: 10,
@@ -320,6 +323,52 @@ class SignalGenerator extends EventEmitter {
         return this.config.enableLongContinuationEntry !== false;
     }
 
+    isAdxFilterEnabled() {
+        return this.config.enableAdxFilter !== false;
+    }
+
+    isRsiFilterEnabled() {
+        return this.config.enableRsiFilter !== false;
+    }
+
+    getLongMomentumFloor() {
+        return this.config.longRsiMomentumFloor || 52;
+    }
+
+    getShortMomentumCeiling() {
+        return this.config.shortRsiMomentumCeiling || 48;
+    }
+
+    getFreshLongRsiCeiling() {
+        return (
+            this.config.freshLongRsiCeiling ||
+            this.config.rsiOverbought ||
+            75
+        );
+    }
+
+    passesLongMomentum(rsiVal) {
+        return !this.isRsiFilterEnabled() || rsiVal >= this.getLongMomentumFloor();
+    }
+
+    passesShortMomentum(rsiVal) {
+        return (
+            !this.isRsiFilterEnabled() || rsiVal <= this.getShortMomentumCeiling()
+        );
+    }
+
+    passesFreshLongRsiCeiling(rsiVal) {
+        return !this.isRsiFilterEnabled() || rsiVal < this.getFreshLongRsiCeiling();
+    }
+
+    passesLongOverboughtCeiling(rsiVal) {
+        return !this.isRsiFilterEnabled() || rsiVal < (this.config.rsiOverbought || 75);
+    }
+
+    passesFreshShortRsiFloor(rsiVal) {
+        return !this.isRsiFilterEnabled() || rsiVal > (this.config.rsiOversold || 30);
+    }
+
     isShortContinuationEnabled() {
         if (this.config.enableContinuationEntry === false) return false;
         return this.config.enableShortContinuationEntry !== false;
@@ -497,13 +546,11 @@ class SignalGenerator extends EventEmitter {
             pending.peakPrice || pending.flipPrice,
             currentHigh
         );
-        const longMomentumFloor = this.config.longRsiMomentumFloor || 52;
-
         if (!htfContext.longAllowed) {
             if (
                 !adxMeetsThreshold ||
                 !longDiOk ||
-                rsiVal < longMomentumFloor
+                !this.passesLongMomentum(rsiVal)
             ) {
                 return {
                     clearPending: true,
@@ -547,7 +594,7 @@ class SignalGenerator extends EventEmitter {
                 : 0;
         const isChaseable = priceDeviation <= maxDeviation;
 
-        if (adxOk && rsiVal < (this.config.rsiOverbought || 75) && isChaseable) {
+        if (adxOk && this.passesLongOverboughtCeiling(rsiVal) && isChaseable) {
             return {
                 signalType: "BUY",
                 entryType: "HTF_CONFIRMATION",
@@ -643,14 +690,11 @@ class SignalGenerator extends EventEmitter {
             pending.troughPrice || pending.flipPrice,
             currentLow
         );
-        const shortMomentumCeiling =
-            this.config.shortRsiMomentumCeiling || 48;
-
         if (!htfContext.shortAllowed) {
             if (
                 !adxMeetsThreshold ||
                 !shortDiOk ||
-                rsiVal > shortMomentumCeiling
+                !this.passesShortMomentum(rsiVal)
             ) {
                 return {
                     clearPending: true,
@@ -694,7 +738,7 @@ class SignalGenerator extends EventEmitter {
                 : 0;
         const isChaseable = priceDeviation <= maxDeviation;
 
-        if (adxOk && rsiVal > (this.config.rsiOversold || 30) && isChaseable) {
+        if (adxOk && this.passesFreshShortRsiFloor(rsiVal) && isChaseable) {
             return {
                 signalType: "SELL",
                 entryType: "SHORT_HTF_CONFIRMATION",
@@ -793,7 +837,6 @@ class SignalGenerator extends EventEmitter {
 
         const minPullbackAtr = this.config.continuationPullbackMinAtr || 0.5;
         const maxPullbackAtr = this.config.continuationPullbackMaxAtr || 1.5;
-        const longMomentumFloor = this.config.longRsiMomentumFloor || 52;
         const trackedPeakPrice =
             pending.state === "AWAIT_PULLBACK"
                 ? Math.max(pending.peakPrice || pending.flipPrice, currentHigh)
@@ -898,8 +941,8 @@ class SignalGenerator extends EventEmitter {
             bullishBreakout &&
             adxOk &&
             longDiOk &&
-            rsiVal >= longMomentumFloor &&
-            rsiVal < (this.config.rsiOverbought || 75) &&
+            this.passesLongMomentum(rsiVal) &&
+            this.passesLongOverboughtCeiling(rsiVal) &&
             htfContext.longAllowed;
 
         if (reaccelerationConfirmed) {
@@ -984,8 +1027,6 @@ class SignalGenerator extends EventEmitter {
 
         const minPullbackAtr = this.config.continuationPullbackMinAtr || 0.5;
         const maxPullbackAtr = this.config.continuationPullbackMaxAtr || 1.5;
-        const shortMomentumCeiling =
-            this.config.shortRsiMomentumCeiling || 48;
         const trackedTroughPrice =
             pending.state === "AWAIT_PULLBACK"
                 ? Math.min(pending.troughPrice || pending.flipPrice, currentLow)
@@ -995,7 +1036,9 @@ class SignalGenerator extends EventEmitter {
         const bullishPullbackCandle =
             currentClose > previousCandle.close ||
             currentHigh > previousCandle.high;
-        const rsiRecovered = rsiVal >= shortMomentumCeiling;
+        const rsiRecovered =
+            !this.isRsiFilterEnabled() ||
+            rsiVal >= this.getShortMomentumCeiling();
 
         if (pending.state === "AWAIT_PULLBACK") {
             if (pullbackDepthAtr > maxPullbackAtr) {
@@ -1089,8 +1132,8 @@ class SignalGenerator extends EventEmitter {
             bearishBreakdown &&
             adxOk &&
             shortDiOk &&
-            rsiVal <= shortMomentumCeiling &&
-            rsiVal > (this.config.rsiOversold || 30) &&
+            this.passesShortMomentum(rsiVal) &&
+            this.passesFreshShortRsiFloor(rsiVal) &&
             htfContext.shortAllowed;
 
         if (reaccelerationConfirmed) {
@@ -1218,34 +1261,41 @@ class SignalGenerator extends EventEmitter {
             let signalClass = "INFO";
             let intent = "NONE";
 
-            const adxMeetsThreshold = adxVal >= (this.config.minAdx || 22);
-            const adxSlopeOk = !this.config.adxSlopeFilter || adxRising;
+            const adxFilterEnabled = this.isAdxFilterEnabled();
+            const rsiFilterEnabled = this.isRsiFilterEnabled();
+            const longMomentumFloor = this.getLongMomentumFloor();
+            const shortMomentumCeiling = this.getShortMomentumCeiling();
+            const adxMeetsThreshold =
+                !adxFilterEnabled || adxVal >= (this.config.minAdx || 22);
+            const adxSlopeOk =
+                !adxFilterEnabled || !this.config.adxSlopeFilter || adxRising;
             const adxOk = adxMeetsThreshold && adxSlopeOk;
             const longDiOk =
-                this.config.requireDirectionalAdx === false || pdiVal > mdiVal;
+                !adxFilterEnabled ||
+                this.config.requireDirectionalAdx === false ||
+                pdiVal > mdiVal;
             const shortDiOk =
-                this.config.requireDirectionalAdx === false || mdiVal > pdiVal;
-            const longMomentumFloor = this.config.longRsiMomentumFloor || 52;
-            const shortMomentumCeiling =
-                this.config.shortRsiMomentumCeiling || 48;
+                !adxFilterEnabled ||
+                this.config.requireDirectionalAdx === false ||
+                mdiVal > pdiVal;
             const longBaseRegimeOk =
                 adxMeetsThreshold &&
                 longDiOk &&
                 htfContext.longAllowed &&
-                rsiVal >= longMomentumFloor;
+                this.passesLongMomentum(rsiVal);
             const shortBaseRegimeOk =
                 adxMeetsThreshold &&
                 shortDiOk &&
                 htfContext.shortAllowed &&
-                rsiVal <= shortMomentumCeiling;
+                this.passesShortMomentum(rsiVal);
             const freshLongEntryOk =
                 longBaseRegimeOk &&
                 adxSlopeOk &&
-                rsiVal < (this.config.rsiOverbought || 75);
+                this.passesFreshLongRsiCeiling(rsiVal);
             const freshShortEntryOk =
                 shortBaseRegimeOk &&
                 adxSlopeOk &&
-                rsiVal > (this.config.rsiOversold || 30);
+                this.passesFreshShortRsiFloor(rsiVal);
 
             // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED -> GREEN)
             if (prevDir === -1 && currentDir === 1) {
@@ -1288,7 +1338,7 @@ class SignalGenerator extends EventEmitter {
                     !htfContext.longAllowed &&
                     adxMeetsThreshold &&
                     longDiOk &&
-                    rsiVal >= longMomentumFloor
+                    this.passesLongMomentum(rsiVal)
                 ) {
                     const pendingSetup = this.createHtfConfirmationSetup({
                         direction: "LONG",
@@ -1310,12 +1360,12 @@ class SignalGenerator extends EventEmitter {
                     signalClass = "FILTERED";
                     intent = "WAIT";
                     reason = `HOLD: ST Flip blocked by ${htfContext.reason}`;
-                } else if (!adxMeetsThreshold) {
+                } else if (adxFilterEnabled && !adxMeetsThreshold) {
                     reasonCode = "LONG_FRESH_FLIP_BLOCKED_ADX";
                     signalClass = "FILTERED";
                     intent = "WAIT";
                     reason = `HOLD: ST Flip blocked by weak ADX ${adxVal.toFixed(1)} < ${this.config.minAdx}`;
-                } else if (!longDiOk) {
+                } else if (adxFilterEnabled && !longDiOk) {
                     reasonCode = "LONG_FRESH_FLIP_BLOCKED_DIRECTIONAL_ADX";
                     signalClass = "FILTERED";
                     intent = "WAIT";
@@ -1323,7 +1373,7 @@ class SignalGenerator extends EventEmitter {
                         `HOLD: ST Flip blocked by directional ADX (+DI ${pdiVal.toFixed(
                             1
                         )} <= -DI ${mdiVal.toFixed(1)})`;
-                } else if (rsiVal < longMomentumFloor) {
+                } else if (rsiFilterEnabled && !this.passesLongMomentum(rsiVal)) {
                     reasonCode = "LONG_FRESH_FLIP_BLOCKED_MOMENTUM";
                     signalClass = "FILTERED";
                     intent = "WAIT";
@@ -1420,7 +1470,7 @@ class SignalGenerator extends EventEmitter {
                     !htfContext.shortAllowed &&
                     adxMeetsThreshold &&
                     shortDiOk &&
-                    rsiVal <= shortMomentumCeiling
+                    this.passesShortMomentum(rsiVal)
                 ) {
                     const pendingSetup = this.createHtfConfirmationSetup({
                         direction: "SHORT",
@@ -1466,13 +1516,13 @@ class SignalGenerator extends EventEmitter {
                     signalClass = "EXIT_ONLY";
                     intent = "EXIT_LONG_ONLY";
                     reason = `📉 EXIT: ST Flip RED (short blocked: ${htfContext.reason})`;
-                } else if (!adxMeetsThreshold) {
+                } else if (adxFilterEnabled && !adxMeetsThreshold) {
                     entryType = "EXIT_ONLY";
                     reasonCode = "SHORT_FRESH_FLIP_BLOCKED_ADX";
                     signalClass = "EXIT_ONLY";
                     intent = "EXIT_LONG_ONLY";
                     reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} < ${this.config.minAdx})`;
-                } else if (!shortDiOk) {
+                } else if (adxFilterEnabled && !shortDiOk) {
                     entryType = "EXIT_ONLY";
                     reasonCode = "SHORT_FRESH_FLIP_BLOCKED_DIRECTIONAL_ADX";
                     signalClass = "EXIT_ONLY";
@@ -1481,7 +1531,7 @@ class SignalGenerator extends EventEmitter {
                         `📉 EXIT: ST Flip RED (short blocked: directional ADX -DI ${mdiVal.toFixed(
                             1
                         )} <= +DI ${pdiVal.toFixed(1)})`;
-                } else if (rsiVal > shortMomentumCeiling) {
+                } else if (rsiFilterEnabled && !this.passesShortMomentum(rsiVal)) {
                     entryType = "EXIT_ONLY";
                     reasonCode = "SHORT_FRESH_FLIP_BLOCKED_MOMENTUM";
                     signalClass = "EXIT_ONLY";

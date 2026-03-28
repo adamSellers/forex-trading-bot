@@ -70,7 +70,28 @@ const RiskSettings = ({ config, updateConfig }) => {
               />
             </Grid>
           )}
-          
+
+          {config.positionSizeMethod === 'RISK' && (
+            <Grid item xs={12} md={6}>
+              <Typography gutterBottom variant="subtitle2" color="text.secondary">FRESH FLIP RISK MULTIPLIER</Typography>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Slider
+                  value={config.freshFlipRiskMultiplier ?? 0.5}
+                  min={0.25} max={1.0} step={0.05}
+                  onChange={(_, v) => updateConfig('freshFlipRiskMultiplier', v)}
+                  sx={{ flexGrow: 1 }}
+                />
+                <Chip
+                  label={`${(config.freshFlipRiskMultiplier ?? 0.5).toFixed(2)}x`}
+                  color={(config.freshFlipRiskMultiplier ?? 0.5) < 0.75 ? 'warning' : 'success'}
+                />
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                Down-weights aggressive fresh flips while leaving HTF confirmations and pullbacks at full risk
+              </Typography>
+            </Grid>
+          )}
+
           <Grid item xs={12}>
             <Divider sx={{ my: 1 }} />
           </Grid>

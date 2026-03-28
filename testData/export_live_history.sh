@@ -112,6 +112,7 @@ sqlite3 "$db_path" ".backup '$snapshot'"
 
 signal_columns="$(sqlite3 "$snapshot" "PRAGMA table_info(signals);" | cut -d'|' -f2)"
 trade_columns="$(sqlite3 "$snapshot" "PRAGMA table_info(trades);" | cut -d'|' -f2)"
+entry_decision_columns="$(sqlite3 "$snapshot" "PRAGMA table_info(entry_decisions);" | cut -d'|' -f2)"
 
 has_column() {
     local columns="$1"
@@ -252,6 +253,85 @@ GROUP BY instrument, side, COALESCE(entry_type,'UNKNOWN')
 ORDER BY total_pnl_aud DESC;
 SQL
 
+if [[ -n "$entry_decision_columns" ]]; then
+sqlite3 -header -csv "$snapshot" <<SQL > "$remote_tmp/${prefix}_entry_decisions.csv"
+SELECT decision_id, COALESCE(setup_id, '') AS setup_id, signal_candle_time,
+       decision_time, datetime(decision_time/1000,'unixepoch') AS decision_utc,
+       instrument, side, signal, COALESCE(entry_type,'UNKNOWN') AS entry_type,
+       COALESCE(config_hash, '') AS config_hash, COALESCE(outcome, '') AS outcome,
+       COALESCE(stage, '') AS stage, COALESCE(rejection_code, '') AS rejection_code,
+       REPLACE(REPLACE(COALESCE(rejection_reason,''), char(10), ' '), char(13), ' ') AS rejection_reason,
+       spread_pips, price_age_ms, open_positions, projected_exposure,
+       signal_strength, adx, rsi, atr_pips, COALESCE(trade_id, '') AS trade_id,
+       COALESCE(config_snapshot, '') AS config_snapshot
+FROM entry_decisions
+WHERE decision_time >= (strftime('%s','now','-${days} days') * 1000)
+ORDER BY decision_time ASC;
+SQL
+
+sqlite3 -header -csv "$snapshot" <<SQL > "$remote_tmp/${prefix}_entry_funnel.csv"
+WITH actionable_signals AS (
+    SELECT COUNT(*) AS generated_signals
+    FROM signals
+    WHERE timestamp >= (strftime('%s','now','-${days} days') * 1000)
+      AND ${signal_actionable_class_filter}
+      AND ${signal_unique_event_filter}
+      AND ${signal_cooldown_filter}
+),
+decision_counts AS (
+    SELECT
+        COUNT(*) AS tracked_decisions,
+        SUM(CASE WHEN COALESCE(stage, '') IN ('VALIDATED','SIZED','ORDER_SUBMITTED','FILLED') THEN 1 ELSE 0 END) AS validated_entries,
+        SUM(CASE WHEN COALESCE(stage, '') IN ('SIZED','ORDER_SUBMITTED','FILLED') THEN 1 ELSE 0 END) AS sized_entries,
+        SUM(CASE WHEN COALESCE(stage, '') IN ('ORDER_SUBMITTED','FILLED') THEN 1 ELSE 0 END) AS submitted_orders,
+        SUM(CASE WHEN COALESCE(stage, '') = 'FILLED' OR COALESCE(outcome, '') = 'FILLED' OR COALESCE(trade_id, '') <> '' THEN 1 ELSE 0 END) AS filled_trades,
+        SUM(CASE WHEN COALESCE(outcome, '') = 'REJECTED' THEN 1 ELSE 0 END) AS rejected_entries
+    FROM entry_decisions
+    WHERE decision_time >= (strftime('%s','now','-${days} days') * 1000)
+),
+closed_trades AS (
+    SELECT COUNT(*) AS closed_trades
+    FROM trades
+    WHERE mode='live' AND is_open=0
+      AND exit_time >= (strftime('%s','now','-${days} days') * 1000)
+)
+SELECT 'generated_signals' AS metric, COALESCE(generated_signals, 0) AS value FROM actionable_signals
+UNION ALL
+SELECT 'tracked_decisions', COALESCE(tracked_decisions, 0) FROM decision_counts
+UNION ALL
+SELECT 'validated_entries', COALESCE(validated_entries, 0) FROM decision_counts
+UNION ALL
+SELECT 'sized_entries', COALESCE(sized_entries, 0) FROM decision_counts
+UNION ALL
+SELECT 'submitted_orders', COALESCE(submitted_orders, 0) FROM decision_counts
+UNION ALL
+SELECT 'filled_trades', COALESCE(filled_trades, 0) FROM decision_counts
+UNION ALL
+SELECT 'rejected_entries', COALESCE(rejected_entries, 0) FROM decision_counts
+UNION ALL
+SELECT 'closed_trades', COALESCE(closed_trades, 0) FROM closed_trades;
+SQL
+
+sqlite3 -header -csv "$snapshot" <<SQL > "$remote_tmp/${prefix}_config_snapshots.csv"
+SELECT COALESCE(config_hash, '') AS config_hash,
+       COALESCE(config_snapshot, '') AS config_snapshot,
+       MIN(decision_time) AS first_seen_time,
+       datetime(MIN(decision_time)/1000,'unixepoch') AS first_seen_utc,
+       MAX(decision_time) AS last_seen_time,
+       datetime(MAX(decision_time)/1000,'unixepoch') AS last_seen_utc,
+       COUNT(*) AS decision_count
+FROM entry_decisions
+WHERE decision_time >= (strftime('%s','now','-${days} days') * 1000)
+  AND COALESCE(config_hash, '') <> ''
+GROUP BY COALESCE(config_hash, ''), COALESCE(config_snapshot, '')
+ORDER BY last_seen_time DESC;
+SQL
+else
+    printf 'decision_id,setup_id,signal_candle_time,decision_time,decision_utc,instrument,side,signal,entry_type,config_hash,outcome,stage,rejection_code,rejection_reason,spread_pips,price_age_ms,open_positions,projected_exposure,signal_strength,adx,rsi,atr_pips,trade_id,config_snapshot\n' > "$remote_tmp/${prefix}_entry_decisions.csv"
+    printf 'metric,value\n' > "$remote_tmp/${prefix}_entry_funnel.csv"
+    printf 'config_hash,config_snapshot,first_seen_time,first_seen_utc,last_seen_time,last_seen_utc,decision_count\n' > "$remote_tmp/${prefix}_config_snapshots.csv"
+fi
+
 sqlite3 -header -csv "$snapshot" <<SQL > "$remote_tmp/${prefix}_signals.csv"
 SELECT instrument, signal, COALESCE(entry_type,'UNKNOWN') AS entry_type,
        strength, adx, rsi, atr_pips, price, supertrend_direction, timeframe,
@@ -382,6 +462,9 @@ tar -czf "$remote_tmp/${prefix}.tar.gz" -C "$remote_tmp" \
     "${prefix}_trades.csv" \
     "${prefix}_trade_entries.csv" \
     "${prefix}_trade_summary.csv" \
+    "${prefix}_entry_decisions.csv" \
+    "${prefix}_entry_funnel.csv" \
+    "${prefix}_config_snapshots.csv" \
     "${prefix}_signals.csv" \
     "${prefix}_signals_actionable.csv" \
     "${prefix}_signals_cooldown_duplicates.csv" \
@@ -398,6 +481,9 @@ REMOTE
         "$output_dir/${prefix}_trades.csv" \
         "$output_dir/${prefix}_trade_entries.csv" \
         "$output_dir/${prefix}_trade_summary.csv" \
+        "$output_dir/${prefix}_entry_decisions.csv" \
+        "$output_dir/${prefix}_entry_funnel.csv" \
+        "$output_dir/${prefix}_config_snapshots.csv" \
         "$output_dir/${prefix}_signals.csv" \
         "$output_dir/${prefix}_signals_actionable.csv" \
         "$output_dir/${prefix}_signals_cooldown_duplicates.csv" \

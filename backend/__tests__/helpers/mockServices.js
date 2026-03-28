@@ -260,6 +260,34 @@ const createMockSignalRepository = (initialSignals = []) => {
 };
 
 /**
+ * Create a mock entry decision repository
+ */
+const createMockEntryDecisionRepository = (initialDecisions = []) => {
+    let decisions = [...initialDecisions];
+
+    return {
+        decisions,
+        save: jest.fn(async (decision) => {
+            decisions.push(decision);
+            return decision;
+        }),
+        updateDecision: jest.fn(async (decisionId, updates) => {
+            const index = decisions.findIndex((d) => d.decisionId === decisionId);
+            if (index !== -1) {
+                decisions[index] = { ...decisions[index], ...updates };
+            }
+            return decisions[index] || null;
+        }),
+        getDecisionsSince: jest.fn(async (cutoff) => {
+            return decisions.filter((d) => d.decisionTime >= cutoff);
+        }),
+        _reset: () => {
+            decisions = [];
+        },
+    };
+};
+
+/**
  * Create a mock email service
  */
 const createMockEmailService = () => ({
@@ -329,6 +357,7 @@ module.exports = {
     createMockConfigService,
     createMockTradeRepository,
     createMockSignalRepository,
+    createMockEntryDecisionRepository,
     createMockEmailService,
     createMockSignalGenerator,
 };

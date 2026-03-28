@@ -769,11 +769,17 @@ router.get("/analytics", async (req, res) => {
     try {
         const TradeRepository = require("../repositories/tradeRepository");
         const SignalRepository = require("../repositories/signalRepository");
+        const EntryDecisionRepository = require("../repositories/entryDecisionRepository");
         const AnalyticsService = require("../services/analyticsService");
 
         const tradeRepo = new TradeRepository();
         const signalRepo = new SignalRepository();
-        const analyticsService = new AnalyticsService(tradeRepo, signalRepo);
+        const entryDecisionRepo = new EntryDecisionRepository();
+        const analyticsService = new AnalyticsService(
+            tradeRepo,
+            signalRepo,
+            entryDecisionRepo
+        );
 
         const period = req.query.period || "30d";
         const analytics = await analyticsService.getAnalytics(period);

@@ -143,13 +143,16 @@ class ConfigService extends EventEmitter {
             this.signalGenerator.updateConfig({
                 assets: this.config.assets,
                 timeframe: this.config.timeframe,
+                enableAdxFilter: this.config.enableAdxFilter,
                 minAdx: this.config.minAdx,
                 adxSlopeFilter: this.config.adxSlopeFilter,
                 adxSlopeLookback: this.config.adxSlopeLookback,
                 requireDirectionalAdx: this.config.requireDirectionalAdx,
+                enableRsiFilter: this.config.enableRsiFilter,
                 longRsiMomentumFloor: this.config.longRsiMomentumFloor,
                 shortRsiMomentumCeiling:
                     this.config.shortRsiMomentumCeiling,
+                freshLongRsiCeiling: this.config.freshLongRsiCeiling,
                 rsiOverbought: this.config.rsiOverbought,
                 rsiOversold: this.config.rsiOversold,
                 enableContinuationEntry: this.config.enableContinuationEntry,
