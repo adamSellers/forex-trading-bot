@@ -119,7 +119,7 @@ has_column() {
     grep -qx "$column_name" <<<"$columns"
 }
 
-signal_actionable_class_filter="signal IN ('BUY', 'SELL')"
+signal_actionable_class_filter="(signal IN ('BUY', 'SELL') AND COALESCE(NULLIF(entry_type, ''), 'UNKNOWN') <> 'EXIT_ONLY')"
 
 if has_column "$signal_columns" "reason_code"; then
     signal_reason_code_expr="COALESCE(reason_code, '') AS reason_code"
@@ -129,7 +129,7 @@ fi
 
 if has_column "$signal_columns" "signal_class"; then
     signal_class_expr="COALESCE(signal_class, '') AS signal_class"
-    signal_actionable_class_filter="(COALESCE(signal_class, '') IN ('ACTIONABLE', 'EXIT_ONLY') OR signal IN ('BUY', 'SELL'))"
+    signal_actionable_class_filter="(COALESCE(signal_class, '') = 'ACTIONABLE' OR ${signal_actionable_class_filter})"
 else
     signal_class_expr="'' AS signal_class"
 fi
@@ -145,7 +145,7 @@ if has_column "$signal_columns" "intent"; then
         WHEN signal IN ('BUY', 'SELL') THEN signal
         ELSE 'UNKNOWN'
     END"
-    signal_actionable_class_filter="(${signal_actionable_class_filter} OR COALESCE(intent, '') LIKE 'ENTER_%' OR COALESCE(intent, '') LIKE 'EXIT_%')"
+    signal_actionable_class_filter="(COALESCE(intent, '') LIKE 'ENTER_%' OR (${signal_actionable_class_filter} AND COALESCE(intent, '') NOT LIKE 'EXIT_%'))"
 else
     signal_intent_expr="'' AS intent"
     signal_cohort_type_expr="COALESCE(NULLIF(entry_type, ''), signal, 'UNKNOWN')"

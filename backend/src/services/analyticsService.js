@@ -1,7 +1,6 @@
 // backend/src/services/analyticsService.js - Forex Analytics Service
 const logger = require("../utils/logger");
 
-const ACTIONABLE_SIGNAL_CLASSES = new Set(["ACTIONABLE", "EXIT_ONLY"]);
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
 /**
@@ -117,20 +116,32 @@ function isCooldownDuplicate(signal) {
     );
 }
 
+function isExitOnlySignal(signal) {
+    const signalClass = normalizeUpper(signal?.signalClass);
+    const intent = normalizeUpper(signal?.intent);
+    const entryType = normalizeUpper(signal?.entryType);
+
+    return (
+        signalClass === "EXIT_ONLY" ||
+        intent.startsWith("EXIT_") ||
+        entryType === "EXIT_ONLY"
+    );
+}
+
 function isActionableSignal(signal) {
     const signalClass = normalizeUpper(signal?.signalClass);
     const intent = normalizeUpper(signal?.intent);
     const signalType = normalizeUpper(signal?.signal);
 
-    if (isCooldownDuplicate(signal)) {
+    if (isCooldownDuplicate(signal) || isExitOnlySignal(signal)) {
         return false;
     }
 
-    if (ACTIONABLE_SIGNAL_CLASSES.has(signalClass)) {
+    if (signalClass === "ACTIONABLE") {
         return true;
     }
 
-    if (intent.startsWith("ENTER_") || intent.startsWith("EXIT_")) {
+    if (intent.startsWith("ENTER_")) {
         return true;
     }
 
@@ -164,11 +175,7 @@ function getSignalEventKey(signal) {
     return `${symbol}|${side}|${cohortType}|${timestampBucket}`;
 }
 
-function isUniqueActionableSignal(signal, seenActionableKeys) {
-    if (!isActionableSignal(signal)) {
-        return false;
-    }
-
+function isUniqueSignalEvent(signal, seenSignalKeys) {
     if (!hasStructuredSignalTelemetry(signal)) {
         return true;
     }
@@ -185,11 +192,11 @@ function isUniqueActionableSignal(signal, seenActionableKeys) {
     }
 
     const dedupeKey = getSignalEventKey(signal);
-    if (seenActionableKeys.has(dedupeKey)) {
+    if (seenSignalKeys.has(dedupeKey)) {
         return false;
     }
 
-    seenActionableKeys.add(dedupeKey);
+    seenSignalKeys.add(dedupeKey);
     return true;
 }
 
@@ -253,8 +260,9 @@ class AnalyticsService {
      */
     async getAnalytics(period = "30d") {
         try {
+            const now = Date.now();
             const periodMs = parsePeriod(period);
-            const cutoffTime = Date.now() - periodMs;
+            const cutoffTime = now - periodMs;
 
             // Fetch raw data
             const [trades, signals] = await Promise.all([
@@ -270,7 +278,10 @@ class AnalyticsService {
             const signalEventSummary = this.extractSignalEventSummary(signals);
 
             // Calculate all metrics
-            const summary = this.calculateSummary(closedTrades);
+            const summary = this.calculateSummary(closedTrades, {
+                startTime: cutoffTime,
+                endTime: now,
+            });
             const pairPerformance = this.calculatePairPerformance(closedTrades);
             const sessionPerformance =
                 this.calculateSessionPerformance(closedTrades);
@@ -290,7 +301,7 @@ class AnalyticsService {
             return {
                 period,
                 mode: "live",
-                generatedAt: new Date().toISOString(),
+                generatedAt: new Date(now).toISOString(),
                 summary,
                 pairPerformance,
                 sessionPerformance,
@@ -307,6 +318,9 @@ class AnalyticsService {
                     totalSignals: signals.length,
                     uniqueActionableSignals:
                         signalEventSummary.uniqueActionableSignals.length,
+                    uniqueExitOnlySignals:
+                        signalEventSummary.uniqueExitOnlySignals.length,
+                    exitOnlySignals: signalEventSummary.exitOnlyTotal,
                     cooldownDuplicateSignals:
                         signalEventSummary.cooldownDuplicates.length,
                 },
@@ -320,7 +334,7 @@ class AnalyticsService {
     /**
      * Calculate summary statistics
      */
-    calculateSummary(trades) {
+    calculateSummary(trades, options = {}) {
         if (!trades.length) {
             return {
                 totalTrades: 0,
@@ -374,7 +388,7 @@ class AnalyticsService {
                 : 0;
 
         // Calculate Sharpe Ratio (simplified - using daily returns)
-        const sharpeRatio = this.calculateSharpeRatio(trades);
+        const sharpeRatio = this.calculateSharpeRatio(trades, options);
 
         // Average holding time
         const tradesWithHoldingTime = trades.filter((t) => t.holdingPeriodMs);
@@ -420,15 +434,52 @@ class AnalyticsService {
     /**
      * Calculate Sharpe Ratio (annualized)
      */
-    calculateSharpeRatio(trades) {
+    calculateSharpeRatio(trades, options = {}) {
         if (trades.length < 2) return 0;
 
-        // Group trades by day
+        const tradeTimestamps = trades
+            .map((trade) => toFiniteNumber(trade.exitTime || trade.entryTime, NaN))
+            .filter((timestamp) => Number.isFinite(timestamp));
+        if (tradeTimestamps.length < 2) return 0;
+
+        let rangeStart = Number.isFinite(options.startTime)
+            ? options.startTime
+            : Math.min(...tradeTimestamps);
+        let rangeEnd = Number.isFinite(options.endTime)
+            ? options.endTime
+            : Math.max(...tradeTimestamps);
+
+        if (rangeEnd < rangeStart) {
+            [rangeStart, rangeEnd] = [rangeEnd, rangeStart];
+        }
+
+        const getUtcDayStart = (timestamp) => {
+            const date = new Date(timestamp);
+            return Date.UTC(
+                date.getUTCFullYear(),
+                date.getUTCMonth(),
+                date.getUTCDate()
+            );
+        };
+        const getUtcDayKey = (timestamp) =>
+            new Date(timestamp).toISOString().split("T")[0];
+
         const dailyReturns = {};
+        const firstDay = getUtcDayStart(rangeStart);
+        const lastDay = getUtcDayStart(rangeEnd);
+
+        for (
+            let dayCursor = firstDay;
+            dayCursor <= lastDay;
+            dayCursor += 24 * 60 * 60 * 1000
+        ) {
+            dailyReturns[getUtcDayKey(dayCursor)] = 0;
+        }
+
         trades.forEach((t) => {
-            const day = new Date(t.exitTime || t.entryTime)
-                .toISOString()
-                .split("T")[0];
+            const timestamp = toFiniteNumber(t.exitTime || t.entryTime, NaN);
+            if (!Number.isFinite(timestamp)) return;
+            const day = getUtcDayKey(timestamp);
             dailyReturns[day] = (dailyReturns[day] || 0) + (t.pnlAud || 0);
         });
 
@@ -580,7 +631,9 @@ class AnalyticsService {
 
     extractSignalEventSummary(signals) {
         const seenActionableKeys = new Set();
+        const seenExitOnlyKeys = new Set();
         const uniqueActionableSignals = [];
+        const uniqueExitOnlySignals = [];
         const cooldownDuplicates = [];
         const telemetryCoverage = {
             signalClass: 0,
@@ -594,6 +647,7 @@ class AnalyticsService {
         };
 
         let actionableTotal = 0;
+        let exitOnlyTotal = 0;
 
         signals.forEach((signal) => {
             if (normalizeString(signal?.signalClass)) telemetryCoverage.signalClass++;
@@ -619,24 +673,35 @@ class AnalyticsService {
 
             const actionable = isActionableSignal(signal);
             const cooldownDuplicate = isCooldownDuplicate(signal);
+            const exitOnly = isExitOnlySignal(signal) && !cooldownDuplicate;
 
             if (actionable) {
                 actionableTotal++;
             }
+            if (exitOnly) {
+                exitOnlyTotal++;
+            }
 
-            if (actionable && isUniqueActionableSignal(signal, seenActionableKeys)) {
+            if (actionable && isUniqueSignalEvent(signal, seenActionableKeys)) {
                 uniqueActionableSignals.push(signal);
                 return;
             }
 
-            if (cooldownDuplicate || actionable) {
+            if (exitOnly && isUniqueSignalEvent(signal, seenExitOnlyKeys)) {
+                uniqueExitOnlySignals.push(signal);
+                return;
+            }
+
+            if (cooldownDuplicate || actionable || exitOnly) {
                 cooldownDuplicates.push(signal);
             }
         });
 
         return {
             actionableTotal,
+            exitOnlyTotal,
             uniqueActionableSignals,
+            uniqueExitOnlySignals,
             cooldownDuplicates,
             telemetryCoverage,
         };
@@ -654,7 +719,8 @@ class AnalyticsService {
             actionableUnique: summary.uniqueActionableSignals.length,
             triggeredIncludingDuplicates: summary.actionableTotal,
             cooldownDuplicates: summary.cooldownDuplicates.length,
-            exitOnlyUnique: 0,
+            exitOnlyTotal: summary.exitOnlyTotal,
+            exitOnlyUnique: summary.uniqueExitOnlySignals.length,
             filteredChoppy: 0,
             filteredAdxSlope: 0,
             filteredOverbought: 0,
@@ -672,6 +738,7 @@ class AnalyticsService {
 
         let totalStrength = 0;
         const uniqueActionableSet = new Set(summary.uniqueActionableSignals);
+        const uniqueExitOnlySet = new Set(summary.uniqueExitOnlySignals);
 
         signals.forEach((signal) => {
             const type = signal.signal || "UNKNOWN";
@@ -680,18 +747,17 @@ class AnalyticsService {
             const reasonCode = normalizeUpper(signal.reasonCode) || "UNKNOWN";
             const message = (signal.message || "").toLowerCase();
             const uniqueActionable = uniqueActionableSet.has(signal);
+            const uniqueExitOnly = uniqueExitOnlySet.has(signal);
             const actionable = isActionableSignal(signal);
             const cooldownDuplicate = isCooldownDuplicate(signal);
+            const exitOnly = isExitOnlySignal(signal) && !cooldownDuplicate;
 
-            if (uniqueActionable) {
-                const exitOnly =
-                    signalClass === "EXIT_ONLY" || intent.startsWith("EXIT_");
-                if (exitOnly) {
-                    stats.exitOnlyUnique++;
-                }
+            if (uniqueActionable || uniqueExitOnly) {
+                // Counted separately in top-level buckets.
             } else if (
                 cooldownDuplicate ||
-                (actionable && signal.uniqueEvent === false)
+                (actionable && signal.uniqueEvent === false) ||
+                (exitOnly && signal.uniqueEvent === false)
             ) {
                 // Accounted for separately; don't blend suppressed duplicates into hold/filter buckets.
             } else if (signalClass === "PENDING" || intent === "WAIT") {
@@ -747,6 +813,7 @@ class AnalyticsService {
         // Convert to pie chart format
         stats.filterBreakdown = [
             { label: "Triggered", value: stats.triggered, color: "success" },
+            { label: "Exit Only", value: stats.exitOnlyUnique, color: "info" },
             {
                 label: "Cooldown Duplicates",
                 value: stats.cooldownDuplicates,

@@ -176,6 +176,14 @@ describe('AnalyticsService', () => {
                     uniqueEvent: true,
                     cooldownSuppressed: false,
                 }),
+                createSellSignal({
+                    entryType: 'EXIT_ONLY',
+                    signalClass: 'EXIT_ONLY',
+                    intent: 'EXIT_LONG_ONLY',
+                    reasonCode: 'SHORT_FRESH_FLIP_BLOCKED_HTF',
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                }),
                 createMockSignal({
                     signal: 'COOLDOWN',
                     signalClass: 'COOLDOWN',
@@ -196,12 +204,18 @@ describe('AnalyticsService', () => {
             expect(analysis.actionableTotal).toBe(1);
             expect(analysis.actionableUnique).toBe(1);
             expect(analysis.triggered).toBe(1);
+            expect(analysis.exitOnlyTotal).toBe(1);
+            expect(analysis.exitOnlyUnique).toBe(1);
             expect(analysis.cooldownDuplicates).toBe(1);
             expect(analysis.pending).toBe(1);
             expect(analysis.filterBreakdown).toEqual(
                 expect.arrayContaining([
                     expect.objectContaining({
                         label: 'Triggered',
+                        value: 1,
+                    }),
+                    expect.objectContaining({
+                        label: 'Exit Only',
                         value: 1,
                     }),
                     expect.objectContaining({
@@ -234,6 +248,24 @@ describe('AnalyticsService', () => {
             const sharpe = service.calculateSharpeRatio(trades);
 
             expect(sharpe).toBeGreaterThan(0);
+        });
+
+        test('should include zero-return days when explicit period bounds are provided', () => {
+            const now = Date.now();
+            const trades = [
+                createClosedTrade({ pnlAud: 5.00, exitTime: now - 86400000 * 3 }),
+                createClosedTrade({ pnlAud: 5.00, exitTime: now - 86400000 * 2 }),
+            ];
+
+            const defaultSharpe = service.calculateSharpeRatio(trades);
+            const boundedSharpe = service.calculateSharpeRatio(trades, {
+                startTime: now - 86400000 * 6,
+                endTime: now,
+            });
+
+            expect(defaultSharpe).toBe(999);
+            expect(boundedSharpe).toBeGreaterThan(0);
+            expect(boundedSharpe).toBeLessThan(999);
         });
     });
 
