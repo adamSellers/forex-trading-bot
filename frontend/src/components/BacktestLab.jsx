@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
@@ -15,6 +18,7 @@ import {
 import {
   AutoGraph,
   CompareArrows,
+  ExpandMore,
   PlayArrow,
   Refresh,
   RestartAlt,
@@ -667,58 +671,102 @@ const BacktestLab = () => {
           </Alert>
         )}
 
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="overline" sx={{ letterSpacing: 1.5, color: 'primary.main', fontWeight: 800 }}>
-                Operator Guide
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                How to Use Paper Comparison
-              </Typography>
-            </Box>
-
-            <Box
+        <GlassCard sx={{ p: 0, overflow: 'hidden' }}>
+          <Accordion
+            disableGutters
+            defaultExpanded={false}
+            elevation={0}
+            sx={{
+              bgcolor: 'transparent',
+              boxShadow: 'none',
+              '&::before': {
+                display: 'none',
+              },
+            }}
+          >
+            <AccordionSummary
+              expandIcon={<ExpandMore sx={{ color: 'primary.main' }} />}
               sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1fr) minmax(0, 1fr)' },
-                gap: 2,
+                px: 2.5,
+                py: 0.5,
+                '& .MuiAccordionSummary-content': {
+                  my: 2,
+                },
               }}
             >
-              <GlassCard sx={{ p: 2 }}>
-                <Stack spacing={1.5}>
-                  <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
-                    Workflow
-                  </Typography>
-                  <InstructionList items={PAPER_COMPARISON_STEPS} ordered />
-                </Stack>
-              </GlassCard>
+              <Box>
+                <Typography
+                  variant="overline"
+                  sx={{ letterSpacing: 1.5, color: 'primary.main', fontWeight: 800 }}
+                >
+                  Operator Guide
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                  How to Use Paper Comparison
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Collapsed by default. Expand for workflow steps, candidate notes, and promotion checks.
+                </Typography>
+              </Box>
+            </AccordionSummary>
 
-              <GlassCard sx={{ p: 2 }}>
-                <Stack spacing={1.5}>
-                  <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
-                    What to Watch
-                  </Typography>
-                  <InstructionList items={PERFORMANCE_WATCHLIST} />
-                  <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.08) }} />
-                  <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
-                    Promotion Checklist
-                  </Typography>
-                  <InstructionList items={PROMOTION_CHECKLIST} />
-                </Stack>
-              </GlassCard>
-            </Box>
+            <AccordionDetails sx={{ px: 2.5, pb: 2.5, pt: 0 }}>
+              <Stack spacing={2}>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1fr) minmax(0, 1fr)' },
+                    gap: 2,
+                  }}
+                >
+                  <GlassCard sx={{ p: 2 }}>
+                    <Stack spacing={1.5}>
+                      <Typography
+                        variant="overline"
+                        sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}
+                      >
+                        Workflow
+                      </Typography>
+                      <InstructionList items={PAPER_COMPARISON_STEPS} ordered />
+                    </Stack>
+                  </GlassCard>
 
-            <Box>
-              <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
-                Candidate Playbook
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1.5 }}>
-                Each candidate below is launched as its own isolated paper run. Use these summaries as a quick reminder of what each strategy is trying to prove before you compare it against the shadow baseline.
-              </Typography>
-              <CandidateStrategyGuide strategies={candidateStrategies} />
-            </Box>
-          </Stack>
+                  <GlassCard sx={{ p: 2 }}>
+                    <Stack spacing={1.5}>
+                      <Typography
+                        variant="overline"
+                        sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}
+                      >
+                        What to Watch
+                      </Typography>
+                      <InstructionList items={PERFORMANCE_WATCHLIST} />
+                      <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.08) }} />
+                      <Typography
+                        variant="overline"
+                        sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}
+                      >
+                        Promotion Checklist
+                      </Typography>
+                      <InstructionList items={PROMOTION_CHECKLIST} />
+                    </Stack>
+                  </GlassCard>
+                </Box>
+
+                <Box>
+                  <Typography
+                    variant="overline"
+                    sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}
+                  >
+                    Candidate Playbook
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1.5 }}>
+                    Each candidate below is launched as its own isolated paper run. Use these summaries as a quick reminder of what each strategy is trying to prove before you compare it against the shadow baseline.
+                  </Typography>
+                  <CandidateStrategyGuide strategies={candidateStrategies} />
+                </Box>
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
         </GlassCard>
 
         <GlassCard sx={{ p: 2.5 }}>
