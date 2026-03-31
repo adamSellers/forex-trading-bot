@@ -1,171 +1,83 @@
-<<<<<<< HEAD
-# Forex Trend-Following Trading Bot
-
-A professional Forex trading bot built for deployment on a Raspberry Pi. It now runs a shared strategy runtime with hot-swappable live selection, an always-on shadow paper baseline, concurrent candidate paper runs, unified analytics, and broker-backed live execution via Oanda's REST v20 API.
-
-![Status](https://img.shields.io/badge/Phase%205-Complete-success) ![Status](https://img.shields.io/badge/Phase%206-Next-blue) ![Node](https://img.shields.io/badge/Node-18%2B-green) ![License](https://img.shields.io/badge/License-MIT-blue)
-
----
-
-## 🎯 Features
-
-### Trading Engine
-
--   **LiveTradingEngine**: Fully automated trade execution based on signals
--   **Shared Runtime**: Unified run orchestration for `live`, `paper_shadow`, and `paper_candidate`
--   **Hot-Swappable Live Selection**: Live strategy changes affect new entries only
--   **Owner-Safe Exit Management**: Open trades stay attached to the `ownerRunId` that opened them
--   **Delayed HTF Confirmation**: Lower-timeframe flips can wait for higher-timeframe alignment instead of being discarded immediately
--   **Multiple Pairs**: AUD/USD, EUR/USD, GBP/USD, USD/JPY
--   **Oanda Integration**: Live trading via REST v20 API (ASIC regulated)
-
-### Risk Management
-
--   **ATR-Based Stop Loss**: Dynamic stops that adapt to market volatility
--   **Trailing Stops**: Lock in profits as price moves in your favor
--   **Breakeven + Reconciliation Persistence**: Stop-state and broker-close metadata survive persistence and restart recovery
--   **Margin-Based Take Profit**: Automatic profit target (default 6% of used margin) with quote-to-account currency conversion
--   **Risk-Based Position Sizing**: Consistent risk per trade (default 2%)
--   **Leverage Limits**: Enforces ASIC 30:1 max (configurable, default 10:1)
--   **Max Position Limits**: Cap on concurrent open trades
--   **Negative Balance Protection**: ASIC-mandated retail client protection
-
-### Notifications & Reporting
-
--   **Email Alerts**: Trade open/close notifications via Gmail
--   **S3 Analytics Reports**: Automated daily/weekly uploads to AWS S3
--   **Automated Backups**: Daily database backups via cron
-
-### Dashboard
-
--   **Real-time Prices**: WebSocket-based live price updates every 5 seconds
--   **Signal Monitoring**: Runtime-backed signal inspection across live, shadow, and candidate runs
--   **Portfolio Tracking**: Live positions, P/L, margin usage
--   **Performance Analytics**: Win rate, profit factor, Sharpe ratio, equity curves, and runtime filters
--   **Expectation vs Actual Analytics**: Unique actionable signals separated from cooldown duplicates for cleaner review
--   **Paper Comparison**: Compare the active shadow baseline against concurrent candidate runs from the unified runtime model
--   **System Health**: Service status, API latency, memory monitoring
--   **Trading Sessions**: Visual session indicators with best trading windows
-
-### Architecture
-
--   **Backend**: Node.js + Express + Socket.IO
--   **Frontend**: React 18 + Material UI + Recharts
--   **Database**: SQLite via Knex.js
--   **Deployment**: PM2 process management
--   **Shared Config Contract**: Canonical trading defaults shared across the live runtime, paper runtime, and frontend config surfaces
-
----
-
-## 📊 Current Status
-
-### Shared Runtime Program ✅ PHASES 1-5 COMPLETE IN CODE
-
--   [x] Canonical five-strategy catalog with unified `strategy_runs`
--   [x] Shared runtime coordinator for live, shadow paper, and candidate paper runs
--   [x] Hot-swappable live strategy selection with `ownerRunId` continuity for open trades
--   [x] Default shadow paper baseline paired to the active live run
--   [x] Concurrent candidate paper runs with unified run detail APIs
--   [x] Runtime-backed `Paper` and `Analytics` views with `mode` / `strategy` / `runId` filters
--   [x] Legacy lab routes, workers, offline backtest engine, and `backtest_results` store retired from the supported stack
--   [ ] Phase 6 rollout, manual QA, and production monitoring
-
-### Current Live Baseline
-
--   Deployment baseline: `2026-03-20`
--   Active cohort: `AUD_USD`, `EUR_USD`, `GBP_USD`, `USD_JPY`
--   HTF filter: enabled on `1h`
--   Shorting: enabled
--   Review cadence: compare live results against expectation-vs-actual exports after 2 weeks of trading
-
-### Runtime-Only Comparison Workflow
-
--   Use the `Dashboard` view to inspect the active live strategy and perform live-ready hot swaps
--   Use the `Paper` view to compare the paired shadow run against candidate paper runs
--   Use the `Analytics` view with `mode`, `strategy`, `runId`, and `selectionId` filters for unified reporting
--   Legacy `/api/backtest` endpoints and offline backtest CLI workflows are no longer part of the supported operator path
-
----
-
-## 🏗️ Architecture
-
-### Directory Structure
-
-```
-/opt/forex-trading-bot/
-+-- backend/
-|   +-- server.js                     # Express + Socket.IO entry
-|   +-- package.json
-|   +-- .env                          # OANDA_API_KEY, PORT=3101
-|   +-- data/
-|   |   +-- trading.db                # SQLite database
-|   |   +-- trading_config.json       # Persisted config
-|   +-- src/
-|       +-- routes/
-|       |   +-- tradingRoutes.js      # All API endpoints
-|       +-- services/
-|       |   +-- configService.js      # Config + persistence
-|       |   +-- OandaDataService.js   # Price/candle fetching
-|       |   +-- Oandaclient.js        # Oanda API wrapper
-|       |   +-- signalGenerator.js    # SuperTrend + ADX signals
-|       |   +-- analyticsService.js   # Performance metrics
-|       |   +-- LiveTradingEngine.js  # Trade execution engine
-|       +-- repositories/
-|       |   +-- tradeRepository.js    # Trade CRUD
-|       |   +-- signalRepository.js   # Signal history
-|       |   +-- portfolioRepository.js
-|       +-- utils/
-|           +-- logger.js             # Logging utility
-|
-+-- frontend/
-|   +-- package.json
-|   +-- vite.config.js                # Port 3100, proxy to 3101
-|   +-- src/
-|       +-- App.jsx                   # Navigation + view routing
-|       +-- config/
-|       |   +-- api.js                # API client
-|       +-- components/
-|           +-- TradingDashboard.jsx  # Main view
-|           +-- AnalyticsDashboard.jsx
-|           +-- SystemHealth.jsx
-|           +-- TradingConfig.jsx
-|           +-- dashboard/            # Dashboard widgets
-|           +-- config/               # Config tab components
-|
-+-- ecosystem.config.js               # PM2 configuration
-+-- package.json                      # Root monorepo scripts
-=======
 # Forex Trading Bot
 
-Monorepo for a live Oanda forex trading system with a React dashboard, backtesting lab, analytics, and Raspberry Pi deployment scripts.
+Forex trading platform built around a shared runtime that drives:
 
-The project is split into:
+- one active live strategy run
+- one paired shadow paper run
+- any number of candidate paper runs
+- unified analytics across live and paper telemetry
+- broker-backed execution through Oanda REST v20
 
-- `backend/`: Express API, Socket.IO server, SQLite persistence, trading engine, analytics, and backtest services
-- `frontend/`: React 18 + Vite + Material UI dashboard
-- `shared/`: shared trading defaults used by runtime and UI
-- `scripts/`: deployment, backup, restore, health, and secret-management scripts
+The project is split into a Node/Express backend, a React/Vite frontend, shared trading defaults, and Raspberry Pi oriented deployment scripts.
 
-Live trading is disabled by default and is controlled through persisted config in `backend/data/trading_config.json`.
+## Current Runtime Model
+
+The strategy rebuild moved the project away from the older offline backtest-first workflow and into a runtime-first workflow:
+
+- `live`: the active broker-connected strategy run
+- `paper_shadow`: an always-on paper baseline paired to the current live selection
+- `paper_candidate`: extra paper runs launched for side-by-side comparison
+
+Important behavior:
+
+- Live trades stay attached to the run that opened them through `ownerRunId`
+- Replacing the live strategy only affects new entries
+- Older live runs can drop into `managing_only` until their open trades are resolved
+- Analytics, signals, trade history, and equity views can all be filtered by `mode`, `strategy`, `runId`, and `selectionId`
+
+## Strategy Catalog
+
+The canonical strategy registry currently includes five strategies:
+
+| Strategy Key | Label | Runtime Status | Intended Use |
+| --- | --- | --- | --- |
+| `supertrend_momentum` | SuperTrend Momentum | `baseline` | Current live baseline |
+| `mean_reversion` | Mean Reversion | `candidate` | Paper comparison |
+| `range_breakout` | Range Breakout | `candidate` | Paper comparison |
+| `stochastic_divergence` | Stochastic Divergence | `candidate` | Paper comparison |
+| `squeeze_play` | Squeeze Play | `candidate` | Paper comparison |
+
+Notes:
+
+- The runtime supports `baseline` and `live_ready` strategies for live selection.
+- In the current catalog, only `supertrend_momentum` is live-selectable today.
+- Candidate strategies are launched from the Paper view for comparison against the shadow baseline.
 
 ## Highlights
 
-- Oanda v20 integration for live account, pricing, candles, and order execution
-- SuperTrend + ADX momentum strategy with RSI, continuation-entry, and HTF filters
-- Live trading engine with stop loss, trailing stop, breakeven, exposure limits, and reconciliation
-- Strategy Lab and backtesting flow backed by historical data services and worker threads
-- Real-time dashboard with Socket.IO updates for prices, signals, engine status, and trade events
-- SQLite storage for trades, signals, entry decisions, and backtest results
-- Optional email alerts and S3 analytics report uploads
-- Raspberry Pi oriented PM2 deployment and maintenance scripts
+- Shared runtime coordinator for live, shadow, and candidate runs
+- Strategy catalog exposed through `/api/strategies/catalog`
+- Oanda-backed live trading engine with stop loss, trailing stop, breakeven, take profit, and reconciliation
+- Runtime-scoped signals, trades, and equity data for each run
+- Unified analytics with live vs paper filtering
+- React dashboard with dedicated `Dashboard`, `Analytics`, `Paper`, `System`, and `Settings` views
+- SQLite persistence for trades, signals, entry decisions, strategy runs, and portfolio snapshots
+- Optional email notifications and S3 analytics uploads
+- PM2 and Raspberry Pi deployment scripts in `scripts/`
 
-## Stack
+## Architecture
 
-- Backend: Node.js 18+, Express, Socket.IO, Knex, better-sqlite3
-- Frontend: React 18, Vite, Material UI, Recharts, `@mui/x-charts`
-- Storage: SQLite
-- Runtime: PM2
-- Broker/API: Oanda REST v20
+### Backend
+
+- `backend/server.js`: Express + Socket.IO entrypoint
+- `backend/src/runtime/`: shared runtime coordinator and market context builder
+- `backend/src/strategies/`: canonical strategy registry and strategy implementations
+- `backend/src/services/LiveTradingEngine.js`: broker-backed live execution
+- `backend/src/services/PaperTradingRuntime.js`: paper trade simulation, snapshots, and run summaries
+- `backend/src/routes/tradingRoutes.js`: health, runtime, analytics, trading, config, and reporting APIs
+- `backend/src/repositories/`: SQLite persistence layer
+
+### Frontend
+
+- `frontend/src/components/TradingDashboard.jsx`: live dashboard and live strategy selection UI
+- `frontend/src/components/AnalyticsDashboard.jsx`: unified runtime analytics
+- `frontend/src/components/BacktestLab.jsx`: paper comparison shell for shadow and candidate runs
+- `frontend/src/components/TradingConfig.jsx`: runtime configuration editor
+- `frontend/src/components/SystemHealth.jsx`: system and service monitoring
+
+### Shared Config
+
+- `shared/tradingConfigDefaults.json`: canonical default config used across runtime surfaces
 
 ## Repository Layout
 
@@ -173,17 +85,15 @@ Live trading is disabled by default and is controlled through persisted config i
 .
 ├── backend/
 │   ├── server.js
-│   ├── config/
-│   ├── data/
 │   ├── migrations/
-│   └── src/
-│       ├── config/
-│       ├── repositories/
-│       ├── routes/
-│       ├── services/
-│       ├── socket/
-│       ├── utils/
-│       └── workers/
+│   ├── src/
+│   │   ├── config/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   ├── runtime/
+│   │   ├── services/
+│   │   ├── strategies/
+│   │   └── utils/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
@@ -197,16 +107,15 @@ Live trading is disabled by default and is controlled through persisted config i
 ├── USER_GUIDE.md
 ├── PROJECT_HISTORY.md
 └── ecosystem.config.js
->>>>>>> 8371a92844cf5d89b2d94d5dcc9671454e9fd3d1
 ```
 
-## Quick Start
+## Local Development
 
 ### Prerequisites
 
 - Node.js 18+
 - npm
-- An Oanda account and API credentials for live/practice connectivity
+- Oanda credentials for live/practice connectivity
 
 ### Install
 
@@ -214,9 +123,7 @@ Live trading is disabled by default and is controlled through persisted config i
 npm run install:all
 ```
 
-### Configure local backend environment
-
-Create `backend/.env`:
+### Configure `backend/.env`
 
 ```bash
 NODE_ENV=development
@@ -226,69 +133,188 @@ OANDA_ACCOUNT_ID=001-011-XXXXXXXX-001
 OANDA_ENVIRONMENT=practice
 ```
 
-Optional local variables used by the backend:
+Optional backend environment variables:
 
-- `DB_PATH`: override SQLite database location
-- `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_TO`: email notifications
-- `ENABLE_S3_ANALYTICS`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`: S3 report uploads
+- `DB_PATH`
+- `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_TO`
+- `ENABLE_S3_ANALYTICS`
+- `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`
 
-### Run migrations
+### Migrate and run
 
 ```bash
 npm run db:migrate
-```
-
-### Start development
-
-```bash
 npm run dev
 ```
 
-Services:
+Local endpoints:
 
 - Frontend: `http://localhost:3100`
 - Backend health: `http://localhost:3101/api/health`
 
-If Oanda credentials are missing, the backend still boots, but live market data, account, and trading features will be unavailable.
+If Oanda credentials are missing, the server still boots, but live pricing, account, and trading endpoints will be unavailable.
 
-## Production and Raspberry Pi Deployment
+## Operator Workflow
 
-This repo includes operator scripts for a Raspberry Pi deployment rooted at `/opt/forex-trading-bot`.
+### Live selection
 
-Common flows:
+The runtime bootstraps a live selection from persisted config on startup. The current live selection includes:
 
-```bash
-./scripts/first_time_setup.sh
-./scripts/setup-secrets.sh
-./scripts/deploy.sh
-./scripts/update.sh
-./scripts/status.sh
-./scripts/backup.sh
-./scripts/restore.sh
-```
+- the active live run
+- its paired shadow paper run
+- a shared `selectionId`
 
-Important production files:
+Live strategy changes are handled through:
 
-- `ecosystem.config.js`: PM2 app definition
-- `scripts/start-wrapper.sh`: decrypts and injects secrets before boot
-- `scripts/DEPLOYMENT_README.md`: operations reference
+- `POST /api/runtime/live-selection`
+- the Dashboard strategy selector
 
-Encrypted secrets are stored under:
+### Paper comparison
 
-- `/opt/forex-trading-bot/.secrets/`
-- `/opt/forex-trading-bot/.keys/encryption.key`
+The Paper view is built around runtime-backed comparison, not legacy offline backtests.
 
-## Runtime Configuration
+Typical flow:
 
-Defaults live in [shared/tradingConfigDefaults.json](/Users/adams/code/forex-trading-bot/shared/tradingConfigDefaults.json) and are normalized by [backend/src/config/tradingConfig.js](/Users/adams/code/forex-trading-bot/backend/src/config/tradingConfig.js). Runtime changes are persisted in `backend/data/trading_config.json`.
+1. Keep the current live strategy paired with its shadow run.
+2. Launch one or more candidate paper runs.
+3. Inspect each run's signals, trades, equity curve, and config snapshot.
+4. Compare outcomes in the unified analytics view.
 
-Current baseline defaults include:
+How to use it:
+
+1. Open the `Paper` tab and confirm the shadow baseline is present for the current live `selectionId`.
+2. Launch a candidate from the `Launch Candidate Runs` section.
+3. Click the shadow card or a candidate card to focus that run.
+4. Use the run detail panel to inspect:
+   - `Equity`
+   - `Recent Trades`
+   - `Recent Signals`
+   - `Config Snapshot`
+5. Reset a candidate if you want to restart its paper history from a clean point-in-time.
+6. Stop a candidate when you are done comparing it.
+
+What each candidate is testing:
+
+- `mean_reversion`: fades stretched moves back toward the mean during ranging conditions using Bollinger Bands, RSI, ATR, and H1 regime checks.
+- `range_breakout`: looks for continuation when intraday ranges compress and then break, with an opening-range breakout bias.
+- `stochastic_divergence`: looks for reversal setups where divergence and stochastic timing align.
+- `squeeze_play`: looks for directional expansion after low-volatility compression releases.
+
+How to watch candidate performance:
+
+- In the `Paper` tab, compare each candidate against the shadow baseline first.
+- Watch the equity curve shape, not just the latest PnL. A smoother curve with smaller drawdowns is usually more useful than a noisy spike.
+- Check `Recent Signals` to see whether the strategy is producing clean actionables or mostly filtered / waiting states.
+- Check `Recent Trades` for trade frequency, hold time, and whether wins are coming from a repeatable pattern rather than one outsized move.
+- Use the `Config Snapshot` to confirm you are comparing the exact version of the strategy settings you intended to run.
+- Move to the `Analytics` tab and filter by:
+  - `Mode = Candidate Paper` to isolate paper candidates
+  - `Strategy` to compare one candidate family over time
+  - `Run` to inspect a single launched candidate
+- In Analytics, pay particular attention to:
+  - net PnL versus the shadow baseline
+  - win rate and profit factor
+  - trade count and sample size
+  - pair performance
+  - session performance
+  - equity curve and drawdown behavior
+
+Before promoting a candidate, look for:
+
+- better or at least comparable performance versus the shadow run
+- enough trades to avoid judging on a tiny sample
+- stable behavior across sessions and pairs
+- understandable signal reasons, not just accidental outlier wins
+
+### Analytics
+
+`GET /api/analytics` supports runtime filters such as:
+
+- `period`
+- `mode`
+- `strategy`
+- `runId`
+- `selectionId`
+
+When no runtime filters are supplied, analytics default to the live cohort.
+
+## Main API Surface
+
+### Health and status
+
+- `GET /api/health`
+- `GET /api/system/health`
+- `GET /api/system/info`
+
+### Strategy and runtime
+
+- `GET /api/strategies/catalog`
+- `GET /api/runtime/live-selection`
+- `POST /api/runtime/live-selection`
+- `GET /api/runtime/runs`
+- `POST /api/runtime/runs`
+- `GET /api/runtime/runs/:runId/trades`
+- `GET /api/runtime/runs/:runId/signals`
+- `GET /api/runtime/runs/:runId/equity`
+- `POST /api/runtime/runs/:runId/stop`
+- `POST /api/runtime/runs/:runId/reset`
+
+### Trading, config, and portfolio
+
+- `GET /api/account`
+- `GET /api/prices`
+- `GET /api/candles/:instrument`
+- `GET /api/signals`
+- `GET /api/portfolio`
+- `GET /api/trades`
+- `POST /api/trade/close/:id`
+- `POST /api/trading/start`
+- `POST /api/trading/stop`
+- `POST /api/trading/reset`
+- `GET /api/config`
+- `POST /api/config`
+- `POST /api/config/reset`
+- `GET /api/engine/status`
+- `GET /api/engine/stats`
+- `GET /api/engine/trades`
+- `POST /api/engine/close/:tradeId`
+- `POST /api/engine/sync`
+- `POST /api/engine/reset-stats`
+
+### Analytics and reporting
+
+- `GET /api/analytics`
+- `GET /api/reports/status`
+- `POST /api/reports/upload`
+- `POST /api/reports/upload/daily`
+- `POST /api/reports/upload/weekly`
+
+## Socket.IO Events
+
+The backend currently emits:
+
+- `connected`
+- `priceUpdate`
+- `signalUpdate`
+- `tradeSignal`
+- `tradeOpened`
+- `tradeClosed`
+- `tradeUpdate`
+- `engineStatus`
+- `configUpdate`
+- `liveSelectionUpdated`
+- `runtimeRunsChanged`
+- `paperRunUpdated`
+
+## Current Shared Defaults
+
+Shared defaults live in [shared/tradingConfigDefaults.json](/Users/adams/code/forex-trading-bot/shared/tradingConfigDefaults.json). A few important baseline values:
 
 ```json
 {
   "enableTrading": false,
-  "assets": ["AUD_USD", "EUR_USD", "GBP_USD", "USD_JPY"],
   "strategy": "supertrend_momentum",
+  "assets": ["AUD_USD", "EUR_USD", "GBP_USD", "USD_JPY"],
   "timeframe": "15m",
   "minAdx": 21,
   "enableHTFFilter": true,
@@ -300,93 +326,27 @@ Current baseline defaults include:
   "leverage": 20,
   "maxSpreadPips": 1.2,
   "stopLossType": "ATR",
-  "stopLossAtrMultiplier": 2,
-  "minStopLossPips": 15,
   "enableTrailingStops": true,
-  "enableBreakeven": true,
   "enableTakeProfit": false,
+  "enableBreakeven": true,
   "enableSessionFilter": true,
-  "activeSessions": ["sydney", "tokyo", "london", "newyork"],
-  "enableEmailAlerts": false,
-  "enforceConfigFreeze": false
+  "activeSessions": ["sydney", "tokyo", "london", "newyork"]
 }
 ```
 
-Notable behavior:
+Runtime config is persisted in `backend/data/trading_config.json`.
 
-- Trading is gated by `enableTrading`, not by starting and stopping the Node process.
-- Config changes are applied to the running data service and signal generator.
-- `configHash` is computed from protected strategy/risk fields.
-- `enforceConfigFreeze` can block changes to protected runtime parameters.
+## Legacy Notes
 
-## Main API Surface
+The older offline backtest/lab workflow is no longer the supported operator path:
 
-### Health and system
-
-- `GET /api/health`
-- `GET /api/system/health`
-- `GET /api/system/info`
-
-### Market data and portfolio
-
-- `GET /api/account`
-- `GET /api/prices`
-- `GET /api/candles/:instrument`
-- `GET /api/signals`
-- `GET /api/portfolio`
-- `GET /api/trades`
-- `POST /api/trade/close/:id`
-
-### Trading control and config
-
-- `POST /api/trading/start`
-- `POST /api/trading/stop`
-- `POST /api/trading/reset`
-- `GET /api/config`
-- `POST /api/config`
-- `POST /api/config/reset`
-
-### Engine endpoints
-
-- `GET /api/engine/status`
-- `GET /api/engine/stats`
-- `GET /api/engine/trades`
-- `POST /api/engine/close/:tradeId`
-- `POST /api/engine/sync`
-- `POST /api/engine/reset-stats`
-
-### Analytics and reporting
-
-- `GET /api/analytics?period=30d`
-- `GET /api/reports/status`
-- `POST /api/reports/upload`
-- `POST /api/reports/upload/daily`
-- `POST /api/reports/upload/weekly`
-
-### Backtesting
-
-- `POST /api/backtest/run`
-- `GET /api/backtest/results`
-- `GET /api/backtest/results/:id`
-- `DELETE /api/backtest/results/:id`
-
-## Socket.IO Events
-
-Server-to-client events currently emitted by the backend include:
-
-- `connected`
-- `priceUpdate`
-- `signalUpdate`
-- `tradeSignal`
-- `tradeOpened`
-- `tradeClosed`
-- `tradeUpdate`
-- `engineStatus`
-- `configUpdate`
+- legacy `backtest_results` storage is retired
+- migration `006_drop_backtest_results.js` removes the old table
+- the supported comparison workflow now lives in the runtime-backed Paper view
 
 ## Scripts
 
-### Root scripts
+### Root
 
 ```bash
 npm run install:all
@@ -400,7 +360,7 @@ npm run build:frontend
 npm run db:migrate
 ```
 
-### Backend scripts
+### Backend
 
 ```bash
 cd backend
@@ -412,7 +372,7 @@ npm test
 npm run test:coverage
 ```
 
-### Frontend scripts
+### Frontend
 
 ```bash
 cd frontend
@@ -421,24 +381,33 @@ npm run build
 npm run preview
 ```
 
-## Testing and Verification
+## Raspberry Pi Deployment
 
-- Backend tests live under `backend/src/**/__tests__` and `backend/src/repositories/__tests__`
-- Frontend does not currently expose a dedicated test script
-- The main verification commands are:
+The repo includes deployment tooling for `/opt/forex-trading-bot`:
 
 ```bash
-cd backend && npm test
-cd frontend && npm run build
+./scripts/first_time_setup.sh
+./scripts/setup-secrets.sh
+./scripts/deploy.sh
+./scripts/update.sh
+./scripts/status.sh
+./scripts/backup.sh
+./scripts/restore.sh
 ```
+
+Key production files:
+
+- `ecosystem.config.js`
+- `scripts/start-wrapper.sh`
+- `scripts/DEPLOYMENT_README.md`
 
 ## Additional Documentation
 
-- [USER_GUIDE.md](/Users/adams/code/forex-trading-bot/USER_GUIDE.md): trading concepts and configuration guidance
-- [scripts/DEPLOYMENT_README.md](/Users/adams/code/forex-trading-bot/scripts/DEPLOYMENT_README.md): Raspberry Pi deployment and operations
-- [PROJECT_HISTORY.md](/Users/adams/code/forex-trading-bot/PROJECT_HISTORY.md): project timeline and change history
-- [project_roadmap.md](/Users/adams/code/forex-trading-bot/project_roadmap.md): roadmap notes
+- [USER_GUIDE.md](/Users/adams/code/forex-trading-bot/USER_GUIDE.md)
+- [scripts/DEPLOYMENT_README.md](/Users/adams/code/forex-trading-bot/scripts/DEPLOYMENT_README.md)
+- [PROJECT_HISTORY.md](/Users/adams/code/forex-trading-bot/PROJECT_HISTORY.md)
+- [project_roadmap.md](/Users/adams/code/forex-trading-bot/project_roadmap.md)
 
 ## Disclaimer
 
-This codebase executes live forex trades against a broker account. Review the strategy, defaults, and environment configuration carefully before enabling trading. Use practice credentials first, and treat all live deployment changes as high-risk operations.
+This codebase can place live trades against a broker account. Review the active strategy, runtime selection, and risk configuration carefully before enabling trading. Use practice credentials first and treat production changes as high-risk operations.

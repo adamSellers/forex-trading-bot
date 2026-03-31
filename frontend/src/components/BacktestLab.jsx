@@ -34,6 +34,36 @@ const PAPER_EVENT_NAMES = [
   'tradeOpened',
   'tradeClosed',
 ];
+const PAPER_COMPARISON_STEPS = [
+  'Confirm the shadow baseline matches the current live selection before judging any candidate.',
+  'Launch one or more candidate runs from the candidate launcher below.',
+  'Click a run card to focus it and inspect its exact signals, trades, equity, and config snapshot.',
+  'Reset a candidate when you want a fresh paper sample from the current market context.',
+  'Stop a candidate when you are finished comparing it or when the run is no longer useful.',
+];
+const PERFORMANCE_WATCHLIST = [
+  'Compare every candidate against the shadow baseline first, not just against zero.',
+  'Watch equity-curve shape and drawdown behavior, not only the latest unrealized PnL.',
+  'Check Recent Signals to see whether the strategy is generating actionable setups or mostly waiting states.',
+  'Check Recent Trades for frequency, hold time, and whether results come from repeatable behavior instead of one outsized winner.',
+  'Use Analytics with Mode = Candidate Paper and then narrow by Strategy or Run for cleaner comparisons.',
+];
+const PROMOTION_CHECKLIST = [
+  'Sample size is large enough to trust the result.',
+  'Performance is better than or at least competitive with the shadow baseline.',
+  'Behavior is stable across pairs and sessions, not concentrated in one narrow pocket.',
+  'Signal reasons still make sense when you inspect the detailed run feed.',
+];
+const CANDIDATE_WATCH_NOTES = {
+  mean_reversion:
+    'Watch for steady win-rate behavior, contained drawdowns, and clean performance during quieter ranging conditions.',
+  range_breakout:
+    'Watch whether breakouts actually follow through after entry instead of snapping back into the range.',
+  stochastic_divergence:
+    'Watch signal quality and reversal follow-through. Frequent early fades usually show up in profit factor quickly.',
+  squeeze_play:
+    'Watch whether post-compression releases turn into sustained directional moves rather than repeated false starts.',
+};
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-AU', {
@@ -85,6 +115,123 @@ const SummaryMetric = ({ label, value, tone = 'text.primary' }) => (
     </Typography>
   </Box>
 );
+
+const InstructionList = ({ items = [], ordered = false }) => {
+  const theme = useTheme();
+
+  return (
+    <Stack spacing={1.25}>
+      {items.map((item, index) => (
+        <Box key={item} display="flex" gap={1.25} alignItems="flex-start">
+          <Box
+            sx={{
+              minWidth: 24,
+              height: 24,
+              borderRadius: '50%',
+              bgcolor: alpha(theme.palette.primary.main, 0.12),
+              color: 'primary.main',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              mt: 0.15,
+            }}
+          >
+            {ordered ? index + 1 : '•'}
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            {item}
+          </Typography>
+        </Box>
+      ))}
+    </Stack>
+  );
+};
+
+const CandidateStrategyGuide = ({ strategies = [] }) => {
+  const theme = useTheme();
+
+  if (strategies.length === 0) {
+    return (
+      <Alert severity="info">
+        Candidate strategy metadata is still loading. Refresh the page if the catalog does not appear.
+      </Alert>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+        gap: 2,
+      }}
+    >
+      {strategies.map((strategy) => (
+        <GlassCard
+          key={strategy.key}
+          sx={{
+            p: 2,
+            background: `linear-gradient(160deg, ${alpha(theme.palette.secondary.main, 0.08)}, ${alpha(theme.palette.background.paper, 0.92)})`,
+          }}
+        >
+          <Stack spacing={1.25}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              spacing={1}
+            >
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                  {strategy.label}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
+                  {strategy.key}
+                </Typography>
+              </Box>
+              <Chip
+                size="small"
+                label={`Phase ${strategy.phaseIntroduced || '?'}`}
+                color="secondary"
+                variant="outlined"
+              />
+            </Stack>
+
+            <Typography variant="body2" color="text.secondary">
+              {strategy.description || 'Candidate strategy'}
+            </Typography>
+
+            {CANDIDATE_WATCH_NOTES[strategy.key] && (
+              <Alert
+                severity="info"
+                sx={{
+                  py: 0.5,
+                  bgcolor: alpha(theme.palette.info.main, 0.08),
+                  border: `1px solid ${alpha(theme.palette.info.main, 0.16)}`,
+                }}
+              >
+                {CANDIDATE_WATCH_NOTES[strategy.key]}
+              </Alert>
+            )}
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {(strategy.requiredData?.timeframes || []).map((timeframe) => (
+                <Chip
+                  key={`${strategy.key}-${timeframe}`}
+                  size="small"
+                  label={String(timeframe).toUpperCase()}
+                  variant="outlined"
+                />
+              ))}
+            </Stack>
+          </Stack>
+        </GlassCard>
+      ))}
+    </Box>
+  );
+};
 
 const SignalFeed = ({ signals = [] }) => (
   <Stack spacing={1.25}>
@@ -519,6 +666,60 @@ const BacktestLab = () => {
             {error}
           </Alert>
         )}
+
+        <GlassCard sx={{ p: 2.5 }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="overline" sx={{ letterSpacing: 1.5, color: 'primary.main', fontWeight: 800 }}>
+                Operator Guide
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                How to Use Paper Comparison
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1fr) minmax(0, 1fr)' },
+                gap: 2,
+              }}
+            >
+              <GlassCard sx={{ p: 2 }}>
+                <Stack spacing={1.5}>
+                  <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
+                    Workflow
+                  </Typography>
+                  <InstructionList items={PAPER_COMPARISON_STEPS} ordered />
+                </Stack>
+              </GlassCard>
+
+              <GlassCard sx={{ p: 2 }}>
+                <Stack spacing={1.5}>
+                  <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
+                    What to Watch
+                  </Typography>
+                  <InstructionList items={PERFORMANCE_WATCHLIST} />
+                  <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.08) }} />
+                  <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
+                    Promotion Checklist
+                  </Typography>
+                  <InstructionList items={PROMOTION_CHECKLIST} />
+                </Stack>
+              </GlassCard>
+            </Box>
+
+            <Box>
+              <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
+                Candidate Playbook
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1.5 }}>
+                Each candidate below is launched as its own isolated paper run. Use these summaries as a quick reminder of what each strategy is trying to prove before you compare it against the shadow baseline.
+              </Typography>
+              <CandidateStrategyGuide strategies={candidateStrategies} />
+            </Box>
+          </Stack>
+        </GlassCard>
 
         <GlassCard sx={{ p: 2.5 }}>
           <Stack spacing={1.5}>
