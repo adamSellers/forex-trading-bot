@@ -1,56 +1,165 @@
-// frontend/src/components/AnalyticsDashboard.jsx - Forex Analytics Dashboard
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Box,
-  Typography,
-  CircularProgress,
   Alert,
-  ToggleButtonGroup,
+  Box,
+  Chip,
+  CircularProgress,
+  FormControl,
+  MenuItem,
+  Select,
+  Stack,
   ToggleButton,
-  useTheme,
+  ToggleButtonGroup,
+  Typography,
   alpha,
+  useTheme,
 } from '@mui/material';
-import { Insights, ShowChart, DataUsage, FilterAlt, TrendingUp } from '@mui/icons-material';
-import { tradingAPI } from '../config/api';
-
-// Sub-components
+import {
+  DataUsage,
+  FilterAlt,
+  Insights,
+  Radar,
+  ShowChart,
+  Timeline,
+  TrendingUp,
+} from '@mui/icons-material';
+import { analyticsAPI, runtimeAPI, strategiesAPI } from '../config/api';
 import EquityChart from './analytics/EquityChart';
 import PairPerformance from './analytics/PairPerformance';
 import {
-  KPICard,
-  SignalQualityWidget,
-  TrendAnalysisWidget,
   ExitAnalysisWidget,
+  KPICard,
   SessionPerformanceWidget,
   SidePerformanceWidget,
+  SignalQualityWidget,
+  TrendAnalysisWidget,
 } from './analytics/StrategyWidgets';
 
-const AnalyticsDashboard = () => {
-  const [period, setPeriod] = useState('30d');
-  const [analytics, setAnalytics] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const theme = useTheme();
+const MODE_OPTIONS = [
+  { value: 'all', label: 'All Modes' },
+  { value: 'live', label: 'Live' },
+  { value: 'paper_shadow', label: 'Shadow Paper' },
+  { value: 'paper_candidate', label: 'Candidate Paper' },
+];
 
-  // Fetch analytics data
+const formatHoldingTime = (ms) => {
+  if (!ms) return 'N/A';
+  const hours = Math.floor(ms / (1000 * 60 * 60));
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  return `${hours}h ${minutes}m`;
+};
+
+const formatModeLabel = (mode) =>
+  MODE_OPTIONS.find((option) => option.value === mode)?.label || 'All Modes';
+
+const formatRunLabel = (run, catalog = []) => {
+  if (!run) return 'All Runs';
+  const strategyLabel =
+    catalog.find((strategy) => strategy.key === run.strategy)?.label || run.strategy;
+  const modeLabel = formatModeLabel(run.mode);
+  const shortRunId = String(run.runId || '').slice(0, 12);
+  return `${strategyLabel} • ${modeLabel} • ${shortRunId}`;
+};
+
+const AnalyticsDashboard = () => {
+  const theme = useTheme();
+  const [period, setPeriod] = useState('30d');
+  const [mode, setMode] = useState('all');
+  const [strategy, setStrategy] = useState('');
+  const [runId, setRunId] = useState('');
+  const [analytics, setAnalytics] = useState(null);
+  const [availableRuns, setAvailableRuns] = useState([]);
+  const [strategyCatalog, setStrategyCatalog] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [contextLoading, setContextLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   useEffect(() => {
+    let cancelled = false;
+
+    const loadFilterContext = async () => {
+      setContextLoading(true);
+      try {
+        const [runsResponse, catalog] = await Promise.all([
+          runtimeAPI.getRuns({
+            mode: mode === 'all' ? undefined : mode,
+            strategy: strategy || undefined,
+          }),
+          strategiesAPI.getCatalog(),
+        ]);
+
+        if (cancelled) return;
+
+        const runs = Array.isArray(runsResponse?.runs) ? runsResponse.runs : [];
+        setAvailableRuns(runs);
+        setStrategyCatalog(Array.isArray(catalog) ? catalog : []);
+
+        if (runId && !runs.some((run) => run.runId === runId)) {
+          setRunId('');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setContextLoading(false);
+        }
+      }
+    };
+
+    loadFilterContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, strategy, runId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const loadAnalytics = async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await tradingAPI.getAnalytics(period);
-        setAnalytics(data);
+        const data = await analyticsAPI.get({
+          period,
+          mode,
+          strategy: strategy || undefined,
+          runId: runId || undefined,
+        });
+
+        if (!cancelled) {
+          setAnalytics(data);
+        }
       } catch (err) {
-        console.error('Analytics Load Error:', err);
-        setError(err.message);
+        if (!cancelled) {
+          setError(err.message);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
-    loadAnalytics();
-  }, [period]);
 
-  if (loading) {
+    loadAnalytics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [period, mode, strategy, runId]);
+
+  const selectedRun = useMemo(
+    () => availableRuns.find((run) => run.runId === runId) || null,
+    [availableRuns, runId]
+  );
+
+  if ((loading || contextLoading) && !analytics) {
     return (
       <Box minHeight="80vh" display="flex" alignItems="center" justifyContent="center">
         <CircularProgress />
@@ -83,39 +192,29 @@ const AnalyticsDashboard = () => {
     pairPerformance,
     sessionPerformance,
     sidePerformance,
+    filters,
+    rawCounts,
   } = analytics;
-
-  // Format holding time
-  const formatHoldingTime = (ms) => {
-    if (!ms) return 'N/A';
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    if (hours > 24) {
-      const days = Math.floor(hours / 24);
-      return `${days}d ${hours % 24}h`;
-    }
-    return `${hours}h ${minutes}m`;
-  };
 
   return (
     <Box px={3} pb={4} pt={2}>
-      {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} gap={2} flexWrap="wrap">
         <Box display="flex" alignItems="center" gap={1}>
           <Insights color="primary" fontSize="large" />
           <Box>
             <Typography variant="h5" fontWeight="900" sx={{ letterSpacing: -0.5 }}>
-              PERFORMANCE<span style={{ color: theme.palette.primary.main }}>LAB</span>
+              RUNTIME<span style={{ color: theme.palette.primary.main }}>ANALYTICS</span>
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 2 }}>
-              FOREX STRATEGY ANALYTICS
+              UNIFIED LIVE, SHADOW, AND CANDIDATE PERFORMANCE
             </Typography>
           </Box>
         </Box>
+
         <ToggleButtonGroup
           value={period}
           exclusive
-          onChange={(e, v) => v && setPeriod(v)}
+          onChange={(_, value) => value && setPeriod(value)}
           size="small"
           sx={{
             bgcolor: alpha(theme.palette.background.paper, 0.1),
@@ -138,7 +237,67 @@ const AnalyticsDashboard = () => {
         </ToggleButtonGroup>
       </Box>
 
-      {/* 1. KPI Cards Row */}
+      <Stack
+        direction={{ xs: 'column', lg: 'row' }}
+        spacing={1.5}
+        alignItems={{ xs: 'stretch', lg: 'center' }}
+        mb={2}
+      >
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <Select value={mode} onChange={(event) => setMode(event.target.value)}>
+            {MODE_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 220 }}>
+          <Select value={strategy} onChange={(event) => setStrategy(event.target.value)}>
+            <MenuItem value="">All Strategies</MenuItem>
+            {strategyCatalog.map((option) => (
+              <MenuItem key={option.key} value={option.key}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 320 }}>
+          <Select
+            value={runId}
+            onChange={(event) => setRunId(event.target.value)}
+            disabled={contextLoading}
+          >
+            <MenuItem value="">All Runs</MenuItem>
+            {availableRuns.map((run) => (
+              <MenuItem key={run.runId} value={run.runId}>
+                {formatRunLabel(run, strategyCatalog)}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Chip
+            icon={<FilterAlt sx={{ fontSize: 16 }} />}
+            label={`Mode ${formatModeLabel(filters?.mode || mode)}`}
+            variant="outlined"
+          />
+          <Chip
+            icon={<Radar sx={{ fontSize: 16 }} />}
+            label={`Signals ${rawCounts?.totalSignals || 0}`}
+            variant="outlined"
+          />
+          <Chip
+            icon={<Timeline sx={{ fontSize: 16 }} />}
+            label={`Run ${selectedRun ? String(selectedRun.runId).slice(0, 12) : 'All'}`}
+            variant="outlined"
+          />
+        </Stack>
+      </Stack>
+
       <Box display="flex" gap={2} mb={2} sx={{ overflowX: 'auto', pb: 0.5 }}>
         <Box flex={1} minWidth={200}>
           <KPICard
@@ -153,7 +312,7 @@ const AnalyticsDashboard = () => {
           <KPICard
             title="Win Rate"
             value={`${summary.winRate?.toFixed(1) || 0}%`}
-            subtitle={`${summary.winningTrades}W / ${summary.losingTrades}L`}
+            subtitle={`${summary.winningTrades || 0}W / ${summary.losingTrades || 0}L`}
             color={summary.winRate > 50 ? 'success.main' : 'warning.main'}
             icon={<DataUsage fontSize="small" />}
           />
@@ -171,7 +330,7 @@ const AnalyticsDashboard = () => {
           <KPICard
             title="Sharpe Ratio"
             value={summary.sharpeRatio?.toFixed(2) || '0.00'}
-            subtitle={summary.sharpeRatio > 1 ? 'Excellent Risk/Reward' : 'Risk Analysis'}
+            subtitle={selectedRun ? formatRunLabel(selectedRun, strategyCatalog) : 'Aggregate runtime view'}
             color={summary.sharpeRatio > 1 ? 'success.main' : 'warning.main'}
             icon={<Insights fontSize="small" />}
           />
@@ -180,14 +339,13 @@ const AnalyticsDashboard = () => {
           <KPICard
             title="Avg Hold Time"
             value={formatHoldingTime(summary.avgHoldingTimeMs)}
-            subtitle={`Best: +A$${summary.largestWinAud || 0}`}
+            subtitle={`Largest win: +A$${summary.largestWinAud || 0}`}
             color="info.main"
             icon={<FilterAlt fontSize="small" />}
           />
         </Box>
       </Box>
 
-      {/* 2. Charts Row */}
       <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={2} mb={2}>
         <Box flex={1} minWidth={0}>
           <EquityChart
@@ -204,7 +362,6 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 3. Analysis Widgets Row */}
       <Box
         display="flex"
         flexDirection={{ xs: 'column', md: 'row' }}
@@ -213,10 +370,7 @@ const AnalyticsDashboard = () => {
         sx={{ minHeight: 320 }}
       >
         <Box flex={1}>
-          <TrendAnalysisWidget
-            totalTrades={summary.totalTrades || 0}
-            adxAnalysis={adxAnalysis}
-          />
+          <TrendAnalysisWidget totalTrades={summary.totalTrades || 0} adxAnalysis={adxAnalysis} />
         </Box>
         <Box flex={1}>
           <SessionPerformanceWidget sessions={sessionPerformance || []} />
@@ -226,12 +380,10 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      {/* 4. Side Performance */}
       <Box mb={2}>
         <SidePerformanceWidget sidePerformance={sidePerformance} />
       </Box>
 
-      {/* 5. Pair Performance Table */}
       <Box width="100%">
         <PairPerformance pairStats={pairPerformance || []} />
       </Box>

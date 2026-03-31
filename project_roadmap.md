@@ -23,13 +23,36 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ---
 
+## Active Delivery Program - Shared Strategy Runtime + Shadow Paper
+
+Approved on 2026-03-30. This is now the primary roadmap item and supersedes the older "live-only runtime plus separate lab" direction.
+
+| Priority | Phase | Status | Notes |
+| -------- | ----- | ------ | ----- |
+| HIGH | Phase 0 - Documentation alignment | Complete | Plan and session docs rewritten around the approved target architecture |
+| HIGH | Phase 1 - Strategy catalog + unified run registry | Complete (code) | Canonical five-strategy catalog, `strategy_runs`, unified `runId`/`selectionId` telemetry |
+| HIGH | Phase 2 - Shared runtime core + live hot swap + shadow baseline | Complete (code) | One active live entry strategy, ownership-safe switching, default shadow paper run |
+| HIGH | Phase 3 - Candidate paper infrastructure + `mean_reversion` + `range_breakout` | Complete (code) | Multiple concurrent candidate runs and the runtime-backed paper comparison shell |
+| HIGH | Phase 4 - Remaining strategies + unified analytics | Complete (code) | Added `stochastic_divergence`, `squeeze_play`, and runtime-wide analytics filters |
+| HIGH | Phase 5 - Legacy backtest/lab removal | Complete (code) | Removed the retired comparison stack and switched docs/operators to the runtime-only workflow |
+| HIGH | Phase 6 - Rollout and monitoring | Planned | Deploy the shared runtime stack and monitor live/shadow/candidate behavior in production |
+
+Program rules:
+
+- Existing live positions stay managed by the strategy run that opened them
+- New live strategy selections affect new entries only
+- Shadow paper is the default baseline for the active live strategy
+- Comparison stays runtime-only; do not reintroduce a parallel backtest/lab production path
+
+---
+
 ## Current Enhancement Status (Session Snapshot)
 
 ### Completed & Deployed
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
-| HIGH | Live-only trading runtime | Complete (deployed) | Removed paper mode from engine/API/UI/docs |
+| HIGH | Live-only runtime cleanup | Complete (deployed, transitional baseline) | Useful as the starting point for the new shared runtime migration, but no longer the target end state |
 | HIGH | Deployment safety hardening | Complete (deployed) | `update.sh` + `deploy.sh` preserve runtime config, hard-fail migrations, prune WAL/SHM backups |
 | HIGH | Enforce `maxPortfolioExposure` in live entry validation | Complete (deployed) | Live entry now rejects when current exposure exceeds configured cap |
 | HIGH | Enforce projected post-entry exposure (`maxPortfolioExposure`) | Complete (deployed) | Entry now rejects if projected exposure after new order would breach cap |
@@ -48,23 +71,26 @@ This document tracks all planned features, enhancements, and technical improveme
 | MEDIUM | Analytics/export expectation-vs-actual reporting | Complete (deployed) | Analytics now separates unique actionable events from cooldown duplicates and exports expectation-vs-actual cohorts |
 | MEDIUM | Backtest/live config and continuation parity | Complete (deployed) | Shared defaults and backtest continuation flow now match the live strategy much more closely |
 
-### Not Yet Implemented (High-Value Follow-Up)
+### Next Up (Pre-Rollout)
 
 | Priority | Enhancement | Status | Notes |
 | -------- | ----------- | ------ | ----- |
-| HIGH | 2-week live cohort review on March 20 deployment baseline | In progress | Review missed entries, HTF-wait conversions, execution rejects, and expectation-vs-actual after 2 weeks of live data |
-| HIGH | Backtest/live margin realism parity | In progress | Config and continuation parity are now deployed; remaining work is margin/exposure behavior alignment in historical engine path |
+| HIGH | Shared strategy runtime foundation | Complete (code) | Implemented across Phases 1-2; rollout validation remains |
+| HIGH | Hot-swappable live strategy selection with ownership-safe exits | Complete (code) | Preserve `ownerRunId` continuity during Phase 6 rollout |
+| HIGH | Shadow paper baseline plus concurrent candidate paper runs | Complete (code) | Runtime-backed Paper and Analytics surfaces are ready for rollout validation |
+| HIGH | Legacy backtest/lab retirement | Complete (code) | Offline backtest engine/scripts and `backtest_results` have been retired from the supported stack |
+| MEDIUM | 2-week live cohort review on March 20 deployment baseline | In progress | Preserve findings as benchmark input while the new strategy runtime is being delivered |
 
 ---
 
-## Phase 4 - Backtesting & Optimization
+## Retired Legacy Backtesting / Lab
 
 | Priority | Feature | Status | Notes |
 | -------- | ------- | ------ | ----- |
-| MEDIUM | Historical data pipeline | Complete | Implemented in `historicalDataService` |
-| MEDIUM | Backtest engine | Complete | Implemented with CLI/API + result storage |
-| MEDIUM | Walk-forward analysis | Planned | Not implemented yet |
-| LOW | Genetic algorithm params | Planned | Not implemented yet |
+| MEDIUM | Historical candle helper | Retained (research-only) | `historicalDataService` remains a low-level offline helper, not a supported comparison workflow |
+| MEDIUM | Backtest engine and result store | Retired (code) | `backtestEngine`, `backtestRepository`, CLI scripts, and `backtest_results` are removed from the supported stack |
+| MEDIUM | Walk-forward analysis | Retired | Do not rebuild this on the legacy backtest path; use runtime paper comparison instead |
+| LOW | Genetic algorithm params | Retired | Do not rebuild this on the legacy backtest path |
 
 ---
 
@@ -74,7 +100,7 @@ This document tracks all planned features, enhancements, and technical improveme
 | -------- | ------- | ------ | ----- |
 | MEDIUM | Short selling | Complete | Entry direction and filtering fixed |
 | MEDIUM | Whipsaw protection | Planned | Cooldown after consecutive stop-outs |
-| LOW | Multi-timeframe confirmation | Complete (backtest) | M15 fills + H1 signal mode implemented in backtests |
+| LOW | Multi-timeframe confirmation | Complete (code) | Shared runtime supports the additional market context required by the current strategy catalog |
 | LOW | Trailing stop improvements | Planned | Dynamic ATR-based trail still pending |
 
 ### Live Signal Logic Hardening (Post-Production Review)
@@ -131,7 +157,7 @@ This document tracks all planned features, enhancements, and technical improveme
 | LOW      | Trade duration analysis | How long do winning vs losing trades last?                     |
 | LOW      | Time-of-day analysis    | Which hours produce best/worst results?                        |
 | LOW      | Trade export to CSV     | For spreadsheet analysis                                       |
-| LOW      | Signal history export   | CSV download of all signals for backtesting analysis           |
+| LOW      | Signal history export   | CSV download of unified runtime signals for offline review     |
 
 ---
 
@@ -145,7 +171,7 @@ This document tracks all planned features, enhancements, and technical improveme
 | LOW | Log rotation cleanup | Planned | Auto-delete logs older than 30 days |
 | HIGH | Preserve runtime config on deploy | Complete (code) | Added to `update.sh` and `deploy.sh` |
 | HIGH | Hard-fail migration on deploy | Complete (code) | Added to `update.sh` and `deploy.sh` |
-| MEDIUM | Backtest equity curve end-balance parity | Complete (code) | `backtestEngine` now appends final realized equity after `BACKTEST_END` closeouts; prevents chart/summary mismatch |
+| MEDIUM | Legacy `backtest_results` retirement migration | Complete (code) | `006_drop_backtest_results.js` removes the retired table during rollout |
 
 ---
 
@@ -161,7 +187,6 @@ This document tracks all planned features, enhancements, and technical improveme
 
 | Item                    | Blocked By                      | Notes                                        |
 | ----------------------- | ------------------------------- | -------------------------------------------- |
-| Backtest UI             | Product prioritization          | Engine/data now available                    |
 | Parameter optimization  | Walk-forward framework          | Need robust anti-overfitting flow            |
 
 ---
@@ -169,7 +194,6 @@ This document tracks all planned features, enhancements, and technical improveme
 ## Ideas / Backlog
 
 - [ ] Add more currency pairs beyond the current 4-pair cohort
-- [ ] Strategy comparison mode (run multiple strategies in parallel)
 - [ ] Telegram bot integration for alerts
 - [ ] Performance comparison vs benchmark (buy-and-hold)
 - [ ] Risk-adjusted position sizing based on recent volatility
@@ -189,4 +213,4 @@ This document tracks all planned features, enhancements, and technical improveme
 
 ---
 
-_Last updated: 2026-03-20_
+_Last updated: 2026-03-30_

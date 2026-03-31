@@ -57,6 +57,10 @@ const runMigrations = async (db) => {
         table.bigInteger('last_broker_sync_at');
         table.string('config_hash');
         table.json('broker_reconciliation_payload');
+        table.string('run_id');
+        table.string('owner_run_id');
+        table.string('selection_id');
+        table.string('strategy');
         table.decimal('leverage_used', 10, 2);
         table.decimal('margin_used_aud', 10, 2);
         table.decimal('spread_pips', 10, 2);
@@ -99,6 +103,9 @@ const runMigrations = async (db) => {
         table.string('pending_waiting_for');
         table.string('config_hash');
         table.json('decision_context');
+        table.string('run_id');
+        table.string('selection_id');
+        table.string('mode');
     });
 
     await db.schema.createTable('entry_decisions', (table) => {
@@ -126,6 +133,27 @@ const runMigrations = async (db) => {
         table.decimal('rsi', 10, 4);
         table.decimal('atr_pips', 10, 4);
         table.string('trade_id');
+        table.string('run_id');
+        table.string('selection_id');
+        table.string('mode');
+        table.string('strategy');
+        table.timestamp('created_at').defaultTo(db.fn.now());
+        table.timestamp('updated_at').defaultTo(db.fn.now());
+    });
+
+    await db.schema.createTable('strategy_runs', (table) => {
+        table.increments('id').primary();
+        table.string('run_id').notNullable().unique();
+        table.string('mode').notNullable();
+        table.string('strategy').notNullable();
+        table.string('status').notNullable();
+        table.string('selection_id');
+        table.string('shadow_of_run_id');
+        table.string('config_hash');
+        table.json('config_snapshot');
+        table.bigInteger('started_at').notNullable();
+        table.bigInteger('stopped_at');
+        table.json('metadata');
         table.timestamp('created_at').defaultTo(db.fn.now());
         table.timestamp('updated_at').defaultTo(db.fn.now());
     });
@@ -133,14 +161,21 @@ const runMigrations = async (db) => {
     // Create portfolio_snapshots table
     await db.schema.createTable('portfolio_snapshots', (table) => {
         table.increments('id').primary();
-        table.bigInteger('timestamp').notNullable();
-        table.decimal('balance', 10, 2);
-        table.decimal('total_value', 10, 2);
-        table.decimal('unrealized_pnl', 10, 2);
-        table.decimal('margin_used', 10, 2);
-        table.decimal('margin_available', 10, 2);
+        table.decimal('total_value_aud', 10, 2);
+        table.decimal('balance_aud', 10, 2);
+        table.decimal('unrealized_pnl_aud', 10, 2);
+        table.decimal('realized_pnl_aud', 10, 2);
+        table.decimal('margin_used_aud', 10, 2);
+        table.decimal('margin_available_aud', 10, 2);
+        table.json('positions');
         table.integer('position_count');
+        table.decimal('exposure_percent', 10, 2);
+        table.bigInteger('snapshot_time').notNullable();
+        table.string('run_id');
+        table.string('selection_id');
         table.string('mode').defaultTo('live');
+        table.string('strategy');
+        table.timestamp('created_at').defaultTo(db.fn.now());
     });
 };
 
@@ -164,6 +199,7 @@ const cleanupTestDb = async (db) => {
     await db('signals').del();
     await db('entry_decisions').del();
     await db('portfolio_snapshots').del();
+    await db('strategy_runs').del();
 };
 
 /**

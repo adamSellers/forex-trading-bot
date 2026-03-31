@@ -40,6 +40,14 @@ case "$1" in
             pm2 logs "$APP_NAME" --lines 200 --nostream | grep -iE "(trade|signal|position|entry|exit|buy|sell)" | tail -50
         fi
         ;;
+    "runtime")
+        echo "📋 Shared Runtime Activity:"
+        if [ -f "$LOG_DIR/combined.log" ]; then
+            grep -iE "(runtime|shadow|candidate|selection|ownerRunId|runId|managing_only)" "$LOG_DIR/combined.log" | tail -80
+        else
+            pm2 logs "$APP_NAME" --lines 300 --nostream | grep -iE "(runtime|shadow|candidate|selection|ownerRunId|runId|managing_only)" | tail -80
+        fi
+        ;;
     "errors")
         echo "📋 Recent Errors:"
         pm2 logs "$APP_NAME" --lines 500 --nostream | grep -iE "(error|failed|exception)" | tail -30
@@ -58,6 +66,7 @@ case "$1" in
         echo "  app     - Show application combined.log"
         echo "  error   - Show error.log"
         echo "  trades  - Filter for trade-related entries"
+        echo "  runtime - Filter for runtime/shadow/candidate activity"
         echo "  errors  - Filter for error entries"
         echo "  clear   - Clear PM2 logs"
         ;;

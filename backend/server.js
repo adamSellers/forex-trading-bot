@@ -9,17 +9,17 @@ const cors = require("cors");
 const logger = require("./src/utils/logger");
 const tradingRoutes = require("./src/routes/tradingRoutes");
 const OandaDataService = require("./src/services/OandaDataService");
-const SignalGenerator = require("./src/services/signalGenerator");
 const ConfigService = require("./src/services/configService");
 const LiveTradingEngine = require("./src/services/LiveTradingEngine");
 const TradeRepository = require("./src/repositories/tradeRepository");
 const SignalRepository = require("./src/repositories/signalRepository");
 const EntryDecisionRepository = require("./src/repositories/entryDecisionRepository");
+const StrategyRunRepository = require("./src/repositories/strategyRunRepository");
+const PortfolioRepository = require("./src/repositories/portfolioRepository");
 const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
-const BacktestRepository = require("./src/repositories/backtestRepository");
-const backtestRoutes = require("./src/routes/backtestRoutes");
-const registerLabSocket = require("./src/socket/labSocket");
+const RuntimeCoordinator = require("./src/runtime/runtimeCoordinator");
+const PaperTradingRuntime = require("./src/services/PaperTradingRuntime");
 
 const app = express();
 const server = http.createServer(app);
@@ -44,6 +44,7 @@ const io = new Server(server, {
 
 // Initialize ConfigService first (loads from file or creates defaults)
 const configService = new ConfigService();
+configService.init();
 
 // Get initial instruments from config
 const initialConfig = configService.get();
@@ -61,40 +62,26 @@ const dataService = new OandaDataService(INSTRUMENTS);
 const tradeRepository = new TradeRepository();
 const signalRepository = new SignalRepository();
 const entryDecisionRepository = new EntryDecisionRepository();
+const strategyRunRepository = new StrategyRunRepository();
+const portfolioRepository = new PortfolioRepository();
 
-// Initialize SignalGenerator with repository for persistence
-const signalGenerator = new SignalGenerator({
-    assets: INSTRUMENTS,
-    timeframe: initialConfig.timeframe || "15m",
-    enableAdxFilter: initialConfig.enableAdxFilter ?? true,
-    minAdx: initialConfig.minAdx || 22,
-    adxSlopeFilter: initialConfig.adxSlopeFilter ?? true,
-    adxSlopeLookback: initialConfig.adxSlopeLookback || 3,
-    requireDirectionalAdx: initialConfig.requireDirectionalAdx ?? true,
-    enableRsiFilter: initialConfig.enableRsiFilter ?? true,
-    longRsiMomentumFloor: initialConfig.longRsiMomentumFloor || 52,
-    shortRsiMomentumCeiling:
-        initialConfig.shortRsiMomentumCeiling || 48,
-    freshLongRsiCeiling: initialConfig.freshLongRsiCeiling || 68,
-    rsiOverbought: initialConfig.rsiOverbought || 75,
-    rsiOversold: initialConfig.rsiOversold || 30,
-    enableContinuationEntry: initialConfig.enableContinuationEntry ?? true,
-    enableLongContinuationEntry:
-        initialConfig.enableLongContinuationEntry ?? true,
-    enableShortContinuationEntry:
-        initialConfig.enableShortContinuationEntry ?? false,
-    continuationWindowMs:
-        initialConfig.continuationWindowMs || 4 * 60 * 60 * 1000,
-    continuationRsiThreshold: initialConfig.continuationRsiThreshold || 70,
-    continuationMaxPriceDeviation:
-        initialConfig.continuationMaxPriceDeviation || 0.02,
-    continuationPullbackMinAtr:
-        initialConfig.continuationPullbackMinAtr || 0.5,
-    continuationPullbackMaxAtr:
-        initialConfig.continuationPullbackMaxAtr || 1.5,
-    enableHTFFilter: initialConfig.enableHTFFilter ?? true,
-    htfTimeframe: initialConfig.htfTimeframe || "1h",
-}, signalRepository);
+// Initialize shared runtime coordinator
+const runtimeCoordinator = new RuntimeCoordinator({
+    dataService,
+    signalRepository,
+    strategyRunRepository,
+    tradeRepository,
+    configService,
+    pollIntervalMs: 60000,
+});
+const paperTradingRuntime = new PaperTradingRuntime({
+    runtimeCoordinator,
+    tradeRepository,
+    signalRepository,
+    portfolioRepository,
+    dataService,
+    io,
+});
 
 // Initialize S3 report scheduler
 const s3ReportScheduler = new S3ReportScheduler(
@@ -103,23 +90,35 @@ const s3ReportScheduler = new S3ReportScheduler(
     entryDecisionRepository
 );
 
-// Initialize backtest repository (for storing backtest results)
-const backtestRepository = new BacktestRepository();
-
 // Initialize LiveTradingEngine
 const tradingEngine = new LiveTradingEngine({
     monitorIntervalMs: 10000, // Check positions every 10 seconds
 });
 
 // Wire up ConfigService to services
-configService.init(dataService, signalGenerator);
+configService.init(dataService, runtimeCoordinator);
+runtimeCoordinator.init({
+    dataService,
+    signalRepository,
+    strategyRunRepository,
+    tradeRepository,
+    configService,
+});
+paperTradingRuntime.init({
+    runtimeCoordinator,
+    tradeRepository,
+    signalRepository,
+    portfolioRepository,
+    dataService,
+    io,
+});
 
 // Initialize trading engine with all dependencies
 tradingEngine.init(
     configService,
     dataService,
     tradeRepository,
-    signalGenerator,
+    runtimeCoordinator,
     io,
     entryDecisionRepository
 );
@@ -129,15 +128,18 @@ emailService.initialize();
 
 // Make services available to routes
 app.locals.dataService = dataService;
-app.locals.signalGenerator = signalGenerator;
+app.locals.signalGenerator = runtimeCoordinator;
+app.locals.runtimeCoordinator = runtimeCoordinator;
 app.locals.configService = configService;
 app.locals.tradingEngine = tradingEngine;
 app.locals.tradeRepository = tradeRepository;
 app.locals.signalRepository = signalRepository;
 app.locals.entryDecisionRepository = entryDecisionRepository;
+app.locals.strategyRunRepository = strategyRunRepository;
+app.locals.portfolioRepository = portfolioRepository;
+app.locals.paperTradingRuntime = paperTradingRuntime;
 app.locals.emailService = emailService;
 app.locals.s3ReportScheduler = s3ReportScheduler;
-app.locals.backtestRepository = backtestRepository;
 app.locals.io = io;
 
 // Middleware
@@ -154,7 +156,6 @@ app.use((req, res, next) => {
 
 // Mount API routes
 app.use("/api", tradingRoutes);
-app.use("/api/backtest", backtestRoutes);
 
 // ============================================
 // Production: Serve Frontend Static Files
@@ -178,7 +179,6 @@ app.get("*", (req, res) => {
 // ============================================
 io.on("connection", (socket) => {
     logger.info(`Client connected: ${socket.id}`);
-    registerLabSocket(io, socket);
 
     // Send initial data on connect
     socket.emit("connected", {
@@ -195,14 +195,16 @@ io.on("connection", (socket) => {
 
     // Send current signals immediately on connect
     if (
-        signalGenerator.latestSignals &&
-        signalGenerator.latestSignals.length > 0
+        runtimeCoordinator.latestSignals &&
+        runtimeCoordinator.latestSignals.length > 0
     ) {
-        socket.emit("signalUpdate", signalGenerator.latestSignals);
+        socket.emit("signalUpdate", runtimeCoordinator.latestSignals);
     }
 
     // Send trading engine status
     socket.emit("engineStatus", tradingEngine.getStatus());
+    socket.emit("liveSelectionUpdated", runtimeCoordinator.getLiveSelection());
+    socket.emit("runtimeRunsChanged", runtimeCoordinator.listRuns());
 
     // Handle client requesting current prices
     socket.on("getPrices", () => {
@@ -212,7 +214,7 @@ io.on("connection", (socket) => {
 
     // Handle client requesting current signals
     socket.on("getSignals", () => {
-        socket.emit("signalUpdate", signalGenerator.latestSignals || []);
+        socket.emit("signalUpdate", runtimeCoordinator.latestSignals || []);
     });
 
     // Handle client requesting engine status
@@ -264,12 +266,22 @@ const broadcastEngineStatus = () => {
     io.emit("engineStatus", tradingEngine.getStatus());
 };
 
+const broadcastLiveSelection = (selection) => {
+    io.emit("liveSelectionUpdated", selection);
+};
+
+const broadcastRuntimeRuns = (runs) => {
+    io.emit("runtimeRunsChanged", runs);
+};
+
 // Make broadcast functions available to routes
 app.locals.broadcastPrices = broadcastPrices;
 app.locals.broadcastSignals = broadcastSignals;
 app.locals.broadcastSignal = broadcastSignal;
 app.locals.broadcastTrade = broadcastTrade;
 app.locals.broadcastEngineStatus = broadcastEngineStatus;
+app.locals.broadcastLiveSelection = broadcastLiveSelection;
+app.locals.broadcastRuntimeRuns = broadcastRuntimeRuns;
 
 // Broadcast config changes
 const broadcastConfig = (config) => {
@@ -345,10 +357,13 @@ server.listen(PORT, async () => {
         // Start signal generator after data service has initial data
         setTimeout(async () => {
             // Wire up signal updates from generator to socket broadcast
-            signalGenerator.on("allSignalsGenerated", broadcastSignals);
-            signalGenerator.on("signalGenerated", broadcastSignal);
+            runtimeCoordinator.on("allSignalsGenerated", broadcastSignals);
+            runtimeCoordinator.on("signalGenerated", broadcastSignal);
+            runtimeCoordinator.on("liveSelectionChanged", broadcastLiveSelection);
+            runtimeCoordinator.on("runtimeRunsChanged", broadcastRuntimeRuns);
 
-            signalGenerator.start(dataService, 60000); // Generate signals every 60s
+            await runtimeCoordinator.start(dataService, 60000);
+            await paperTradingRuntime.start();
 
             // Start trading engine (will subscribe to signals)
             // Note: Trading is controlled by config.enableTrading flag
@@ -396,8 +411,10 @@ const gracefulShutdown = (signal) => {
     // Remove event listeners to prevent memory leaks
     try {
         dataService.removeListener("priceUpdate", broadcastPrices);
-        signalGenerator.removeListener("allSignalsGenerated", broadcastSignals);
-        signalGenerator.removeListener("signalGenerated", broadcastSignal);
+        runtimeCoordinator.removeListener("allSignalsGenerated", broadcastSignals);
+        runtimeCoordinator.removeListener("signalGenerated", broadcastSignal);
+        runtimeCoordinator.removeListener("liveSelectionChanged", broadcastLiveSelection);
+        runtimeCoordinator.removeListener("runtimeRunsChanged", broadcastRuntimeRuns);
         configService.removeListener("configChanged", broadcastConfig);
         tradingEngine.removeAllListeners();
     } catch (err) {
@@ -408,7 +425,8 @@ const gracefulShutdown = (signal) => {
     try {
         if (tradingEngine) tradingEngine.stop();
         if (dataService) dataService.stop();
-        if (signalGenerator) signalGenerator.stop();
+        if (runtimeCoordinator) runtimeCoordinator.stop();
+        if (paperTradingRuntime) paperTradingRuntime.stop();
         if (s3ReportScheduler) s3ReportScheduler.stop();
     } catch (err) {
         logger.error("Error stopping services:", err.message);

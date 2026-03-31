@@ -29,6 +29,25 @@ class EntryDecisionRepository {
         }
     }
 
+    _applyRuntimeFilters(query, filters = {}) {
+        const { mode, runId, selectionId, strategy } = filters || {};
+
+        if (mode !== null && mode !== undefined) {
+            query.where("mode", mode);
+        }
+        if (runId) {
+            query.where("run_id", runId);
+        }
+        if (selectionId) {
+            query.where("selection_id", selectionId);
+        }
+        if (strategy) {
+            query.where("strategy", strategy);
+        }
+
+        return query;
+    }
+
     _buildRecord(decision) {
         return {
             decision_id: decision.decisionId,
@@ -70,6 +89,10 @@ class EntryDecisionRepository {
             atr_pips:
                 decision.atrPips === undefined ? null : decision.atrPips,
             trade_id: decision.tradeId || null,
+            run_id: decision.runId || null,
+            selection_id: decision.selectionId || null,
+            mode: decision.mode || "live",
+            strategy: decision.strategy || null,
             created_at: new Date(),
             updated_at: new Date(),
         };
@@ -103,6 +126,10 @@ class EntryDecisionRepository {
             rsi: this._toNumber(row.rsi),
             atrPips: this._toNumber(row.atr_pips),
             tradeId: row.trade_id,
+            runId: row.run_id,
+            selectionId: row.selection_id,
+            mode: row.mode || "live",
+            strategy: row.strategy,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
         };
@@ -176,6 +203,12 @@ class EntryDecisionRepository {
             if (updates.rsi !== undefined) dbUpdates.rsi = updates.rsi;
             if (updates.atrPips !== undefined) dbUpdates.atr_pips = updates.atrPips;
             if (updates.tradeId !== undefined) dbUpdates.trade_id = updates.tradeId;
+            if (updates.runId !== undefined) dbUpdates.run_id = updates.runId;
+            if (updates.selectionId !== undefined) {
+                dbUpdates.selection_id = updates.selectionId;
+            }
+            if (updates.mode !== undefined) dbUpdates.mode = updates.mode;
+            if (updates.strategy !== undefined) dbUpdates.strategy = updates.strategy;
 
             if (Object.keys(dbUpdates).length <= 1) return;
 
@@ -188,13 +221,14 @@ class EntryDecisionRepository {
         }
     }
 
-    async getDecisionsSince(cutoffTime) {
+    async getDecisionsSince(cutoffTime, filters = {}) {
         try {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
-            const rows = await db("entry_decisions")
-                .where("decision_time", ">=", timestamp)
-                .orderBy("decision_time", "desc");
+            const rows = await this._applyRuntimeFilters(
+                db("entry_decisions").where("decision_time", ">=", timestamp),
+                filters
+            ).orderBy("decision_time", "desc");
             return rows.map((row) => this._mapRow(row));
         } catch (error) {
             logger.error("Error getting entry decisions since cutoff:", error);

@@ -30,7 +30,7 @@ import {
   FiberManualRecord,
 } from '@mui/icons-material';
 import { io } from 'socket.io-client';
-import { SOCKET_URL, tradingAPI, engineAPI } from '../config/api';
+import { SOCKET_URL, tradingAPI, engineAPI, runtimeAPI, strategiesAPI } from '../config/api';
 
 // --- IMPORTED WIDGETS ---
 import { GlassCard, FOREX_INSTRUMENTS } from './dashboard/Shared';
@@ -44,6 +44,45 @@ import MarketStatusBanner from './dashboard/MarketStatusBanner';
 
 const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
 const SIDEBAR_WIDTH = 340;
+const DEFAULT_STRATEGY_KEY = 'supertrend_momentum';
+const FALLBACK_STRATEGY_OPTIONS = [
+  { key: 'supertrend_momentum', label: 'SuperTrend Momentum', runtimeStatus: 'baseline' },
+];
+
+const getStrategyOptions = (catalog = []) => {
+  return catalog.length > 0 ? catalog : FALLBACK_STRATEGY_OPTIONS;
+};
+
+const isStrategySelectable = (strategy = {}) =>
+  strategy.runtimeStatus === 'baseline' || strategy.runtimeStatus === 'live_ready';
+
+const getStrategyAvailabilitySuffix = (strategy = {}) => {
+  if (strategy.runtimeStatus === 'candidate') {
+    return ' (Paper Only)';
+  }
+
+  if (strategy.runtimeStatus === 'planned') {
+    return ' (Planned)';
+  }
+
+  return '';
+};
+
+const normalizeStrategySelection = (strategyKey, catalog = []) => {
+  const options = getStrategyOptions(catalog);
+  if (options.some((option) => option.key === strategyKey)) {
+    return strategyKey;
+  }
+
+  return DEFAULT_STRATEGY_KEY;
+};
+
+const getStrategyLabel = (strategyKey, catalog = []) => {
+  const strategy = getStrategyOptions(catalog).find((option) => option.key === strategyKey);
+  return strategy?.label || 'SuperTrend Momentum';
+};
+
+const shortenRuntimeId = (value) => (value ? String(value).slice(0, 12) : 'unassigned');
 
 const TradingDashboard = () => {
   const theme = useTheme();
@@ -57,7 +96,10 @@ const TradingDashboard = () => {
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState('supertrend_momentum');
+  const [strategyCatalog, setStrategyCatalog] = useState([]);
+  const [liveSelection, setLiveSelection] = useState(null);
+  const [selectedStrategy, setSelectedStrategy] = useState(DEFAULT_STRATEGY_KEY);
+  const [isApplyingStrategy, setIsApplyingStrategy] = useState(false);
 
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState(null);
@@ -100,7 +142,7 @@ const TradingDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData] =
+      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, liveSelectionData, catalogData] =
         await Promise.allSettled([
           tradingAPI.getStatus(),
           tradingAPI.getPortfolio(),
@@ -109,17 +151,37 @@ const TradingDashboard = () => {
           tradingAPI.getPrices(),
           tradingAPI.getAccount(),
           engineAPI.getStatus(),
+          runtimeAPI.getLiveSelection(),
+          strategiesAPI.getCatalog(),
         ]);
 
       if (!isMountedRef.current) return;
 
+      const catalog = catalogData.status === 'fulfilled' && Array.isArray(catalogData.value)
+        ? catalogData.value
+        : [];
+      setStrategyCatalog(catalog);
+
       if (statusData.status === 'fulfilled') {
         setSystemStatus(statusData.value);
         setTradingEnabled(statusData.value.config?.enableTrading || false);
-        setSelectedStrategy(statusData.value.config?.strategy || 'supertrend_momentum');
       }
       if (engineData.status === 'fulfilled') {
         setEngineStatus(engineData.value);
+      }
+      if (liveSelectionData.status === 'fulfilled') {
+        const selection = liveSelectionData.value?.liveSelection || null;
+        setLiveSelection(selection);
+        setSelectedStrategy(
+          normalizeStrategySelection(
+            selection?.strategy || (statusData.status === 'fulfilled' ? statusData.value?.config?.strategy : null),
+            catalog
+          )
+        );
+      } else if (statusData.status === 'fulfilled') {
+        setSelectedStrategy(
+          normalizeStrategySelection(statusData.value.config?.strategy, catalog)
+        );
       }
       if (signalsData.status === 'fulfilled' && signalsData.value) {
         const sigs = Array.isArray(signalsData.value)
@@ -170,6 +232,15 @@ const TradingDashboard = () => {
 
     socket.on('systemStatus', (s) => isMountedRef.current && setSystemStatus(s));
     socket.on('engineStatus', (s) => isMountedRef.current && setEngineStatus(s));
+    socket.on('liveSelectionUpdated', (selection) => {
+      if (isMountedRef.current) {
+        setLiveSelection(selection || null);
+        setSelectedStrategy((current) =>
+          normalizeStrategySelection(selection?.strategy || current, strategyCatalog)
+        );
+        setLastUpdate(Date.now());
+      }
+    });
     socket.on('portfolioUpdated', (d) => {
       if (isMountedRef.current) {
         setPortfolio(d);
@@ -235,13 +306,15 @@ const TradingDashboard = () => {
       if (isMountedRef.current && newConfig) {
         setSystemStatus((prev) => ({ ...prev, config: newConfig }));
         setTradingEnabled(newConfig.enableTrading || false);
-        setSelectedStrategy(newConfig.strategy || 'supertrend_momentum');
+        setSelectedStrategy((current) =>
+          normalizeStrategySelection(liveSelection?.strategy || newConfig.strategy || current, strategyCatalog)
+        );
         setLastUpdate(Date.now());
       }
     });
 
     return () => socket.disconnect();
-  }, [fetchInitialData, updateSignalState]);
+  }, [fetchInitialData, liveSelection?.strategy, strategyCatalog, updateSignalState]);
 
   // --- HANDLERS ---
   const handleToggleTrading = async () => {
@@ -256,13 +329,22 @@ const TradingDashboard = () => {
     }
   };
 
-  const handleStrategyChange = async (e) => {
-    const s = e.target.value;
-    setSelectedStrategy(s);
+  const handleStrategyChange = (e) => {
+    setSelectedStrategy(e.target.value);
+  };
+
+  const handleApplyStrategy = async () => {
     try {
-      await tradingAPI.updateConfig({ strategy: s });
+      setIsApplyingStrategy(true);
+      setError(null);
+      await runtimeAPI.setLiveSelection({ strategyKey: selectedStrategy });
+      await fetchInitialData();
     } catch (err) {
       setError(err.message);
+    } finally {
+      if (isMountedRef.current) {
+        setIsApplyingStrategy(false);
+      }
     }
   };
 
@@ -281,10 +363,28 @@ const TradingDashboard = () => {
       Array.from(latestSignals.values()).sort((a, b) => b.timestamp - a.timestamp),
     [latestSignals]
   );
+  const strategyOptions = useMemo(
+    () => getStrategyOptions(strategyCatalog),
+    [strategyCatalog]
+  );
   const activeChartAssets = useMemo(
     () => systemStatus?.config?.assets || FOREX_INSTRUMENTS,
     [systemStatus]
   );
+  const activeStrategyLabel = useMemo(
+    () => getStrategyLabel(liveSelection?.strategy || selectedStrategy, strategyOptions),
+    [liveSelection?.strategy, selectedStrategy, strategyOptions]
+  );
+  const selectedStrategyOption = useMemo(
+    () => strategyOptions.find((option) => option.key === selectedStrategy) || null,
+    [selectedStrategy, strategyOptions]
+  );
+  const canApplyStrategy =
+    Boolean(selectedStrategyOption) &&
+    isStrategySelectable(selectedStrategyOption) &&
+    !isApplyingStrategy;
+  const strategyActionLabel =
+    liveSelection?.strategy === selectedStrategy ? 'Restart Live Run' : 'Apply Live Strategy';
 
   const calculatedDailyPnL = useMemo(() => {
     if (!trades || trades.length === 0) return 0;
@@ -347,18 +447,35 @@ const TradingDashboard = () => {
             <Select
               value={selectedStrategy}
               onChange={handleStrategyChange}
-              disabled={tradingEnabled}
+              disabled={isApplyingStrategy}
               sx={{
                 height: 32,
                 fontSize: '0.8rem',
-                minWidth: 160,
+                minWidth: 220,
                 bgcolor: alpha(theme.palette.background.paper, 0.1),
               }}
             >
-              <MenuItem value="supertrend_momentum">⚡ SuperTrend + ADX</MenuItem>
-              <MenuItem value="balanced">⚖️ Balanced</MenuItem>
+              {strategyOptions.map((option) => (
+                <MenuItem
+                  key={option.key}
+                  value={option.key}
+                  disabled={!isStrategySelectable(option)}
+                >
+                  {option.label}
+                  {getStrategyAvailabilitySuffix(option)}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleApplyStrategy}
+            disabled={!canApplyStrategy}
+            sx={{ px: 2, fontWeight: 'bold' }}
+          >
+            {isApplyingStrategy ? 'Applying...' : strategyActionLabel}
+          </Button>
           <Button
             variant="contained"
             color={tradingEnabled ? 'error' : 'success'}
@@ -383,6 +500,24 @@ const TradingDashboard = () => {
 
         {/* Engine Status Indicator */}
         <Stack direction="row" spacing={2} alignItems="center">
+          <Chip
+            label={`Live: ${activeStrategyLabel}`}
+            size="small"
+            color="primary"
+            variant="outlined"
+            sx={{ height: 22, fontSize: '0.72rem' }}
+          />
+          <Chip
+            label={
+              liveSelection?.shadowRun
+                ? `Shadow: ${liveSelection.shadowRun.status}`
+                : 'Shadow: Starting'
+            }
+            size="small"
+            color={liveSelection?.shadowRun ? 'success' : 'default'}
+            variant="outlined"
+            sx={{ height: 22, fontSize: '0.72rem' }}
+          />
           <Box display="flex" alignItems="center" gap={1}>
             <FiberManualRecord
               sx={{
@@ -407,6 +542,16 @@ const TradingDashboard = () => {
               sx={{ height: 20, fontSize: '0.7rem' }}
             />
           )}
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: 'monospace',
+              color: 'text.secondary',
+              display: { xs: 'none', md: 'block' },
+            }}
+          >
+            Selection: {shortenRuntimeId(liveSelection?.selectionId)}
+          </Typography>
           <Typography
             variant="caption"
             sx={{

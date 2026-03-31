@@ -110,6 +110,56 @@ fi
 
 echo ""
 
+# Runtime status
+if curl -sf "http://localhost:$PORT/api/runtime/live-selection" > /dev/null 2>&1; then
+    echo -e "${BLUE}🧠 Runtime Status:${NC}"
+
+    runtime=$(curl -s "http://localhost:$PORT/api/runtime/live-selection" 2>/dev/null)
+    runtime_info=$(echo "$runtime" | python3 -c "
+import sys, json
+
+def short(value):
+    value = str(value or '')
+    return value[:12] if value else 'n/a'
+
+try:
+    data = json.load(sys.stdin)
+    live = data.get('liveSelection') or {}
+    runs = data.get('runs') or []
+    live_run = live.get('liveRun') or {}
+    shadow_run = live.get('shadowRun') or {}
+    candidates = [
+        run for run in runs
+        if run.get('mode') == 'paper_candidate' and run.get('status') == 'active'
+    ]
+    managing = [
+        run for run in runs
+        if run.get('mode') == 'live' and run.get('status') == 'managing_only'
+    ]
+
+    print(f\"  Strategy:       {live.get('strategy') or 'n/a'}\")
+    print(f\"  Selection ID:   {short(live.get('selectionId'))}\")
+    print(
+        f\"  Live Run:       {short(live_run.get('runId'))} \"
+        f\"({live_run.get('status') or 'unknown'})\"
+    )
+    if shadow_run:
+        print(
+            f\"  Shadow Run:     {short(shadow_run.get('runId'))} \"
+            f\"({shadow_run.get('status') or 'unknown'})\"
+        )
+        print(f\"  Shadows Live:   {short(shadow_run.get('shadowOfRunId'))}\")
+    else:
+        print('  Shadow Run:     MISSING')
+    print(f\"  Candidates:     {len(candidates)} active\")
+    print(f\"  Managing Only:  {len(managing)} live run(s)\")
+except Exception:
+    pass
+" 2>/dev/null)
+    [ -n "$runtime_info" ] && echo "$runtime_info"
+    echo ""
+fi
+
 # Trading Stats (if API is up)
 if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
     echo -e "${BLUE}📈 Trading Status:${NC}"

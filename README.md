@@ -1,8 +1,8 @@
 # Forex Trend-Following Trading Bot
 
-A professional Forex trading bot using the **SuperTrend + ADX Momentum** strategy, built for deployment on a Raspberry Pi. Features a real-time React dashboard, strategy lab, comprehensive analytics, live trading engine, and integration with Oanda's REST v20 API.
+A professional Forex trading bot built for deployment on a Raspberry Pi. It now runs a shared strategy runtime with hot-swappable live selection, an always-on shadow paper baseline, concurrent candidate paper runs, unified analytics, and broker-backed live execution via Oanda's REST v20 API.
 
-![Status](https://img.shields.io/badge/Phase%202-Complete-success) ![Status](https://img.shields.io/badge/Phase%203-In%20Progress-yellow) ![Node](https://img.shields.io/badge/Node-18%2B-green) ![License](https://img.shields.io/badge/License-MIT-blue)
+![Status](https://img.shields.io/badge/Phase%205-Complete-success) ![Status](https://img.shields.io/badge/Phase%206-Next-blue) ![Node](https://img.shields.io/badge/Node-18%2B-green) ![License](https://img.shields.io/badge/License-MIT-blue)
 
 ---
 
@@ -11,11 +11,12 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 ### Trading Engine
 
 -   **LiveTradingEngine**: Fully automated trade execution based on signals
--   **SuperTrend + ADX Strategy**: Trend-following approach optimized for Forex markets
+-   **Shared Runtime**: Unified run orchestration for `live`, `paper_shadow`, and `paper_candidate`
+-   **Hot-Swappable Live Selection**: Live strategy changes affect new entries only
+-   **Owner-Safe Exit Management**: Open trades stay attached to the `ownerRunId` that opened them
 -   **Delayed HTF Confirmation**: Lower-timeframe flips can wait for higher-timeframe alignment instead of being discarded immediately
 -   **Multiple Pairs**: AUD/USD, EUR/USD, GBP/USD, USD/JPY
 -   **Oanda Integration**: Live trading via REST v20 API (ASIC regulated)
--   **Live Runtime**: Production engine runs live-only execution path
 
 ### Risk Management
 
@@ -37,11 +38,11 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 ### Dashboard
 
 -   **Real-time Prices**: WebSocket-based live price updates every 5 seconds
--   **Signal Monitoring**: SuperTrend flip detection with ADX/RSI filters
+-   **Signal Monitoring**: Runtime-backed signal inspection across live, shadow, and candidate runs
 -   **Portfolio Tracking**: Live positions, P/L, margin usage
--   **Performance Analytics**: Win rate, profit factor, Sharpe ratio, equity curves
+-   **Performance Analytics**: Win rate, profit factor, Sharpe ratio, equity curves, and runtime filters
 -   **Expectation vs Actual Analytics**: Unique actionable signals separated from cooldown duplicates for cleaner review
--   **Strategy Lab**: Interactive simulation/optimization workflow with forex-oriented spread/commission realism
+-   **Paper Comparison**: Compare the active shadow baseline against concurrent candidate runs from the unified runtime model
 -   **System Health**: Service status, API latency, memory monitoring
 -   **Trading Sessions**: Visual session indicators with best trading windows
 
@@ -51,72 +52,22 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   **Frontend**: React 18 + Material UI + Recharts
 -   **Database**: SQLite via Knex.js
 -   **Deployment**: PM2 process management
--   **Shared Config Contract**: Canonical trading defaults shared across live runtime, frontend config, and backtest/lab flows
+-   **Shared Config Contract**: Canonical trading defaults shared across the live runtime, paper runtime, and frontend config surfaces
 
 ---
 
 ## 📊 Current Status
 
-### Phase 1: Foundation ✅ COMPLETE
+### Shared Runtime Program ✅ PHASES 1-5 COMPLETE IN CODE
 
--   [x] Oanda account setup + API verified
--   [x] Project structure (monorepo)
--   [x] OandaDataService (polling + EventEmitter)
--   [x] SignalGenerator (SuperTrend + ADX + RSI)
--   [x] Database schema + migrations
--   [x] API routes with live Oanda data
--   [x] Socket.IO real-time updates
--   [x] React + MUI dashboard
--   [x] ConfigService with persistence
--   [x] Full navigation (Dashboard | Analytics | Lab | System | Settings)
--   [x] Analytics with server-side metrics
--   [x] System health monitoring
-
-### Phase 2: Core Trading ✅ COMPLETE
-
--   [x] LiveTradingEngine implementation
--   [x] Position sizing (risk-based + fixed units)
--   [x] Pip-based stop loss calculation
--   [x] ATR-based dynamic stop loss
--   [x] Trade execution via Oanda API
--   [x] Live-only runtime cleanup (paper mode removed from runtime path)
--   [x] Trade logging to database
--   [x] Socket broadcast of trade events
--   [x] Engine status API endpoints
--   [x] Graceful shutdown handling
--   [x] Trailing stop implementation
--   [x] Trading session filter
-
-### Phase 3: Production 🔄 IN PROGRESS
-
--   [x] Live trading activation
--   [x] Trading session filters
--   [x] Codebase cleanup (removed legacy crypto bot files)
--   [x] Engine status broadcast fix (race condition)
--   [x] PM2 deployment alongside crypto bot
--   [x] P/L tracking fix (uses Oanda's realizedPL for accuracy)
--   [x] Margin-based Take Profit feature (6% of margin target, account-currency aware conversion)
--   [x] Database backup improvements (backup before deploy)
--   [x] Automated daily backups via cron
--   [x] Email notifications for trades (open/close alerts)
--   [x] Stop loss tuning (ATR 2.0x, 12 pip minimum floor)
--   [x] S3 analytics reports (daily/weekly auto-upload)
--   [x] Delayed HTF confirmation for late higher-timeframe alignment
--   [x] Structured signal/trade telemetry + cooldown dedupe tracking
--   [x] Trade reconciliation metadata + restart-safe stop-state persistence
--   [x] Expectation-vs-actual analytics/export reporting
--   [ ] Extended monitoring period
-
-### Phase 4: Backtesting & Lab 🔄 IN PROGRESS
-
--   [x] Historical data pipeline
--   [x] Backtest engine
--   [x] Strategy Lab wiring (frontend + worker flow)
--   [x] Forex cost realism controls (spread + commission)
--   [x] Shared config/default contract across live + lab + backtest
--   [x] Backtest/live continuation and HTF-confirmation parity pass
--   [ ] Walk-forward analysis
--   [ ] Parameter optimization hardening
+-   [x] Canonical five-strategy catalog with unified `strategy_runs`
+-   [x] Shared runtime coordinator for live, shadow paper, and candidate paper runs
+-   [x] Hot-swappable live strategy selection with `ownerRunId` continuity for open trades
+-   [x] Default shadow paper baseline paired to the active live run
+-   [x] Concurrent candidate paper runs with unified run detail APIs
+-   [x] Runtime-backed `Paper` and `Analytics` views with `mode` / `strategy` / `runId` filters
+-   [x] Legacy lab routes, workers, offline backtest engine, and `backtest_results` store retired from the supported stack
+-   [ ] Phase 6 rollout, manual QA, and production monitoring
 
 ### Current Live Baseline
 
@@ -125,6 +76,13 @@ A professional Forex trading bot using the **SuperTrend + ADX Momentum** strateg
 -   HTF filter: enabled on `1h`
 -   Shorting: enabled
 -   Review cadence: compare live results against expectation-vs-actual exports after 2 weeks of trading
+
+### Runtime-Only Comparison Workflow
+
+-   Use the `Dashboard` view to inspect the active live strategy and perform live-ready hot swaps
+-   Use the `Paper` view to compare the paired shadow run against candidate paper runs
+-   Use the `Analytics` view with `mode`, `strategy`, `runId`, and `selectionId` filters for unified reporting
+-   Legacy `/api/backtest` endpoints and offline backtest CLI workflows are no longer part of the supported operator path
 
 ---
 

@@ -279,7 +279,13 @@ class LiveTradingEngine extends EventEmitter {
         return {
             symbol: signal?.symbol || null,
             signal: signal?.signal || null,
+            runId: signal?.runId || null,
+            selectionId: signal?.selectionId || null,
+            mode: signal?.mode || "live",
+            strategy: signal?.strategy || config?.strategy || null,
             entryType: signal?.entryType || null,
+            entryEnabled:
+                signal?.entryEnabled === undefined ? null : signal.entryEnabled === true,
             reasonCode: signal?.reasonCode || null,
             signalClass: signal?.signalClass || null,
             intent: signal?.intent || null,
@@ -295,6 +301,7 @@ class LiveTradingEngine extends EventEmitter {
     shouldTrackEntryDecision(signal) {
         if (!signal || !signal.symbol) return false;
         if (signal.signal !== "BUY" && signal.signal !== "SELL") return false;
+        if (signal.entryEnabled === false) return false;
         if (signal.signal === "SELL" && signal.entryType === "EXIT_ONLY") {
             return false;
         }
@@ -367,6 +374,10 @@ class LiveTradingEngine extends EventEmitter {
                     ? extras.atrPips
                     : signal?.atrPips ?? signal?.trend?.atrPips ?? null,
             tradeId: extras.tradeId || null,
+            runId: signal?.runId || extras.runId || null,
+            selectionId: signal?.selectionId || extras.selectionId || null,
+            mode: signal?.mode || extras.mode || "live",
+            strategy: signal?.strategy || extras.strategy || config?.strategy || null,
         };
     }
 
@@ -473,6 +484,10 @@ class LiveTradingEngine extends EventEmitter {
      * Process a signal and decide action
      */
     async processSignal(signal) {
+        if (signal?.mode && signal.mode !== "live") {
+            return;
+        }
+
         const {
             symbol,
             signal: signalType,
@@ -481,29 +496,34 @@ class LiveTradingEngine extends EventEmitter {
             currentPrice,
             atr,
             atrPips,
+            runId,
         } = signal;
+        const entryEnabled = signal.entryEnabled !== false;
 
         // Get current config
         const config = this.configService.get();
         const entryDecision = await this.createEntryDecision(signal, config);
         const decisionId = entryDecision?.decisionId || null;
 
-        // Check if we have an open position for this instrument
-        const existingTrade = this.getOpenTradeByInstrument(symbol);
+        const ownedTrade = runId
+            ? this.getOpenTradeByInstrument(symbol, { ownerRunId: runId })
+            : this.getOpenTradeByInstrument(symbol);
 
         if (signalType === "BUY") {
             // Signal reversal: Close existing SHORT position before opening LONG
-            if (existingTrade && existingTrade.side === "SELL") {
+            if (ownedTrade && ownedTrade.side === "SELL") {
                 logger.info(
                     `[${symbol}] Signal reversal: Closing SHORT position due to BUY signal`
                 );
                 await this.executeExit(
-                    existingTrade,
+                    ownedTrade,
                     currentPrice,
                     "SIGNAL_REVERSAL"
                 );
-                // Position is now closed, proceed to open LONG
-            } else if (existingTrade) {
+            }
+
+            const remainingTrade = this.getOpenTradeByInstrument(symbol);
+            if (remainingTrade) {
                 // Already in a LONG position, skip
                 logger.debug(
                     `⏸️ Skipping BUY for ${symbol} - already in position`
@@ -518,6 +538,10 @@ class LiveTradingEngine extends EventEmitter {
                     rejectionReason: "Already in position for this instrument",
                     openPositions: this.openTrades.size,
                 });
+                return;
+            }
+
+            if (!entryEnabled) {
                 return;
             }
 
@@ -552,11 +576,11 @@ class LiveTradingEngine extends EventEmitter {
             await this.executeEntry(signal, config, decisionId, validation.context);
         } else if (signalType === "SELL") {
             // Check if we have an open position for this instrument
-            if (existingTrade) {
+            if (ownedTrade) {
                 // Close existing LONG position if we get a SELL signal
-                if (existingTrade.side === "BUY") {
+                if (ownedTrade.side === "BUY") {
                     await this.executeExit(
-                        existingTrade,
+                        ownedTrade,
                         currentPrice,
                         "SIGNAL_REVERSAL"
                     );
@@ -565,10 +589,28 @@ class LiveTradingEngine extends EventEmitter {
 
             // Execute SHORT entry when the generator marks it as actionable.
             // validateEntry will enforce the live shorting toggle.
-            if (signal.entryType !== "EXIT_ONLY") {
-                if (existingTrade && existingTrade.side === "SELL") {
+            if (signal.entryType !== "EXIT_ONLY" && entryEnabled) {
+                const remainingTrade = this.getOpenTradeByInstrument(symbol);
+                if (remainingTrade && remainingTrade.side === "SELL") {
                     logger.debug(
                         `⏸️ Skipping SELL for ${symbol} - already in short position`
+                    );
+                    this.stats.signalsRejected++;
+                    this.emitEngineTelemetry("validationRejected", {
+                        ...this.buildSignalTelemetry(signal, config),
+                        reason: "Already in position for this instrument",
+                    });
+                    await this.rejectEntryDecision(decisionId, {
+                        rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                        rejectionReason: "Already in position for this instrument",
+                        openPositions: this.openTrades.size,
+                    });
+                    return;
+                }
+
+                if (remainingTrade) {
+                    logger.debug(
+                        `⏸️ Skipping SELL for ${symbol} - already in position`
                     );
                     this.stats.signalsRejected++;
                     this.emitEngineTelemetry("validationRejected", {
@@ -627,9 +669,15 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Get open trade by instrument
      */
-    getOpenTradeByInstrument(instrument) {
+    getOpenTradeByInstrument(instrument, filters = {}) {
+        const { ownerRunId = null } = filters;
+
         for (const [id, trade] of this.openTrades) {
-            if (trade.instrument === instrument && trade.isOpen) {
+            if (
+                trade.instrument === instrument &&
+                trade.isOpen &&
+                (!ownerRunId || trade.ownerRunId === ownerRunId)
+            ) {
                 return trade;
             }
         }
@@ -1480,7 +1528,11 @@ class LiveTradingEngine extends EventEmitter {
                 lastBrokerSyncAt: Date.now(),
                 reconciliationStatus: "OPEN",
                 configHash,
-                mode: "live",
+                mode: signal.mode || "live",
+                runId: signal.runId || null,
+                ownerRunId: signal.runId || null,
+                selectionId: signal.selectionId || null,
+                strategy: signal.strategy || config.strategy || null,
                 isOpen: true,
             };
 
@@ -2074,6 +2126,10 @@ class LiveTradingEngine extends EventEmitter {
                 takeProfitPrice: t.takeProfitPrice,
                 entryTime: t.entryTime,
                 mode: t.mode,
+                runId: t.runId || null,
+                ownerRunId: t.ownerRunId || null,
+                selectionId: t.selectionId || null,
+                strategy: t.strategy || null,
             })),
         };
     }

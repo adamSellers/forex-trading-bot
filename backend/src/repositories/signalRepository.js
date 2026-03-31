@@ -3,6 +3,25 @@ const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class SignalRepository {
+    _applyRuntimeFilters(query, filters = {}) {
+        const { mode, runId, selectionId, strategy } = filters || {};
+
+        if (mode !== null && mode !== undefined) {
+            query.where("mode", mode);
+        }
+        if (runId) {
+            query.where("run_id", runId);
+        }
+        if (selectionId) {
+            query.where("selection_id", selectionId);
+        }
+        if (strategy) {
+            query.where("strategy", strategy);
+        }
+
+        return query;
+    }
+
     _buildLegacySignalRecord(signal) {
         const trend = signal.trend || {};
 
@@ -77,6 +96,9 @@ class SignalRepository {
                 signal.pendingEntry?.waitingFor ||
                 null,
             config_hash: signal.configHash || null,
+            run_id: signal.runId || null,
+            selection_id: signal.selectionId || null,
+            mode: signal.mode || "live",
             decision_context: decisionContext
                 ? JSON.stringify(decisionContext)
                 : null,
@@ -105,6 +127,9 @@ class SignalRepository {
             pendingStateCode: row.pending_state,
             pendingWaitingFor: row.pending_waiting_for,
             configHash: row.config_hash,
+            runId: row.run_id,
+            selectionId: row.selection_id,
+            mode: row.mode || "live",
             pendingState:
                 row.pending_state || row.pending_direction || row.pending_waiting_for
                     ? {
@@ -183,9 +208,9 @@ class SignalRepository {
         }
     }
 
-    async getRecent(limit = 50) {
+    async getRecent(limit = 50, filters = {}) {
         try {
-            const rows = await db("signals")
+            const rows = await this._applyRuntimeFilters(db("signals"), filters)
                 .orderBy("timestamp", "desc")
                 .limit(limit);
             return rows.map((row) => this._mapRow(row));
@@ -195,10 +220,12 @@ class SignalRepository {
         }
     }
 
-    async getBySymbol(symbol, limit = 50) {
+    async getBySymbol(symbol, limit = 50, filters = {}) {
         try {
-            const rows = await db("signals")
-                .where("instrument", symbol)
+            const rows = await this._applyRuntimeFilters(
+                db("signals").where("instrument", symbol),
+                filters
+            )
                 .orderBy("timestamp", "desc")
                 .limit(limit);
             return rows.map((row) => this._mapRow(row));
@@ -208,13 +235,14 @@ class SignalRepository {
         }
     }
 
-    async getSignalsSince(cutoffTime) {
+    async getSignalsSince(cutoffTime, filters = {}) {
         try {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
-            const rows = await db("signals")
-                .where("timestamp", ">=", timestamp)
-                .orderBy("timestamp", "desc");
+            const rows = await this._applyRuntimeFilters(
+                db("signals").where("timestamp", ">=", timestamp),
+                filters
+            ).orderBy("timestamp", "desc");
             return rows.map((row) => this._mapRow(row));
         } catch (error) {
             logger.error("Error getting signals since cutoff:", error);
@@ -239,6 +267,20 @@ class SignalRepository {
         } catch (error) {
             logger.error("Error deleting old signals:", error);
             return 0;
+        }
+    }
+
+    async deleteByRunId(runId, filters = {}) {
+        try {
+            if (!runId) return 0;
+
+            return await this._applyRuntimeFilters(db("signals"), {
+                ...filters,
+                runId,
+            }).del();
+        } catch (error) {
+            logger.error(`Error deleting signals for run ${runId}:`, error);
+            throw error;
         }
     }
 

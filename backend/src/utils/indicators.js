@@ -1,5 +1,5 @@
 // backend/src/utils/indicators.js - Shared indicator calculations
-// Used by both live signalGenerator and backtestEngine to ensure identical math
+// Used by the live runtime and shared analytics/helpers
 const { RSI, ADX, ATR } = require("technicalindicators");
 
 /**
@@ -117,8 +117,8 @@ function getPipValue(instrument) {
 }
 
 /**
- * Calculate all indicators for a candle array in one call
- * Convenience function used by the backtest engine
+ * Calculate all indicators for a candle array in one call.
+ * Convenience helper for non-runtime indicator consumers.
  *
  * @param {Array<{high: number, low: number, close: number}>} candles
  * @param {object} config - Strategy config with atrPeriod, factor

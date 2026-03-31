@@ -194,6 +194,31 @@ describe('SignalRepository', () => {
             );
         });
 
+        test('should persist runtime identity fields when provided', async () => {
+            const mockInsert = jest.fn().mockResolvedValue([1]);
+            mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+
+            await repository.save({
+                symbol: 'AUD_USD',
+                signal: 'BUY',
+                strength: 31.2,
+                strategy: 'supertrend_momentum',
+                timeframe: '15m',
+                mode: 'paper_shadow',
+                runId: 'run-shadow-1',
+                selectionId: 'selection-live-1',
+                timestamp: 1710000000123,
+            });
+
+            expect(mockInsert).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    mode: 'paper_shadow',
+                    run_id: 'run-shadow-1',
+                    selection_id: 'selection-live-1',
+                })
+            );
+        });
+
         test('should skip invalid signals', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
@@ -315,6 +340,9 @@ describe('SignalRepository', () => {
                 pending_state: 'AWAIT_PULLBACK',
                 pending_waiting_for: 'PULLBACK',
                 config_hash: 'cfg-123',
+                run_id: 'run-live-1',
+                selection_id: 'selection-live-1',
+                mode: 'live',
                 decision_context: JSON.stringify({
                     htfAligned: true,
                     momentumSlope: 'rising',
@@ -351,6 +379,9 @@ describe('SignalRepository', () => {
                     },
                     pendingWaitingFor: 'PULLBACK',
                     configHash: 'cfg-123',
+                    runId: 'run-live-1',
+                    selectionId: 'selection-live-1',
+                    mode: 'live',
                     decisionContext: {
                         htfAligned: true,
                         momentumSlope: 'rising',

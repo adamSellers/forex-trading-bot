@@ -109,7 +109,7 @@ git push origin main
 
 **Forex Trading Bot** is a live automated trading system running on a Raspberry Pi 5 (8GB) that executes trades on the Forex market via the Oanda API using a SuperTrend + ADX Momentum strategy.
 
-**Current State**: Phase 3 - Production (Live Trading Active since Jan 19, 2026)
+**Current State**: Production live trading is active. Phases 1-5 of the shared strategy runtime migration are now complete in code: live strategy selection is hot-swappable, shadow paper runs pair automatically with the active live run, candidate paper runs share the same runtime identity model, unified analytics run by `mode`/`runId`/`strategy`, and the legacy backtest/lab stack is retired from the supported workflow.
 
 | Item              | Value                            |
 | ----------------- | -------------------------------- |
@@ -125,9 +125,18 @@ git push origin main
 | Dashboard         | http://img.oakroad:3100          |
 | API               | http://img.oakroad:3101/api      |
 | PM2 Process       | forex-backend                    |
-| Test Suite        | 274 passing, 0 failing           |
+| Validation        | Targeted runtime suites passing  |
 
 **CRITICAL**: This is a LIVE trading account with real money. Exercise extreme caution with any changes that affect trading logic, position sizing, or order execution.
+
+**Approved steady state**:
+
+- Shared strategy runtime for live, shadow paper, and candidate paper runs
+- Exactly one active live entry strategy at a time
+- Live strategy hot-swap from the UI applies to new entries only
+- Existing live positions remain managed by the strategy run that opened them
+- Unified storage and analytics keyed by `mode`, `runId`, and `strategy`
+- Legacy backtest/lab architecture is retired; do not recreate a parallel production comparison path
 
 ---
 
@@ -206,25 +215,29 @@ forex-trend-bot/
 │   │   ├── trading_config.json            # Runtime config (tracked, preserved by deploy scripts)
 │   │   └── trading_config_initial.json    # Config template (tracked)
 │   ├── migrations/
-│   │   ├── 001_create_forex_tables.js     # Database schema
-│   │   └── 002_create_backtest_results.js # Backtest results storage
+│   │   ├── 001_create_forex_tables.js     # Core forex schema
+│   │   ├── 005_add_strategy_runs_and_runtime_identity.js
+│   │   └── 006_drop_backtest_results.js   # Retires legacy table during rollout
 │   ├── src/
 │   │   ├── routes/tradingRoutes.js        # 50+ API endpoints
+│   │   ├── runtime/                       # Shared runtime orchestration + market context
+│   │   ├── strategies/                    # Canonical strategy catalog + implementations
 │   │   ├── services/
-│   │   │   ├── LiveTradingEngine.js       # CRITICAL - Trade execution
-│   │   │   ├── signalGenerator.js         # CRITICAL - Strategy signals
-│   │   │   ├── backtestEngine.js          # Strategy backtesting on historical data
-│   │   │   ├── historicalDataService.js   # Oanda candle fetching with cache
+│   │   │   ├── LiveTradingEngine.js       # CRITICAL - Broker-backed live execution
+│   │   │   ├── PaperTradingRuntime.js     # Shadow/candidate paper execution
+│   │   │   ├── signalGenerator.js         # Legacy-compatible signal helper surface
+│   │   │   ├── historicalDataService.js   # Offline historical candle helper
 │   │   │   ├── Oandaclient.js             # Oanda API wrapper
 │   │   │   ├── OandaDataService.js        # Price polling
-│   │   │   ├── analyticsService.js        # Performance metrics
+│   │   │   ├── analyticsService.js        # Unified runtime analytics
 │   │   │   ├── configService.js           # Config persistence
 │   │   │   ├── emailService.js            # Trade alerts
 │   │   │   └── s3ReportScheduler.js       # S3 report uploads
 │   │   ├── repositories/
 │   │   │   ├── tradeRepository.js         # Trade CRUD
 │   │   │   ├── signalRepository.js        # Signal CRUD
-│   │   │   └── backtestRepository.js      # Backtest results CRUD
+│   │   │   ├── portfolioRepository.js     # Portfolio snapshots CRUD
+│   │   │   └── strategyRunRepository.js   # Shared runtime run registry
 │   │   └── utils/
 │   │       ├── logger.js                  # Winston with daily rotation
 │   │       └── awsS3Utils.js              # S3 upload helpers
@@ -248,8 +261,7 @@ forex-trend-bot/
 │   ├── backup.sh                          # Manual backup
 │   ├── restore.sh                         # Restore from backup
 │   ├── setup-secrets.sh                   # API key setup
-│   ├── backtest.js                        # CLI backtest runner
-│   └── backtestSweep.js                   # Batch parameter sweep runner
+│   └── status.sh                          # Operations status helper
 ├── ecosystem.config.js                    # PM2 configuration
 ├── claude.md                              # This file
 ├── project_roadmap.md                     # Future features
@@ -264,10 +276,11 @@ forex-trend-bot/
 | ------------------- | ---------------------------------------------------- |
 | `trades`            | Trade records with entry/exit, P&L, signals          |
 | `signals`           | Real-time trading signal log                         |
+| `entry_decisions`   | Entry funnel and rejection telemetry                 |
+| `strategy_runs`     | Shared run registry for live/shadow/candidate modes |
 | `portfolio_snapshots` | Account state history                              |
 | `performance`       | Calculated metrics (win rate, Sharpe ratio, etc.)    |
 | `trading_config`    | Persisted settings as JSON blob                      |
-| `backtest_results`  | Stored backtest run results for comparison            |
 
 Key columns in `trades`:
 - `id`, `trade_id`, `oanda_trade_id`, `instrument`, `side`
@@ -275,6 +288,7 @@ Key columns in `trades`:
 - `pnl_aud`, `pnl_pips`, `swap_aud`
 - `units`, `margin_used_aud`, `stop_loss_price`, `take_profit_price`
 - `signal`, `entry_type` (FRESH_FLIP/CONTINUATION)
+- `run_id`, `owner_run_id`, `selection_id`, `strategy`, `mode`
 - `is_open`, `exit_reason` (STOP_LOSS/TAKE_PROFIT/SIGNAL/MANUAL)
 
 ---
@@ -370,70 +384,105 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Recently Delivered & Deployed (2026-02-16)
+### Current Phase (2026-03-30)
 
-The following are complete and confirmed deployed:
-- Live runtime hardening:
-  - projected post-entry exposure gate (`maxPortfolioExposure`)
-  - fill-price stop-loss realignment post-open
-  - continuation `ADX_SLOPE_RISING` branch requires `ADX >= minAdx` (live + backtest)
-- Strategy Lab restoration + parity cleanup:
-  - lab socket and worker protocol wiring fixed (`start_simulation` flow restored)
-  - `/api/backtest` route mounted in server
-  - Lab view added to frontend navigation
-- Forex migration completion pass:
-  - removed Binance fee-tier model from lab simulation
-  - replaced with forex cost model (`spreadPips`, `commissionPerSide`)
-  - removed Binance/USDT references from active UI paths and stale helpers
-  - tightened `continuationMaxPriceDeviation` defaults to `0.005` (0.5%) across config/live/backtest/lab
-- Deployment and operations docs/scripts refreshed for forex-only flow (`nginx`, script comments, deployment notes)
+Phase 6 rollout and monitoring guidance is now prepared for the swappable live strategies + shadow paper trading program.
 
-**Validation snapshot**:
-- Backend tests passing: **274/274**
-- Frontend production build: **passing**
-- Syntax checks on updated backend entry files: **passing**
+Completed in this phase:
 
----
+- Prepared an operator-facing Phase 6 rollout packet in `scripts/PHASE6_ROLLOUT_CHECKLIST.md` with the packet order locked to:
+  - local manual frontend build
+  - deployment
+  - runtime QA
+  - monitoring window
+- Updated `scripts/DEPLOYMENT_README.md` so deployment guidance now matches the shared runtime stack and points operators to the Phase 6 checklist
+- Tightened shared-runtime monitoring helpers:
+  - `scripts/status.sh` now shows the active live selection, paired shadow run, active candidate count, and managing-only live runs
+  - `scripts/health-check.sh` now verifies that the active live run has a paired shadow run after startup
+  - `scripts/logs.sh runtime` now filters runtime/shadow/candidate activity
+- Updated `scripts/deploy-check.sh` so the optional preflight uses the current ports and runtime endpoints instead of legacy management/backtest paths
+- Kept the Phase 2 ownership model and runtime-only comparison workflow intact:
+  - live strategy changes affect new entries only
+  - open live trades remain attached to their original `ownerRunId`
+  - the paired shadow run remains tied to the active live selection
+  - candidate strategies remain paper-only until an explicit promotion step says otherwise
+  - analytics/reporting continue from unified runtime identity columns
+- Kept migration `006_drop_backtest_results.js` called out explicitly in rollout guidance so old research rows can be exported before deployment if needed
 
-### Current Session Update (2026-02-16)
+Locked decisions carried forward:
 
-Implemented backtest/Lab portfolio-value consistency fix in historical simulation:
-- Root cause: open positions closed at `BACKTEST_END` were included in summary/end balance but not reflected as a final realized point in `equityCurve`
-- Fix: append final realized equity point after forced closeouts in `backtestEngine`
-- Regression coverage: added test asserting `equityCurve[equityCurve.length - 1].equity === summary.endBalance`
+- Shared runtime across live, `paper_shadow`, and `paper_candidate`
+- Exactly one active live entry strategy at a time
+- Strategy switches from the UI apply to new entries only
+- Existing live positions remain owned by the strategy run that opened them until closure
+- Default shadow paper run always tracks the active live strategy
+- Multiple concurrent paper candidate runs are supported
+- Unified persistence and analytics are keyed by `mode`, `runId`, and `strategy`
+- Legacy backtest/lab comparison is retired; do not reintroduce a second production comparison path
+- Canonical strategy catalog is fixed to:
+  - `supertrend_momentum`
+  - `mean_reversion`
+  - `range_breakout`
+  - `stochastic_divergence`
+  - `squeeze_play`
 
-Validation for this change:
-- `npm test -- backtestEngine.test.js` passing (**48/48**)
+### Next Recommended Phase
 
----
+Run the Phase 6 rollout packet manually on the target environment.
 
-### Trading Strategy Review Follow-Up (NEXT WORK)
+Manual steps still pending outside this session:
 
-Open model-quality items:
-1. Backtest/live margin realism parity (full alignment still pending outside lab worker)
-2. Walk-forward validation to reduce parameter overfitting risk on updated defaults
+1. Run `cd frontend && npm run build`
+2. Push the Phase 6 docs/script updates
+3. On the Pi, export `backtest_results` first if historical research rows still matter
+4. On the Pi, run `./scripts/deploy.sh` for the first shared-runtime rollout
+5. Execute the QA and monitoring checklist in `scripts/PHASE6_ROLLOUT_CHECKLIST.md`
+6. Capture any production observations before deciding on follow-up code changes
 
-**Next recommended implementation phase**:
-- Phase 3: complete margin/exposure execution parity in historical simulation path
+### Codebase Reminders For The Next Thread
 
----
+- `backend/server.js` now boots three runtime layers in sequence:
+  - `runtimeCoordinator` for shared run orchestration
+  - `paperTradingRuntime` for simulated paper execution/snapshots
+  - `LiveTradingEngine` for broker-backed live execution only
+- Production comparison flow is now runtime-only:
+  - no `/api/backtest` mount
+  - no legacy lab socket/worker pipeline
+  - no active frontend path uses `frontend/src/components/lab/*`
+- `backend/src/runtime/runtimeCoordinator.js` remains the source of truth for active runs, live selection, paired shadow runs, and ownership-aware live signal evaluation; do not fork a separate paper coordinator
+- `backend/src/services/PaperTradingRuntime.js` owns paper trade open/close, run reset cleanup, portfolio snapshots, and paper-only management rules for `paper_shadow` / `paper_candidate`
+- `backend/src/routes/tradingRoutes.js` now exposes the unified run detail APIs; analytics/detail work should continue using runtime identity columns instead of paper-specific reporting tables
+- `frontend/src/components/BacktestLab.jsx` keeps the legacy filename but is now the runtime-backed paper comparison surface
+- Candidate strategies remain paper-only until an explicit promotion step says otherwise
+- `backend/migrations/006_drop_backtest_results.js` removes the retired legacy table during rollout; export old research rows before deployment if they matter
+
+### Validation Completed In This Session
+
+- `bash -n scripts/status.sh`
+- `bash -n scripts/health-check.sh`
+- `bash -n scripts/logs.sh`
+- `bash -n scripts/deploy-check.sh`
+
+Manual rollout follow-up still pending:
+
+- Frontend build was not run in this session because repo workflow rules reserve build commands for the user; run `cd frontend && npm run build` manually before rollout
+- No browser/manual QA was run against the updated `Dashboard`, `Paper`, or `Analytics` views in this session
+- Deployment/update was not run in this session, so `006_drop_backtest_results.js` has not been applied to a real environment yet
+- The first live comparison monitoring window still needs to be observed on the Pi
+- This thread re-read the Phase 6 packet, revalidated the rollout scripts/endpoints, and prepared the exact Pi command sequence plus production verification checks; the Phase 6 checkpoint is still pending the user's manual rollout execution
 
 ### Next Session Start Checklist
 
-1. Confirm deploy completed cleanly:
-   - `pm2 status`
-   - `pm2 logs forex-backend --lines 200 --nostream`
-   - `curl -s http://localhost:3101/api/health`
-2. Run parity baseline checks:
-   - run one representative lab simulation and one `/api/backtest/run` scenario
-   - compare cost behavior (`spreadPips`, `commissionPerSide`) with expected live assumptions
-3. Start remaining parity work:
-   - align historical margin/exposure behavior with live entry validation edge cases
-4. Re-run verification:
-   - `npm --prefix backend test`
-   - `npm --prefix frontend run build`
-
----
+1. Start a new thread and read this `IN PROGRESS` section plus `trading_strategy_update_plan.md`
+2. Have the user run `cd frontend && npm run build`
+3. Preserve the Phase 2 live ownership model:
+   - live strategy changes affect new entries only
+   - open live trades stay attached to their original `ownerRunId`
+   - candidate strategies remain paper-only until a dedicated promotion step says otherwise
+4. Keep `runtimeCoordinator` and `paperTradingRuntime` as the shared backbone; do not reintroduce paper-only orchestration outside that path
+5. Use unified runtime identity columns for any further analytics/reporting work
+6. Remember that rollout will drop the retired `backtest_results` table via migration `006`
+7. Follow `scripts/PHASE6_ROLLOUT_CHECKLIST.md` in packet order and record any production observations before changing code again
 
 ### Future UI Enhancement (Captured)
 

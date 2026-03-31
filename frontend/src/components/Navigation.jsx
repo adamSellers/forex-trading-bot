@@ -15,9 +15,9 @@ import {
   alpha,
 } from '@mui/material';
 import {
+  CompareArrows,
   Dashboard,
   Insights,
-  Science,
   Settings,
   Refresh,
   Circle,
@@ -36,7 +36,7 @@ const Navigation = ({ currentView, onViewChange, views }) => {
   const viewToIndex = {
     [views.DASHBOARD]: 0,
     [views.ANALYTICS]: 1,
-    [views.LAB]: 2,
+    [views.PAPER]: 2,
     [views.SYSTEM]: 3,
     [views.SETTINGS]: 4,
   };
@@ -44,7 +44,7 @@ const Navigation = ({ currentView, onViewChange, views }) => {
   const indexToView = {
     0: views.DASHBOARD,
     1: views.ANALYTICS,
-    2: views.LAB,
+    2: views.PAPER,
     3: views.SYSTEM,
     4: views.SETTINGS,
   };
@@ -196,9 +196,9 @@ const Navigation = ({ currentView, onViewChange, views }) => {
               label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Analytics</Box>}
             />
             <Tab
-              icon={<Science fontSize="small" />}
+              icon={<CompareArrows fontSize="small" />}
               iconPosition="start"
-              label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Lab</Box>}
+              label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Paper</Box>}
             />
             <Tab
               icon={<MonitorHeart fontSize="small" />}

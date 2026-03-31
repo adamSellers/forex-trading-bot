@@ -1,6 +1,12 @@
 // backend/src/routes/tradingRoutes.js - Trading API Routes with Engine Support
 const express = require("express");
 const router = express.Router();
+const { listStrategyCatalog, getStrategyDefinition } = require("../strategies");
+const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
+
+function isLiveSelectionReady(strategyDefinition = {}) {
+    return ["baseline", "live_ready"].includes(strategyDefinition.runtimeStatus);
+}
 
 // Oanda configuration
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
@@ -54,7 +60,166 @@ function formatUptime(seconds) {
     return `${secs}s`;
 }
 
+function getRuntimeCoordinator(req) {
+    return req.app.locals.runtimeCoordinator || req.app.locals.signalGenerator;
+}
+
+function normalizeString(value) {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function parseLimit(value, fallback) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeRuntimeQueryFilters(query = {}) {
+    const filters = {};
+    const mode = normalizeString(query.mode);
+    const strategy = normalizeString(query.strategy);
+    const status = normalizeString(query.status);
+    const runId = normalizeString(query.runId);
+    const selectionId = normalizeString(query.selectionId);
+    const shadowOfRunId = normalizeString(query.shadowOfRunId);
+
+    if (mode && mode !== "all") {
+        filters.mode = mode;
+    }
+    if (strategy) {
+        filters.strategy = strategy;
+    }
+    if (status) {
+        filters.status = status;
+    }
+    if (runId) {
+        filters.runId = runId;
+    }
+    if (selectionId) {
+        filters.selectionId = selectionId;
+    }
+    if (shadowOfRunId) {
+        filters.shadowOfRunId = shadowOfRunId;
+    }
+
+    return filters;
+}
+
+function normalizeRunResponse(run = {}, latestSignalCount = 0) {
+    return {
+        runId: run.runId,
+        mode: run.mode,
+        strategy: run.strategy,
+        status: run.status,
+        selectionId: run.selectionId || null,
+        shadowOfRunId: run.shadowOfRunId || null,
+        configHash: run.configHash || null,
+        configSnapshot: run.configSnapshot || null,
+        startedAt: run.startedAt,
+        stoppedAt: run.stoppedAt ?? null,
+        metadata: run.metadata || {},
+        latestSignalCount,
+    };
+}
+
+function filterRuntimeRuns(runs = [], filters = {}) {
+    const { mode, strategy, status, runId, selectionId, shadowOfRunId } = filters;
+
+    return runs.filter((run) => {
+        if (mode && run.mode !== mode) return false;
+        if (strategy && run.strategy !== strategy) return false;
+        if (status && run.status !== status) return false;
+        if (runId && run.runId !== runId) return false;
+        if (selectionId && run.selectionId !== selectionId) return false;
+        if (shadowOfRunId && run.shadowOfRunId !== shadowOfRunId) return false;
+        return true;
+    });
+}
+
+async function buildRuntimeRunsResponse(req, filters = {}) {
+    const runtimeCoordinator = getRuntimeCoordinator(req);
+    const paperTradingRuntime = req.app.locals.paperTradingRuntime;
+    const strategyRunRepository = req.app.locals.strategyRunRepository;
+    const normalizedFilters = normalizeRuntimeQueryFilters(filters);
+    const activeRuns = filterRuntimeRuns(
+        runtimeCoordinator.listRuns?.() || [],
+        normalizedFilters
+    );
+    const persistedRuns = strategyRunRepository?.list
+        ? await strategyRunRepository.list(normalizedFilters)
+        : [];
+    const mergedRuns = new Map();
+
+    persistedRuns.forEach((run) => {
+        mergedRuns.set(run.runId, normalizeRunResponse(run));
+    });
+
+    activeRuns.forEach((run) => {
+        const session = runtimeCoordinator.getRunSession?.(run.runId);
+        if (session?.run) {
+            mergedRuns.set(
+                run.runId,
+                normalizeRunResponse(
+                    session.run,
+                    session.latestSignals?.length || run.latestSignalCount || 0
+                )
+            );
+            return;
+        }
+
+        mergedRuns.set(
+            run.runId,
+            normalizeRunResponse(run, run.latestSignalCount || 0)
+        );
+    });
+
+    let runs = Array.from(mergedRuns.values()).sort(
+        (left, right) => (right.startedAt || 0) - (left.startedAt || 0)
+    );
+    runs = paperTradingRuntime?.enrichRuns
+        ? await paperTradingRuntime.enrichRuns(runs)
+        : runs;
+
+    return {
+        runs,
+        liveSelection: runtimeCoordinator.getLiveSelection?.() || null,
+        timestamp: Date.now(),
+    };
+}
+
+async function resolveRunForResponse(req, runId) {
+    const runtimeCoordinator = getRuntimeCoordinator(req);
+    const strategyRunRepository = req.app.locals.strategyRunRepository;
+
+    if (!runId) return null;
+
+    const session = runtimeCoordinator?.getRunSession?.(runId) || null;
+    if (session?.run) {
+        return normalizeRunResponse(
+            session.run,
+            session.latestSignals?.length || 0
+        );
+    }
+
+    const persistedRun = await strategyRunRepository?.getByRunId?.(runId);
+    if (!persistedRun) {
+        return null;
+    }
+
+    return normalizeRunResponse(persistedRun);
+}
+
 // ============ HEALTH & STATUS ============
+
+router.get("/strategies/catalog", (req, res) => {
+    try {
+        res.json({
+            strategies: listStrategyCatalog(),
+            timestamp: Date.now(),
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Health check - INCLUDES CONFIG for dashboard
 router.get("/health", (req, res) => {
@@ -571,6 +736,375 @@ router.post("/trading/reset", (req, res) => {
     }
 });
 
+router.get("/runtime/live-selection", async (req, res) => {
+    try {
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+
+        const liveSelection =
+            (await runtimeCoordinator.ensureLiveSelectionInitialized?.()) ||
+            runtimeCoordinator.getLiveSelection?.() ||
+            null;
+
+        const runtimePayload = await buildRuntimeRunsResponse(req);
+
+        res.json({
+            liveSelection,
+            runs: runtimePayload.runs,
+            timestamp: runtimePayload.timestamp,
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/runtime/live-selection", async (req, res) => {
+    try {
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        const configService = req.app.locals.configService;
+
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+        if (!configService) {
+            return res
+                .status(503)
+                .json({ error: "Config service not available" });
+        }
+
+        const strategyKey = req.body?.strategyKey || req.body?.strategy;
+        if (!strategyKey) {
+            return res.status(400).json({
+                error: "strategyKey is required",
+            });
+        }
+
+        const strategyDefinition = getStrategyDefinition(strategyKey);
+        if (!isLiveSelectionReady(strategyDefinition)) {
+            return res.status(400).json({
+                error: `${strategyDefinition.label} is not available for live selection yet`,
+            });
+        }
+
+        const nextConfig = {
+            ...configService.get(),
+            strategy: strategyKey,
+        };
+        const liveSelection = await runtimeCoordinator.selectLiveStrategy({
+            strategyKey,
+            configSnapshot: nextConfig,
+            initiatedBy: "ui",
+        });
+        configService.update({ strategy: strategyKey });
+
+        const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
+        if (broadcastEngineStatus) {
+            broadcastEngineStatus();
+        }
+
+        const runtimePayload = await buildRuntimeRunsResponse(req);
+
+        res.json({
+            success: true,
+            liveSelection,
+            runs: runtimePayload.runs,
+            message: "Live strategy selection updated",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/runtime/runs", async (req, res) => {
+    try {
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        const paperTradingRuntime = req.app.locals.paperTradingRuntime;
+
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+        if (!paperTradingRuntime) {
+            return res
+                .status(503)
+                .json({ error: "Paper trading runtime not available" });
+        }
+
+        const strategyKey = req.body?.strategyKey || req.body?.strategy;
+        if (!strategyKey) {
+            return res.status(400).json({ error: "strategyKey is required" });
+        }
+
+        const run = await runtimeCoordinator.createCandidateRun({
+            strategyKey,
+            configSnapshot: req.body?.configSnapshot || req.body?.config || null,
+            initiatedBy: "ui",
+            metadata: {
+                displayName: req.body?.label || null,
+                notes: req.body?.notes || null,
+            },
+        });
+
+        await paperTradingRuntime.ensureRunSnapshot(run.runId);
+
+        const runtimePayload = await buildRuntimeRunsResponse(req);
+        const createdRun = runtimePayload.runs.find(
+            (candidate) => candidate.runId === run.runId
+        );
+
+        res.json({
+            success: true,
+            run: createdRun || run,
+            runs: runtimePayload.runs,
+            liveSelection: runtimePayload.liveSelection,
+            message: "Candidate paper run started",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get("/runtime/runs", async (req, res) => {
+    try {
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+
+        await runtimeCoordinator.ensureLiveSelectionInitialized?.();
+        const runtimePayload = await buildRuntimeRunsResponse(req, req.query || {});
+
+        res.json(runtimePayload);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get("/runtime/runs/:runId/trades", async (req, res) => {
+    try {
+        const tradeRepository = req.app.locals.tradeRepository;
+        const run = await resolveRunForResponse(req, req.params.runId);
+
+        if (!run) {
+            return res.status(404).json({ error: "Run not found" });
+        }
+
+        const limit = parseLimit(req.query.limit, 200);
+        const trades = await tradeRepository.getAllTrades({
+            mode: run.mode,
+            ownerRunId: run.runId,
+        });
+        const sortedTrades = [...trades]
+            .sort(
+                (left, right) =>
+                    (right.exitTime || right.entryTime || 0) -
+                    (left.exitTime || left.entryTime || 0)
+            )
+            .slice(0, limit);
+
+        res.json({
+            run,
+            trades: sortedTrades,
+            total: trades.length,
+            openTrades: trades.filter((trade) => trade.isOpen).length,
+            closedTrades: trades.filter((trade) => !trade.isOpen).length,
+            timestamp: Date.now(),
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get("/runtime/runs/:runId/signals", async (req, res) => {
+    try {
+        const signalRepository = req.app.locals.signalRepository;
+        const run = await resolveRunForResponse(req, req.params.runId);
+
+        if (!run) {
+            return res.status(404).json({ error: "Run not found" });
+        }
+
+        const limit = parseLimit(req.query.limit, 250);
+        const signals = await signalRepository.getRecent(limit, {
+            mode: run.mode,
+            runId: run.runId,
+        });
+
+        res.json({
+            run,
+            signals,
+            total: signals.length,
+            timestamp: Date.now(),
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.get("/runtime/runs/:runId/equity", async (req, res) => {
+    try {
+        const tradeRepository = req.app.locals.tradeRepository;
+        const signalRepository = req.app.locals.signalRepository;
+        const entryDecisionRepository = req.app.locals.entryDecisionRepository;
+        const portfolioRepository = req.app.locals.portfolioRepository;
+        const AnalyticsService = require("../services/analyticsService");
+        const analyticsService = new AnalyticsService(
+            tradeRepository,
+            signalRepository,
+            entryDecisionRepository
+        );
+        const run = await resolveRunForResponse(req, req.params.runId);
+
+        if (!run) {
+            return res.status(404).json({ error: "Run not found" });
+        }
+
+        const limit = parseLimit(req.query.limit, 300);
+        const history = await portfolioRepository.getHistory(limit, {
+            mode: run.mode,
+            runId: run.runId,
+        });
+        const ascendingHistory = [...history].reverse();
+
+        if (ascendingHistory.length > 0) {
+            const equityCurve = ascendingHistory.map((snapshot) => ({
+                timestamp: snapshot.snapshotTime,
+                totalValueAud: snapshot.totalValueAud,
+                balanceAud: snapshot.balanceAud,
+                realizedPnlAud: snapshot.realizedPnlAud,
+                unrealizedPnlAud: snapshot.unrealizedPnlAud,
+                marginUsedAud: snapshot.marginUsedAud,
+                exposurePercent: snapshot.exposurePercent,
+                positionCount: snapshot.positionCount,
+            }));
+
+            return res.json({
+                run,
+                source: "portfolio_snapshots",
+                equityCurve,
+                latestSnapshot: history[0] || null,
+                total: equityCurve.length,
+                timestamp: Date.now(),
+            });
+        }
+
+        const trades = await tradeRepository.getAllTrades({
+            mode: run.mode,
+            ownerRunId: run.runId,
+        });
+        const closedTrades = trades.filter((trade) => !trade.isOpen);
+        const equityData = analyticsService.calculateEquityData(closedTrades);
+
+        res.json({
+            run,
+            source: "closed_trades",
+            equityCurve: equityData.equityCurve || [],
+            dailyPnL: equityData.dailyPnL || [],
+            latestSnapshot: null,
+            total: equityData.equityCurve?.length || 0,
+            timestamp: Date.now(),
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/runtime/runs/:runId/stop", async (req, res) => {
+    try {
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        const paperTradingRuntime = req.app.locals.paperTradingRuntime;
+        const { runId } = req.params;
+
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+        if (!paperTradingRuntime) {
+            return res
+                .status(503)
+                .json({ error: "Paper trading runtime not available" });
+        }
+
+        const session = runtimeCoordinator.getRunSession?.(runId);
+        if (!session) {
+            return res.status(404).json({ error: "Run not found" });
+        }
+        if (session.run.mode !== RUNTIME_MODES.PAPER_CANDIDATE) {
+            return res.status(400).json({
+                error: "Only candidate paper runs can be stopped manually",
+            });
+        }
+
+        const stoppedRun = await paperTradingRuntime.stopRun(runId);
+        const runtimePayload = await buildRuntimeRunsResponse(req);
+
+        res.json({
+            success: true,
+            run: stoppedRun,
+            runs: runtimePayload.runs,
+            liveSelection: runtimePayload.liveSelection,
+            message: "Candidate paper run stopped",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/runtime/runs/:runId/reset", async (req, res) => {
+    try {
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        const paperTradingRuntime = req.app.locals.paperTradingRuntime;
+        const { runId } = req.params;
+
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+        if (!paperTradingRuntime) {
+            return res
+                .status(503)
+                .json({ error: "Paper trading runtime not available" });
+        }
+
+        const session = runtimeCoordinator.getRunSession?.(runId);
+        if (!session) {
+            return res.status(404).json({ error: "Run not found" });
+        }
+        if (session.run.mode !== RUNTIME_MODES.PAPER_CANDIDATE) {
+            return res.status(400).json({
+                error: "Only candidate paper runs can be reset manually",
+            });
+        }
+
+        const resetRun = await paperTradingRuntime.resetRun(runId);
+        const runtimePayload = await buildRuntimeRunsResponse(req);
+        const currentRun = runtimePayload.runs.find(
+            (candidate) => candidate.runId === runId
+        );
+
+        res.json({
+            success: true,
+            run: currentRun || resetRun,
+            runs: runtimePayload.runs,
+            liveSelection: runtimePayload.liveSelection,
+            message: "Candidate paper run reset",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ============ CONFIG ============
 
 router.get("/config", (req, res) => {
@@ -767,14 +1301,10 @@ router.post("/engine/reset-stats", (req, res) => {
 
 router.get("/analytics", async (req, res) => {
     try {
-        const TradeRepository = require("../repositories/tradeRepository");
-        const SignalRepository = require("../repositories/signalRepository");
-        const EntryDecisionRepository = require("../repositories/entryDecisionRepository");
         const AnalyticsService = require("../services/analyticsService");
-
-        const tradeRepo = new TradeRepository();
-        const signalRepo = new SignalRepository();
-        const entryDecisionRepo = new EntryDecisionRepository();
+        const tradeRepo = req.app.locals.tradeRepository;
+        const signalRepo = req.app.locals.signalRepository;
+        const entryDecisionRepo = req.app.locals.entryDecisionRepository;
         const analyticsService = new AnalyticsService(
             tradeRepo,
             signalRepo,
@@ -782,7 +1312,14 @@ router.get("/analytics", async (req, res) => {
         );
 
         const period = req.query.period || "30d";
-        const analytics = await analyticsService.getAnalytics(period);
+        const runtimeFilters = normalizeRuntimeQueryFilters(req.query || {});
+        delete runtimeFilters.status;
+        delete runtimeFilters.shadowOfRunId;
+
+        const analytics = await analyticsService.getAnalytics(
+            period,
+            runtimeFilters
+        );
 
         res.json(analytics);
     } catch (error) {
@@ -865,121 +1402,6 @@ router.post("/reports/upload/weekly", async (req, res) => {
             success,
             message: success ? "Weekly report uploaded" : "Upload failed (check logs)",
         });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ============ BACKTESTING ============
-
-// Run a backtest on historical data
-router.post("/backtest/run", async (req, res) => {
-    try {
-        const { instrument, from, to, granularity, label, config: configOverrides } = req.body;
-
-        // Validate required fields
-        if (!instrument || !from || !to) {
-            return res.status(400).json({
-                error: "Missing required fields: instrument, from, to",
-            });
-        }
-
-        // Convert date strings to UNIX timestamps (seconds)
-        const fromTimestamp = Math.floor(new Date(from).getTime() / 1000);
-        const toTimestamp = Math.floor(new Date(to).getTime() / 1000);
-
-        if (isNaN(fromTimestamp) || isNaN(toTimestamp)) {
-            return res.status(400).json({
-                error: "Invalid date format. Use YYYY-MM-DD.",
-            });
-        }
-
-        if (fromTimestamp >= toTimestamp) {
-            return res.status(400).json({
-                error: "'from' must be before 'to'",
-            });
-        }
-
-        const gran = granularity || "M15";
-
-        // Create services on-demand (stateless, backtests are infrequent)
-        const HistoricalDataService = require("../services/historicalDataService");
-        const BacktestEngine = require("../services/backtestEngine");
-        const BacktestRepository = require("../repositories/backtestRepository");
-
-        const historicalDataService = new HistoricalDataService();
-        const engine = new BacktestEngine(historicalDataService);
-        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
-
-        // Run backtest (may take 10-30s for large date ranges due to Oanda rate limits)
-        const result = await engine.run(instrument, gran, fromTimestamp, toTimestamp, configOverrides || {});
-
-        // Save result to database
-        const backtestId = await backtestRepo.save(
-            result, instrument, gran, fromTimestamp, toTimestamp, label || null
-        );
-
-        // Return summary (not full trade list — use GET /results/:id for that)
-        res.json({
-            success: true,
-            backtestId,
-            instrument,
-            granularity: gran,
-            from,
-            to,
-            summary: result.summary,
-        });
-    } catch (error) {
-        console.error("Backtest error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// List recent backtest results (summary only)
-router.get("/backtest/results", async (req, res) => {
-    try {
-        const BacktestRepository = require("../repositories/backtestRepository");
-        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
-
-        const limit = parseInt(req.query.limit) || 20;
-        const instrument = req.query.instrument || null;
-
-        const results = await backtestRepo.getRecent(limit, instrument);
-        res.json({ results, total: results.length });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Get a specific backtest result (includes full trades and equity curve)
-router.get("/backtest/results/:id", async (req, res) => {
-    try {
-        const BacktestRepository = require("../repositories/backtestRepository");
-        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
-
-        const result = await backtestRepo.getById(req.params.id);
-        if (!result) {
-            return res.status(404).json({ error: "Backtest result not found" });
-        }
-
-        res.json(result);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Delete a backtest result
-router.delete("/backtest/results/:id", async (req, res) => {
-    try {
-        const BacktestRepository = require("../repositories/backtestRepository");
-        const backtestRepo = req.app.locals.backtestRepository || new BacktestRepository();
-
-        const deleted = await backtestRepo.delete(req.params.id);
-        if (!deleted) {
-            return res.status(404).json({ error: "Backtest result not found" });
-        }
-
-        res.json({ success: true, message: "Backtest result deleted" });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

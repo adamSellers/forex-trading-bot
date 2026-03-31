@@ -15,7 +15,7 @@ const EquityChart = ({ equityCurve, dailyPnL }) => {
     return equityCurve.map((point) => ({
       ...point,
       date: new Date(point.timestamp || point.date),
-      pnl: point.pnlAud ?? point.pnl ?? 0,
+      pnl: point.totalValueAud ?? point.balanceAud ?? point.pnlAud ?? point.pnl ?? 0,
     }));
   }, [equityCurve]);
 

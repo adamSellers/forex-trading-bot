@@ -76,13 +76,74 @@ describe('AnalyticsService', () => {
             await service.getAnalytics('24h');
 
             const expectedCutoff = now - 24 * 60 * 60 * 1000;
-            expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(expectedCutoff);
+            expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(
+                expectedCutoff,
+                expect.objectContaining({ mode: 'live' })
+            );
             expect(mockSignalRepo.getSignalsSince).toHaveBeenCalledTimes(1);
-            expect(mockEntryDecisionRepo.getDecisionsSince).toHaveBeenCalledWith(expectedCutoff);
+            expect(mockEntryDecisionRepo.getDecisionsSince).toHaveBeenCalledWith(
+                expectedCutoff,
+                expect.objectContaining({ mode: 'live' })
+            );
 
             const signalCutoff = mockSignalRepo.getSignalsSince.mock.calls[0][0];
             expect(signalCutoff).toBeInstanceOf(Date);
             expect(signalCutoff.getTime()).toBe(expectedCutoff);
+            expect(mockSignalRepo.getSignalsSince.mock.calls[0][1]).toEqual(
+                expect.objectContaining({ mode: 'live' })
+            );
+        });
+
+        test('should filter trade analytics by ownerRunId when a runtime runId is supplied', async () => {
+            await service.getAnalytics('30d', {
+                mode: 'paper_candidate',
+                runId: 'run-candidate-7',
+                strategy: 'squeeze_play',
+            });
+
+            expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(
+                expect.any(Number),
+                expect.objectContaining({
+                    mode: 'paper_candidate',
+                    ownerRunId: 'run-candidate-7',
+                    strategy: 'squeeze_play',
+                })
+            );
+            expect(mockTradeRepo.getTradesSince.mock.calls[0][1]).not.toHaveProperty(
+                'runId'
+            );
+            expect(mockSignalRepo.getSignalsSince).toHaveBeenCalledWith(
+                expect.any(Date),
+                expect.objectContaining({
+                    mode: 'paper_candidate',
+                    runId: 'run-candidate-7',
+                    strategy: 'squeeze_play',
+                })
+            );
+        });
+
+        test('should allow all-mode analytics when mode is explicitly set to all', async () => {
+            const result = await service.getAnalytics('7d', {
+                mode: 'all',
+                strategy: 'mean_reversion',
+            });
+
+            expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(
+                expect.any(Number),
+                expect.objectContaining({
+                    strategy: 'mean_reversion',
+                })
+            );
+            expect(mockTradeRepo.getTradesSince.mock.calls[0][1]).not.toHaveProperty(
+                'mode'
+            );
+            expect(result.mode).toBe('all');
+            expect(result.filters).toEqual(
+                expect.objectContaining({
+                    mode: 'all',
+                    strategy: 'mean_reversion',
+                })
+            );
         });
     });
 
@@ -249,6 +310,10 @@ describe('AnalyticsService', () => {
                     reasonCode: 'LONG_FRESH_FLIP_ACTIONABLE',
                     uniqueEvent: true,
                     cooldownSuppressed: false,
+                    mode: 'live',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-live-1',
+                    selectionId: 'selection-1',
                 }),
                 createMockSignal({
                     symbol: 'EUR_USD',
@@ -258,6 +323,10 @@ describe('AnalyticsService', () => {
                     reasonCode: 'LONG_HTF_CONFIRMED_ENTRY',
                     uniqueEvent: true,
                     cooldownSuppressed: false,
+                    mode: 'live',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-live-1',
+                    selectionId: 'selection-1',
                 }),
             ];
             const summary = service.extractSignalEventSummary(signals);
@@ -268,6 +337,10 @@ describe('AnalyticsService', () => {
                     signal: 'BUY',
                     entryType: 'FRESH_FLIP',
                     configHash: 'cfg-1',
+                    mode: 'live',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-live-1',
+                    selectionId: 'selection-1',
                     stage: 'REJECTED',
                     outcome: 'REJECTED',
                     rejectionCode: 'SPREAD_TOO_WIDE',
@@ -279,6 +352,10 @@ describe('AnalyticsService', () => {
                     signal: 'BUY',
                     entryType: 'HTF_CONFIRMATION',
                     configHash: 'cfg-1',
+                    mode: 'live',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-live-1',
+                    selectionId: 'selection-1',
                     stage: 'FILLED',
                     outcome: 'FILLED',
                     tradeId: 'trade-1',
@@ -289,6 +366,11 @@ describe('AnalyticsService', () => {
                     instrument: 'EUR_USD',
                     entryType: 'HTF_CONFIRMATION',
                     configHash: 'cfg-1',
+                    mode: 'live',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-live-1',
+                    ownerRunId: 'run-live-1',
+                    selectionId: 'selection-1',
                 }),
             ];
 
@@ -318,13 +400,88 @@ describe('AnalyticsService', () => {
                 expect.arrayContaining([
                     expect.objectContaining({
                         instrument: 'EUR_USD',
+                        runId: 'run-live-1',
+                        selectionId: 'selection-1',
                         filledTrades: 1,
                         closedTrades: 1,
                     }),
                     expect.objectContaining({
                         instrument: 'GBP_USD',
+                        runId: 'run-live-1',
+                        selectionId: 'selection-1',
                         rejectedEntries: 1,
                         executionRatePct: 0,
+                    }),
+                ])
+            );
+        });
+
+        test('should keep identical cohorts from different runs separated', () => {
+            const signals = [
+                createMockSignal({
+                    symbol: 'AUD_USD',
+                    signalClass: 'ACTIONABLE',
+                    intent: 'ENTER_LONG',
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                    configHash: 'cfg-1',
+                    mode: 'live',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-live-1',
+                    selectionId: 'selection-1',
+                }),
+                createMockSignal({
+                    symbol: 'AUD_USD',
+                    signalClass: 'ACTIONABLE',
+                    intent: 'ENTER_LONG',
+                    uniqueEvent: true,
+                    cooldownSuppressed: false,
+                    configHash: 'cfg-1',
+                    mode: 'paper_shadow',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-shadow-1',
+                    selectionId: 'selection-1',
+                }),
+            ];
+            const summary = service.extractSignalEventSummary(signals);
+            const closedTrades = [
+                createClosedTrade({
+                    instrument: 'AUD_USD',
+                    configHash: 'cfg-1',
+                    mode: 'live',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-live-1',
+                    ownerRunId: 'run-live-1',
+                    selectionId: 'selection-1',
+                }),
+                createClosedTrade({
+                    instrument: 'AUD_USD',
+                    configHash: 'cfg-1',
+                    mode: 'paper_shadow',
+                    strategy: 'supertrend_momentum',
+                    runId: 'run-shadow-1',
+                    ownerRunId: 'run-shadow-1',
+                    selectionId: 'selection-1',
+                }),
+            ];
+
+            const executionGap = service.calculateExecutionGapByCohort(
+                summary.uniqueActionableSignals,
+                [],
+                closedTrades
+            );
+
+            expect(
+                executionGap.byCohort.filter((row) => row.instrument === 'AUD_USD')
+            ).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        mode: 'live',
+                        runId: 'run-live-1',
+                    }),
+                    expect.objectContaining({
+                        mode: 'paper_shadow',
+                        runId: 'run-shadow-1',
                     }),
                 ])
             );

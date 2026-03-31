@@ -2,6 +2,48 @@ const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class PortfolioRepository {
+    _applyRuntimeFilters(query, filters = {}) {
+        const { mode, runId, selectionId, strategy } = filters || {};
+
+        if (mode !== null && mode !== undefined) {
+            query.where("mode", mode);
+        }
+        if (runId) {
+            query.where("run_id", runId);
+        }
+        if (selectionId) {
+            query.where("selection_id", selectionId);
+        }
+        if (strategy) {
+            query.where("strategy", strategy);
+        }
+
+        return query;
+    }
+
+    _mapSnapshotRow(row) {
+        if (!row) {
+            return this._emptySnapshot();
+        }
+
+        return {
+            totalValueAud: Number(row.total_value_aud || 0),
+            balanceAud: Number(row.balance_aud || 0),
+            unrealizedPnlAud: Number(row.unrealized_pnl_aud || 0),
+            realizedPnlAud: Number(row.realized_pnl_aud || 0),
+            marginUsedAud: Number(row.margin_used_aud || 0),
+            marginAvailableAud: Number(row.margin_available_aud || 0),
+            positions: row.positions ? JSON.parse(row.positions) : [],
+            positionCount: Number(row.position_count || 0),
+            exposurePercent: Number(row.exposure_percent || 0),
+            snapshotTime: Number(row.snapshot_time || Date.now()),
+            runId: row.run_id || null,
+            selectionId: row.selection_id || null,
+            mode: row.mode || "live",
+            strategy: row.strategy || null,
+        };
+    }
+
     async save(snapshot = {}) {
         try {
             await db("portfolio_snapshots").insert({
@@ -21,15 +63,22 @@ class PortfolioRepository {
                     snapshot.positionCount || snapshot.positions?.length || 0,
                 exposure_percent: snapshot.exposurePercent || 0,
                 snapshot_time: snapshot.snapshotTime || Date.now(),
+                run_id: snapshot.runId || null,
+                selection_id: snapshot.selectionId || null,
+                mode: snapshot.mode || "live",
+                strategy: snapshot.strategy || null,
             });
         } catch (error) {
             logger.error("Error saving portfolio snapshot:", error);
         }
     }
 
-    async getCurrent() {
+    async getCurrent(filters = {}) {
         try {
-            const latest = await db("portfolio_snapshots")
+            const latest = await this._applyRuntimeFilters(
+                db("portfolio_snapshots"),
+                filters
+            )
                 .orderBy("snapshot_time", "desc")
                 .first();
 
@@ -37,32 +86,42 @@ class PortfolioRepository {
                 return this._emptySnapshot();
             }
 
-            return {
-                totalValueAud: Number(latest.total_value_aud || 0),
-                balanceAud: Number(latest.balance_aud || 0),
-                unrealizedPnlAud: Number(latest.unrealized_pnl_aud || 0),
-                realizedPnlAud: Number(latest.realized_pnl_aud || 0),
-                marginUsedAud: Number(latest.margin_used_aud || 0),
-                marginAvailableAud: Number(latest.margin_available_aud || 0),
-                positions: latest.positions ? JSON.parse(latest.positions) : [],
-                positionCount: Number(latest.position_count || 0),
-                exposurePercent: Number(latest.exposure_percent || 0),
-                snapshotTime: Number(latest.snapshot_time || Date.now()),
-            };
+            return this._mapSnapshotRow(latest);
         } catch (error) {
             logger.error("Error reading portfolio snapshot:", error);
             return this._emptySnapshot();
         }
     }
 
-    async getHistory(limit = 100) {
+    async getHistory(limit = 100, filters = {}) {
         try {
-            return await db("portfolio_snapshots")
+            const rows = await this._applyRuntimeFilters(
+                db("portfolio_snapshots"),
+                filters
+            )
                 .orderBy("snapshot_time", "desc")
                 .limit(limit);
+            return rows.map((row) => this._mapSnapshotRow(row));
         } catch (error) {
             logger.error("Error reading portfolio history:", error);
             return [];
+        }
+    }
+
+    async deleteByRunId(runId, filters = {}) {
+        try {
+            if (!runId) return 0;
+
+            return await this._applyRuntimeFilters(db("portfolio_snapshots"), {
+                ...filters,
+                runId,
+            }).del();
+        } catch (error) {
+            logger.error(
+                `Error deleting portfolio snapshots for run ${runId}:`,
+                error
+            );
+            throw error;
         }
     }
 
@@ -78,6 +137,10 @@ class PortfolioRepository {
             positionCount: 0,
             exposurePercent: 0,
             snapshotTime: Date.now(),
+            runId: null,
+            selectionId: null,
+            mode: "live",
+            strategy: null,
         };
     }
 }

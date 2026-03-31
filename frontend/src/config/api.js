@@ -71,6 +71,16 @@ export const API_ENDPOINTS = {
     analyticsEquity: "/api/analytics/equity",
     analyticsInstruments: "/api/analytics/instruments",
 
+    // runtime/strategy routes
+    strategiesCatalog: "/api/strategies/catalog",
+    runtimeLiveSelection: "/api/runtime/live-selection",
+    runtimeRuns: "/api/runtime/runs",
+    runtimeRunStop: "/api/runtime/runs", // /:runId/stop
+    runtimeRunReset: "/api/runtime/runs", // /:runId/reset
+    runtimeRunTrades: "/api/runtime/runs", // /:runId/trades
+    runtimeRunSignals: "/api/runtime/runs", // /:runId/signals
+    runtimeRunEquity: "/api/runtime/runs", // /:runId/equity
+
     // S3 Reports
     reportsStatus: "/api/reports/status",
     reportsUpload: "/api/reports/upload",
@@ -229,13 +239,79 @@ export const engineAPI = {
     stop: () => apiCall(API_ENDPOINTS.engineStop, { method: "POST" }),
 };
 
+export const strategiesAPI = {
+    getCatalog: () =>
+        apiCall(API_ENDPOINTS.strategiesCatalog).then((data) => {
+            if (data && Array.isArray(data.strategies)) return data.strategies;
+            return [];
+        }),
+};
+
+export const runtimeAPI = {
+    getLiveSelection: () => apiCall(API_ENDPOINTS.runtimeLiveSelection),
+    setLiveSelection: (payload) =>
+        apiCall(API_ENDPOINTS.runtimeLiveSelection, {
+            method: "POST",
+            body: JSON.stringify(payload),
+        }),
+    getRuns: (params = {}) => {
+        const query = new URLSearchParams(params).toString();
+        return apiCall(
+            `${API_ENDPOINTS.runtimeRuns}${query ? `?${query}` : ""}`
+        );
+    },
+    createRun: (payload) =>
+        apiCall(API_ENDPOINTS.runtimeRuns, {
+            method: "POST",
+            body: JSON.stringify(payload),
+        }),
+    stopRun: (runId) =>
+        apiCall(`${API_ENDPOINTS.runtimeRunStop}/${runId}/stop`, {
+            method: "POST",
+        }),
+    resetRun: (runId) =>
+        apiCall(`${API_ENDPOINTS.runtimeRunReset}/${runId}/reset`, {
+            method: "POST",
+        }),
+    getRunTrades: (runId, params = {}) => {
+        const query = new URLSearchParams(
+            Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+        ).toString();
+        return apiCall(
+            `${API_ENDPOINTS.runtimeRunTrades}/${runId}/trades${query ? `?${query}` : ""}`
+        );
+    },
+    getRunSignals: (runId, params = {}) => {
+        const query = new URLSearchParams(
+            Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+        ).toString();
+        return apiCall(
+            `${API_ENDPOINTS.runtimeRunSignals}/${runId}/signals${query ? `?${query}` : ""}`
+        );
+    },
+    getRunEquity: (runId, params = {}) => {
+        const query = new URLSearchParams(
+            Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+        ).toString();
+        return apiCall(
+            `${API_ENDPOINTS.runtimeRunEquity}/${runId}/equity${query ? `?${query}` : ""}`
+        );
+    },
+};
+
 /**
  * Analytics API - Performance metrics
  */
 export const analyticsAPI = {
     // Comprehensive analytics
-    get: (period = "30d") => {
-        const query = new URLSearchParams({ period }).toString();
+    get: (periodOrParams = "30d") => {
+        const params =
+            typeof periodOrParams === "string"
+                ? { period: periodOrParams }
+                : { ...(periodOrParams || {}) };
+        const query = new URLSearchParams(
+            Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+        ).toString();
         return apiCall(`${API_ENDPOINTS.analytics}?${query}`);
     },
 

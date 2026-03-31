@@ -816,6 +816,20 @@ describe('LiveTradingEngine', () => {
     });
 
     describe('Signal Processing', () => {
+        test('should ignore non-live runtime signals', async () => {
+            await engine.processSignal(
+                createMockSignal({
+                    mode: 'paper_shadow',
+                    runId: 'run-shadow-1',
+                    selectionId: 'selection-1',
+                    strategy: 'supertrend_momentum',
+                })
+            );
+
+            expect(mockTradeRepository.save).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.save).not.toHaveBeenCalled();
+        });
+
         test('should reject BUY signal when already in position', async () => {
             const signal = createMockSignal({ symbol: 'AUD_USD', signal: 'BUY' });
 
@@ -907,6 +921,82 @@ describe('LiveTradingEngine', () => {
                 })
             );
         });
+
+        test('should not close a trade owned by another run', async () => {
+            const existingTrade = createMockTrade({
+                id: 'trade-owned-by-old-run',
+                instrument: 'AUD_USD',
+                side: 'SELL',
+                ownerRunId: 'run-live-old',
+                runId: 'run-live-old',
+                selectionId: 'selection-old',
+                strategy: 'supertrend_momentum',
+            });
+            engine.openTrades.set(existingTrade.id, existingTrade);
+
+            await engine.processSignal(
+                createMockSignal({
+                    symbol: 'AUD_USD',
+                    signal: 'BUY',
+                    runId: 'run-live-new',
+                    selectionId: 'selection-new',
+                    strategy: 'supertrend_momentum',
+                    mode: 'live',
+                    entryEnabled: true,
+                })
+            );
+
+            expect(mockTradeRepository.updateTrade).not.toHaveBeenCalledWith(
+                'trade-owned-by-old-run',
+                expect.objectContaining({
+                    isOpen: false,
+                })
+            );
+            expect(mockTradeRepository.save).not.toHaveBeenCalled();
+            expect(engine.stats.signalsRejected).toBe(1);
+        });
+
+        test('should allow the owning run to close a trade without reopening when entry is disabled', async () => {
+            const existingTrade = createMockTrade({
+                id: 'trade-owned-by-run',
+                instrument: 'AUD_USD',
+                side: 'SELL',
+                ownerRunId: 'run-live-old',
+                runId: 'run-live-old',
+                selectionId: 'selection-old',
+                strategy: 'supertrend_momentum',
+            });
+            engine.openTrades.set(existingTrade.id, existingTrade);
+
+            oandaClient.closeTrade.mockResolvedValue({
+                orderFillTransaction: {
+                    price: '1.16784',
+                    pl: '2.50',
+                    financing: '-0.02',
+                },
+            });
+
+            await engine.processSignal(
+                createMockSignal({
+                    symbol: 'AUD_USD',
+                    signal: 'BUY',
+                    runId: 'run-live-old',
+                    selectionId: 'selection-old',
+                    strategy: 'supertrend_momentum',
+                    mode: 'live',
+                    entryEnabled: false,
+                })
+            );
+
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-owned-by-run',
+                expect.objectContaining({
+                    isOpen: false,
+                    exitReason: 'SIGNAL_REVERSAL',
+                })
+            );
+            expect(mockTradeRepository.save).not.toHaveBeenCalled();
+        });
     });
 
     describe('Trade Execution', () => {
@@ -935,7 +1025,12 @@ describe('LiveTradingEngine', () => {
         });
 
         test('should execute entry and save trade to database', async () => {
-            const signal = createMockSignal();
+            const signal = createMockSignal({
+                runId: 'run-live-1',
+                selectionId: 'selection-1',
+                strategy: 'supertrend_momentum',
+                mode: 'live',
+            });
             const config = mockConfigService.get();
 
             await mockEntryDecisionRepository.save({
@@ -959,6 +1054,37 @@ describe('LiveTradingEngine', () => {
                     stage: 'FILLED',
                     outcome: 'FILLED',
                     tradeId: trade.id,
+                })
+            );
+        });
+
+        test('should persist runtime identity on executed live trades', async () => {
+            const signal = createMockSignal({
+                runId: 'run-live-identity',
+                selectionId: 'selection-identity',
+                strategy: 'supertrend_momentum',
+                mode: 'live',
+            });
+            const config = mockConfigService.get();
+
+            const trade = await engine.executeEntry(signal, config);
+
+            expect(mockTradeRepository.save).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    runId: 'run-live-identity',
+                    ownerRunId: 'run-live-identity',
+                    selectionId: 'selection-identity',
+                    strategy: 'supertrend_momentum',
+                    mode: 'live',
+                })
+            );
+            expect(trade).toEqual(
+                expect.objectContaining({
+                    runId: 'run-live-identity',
+                    ownerRunId: 'run-live-identity',
+                    selectionId: 'selection-identity',
+                    strategy: 'supertrend_momentum',
+                    mode: 'live',
                 })
             );
         });

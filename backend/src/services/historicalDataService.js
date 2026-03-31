@@ -1,5 +1,5 @@
 // backend/src/services/historicalDataService.js - Fetch and cache historical candles from Oanda
-// Used by backtestEngine to run strategy simulations on past data
+// Retained as a low-level offline research helper for historical candle access
 const fs = require("fs");
 const path = require("path");
 const oandaClient = require("./Oandaclient");

@@ -201,6 +201,16 @@ function isUniqueSignalEvent(signal, seenSignalKeys) {
 }
 
 function createSignalCohort(signal) {
+    const mode = normalizeString(signal?.mode) || "live";
+    const strategy = normalizeString(signal?.strategy) || "unknown";
+    const runId =
+        normalizeString(signal?.runId) ||
+        normalizeString(signal?.run_id) ||
+        "unassigned";
+    const selectionId =
+        normalizeString(signal?.selectionId) ||
+        normalizeString(signal?.selection_id) ||
+        "unassigned";
     const instrument =
         normalizeString(signal?.symbol) ||
         normalizeString(signal?.instrument) ||
@@ -215,6 +225,11 @@ function createSignalCohort(signal) {
     const configHash = normalizeString(signal?.configHash) || "unknown";
 
     return {
+        mode,
+        strategy,
+        runId,
+        selectionId,
+        identityKey: `${mode}|${strategy}|${runId}|${selectionId}`,
         configHash,
         instrument,
         side,
@@ -224,6 +239,18 @@ function createSignalCohort(signal) {
 }
 
 function createTradeCohort(trade) {
+    const mode = normalizeString(trade?.mode) || "live";
+    const strategy = normalizeString(trade?.strategy) || "unknown";
+    const runId =
+        normalizeString(trade?.ownerRunId) ||
+        normalizeString(trade?.owner_run_id) ||
+        normalizeString(trade?.runId) ||
+        normalizeString(trade?.run_id) ||
+        "unassigned";
+    const selectionId =
+        normalizeString(trade?.selectionId) ||
+        normalizeString(trade?.selection_id) ||
+        "unassigned";
     const instrument = normalizeString(trade?.instrument) || "UNKNOWN";
     const side = normalizeUpper(trade?.side) || "UNKNOWN";
     const cohortType =
@@ -237,6 +264,11 @@ function createTradeCohort(trade) {
         "unknown";
 
     return {
+        mode,
+        strategy,
+        runId,
+        selectionId,
+        identityKey: `${mode}|${strategy}|${runId}|${selectionId}`,
         configHash,
         instrument,
         side,
@@ -246,6 +278,16 @@ function createTradeCohort(trade) {
 }
 
 function createEntryDecisionCohort(decision) {
+    const mode = normalizeString(decision?.mode) || "live";
+    const strategy = normalizeString(decision?.strategy) || "unknown";
+    const runId =
+        normalizeString(decision?.runId) ||
+        normalizeString(decision?.run_id) ||
+        "unassigned";
+    const selectionId =
+        normalizeString(decision?.selectionId) ||
+        normalizeString(decision?.selection_id) ||
+        "unassigned";
     const instrument = normalizeString(decision?.instrument) || "UNKNOWN";
     const side = normalizeUpper(decision?.side) || "UNKNOWN";
     const cohortType =
@@ -255,12 +297,44 @@ function createEntryDecisionCohort(decision) {
     const configHash = normalizeString(decision?.configHash) || "unknown";
 
     return {
+        mode,
+        strategy,
+        runId,
+        selectionId,
+        identityKey: `${mode}|${strategy}|${runId}|${selectionId}`,
         configHash,
         instrument,
         side,
         cohortType,
         cohort: `${instrument}|${side}|${cohortType}`,
     };
+}
+
+function normalizeRuntimeFilters(runtimeFilters = {}) {
+    const baseFilters =
+        typeof runtimeFilters === "string"
+            ? { mode: runtimeFilters }
+            : { ...(runtimeFilters || {}) };
+    const normalized = {};
+    const mode = normalizeString(baseFilters.mode);
+    const strategy = normalizeString(baseFilters.strategy);
+    const runId = normalizeString(baseFilters.runId);
+    const selectionId = normalizeString(baseFilters.selectionId);
+
+    if (mode && mode !== "all") {
+        normalized.mode = mode;
+    }
+    if (strategy) {
+        normalized.strategy = strategy;
+    }
+    if (runId) {
+        normalized.runId = runId;
+    }
+    if (selectionId) {
+        normalized.selectionId = selectionId;
+    }
+
+    return normalized;
 }
 
 /**
@@ -277,18 +351,27 @@ class AnalyticsService {
      * Get full analytics report for a period
      * @param {string} period - '24h', '7d', '30d', '90d', 'all'
      */
-    async getAnalytics(period = "30d") {
+    async getAnalytics(period = "30d", runtimeFilters = {}) {
         try {
             const now = Date.now();
             const periodMs = parsePeriod(period);
             const cutoffTime = now - periodMs;
+            const filters = normalizeRuntimeFilters(runtimeFilters);
+            if (!filters.mode && !filters.runId && !filters.strategy) {
+                filters.mode = "live";
+            }
+            const tradeFilters = { ...filters };
+            if (tradeFilters.runId) {
+                tradeFilters.ownerRunId = tradeFilters.runId;
+                delete tradeFilters.runId;
+            }
 
             // Fetch raw data
             const [trades, signals, entryDecisions] = await Promise.all([
-                this.tradeRepo.getTradesSince(cutoffTime),
-                this.signalRepo.getSignalsSince(new Date(cutoffTime)),
+                this.tradeRepo.getTradesSince(cutoffTime, tradeFilters),
+                this.signalRepo.getSignalsSince(new Date(cutoffTime), filters),
                 this.entryDecisionRepo
-                    ? this.entryDecisionRepo.getDecisionsSince(cutoffTime)
+                    ? this.entryDecisionRepo.getDecisionsSince(cutoffTime, filters)
                     : Promise.resolve([]),
             ]);
 
@@ -334,7 +417,13 @@ class AnalyticsService {
 
             return {
                 period,
-                mode: "live",
+                mode: filters.mode || "all",
+                filters: {
+                    mode: filters.mode || "all",
+                    strategy: filters.strategy || null,
+                    runId: filters.runId || null,
+                    selectionId: filters.selectionId || null,
+                },
                 generatedAt: new Date(now).toISOString(),
                 summary,
                 pairPerformance,
@@ -682,6 +771,10 @@ class AnalyticsService {
             uniqueEvent: 0,
             cooldownSuppressed: 0,
             configHash: 0,
+            mode: 0,
+            strategy: 0,
+            runId: 0,
+            selectionId: 0,
         };
 
         let actionableTotal = 0;
@@ -708,6 +801,17 @@ class AnalyticsService {
                 telemetryCoverage.cooldownSuppressed++;
             }
             if (normalizeString(signal?.configHash)) telemetryCoverage.configHash++;
+            if (normalizeString(signal?.mode)) telemetryCoverage.mode++;
+            if (normalizeString(signal?.strategy)) telemetryCoverage.strategy++;
+            if (normalizeString(signal?.runId) || normalizeString(signal?.run_id)) {
+                telemetryCoverage.runId++;
+            }
+            if (
+                normalizeString(signal?.selectionId) ||
+                normalizeString(signal?.selection_id)
+            ) {
+                telemetryCoverage.selectionId++;
+            }
 
             const actionable = isActionableSignal(signal);
             const cooldownDuplicate = isCooldownDuplicate(signal);
@@ -1021,9 +1125,13 @@ class AnalyticsService {
 
         uniqueActionableSignals.forEach((signal) => {
             const cohort = createSignalCohort(signal);
-            const key = `${cohort.configHash}|${cohort.cohort}`;
+            const key = `${cohort.identityKey}|${cohort.configHash}|${cohort.cohort}`;
             if (!expectedByCohort.has(key)) {
                 expectedByCohort.set(key, {
+                    mode: cohort.mode,
+                    strategy: cohort.strategy,
+                    runId: cohort.runId,
+                    selectionId: cohort.selectionId,
                     configHash: cohort.configHash,
                     cohort: cohort.cohort,
                     instrument: cohort.instrument,
@@ -1041,9 +1149,13 @@ class AnalyticsService {
 
         (entryDecisions || []).forEach((decision) => {
             const cohort = createEntryDecisionCohort(decision);
-            const key = `${cohort.configHash}|${cohort.cohort}`;
+            const key = `${cohort.identityKey}|${cohort.configHash}|${cohort.cohort}`;
             if (!decisionsByCohort.has(key)) {
                 decisionsByCohort.set(key, {
+                    mode: cohort.mode,
+                    strategy: cohort.strategy,
+                    runId: cohort.runId,
+                    selectionId: cohort.selectionId,
                     configHash: cohort.configHash,
                     cohort: cohort.cohort,
                     instrument: cohort.instrument,
@@ -1078,9 +1190,13 @@ class AnalyticsService {
 
         closedTrades.forEach((trade) => {
             const cohort = createTradeCohort(trade);
-            const key = `${cohort.configHash}|${cohort.cohort}`;
+            const key = `${cohort.identityKey}|${cohort.configHash}|${cohort.cohort}`;
             if (!closedByCohort.has(key)) {
                 closedByCohort.set(key, {
+                    mode: cohort.mode,
+                    strategy: cohort.strategy,
+                    runId: cohort.runId,
+                    selectionId: cohort.selectionId,
                     configHash: cohort.configHash,
                     cohort: cohort.cohort,
                     instrument: cohort.instrument,
@@ -1114,6 +1230,16 @@ class AnalyticsService {
                 const expectedSignals = expected.expectedSignals || 0;
 
                 return {
+                    mode: expected.mode || decision.mode || closed.mode || "live",
+                    strategy:
+                        expected.strategy || decision.strategy || closed.strategy || "unknown",
+                    runId:
+                        expected.runId || decision.runId || closed.runId || "unassigned",
+                    selectionId:
+                        expected.selectionId ||
+                        decision.selectionId ||
+                        closed.selectionId ||
+                        "unassigned",
                     configHash:
                         expected.configHash ||
                         decision.configHash ||
@@ -1453,11 +1579,15 @@ class AnalyticsService {
 
         uniqueActionableSignals.forEach((signal) => {
             const cohort = createSignalCohort(signal);
-            const configKey = `${cohort.configHash}|${cohort.cohort}`;
+            const configKey = `${cohort.identityKey}|${cohort.configHash}|${cohort.cohort}`;
             const cohortKey = cohort.cohort;
 
             if (!expectedByConfigAndCohort.has(configKey)) {
                 expectedByConfigAndCohort.set(configKey, {
+                    mode: cohort.mode,
+                    strategy: cohort.strategy,
+                    runId: cohort.runId,
+                    selectionId: cohort.selectionId,
                     configHash: cohort.configHash,
                     cohort: cohort.cohort,
                     instrument: cohort.instrument,
@@ -1492,11 +1622,15 @@ class AnalyticsService {
 
         trades.forEach((trade) => {
             const cohort = createTradeCohort(trade);
-            const configKey = `${cohort.configHash}|${cohort.cohort}`;
+            const configKey = `${cohort.identityKey}|${cohort.configHash}|${cohort.cohort}`;
             const cohortKey = cohort.cohort;
 
             if (!actualByConfigAndCohort.has(configKey)) {
                 actualByConfigAndCohort.set(configKey, {
+                    mode: cohort.mode,
+                    strategy: cohort.strategy,
+                    runId: cohort.runId,
+                    selectionId: cohort.selectionId,
                     configHash: cohort.configHash,
                     cohort: cohort.cohort,
                     instrument: cohort.instrument,
@@ -1550,6 +1684,11 @@ class AnalyticsService {
                 const actual = actualByConfigAndCohort.get(key) || {};
                 const actualTrades = actual.actualTrades || 0;
                 return {
+                    mode: expected.mode || actual.mode || "live",
+                    strategy: expected.strategy || actual.strategy || "unknown",
+                    runId: expected.runId || actual.runId || "unassigned",
+                    selectionId:
+                        expected.selectionId || actual.selectionId || "unassigned",
                     configHash: expected.configHash || actual.configHash || "unknown",
                     cohort: expected.cohort || actual.cohort || "UNKNOWN",
                     instrument: expected.instrument || actual.instrument || "UNKNOWN",

@@ -37,6 +37,79 @@ else
     FAILED=1
 fi
 
+# Check shared runtime selection and paired shadow run
+if [ $FAILED -eq 0 ]; then
+    runtime_data=$(curl -sf "http://localhost:$PORT/api/runtime/live-selection" 2>/dev/null || true)
+
+    if [ -n "$runtime_data" ]; then
+        runtime_status=$(echo "$runtime_data" | python3 -c "
+import sys, json
+
+def short(value):
+    value = str(value or '')
+    return value[:12] if value else 'n/a'
+
+try:
+    data = json.load(sys.stdin)
+    live = data.get('liveSelection') or {}
+    runs = data.get('runs') or []
+    live_run = live.get('liveRun') or {}
+    shadow_run = live.get('shadowRun') or {}
+    candidates = [
+        run for run in runs
+        if run.get('mode') == 'paper_candidate' and run.get('status') == 'active'
+    ]
+    managing = [
+        run for run in runs
+        if run.get('mode') == 'live' and run.get('status') == 'managing_only'
+    ]
+
+    errors = []
+    if not live_run.get('runId'):
+        errors.append('live selection missing')
+    if not shadow_run.get('runId'):
+        errors.append('paired shadow run missing')
+    elif shadow_run.get('shadowOfRunId') != live_run.get('runId'):
+        errors.append('shadow run is not paired to the active live run')
+
+    if errors:
+        print('FAIL')
+        for error in errors:
+            print(error)
+    else:
+        print('OK')
+        print(f\"strategy={live.get('strategy') or 'unknown'}\")
+        print(f\"liveRun={short(live_run.get('runId'))}\")
+        print(f\"shadowRun={short(shadow_run.get('runId'))}\")
+        print(f\"selectionId={short(live.get('selectionId'))}\")
+        print(f\"candidateRuns={len(candidates)}\")
+        print(f\"managingOnly={len(managing)}\")
+except Exception:
+    print('FAIL')
+    print('runtime payload could not be parsed')
+" 2>/dev/null)
+
+        runtime_result=$(echo "$runtime_status" | head -n1)
+        runtime_details=$(echo "$runtime_status" | tail -n +2)
+
+        if [ "$runtime_result" = "OK" ]; then
+            log_message "✅ Runtime Selection: HEALTHY"
+            while IFS= read -r line; do
+                [ -n "$line" ] && log_message "   $line"
+            done <<< "$runtime_details"
+        else
+            log_message "❌ Runtime Selection: FAILED"
+            while IFS= read -r line; do
+                [ -n "$line" ] && log_message "   $line"
+            done <<< "$runtime_details"
+            FAILED=1
+        fi
+    else
+        log_message "❌ Runtime Selection: NOT VERIFIED"
+        FAILED=1
+    fi
+fi
+
 # Check database
 DB_PATH="/opt/forex-trading-bot/backend/data/trading.db"
 if [ -f "$DB_PATH" ]; then

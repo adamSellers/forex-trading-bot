@@ -30,6 +30,34 @@ class TradeRepository {
         }
     }
 
+    _applyRuntimeFilters(query, filters = {}) {
+        const {
+            mode = "live",
+            runId,
+            ownerRunId,
+            selectionId,
+            strategy,
+        } = filters || {};
+
+        if (mode !== null && mode !== undefined) {
+            query.where("mode", mode);
+        }
+        if (runId) {
+            query.where("run_id", runId);
+        }
+        if (ownerRunId) {
+            query.where("owner_run_id", ownerRunId);
+        }
+        if (selectionId) {
+            query.where("selection_id", selectionId);
+        }
+        if (strategy) {
+            query.where("strategy", strategy);
+        }
+
+        return query;
+    }
+
     _buildTradeRecord(trade) {
         return {
             trade_id: trade.id,
@@ -76,6 +104,10 @@ class TradeRepository {
             broker_closed_at: trade.brokerClosedAt ?? null,
             last_broker_sync_at: trade.lastBrokerSyncAt ?? null,
             config_hash: trade.configHash || null,
+            run_id: trade.runId || trade.ownerRunId || null,
+            owner_run_id: trade.ownerRunId || trade.runId || null,
+            selection_id: trade.selectionId || null,
+            strategy: trade.strategy || null,
             broker_reconciliation_payload: this._serializeJson(
                 trade.brokerReconciliationPayload
             ),
@@ -136,6 +168,10 @@ class TradeRepository {
             brokerClosedAt: this._toNumber(record.broker_closed_at),
             lastBrokerSyncAt: this._toNumber(record.last_broker_sync_at),
             configHash: record.config_hash,
+            runId: record.run_id,
+            ownerRunId: record.owner_run_id,
+            selectionId: record.selection_id,
+            strategy: record.strategy,
             brokerReconciliationPayload: this._parseJson(
                 record.broker_reconciliation_payload
             ),
@@ -161,10 +197,9 @@ class TradeRepository {
     /**
      * Get recent trades
      */
-    async getRecent(limit = 20) {
+    async getRecent(limit = 20, filters = {}) {
         try {
-            const records = await db("trades")
-                .where("mode", "live")
+            const records = await this._applyRuntimeFilters(db("trades"), filters)
                 .orderBy("entry_time", "desc")
                 .limit(limit);
             return records.map((r) => this._mapToTradeObject(r));
@@ -177,11 +212,12 @@ class TradeRepository {
     /**
      * Get trades by instrument
      */
-    async getByInstrument(instrument, limit = 50) {
+    async getByInstrument(instrument, limit = 50, filters = {}) {
         try {
-            const records = await db("trades")
-                .where("instrument", instrument)
-                .where("mode", "live")
+            const records = await this._applyRuntimeFilters(
+                db("trades").where("instrument", instrument),
+                filters
+            )
                 .orderBy("entry_time", "desc")
                 .limit(limit);
             return records.map((r) => this._mapToTradeObject(r));
@@ -194,15 +230,15 @@ class TradeRepository {
     /**
      * Get trades since a cutoff time
      */
-    async getTradesSince(cutoffTime) {
+    async getTradesSince(cutoffTime, filters = {}) {
         try {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
 
-            const records = await db("trades")
-                .where("entry_time", ">=", timestamp)
-                .where("mode", "live")
-                .orderBy("entry_time", "desc");
+            const records = await this._applyRuntimeFilters(
+                db("trades").where("entry_time", ">=", timestamp),
+                filters
+            ).orderBy("entry_time", "desc");
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting trades since cutoff:", error);
@@ -213,10 +249,9 @@ class TradeRepository {
     /**
      * Get all trades
      */
-    async getAllTrades() {
+    async getAllTrades(filters = {}) {
         try {
-            const records = await db("trades")
-                .where("mode", "live")
+            const records = await this._applyRuntimeFilters(db("trades"), filters)
                 .orderBy("entry_time", "asc");
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
@@ -228,11 +263,12 @@ class TradeRepository {
     /**
      * Get open trades
      */
-    async getOpenTrades() {
+    async getOpenTrades(filters = {}) {
         try {
-            const records = await db("trades")
-                .where("mode", "live")
-                .where("is_open", true);
+            const records = await this._applyRuntimeFilters(
+                db("trades").where("is_open", true),
+                filters
+            );
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting open trades:", error);
@@ -298,6 +334,13 @@ class TradeRepository {
                 dbUpdates.last_broker_sync_at = updates.lastBrokerSyncAt;
             if (updates.configHash !== undefined)
                 dbUpdates.config_hash = updates.configHash;
+            if (updates.runId !== undefined) dbUpdates.run_id = updates.runId;
+            if (updates.ownerRunId !== undefined)
+                dbUpdates.owner_run_id = updates.ownerRunId;
+            if (updates.selectionId !== undefined)
+                dbUpdates.selection_id = updates.selectionId;
+            if (updates.strategy !== undefined)
+                dbUpdates.strategy = updates.strategy;
             if (updates.brokerReconciliationPayload !== undefined)
                 dbUpdates.broker_reconciliation_payload =
                     this._serializeJson(updates.brokerReconciliationPayload);
@@ -319,19 +362,34 @@ class TradeRepository {
         }
     }
 
+    async deleteByRunId(runId, filters = {}) {
+        try {
+            if (!runId) return 0;
+
+            return await this._applyRuntimeFilters(db("trades"), {
+                ...filters,
+                runId,
+            }).del();
+        } catch (error) {
+            logger.error(`Error deleting trades for run ${runId}:`, error);
+            throw error;
+        }
+    }
+
     /**
      * Get performance metrics for a period
      */
-    async getPerformanceMetrics(period = "30d") {
+    async getPerformanceMetrics(period = "30d", filters = {}) {
         try {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = Date.now() - periodMs;
 
-            const trades = await db("trades")
-                .where("entry_time", ">=", cutoffTime)
-                .where("mode", "live")
-                .where("is_open", false)
-                .orderBy("entry_time", "desc");
+            const trades = await this._applyRuntimeFilters(
+                db("trades")
+                    .where("entry_time", ">=", cutoffTime)
+                    .where("is_open", false),
+                filters
+            ).orderBy("entry_time", "desc");
 
             return this.calculateMetrics(trades);
         } catch (error) {

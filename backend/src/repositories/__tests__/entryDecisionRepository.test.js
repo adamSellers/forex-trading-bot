@@ -67,6 +67,10 @@ describe("EntryDecisionRepository", () => {
             adx: 28.5,
             rsi: 64.2,
             atrPips: 13.4,
+            runId: "run-live-1",
+            selectionId: "selection-1",
+            mode: "live",
+            strategy: "supertrend_momentum",
         });
 
         const saved = await testDb("entry_decisions")
@@ -75,6 +79,10 @@ describe("EntryDecisionRepository", () => {
 
         expect(saved.instrument).toBe("GBP_USD");
         expect(saved.config_hash).toBe("cfg-123");
+        expect(saved.run_id).toBe("run-live-1");
+        expect(saved.selection_id).toBe("selection-1");
+        expect(saved.mode).toBe("live");
+        expect(saved.strategy).toBe("supertrend_momentum");
         expect(JSON.parse(saved.config_snapshot)).toEqual({
             minAdx: 21,
             freshLongRsiCeiling: 68,
@@ -95,6 +103,9 @@ describe("EntryDecisionRepository", () => {
             stage: "FILLED",
             outcome: "FILLED",
             tradeId: "trade-2",
+            runId: "run-live-2",
+            selectionId: "selection-2",
+            strategy: "supertrend_momentum",
             rejectionCode: null,
             rejectionReason: null,
         });
@@ -105,6 +116,9 @@ describe("EntryDecisionRepository", () => {
         expect(row.stage).toBe("FILLED");
         expect(row.outcome).toBe("FILLED");
         expect(row.trade_id).toBe("trade-2");
+        expect(row.run_id).toBe("run-live-2");
+        expect(row.selection_id).toBe("selection-2");
+        expect(row.strategy).toBe("supertrend_momentum");
     });
 
     test("should return decisions since cutoff", async () => {

@@ -1,211 +1,752 @@
-// frontend/src/components/BacktestLab.jsx - V3.2.6 LIVE PARITY UPDATE
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Grid, Alert, AlertTitle, useTheme } from '@mui/material';
-import { socket } from '../config/api';
-import tradingConfigDefaults from '../../../shared/tradingConfigDefaults.json';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  Container,
+  Divider,
+  LinearProgress,
+  Stack,
+  Typography,
+  alpha,
+  useTheme,
+} from '@mui/material';
+import {
+  AutoGraph,
+  CompareArrows,
+  PlayArrow,
+  Refresh,
+  RestartAlt,
+  Stop,
+  Timeline,
+} from '@mui/icons-material';
+import { runtimeAPI, socket, strategiesAPI } from '../config/api';
+import { GlassCard } from './dashboard/Shared';
+import EquityChart from './analytics/EquityChart';
+import RecentTrades from './dashboard/RecentTrades';
 
-// --- SUB-COMPONENTS ---
-import LabControls from './lab/LabControls';
-import SimulationReport from './lab/SimulationReport';
-import OptimizationReport from './lab/OptimizationReport';
-import { LoadingState, EmptyState } from './lab/LabStates';
+const PAPER_REFRESH_INTERVAL_MS = 30000;
+const PAPER_EVENT_NAMES = [
+  'runtimeRunsChanged',
+  'paperRunUpdated',
+  'liveSelectionUpdated',
+  'tradeOpened',
+  'tradeClosed',
+];
 
-const cloneDefaults = () => JSON.parse(JSON.stringify(tradingConfigDefaults));
+const formatCurrency = (value) =>
+  new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
 
-const buildEqualWeights = (assets) => {
-    if (!assets.length) {
-        return {};
-    }
-
-    const weight = parseFloat((100 / assets.length).toFixed(1));
-    return assets.reduce((weights, asset) => {
-        weights[asset] = weight;
-        return weights;
-    }, {});
+const formatDateTime = (value) => {
+  if (!value) return 'Waiting';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Waiting';
+  return date.toLocaleString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+    day: 'numeric',
+  });
 };
 
-const createLabConfig = () => {
-    const defaults = cloneDefaults();
-    const assets = Array.isArray(defaults.assets) ? [...defaults.assets] : [];
+const formatRunId = (value) => (value ? String(value).slice(0, 12) : 'unassigned');
 
-    return {
-        ...defaults,
-        balance: 1000,
-        spreadPips: 1.5,
-        commissionPerSide: 0,
-        enableSlippage: true,
-        slippagePct: 0.0005,
-        days: 30,
-        candidates: assets,
-        assets,
-        weights: buildEqualWeights(assets),
-    };
+const getRunStatusColor = (status) => {
+  if (status === 'active') return 'success';
+  if (status === 'managing_only') return 'warning';
+  if (status === 'stopped') return 'default';
+  return 'default';
+};
+
+const isCandidateStrategy = (strategy = {}) => strategy.runtimeStatus === 'candidate';
+
+const getStrategyLabel = (strategyKey, catalog = []) =>
+  catalog.find((strategy) => strategy.key === strategyKey)?.label || strategyKey;
+
+const buildCandidateLabel = (strategy, runs = []) => {
+  const siblingCount = runs.filter(
+    (run) => run.strategy === strategy.key && run.mode === 'paper_candidate'
+  ).length;
+  return `${strategy.label} #${siblingCount + 1}`;
+};
+
+const SummaryMetric = ({ label, value, tone = 'text.primary' }) => (
+  <Box minWidth={110}>
+    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 0.8 }}>
+      {label}
+    </Typography>
+    <Typography variant="subtitle2" sx={{ color: tone, fontWeight: 700 }}>
+      {value}
+    </Typography>
+  </Box>
+);
+
+const SignalFeed = ({ signals = [] }) => (
+  <Stack spacing={1.25}>
+    {signals.length === 0 && (
+      <Alert severity="info">No persisted runtime signals for this run yet.</Alert>
+    )}
+    {signals.map((signal, index) => (
+      <GlassCard key={`${signal.timestamp}-${signal.symbol}-${index}`} sx={{ p: 1.5 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+              {signal.symbol} {signal.signal}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {signal.reasonCode || signal.message || 'Runtime signal'}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip
+              size="small"
+              label={signal.signalClass || 'signal'}
+              color={signal.signal === 'BUY' ? 'success' : signal.signal === 'SELL' ? 'error' : 'default'}
+              variant="outlined"
+            />
+            <Typography variant="caption" color="text.secondary">
+              {formatDateTime(signal.timestamp)}
+            </Typography>
+          </Stack>
+        </Stack>
+      </GlassCard>
+    ))}
+  </Stack>
+);
+
+const ConfigSnapshot = ({ run }) => (
+  <GlassCard sx={{ p: 2, height: '100%' }}>
+    <Box mb={1.5}>
+      <Typography variant="overline" sx={{ letterSpacing: 1.3, color: 'secondary.main', fontWeight: 800 }}>
+        Config Snapshot
+      </Typography>
+      <Typography variant="h6" sx={{ fontWeight: 800 }}>
+        {run?.metadata?.displayName || run?.strategy || 'Run Config'}
+      </Typography>
+    </Box>
+    <Box
+      component="pre"
+      sx={{
+        m: 0,
+        p: 1.5,
+        borderRadius: 2,
+        bgcolor: 'rgba(15, 23, 42, 0.36)',
+        color: 'text.primary',
+        fontSize: '0.75rem',
+        lineHeight: 1.5,
+        fontFamily: '"Roboto Mono", monospace',
+        overflow: 'auto',
+        maxHeight: 340,
+      }}
+    >
+      {JSON.stringify(run?.configSnapshot || {}, null, 2)}
+    </Box>
+  </GlassCard>
+);
+
+const RunCard = ({
+  title,
+  subtitle,
+  run,
+  summary,
+  controls = null,
+  accent = 'primary.main',
+  selected = false,
+  onSelect = null,
+}) => {
+  const theme = useTheme();
+
+  return (
+    <GlassCard
+      onClick={onSelect || undefined}
+      sx={{
+        p: 2,
+        cursor: onSelect ? 'pointer' : 'default',
+        border: selected
+          ? `1px solid ${alpha(theme.palette.primary.main, 0.46)}`
+          : `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        boxShadow: selected ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.18)}` : 'none',
+        background: `linear-gradient(160deg, ${alpha(theme.palette.background.paper, 0.72)}, ${alpha(theme.palette.background.default, 0.92)})`,
+      }}
+    >
+      <Stack spacing={1.5}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          justifyContent="space-between"
+          alignItems={{ xs: 'flex-start', sm: 'center' }}
+          spacing={1}
+        >
+          <Box>
+            <Typography variant="overline" sx={{ color: accent, letterSpacing: 1.4, fontWeight: 800 }}>
+              {subtitle}
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
+              {title}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip
+              size="small"
+              label={run ? run.status.replace(/_/g, ' ') : 'not started'}
+              color={getRunStatusColor(run?.status)}
+              variant="outlined"
+            />
+            <Chip size="small" label={`Run ${formatRunId(run?.runId)}`} variant="outlined" />
+            {run?.selectionId && (
+              <Chip size="small" label={`Sel ${formatRunId(run.selectionId)}`} variant="outlined" />
+            )}
+          </Stack>
+        </Stack>
+
+        <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.08) }} />
+
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+          <SummaryMetric label="Equity" value={formatCurrency(summary?.totalValueAud)} />
+          <SummaryMetric label="Realized" value={formatCurrency(summary?.realizedPnlAud)} />
+          <SummaryMetric label="Unrealized" value={formatCurrency(summary?.unrealizedPnlAud)} />
+          <SummaryMetric label="Trades" value={`${summary?.closedTradeCount || 0} closed`} />
+          <SummaryMetric label="Open" value={`${summary?.openTradeCount || 0} live`} />
+        </Stack>
+
+        <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+          <SummaryMetric label="Wins" value={summary?.winningTrades || 0} />
+          <SummaryMetric label="Losses" value={summary?.losingTrades || 0} />
+          <SummaryMetric label="Last Signal" value={summary?.lastSignal?.signal || 'Waiting'} />
+          <SummaryMetric label="Last Update" value={formatDateTime(summary?.lastSignalAt || run?.startedAt)} />
+        </Stack>
+
+        {summary?.lastSignal && (
+          <Alert
+            severity="info"
+            sx={{
+              py: 0.5,
+              bgcolor: alpha(theme.palette.info.main, 0.08),
+              border: `1px solid ${alpha(theme.palette.info.main, 0.16)}`,
+            }}
+          >
+            {summary.lastSignal.instrument} {summary.lastSignal.signal}
+            {summary.lastSignal.reasonCode ? ` • ${summary.lastSignal.reasonCode}` : ''}
+          </Alert>
+        )}
+
+        {controls}
+      </Stack>
+    </GlassCard>
+  );
 };
 
 const BacktestLab = () => {
-    const theme = useTheme();
-    const [running, setRunning] = useState(false);
-    const [optimizing, setOptimizing] = useState(false);
-    const [progress, setProgress] = useState({ percent: 0, message: '' });
-    
-    const [results, setResults] = useState(null);
-    const [optimizationReport, setOptimizationReport] = useState(null);
-    const [error, setError] = useState(null);
+  const theme = useTheme();
+  const [runtimeData, setRuntimeData] = useState({ runs: [], liveSelection: null });
+  const [strategyCatalog, setStrategyCatalog] = useState([]);
+  const [selectedRunId, setSelectedRunId] = useState('');
+  const [selectedRunDetail, setSelectedRunDetail] = useState({
+    trades: [],
+    signals: [],
+    equity: null,
+    loading: false,
+    error: null,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [submittingStrategy, setSubmittingStrategy] = useState(null);
+  const [mutatingRunId, setMutatingRunId] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
-    // --- CONFIG STATE (V3.2.6 - Matches Live Trading) ---
-    const [config, setConfig] = useState(createLabConfig);
+  const loadPaperComparison = useCallback(async (showSpinner = false) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
 
-    // --- WEBSOCKET LISTENERS ---
-    useEffect(() => {
-        const onProgress = (data) => setProgress(data);
-        const onComplete = (data) => {
-            setResults(data);
-            setOptimizationReport(null);
-            setRunning(false);
-            setProgress({ percent: 100, message: 'Simulation Complete' });
-        };
-        const onOptComplete = (data) => {
-            setOptimizationReport(data);
-            setResults(null);
-            setOptimizing(false);
-            setProgress({ percent: 100, message: 'Optimization Complete' });
-        };
-        const onError = (err) => {
-            setError(err.message);
-            setRunning(false);
-            setOptimizing(false);
-        };
+    try {
+      setError(null);
+      const [runsResponse, catalog] = await Promise.all([
+        runtimeAPI.getRuns(),
+        strategiesAPI.getCatalog(),
+      ]);
 
-        socket.on('simulation_progress', onProgress);
-        socket.on('simulation_complete', onComplete);
-        socket.on('simulation_error', onError);
-        socket.on('optimization_progress', onProgress);
-        socket.on('optimization_complete', onOptComplete);
-        socket.on('optimization_error', onError);
+      const nextRuns = Array.isArray(runsResponse?.runs) ? runsResponse.runs : [];
+      const nextLiveSelection = runsResponse?.liveSelection || null;
+      const nextShadowRunId =
+        nextLiveSelection?.shadowRun?.runId ||
+        nextRuns.find((run) => run.mode === 'paper_shadow' && run.status === 'active')?.runId ||
+        '';
+      const nextCandidateRunId =
+        nextRuns.find((run) => run.mode === 'paper_candidate' && run.status === 'active')?.runId ||
+        nextRuns.find((run) => run.mode === 'paper_candidate')?.runId ||
+        '';
 
-        return () => {
-            socket.off('simulation_progress', onProgress);
-            socket.off('simulation_complete', onComplete);
-            socket.off('simulation_error', onError);
-            socket.off('optimization_progress', onProgress);
-            socket.off('optimization_complete', onOptComplete);
-            socket.off('optimization_error', onError);
-        };
-    }, []);
+      setRuntimeData({
+        runs: nextRuns,
+        liveSelection: nextLiveSelection,
+      });
+      setStrategyCatalog(Array.isArray(catalog) ? catalog : []);
+      setSelectedRunId((current) => {
+        if (current && nextRuns.some((run) => run.runId === current)) {
+          return current;
+        }
+        return nextCandidateRunId || nextShadowRunId;
+      });
+      setLastUpdate(Date.now());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      if (showSpinner) {
+        setLoading(false);
+      }
+    }
+  }, []);
 
-    // --- HANDLERS ---
-    const handleRun = (forceRebuild = false) => {
-        setRunning(true);
-        setOptimizing(false);
-        setResults(null);
-        setOptimizationReport(null);
-        setError(null);
-        setProgress({ percent: 0, message: forceRebuild ? 'Reinitializing Data...' : 'Initializing Worker...' });
-        socket.emit('start_simulation', { ...config, forceRebuild });
+  useEffect(() => {
+    loadPaperComparison(true);
+
+    const refresh = () => {
+      loadPaperComparison(false);
     };
 
-    const handleOptimize = () => {
-        setOptimizing(true);
-        setRunning(false);
-        setResults(null);
-        setOptimizationReport(null);
-        setError(null);
-        setProgress({ percent: 0, message: 'Booting Genetic Screener...' });
-        socket.emit('start_optimization', { ...config });
+    PAPER_EVENT_NAMES.forEach((eventName) => socket.on(eventName, refresh));
+    const intervalId = window.setInterval(() => refresh(), PAPER_REFRESH_INTERVAL_MS);
+
+    return () => {
+      PAPER_EVENT_NAMES.forEach((eventName) => socket.off(eventName, refresh));
+      window.clearInterval(intervalId);
     };
-    
-    const handleCancel = () => {
-        socket.emit('cancel_optimization');
-        setOptimizing(false);
-        setRunning(false);
-        setProgress({ percent: 0, message: '' });
+  }, [loadPaperComparison]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRunDetail = async () => {
+      if (!selectedRunId) {
+        setSelectedRunDetail({
+          trades: [],
+          signals: [],
+          equity: null,
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+
+      setSelectedRunDetail((current) => ({
+        ...current,
+        loading: true,
+        error: null,
+      }));
+
+      try {
+        const [tradeResponse, signalResponse, equityResponse] = await Promise.all([
+          runtimeAPI.getRunTrades(selectedRunId, { limit: 50 }),
+          runtimeAPI.getRunSignals(selectedRunId, { limit: 20 }),
+          runtimeAPI.getRunEquity(selectedRunId, { limit: 250 }),
+        ]);
+
+        if (cancelled) return;
+
+        setSelectedRunDetail({
+          trades: Array.isArray(tradeResponse?.trades) ? tradeResponse.trades : [],
+          signals: Array.isArray(signalResponse?.signals) ? signalResponse.signals : [],
+          equity: equityResponse || null,
+          loading: false,
+          error: null,
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setSelectedRunDetail({
+            trades: [],
+            signals: [],
+            equity: null,
+            loading: false,
+            error: err.message,
+          });
+        }
+      }
     };
 
-    const applyOptimizedConfig = () => {
-        if (!optimizationReport) return;
-        const newAssets = optimizationReport.optimizedPortfolio.assets;
-        setConfig(prev => ({ ...prev, assets: newAssets, weights: buildEqualWeights(newAssets) }));
-    };
+    loadRunDetail();
 
-    // --- HELPERS FOR CONTROLS ---
-    const updateConfig = (f, v) => setConfig(p => ({ ...p, [f]: v }));
-    const updateWeight = (a, v) => setConfig(p => ({ ...p, weights: { ...p.weights, [a]: parseFloat(v) || 0 } }));
-    
-    const addAsset = (a) => {
-        if (!a || config.assets.includes(a)) return;
-        const newAssets = [...config.assets, a];
-        setConfig(p => ({ ...p, assets: newAssets, weights: buildEqualWeights(newAssets) }));
+    return () => {
+      cancelled = true;
     };
+  }, [selectedRunId]);
 
-    const removeAsset = (a) => {
-        const newAssets = config.assets.filter(as => as !== a);
-        setConfig(p => ({ ...p, assets: newAssets, weights: buildEqualWeights(newAssets) }));
-    };
+  const liveSelection = runtimeData.liveSelection || null;
+  const runs = runtimeData.runs || [];
+  const candidateStrategies = useMemo(
+    () => strategyCatalog.filter((strategy) => isCandidateStrategy(strategy)),
+    [strategyCatalog]
+  );
+  const shadowRun = useMemo(() => {
+    if (!liveSelection?.shadowRun?.runId) {
+      return runs.find((run) => run.mode === 'paper_shadow' && run.status === 'active') || null;
+    }
 
+    return runs.find((run) => run.runId === liveSelection.shadowRun.runId) || liveSelection.shadowRun;
+  }, [liveSelection, runs]);
+  const candidateRuns = useMemo(
+    () => runs.filter((run) => run.mode === 'paper_candidate'),
+    [runs]
+  );
+  const activeCandidateRuns = useMemo(
+    () => candidateRuns.filter((run) => run.status === 'active'),
+    [candidateRuns]
+  );
+  const selectedRun = useMemo(
+    () => runs.find((run) => run.runId === selectedRunId) || shadowRun || null,
+    [runs, selectedRunId, shadowRun]
+  );
+
+  const handleLaunchCandidate = async (strategy) => {
+    try {
+      setSubmittingStrategy(strategy.key);
+      setError(null);
+      const response = await runtimeAPI.createRun({
+        strategyKey: strategy.key,
+        label: buildCandidateLabel(strategy, candidateRuns),
+      });
+      setSelectedRunId(response?.run?.runId || selectedRunId);
+      await loadPaperComparison(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmittingStrategy(null);
+    }
+  };
+
+  const handleResetCandidate = async (runId) => {
+    try {
+      setMutatingRunId(runId);
+      setError(null);
+      await runtimeAPI.resetRun(runId);
+      await loadPaperComparison(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMutatingRunId(null);
+    }
+  };
+
+  const handleStopCandidate = async (runId) => {
+    try {
+      setMutatingRunId(runId);
+      setError(null);
+      await runtimeAPI.stopRun(runId);
+      await loadPaperComparison(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMutatingRunId(null);
+    }
+  };
+
+  if (loading && !liveSelection) {
     return (
-        <Box 
-            p={3} 
-            height="100%" 
-            width="100%" 
-            display="flex" 
-            flexDirection="column" 
-            sx={{ overflowY: 'auto', overflowX: 'hidden' }}
+      <Box minHeight="80vh" display="flex" alignItems="center" justifyContent="center">
+        <LinearProgress sx={{ width: 320 }} />
+      </Box>
+    );
+  }
+
+  return (
+    <Container
+      maxWidth={false}
+      sx={{
+        py: 3,
+        minHeight: 'calc(100vh - 64px)',
+      }}
+    >
+      <Stack spacing={2.5}>
+        <GlassCard
+          sx={{
+            p: 3,
+            background: `radial-gradient(circle at top left, ${alpha(theme.palette.primary.main, 0.18)}, ${alpha(theme.palette.background.paper, 0.92)})`,
+          }}
         >
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-                <Box>
-                    <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
-                        STRATEGY <span style={{ color: theme.palette.primary.main }}>LAB</span>
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-                        ISOLATED SIMULATION • LIVE PARITY MODE • 15M TIMEFRAME
-                    </Typography>
-                </Box>
+          <Stack
+            direction={{ xs: 'column', lg: 'row' }}
+            justifyContent="space-between"
+            alignItems={{ xs: 'flex-start', lg: 'center' }}
+            spacing={2}
+          >
+            <Box>
+              <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                <CompareArrows sx={{ color: 'primary.main' }} />
+                <Typography variant="overline" sx={{ letterSpacing: 1.6, color: 'primary.main', fontWeight: 800 }}>
+                  PAPER COMPARISON
+                </Typography>
+              </Stack>
+              <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: -1 }}>
+                Shadow Baseline vs Candidate Runs
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 760, mt: 1 }}>
+                Every paper run now exposes unified trades, signals, equity, and config snapshots from the shared runtime.
+                Select any run card below to inspect its exact behavior without leaving the comparison screen.
+              </Typography>
             </Box>
 
-            <Grid container spacing={3} sx={{ width: '100%', m: 0 }}>
-                <Grid item xs={12} md={4} lg={3} sx={{ pl: '0 !important', pt: '0 !important' }}>
-                    <LabControls 
-                        config={config}
-                        updateConfig={updateConfig}
-                        updateWeight={updateWeight}
-                        addAsset={addAsset}
-                        removeAsset={removeAsset}
-                        onRun={handleRun}
-                        onOptimize={handleOptimize}
-                        onCancel={handleCancel}
-                        running={running}
-                        optimizing={optimizing}
-                    />
-                </Grid>
-                
-                <Grid item xs={12} md={8} lg={9} sx={{ pt: '0 !important' }}>
-                    {error && (
-                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-                            <AlertTitle>Error</AlertTitle>
-                            {error}
-                        </Alert>
-                    )}
-                     
-                    {(running || optimizing) && (
-                        <LoadingState 
-                            message={progress.message} 
-                            percent={progress.percent} 
-                            isOptimizing={optimizing}
-                            onCancel={handleCancel}
-                        />
-                    )}
-                     
-                    {!running && !optimizing && !results && !optimizationReport && <EmptyState />}
-                     
-                    {results && !optimizing && <SimulationReport results={results} />}
-                     
-                    {optimizationReport && !running && (
-                        <OptimizationReport report={optimizationReport} onApply={applyOptimizedConfig} />
-                    )}
-                </Grid>
-            </Grid>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Chip
+                label={`Live ${getStrategyLabel(liveSelection?.strategy, strategyCatalog)}`}
+                color="primary"
+                variant="outlined"
+              />
+              <Chip
+                label={`Active candidates ${activeCandidateRuns.length}`}
+                color="secondary"
+                variant="outlined"
+              />
+              <Button variant="outlined" size="small" startIcon={<Refresh />} onClick={() => loadPaperComparison(true)}>
+                Refresh
+              </Button>
+            </Stack>
+          </Stack>
+
+          <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap sx={{ mt: 2 }}>
+            <Chip label={`Selection ${formatRunId(liveSelection?.selectionId)}`} variant="outlined" />
+            <Chip label={`Shadow ${shadowRun?.status || 'starting'}`} color={shadowRun ? 'success' : 'default'} variant="outlined" />
+            <Chip label={`Focused ${formatRunId(selectedRun?.runId)}`} variant="outlined" />
+            <Chip label={`Last sync ${lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}`} variant="outlined" />
+          </Stack>
+        </GlassCard>
+
+        {error && (
+          <Alert severity="error" onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+
+        <GlassCard sx={{ p: 2.5 }}>
+          <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <AutoGraph sx={{ color: 'secondary.main' }} />
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                Launch Candidate Runs
+              </Typography>
+            </Stack>
+            <Typography variant="body2" color="text.secondary">
+              Re-launching the same strategy creates a separate candidate run with its own identity, telemetry, and config snapshot.
+            </Typography>
+            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+              {candidateStrategies.map((strategy) => (
+                <Button
+                  key={strategy.key}
+                  variant="contained"
+                  onClick={() => handleLaunchCandidate(strategy)}
+                  disabled={submittingStrategy !== null}
+                  startIcon={<PlayArrow />}
+                  sx={{
+                    px: 2,
+                    fontWeight: 700,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                  }}
+                >
+                  {submittingStrategy === strategy.key ? 'Launching...' : `Launch ${strategy.label}`}
+                </Button>
+              ))}
+            </Stack>
+          </Stack>
+        </GlassCard>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', xl: 'minmax(340px, 0.95fr) minmax(0, 1.55fr)' },
+            gap: 2,
+          }}
+        >
+          <RunCard
+            title={getStrategyLabel(shadowRun?.strategy || liveSelection?.strategy, strategyCatalog)}
+            subtitle="Shadow Baseline"
+            run={shadowRun}
+            summary={shadowRun?.summary}
+            accent="success.main"
+            selected={selectedRunId === shadowRun?.runId}
+            onSelect={() => shadowRun?.runId && setSelectedRunId(shadowRun.runId)}
+            controls={
+              <Alert
+                severity="success"
+                sx={{
+                  py: 0.5,
+                  bgcolor: alpha(theme.palette.success.main, 0.08),
+                  border: `1px solid ${alpha(theme.palette.success.main, 0.18)}`,
+                }}
+              >
+                This run is paired automatically with the current live selection and stays read-only here.
+              </Alert>
+            }
+          />
+
+          <GlassCard sx={{ p: 2 }}>
+            <Stack spacing={2}>
+              <Box>
+                <Typography variant="overline" sx={{ letterSpacing: 1.5, color: 'secondary.main', fontWeight: 800 }}>
+                  Candidate Grid
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                  Candidate Runs
+                </Typography>
+              </Box>
+
+              {activeCandidateRuns.length === 0 && (
+                <Alert severity="info">
+                  No candidate runs are active yet. Launch a strategy to compare it against the shadow baseline.
+                </Alert>
+              )}
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+                  gap: 2,
+                }}
+              >
+                {candidateRuns.map((run) => (
+                  <RunCard
+                    key={run.runId}
+                    title={run.metadata?.displayName || getStrategyLabel(run.strategy, strategyCatalog)}
+                    subtitle={getStrategyLabel(run.strategy, strategyCatalog)}
+                    run={run}
+                    summary={run.summary}
+                    accent="secondary.main"
+                    selected={selectedRunId === run.runId}
+                    onSelect={() => setSelectedRunId(run.runId)}
+                    controls={
+                      <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                        <Button variant="text" size="small" onClick={() => setSelectedRunId(run.runId)}>
+                          Inspect
+                        </Button>
+                        <Stack direction="row" spacing={1}>
+                          {run.status === 'active' && (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              startIcon={<RestartAlt />}
+                              disabled={mutatingRunId !== null}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleResetCandidate(run.runId);
+                              }}
+                            >
+                              {mutatingRunId === run.runId ? 'Working...' : 'Reset'}
+                            </Button>
+                          )}
+                          {run.status === 'active' && (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="error"
+                              startIcon={<Stop />}
+                              disabled={mutatingRunId !== null}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleStopCandidate(run.runId);
+                              }}
+                            >
+                              {mutatingRunId === run.runId ? 'Working...' : 'Stop'}
+                            </Button>
+                          )}
+                        </Stack>
+                      </Stack>
+                    }
+                  />
+                ))}
+              </Box>
+            </Stack>
+          </GlassCard>
         </Box>
-    );
+
+        {selectedRun && (
+          <GlassCard sx={{ p: 2.5 }}>
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: 'column', lg: 'row' }}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', lg: 'center' }}
+                spacing={1}
+              >
+                <Box>
+                  <Typography variant="overline" sx={{ letterSpacing: 1.5, color: 'primary.main', fontWeight: 800 }}>
+                    Run Detail
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 900 }}>
+                    {selectedRun.metadata?.displayName || getStrategyLabel(selectedRun.strategy, strategyCatalog)}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip label={selectedRun.mode.replace(/_/g, ' ')} variant="outlined" />
+                  <Chip label={`Status ${selectedRun.status.replace(/_/g, ' ')}`} color={getRunStatusColor(selectedRun.status)} variant="outlined" />
+                  <Chip label={`Run ${formatRunId(selectedRun.runId)}`} variant="outlined" />
+                  <Chip label={`Selection ${formatRunId(selectedRun.selectionId)}`} variant="outlined" />
+                </Stack>
+              </Stack>
+
+              {selectedRunDetail.error && (
+                <Alert severity="error">{selectedRunDetail.error}</Alert>
+              )}
+
+              {selectedRunDetail.loading && <LinearProgress />}
+
+              <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+                <SummaryMetric label="Equity Source" value={selectedRunDetail.equity?.source || 'loading'} />
+                <SummaryMetric label="Trades" value={selectedRun.summary?.totalTrades || 0} />
+                <SummaryMetric label="Signals" value={selectedRunDetail.signals.length} />
+                <SummaryMetric label="Started" value={formatDateTime(selectedRun.startedAt)} />
+              </Stack>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.3fr) minmax(360px, 0.9fr)' },
+                  gap: 2,
+                }}
+              >
+                <GlassCard sx={{ p: 2 }}>
+                  <EquityChart
+                    equityCurve={selectedRunDetail.equity?.equityCurve || []}
+                    dailyPnL={selectedRunDetail.equity?.dailyPnL || []}
+                  />
+                </GlassCard>
+
+                <ConfigSnapshot run={selectedRun} />
+              </Box>
+
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', xl: 'minmax(0, 1.2fr) minmax(320px, 0.8fr)' },
+                  gap: 2,
+                }}
+              >
+                <GlassCard sx={{ p: 2 }}>
+                  <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
+                    Recent Trades
+                  </Typography>
+                  <Box sx={{ mt: 1, height: 360 }}>
+                    <RecentTrades trades={selectedRunDetail.trades} />
+                  </Box>
+                </GlassCard>
+
+                <GlassCard sx={{ p: 2 }}>
+                  <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
+                    <Timeline sx={{ color: 'secondary.main' }} />
+                    <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'secondary.main', fontWeight: 800 }}>
+                      Recent Signals
+                    </Typography>
+                  </Stack>
+                  <SignalFeed signals={selectedRunDetail.signals} />
+                </GlassCard>
+              </Box>
+            </Stack>
+          </GlassCard>
+        )}
+      </Stack>
+    </Container>
+  );
 };
 
 export default BacktestLab;

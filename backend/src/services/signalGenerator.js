@@ -4,6 +4,7 @@ const logger = require("../utils/logger");
 const { RSI, ADX, ATR } = require("technicalindicators");
 const { calculateSuperTrend } = require("../utils/indicators");
 const { computeConfigHash } = require("../config/tradingConfig");
+const { getStrategyDefinition } = require("../strategies");
 
 class SignalGenerator extends EventEmitter {
     constructor(config = {}, signalRepository = null) {
@@ -105,8 +106,8 @@ class SignalGenerator extends EventEmitter {
     }
 
     /**
-     * Calculate SuperTrend indicator
-     * Delegates to shared indicators module for reuse by backtester
+     * Calculate SuperTrend indicator.
+     * Delegates to the shared indicators module so runtime math stays centralized.
      */
     calculateSuperTrend(highs, lows, closes, period = 10, factor = 3) {
         return calculateSuperTrend(highs, lows, closes, period, factor);
@@ -219,7 +220,16 @@ class SignalGenerator extends EventEmitter {
         prevDir,
         htfContext,
         pending,
+        tradePlan = null,
     }) {
+        const safeHtfContext = htfContext || {
+            enabled: false,
+            timeframe: null,
+            direction: 0,
+            longAllowed: true,
+            shortAllowed: true,
+            reason: null,
+        };
         const pendingSnapshot = this.createPendingSnapshot(pending);
         const setupDirection =
             signalType === "BUY"
@@ -266,7 +276,7 @@ class SignalGenerator extends EventEmitter {
                 rsiVal,
                 atrVal,
                 atrPips,
-                htfContext,
+                htfContext: safeHtfContext,
                 pending,
                 currentPrice,
             }),
@@ -281,8 +291,8 @@ class SignalGenerator extends EventEmitter {
                 adxPrev: prevAdxVal,
                 supertrend_direction: currentDir,
                 atrPips: atrPips,
-                htfDirection: htfContext.direction,
-                htfTimeframe: htfContext.timeframe,
+                htfDirection: safeHtfContext.direction,
+                htfTimeframe: safeHtfContext.timeframe,
             },
 
             data: {
@@ -295,8 +305,8 @@ class SignalGenerator extends EventEmitter {
                 adxPrev: prevAdxVal,
                 stDirection: currentDir,
                 atrPips: atrPips,
-                htfDirection: htfContext.direction,
-                htfTimeframe: htfContext.timeframe,
+                htfDirection: safeHtfContext.direction,
+                htfTimeframe: safeHtfContext.timeframe,
             },
 
             pendingState: pendingSnapshot,
@@ -315,6 +325,7 @@ class SignalGenerator extends EventEmitter {
                       ageMinutes: pendingSnapshot.ageMinutes,
                   }
                 : null,
+            tradePlan,
         };
     }
 
@@ -1172,7 +1183,7 @@ class SignalGenerator extends EventEmitter {
         };
     }
 
-    async generateSignal(instrument, candles, currentPrice) {
+    async generateSignal(instrument, candles, currentPrice, options = {}) {
         try {
             if (!candles || candles.length < 200) {
                 return {
@@ -1190,459 +1201,54 @@ class SignalGenerator extends EventEmitter {
                 };
             }
 
-            const highs = candles.map((c) => c.high);
-            const lows = candles.map((c) => c.low);
-            const closes = candles.map((c) => c.close);
-
-            // 1. Calculate Indicators
-            const stData = this.calculateSuperTrend(
-                highs,
-                lows,
-                closes,
-                this.config.atrPeriod || 10,
-                this.config.factor || 3
+            const strategyDefinition = getStrategyDefinition(
+                this.config.strategy || "supertrend_momentum"
             );
+            const evaluation =
+                await strategyDefinition.evaluateEntry({
+                    instrument,
+                    candles,
+                    currentPrice,
+                    config: this.config,
+                    dataService: this.dataService,
+                    pendingEntry: this._pendingEntries.get(instrument) || null,
+                    calculateSuperTrendFn: this.calculateSuperTrend.bind(this),
+                    getHtfTrendContextFn: this.getHtfTrendContext.bind(this),
+                    marketContext: options.marketContext || null,
+                });
 
-            const idx = closes.length - 1;
-            const currentDir = stData.direction[idx];
-            const prevDir = stData.direction[idx - 1];
-            const signalCandleTime = candles[idx]?.time || null;
-            const flipCandlePrice = closes[idx];
-            const flipTimeMs = this.getCandleTimestampMs(signalCandleTime);
-
-            const rsiVal = RSI.calculate({ values: closes, period: 14 }).pop();
-            const adxResults = ADX.calculate({
-                high: highs,
-                low: lows,
-                close: closes,
-                period: 14,
-            });
-            const adxResult = adxResults[adxResults.length - 1];
-            const adxVal = adxResult?.adx || 0;
-            const pdiVal = adxResult?.pdi || 0;
-            const mdiVal = adxResult?.mdi || 0;
-
-            // ADX Slope calculation: compare current ADX to ADX from N bars ago
-            const lookback = this.config.adxSlopeLookback || 3;
-            const lookbackIdx = adxResults.length - 1 - lookback;
-            const prevAdxResult = lookbackIdx >= 0 ? adxResults[lookbackIdx] : null;
-            const prevAdxVal = prevAdxResult?.adx || adxVal;
-            const adxRising = adxVal > prevAdxVal;
-
-            const atrVal = ATR.calculate({
-                high: highs,
-                low: lows,
-                close: closes,
-                period: 14,
-            }).pop();
-
-            // Convert ATR to pips for Forex
-            const pipValue =
-                this.dataService?.getPipValue?.(instrument) || 0.0001;
-            const atrPips = atrVal / pipValue;
-            const htfContext = this.getHtfTrendContext(instrument);
-            const longContinuationEnabled = this.isLongContinuationEnabled();
-            const shortContinuationEnabled = this.isShortContinuationEnabled();
-            const currentCandle = candles[idx];
-            const previousCandle = candles[idx - 1];
-            const pending = this._pendingEntries.get(instrument);
-
-            // 2. Base state
-            let signalType = "HOLD";
-            let reason = `ST:${
-                currentDir === 1 ? "ðŸŸ¢" : "ðŸ”´"
-            } ADX:${adxVal.toFixed(1)} +DI:${pdiVal.toFixed(
-                1
-            )} -DI:${mdiVal.toFixed(1)} RSI:${rsiVal.toFixed(
-                1
-            )} ATR:${atrPips.toFixed(1)}pips`;
-            let entryType = null;
-            let reasonCode = "BASE_TREND_STATE";
-            let signalClass = "INFO";
-            let intent = "NONE";
-
-            const adxFilterEnabled = this.isAdxFilterEnabled();
-            const rsiFilterEnabled = this.isRsiFilterEnabled();
-            const longMomentumFloor = this.getLongMomentumFloor();
-            const shortMomentumCeiling = this.getShortMomentumCeiling();
-            const adxMeetsThreshold =
-                !adxFilterEnabled || adxVal >= (this.config.minAdx || 22);
-            const adxSlopeOk =
-                !adxFilterEnabled || !this.config.adxSlopeFilter || adxRising;
-            const adxOk = adxMeetsThreshold && adxSlopeOk;
-            const longDiOk =
-                !adxFilterEnabled ||
-                this.config.requireDirectionalAdx === false ||
-                pdiVal > mdiVal;
-            const shortDiOk =
-                !adxFilterEnabled ||
-                this.config.requireDirectionalAdx === false ||
-                mdiVal > pdiVal;
-            const longBaseRegimeOk =
-                adxMeetsThreshold &&
-                longDiOk &&
-                htfContext.longAllowed &&
-                this.passesLongMomentum(rsiVal);
-            const shortBaseRegimeOk =
-                adxMeetsThreshold &&
-                shortDiOk &&
-                htfContext.shortAllowed &&
-                this.passesShortMomentum(rsiVal);
-            const freshLongEntryOk =
-                longBaseRegimeOk &&
-                adxSlopeOk &&
-                this.passesFreshLongRsiCeiling(rsiVal);
-            const freshShortEntryOk =
-                shortBaseRegimeOk &&
-                adxSlopeOk &&
-                this.passesFreshShortRsiFloor(rsiVal);
-
-            // 3. PRIMARY ENTRY: Fresh SuperTrend Flip (RED -> GREEN)
-            if (prevDir === -1 && currentDir === 1) {
-                const existingPending = this._pendingEntries.get(instrument);
-                if (existingPending && existingPending.direction === "SHORT") {
-                    this._pendingEntries.delete(instrument);
-                }
-
-                if (freshLongEntryOk) {
-                    signalType = "BUY";
-                    entryType = "FRESH_FLIP";
-                    reasonCode = "LONG_FRESH_FLIP_ACTIONABLE";
-                    signalClass = "ACTIONABLE";
-                    intent = "ENTER_LONG";
-                    reason =
-                        `🚀 BUY: ST Flip GREEN | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | ` +
-                        `+DI ${pdiVal.toFixed(1)} > -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
-                    this._pendingEntries.delete(instrument);
-                } else if (longContinuationEnabled && longBaseRegimeOk) {
-                    const pendingSetup = this.createPullbackSetup({
-                        direction: "LONG",
-                        flipTime: flipTimeMs,
-                        flipPrice: flipCandlePrice,
-                        flipAdx: adxVal,
-                        flipRsi: rsiVal,
-                        initialHigh: currentCandle.high,
-                        initialLow: currentCandle.low,
-                        signalCandleTime,
-                    });
-                    this._pendingEntries.set(instrument, pendingSetup);
-                    reasonCode = "LONG_FRESH_FLIP_PULLBACK_PENDING";
-                    signalClass = "PENDING";
-                    intent = "WAIT";
-                    reason =
-                        `HOLD: long trend valid but not chaseable | ` +
-                        `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
-                            1
-                        )} | waiting for pullback`;
-                } else if (
-                    !htfContext.longAllowed &&
-                    adxMeetsThreshold &&
-                    longDiOk &&
-                    this.passesLongMomentum(rsiVal)
-                ) {
-                    const pendingSetup = this.createHtfConfirmationSetup({
-                        direction: "LONG",
-                        flipTime: flipTimeMs,
-                        flipPrice: flipCandlePrice,
-                        flipAdx: adxVal,
-                        flipRsi: rsiVal,
-                        initialHigh: currentCandle.high,
-                        initialLow: currentCandle.low,
-                        signalCandleTime,
-                    });
-                    this._pendingEntries.set(instrument, pendingSetup);
-                    reasonCode = "LONG_FRESH_FLIP_WAIT_HTF";
-                    signalClass = "PENDING";
-                    intent = "WAIT";
-                    reason = `HOLD: waiting for HTF confirmation (${htfContext.reason})`;
-                } else if (!htfContext.longAllowed) {
-                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_HTF";
-                    signalClass = "FILTERED";
-                    intent = "WAIT";
-                    reason = `HOLD: ST Flip blocked by ${htfContext.reason}`;
-                } else if (adxFilterEnabled && !adxMeetsThreshold) {
-                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_ADX";
-                    signalClass = "FILTERED";
-                    intent = "WAIT";
-                    reason = `HOLD: ST Flip blocked by weak ADX ${adxVal.toFixed(1)} < ${this.config.minAdx}`;
-                } else if (adxFilterEnabled && !longDiOk) {
-                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_DIRECTIONAL_ADX";
-                    signalClass = "FILTERED";
-                    intent = "WAIT";
-                    reason =
-                        `HOLD: ST Flip blocked by directional ADX (+DI ${pdiVal.toFixed(
-                            1
-                        )} <= -DI ${mdiVal.toFixed(1)})`;
-                } else if (rsiFilterEnabled && !this.passesLongMomentum(rsiVal)) {
-                    reasonCode = "LONG_FRESH_FLIP_BLOCKED_MOMENTUM";
-                    signalClass = "FILTERED";
-                    intent = "WAIT";
-                    reason =
-                        `HOLD: ST Flip blocked by weak momentum RSI ${rsiVal.toFixed(
-                            1
-                        )} < ${longMomentumFloor}`;
-                } else {
-                    reasonCode = "LONG_FRESH_FLIP_FILTERED";
-                    signalClass = "FILTERED";
-                    intent = "WAIT";
-                    reason =
-                        `HOLD: ST Flip filtered | ADX ${adxVal.toFixed(1)} | ` +
-                        `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
-                }
-            }
-            // 4. DELAYED HTF CONFIRMATION OR LONG CONTINUATION
-            else if (
-                currentDir === 1 &&
-                pending &&
-                pending.direction === "LONG"
-            ) {
-                const evaluation =
-                    pending.state === "AWAIT_HTF_CONFIRMATION"
-                        ? this.evaluateLongHtfConfirmationSetup({
-                              pending,
-                              signalCandleTime,
-                              currentDir,
-                              currentClose: currentCandle.close,
-                              currentHigh: currentCandle.high,
-                              currentLow: currentCandle.low,
-                              adxMeetsThreshold,
-                              adxOk,
-                              longDiOk,
-                              longBaseRegimeOk,
-                              longContinuationEnabled,
-                              htfContext,
-                              rsiVal,
-                              adxVal,
-                          })
-                        : this.evaluateLongPullbackSetup({
-                              instrument,
-                              pending,
-                              signalCandleTime,
-                              currentOpen: currentCandle.open,
-                              currentClose: currentCandle.close,
-                              currentHigh: currentCandle.high,
-                              currentLow: currentCandle.low,
-                              previousCandle,
-                              atrVal,
-                              rsiVal,
-                              adxMeetsThreshold,
-                              adxOk,
-                              longDiOk,
-                              htfContext,
-                          });
-
-                if (evaluation.clearPending) {
-                    this._pendingEntries.delete(instrument);
-                } else if (evaluation.pending) {
-                    this._pendingEntries.set(instrument, evaluation.pending);
-                }
-
-                if (evaluation.signalType) {
-                    signalType = evaluation.signalType;
-                    entryType = evaluation.entryType;
-                    reason = evaluation.reason;
-                } else {
-                    reason = evaluation.reason;
-                }
-                reasonCode = evaluation.reasonCode || reasonCode;
-                signalClass = evaluation.signalClass || signalClass;
-                intent = evaluation.intent || intent;
-            }
-            // 5. SHORT ENTRY: SuperTrend Flip (GREEN -> RED)
-            // Always emits SELL to close longs; entryType indicates whether a short is allowed.
-            else if (prevDir === 1 && currentDir === -1) {
-                signalType = "SELL";
-                const existingPending = this._pendingEntries.get(instrument);
-                if (existingPending && existingPending.direction !== "SHORT") {
-                    this._pendingEntries.delete(instrument);
-                }
-
-                if (freshShortEntryOk) {
-                    entryType = "SHORT_ENTRY";
-                    reasonCode = "SHORT_FRESH_FLIP_ACTIONABLE";
-                    signalClass = "ACTIONABLE";
-                    intent = "ENTER_SHORT";
-                    reason =
-                        `📉 SELL: ST Flip RED | ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | ` +
-                        `-DI ${mdiVal.toFixed(1)} > +DI ${pdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)}`;
-                    this._pendingEntries.delete(instrument);
-                } else if (
-                    !htfContext.shortAllowed &&
-                    adxMeetsThreshold &&
-                    shortDiOk &&
-                    this.passesShortMomentum(rsiVal)
-                ) {
-                    const pendingSetup = this.createHtfConfirmationSetup({
-                        direction: "SHORT",
-                        flipTime: flipTimeMs,
-                        flipPrice: flipCandlePrice,
-                        flipAdx: adxVal,
-                        flipRsi: rsiVal,
-                        initialHigh: currentCandle.high,
-                        initialLow: currentCandle.low,
-                        signalCandleTime,
-                    });
-                    this._pendingEntries.set(instrument, pendingSetup);
-                    entryType = "EXIT_ONLY";
-                    reasonCode = "SHORT_FRESH_FLIP_WAIT_HTF";
-                    signalClass = "EXIT_ONLY";
-                    intent = "EXIT_LONG_ONLY";
-                    reason =
-                        `📉 EXIT: ST Flip RED (short waiting for HTF confirmation: ${htfContext.reason})`;
-                } else if (shortContinuationEnabled && shortBaseRegimeOk) {
-                    const pendingSetup = this.createPullbackSetup({
-                        direction: "SHORT",
-                        flipTime: flipTimeMs,
-                        flipPrice: flipCandlePrice,
-                        flipAdx: adxVal,
-                        flipRsi: rsiVal,
-                        initialHigh: currentCandle.high,
-                        initialLow: currentCandle.low,
-                        signalCandleTime,
-                    });
-                    this._pendingEntries.set(instrument, pendingSetup);
-                    entryType = "EXIT_ONLY";
-                    reasonCode = "SHORT_FRESH_FLIP_PULLBACK_PENDING";
-                    signalClass = "EXIT_ONLY";
-                    intent = "EXIT_LONG_ONLY";
-                    reason =
-                        `EXIT_ONLY: short trend valid but waiting for pullback | ` +
-                        `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
-                            1
-                        )}`;
-                } else if (!htfContext.shortAllowed) {
-                    entryType = "EXIT_ONLY";
-                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_HTF";
-                    signalClass = "EXIT_ONLY";
-                    intent = "EXIT_LONG_ONLY";
-                    reason = `📉 EXIT: ST Flip RED (short blocked: ${htfContext.reason})`;
-                } else if (adxFilterEnabled && !adxMeetsThreshold) {
-                    entryType = "EXIT_ONLY";
-                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_ADX";
-                    signalClass = "EXIT_ONLY";
-                    intent = "EXIT_LONG_ONLY";
-                    reason = `📉 EXIT: ST Flip RED (short blocked: ADX ${adxVal.toFixed(1)} < ${this.config.minAdx})`;
-                } else if (adxFilterEnabled && !shortDiOk) {
-                    entryType = "EXIT_ONLY";
-                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_DIRECTIONAL_ADX";
-                    signalClass = "EXIT_ONLY";
-                    intent = "EXIT_LONG_ONLY";
-                    reason =
-                        `📉 EXIT: ST Flip RED (short blocked: directional ADX -DI ${mdiVal.toFixed(
-                            1
-                        )} <= +DI ${pdiVal.toFixed(1)})`;
-                } else if (rsiFilterEnabled && !this.passesShortMomentum(rsiVal)) {
-                    entryType = "EXIT_ONLY";
-                    reasonCode = "SHORT_FRESH_FLIP_BLOCKED_MOMENTUM";
-                    signalClass = "EXIT_ONLY";
-                    intent = "EXIT_LONG_ONLY";
-                    reason =
-                        `📉 EXIT: ST Flip RED (short blocked: momentum too strong RSI ${rsiVal.toFixed(
-                            1
-                        )} > ${shortMomentumCeiling})`;
-                } else {
-                    entryType = "EXIT_ONLY";
-                    reasonCode = "SHORT_FRESH_FLIP_FILTERED";
-                    signalClass = "EXIT_ONLY";
-                    intent = "EXIT_LONG_ONLY";
-                    reason =
-                        `📉 EXIT: ST Flip RED (short filtered | ADX ${adxVal.toFixed(1)} | ` +
-                        `+DI ${pdiVal.toFixed(1)} / -DI ${mdiVal.toFixed(1)} | RSI ${rsiVal.toFixed(1)})`;
-                }
-            }
-            // 6. DELAYED HTF CONFIRMATION OR SHORT CONTINUATION
-            else if (
-                currentDir === -1 &&
-                pending &&
-                pending.direction === "SHORT"
-            ) {
-                const evaluation =
-                    pending.state === "AWAIT_HTF_CONFIRMATION"
-                        ? this.evaluateShortHtfConfirmationSetup({
-                              pending,
-                              signalCandleTime,
-                              currentDir,
-                              currentClose: currentCandle.close,
-                              currentHigh: currentCandle.high,
-                              currentLow: currentCandle.low,
-                              adxMeetsThreshold,
-                              adxOk,
-                              shortDiOk,
-                              shortBaseRegimeOk,
-                              shortContinuationEnabled,
-                              htfContext,
-                              rsiVal,
-                              adxVal,
-                          })
-                        : this.evaluateShortPullbackSetup({
-                              instrument,
-                              pending,
-                              signalCandleTime,
-                              currentOpen: currentCandle.open,
-                              currentClose: currentCandle.close,
-                              currentHigh: currentCandle.high,
-                              currentLow: currentCandle.low,
-                              previousCandle,
-                              atrVal,
-                              rsiVal,
-                              adxMeetsThreshold,
-                              adxOk,
-                              shortDiOk,
-                              htfContext,
-                          });
-
-                if (evaluation.clearPending) {
-                    this._pendingEntries.delete(instrument);
-                } else if (evaluation.pending) {
-                    this._pendingEntries.set(instrument, evaluation.pending);
-                }
-
-                if (evaluation.signalType) {
-                    signalType = evaluation.signalType;
-                    entryType = evaluation.entryType;
-                    reason = evaluation.reason;
-                } else {
-                    signalType =
-                        pending.state === "AWAIT_HTF_CONFIRMATION"
-                            ? "HOLD"
-                            : "SELL";
-                    entryType =
-                        pending.state === "AWAIT_HTF_CONFIRMATION"
-                            ? null
-                            : "EXIT_ONLY";
-                    reason = evaluation.reason;
-                }
-                reasonCode = evaluation.reasonCode || reasonCode;
-                signalClass =
-                    evaluation.signalClass ||
-                    (signalType === "SELL" && entryType === "EXIT_ONLY"
-                        ? "EXIT_ONLY"
-                        : signalClass);
-                intent = evaluation.intent || intent;
+            if (evaluation.pendingAction === "clear") {
+                this._pendingEntries.delete(instrument);
+            } else if (evaluation.pendingAction === "set") {
+                this._pendingEntries.set(instrument, evaluation.pending);
             }
 
             return this.buildSignalPayload({
                 instrument,
-                signalType,
-                reason,
-                reasonCode,
-                signalClass,
-                intent,
-                entryType,
-                signalCandleTime,
-                atrVal,
-                atrPips,
+                signalType: evaluation.signalType,
+                reason: evaluation.reason,
+                reasonCode: evaluation.reasonCode,
+                signalClass: evaluation.signalClass,
+                intent: evaluation.intent,
+                entryType: evaluation.entryType,
+                signalCandleTime: evaluation.signalCandleTime,
+                atrVal: evaluation.atrVal,
+                atrPips: evaluation.atrPips,
                 currentPrice,
-                rsiVal,
-                adxVal,
-                pdiVal,
-                mdiVal,
-                adxRising,
-                prevAdxVal,
-                currentDir,
-                prevDir,
-                htfContext,
-                pending: this._pendingEntries.get(instrument) || null,
+                rsiVal: evaluation.rsiVal,
+                adxVal: evaluation.adxVal,
+                pdiVal: evaluation.pdiVal,
+                mdiVal: evaluation.mdiVal,
+                adxRising: evaluation.adxRising,
+                prevAdxVal: evaluation.prevAdxVal,
+                currentDir: evaluation.currentDir,
+                prevDir: evaluation.prevDir,
+                htfContext: evaluation.htfContext,
+                pending:
+                    evaluation.pendingAction === "clear"
+                        ? null
+                        : evaluation.pending,
+                tradePlan: evaluation.tradePlan || null,
             });
         } catch (error) {
             logger.error(

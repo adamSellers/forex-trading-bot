@@ -98,6 +98,28 @@ describe('TradeRepository', () => {
             expect(trade.isOpen).toBe(false);
         });
 
+        test('should map runtime identity fields', () => {
+            const trade = repository._mapToTradeObject({
+                trade_id: 'trade-runtime-1',
+                mode: 'paper_shadow',
+                run_id: 'run-shadow-1',
+                owner_run_id: 'run-live-1',
+                selection_id: 'selection-live-1',
+                strategy: 'supertrend_momentum',
+                is_open: 1,
+            });
+
+            expect(trade).toEqual(
+                expect.objectContaining({
+                    mode: 'paper_shadow',
+                    runId: 'run-shadow-1',
+                    ownerRunId: 'run-live-1',
+                    selectionId: 'selection-live-1',
+                    strategy: 'supertrend_momentum',
+                })
+            );
+        });
+
         test('should return null for null input', () => {
             const result = repository._mapToTradeObject(null);
             expect(result).toBeNull();
@@ -168,6 +190,28 @@ describe('TradeRepository', () => {
             expect(saved.leverage_used).toBe(15);
             expect(saved.spread_pips).toBe(1.4);
             expect(saved.exit_reason).toBe('TRAILING_STOP');
+        });
+
+        test('should persist runtime identity fields on save', async () => {
+            await repository.save(
+                createMockTrade({
+                    id: 'trade-runtime-save',
+                    mode: 'paper_candidate',
+                    runId: 'run-candidate-1',
+                    ownerRunId: 'run-live-1',
+                    selectionId: 'selection-1',
+                    strategy: 'mean_reversion',
+                })
+            );
+
+            const saved = await testDb('trades')
+                .where('trade_id', 'trade-runtime-save')
+                .first();
+            expect(saved.mode).toBe('paper_candidate');
+            expect(saved.run_id).toBe('run-candidate-1');
+            expect(saved.owner_run_id).toBe('run-live-1');
+            expect(saved.selection_id).toBe('selection-1');
+            expect(saved.strategy).toBe('mean_reversion');
         });
 
         test('should throw error on duplicate trade_id', async () => {
@@ -426,6 +470,25 @@ describe('TradeRepository', () => {
                     },
                 })
             );
+        });
+
+        test('should update runtime identity fields', async () => {
+            await repository.save(createMockTrade({ id: 'trade-runtime-update' }));
+
+            await repository.updateTrade('trade-runtime-update', {
+                runId: 'run-live-2',
+                ownerRunId: 'run-live-2',
+                selectionId: 'selection-2',
+                strategy: 'supertrend_momentum',
+            });
+
+            const updated = await testDb('trades')
+                .where('trade_id', 'trade-runtime-update')
+                .first();
+            expect(updated.run_id).toBe('run-live-2');
+            expect(updated.owner_run_id).toBe('run-live-2');
+            expect(updated.selection_id).toBe('selection-2');
+            expect(updated.strategy).toBe('supertrend_momentum');
         });
     });
 
