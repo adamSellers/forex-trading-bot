@@ -47,6 +47,7 @@ class RuntimeCoordinator extends EventEmitter {
         this.strategyRunRepository = options.strategyRunRepository || null;
         this.tradeRepository = options.tradeRepository || null;
         this.configService = options.configService || null;
+        this.timesFmSignalService = options.timesFmSignalService || null;
         this.marketContextService =
             options.marketContextService || new MarketContextService();
         this.pollIntervalMs = options.pollIntervalMs || 60000;
@@ -65,6 +66,7 @@ class RuntimeCoordinator extends EventEmitter {
         strategyRunRepository = null,
         tradeRepository = null,
         configService = null,
+        timesFmSignalService = null,
     } = {}) {
         this.dataService = dataService || this.dataService;
         this.signalRepository = signalRepository || this.signalRepository;
@@ -72,6 +74,8 @@ class RuntimeCoordinator extends EventEmitter {
             strategyRunRepository || this.strategyRunRepository;
         this.tradeRepository = tradeRepository || this.tradeRepository;
         this.configService = configService || this.configService;
+        this.timesFmSignalService =
+            timesFmSignalService || this.timesFmSignalService;
         return this;
     }
 
@@ -407,6 +411,42 @@ class RuntimeCoordinator extends EventEmitter {
         };
     }
 
+    async enrichTimesFm(signal, options = {}) {
+        if (!this.timesFmSignalService?.enrichSignal) {
+            return signal;
+        }
+
+        return this.timesFmSignalService.enrichSignal(signal, options);
+    }
+
+    async refreshTimesFmHealth(force = false) {
+        if (!this.timesFmSignalService?.refreshHealth) {
+            return null;
+        }
+
+        return this.timesFmSignalService.refreshHealth(force);
+    }
+
+    getTimesFmStatus() {
+        const activeLiveSession = this.getActiveLiveSession();
+        const config =
+            activeLiveSession?.run?.configSnapshot || this.configService?.get?.() || {};
+
+        if (!this.timesFmSignalService?.getStatus) {
+            return {
+                enabled: false,
+                mode: "disabled",
+                configured: false,
+                connected: false,
+                available: false,
+                status: "disabled",
+                ready: false,
+            };
+        }
+
+        return this.timesFmSignalService.getStatus(config);
+    }
+
     async evaluateRunSession(session, sharedContext) {
         const signals = [];
         const assets = this.getRunAssets(session);
@@ -448,7 +488,12 @@ class RuntimeCoordinator extends EventEmitter {
                 continue;
             }
 
-            const enrichedSignal = this.enrichSignal(session, signal);
+            let enrichedSignal = this.enrichSignal(session, signal);
+            enrichedSignal = await this.enrichTimesFm(enrichedSignal, {
+                candles,
+                timeframe,
+                config: session.run.configSnapshot || session.generator.config,
+            });
             signals.push(enrichedSignal);
             this.emit("signalGenerated", enrichedSignal);
         }
@@ -510,6 +555,7 @@ class RuntimeCoordinator extends EventEmitter {
 
         this.dataService = dataService || this.dataService;
         this.isRunning = true;
+        await this.refreshTimesFmHealth(true);
         await this.ensureLiveSelectionInitialized();
         await this.runCycle();
 
@@ -797,6 +843,7 @@ class RuntimeCoordinator extends EventEmitter {
             lastRun: this.lastRunTime,
             runs: this.listRuns(),
             liveSelection: this.getLiveSelection(),
+            timesFm: this.getTimesFmStatus(),
         };
     }
 

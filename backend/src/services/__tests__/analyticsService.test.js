@@ -41,6 +41,7 @@ describe('AnalyticsService', () => {
             expect(result).toHaveProperty('equityData');
             expect(result).toHaveProperty('adxAnalysis');
             expect(result).toHaveProperty('sidePerformance');
+            expect(result).toHaveProperty('timesFmAnalysis');
             expect(result).toHaveProperty('entryFunnel');
             expect(result).toHaveProperty('rejectionBreakdown');
             expect(result).toHaveProperty('executionGapByCohort');
@@ -142,6 +143,63 @@ describe('AnalyticsService', () => {
                 expect.objectContaining({
                     mode: 'all',
                     strategy: 'mean_reversion',
+                })
+            );
+        });
+
+        test('should report TimesFM coverage and outcome correlation', async () => {
+            mockSignalRepo.getSignalsSince.mockResolvedValue([
+                createMockSignal({
+                    setupId: 'setup-1',
+                    signalClass: 'ACTIONABLE',
+                    intent: 'ENTER_LONG',
+                    uniqueEvent: true,
+                    timesFm: {
+                        available: true,
+                        agrees: true,
+                        direction: 'BULLISH',
+                        volatilityRegime: 'HIGH',
+                    },
+                }),
+            ]);
+            mockEntryDecisionRepo.getDecisionsSince.mockResolvedValue([
+                {
+                    decisionId: 'decision-1',
+                    decisionTime: Date.now(),
+                    tradeId: 'trade-1',
+                    timesFmContext: {
+                        available: true,
+                        agrees: true,
+                        direction: 'BULLISH',
+                    },
+                },
+            ]);
+            mockTradeRepo.getTradesSince.mockResolvedValue([
+                createClosedTrade({
+                    id: 'trade-1',
+                    tradeId: 'trade-1',
+                    pnlAud: 5,
+                    isOpen: false,
+                }),
+            ]);
+
+            const result = await service.getAnalytics('7d', 'live');
+
+            expect(result.timesFmAnalysis).toEqual(
+                expect.objectContaining({
+                    actionableSignals: 1,
+                    availableSignals: 1,
+                    coveragePct: 100,
+                    agreement: expect.objectContaining({
+                        agree: 1,
+                    }),
+                    byVolatilityRegime: expect.objectContaining({
+                        HIGH: 1,
+                    }),
+                    outcomeCorrelation: expect.objectContaining({
+                        totalClosedDecisions: 1,
+                        agreeProfitable: 1,
+                    }),
                 })
             );
         });

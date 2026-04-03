@@ -5,7 +5,7 @@ import {
   InputLabel, Select, MenuItem, InputAdornment, Grid, Stack,
   Chip, Divider, Alert, Collapse, IconButton
 } from '@mui/material';
-import { Science, Tune, Speed, TrendingUp, ExpandMore, ExpandLess, TrendingUpOutlined } from '@mui/icons-material';
+import { Science, Tune, Speed, TrendingUp, ExpandMore, ExpandLess, TrendingUpOutlined, Timeline } from '@mui/icons-material';
 import { GlassCard, SectionHeader, msToHours, hoursToMs } from './ConfigShared';
 
 const StrategySettings = ({ config, updateConfig }) => {
@@ -64,6 +64,114 @@ const StrategySettings = ({ config, updateConfig }) => {
                 color="warning"
               />
             </Box>
+          </Grid>
+        </Grid>
+      </GlassCard>
+
+      <GlassCard>
+        <SectionHeader
+          icon={<Timeline />}
+          title="TimesFM Overlay"
+          subtitle="Local Google time-series forecast assist running on Lathe"
+        />
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Box
+              display="flex"
+              justifyContent="space-between"
+              alignItems="center"
+              sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}
+            >
+              <Box>
+                <Typography fontWeight="bold">Enable TimesFM</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Keep enabled for observe mode telemetry even when it is not influencing entries
+                </Typography>
+              </Box>
+              <Switch
+                checked={config.timesFmEnabled ?? true}
+                onChange={(e) => updateConfig('timesFmEnabled', e.target.checked)}
+                color="primary"
+              />
+            </Box>
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth disabled={!config.timesFmEnabled}>
+              <InputLabel>TimesFM Mode</InputLabel>
+              <Select
+                value={config.timesFmMode || 'observe'}
+                label="TimesFM Mode"
+                onChange={(e) => updateConfig('timesFmMode', e.target.value)}
+              >
+                <MenuItem value="disabled">Disabled</MenuItem>
+                <MenuItem value="observe">Observe Only (Recommended)</MenuItem>
+                <MenuItem value="size">Volatility Sizing</MenuItem>
+                <MenuItem value="veto">Veto + Sizing</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              disabled={!config.timesFmEnabled}
+              label="Forecast Horizon"
+              type="number"
+              value={config.timesFmHorizonBars ?? 12}
+              onChange={(e) => updateConfig('timesFmHorizonBars', parseInt(e.target.value, 10))}
+              InputProps={{ endAdornment: <InputAdornment position="end">bars</InputAdornment> }}
+              helperText="15m bars forecasted ahead"
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              disabled={!config.timesFmEnabled}
+              label="Request Timeout"
+              type="number"
+              value={config.timesFmTimeoutMs ?? 5000}
+              onChange={(e) => updateConfig('timesFmTimeoutMs', parseInt(e.target.value, 10))}
+              InputProps={{ endAdornment: <InputAdornment position="end">ms</InputAdornment> }}
+              helperText="Pi-side timeout when Lathe is slow or unavailable"
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              disabled={!config.timesFmEnabled}
+              label="Dead Zone"
+              type="number"
+              value={config.timesFmDeadZoneBps ?? 3}
+              onChange={(e) => updateConfig('timesFmDeadZoneBps', parseFloat(e.target.value))}
+              InputProps={{ endAdornment: <InputAdornment position="end">bps</InputAdornment> }}
+              helperText="Small forecasts inside this range become neutral"
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <Typography gutterBottom variant="subtitle2" color="text.secondary">
+              VETO CONFIDENCE
+            </Typography>
+            <Box px={2} display="flex" alignItems="center" gap={2} sx={{ opacity: config.timesFmEnabled ? 1 : 0.5 }}>
+              <Slider
+                value={config.timesFmVetoConfidence ?? 0.75}
+                min={0.5}
+                max={0.95}
+                step={0.05}
+                disabled={!config.timesFmEnabled}
+                onChange={(_, v) => updateConfig('timesFmVetoConfidence', v)}
+                sx={{ flexGrow: 1 }}
+                marks={[
+                  { value: 0.5, label: '0.50' },
+                  { value: 0.75, label: '0.75' },
+                  { value: 0.95, label: '0.95' },
+                ]}
+              />
+              <Chip label={(config.timesFmVetoConfidence ?? 0.75).toFixed(2)} size="small" />
+            </Box>
+            <Alert severity="info" sx={{ mt: 2 }}>
+              <Typography variant="caption">
+                Start in <strong>observe</strong> mode. Move to <strong>size</strong> or <strong>veto</strong> only after the logged forecast data proves useful.
+              </Typography>
+            </Alert>
           </Grid>
         </Grid>
       </GlassCard>

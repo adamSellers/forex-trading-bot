@@ -93,6 +93,7 @@ class EntryDecisionRepository {
             selection_id: decision.selectionId || null,
             mode: decision.mode || "live",
             strategy: decision.strategy || null,
+            timesfm_context: this._serializeJson(decision.timesFmContext),
             created_at: new Date(),
             updated_at: new Date(),
         };
@@ -130,6 +131,7 @@ class EntryDecisionRepository {
             selectionId: row.selection_id,
             mode: row.mode || "live",
             strategy: row.strategy,
+            timesFmContext: this._parseJson(row.timesfm_context),
             createdAt: row.created_at,
             updatedAt: row.updated_at,
         };
@@ -209,6 +211,11 @@ class EntryDecisionRepository {
             }
             if (updates.mode !== undefined) dbUpdates.mode = updates.mode;
             if (updates.strategy !== undefined) dbUpdates.strategy = updates.strategy;
+            if (updates.timesFmContext !== undefined) {
+                dbUpdates.timesfm_context = this._serializeJson(
+                    updates.timesFmContext
+                );
+            }
 
             if (Object.keys(dbUpdates).length <= 1) return;
 

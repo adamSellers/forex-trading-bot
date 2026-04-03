@@ -295,7 +295,49 @@ class LiveTradingEngine extends EventEmitter {
                 config?.configHash ||
                 computeConfigHash(config || {}),
             currentPrice: signal?.currentPrice ?? null,
+            timesFmAvailable: signal?.timesFm?.available === true,
+            timesFmDirection: signal?.timesFm?.direction || null,
+            timesFmConfidence: signal?.timesFm?.confidence ?? null,
+            timesFmVolatilityRegime: signal?.timesFm?.volatilityRegime || null,
         };
+    }
+
+    getTimesFmMode(config = {}) {
+        const normalized = String(config?.timesFmMode || "disabled")
+            .trim()
+            .toLowerCase();
+        return ["disabled", "observe", "size", "veto"].includes(normalized)
+            ? normalized
+            : "disabled";
+    }
+
+    getTimesFmPositionSizeMultiplier(signal, config = {}) {
+        const mode = this.getTimesFmMode(config);
+        if (config?.timesFmEnabled !== true) return 1.0;
+        if (mode !== "size" && mode !== "veto") return 1.0;
+
+        const multiplier = Number(signal?.timesFm?.positionSizeMultiplier);
+        if (!Number.isFinite(multiplier)) return 1.0;
+        return Math.min(1.0, Math.max(0, multiplier));
+    }
+
+    shouldTimesFmVeto(signal, config = {}) {
+        const mode = this.getTimesFmMode(config);
+        if (config?.timesFmEnabled !== true || mode !== "veto") return false;
+        if (signal?.signal !== "BUY" && signal?.signal !== "SELL") return false;
+        return (
+            signal?.timesFm?.available === true &&
+            signal?.timesFm?.vetoCandidate === true
+        );
+    }
+
+    getTimesFmVetoReason(signal) {
+        const direction = signal?.timesFm?.direction || "UNKNOWN";
+        const confidence = Number(signal?.timesFm?.confidence);
+        const confidenceText = Number.isFinite(confidence)
+            ? confidence.toFixed(2)
+            : "0.00";
+        return `TimesFM vetoed ${signal?.signal || "entry"}: ${direction} forecast at confidence ${confidenceText}`;
     }
 
     shouldTrackEntryDecision(signal) {
@@ -378,6 +420,7 @@ class LiveTradingEngine extends EventEmitter {
             selectionId: signal?.selectionId || extras.selectionId || null,
             mode: signal?.mode || extras.mode || "live",
             strategy: signal?.strategy || extras.strategy || config?.strategy || null,
+            timesFmContext: extras.timesFmContext || signal?.timesFm || null,
         };
     }
 
@@ -852,6 +895,15 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
+        if (this.shouldTimesFmVeto(signal, config)) {
+            return {
+                valid: false,
+                code: ENTRY_REJECTION_CODES.TIMESFM_VETO,
+                reason: this.getTimesFmVetoReason(signal),
+                context: baseContext,
+            };
+        }
+
         // 10. Max portfolio exposure check (margin used / balance), including projected new trade margin
         const maxPortfolioExposure = Number(config.maxPortfolioExposure);
         if (Number.isFinite(maxPortfolioExposure) && maxPortfolioExposure > 0) {
@@ -897,7 +949,8 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPips,
             signal.currentPrice,
             config,
-            signal.entryType
+            signal.entryType,
+            signal
         );
 
         if (!Number.isFinite(units) || units <= 0) return 0;
@@ -1004,7 +1057,8 @@ class LiveTradingEngine extends EventEmitter {
         stopLossPips,
         currentPrice,
         config,
-        entryType = null
+        entryType = null,
+        signal = null
     ) {
         // Get account info from Oanda including available margin
         let accountBalance, marginAvailable;
@@ -1018,92 +1072,106 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // Determine position sizing method
+        let units;
+
         if (config.positionSizeMethod === "FIXED") {
-            return config.fixedPositionUnits || 1000;
-        }
+            units = config.fixedPositionUnits || 1000;
+        } else {
+            // CRITICAL: Use marginAvailable (free capital) not total balance
+            // This prevents opening positions when capital is already committed
+            const maxCapital = config.maxCapitalAtRisk || 500;
 
-        // CRITICAL: Use marginAvailable (free capital) not total balance
-        // This prevents opening positions when capital is already committed
-        const maxCapital = config.maxCapitalAtRisk || 500;
+            // Apply margin buffer (default 20%) to avoid cutting it too close
+            const marginBuffer = config.marginBuffer || 0.20;
+            const safeMarginAvailable = marginAvailable * (1 - marginBuffer);
 
-        // Apply margin buffer (default 20%) to avoid cutting it too close
-        const marginBuffer = config.marginBuffer || 0.20;
-        const safeMarginAvailable = marginAvailable * (1 - marginBuffer);
+            // effectiveBalance = min(safeMarginAvailable, maxCapitalAtRisk)
+            const effectiveBalance = maxCapital > 0
+                ? Math.min(safeMarginAvailable, maxCapital)
+                : safeMarginAvailable;
 
-        // effectiveBalance = min(safeMarginAvailable, maxCapitalAtRisk)
-        const effectiveBalance = (maxCapital > 0)
-            ? Math.min(safeMarginAvailable, maxCapital)
-            : safeMarginAvailable;
+            // Log margin status for debugging
+            const marginUsed = accountBalance - marginAvailable;
+            logger.info(`💰 Margin status: Balance=$${accountBalance.toFixed(2)} | Available=$${marginAvailable.toFixed(2)} | Used=$${marginUsed.toFixed(2)} | Effective=$${effectiveBalance.toFixed(2)}`);
 
-        // Log margin status for debugging
-        const marginUsed = accountBalance - marginAvailable;
-        logger.info(`💰 Margin status: Balance=$${accountBalance.toFixed(2)} | Available=$${marginAvailable.toFixed(2)} | Used=$${marginUsed.toFixed(2)} | Effective=$${effectiveBalance.toFixed(2)}`);
-
-        // Check if we have enough margin to trade
-        if (effectiveBalance <= 0) {
-            logger.warn(`⚠️ Insufficient margin available: $${marginAvailable.toFixed(2)} (after ${marginBuffer * 100}% buffer)`);
-            return 0;
-        }
-
-        // Calculate risk amount on the effective balance
-        const freshFlipRiskMultiplier = Number.isFinite(
-            Number(config.freshFlipRiskMultiplier)
-        )
-            ? Number(config.freshFlipRiskMultiplier)
-            : 1;
-        const riskPercent =
-            entryType === "FRESH_FLIP"
-                ? (config.riskPerTrade || 0.02) * freshFlipRiskMultiplier
-                : config.riskPerTrade || 0.02;
-        const riskAmount = effectiveBalance * riskPercent;
-
-        // Calculate pip value in account currency (AUD)
-        // This requires knowing the AUD_USD rate for proper conversion
-        const pipValue = oandaClient.getPipValue(instrument);
-        let pipValueInAUD;
-
-        try {
-            // Get AUD_USD rate for conversion to account currency
-            let audUsdRate;
-            if (instrument === "AUD_USD") {
-                audUsdRate = currentPrice;
-            } else {
-                const pricingData = await oandaClient.getPricing(["AUD_USD"]);
-                audUsdRate = parseFloat(pricingData.prices[0].closeoutAsk);
+            // Check if we have enough margin to trade
+            if (effectiveBalance <= 0) {
+                logger.warn(`⚠️ Insufficient margin available: $${marginAvailable.toFixed(2)} (after ${marginBuffer * 100}% buffer)`);
+                return 0;
             }
 
-            // Calculate pip value in AUD based on quote currency
-            // For USD-quoted pairs (EUR_USD, AUD_USD): pip P&L is in USD, convert to AUD
-            // For JPY-quoted pairs (USD_JPY): pip P&L is in JPY, convert via USD to AUD
-            if (instrument.endsWith("_USD")) {
-                // USD is quote currency: 1 pip = 0.0001 USD per unit
-                pipValueInAUD = pipValue / audUsdRate;
-            } else if (instrument.endsWith("_JPY")) {
-                // JPY is quote currency: 1 pip = 0.01 JPY per unit
-                // Convert JPY to USD first, then USD to AUD
-                pipValueInAUD = (pipValue / currentPrice) / audUsdRate;
-            } else {
-                // Fallback for other quote currencies (GBP, CHF, etc.)
-                // Would need specific conversion rates - use approximation
-                logger.warn(`⚠️ Unsupported quote currency for ${instrument}, using approximation`);
-                pipValueInAUD = pipValue / audUsdRate;
+            // Calculate risk amount on the effective balance
+            const freshFlipRiskMultiplier = Number.isFinite(
+                Number(config.freshFlipRiskMultiplier)
+            )
+                ? Number(config.freshFlipRiskMultiplier)
+                : 1;
+            const riskPercent =
+                entryType === "FRESH_FLIP"
+                    ? (config.riskPerTrade || 0.02) * freshFlipRiskMultiplier
+                    : config.riskPerTrade || 0.02;
+            const riskAmount = effectiveBalance * riskPercent;
+
+            // Calculate pip value in account currency (AUD)
+            // This requires knowing the AUD_USD rate for proper conversion
+            const pipValue = oandaClient.getPipValue(instrument);
+            let pipValueInAUD;
+
+            try {
+                // Get AUD_USD rate for conversion to account currency
+                let audUsdRate;
+                if (instrument === "AUD_USD") {
+                    audUsdRate = currentPrice;
+                } else {
+                    const pricingData = await oandaClient.getPricing(["AUD_USD"]);
+                    audUsdRate = parseFloat(pricingData.prices[0].closeoutAsk);
+                }
+
+                // Calculate pip value in AUD based on quote currency
+                // For USD-quoted pairs (EUR_USD, AUD_USD): pip P&L is in USD, convert to AUD
+                // For JPY-quoted pairs (USD_JPY): pip P&L is in JPY, convert via USD to AUD
+                if (instrument.endsWith("_USD")) {
+                    // USD is quote currency: 1 pip = 0.0001 USD per unit
+                    pipValueInAUD = pipValue / audUsdRate;
+                } else if (instrument.endsWith("_JPY")) {
+                    // JPY is quote currency: 1 pip = 0.01 JPY per unit
+                    // Convert JPY to USD first, then USD to AUD
+                    pipValueInAUD = (pipValue / currentPrice) / audUsdRate;
+                } else {
+                    // Fallback for other quote currencies (GBP, CHF, etc.)
+                    // Would need specific conversion rates - use approximation
+                    logger.warn(`⚠️ Unsupported quote currency for ${instrument}, using approximation`);
+                    pipValueInAUD = pipValue / audUsdRate;
+                }
+
+                logger.info(`📊 Position sizing: ${instrument} | pipValue=${pipValue} | audUsdRate=${audUsdRate.toFixed(5)} | pipValueInAUD=${pipValueInAUD.toFixed(8)}`);
+            } catch (error) {
+                logger.error(`❌ Failed to calculate pip value in AUD: ${error.message}`);
+                return 0;
             }
 
-            logger.info(`📊 Position sizing: ${instrument} | pipValue=${pipValue} | audUsdRate=${audUsdRate.toFixed(5)} | pipValueInAUD=${pipValueInAUD.toFixed(8)}`);
-        } catch (error) {
-            logger.error(`❌ Failed to calculate pip value in AUD: ${error.message}`);
-            return 0;
+            // Position size = Risk Amount / (Stop Loss Pips × Pip Value in Account Currency)
+            units = Math.floor(riskAmount / (stopLossPips * pipValueInAUD));
+
+            // Apply leverage limits based on available margin (not total balance)
+            const maxLeverage = config.leverage || 10;
+            const maxUnitsFromLeverage = Math.floor(
+                (safeMarginAvailable * maxLeverage) / currentPrice
+            );
+            units = Math.min(units, maxUnitsFromLeverage);
         }
 
-        // Position size = Risk Amount / (Stop Loss Pips × Pip Value in Account Currency)
-        let units = Math.floor(riskAmount / (stopLossPips * pipValueInAUD));
-
-        // Apply leverage limits based on available margin (not total balance)
-        const maxLeverage = config.leverage || 10;
-        const maxUnitsFromLeverage = Math.floor(
-            (safeMarginAvailable * maxLeverage) / currentPrice
+        const timesFmMultiplier = this.getTimesFmPositionSizeMultiplier(
+            signal,
+            config
         );
-        units = Math.min(units, maxUnitsFromLeverage);
+        units = Math.floor(units * timesFmMultiplier);
+
+        if (timesFmMultiplier < 1) {
+            logger.info(
+                `🧠 TimesFM size adjustment: ${instrument} | multiplier=${timesFmMultiplier.toFixed(2)} | adjustedUnits=${units}`
+            );
+        }
 
         // Minimum units check
         if (units < 1) {
@@ -1351,7 +1419,8 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPips,
             currentPrice,
             config,
-            entryType
+            entryType,
+            signal
         );
         if (units === 0) {
             logger.warn(
@@ -2113,6 +2182,7 @@ class LiveTradingEngine extends EventEmitter {
             openPositions: this.openTrades.size,
             maxPositions: config.maxOpenPositions,
             stats: this.stats,
+            timesFm: this.signalGenerator?.getTimesFmStatus?.() || null,
             openTrades: Array.from(this.openTrades.values()).map((t) => ({
                 id: t.id,
                 instrument: t.instrument,

@@ -37,6 +37,56 @@ else
     FAILED=1
 fi
 
+engine_status=$(curl -sf "http://localhost:$PORT/api/engine/status" 2>/dev/null || true)
+if [ -n "$engine_status" ]; then
+    timesfm_status=$(echo "$engine_status" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    tf = data.get('timesFm') or {}
+    enabled = tf.get('enabled') is True and tf.get('mode') != 'disabled'
+    configured = tf.get('configured') is True
+    connected = tf.get('connected') is True
+    mode = str(tf.get('mode') or 'disabled').upper()
+    device = tf.get('device') or 'unknown'
+    failure = tf.get('lastFailureReason') or 'none'
+
+    if not enabled:
+        print('DISABLED')
+        print(f'mode={mode}')
+    elif not configured:
+        print('WARNING')
+        print(f'mode={mode}')
+        print('reason=not_configured')
+    elif connected:
+        print('OK')
+        print(f'mode={mode}')
+        print(f'device={device}')
+    else:
+        print('WARNING')
+        print(f'mode={mode}')
+        print(f'reason={failure}')
+except Exception:
+    print('WARNING')
+    print('reason=unparseable')
+" 2>/dev/null)
+
+    tf_result=$(echo "$timesfm_status" | head -n1)
+    tf_details=$(echo "$timesfm_status" | tail -n +2)
+
+    if [ "$tf_result" = "OK" ]; then
+        log_message "✅ TimesFM Sidecar: HEALTHY"
+    elif [ "$tf_result" = "DISABLED" ]; then
+        log_message "ℹ️  TimesFM Sidecar: DISABLED"
+    else
+        log_message "⚠️  TimesFM Sidecar: DEGRADED (fail-open)"
+    fi
+
+    while IFS= read -r line; do
+        [ -n "$line" ] && log_message "   $line"
+    done <<< "$tf_details"
+fi
+
 # Check shared runtime selection and paired shadow run
 if [ $FAILED -eq 0 ]; then
     runtime_data=$(curl -sf "http://localhost:$PORT/api/runtime/live-selection" 2>/dev/null || true)

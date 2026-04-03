@@ -1,0 +1,9 @@
+# Refresh this pinned top-level dependency set with `uv lock` on Lathe before first production deploy.
+fastapi==0.115.12
+httpx==0.28.1
+numpy==2.2.4
+pydantic==2.11.3
+pytest==8.3.5
+torch>=2.6,<3
+timesfm @ git+https://github.com/google-research/timesfm.git
+uvicorn==0.34.0

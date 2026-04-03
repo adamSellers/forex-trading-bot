@@ -163,6 +163,12 @@ const createMockConfigService = (config = {}) => {
         minAdx: 22,
         assets: ['AUD_USD', 'EUR_USD'],
         enableEmailAlerts: false,
+        timesFmEnabled: true,
+        timesFmMode: 'observe',
+        timesFmHorizonBars: 12,
+        timesFmTimeoutMs: 5000,
+        timesFmVetoConfidence: 0.75,
+        timesFmDeadZoneBps: 3,
         ...config,
     };
 
@@ -328,6 +334,15 @@ const createMockSignalGenerator = (signals = []) => {
             config: generator.config,
             activeSignals: latestSignals,
             pendingEntries: [],
+        })),
+        getTimesFmStatus: jest.fn(() => ({
+            enabled: true,
+            mode: 'observe',
+            configured: true,
+            connected: true,
+            available: true,
+            status: 'ok',
+            ready: true,
         })),
         reset: jest.fn(() => {
             latestSignals = [];

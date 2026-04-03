@@ -62,6 +62,7 @@ describe("RuntimeCoordinator", () => {
     let tradeRepository;
     let configService;
     let openTrades;
+    let timesFmSignalService;
 
     beforeEach(() => {
         dataService = createMockDataService();
@@ -94,6 +95,34 @@ describe("RuntimeCoordinator", () => {
                 timeframe: '15m',
                 enableHTFFilter: true,
                 htfTimeframe: '1h',
+                timesFmEnabled: true,
+                timesFmMode: 'observe',
+            })),
+        };
+        timesFmSignalService = {
+            enrichSignal: jest.fn(async (signal) => ({
+                ...signal,
+                timesFm: {
+                    available: false,
+                    reason: signal.signal === 'HOLD' ? 'not_actionable' : 'disabled',
+                    mode: 'observe',
+                    positionSizeMultiplier: 1,
+                },
+            })),
+            refreshHealth: jest.fn().mockResolvedValue({
+                ok: true,
+                connected: true,
+                status: 'ok',
+                ready: true,
+            }),
+            getStatus: jest.fn(() => ({
+                enabled: true,
+                mode: 'observe',
+                configured: true,
+                connected: true,
+                available: true,
+                status: 'ok',
+                ready: true,
             })),
         };
 
@@ -103,6 +132,7 @@ describe("RuntimeCoordinator", () => {
             strategyRunRepository,
             tradeRepository,
             configService,
+            timesFmSignalService,
             pollIntervalMs: 50,
         });
     });
@@ -167,6 +197,10 @@ describe("RuntimeCoordinator", () => {
                 strategy: "mean_reversion",
                 runtimeStatus: RUN_STATUSES.ACTIVE,
                 entryEnabled: false,
+                timesFm: expect.objectContaining({
+                    reason: "not_actionable",
+                    mode: "observe",
+                }),
             })
         );
         expect(signalRepository.saveBatch).toHaveBeenCalledWith(
@@ -174,9 +208,13 @@ describe("RuntimeCoordinator", () => {
                 expect.objectContaining({
                     runId: "run-shadow-1",
                     mode: RUNTIME_MODES.PAPER_SHADOW,
+                    timesFm: expect.objectContaining({
+                        reason: "not_actionable",
+                    }),
                 }),
             ])
         );
+        expect(timesFmSignalService.enrichSignal).toHaveBeenCalled();
     });
 
     test("managing-only live runs evaluate only managed instruments", async () => {

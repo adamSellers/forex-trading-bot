@@ -103,6 +103,7 @@ const runMigrations = async (db) => {
         table.string('pending_waiting_for');
         table.string('config_hash');
         table.json('decision_context');
+        table.json('timesfm_context');
         table.string('run_id');
         table.string('selection_id');
         table.string('mode');
@@ -137,6 +138,7 @@ const runMigrations = async (db) => {
         table.string('selection_id');
         table.string('mode');
         table.string('strategy');
+        table.json('timesfm_context');
         table.timestamp('created_at').defaultTo(db.fn.now());
         table.timestamp('updated_at').defaultTo(db.fn.now());
     });
@@ -206,6 +208,10 @@ const cleanupTestDb = async (db) => {
  * Destroy test database connection
  */
 const destroyTestDb = async (db) => {
+    if (!db?.destroy) {
+        return;
+    }
+
     await db.destroy();
 };
 

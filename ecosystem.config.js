@@ -44,6 +44,10 @@ module.exports = {
                 // AWS_SECRET_ACCESS_KEY: injected
                 // S3_BUCKET_NAME: injected
 
+                // TimesFM sidecar (optionally injected by start-wrapper.sh)
+                // TIMESFM_URL: injected
+                // TIMESFM_KEY: injected
+
                 // Security
                 CORS_ORIGIN: "http://localhost:3100,http://localhost:3101",
 

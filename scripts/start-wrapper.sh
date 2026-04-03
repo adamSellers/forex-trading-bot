@@ -29,6 +29,10 @@ AWS_ACCESS_KEY_ID_FILE="$SECRETS_DIR/aws_access_key_id.enc"
 AWS_SECRET_ACCESS_KEY_FILE="$SECRETS_DIR/aws_secret_access_key.enc"
 S3_BUCKET_NAME_FILE="$SECRETS_DIR/s3_bucket_name.enc"
 
+# TimesFM Sidecar (Optional)
+TIMESFM_URL_FILE="$SECRETS_DIR/timesfm_url.enc"
+TIMESFM_KEY_FILE="$SECRETS_DIR/timesfm_key.enc"
+
 # --- Decrypt and Export ---
 if [ -f "$ENCRYPTION_KEY_FILE" ]; then
     ENCRYPTION_KEY=$(cat "$ENCRYPTION_KEY_FILE")
@@ -64,6 +68,15 @@ if [ -f "$ENCRYPTION_KEY_FILE" ]; then
         export AWS_ACCESS_KEY_ID=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_ACCESS_KEY_ID_FILE" 2>/dev/null)
         export AWS_SECRET_ACCESS_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_SECRET_ACCESS_KEY_FILE" 2>/dev/null)
         export S3_BUCKET_NAME=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$S3_BUCKET_NAME_FILE" 2>/dev/null)
+    fi
+
+    # 4. TimesFM Sidecar (Optional)
+    if [ -f "$TIMESFM_URL_FILE" ]; then
+        export TIMESFM_URL=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$TIMESFM_URL_FILE" 2>/dev/null)
+    fi
+
+    if [ -f "$TIMESFM_KEY_FILE" ]; then
+        export TIMESFM_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$TIMESFM_KEY_FILE" 2>/dev/null)
     fi
 
     echo "✅ Secrets decrypted and loaded into environment." >&2

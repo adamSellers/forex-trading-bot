@@ -398,6 +398,12 @@ class AnalyticsService {
             const equityData = this.calculateEquityData(closedTrades);
             const adxAnalysis = this.calculateAdxAnalysis(closedTrades);
             const sidePerformance = this.calculateSidePerformance(closedTrades);
+            const timesFmAnalysis = this.calculateTimesFmAnalysis(
+                signals,
+                entryDecisions,
+                closedTrades,
+                signalEventSummary
+            );
             const expectationVsActual = this.calculateExpectationVsActual(
                 signalEventSummary.uniqueActionableSignals,
                 closedTrades
@@ -433,6 +439,7 @@ class AnalyticsService {
                 equityData,
                 adxAnalysis,
                 sidePerformance,
+                timesFmAnalysis,
                 expectationVsActual,
                 entryFunnel,
                 rejectionBreakdown,
@@ -983,6 +990,126 @@ class AnalyticsService {
             },
             { label: "Hold/Wait", value: stats.hold, color: "default" },
         ].filter((d) => d.value > 0);
+
+        return stats;
+    }
+
+    calculateTimesFmAnalysis(
+        signals,
+        entryDecisions = [],
+        closedTrades = [],
+        eventSummary = null
+    ) {
+        const summary = eventSummary || this.extractSignalEventSummary(signals);
+        const actionableSignals = summary.uniqueActionableSignals || [];
+        const stats = {
+            totalSignals: signals.length,
+            actionableSignals: actionableSignals.length,
+            availableSignals: 0,
+            unavailableSignals: 0,
+            coveragePct: 0,
+            agreement: {
+                agree: 0,
+                disagree: 0,
+                neutral: 0,
+            },
+            byVolatilityRegime: {},
+            unavailableReasons: {},
+            outcomeCorrelation: {
+                totalClosedDecisions: 0,
+                profitable: 0,
+                losing: 0,
+                agreeProfitable: 0,
+                agreeLosing: 0,
+                disagreeProfitable: 0,
+                disagreeLosing: 0,
+                neutralProfitable: 0,
+                neutralLosing: 0,
+            },
+        };
+
+        actionableSignals.forEach((signal) => {
+            const context = signal?.timesFm || signal?.timesFmContext || null;
+            if (context?.available === true) {
+                stats.availableSignals++;
+
+                if (context.agrees === true) {
+                    stats.agreement.agree++;
+                } else if (context.disagrees === true) {
+                    stats.agreement.disagree++;
+                } else {
+                    stats.agreement.neutral++;
+                }
+
+                const regime =
+                    normalizeUpper(context.volatilityRegime) || "UNKNOWN";
+                stats.byVolatilityRegime[regime] =
+                    (stats.byVolatilityRegime[regime] || 0) + 1;
+                return;
+            }
+
+            stats.unavailableSignals++;
+            const reason = normalizeUpper(context?.reason) || "UNAVAILABLE";
+            stats.unavailableReasons[reason] =
+                (stats.unavailableReasons[reason] || 0) + 1;
+        });
+
+        stats.coveragePct =
+            actionableSignals.length > 0
+                ? roundTo(
+                      (stats.availableSignals / actionableSignals.length) * 100,
+                      1
+                  )
+                : 0;
+
+        const closedTradeById = new Map();
+        closedTrades.forEach((trade) => {
+            if (trade?.id !== undefined && trade?.id !== null) {
+                closedTradeById.set(String(trade.id), trade);
+            }
+            if (trade?.tradeId) {
+                closedTradeById.set(String(trade.tradeId), trade);
+            }
+        });
+
+        (entryDecisions || []).forEach((decision) => {
+            const context = decision?.timesFmContext || decision?.timesFm || null;
+            if (context?.available !== true || !decision?.tradeId) {
+                return;
+            }
+
+            const trade = closedTradeById.get(String(decision.tradeId));
+            const pnlAud = toFiniteNumber(trade?.pnlAud, NaN);
+            if (!trade || !Number.isFinite(pnlAud)) {
+                return;
+            }
+
+            const profitable = pnlAud > 0;
+            stats.outcomeCorrelation.totalClosedDecisions++;
+            if (profitable) {
+                stats.outcomeCorrelation.profitable++;
+            } else {
+                stats.outcomeCorrelation.losing++;
+            }
+
+            if (context.agrees === true) {
+                if (profitable) {
+                    stats.outcomeCorrelation.agreeProfitable++;
+                } else {
+                    stats.outcomeCorrelation.agreeLosing++;
+                }
+            } else if (context.disagrees === true) {
+                if (profitable) {
+                    stats.outcomeCorrelation.disagreeProfitable++;
+                } else {
+                    stats.outcomeCorrelation.disagreeLosing++;
+                }
+            } else if (profitable) {
+                stats.outcomeCorrelation.neutralProfitable++;
+            } else {
+                stats.outcomeCorrelation.neutralLosing++;
+            }
+        });
 
         return stats;
     }

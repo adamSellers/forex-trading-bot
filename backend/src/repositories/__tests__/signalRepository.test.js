@@ -167,6 +167,12 @@ describe('SignalRepository', () => {
                     htfAligned: true,
                     momentumSlope: 'rising',
                 },
+                timesFm: {
+                    available: true,
+                    direction: 'BULLISH',
+                    confidence: 0.82,
+                    volatilityRegime: 'NORMAL',
+                },
             });
 
             expect(mockInsert).toHaveBeenCalledWith(
@@ -190,6 +196,14 @@ describe('SignalRepository', () => {
                 JSON.stringify({
                     htfAligned: true,
                     momentumSlope: 'rising',
+                })
+            );
+            expect(mockInsert.mock.calls[0][0].timesfm_context).toBe(
+                JSON.stringify({
+                    available: true,
+                    direction: 'BULLISH',
+                    confidence: 0.82,
+                    volatilityRegime: 'NORMAL',
                 })
             );
         });
@@ -347,6 +361,11 @@ describe('SignalRepository', () => {
                     htfAligned: true,
                     momentumSlope: 'rising',
                 }),
+                timesfm_context: JSON.stringify({
+                    available: true,
+                    direction: 'BULLISH',
+                    confidence: 0.81,
+                }),
             };
             const mockOrderBy = jest.fn().mockResolvedValue([row]);
             const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
@@ -385,6 +404,11 @@ describe('SignalRepository', () => {
                     decisionContext: {
                         htfAligned: true,
                         momentumSlope: 'rising',
+                    },
+                    timesFm: {
+                        available: true,
+                        direction: 'BULLISH',
+                        confidence: 0.81,
                     },
                 }),
             ]);

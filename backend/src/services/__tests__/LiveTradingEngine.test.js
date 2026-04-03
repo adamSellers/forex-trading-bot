@@ -610,6 +610,33 @@ describe('LiveTradingEngine', () => {
 
             expect(units).toBe(500);
         });
+
+        test('should apply TimesFM volatility multiplier when sizing mode is enabled', async () => {
+            const config = {
+                ...mockConfigService.get(),
+                positionSizeMethod: 'FIXED',
+                fixedPositionUnits: 500,
+                timesFmEnabled: true,
+                timesFmMode: 'size',
+            };
+            const signal = createMockSignal({
+                timesFm: {
+                    available: true,
+                    positionSizeMultiplier: 0.5,
+                },
+            });
+
+            const units = await engine.calculatePositionSize(
+                'AUD_USD',
+                12,
+                1.16571,
+                config,
+                signal.entryType,
+                signal
+            );
+
+            expect(units).toBe(250);
+        });
     });
 
     describe('calculateStopLoss', () => {
@@ -663,6 +690,30 @@ describe('LiveTradingEngine', () => {
             const result = engine.calculateStopLoss(signal, config);
 
             expect(result.stopLossPips).toBe(25);
+        });
+    });
+
+    describe('TimesFM validation', () => {
+        test('should reject entries vetoed by TimesFM in veto mode', async () => {
+            const signal = createMockSignal({
+                timesFm: {
+                    available: true,
+                    vetoCandidate: true,
+                    direction: 'BEARISH',
+                    confidence: 0.88,
+                },
+            });
+            const config = {
+                ...mockConfigService.get(),
+                timesFmEnabled: true,
+                timesFmMode: 'veto',
+            };
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(false);
+            expect(result.code).toBe(ENTRY_REJECTION_CODES.TIMESFM_VETO);
+            expect(result.reason).toContain('TimesFM vetoed');
         });
     });
 

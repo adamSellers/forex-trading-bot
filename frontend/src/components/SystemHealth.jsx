@@ -248,7 +248,13 @@ const SystemHealth = () => {
   const isDataServiceReady = services.dataService?.isRunning === true;
   const isSignalGenReady = services.signalGenerator?.isActive === true;
   const isEngineReady = services.tradingEngine?.isRunning === true || engineStatus?.isRunning === true;
-  const overallStatus = isOandaReady && isDataServiceReady && isSignalGenReady;
+  const timesFmStatus = services.timesFm || engineStatus?.timesFm || null;
+  const isTimesFmExpected =
+    timesFmStatus?.enabled === true &&
+    timesFmStatus?.mode !== 'disabled' &&
+    timesFmStatus?.configured === true;
+  const isTimesFmReady = !isTimesFmExpected || timesFmStatus?.connected === true;
+  const overallStatus = isOandaReady && isDataServiceReady && isSignalGenReady && isTimesFmReady;
 
   const memoryUsage = systemInfo.memory?.formatted || {};
   const memPercent = systemInfo.memory
@@ -342,6 +348,21 @@ const SystemHealth = () => {
                       : 'Engine not running'
                   }
                   icon={<Engineering fontSize="small" color="action" />}
+                />
+                <ServiceRow
+                  name="TimesFM Sidecar"
+                  status={timesFmStatus}
+                  latency={timesFmStatus?.latencyMs}
+                  details={
+                    timesFmStatus
+                      ? `${String(timesFmStatus.mode || 'disabled').toUpperCase()} | ${
+                          timesFmStatus.connected
+                            ? timesFmStatus.device || 'device unknown'
+                            : timesFmStatus.lastFailureReason || (timesFmStatus.configured ? 'awaiting sidecar' : 'not configured')
+                        }`
+                      : 'No TimesFM telemetry yet'
+                  }
+                  icon={<Timeline fontSize="small" color="action" />}
                 />
                 <ServiceRow
                   name="Config Service"

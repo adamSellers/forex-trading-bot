@@ -203,6 +203,25 @@ curl http://localhost:3101/api/health
 ./scripts/health-check.sh
 ```
 
+### TimesFM sidecar
+
+The bot can enrich actionable signals through the Mac-hosted TimesFM sidecar.
+
+1. Deploy the Python service from [`timesfm-sidecar/`](../timesfm-sidecar/README.md) on Lathe
+2. Store `TIMESFM_URL` and `TIMESFM_KEY` on the Pi via `./scripts/setup-secrets.sh`
+3. Restart the backend:
+
+```bash
+pm2 restart forex-backend
+```
+
+Verification endpoints:
+
+```bash
+curl http://localhost:3101/api/system/health
+curl http://localhost:3101/api/engine/status
+```
+
 ### Database issues
 
 ```bash

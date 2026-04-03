@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 backend/node_modules/
+timesfm-sidecar/.venv/
 npm-debug.log*
 package-lock.json
 yarn-debug.log*
@@ -136,3 +137,11 @@ changes.md
 
 # trading log data
 trades_week*
+timeSeriesUpgrade.md
+
+
+# Python build/cache artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+timesfm-sidecar/src/timesfm_sidecar.egg-info/

@@ -3,6 +3,24 @@ const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class SignalRepository {
+    _serializeJson(value) {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+        return typeof value === "string" ? value : JSON.stringify(value);
+    }
+
+    _parseJson(value) {
+        if (!value) return null;
+        if (typeof value !== "string") return value;
+
+        try {
+            return JSON.parse(value);
+        } catch (error) {
+            logger.warn("Failed to parse signal JSON payload");
+            return null;
+        }
+    }
+
     _applyRuntimeFilters(query, filters = {}) {
         const { mode, runId, selectionId, strategy } = filters || {};
 
@@ -100,8 +118,9 @@ class SignalRepository {
             selection_id: signal.selectionId || null,
             mode: signal.mode || "live",
             decision_context: decisionContext
-                ? JSON.stringify(decisionContext)
+                ? this._serializeJson(decisionContext)
                 : null,
+            timesfm_context: this._serializeJson(signal.timesFm),
         };
     }
 
@@ -139,10 +158,9 @@ class SignalRepository {
                       }
                     : null,
             decisionContext: row.decision_context
-                ? typeof row.decision_context === "string"
-                    ? JSON.parse(row.decision_context)
-                    : row.decision_context
+                ? this._parseJson(row.decision_context)
                 : null,
+            timesFm: this._parseJson(row.timesfm_context),
         };
     }
 

@@ -53,6 +53,7 @@ Notes:
 - React dashboard with dedicated `Dashboard`, `Analytics`, `Paper`, `System`, and `Settings` views
 - SQLite persistence for trades, signals, entry decisions, strategy runs, and portfolio snapshots
 - Optional email notifications and S3 analytics uploads
+- Optional TimesFM 2.5 signal enrichment via a Mac-hosted FastAPI sidecar
 - PM2 and Raspberry Pi deployment scripts in `scripts/`
 
 ## Architecture
@@ -63,6 +64,8 @@ Notes:
 - `backend/src/runtime/`: shared runtime coordinator and market context builder
 - `backend/src/strategies/`: canonical strategy registry and strategy implementations
 - `backend/src/services/LiveTradingEngine.js`: broker-backed live execution
+- `backend/src/services/timesFmClient.js`: fail-open Pi client for the Lathe sidecar
+- `backend/src/services/timesFmSignalService.js`: runtime signal enrichment and caching
 - `backend/src/services/PaperTradingRuntime.js`: paper trade simulation, snapshots, and run summaries
 - `backend/src/routes/tradingRoutes.js`: health, runtime, analytics, trading, config, and reporting APIs
 - `backend/src/repositories/`: SQLite persistence layer
@@ -104,6 +107,7 @@ Notes:
 ├── scripts/
 ├── shared/
 │   └── tradingConfigDefaults.json
+├── timesfm-sidecar/
 ├── USER_GUIDE.md
 ├── PROJECT_HISTORY.md
 └── ecosystem.config.js
@@ -139,6 +143,7 @@ Optional backend environment variables:
 - `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_TO`
 - `ENABLE_S3_ANALYTICS`
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`
+- `TIMESFM_URL`, `TIMESFM_KEY`
 
 ### Migrate and run
 

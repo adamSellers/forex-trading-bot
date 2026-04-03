@@ -250,6 +250,8 @@ router.get("/health", (req, res) => {
             rsiOverbought: config.rsiOverbought || 75,
             maxOpenPositions: config.maxOpenPositions || 2,
             leverage: config.leverage || 10,
+            timesFmEnabled: config.timesFmEnabled === true,
+            timesFmMode: config.timesFmMode || "disabled",
         },
     });
 });
@@ -263,6 +265,16 @@ router.get("/system/health", async (req, res) => {
         const tradingEngine = req.app.locals.tradingEngine;
 
         const config = configService ? configService.get() : {};
+        await signalGenerator?.refreshTimesFmHealth?.();
+        const timesFmStatus = signalGenerator?.getTimesFmStatus?.() || {
+            enabled: false,
+            mode: "disabled",
+            configured: false,
+            connected: false,
+            available: false,
+            status: "disabled",
+            ready: false,
+        };
 
         // Test Oanda API connectivity
         let oandaStatus = { connected: false, latencyMs: null, error: null };
@@ -315,10 +327,16 @@ router.get("/system/health", async (req, res) => {
         const uptimeSeconds = process.uptime();
         const uptimeFormatted = formatUptime(uptimeSeconds);
 
-        const isHealthy =
+        const coreHealthy =
             oandaStatus.connected &&
             dataServiceStatus.isRunning &&
             signalGenStatus.isActive;
+        const timesFmExpected =
+            timesFmStatus.enabled === true &&
+            timesFmStatus.mode !== "disabled" &&
+            timesFmStatus.configured === true;
+        const isHealthy =
+            coreHealthy && (!timesFmExpected || timesFmStatus.available === true);
 
         res.json({
             status: isHealthy ? "healthy" : "degraded",
@@ -330,6 +348,7 @@ router.get("/system/health", async (req, res) => {
                 dataService: dataServiceStatus,
                 signalGenerator: signalGenStatus,
                 tradingEngine: engineStatus,
+                timesFm: timesFmStatus,
                 configService: {
                     loaded: !!configService,
                     tradingEnabled: config.enableTrading || false,
@@ -341,6 +360,8 @@ router.get("/system/health", async (req, res) => {
                 strategy: config.strategy || "supertrend_momentum",
                 timeframe: config.timeframe || "15m",
                 maxOpenPositions: config.maxOpenPositions || 2,
+                timesFmEnabled: config.timesFmEnabled === true,
+                timesFmMode: config.timesFmMode || "disabled",
             },
             activeSignals: signalGenerator?.latestSignals || [],
         });

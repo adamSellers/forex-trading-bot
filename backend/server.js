@@ -20,6 +20,8 @@ const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 const RuntimeCoordinator = require("./src/runtime/runtimeCoordinator");
 const PaperTradingRuntime = require("./src/services/PaperTradingRuntime");
+const TimesFmClient = require("./src/services/timesFmClient");
+const TimesFmSignalService = require("./src/services/timesFmSignalService");
 
 const app = express();
 const server = http.createServer(app);
@@ -66,12 +68,19 @@ const strategyRunRepository = new StrategyRunRepository();
 const portfolioRepository = new PortfolioRepository();
 
 // Initialize shared runtime coordinator
+const timesFmClient = new TimesFmClient();
+const timesFmSignalService = new TimesFmSignalService({
+    client: timesFmClient,
+    dataService,
+});
+
 const runtimeCoordinator = new RuntimeCoordinator({
     dataService,
     signalRepository,
     strategyRunRepository,
     tradeRepository,
     configService,
+    timesFmSignalService,
     pollIntervalMs: 60000,
 });
 const paperTradingRuntime = new PaperTradingRuntime({
@@ -103,6 +112,7 @@ runtimeCoordinator.init({
     strategyRunRepository,
     tradeRepository,
     configService,
+    timesFmSignalService,
 });
 paperTradingRuntime.init({
     runtimeCoordinator,
@@ -140,6 +150,8 @@ app.locals.portfolioRepository = portfolioRepository;
 app.locals.paperTradingRuntime = paperTradingRuntime;
 app.locals.emailService = emailService;
 app.locals.s3ReportScheduler = s3ReportScheduler;
+app.locals.timesFmClient = timesFmClient;
+app.locals.timesFmSignalService = timesFmSignalService;
 app.locals.io = io;
 
 // Middleware
@@ -286,6 +298,7 @@ app.locals.broadcastRuntimeRuns = broadcastRuntimeRuns;
 // Broadcast config changes
 const broadcastConfig = (config) => {
     io.emit("configUpdate", config);
+    broadcastEngineStatus();
     logger.info("Broadcasted config update");
 };
 app.locals.broadcastConfig = broadcastConfig;
@@ -346,6 +359,9 @@ server.listen(PORT, async () => {
 
     if (!process.env.OANDA_API_KEY) {
         logger.warn("OANDA_API_KEY not set - trading features disabled");
+        timesFmSignalService.refreshHealth(true).catch((error) => {
+            logger.warn(`TimesFM health bootstrap failed: ${error.message}`);
+        });
     } else {
         const keyPreview = process.env.OANDA_API_KEY.substring(0, 4) + "...";
         logger.info(`   Oanda API Key: ${keyPreview}`);
@@ -353,6 +369,7 @@ server.listen(PORT, async () => {
         // Wire up price updates from data service to socket broadcast
         dataService.on("priceUpdate", broadcastPrices);
         await dataService.start();
+        await timesFmSignalService.refreshHealth(true);
 
         // Start signal generator after data service has initial data
         setTimeout(async () => {

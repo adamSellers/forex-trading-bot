@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.oakroad.timesfm</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/adams/code/forex-trading-bot/timesfm-sidecar/.venv/bin/uvicorn</string>
+        <string>timesfm_sidecar.app:app</string>
+        <string>--host</string>
+        <string>192.168.1.50</string>
+        <string>--port</string>
+        <string>5050</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/adams/code/forex-trading-bot/timesfm-sidecar</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/adams/code/forex-trading-bot/timesfm-sidecar/src</string>
+        <key>TIMESFM_API_KEY</key>
+        <string>replace-me</string>
+        <key>TIMESFM_MODEL_NAME</key>
+        <string>google/timesfm-2.5-200m-pytorch</string>
+        <key>TIMESFM_MAX_CONTEXT_BARS</key>
+        <string>512</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/adams/Library/Logs/timesfm-sidecar.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/adams/Library/Logs/timesfm-sidecar-error.log</string>
+</dict>
+</plist>

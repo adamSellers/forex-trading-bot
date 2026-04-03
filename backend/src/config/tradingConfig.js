@@ -21,6 +21,10 @@ const NUMERIC_KEYS = new Set([
     "continuationMaxPriceDeviation",
     "continuationPullbackMinAtr",
     "continuationPullbackMaxAtr",
+    "timesFmHorizonBars",
+    "timesFmTimeoutMs",
+    "timesFmVetoConfidence",
+    "timesFmDeadZoneBps",
     "riskPerTrade",
     "freshFlipRiskMultiplier",
     "maxPortfolioExposure",
@@ -49,6 +53,7 @@ const BOOLEAN_KEYS = new Set([
     "enableShortContinuationEntry",
     "enableHTFFilter",
     "enableShorting",
+    "timesFmEnabled",
     "enableTrailingStops",
     "enableTakeProfit",
     "enableBreakeven",
@@ -88,6 +93,12 @@ const FREEZE_PROTECTED_KEYS = new Set([
     "enableHTFFilter",
     "htfTimeframe",
     "enableShorting",
+    "timesFmEnabled",
+    "timesFmMode",
+    "timesFmHorizonBars",
+    "timesFmTimeoutMs",
+    "timesFmVetoConfidence",
+    "timesFmDeadZoneBps",
     "riskPerTrade",
     "freshFlipRiskMultiplier",
     "maxCapitalAtRisk",
@@ -194,6 +205,9 @@ function normalizeTradingConfig(config = {}, options = {}) {
     }
     if (typeof normalized.logLevel !== "string" || !normalized.logLevel) {
         normalized.logLevel = base.logLevel;
+    }
+    if (typeof normalized.timesFmMode !== "string" || !normalized.timesFmMode) {
+        normalized.timesFmMode = base.timesFmMode;
     }
     if (typeof normalized.positionSizeMethod !== "string" || !normalized.positionSizeMethod) {
         normalized.positionSizeMethod = base.positionSizeMethod;
