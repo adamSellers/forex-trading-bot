@@ -11,13 +11,14 @@ const {
 } = require("../strategyContract");
 
 describe("strategy registry", () => {
-    test("includes all five canonical strategy keys", () => {
+    test("includes all canonical strategy keys", () => {
         expect(CANONICAL_STRATEGY_KEYS).toEqual([
             "supertrend_momentum",
             "mean_reversion",
             "range_breakout",
             "stochastic_divergence",
             "squeeze_play",
+            "timesfm_directional",
         ]);
 
         expect(Object.keys(strategyRegistry)).toEqual(CANONICAL_STRATEGY_KEYS);
@@ -26,7 +27,7 @@ describe("strategy registry", () => {
     test("returns canonical catalog metadata in locked order", () => {
         const catalog = listStrategyCatalog();
 
-        expect(catalog).toHaveLength(5);
+        expect(catalog).toHaveLength(6);
         expect(catalog.map((strategy) => strategy.key)).toEqual(
             CANONICAL_STRATEGY_KEYS
         );
@@ -56,6 +57,12 @@ describe("strategy registry", () => {
         expect(getStrategyDefinition("squeeze_play")).toEqual(
             expect.objectContaining({
                 key: "squeeze_play",
+                runtimeStatus: "candidate",
+            })
+        );
+        expect(getStrategyDefinition("timesfm_directional")).toEqual(
+            expect.objectContaining({
+                key: "timesfm_directional",
                 runtimeStatus: "candidate",
             })
         );

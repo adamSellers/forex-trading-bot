@@ -1,6 +1,0 @@
-config_hash,instrument,side,cohort_type,expected_signals,avg_signal_strength,actual_trades,execution_rate_pct,actual_win_rate_pct,actual_pnl_aud,actual_pnl_pips
-a238b2536255,GBP_USD,BUY,FRESH_FLIP,2,26.5,1,50.0,0.0,-1.94,-22.8
-a238b2536255,EUR_USD,BUY,HTF_CONFIRMATION,1,36.76,1,100.0,100.0,1.31,34.3
-unknown,GBP_USD,SELL,SHORT_ENTRY,1,24.52,1,100.0,0.0,0.0,0.0
-a238b2536255,GBP_USD,BUY,HTF_CONFIRMATION,1,33.69,0,0.0,0,0,0
-a238b2536255,USD_JPY,BUY,FRESH_FLIP,1,24.52,0,0.0,0,0,0

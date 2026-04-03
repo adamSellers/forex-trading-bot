@@ -100,6 +100,14 @@ describe("RuntimeCoordinator", () => {
             })),
         };
         timesFmSignalService = {
+            getForecastContext: jest.fn(async () => ({
+                available: true,
+                direction: "BULLISH",
+                confidence: 0.82,
+                returnBps: 14.4,
+                volatilityRegime: "NORMAL",
+                neutral: false,
+            })),
             enrichSignal: jest.fn(async (signal) => ({
                 ...signal,
                 timesFm: {
@@ -215,6 +223,45 @@ describe("RuntimeCoordinator", () => {
             ])
         );
         expect(timesFmSignalService.enrichSignal).toHaveBeenCalled();
+    });
+
+    test("runCycle prefetched TimesFM context for the native TimesFM candidate strategy", async () => {
+        await coordinator.startRun({
+            runId: "run-timesfm-1",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "timesfm_directional",
+            status: RUN_STATUSES.ACTIVE,
+            selectionId: "selection-timesfm",
+            configSnapshot: {
+                strategy: "timesfm_directional",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                timesFmEnabled: true,
+                timesFmMode: "observe",
+            },
+        });
+
+        const signals = await coordinator.runCycle();
+
+        expect(timesFmSignalService.getForecastContext).toHaveBeenCalledWith(
+            expect.objectContaining({
+                instrument: "AUD_USD",
+                timeframe: "15m",
+                config: expect.objectContaining({
+                    strategy: "timesfm_directional",
+                }),
+            })
+        );
+        expect(signals).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    runId: "run-timesfm-1",
+                    strategy: "timesfm_directional",
+                    signal: "BUY",
+                    reasonCode: "TIMESFM_DIRECTIONAL_LONG_ACTIONABLE",
+                }),
+            ])
+        );
     });
 
     test("managing-only live runs evaluate only managed instruments", async () => {

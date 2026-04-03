@@ -154,6 +154,42 @@ describe("TimesFmSignalService", () => {
         expect(second.timesFm.cacheHit).toBe(true);
     });
 
+    test("reuses a prefetched forecast when enriching an actionable signal", async () => {
+        const candles = buildCandles();
+        const config = {
+            timesFmEnabled: true,
+            timesFmMode: "observe",
+            timesFmHorizonBars: 12,
+        };
+
+        const prefetched = await service.getForecastContext({
+            instrument: "AUD_USD",
+            candles,
+            timeframe: "15m",
+            config,
+        });
+        const enriched = await service.enrichSignal(createMockSignal(), {
+            candles,
+            config,
+        });
+
+        expect(client.getForecast).toHaveBeenCalledTimes(1);
+        expect(prefetched).toEqual(
+            expect.objectContaining({
+                available: true,
+                cacheHit: false,
+                direction: "BULLISH",
+            })
+        );
+        expect(enriched.timesFm).toEqual(
+            expect.objectContaining({
+                available: true,
+                cacheHit: true,
+                direction: "BULLISH",
+            })
+        );
+    });
+
     test("fails open when the sidecar is unavailable", async () => {
         client.getForecast.mockResolvedValueOnce(null);
         client.getLastFailure.mockReturnValueOnce({

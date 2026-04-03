@@ -419,6 +419,35 @@ class RuntimeCoordinator extends EventEmitter {
         return this.timesFmSignalService.enrichSignal(signal, options);
     }
 
+    async prepareInstrumentContext(session, instrumentContext, options = {}) {
+        if (
+            !instrumentContext ||
+            session?.run?.strategy !== "timesfm_directional" ||
+            !this.timesFmSignalService?.getForecastContext
+        ) {
+            return instrumentContext;
+        }
+
+        try {
+            const forecastContext = await this.timesFmSignalService.getForecastContext({
+                instrument: options.instrument,
+                candles: options.candles,
+                timeframe: options.timeframe,
+                config: options.config || session.run.configSnapshot || session.generator?.config || {},
+            });
+
+            return {
+                ...instrumentContext,
+                timesFmForecast: forecastContext,
+            };
+        } catch (error) {
+            logger.warn(
+                `TimesFM prefetch failed for ${options.instrument || "unknown"}: ${error.message}`
+            );
+            return instrumentContext;
+        }
+    }
+
     async refreshTimesFmHealth(force = false) {
         if (!this.timesFmSignalService?.refreshHealth) {
             return null;
@@ -469,12 +498,23 @@ class RuntimeCoordinator extends EventEmitter {
                 continue;
             }
 
+            const preparedContext = await this.prepareInstrumentContext(
+                session,
+                instrumentContext,
+                {
+                    instrument,
+                    candles,
+                    timeframe,
+                    config: session.run.configSnapshot || session.generator.config,
+                }
+            );
+
             let signal = await session.generator.generateSignal(
                 instrument,
                 candles,
                 currentPrice,
                 {
-                    marketContext: instrumentContext,
+                    marketContext: preparedContext,
                 }
             );
             if (!signal) {

@@ -138,6 +138,7 @@ changes.md
 # trading log data
 trades_week*
 timeSeriesUpgrade.md
+/testData
 
 
 # Python build/cache artifacts

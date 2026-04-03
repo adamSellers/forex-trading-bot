@@ -191,6 +191,123 @@ class TimesFmSignalService {
         };
     }
 
+    _resolveRequestOptions(config = {}) {
+        const mode = normalizeMode(config.timesFmMode);
+        const enabled = config.timesFmEnabled === true;
+        const configured = this.client?.isConfigured?.() === true;
+        const horizon =
+            toFiniteNumber(config.timesFmHorizonBars, null) || 12;
+        const timeoutMs =
+            toFiniteNumber(config.timesFmTimeoutMs, null) ||
+            this.client?.defaultTimeoutMs ||
+            5000;
+        const deadZoneBps =
+            toFiniteNumber(config.timesFmDeadZoneBps, null) || 3;
+
+        return {
+            mode,
+            enabled,
+            configured,
+            horizon,
+            timeoutMs,
+            deadZoneBps,
+            baseMeta: {
+                enabled,
+                mode,
+                configured,
+                horizon,
+                preprocessMode: this.preprocessMode,
+            },
+        };
+    }
+
+    async _resolveForecastRequest({
+        instrument,
+        candles = [],
+        timeframe = "15m",
+        config = {},
+    } = {}) {
+        const request = this._resolveRequestOptions(config);
+
+        if (!request.enabled || request.mode === "disabled") {
+            return {
+                ...request,
+                unavailableReason: "disabled",
+            };
+        }
+
+        if (!request.configured) {
+            return {
+                ...request,
+                unavailableReason: "not_configured",
+            };
+        }
+
+        this.refreshHealthIfStale();
+
+        const closes = this._extractCloses(candles).slice(-this.maxContextBars);
+        const lastCandleTime = this._getLastCandleTime(candles) || null;
+
+        if (closes.length < this.minContextBars) {
+            return {
+                ...request,
+                inputBars: closes.length,
+                lastCandleTime,
+                unavailableReason: "insufficient_context",
+            };
+        }
+
+        const cacheKey = this._buildCacheKey({
+            instrument,
+            timeframe,
+            horizon: request.horizon,
+            lastCandleTime,
+            preprocessMode: this.preprocessMode,
+        });
+        const cached = this.cache.get(cacheKey);
+        const isCacheValid =
+            cached &&
+            Date.now() - cached.cachedAt < this.cacheTtlMs &&
+            cached.forecast;
+
+        let forecast = isCacheValid ? cached.forecast : null;
+        let cacheHit = Boolean(isCacheValid);
+
+        if (!forecast) {
+            forecast = await this.client.getForecast(instrument, closes, {
+                horizon: request.horizon,
+                timeoutMs: request.timeoutMs,
+                preprocessMode: this.preprocessMode,
+                useLogReturns: false,
+                deadZoneBps: request.deadZoneBps,
+            });
+
+            if (!forecast) {
+                return {
+                    ...request,
+                    inputBars: closes.length,
+                    lastCandleTime,
+                    unavailableReason:
+                        this.client.getLastFailure?.()?.reason ||
+                        "sidecar_unavailable",
+                };
+            }
+
+            this.cache.set(cacheKey, {
+                forecast,
+                cachedAt: Date.now(),
+            });
+        }
+
+        return {
+            ...request,
+            forecast,
+            cacheHit,
+            inputBars: closes.length,
+            lastCandleTime,
+        };
+    }
+
     async refreshHealth(force = false) {
         if (!this.client?.checkHealth) {
             return null;
@@ -264,26 +381,36 @@ class TimesFmSignalService {
         };
     }
 
+    async getForecastContext(options = {}) {
+        const result = await this._resolveForecastRequest(options);
+
+        if (!result.forecast) {
+            return this._buildUnavailableContext(result.unavailableReason, {
+                ...result.baseMeta,
+                inputBars: result.inputBars ?? null,
+                lastCandleTime: result.lastCandleTime || null,
+            });
+        }
+
+        return this._buildAvailableContext(
+            {
+                signal: "HOLD",
+                entryType: null,
+            },
+            result.forecast,
+            {
+                ...result.baseMeta,
+                inputBars: result.inputBars ?? null,
+                lastCandleTime: result.lastCandleTime || null,
+                cacheHit: result.cacheHit === true,
+            }
+        );
+    }
+
     async enrichSignal(signal, options = {}) {
         const config = options.config || {};
-        const mode = normalizeMode(config.timesFmMode);
-        const enabled = config.timesFmEnabled === true;
-        const configured = this.client?.isConfigured?.() === true;
-        const horizon =
-            toFiniteNumber(config.timesFmHorizonBars, null) || 12;
-        const timeoutMs =
-            toFiniteNumber(config.timesFmTimeoutMs, null) ||
-            this.client?.defaultTimeoutMs ||
-            5000;
-        const deadZoneBps =
-            toFiniteNumber(config.timesFmDeadZoneBps, null) || 3;
-        const baseMeta = {
-            enabled,
-            mode,
-            configured,
-            horizon,
-            preprocessMode: this.preprocessMode,
-        };
+        const request = this._resolveRequestOptions(config);
+        const { mode, enabled, configured, baseMeta } = request;
 
         if (!enabled || mode === "disabled") {
             return {
@@ -306,78 +433,37 @@ class TimesFmSignalService {
             };
         }
 
-        this.refreshHealthIfStale();
-
         const timeframe = options.timeframe || signal.timeframe || "15m";
         const candles = Array.isArray(options.candles)
             ? options.candles
             : this.dataService?.getCandles?.(signal.symbol, timeframe) || [];
-        const closes = this._extractCloses(candles).slice(-this.maxContextBars);
-        const lastCandleTime =
-            this._getLastCandleTime(candles) || signal.signalCandleTime || null;
+        const result = await this._resolveForecastRequest({
+            instrument: signal.symbol,
+            candles,
+            timeframe,
+            config,
+        });
 
-        if (closes.length < this.minContextBars) {
+        if (!result.forecast) {
             return {
                 ...signal,
-                timesFm: this._buildUnavailableContext("insufficient_context", {
+                timesFm: this._buildUnavailableContext(result.unavailableReason, {
                     ...baseMeta,
-                    inputBars: closes.length,
-                    lastCandleTime,
+                    inputBars: result.inputBars ?? null,
+                    lastCandleTime:
+                        result.lastCandleTime || signal.signalCandleTime || null,
                 }),
             };
         }
 
-        const cacheKey = this._buildCacheKey({
-            instrument: signal.symbol,
-            timeframe,
-            horizon,
-            lastCandleTime,
-            preprocessMode: this.preprocessMode,
-        });
-        const cached = this.cache.get(cacheKey);
-        const isCacheValid =
-            cached &&
-            Date.now() - cached.cachedAt < this.cacheTtlMs &&
-            cached.forecast;
-
-        let forecast = isCacheValid ? cached.forecast : null;
-        let cacheHit = Boolean(isCacheValid);
-
-        if (!forecast) {
-            forecast = await this.client.getForecast(signal.symbol, closes, {
-                horizon,
-                timeoutMs,
-                preprocessMode: this.preprocessMode,
-                useLogReturns: false,
-                deadZoneBps,
-            });
-
-            if (!forecast) {
-                const failureReason =
-                    this.client.getLastFailure?.()?.reason || "sidecar_unavailable";
-                return {
-                    ...signal,
-                    timesFm: this._buildUnavailableContext(failureReason, {
-                        ...baseMeta,
-                        inputBars: closes.length,
-                        lastCandleTime,
-                    }),
-                };
-            }
-
-            this.cache.set(cacheKey, {
-                forecast,
-                cachedAt: Date.now(),
-            });
-        }
-
         return {
             ...signal,
-            timesFm: this._buildAvailableContext(signal, forecast, {
+            timesFm: this._buildAvailableContext(signal, result.forecast, {
                 ...baseMeta,
-                inputBars: closes.length,
-                lastCandleTime,
-                cacheHit,
+                inputBars: result.inputBars ?? null,
+                lastCandleTime:
+                    result.lastCandleTime || signal.signalCandleTime || null,
+                cacheHit: result.cacheHit === true,
                 vetoConfidence:
                     toFiniteNumber(config.timesFmVetoConfidence, null) || 0.75,
             }),

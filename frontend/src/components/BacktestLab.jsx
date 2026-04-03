@@ -67,6 +67,8 @@ const CANDIDATE_WATCH_NOTES = {
     'Watch signal quality and reversal follow-through. Frequent early fades usually show up in profit factor quickly.',
   squeeze_play:
     'Watch whether post-compression releases turn into sustained directional moves rather than repeated false starts.',
+  timesfm_directional:
+    'Watch whether raw forecast-led entries produce enough quality setups to justify deeper model-driven logic beyond the overlay path.',
 };
 
 const formatCurrency = (value) =>
