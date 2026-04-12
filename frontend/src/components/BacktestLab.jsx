@@ -42,6 +42,7 @@ const PAPER_COMPARISON_STEPS = [
   'Confirm the shadow baseline matches the current live selection before judging any candidate.',
   'Launch one or more candidate runs from the candidate launcher below.',
   'Click a run card to focus it and inspect its exact signals, trades, equity, and config snapshot.',
+  'Use Promote to Live only when you are comfortable pausing the engine and flattening any current live positions.',
   'Reset a candidate when you want a fresh paper sample from the current market context.',
   'Stop a candidate when you are finished comparing it or when the run is no longer useful.',
 ];
@@ -103,6 +104,19 @@ const isCandidateStrategy = (strategy = {}) => strategy.runtimeStatus === 'candi
 
 const getStrategyLabel = (strategyKey, catalog = []) =>
   catalog.find((strategy) => strategy.key === strategyKey)?.label || strategyKey;
+
+const isRunPromotable = (run, catalog = []) => {
+  if (run?.mode !== 'paper_candidate') {
+    return false;
+  }
+
+  const strategy = catalog.find((entry) => entry.key === run.strategy);
+  if (!strategy) {
+    return true;
+  }
+
+  return strategy?.metadata?.supportsLive !== false;
+};
 
 const buildCandidateLabel = (strategy, runs = []) => {
   const siblingCount = runs.filter(
@@ -407,8 +421,10 @@ const BacktestLab = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionMessage, setActionMessage] = useState(null);
   const [submittingStrategy, setSubmittingStrategy] = useState(null);
   const [mutatingRunId, setMutatingRunId] = useState(null);
+  const [promotingRunId, setPromotingRunId] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
 
   const loadPaperComparison = useCallback(async (showSpinner = false) => {
@@ -558,6 +574,7 @@ const BacktestLab = () => {
     try {
       setSubmittingStrategy(strategy.key);
       setError(null);
+      setActionMessage(null);
       const response = await runtimeAPI.createRun({
         strategyKey: strategy.key,
         label: buildCandidateLabel(strategy, candidateRuns),
@@ -575,6 +592,7 @@ const BacktestLab = () => {
     try {
       setMutatingRunId(runId);
       setError(null);
+      setActionMessage(null);
       await runtimeAPI.resetRun(runId);
       await loadPaperComparison(false);
     } catch (err) {
@@ -588,12 +606,42 @@ const BacktestLab = () => {
     try {
       setMutatingRunId(runId);
       setError(null);
+      setActionMessage(null);
       await runtimeAPI.stopRun(runId);
       await loadPaperComparison(false);
     } catch (err) {
       setError(err.message);
     } finally {
       setMutatingRunId(null);
+    }
+  };
+
+  const handlePromoteCandidate = async (run) => {
+    const runLabel = run?.metadata?.displayName || getStrategyLabel(run?.strategy, strategyCatalog);
+    const confirmed = window.confirm(
+      `Promote ${runLabel} to live?\n\nThis will pause the live engine during the cutover, immediately liquidate any open live positions before switching, and then move the active live selection to this candidate's config snapshot.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setPromotingRunId(run.runId);
+      setError(null);
+      setActionMessage(null);
+      const response = await runtimeAPI.promoteRun(run.runId);
+      const restartWarning = response?.promotion?.engineRestartWarning;
+      setActionMessage(
+        restartWarning
+          ? `${response?.message || `${runLabel} promoted to live`}. Engine restart warning: ${restartWarning}`
+          : response?.message || `${runLabel} promoted to live`
+      );
+      await loadPaperComparison(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setPromotingRunId(null);
     }
   };
 
@@ -670,6 +718,12 @@ const BacktestLab = () => {
         {error && (
           <Alert severity="error" onClose={() => setError(null)}>
             {error}
+          </Alert>
+        )}
+
+        {actionMessage && (
+          <Alert severity="success" onClose={() => setActionMessage(null)}>
+            {actionMessage}
           </Alert>
         )}
 
@@ -872,12 +926,27 @@ const BacktestLab = () => {
                           Inspect
                         </Button>
                         <Stack direction="row" spacing={1}>
+                          {isRunPromotable(run, strategyCatalog) && (
+                            <Button
+                              variant="contained"
+                              size="small"
+                              color="secondary"
+                              startIcon={<Timeline />}
+                              disabled={mutatingRunId !== null || promotingRunId !== null}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handlePromoteCandidate(run);
+                              }}
+                            >
+                              {promotingRunId === run.runId ? 'Promoting...' : 'Promote to Live'}
+                            </Button>
+                          )}
                           {run.status === 'active' && (
                             <Button
                               variant="outlined"
                               size="small"
                               startIcon={<RestartAlt />}
-                              disabled={mutatingRunId !== null}
+                              disabled={mutatingRunId !== null || promotingRunId !== null}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleResetCandidate(run.runId);
@@ -892,7 +961,7 @@ const BacktestLab = () => {
                               size="small"
                               color="error"
                               startIcon={<Stop />}
-                              disabled={mutatingRunId !== null}
+                              disabled={mutatingRunId !== null || promotingRunId !== null}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleStopCandidate(run.runId);

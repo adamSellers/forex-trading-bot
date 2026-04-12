@@ -1631,6 +1631,119 @@ describe('LiveTradingEngine', () => {
     });
 
     describe('Status and Helpers', () => {
+        test('should liquidate all open trades for a strategy promotion cutover', async () => {
+            const tradeOne = createMockTrade({
+                id: 'trade-promote-1',
+                oandaTradeId: '489',
+                instrument: 'AUD_USD',
+                entryPrice: 1.16571,
+                entryCostAud: 46.17,
+            });
+            const tradeTwo = createMockTrade({
+                id: 'trade-promote-2',
+                oandaTradeId: '490',
+                instrument: 'EUR_USD',
+                entryPrice: 1.082,
+                entryCostAud: 54.1,
+            });
+
+            engine.openTrades.set(tradeOne.id, tradeOne);
+            engine.openTrades.set(tradeTwo.id, tradeTwo);
+
+            mockDataService.getCurrentPrice.mockImplementation((instrument) => {
+                if (instrument === 'EUR_USD') {
+                    return {
+                        price: 1.0832,
+                        bid: 1.0831,
+                        ask: 1.0833,
+                        spread: 1.0,
+                        timestamp: Date.now(),
+                    };
+                }
+
+                return {
+                    price: 1.16784,
+                    bid: 1.16779,
+                    ask: 1.16789,
+                    spread: 1.0,
+                    timestamp: Date.now(),
+                };
+            });
+
+            oandaClient.closeTrade
+                .mockResolvedValueOnce({
+                    orderFillTransaction: {
+                        id: '502',
+                        instrument: 'AUD_USD',
+                        units: '-795',
+                        price: '1.16784',
+                        pl: '2.50',
+                        tradesClosed: [
+                            {
+                                tradeID: '489',
+                                units: '-795',
+                                price: '1.16784',
+                                realizedPL: '2.50',
+                                financing: '-0.02',
+                            },
+                        ],
+                    },
+                })
+                .mockResolvedValueOnce({
+                    orderFillTransaction: {
+                        id: '503',
+                        instrument: 'EUR_USD',
+                        units: '-795',
+                        price: '1.08320',
+                        pl: '1.90',
+                        tradesClosed: [
+                            {
+                                tradeID: '490',
+                                units: '-795',
+                                price: '1.08320',
+                                realizedPL: '1.90',
+                                financing: '0.00',
+                            },
+                        ],
+                    },
+                });
+
+            const closedTrades = await engine.liquidateOpenTrades('STRATEGY_PROMOTION');
+
+            expect(oandaClient.closeTrade).toHaveBeenCalledTimes(2);
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledTimes(2);
+            expect(closedTrades).toHaveLength(2);
+            expect(closedTrades).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        id: 'trade-promote-1',
+                        exitReason: 'STRATEGY_PROMOTION',
+                        isOpen: false,
+                    }),
+                    expect.objectContaining({
+                        id: 'trade-promote-2',
+                        exitReason: 'STRATEGY_PROMOTION',
+                        isOpen: false,
+                    }),
+                ])
+            );
+            expect(engine.openTrades.size).toBe(0);
+        });
+
+        test('should fail liquidation when current market price is unavailable', async () => {
+            const trade = createMockTrade({
+                id: 'trade-no-price',
+                instrument: 'GBP_USD',
+            });
+
+            engine.openTrades.set(trade.id, trade);
+            mockDataService.getCurrentPrice.mockReturnValueOnce(null);
+
+            await expect(
+                engine.liquidateOpenTrades('STRATEGY_PROMOTION')
+            ).rejects.toThrow('No price data for GBP_USD');
+        });
+
         test('should return correct status', () => {
             engine.openTrades.set('trade-1', createMockTrade());
             engine.stats.tradesExecuted = 5;

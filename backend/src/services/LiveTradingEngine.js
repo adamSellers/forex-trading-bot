@@ -1712,7 +1712,7 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // Close in our system
-        await this.closeTrade(
+        return await this.closeTrade(
             trade.id,
             closeContext.exitPrice,
             closeContext.exitReason,
@@ -2167,7 +2167,38 @@ class LiveTradingEngine extends EventEmitter {
             throw new Error(`No price data for ${trade.instrument}`);
         }
 
-        await this.executeExit(trade, priceData.price, "MANUAL");
+        return await this.executeExit(trade, priceData.price, "MANUAL");
+    }
+
+    /**
+     * Close every currently open live trade using the latest available market price.
+     */
+    async liquidateOpenTrades(exitReason = "STRATEGY_PROMOTION") {
+        const openTrades = Array.from(this.openTrades.values());
+        const closedTrades = [];
+
+        for (const trade of openTrades) {
+            const priceData = this.dataService?.getCurrentPrice?.(trade.instrument);
+            const currentPrice = Number.isFinite(Number(priceData?.price))
+                ? Number(priceData.price)
+                : Number(priceData?.mid);
+
+            if (!Number.isFinite(currentPrice)) {
+                throw new Error(`No price data for ${trade.instrument}`);
+            }
+
+            const closedTrade = await this.executeExit(
+                trade,
+                currentPrice,
+                exitReason
+            );
+
+            if (closedTrade) {
+                closedTrades.push(closedTrade);
+            }
+        }
+
+        return closedTrades;
     }
 
     /**

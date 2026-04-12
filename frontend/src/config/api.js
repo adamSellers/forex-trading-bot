@@ -77,6 +77,7 @@ export const API_ENDPOINTS = {
     runtimeRuns: "/api/runtime/runs",
     runtimeRunStop: "/api/runtime/runs", // /:runId/stop
     runtimeRunReset: "/api/runtime/runs", // /:runId/reset
+    runtimeRunPromote: "/api/runtime/runs", // /:runId/promote
     runtimeRunTrades: "/api/runtime/runs", // /:runId/trades
     runtimeRunSignals: "/api/runtime/runs", // /:runId/signals
     runtimeRunEquity: "/api/runtime/runs", // /:runId/equity
@@ -271,6 +272,10 @@ export const runtimeAPI = {
         }),
     resetRun: (runId) =>
         apiCall(`${API_ENDPOINTS.runtimeRunReset}/${runId}/reset`, {
+            method: "POST",
+        }),
+    promoteRun: (runId) =>
+        apiCall(`${API_ENDPOINTS.runtimeRunPromote}/${runId}/promote`, {
             method: "POST",
         }),
     getRunTrades: (runId, params = {}) => {

@@ -73,6 +73,46 @@ function parseLimit(value, fallback) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function isForexMarketOpen(date = new Date()) {
+    const utcDay = date.getUTCDay();
+    const utcHour = date.getUTCHours();
+
+    if (utcDay === 6) return false;
+    if (utcDay === 0 && utcHour < 21) return false;
+    if (utcDay === 5 && utcHour >= 21) return false;
+
+    return true;
+}
+
+async function restartTradingEngine(tradingEngine) {
+    await tradingEngine.start();
+    tradingEngine.startMonitoring();
+}
+
+async function liquidateOpenLivePositions(
+    tradingEngine,
+    dataService,
+    exitReason = "STRATEGY_PROMOTION"
+) {
+    await tradingEngine.syncOpenTrades();
+
+    if (dataService?.fetchAllPrices) {
+        await dataService.fetchAllPrices();
+    }
+
+    const closedTrades = await tradingEngine.liquidateOpenTrades(exitReason);
+    await tradingEngine.syncOpenTrades();
+
+    const remainingOpenTrades = tradingEngine.getOpenTrades();
+    if (remainingOpenTrades.length > 0) {
+        throw new Error(
+            `Unable to liquidate all live positions before switching (${remainingOpenTrades.length} still open)`
+        );
+    }
+
+    return closedTrades;
+}
+
 function normalizeRuntimeQueryFilters(query = {}) {
     const filters = {};
     const mode = normalizeString(query.mode);
@@ -813,8 +853,11 @@ router.post("/runtime/live-selection", async (req, res) => {
             });
         }
 
+        const requestedConfig =
+            req.body?.configSnapshot || req.body?.config || null;
         const nextConfig = {
             ...configService.get(),
+            ...(requestedConfig || {}),
             strategy: strategyKey,
         };
         const liveSelection = await runtimeCoordinator.selectLiveStrategy({
@@ -822,7 +865,7 @@ router.post("/runtime/live-selection", async (req, res) => {
             configSnapshot: nextConfig,
             initiatedBy: "ui",
         });
-        configService.update({ strategy: strategyKey });
+        configService.update(nextConfig);
 
         const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
         if (broadcastEngineStatus) {
@@ -839,6 +882,173 @@ router.post("/runtime/live-selection", async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/runtime/runs/:runId/promote", async (req, res) => {
+    const runtimeCoordinator = getRuntimeCoordinator(req);
+    const configService = req.app.locals.configService;
+    const tradingEngine = req.app.locals.tradingEngine;
+    const dataService = req.app.locals.dataService;
+    const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
+
+    if (!runtimeCoordinator) {
+        return res
+            .status(503)
+            .json({ error: "Runtime coordinator not available" });
+    }
+    if (!configService) {
+        return res
+            .status(503)
+            .json({ error: "Config service not available" });
+    }
+    if (!tradingEngine) {
+        return res
+            .status(503)
+            .json({ error: "Trading engine not available" });
+    }
+
+    const run = await resolveRunForResponse(req, req.params.runId);
+    if (!run) {
+        return res.status(404).json({ error: "Run not found" });
+    }
+    if (run.mode !== RUNTIME_MODES.PAPER_CANDIDATE) {
+        return res.status(400).json({
+            error: "Only candidate paper runs can be promoted to live",
+        });
+    }
+
+    const strategyDefinition = getStrategyDefinition(run.strategy);
+    if (
+        strategyDefinition.metadata?.supportsLive !== true &&
+        !isLiveSelectionReady(strategyDefinition)
+    ) {
+        return res.status(400).json({
+            error: `${strategyDefinition.label} does not support live promotion`,
+        });
+    }
+
+    const marketOpen = isForexMarketOpen();
+    const engineWasRunning = tradingEngine.isRunning === true;
+    let engineRestarted = false;
+    let engineRestartWarning = null;
+    let liquidatedTrades = [];
+
+    try {
+        await tradingEngine.syncOpenTrades();
+        const openTradesBefore = tradingEngine.getOpenTrades();
+
+        if (!marketOpen && openTradesBefore.length > 0) {
+            return res.status(409).json({
+                error:
+                    "Markets are closed and live positions are still open. Reopen the market or flatten positions before promoting.",
+                marketOpen,
+                openPositions: openTradesBefore.length,
+            });
+        }
+
+        if (engineWasRunning) {
+            tradingEngine.stop();
+            if (broadcastEngineStatus) {
+                broadcastEngineStatus();
+            }
+        }
+
+        try {
+            if (openTradesBefore.length > 0) {
+                liquidatedTrades = await liquidateOpenLivePositions(
+                    tradingEngine,
+                    dataService
+                );
+            }
+
+            const nextConfig = {
+                ...configService.get(),
+                ...(run.configSnapshot || {}),
+                strategy: run.strategy,
+            };
+
+            const liveSelection = await runtimeCoordinator.selectLiveStrategy({
+                strategyKey: run.strategy,
+                configSnapshot: nextConfig,
+                initiatedBy: "paper-promotion",
+            });
+
+            configService.update(nextConfig);
+
+            if (engineWasRunning) {
+                try {
+                    await restartTradingEngine(tradingEngine);
+                    engineRestarted = true;
+                } catch (restartError) {
+                    engineRestartWarning = restartError.message;
+                }
+            }
+
+            if (broadcastEngineStatus) {
+                broadcastEngineStatus();
+            }
+
+            const runtimePayload = await buildRuntimeRunsResponse(req);
+
+            return res.json({
+                success: true,
+                liveSelection,
+                runs: runtimePayload.runs,
+                message: `${strategyDefinition.label} promoted to live`,
+                promotion: {
+                    marketOpen,
+                    engineWasRunning,
+                    engineRestarted,
+                    engineRestartWarning,
+                    liquidatedTrades: liquidatedTrades.map((trade) => ({
+                        tradeId: trade.id,
+                        instrument: trade.instrument,
+                        side: trade.side,
+                        exitReason: trade.exitReason,
+                    })),
+                    promotedFromRunId: run.runId,
+                    strategy: run.strategy,
+                },
+            });
+        } catch (error) {
+            if (engineWasRunning && !tradingEngine.isRunning) {
+                try {
+                    await restartTradingEngine(tradingEngine);
+                    engineRestarted = true;
+                } catch (restartError) {
+                    engineRestartWarning = restartError.message;
+                }
+            }
+
+            if (broadcastEngineStatus) {
+                broadcastEngineStatus();
+            }
+
+            return res.status(500).json({
+                error: error.message,
+                promotion: {
+                    marketOpen,
+                    engineWasRunning,
+                    engineRestarted,
+                    engineRestartWarning,
+                    liquidatedTrades: liquidatedTrades.map((trade) => ({
+                        tradeId: trade.id,
+                        instrument: trade.instrument,
+                        side: trade.side,
+                        exitReason: trade.exitReason,
+                    })),
+                    promotedFromRunId: run.runId,
+                    strategy: run.strategy,
+                },
+            });
+        }
+    } catch (error) {
+        if (broadcastEngineStatus) {
+            broadcastEngineStatus();
+        }
+
+        return res.status(500).json({ error: error.message });
     }
 });
 
@@ -1312,6 +1522,62 @@ router.post("/engine/reset-stats", (req, res) => {
         res.json({
             success: true,
             message: "Trading engine stats reset",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/engine/start", async (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+
+        if (!tradingEngine.isRunning) {
+            await restartTradingEngine(tradingEngine);
+        }
+
+        const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
+        if (broadcastEngineStatus) {
+            broadcastEngineStatus();
+        }
+
+        res.json({
+            success: true,
+            isRunning: tradingEngine.isRunning,
+            message: "Trading engine started",
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/engine/stop", (req, res) => {
+    try {
+        const tradingEngine = req.app.locals.tradingEngine;
+        if (!tradingEngine) {
+            return res
+                .status(503)
+                .json({ error: "Trading engine not available" });
+        }
+
+        if (tradingEngine.isRunning) {
+            tradingEngine.stop();
+        }
+
+        const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
+        if (broadcastEngineStatus) {
+            broadcastEngineStatus();
+        }
+
+        res.json({
+            success: true,
+            isRunning: tradingEngine.isRunning,
+            message: "Trading engine stopped",
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
