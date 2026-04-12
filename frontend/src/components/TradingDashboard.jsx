@@ -53,10 +53,16 @@ const getStrategyOptions = (catalog = []) => {
   return catalog.length > 0 ? catalog : FALLBACK_STRATEGY_OPTIONS;
 };
 
-const isStrategySelectable = (strategy = {}) =>
-  strategy.runtimeStatus === 'baseline' || strategy.runtimeStatus === 'live_ready';
+const isStrategySelectable = (strategy = {}, liveStrategyKey = null) =>
+  strategy.runtimeStatus === 'baseline' ||
+  strategy.runtimeStatus === 'live_ready' ||
+  strategy.key === liveStrategyKey;
 
-const getStrategyAvailabilitySuffix = (strategy = {}) => {
+const getStrategyAvailabilitySuffix = (strategy = {}, liveStrategyKey = null) => {
+  if (strategy.key === liveStrategyKey) {
+    return ' (Active Live)';
+  }
+
   if (strategy.runtimeStatus === 'candidate') {
     return ' (Paper Only)';
   }
@@ -381,7 +387,7 @@ const TradingDashboard = () => {
   );
   const canApplyStrategy =
     Boolean(selectedStrategyOption) &&
-    isStrategySelectable(selectedStrategyOption) &&
+    isStrategySelectable(selectedStrategyOption, liveSelection?.strategy) &&
     !isApplyingStrategy;
   const strategyActionLabel =
     liveSelection?.strategy === selectedStrategy ? 'Restart Live Run' : 'Apply Live Strategy';
@@ -455,14 +461,14 @@ const TradingDashboard = () => {
                 bgcolor: alpha(theme.palette.background.paper, 0.1),
               }}
             >
-              {strategyOptions.map((option) => (
+                {strategyOptions.map((option) => (
                 <MenuItem
                   key={option.key}
                   value={option.key}
-                  disabled={!isStrategySelectable(option)}
+                  disabled={!isStrategySelectable(option, liveSelection?.strategy)}
                 >
                   {option.label}
-                  {getStrategyAvailabilitySuffix(option)}
+                  {getStrategyAvailabilitySuffix(option, liveSelection?.strategy)}
                 </MenuItem>
               ))}
             </Select>

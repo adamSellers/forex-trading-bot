@@ -847,7 +847,12 @@ router.post("/runtime/live-selection", async (req, res) => {
         }
 
         const strategyDefinition = getStrategyDefinition(strategyKey);
-        if (!isLiveSelectionReady(strategyDefinition)) {
+        const currentLiveStrategyKey =
+            runtimeCoordinator.getLiveSelection?.()?.strategy || null;
+        const isCurrentLiveStrategy =
+            currentLiveStrategyKey === strategyKey;
+
+        if (!isLiveSelectionReady(strategyDefinition) && !isCurrentLiveStrategy) {
             return res.status(400).json({
                 error: `${strategyDefinition.label} is not available for live selection yet`,
             });
