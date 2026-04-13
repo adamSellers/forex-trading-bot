@@ -391,6 +391,34 @@ describe('LiveTradingEngine', () => {
             expect(result.reason).toContain('ADX too low');
         });
 
+        test('should not apply the generic ADX floor to non-ADX strategies', async () => {
+            const signal = createMockSignal({
+                signal: 'SELL',
+                strength: 0,
+                strategy: 'stochastic_divergence',
+                entryType: 'STOCHASTIC_DIVERGENCE_REVERSAL',
+            });
+            const config = {
+                ...mockConfigService.get(),
+                strategy: 'stochastic_divergence',
+                enableSessionFilter: false,
+                enableShorting: true,
+            };
+
+            jest.spyOn(engine, 'estimateEntryMargin').mockResolvedValue(10);
+            oandaClient.getAccountSummary.mockResolvedValue({
+                account: {
+                    balance: '100.00',
+                    marginUsed: '20.00',
+                    marginAvailable: '80.00',
+                },
+            });
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(true);
+        });
+
         test('should reject SELL signal when shorting disabled', async () => {
             const signal = createSellSignal();
             const config = { ...mockConfigService.get(), enableShorting: false };

@@ -9,6 +9,7 @@ const {
     normalizeTradingConfig,
 } = require("../config/tradingConfig");
 const TradeReconciliationService = require("./tradeReconciliationService");
+const { getStrategyDefinition } = require("../strategies");
 const {
     ENTRY_REJECTION_CODES,
     ENTRY_DECISION_STAGES,
@@ -727,6 +728,21 @@ class LiveTradingEngine extends EventEmitter {
         return null;
     }
 
+    shouldEnforceAdxThreshold(signal, config = {}) {
+        const strategyKey = signal?.strategy || config?.strategy;
+        if (!strategyKey) return true;
+
+        try {
+            const strategyDefinition = getStrategyDefinition(strategyKey);
+            const indicators = Array.isArray(strategyDefinition?.requiredData?.indicators)
+                ? strategyDefinition.requiredData.indicators
+                : [];
+            return indicators.includes("adx");
+        } catch (error) {
+            return true;
+        }
+    }
+
     // ==================== ENTRY VALIDATION ====================
 
     /**
@@ -839,7 +855,11 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         // 6. Check minimum ADX strength
-        if (config.enableAdxFilter !== false && signal.strength < config.minAdx) {
+        if (
+            config.enableAdxFilter !== false &&
+            this.shouldEnforceAdxThreshold(signal, config) &&
+            signal.strength < config.minAdx
+        ) {
             return {
                 valid: false,
                 code: ENTRY_REJECTION_CODES.ADX_TOO_LOW,
