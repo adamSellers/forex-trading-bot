@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { listStrategyCatalog, getStrategyDefinition } = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
+const logger = require("../utils/logger");
 
 function isLiveSelectionReady(strategyDefinition = {}) {
     return ["baseline", "live_ready"].includes(strategyDefinition.runtimeStatus);
@@ -978,6 +979,30 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
                 configSnapshot: nextConfig,
                 initiatedBy: "paper-promotion",
             });
+
+            try {
+                await runtimeCoordinator.updateRun?.(run.runId, {
+                    metadata: {
+                        ...(run.metadata || {}),
+                        promotionStatus: "promoted_to_live",
+                        promotedAt: Date.now(),
+                        promotedToSelectionId:
+                            liveSelection?.selectionId || null,
+                        promotedToLiveRunId:
+                            liveSelection?.liveRun?.runId ||
+                            liveSelection?.liveRunId ||
+                            null,
+                        promotedToShadowRunId:
+                            liveSelection?.shadowRun?.runId ||
+                            liveSelection?.shadowRunId ||
+                            null,
+                    },
+                });
+            } catch (metadataError) {
+                logger.warn(
+                    `Failed to annotate promoted candidate run ${run.runId}: ${metadataError.message}`
+                );
+            }
 
             configService.update(nextConfig);
 

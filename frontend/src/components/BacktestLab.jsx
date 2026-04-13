@@ -105,8 +105,85 @@ const isCandidateStrategy = (strategy = {}) => strategy.runtimeStatus === 'candi
 const getStrategyLabel = (strategyKey, catalog = []) =>
   catalog.find((strategy) => strategy.key === strategyKey)?.label || strategyKey;
 
-const isRunPromotable = (run, catalog = []) => {
+const isRunInCurrentSelection = (run, liveSelection = null) =>
+  Boolean(
+    run?.selectionId &&
+      liveSelection?.selectionId &&
+      run.selectionId === liveSelection.selectionId
+  );
+
+const isPromotedCandidateRun = (run) =>
+  run?.metadata?.promotionStatus === 'promoted_to_live';
+
+const isPromotedToCurrentSelection = (run, liveSelection = null) =>
+  isPromotedCandidateRun(run) &&
+  Boolean(
+    run?.metadata?.promotedToSelectionId &&
+      liveSelection?.selectionId &&
+      run.metadata.promotedToSelectionId === liveSelection.selectionId
+  );
+
+const getCandidateRunBadges = (run, liveSelection = null) => {
+  const badges = [];
+
+  if (isPromotedToCurrentSelection(run, liveSelection)) {
+    badges.push({
+      label: 'Promoted Source',
+      color: 'warning',
+    });
+  } else if (isPromotedCandidateRun(run)) {
+    badges.push({
+      label: 'Previously Promoted',
+      color: 'warning',
+    });
+  }
+
+  if (liveSelection?.selectionId && run?.selectionId !== liveSelection.selectionId) {
+    badges.push({
+      label: 'Older Selection',
+      color: 'default',
+    });
+  }
+
+  return badges;
+};
+
+const getCandidateRunNotice = (run, liveSelection = null) => {
+  if (isPromotedToCurrentSelection(run, liveSelection)) {
+    return `This candidate supplied the current live config on ${formatDateTime(
+      run?.metadata?.promotedAt
+    )}. The paired shadow run is now the paper mirror for this live selection.`;
+  }
+
+  if (liveSelection?.selectionId && run?.selectionId !== liveSelection.selectionId) {
+    return 'This candidate belongs to an older live selection. Keep it for historical comparison, not as the active live mirror.';
+  }
+
+  return null;
+};
+
+const compareCandidateRuns = (left, right, liveSelection = null) => {
+  const leftCurrentSelection = isRunInCurrentSelection(left, liveSelection) ? 1 : 0;
+  const rightCurrentSelection = isRunInCurrentSelection(right, liveSelection) ? 1 : 0;
+  if (leftCurrentSelection !== rightCurrentSelection) {
+    return rightCurrentSelection - leftCurrentSelection;
+  }
+
+  const leftActive = left?.status === 'active' ? 1 : 0;
+  const rightActive = right?.status === 'active' ? 1 : 0;
+  if (leftActive !== rightActive) {
+    return rightActive - leftActive;
+  }
+
+  return Number(right?.startedAt || 0) - Number(left?.startedAt || 0);
+};
+
+const isRunPromotable = (run, catalog = [], liveSelection = null) => {
   if (run?.mode !== 'paper_candidate') {
+    return false;
+  }
+
+  if (isPromotedToCurrentSelection(run, liveSelection)) {
     return false;
   }
 
@@ -321,6 +398,7 @@ const RunCard = ({
   subtitle,
   run,
   summary,
+  badges = [],
   controls = null,
   accent = 'primary.main',
   selected = false,
@@ -369,6 +447,20 @@ const RunCard = ({
             )}
           </Stack>
         </Stack>
+
+        {badges.length > 0 && (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {badges.map((badge) => (
+              <Chip
+                key={`${run?.runId || title}-${badge.label}`}
+                size="small"
+                label={badge.label}
+                color={badge.color || 'default'}
+                variant="outlined"
+              />
+            ))}
+          </Stack>
+        )}
 
         <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.08) }} />
 
@@ -459,7 +551,7 @@ const BacktestLab = () => {
         if (current && nextRuns.some((run) => run.runId === current)) {
           return current;
         }
-        return nextCandidateRunId || nextShadowRunId;
+        return nextShadowRunId || nextCandidateRunId;
       });
       setLastUpdate(Date.now());
     } catch (err) {
@@ -558,12 +650,23 @@ const BacktestLab = () => {
     return runs.find((run) => run.runId === liveSelection.shadowRun.runId) || liveSelection.shadowRun;
   }, [liveSelection, runs]);
   const candidateRuns = useMemo(
-    () => runs.filter((run) => run.mode === 'paper_candidate'),
-    [runs]
+    () =>
+      runs
+        .filter((run) => run.mode === 'paper_candidate')
+        .sort((left, right) => compareCandidateRuns(left, right, liveSelection)),
+    [runs, liveSelection]
   );
   const activeCandidateRuns = useMemo(
     () => candidateRuns.filter((run) => run.status === 'active'),
     [candidateRuns]
+  );
+  const currentSelectionCandidateRuns = useMemo(
+    () => activeCandidateRuns.filter((run) => isRunInCurrentSelection(run, liveSelection)),
+    [activeCandidateRuns, liveSelection]
+  );
+  const legacyActiveCandidateRuns = useMemo(
+    () => activeCandidateRuns.filter((run) => !isRunInCurrentSelection(run, liveSelection)),
+    [activeCandidateRuns, liveSelection]
   );
   const selectedRun = useMemo(
     () => runs.find((run) => run.runId === selectedRunId) || shadowRun || null,
@@ -631,11 +734,16 @@ const BacktestLab = () => {
       setError(null);
       setActionMessage(null);
       const response = await runtimeAPI.promoteRun(run.runId);
+      const nextShadowRunId =
+        response?.liveSelection?.shadowRun?.runId ||
+        response?.liveSelection?.shadowRunId ||
+        '';
       const restartWarning = response?.promotion?.engineRestartWarning;
+      setSelectedRunId(nextShadowRunId || run.runId);
       setActionMessage(
         restartWarning
-          ? `${response?.message || `${runLabel} promoted to live`}. Engine restart warning: ${restartWarning}`
-          : response?.message || `${runLabel} promoted to live`
+          ? `${response?.message || `${runLabel} promoted to live`}. The paired shadow run is now the live paper mirror. Engine restart warning: ${restartWarning}`
+          : `${response?.message || `${runLabel} promoted to live`}. The paired shadow run is now the live paper mirror.`
       );
       await loadPaperComparison(false);
     } catch (err) {
@@ -699,6 +807,11 @@ const BacktestLab = () => {
               <Chip
                 label={`Active candidates ${activeCandidateRuns.length}`}
                 color="secondary"
+                variant="outlined"
+              />
+              <Chip
+                label={`Current selection ${currentSelectionCandidateRuns.length}`}
+                color="success"
                 variant="outlined"
               />
               <Button variant="outlined" size="small" startIcon={<Refresh />} onClick={() => loadPaperComparison(true)}>
@@ -897,6 +1010,12 @@ const BacktestLab = () => {
                 </Typography>
               </Box>
 
+              {legacyActiveCandidateRuns.length > 0 && (
+                <Alert severity="info">
+                  {legacyActiveCandidateRuns.length} active candidate run{legacyActiveCandidateRuns.length === 1 ? '' : 's'} belong to older selections. They remain useful for historical comparison, but only the paired shadow run mirrors the current live strategy.
+                </Alert>
+              )}
+
               {activeCandidateRuns.length === 0 && (
                 <Alert severity="info">
                   No candidate runs are active yet. Launch a strategy to compare it against the shadow baseline.
@@ -911,69 +1030,91 @@ const BacktestLab = () => {
                 }}
               >
                 {candidateRuns.map((run) => (
+                  (() => {
+                    const runNotice = getCandidateRunNotice(run, liveSelection);
+                    const runBadges = getCandidateRunBadges(run, liveSelection);
+
+                    return (
                   <RunCard
                     key={run.runId}
                     title={run.metadata?.displayName || getStrategyLabel(run.strategy, strategyCatalog)}
                     subtitle={getStrategyLabel(run.strategy, strategyCatalog)}
                     run={run}
                     summary={run.summary}
+                    badges={runBadges}
                     accent="secondary.main"
                     selected={selectedRunId === run.runId}
                     onSelect={() => setSelectedRunId(run.runId)}
                     controls={
-                      <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
-                        <Button variant="text" size="small" onClick={() => setSelectedRunId(run.runId)}>
-                          Inspect
-                        </Button>
-                        <Stack direction="row" spacing={1}>
-                          {isRunPromotable(run, strategyCatalog) && (
-                            <Button
-                              variant="contained"
-                              size="small"
-                              color="secondary"
-                              startIcon={<Timeline />}
-                              disabled={mutatingRunId !== null || promotingRunId !== null}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handlePromoteCandidate(run);
-                              }}
-                            >
-                              {promotingRunId === run.runId ? 'Promoting...' : 'Promote to Live'}
-                            </Button>
-                          )}
-                          {run.status === 'active' && (
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              startIcon={<RestartAlt />}
-                              disabled={mutatingRunId !== null || promotingRunId !== null}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleResetCandidate(run.runId);
-                              }}
-                            >
-                              {mutatingRunId === run.runId ? 'Working...' : 'Reset'}
-                            </Button>
-                          )}
-                          {run.status === 'active' && (
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              color="error"
-                              startIcon={<Stop />}
-                              disabled={mutatingRunId !== null || promotingRunId !== null}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleStopCandidate(run.runId);
-                              }}
-                            >
-                              {mutatingRunId === run.runId ? 'Working...' : 'Stop'}
-                            </Button>
-                          )}
+                      <Stack spacing={1.25}>
+                        {runNotice && (
+                          <Alert
+                            severity="info"
+                            sx={{
+                              py: 0.5,
+                              bgcolor: alpha(theme.palette.info.main, 0.08),
+                              border: `1px solid ${alpha(theme.palette.info.main, 0.16)}`,
+                            }}
+                          >
+                            {runNotice}
+                          </Alert>
+                        )}
+                        <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                          <Button variant="text" size="small" onClick={() => setSelectedRunId(run.runId)}>
+                            Inspect
+                          </Button>
+                          <Stack direction="row" spacing={1}>
+                            {isRunPromotable(run, strategyCatalog, liveSelection) && (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                color="secondary"
+                                startIcon={<Timeline />}
+                                disabled={mutatingRunId !== null || promotingRunId !== null}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handlePromoteCandidate(run);
+                                }}
+                              >
+                                {promotingRunId === run.runId ? 'Promoting...' : 'Promote to Live'}
+                              </Button>
+                            )}
+                            {run.status === 'active' && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<RestartAlt />}
+                                disabled={mutatingRunId !== null || promotingRunId !== null}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleResetCandidate(run.runId);
+                                }}
+                              >
+                                {mutatingRunId === run.runId ? 'Working...' : 'Reset'}
+                              </Button>
+                            )}
+                            {run.status === 'active' && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                color="error"
+                                startIcon={<Stop />}
+                                disabled={mutatingRunId !== null || promotingRunId !== null}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleStopCandidate(run.runId);
+                                }}
+                              >
+                                {mutatingRunId === run.runId ? 'Working...' : 'Stop'}
+                              </Button>
+                            )}
+                          </Stack>
                         </Stack>
                       </Stack>
                     }
                   />
+                    );
+                  })()
                 ))}
               </Box>
             </Stack>
@@ -1007,6 +1148,12 @@ const BacktestLab = () => {
 
               {selectedRunDetail.error && (
                 <Alert severity="error">{selectedRunDetail.error}</Alert>
+              )}
+
+              {selectedRun?.mode === 'paper_candidate' && getCandidateRunNotice(selectedRun, liveSelection) && (
+                <Alert severity="info">
+                  {getCandidateRunNotice(selectedRun, liveSelection)}
+                </Alert>
               )}
 
               {selectedRunDetail.loading && <LinearProgress />}
