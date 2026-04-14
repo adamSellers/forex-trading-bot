@@ -1033,6 +1033,10 @@ class PaperTradingRuntime {
         const losingTrades = closedTrades.filter(
             (trade) => toFiniteNumber(trade.pnlAud, 0) < 0
         );
+        const flatTrades = Math.max(
+            0,
+            closedTrades.length - winningTrades.length - losingTrades.length
+        );
         const latestSignal = Array.isArray(latestSignalBatch)
             ? latestSignalBatch[0] || null
             : null;
@@ -1052,6 +1056,7 @@ class PaperTradingRuntime {
             closedTradeCount: closedTrades.length,
             winningTrades: winningTrades.length,
             losingTrades: losingTrades.length,
+            flatTrades,
             balanceAud,
             totalValueAud,
             realizedPnlAud: hasSnapshot

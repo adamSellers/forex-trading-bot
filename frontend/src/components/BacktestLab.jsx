@@ -475,6 +475,7 @@ const RunCard = ({
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
           <SummaryMetric label="Wins" value={summary?.winningTrades || 0} />
           <SummaryMetric label="Losses" value={summary?.losingTrades || 0} />
+          <SummaryMetric label="Flat" value={summary?.flatTrades || 0} />
           <SummaryMetric label="Last Signal" value={summary?.lastSignal?.signal || 'Waiting'} />
           <SummaryMetric label="Last Update" value={formatDateTime(summary?.lastSignalAt || run?.startedAt)} />
         </Stack>
@@ -994,7 +995,7 @@ const BacktestLab = () => {
                   border: `1px solid ${alpha(theme.palette.success.main, 0.18)}`,
                 }}
               >
-                This run is paired automatically with the current live selection and stays read-only here.
+                This is the paper twin of the current live selection from its own start time. It does not include older candidate history or actual live fills, and it stays read-only here.
               </Alert>
             }
           />

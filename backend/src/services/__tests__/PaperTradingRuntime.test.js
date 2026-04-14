@@ -349,4 +349,71 @@ describe("PaperTradingRuntime", () => {
         );
         expect(resetRun.runId).toBe("run-candidate-1");
     });
+
+    test("buildRunSummary reports flat closed trades separately from wins and losses", async () => {
+        tradeRepository.trades.push(
+            {
+                id: "paper-win-1",
+                instrument: "AUD_USD",
+                side: "BUY",
+                units: 1000,
+                entryPrice: 1.1,
+                exitPrice: 1.102,
+                pnlAud: 20,
+                entryTime: Date.now() - 3000,
+                exitTime: Date.now() - 2000,
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                runId: "run-candidate-1",
+                ownerRunId: "run-candidate-1",
+                selectionId: "selection-1",
+                strategy: "mean_reversion",
+                isOpen: false,
+            },
+            {
+                id: "paper-flat-1",
+                instrument: "EUR_USD",
+                side: "SELL",
+                units: 1000,
+                entryPrice: 1.08,
+                exitPrice: 1.08,
+                pnlAud: 0,
+                entryTime: Date.now() - 2000,
+                exitTime: Date.now() - 1000,
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                runId: "run-candidate-1",
+                ownerRunId: "run-candidate-1",
+                selectionId: "selection-1",
+                strategy: "mean_reversion",
+                isOpen: false,
+            },
+            {
+                id: "paper-loss-1",
+                instrument: "USD_JPY",
+                side: "BUY",
+                units: 1000,
+                entryPrice: 150,
+                exitPrice: 149.8,
+                pnlAud: -20,
+                entryTime: Date.now() - 1000,
+                exitTime: Date.now(),
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                runId: "run-candidate-1",
+                ownerRunId: "run-candidate-1",
+                selectionId: "selection-1",
+                strategy: "mean_reversion",
+                isOpen: false,
+            }
+        );
+
+        const summary = await runtime.buildRunSummary(session.run);
+
+        expect(summary).toEqual(
+            expect.objectContaining({
+                closedTradeCount: 3,
+                winningTrades: 1,
+                losingTrades: 1,
+                flatTrades: 1,
+            })
+        );
+    });
 });
