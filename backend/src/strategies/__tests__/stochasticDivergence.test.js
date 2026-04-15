@@ -141,6 +141,30 @@ describe("stochasticDivergenceStrategy", () => {
                 signalClass: "ACTIONABLE",
                 intent: "ENTER_LONG",
                 entryType: "STOCHASTIC_DIVERGENCE_REVERSAL",
+                strategyContext: expect.objectContaining({
+                    family: "stochastic_divergence",
+                    setup: "bullish_divergence",
+                    entryBias: "long",
+                    crossState: "confirmed",
+                    m15: expect.objectContaining({
+                        k: 24,
+                        d: 20,
+                    }),
+                    h1: expect.objectContaining({
+                        k: 57,
+                        direction: "rising",
+                    }),
+                    pivots: expect.objectContaining({
+                        first: expect.objectContaining({
+                            price: 1.098,
+                            stochasticK: 8,
+                        }),
+                        second: expect.objectContaining({
+                            price: 1.0975,
+                            stochasticK: 14,
+                        }),
+                    }),
+                }),
                 tradePlan: expect.objectContaining({
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
@@ -180,6 +204,30 @@ describe("stochasticDivergenceStrategy", () => {
                 signalClass: "ACTIONABLE",
                 intent: "ENTER_SHORT",
                 entryType: "STOCHASTIC_DIVERGENCE_REVERSAL",
+                strategyContext: expect.objectContaining({
+                    family: "stochastic_divergence",
+                    setup: "bearish_divergence",
+                    entryBias: "short",
+                    crossState: "confirmed",
+                    m15: expect.objectContaining({
+                        k: 74,
+                        d: 78,
+                    }),
+                    h1: expect.objectContaining({
+                        k: 42,
+                        direction: "falling",
+                    }),
+                    pivots: expect.objectContaining({
+                        first: expect.objectContaining({
+                            price: 1.202,
+                            stochasticK: 92,
+                        }),
+                        second: expect.objectContaining({
+                            price: 1.2027,
+                            stochasticK: 86,
+                        }),
+                    }),
+                }),
                 tradePlan: expect.objectContaining({
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
@@ -216,6 +264,16 @@ describe("stochasticDivergenceStrategy", () => {
                 signalType: "HOLD",
                 reasonCode: "STOCHASTIC_DIVERGENCE_HTF_LONG_FILTERED",
                 signalClass: "FILTERED",
+                strategyContext: expect.objectContaining({
+                    family: "stochastic_divergence",
+                    setup: "bullish_divergence",
+                    entryBias: "long",
+                    crossState: "confirmed",
+                    h1: expect.objectContaining({
+                        k: 40,
+                        direction: "falling",
+                    }),
+                }),
             })
         );
     });

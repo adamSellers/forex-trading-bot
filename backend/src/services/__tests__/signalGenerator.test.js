@@ -164,6 +164,60 @@ describe('SignalGenerator', () => {
             expect(signal.trend).toHaveProperty('atrPips');
         });
 
+        test('should preserve strategy-specific context on the runtime signal payload', () => {
+            generator.config.strategy = 'stochastic_divergence';
+            const strategyContext = {
+                family: 'stochastic_divergence',
+                setup: 'bullish_divergence',
+                entryBias: 'long',
+                crossState: 'waiting',
+                m15: { k: 18.4, d: 22.1 },
+                h1: { k: 41.7, direction: 'rising' },
+            };
+
+            const signal = generator.buildSignalPayload({
+                instrument: 'AUD_USD',
+                signalType: 'HOLD',
+                reason: 'HOLD: bullish divergence detected but the M15 stochastic cross has not confirmed yet',
+                reasonCode: 'STOCHASTIC_DIVERGENCE_WAIT_CROSS',
+                signalClass: 'PENDING',
+                intent: 'WAIT',
+                entryType: null,
+                signalCandleTime: '2026-04-13T13:15:51.000Z',
+                atrVal: 0.0006,
+                atrPips: 6,
+                currentPrice: 1.0988,
+                rsiVal: 18.4,
+                adxVal: 0,
+                pdiVal: 22.1,
+                mdiVal: 41.7,
+                adxRising: true,
+                prevAdxVal: 14.2,
+                currentDir: 0,
+                prevDir: 0,
+                htfContext: {
+                    enabled: true,
+                    timeframe: '1h',
+                    direction: 1,
+                    longAllowed: true,
+                    shortAllowed: false,
+                    reason: 'H1 %K 41.7 is rising',
+                },
+                pending: null,
+                tradePlan: null,
+                strategyContext,
+            });
+
+            expect(signal).toEqual(
+                expect.objectContaining({
+                    strategy: 'stochastic_divergence',
+                    strategyContext,
+                    reasonCode: 'STOCHASTIC_DIVERGENCE_WAIT_CROSS',
+                    signalClass: 'PENDING',
+                })
+            );
+        });
+
         test('should include ATR pips in signal', async () => {
             const candles = generateCandles(250);
             const currentPrice = candles[candles.length - 1].close;

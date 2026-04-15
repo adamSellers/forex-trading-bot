@@ -661,7 +661,11 @@ const TradingDashboard = () => {
           )}
           {activeTab === 1 && (
             <Box height="100%" sx={{ overflow: 'hidden' }}>
-              <TradingSignals signals={signalsToRender} systemStatus={systemStatus} />
+              <TradingSignals
+                signals={signalsToRender}
+                systemStatus={systemStatus}
+                activeStrategy={liveSelection?.strategy || systemStatus?.config?.strategy || null}
+              />
             </Box>
           )}
           {activeTab === 2 && (

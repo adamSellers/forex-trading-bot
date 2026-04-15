@@ -235,6 +235,51 @@ function getRecentPivotPair(
     };
 }
 
+function summarizePivot(pivot = null) {
+    if (!pivot) {
+        return null;
+    }
+
+    return {
+        time: pivot.time || null,
+        price: Number.isFinite(pivot.price) ? pivot.price : null,
+        stochasticK: Number.isFinite(pivot.stochasticK) ? pivot.stochasticK : null,
+    };
+}
+
+function buildStrategyContext(context = {}, overrides = {}) {
+    const h1Direction = context.h1Rising
+        ? "rising"
+        : context.h1Falling
+        ? "falling"
+        : "flat";
+
+    return {
+        family: "stochastic_divergence",
+        setup: overrides.setup || "none",
+        entryBias: overrides.entryBias || null,
+        crossState: overrides.crossState || "none",
+        m15: {
+            k: Number.isFinite(context.currentK) ? context.currentK : null,
+            d: Number.isFinite(context.currentD) ? context.currentD : null,
+            previousK: Number.isFinite(context.previousK)
+                ? context.previousK
+                : null,
+        },
+        h1: {
+            k: Number.isFinite(context.h1K) ? context.h1K : null,
+            direction: h1Direction,
+        },
+        pivots:
+            overrides.pivots && (overrides.pivots.first || overrides.pivots.second)
+                ? {
+                      first: summarizePivot(overrides.pivots.first),
+                      second: summarizePivot(overrides.pivots.second),
+                  }
+                : null,
+    };
+}
+
 function buildHoldResult(context = {}, overrides = {}) {
     return {
         signalType: "HOLD",
@@ -279,6 +324,12 @@ function buildHoldResult(context = {}, overrides = {}) {
         pendingAction: "clear",
         pending: null,
         tradePlan: null,
+        strategyContext: buildStrategyContext(context, {
+            setup: overrides.setup,
+            entryBias: overrides.entryBias,
+            crossState: overrides.crossState,
+            pivots: overrides.pivots,
+        }),
     };
 }
 
@@ -384,6 +435,7 @@ async function evaluateStochasticDivergenceEntry({
         previousK,
         h1K,
         h1Rising,
+        h1Falling,
     };
 
     if (!activeSessions.includes(sessionKey)) {
@@ -463,6 +515,10 @@ async function evaluateStochasticDivergenceEntry({
             reasonCode: "STOCHASTIC_DIVERGENCE_HTF_LONG_FILTERED",
             longAllowed: false,
             htfReason: `H1 %K ${h1K.toFixed(1)} is below the confirmation threshold`,
+            setup: "bullish_divergence",
+            entryBias: "long",
+            crossState: longCrossConfirmed ? "confirmed" : "waiting",
+            pivots: bullishPivots,
         });
     }
 
@@ -473,6 +529,10 @@ async function evaluateStochasticDivergenceEntry({
             reasonCode: "STOCHASTIC_DIVERGENCE_HTF_SHORT_FILTERED",
             shortAllowed: false,
             htfReason: `H1 %K ${h1K.toFixed(1)} is above the short confirmation threshold`,
+            setup: "bearish_divergence",
+            entryBias: "short",
+            crossState: shortCrossConfirmed ? "confirmed" : "waiting",
+            pivots: bearishPivots,
         });
     }
 
@@ -487,6 +547,10 @@ async function evaluateStochasticDivergenceEntry({
             return buildHoldResult(evaluationContext, {
                 reason: "HOLD: bullish divergence stop distance is invalid",
                 reasonCode: "STOCHASTIC_DIVERGENCE_INVALID_LONG_STOP",
+                setup: "bullish_divergence",
+                entryBias: "long",
+                crossState: "confirmed",
+                pivots: bullishPivots,
             });
         }
 
@@ -535,6 +599,12 @@ async function evaluateStochasticDivergenceEntry({
                     stopDistance *
                         toFiniteNumber(resolvedConfig.tpSlMultiplier, 2.0),
             },
+            strategyContext: buildStrategyContext(evaluationContext, {
+                setup: "bullish_divergence",
+                entryBias: "long",
+                crossState: "confirmed",
+                pivots: bullishPivots,
+            }),
         };
     }
 
@@ -549,6 +619,10 @@ async function evaluateStochasticDivergenceEntry({
             return buildHoldResult(evaluationContext, {
                 reason: "HOLD: bearish divergence stop distance is invalid",
                 reasonCode: "STOCHASTIC_DIVERGENCE_INVALID_SHORT_STOP",
+                setup: "bearish_divergence",
+                entryBias: "short",
+                crossState: "confirmed",
+                pivots: bearishPivots,
             });
         }
 
@@ -597,6 +671,12 @@ async function evaluateStochasticDivergenceEntry({
                     stopDistance *
                         toFiniteNumber(resolvedConfig.tpSlMultiplier, 2.0),
             },
+            strategyContext: buildStrategyContext(evaluationContext, {
+                setup: "bearish_divergence",
+                entryBias: "short",
+                crossState: "confirmed",
+                pivots: bearishPivots,
+            }),
         };
     }
 
@@ -607,6 +687,12 @@ async function evaluateStochasticDivergenceEntry({
                 `HOLD: ${direction} divergence detected but the M15 stochastic cross has not confirmed yet`,
             reasonCode: "STOCHASTIC_DIVERGENCE_WAIT_CROSS",
             signalClass: "PENDING",
+            setup: bullishDivergence
+                ? "bullish_divergence"
+                : "bearish_divergence",
+            entryBias: bullishDivergence ? "long" : "short",
+            crossState: "waiting",
+            pivots: bullishDivergence ? bullishPivots : bearishPivots,
         });
     }
 
