@@ -974,8 +974,12 @@ class LiveTradingEngine extends EventEmitter {
         );
 
         if (!Number.isFinite(units) || units <= 0) return 0;
-        const leverage = Number(config.leverage) || 10;
-        return (units * signal.currentPrice) / leverage;
+        return this.calculateMarginRequiredInAccountCurrency(
+            signal.symbol,
+            units,
+            signal.currentPrice,
+            config
+        );
     }
 
     /**
@@ -1081,11 +1085,12 @@ class LiveTradingEngine extends EventEmitter {
         signal = null
     ) {
         // Get account info from Oanda including available margin
-        let accountBalance, marginAvailable;
+        let accountBalance, marginAvailable, accountCurrency;
         try {
             const accountSummary = await oandaClient.getAccountSummary();
             accountBalance = parseFloat(accountSummary.account.balance);
             marginAvailable = parseFloat(accountSummary.account.marginAvailable);
+            accountCurrency = accountSummary.account.currency || "AUD";
         } catch (error) {
             logger.error("❌ Failed to get account info:", error.message);
             return 0;
@@ -1175,8 +1180,33 @@ class LiveTradingEngine extends EventEmitter {
 
             // Apply leverage limits based on available margin (not total balance)
             const maxLeverage = config.leverage || 10;
+            let baseToAccountRate;
+            try {
+                baseToAccountRate =
+                    await this.getInstrumentBaseToAccountRate(
+                        instrument,
+                        accountCurrency,
+                        currentPrice
+                    );
+            } catch (error) {
+                logger.error(
+                    `❌ Failed to calculate leverage cap for ${instrument}: ${error.message}`
+                );
+                return 0;
+            }
+
+            if (
+                !Number.isFinite(baseToAccountRate) ||
+                baseToAccountRate <= 0
+            ) {
+                logger.error(
+                    `❌ Invalid base-to-${accountCurrency} conversion rate for ${instrument}: ${baseToAccountRate}`
+                );
+                return 0;
+            }
+
             const maxUnitsFromLeverage = Math.floor(
-                (safeMarginAvailable * maxLeverage) / currentPrice
+                (safeMarginAvailable * maxLeverage) / baseToAccountRate
             );
             units = Math.min(units, maxUnitsFromLeverage);
         }
@@ -1334,6 +1364,56 @@ class LiveTradingEngine extends EventEmitter {
         throw new Error(
             `Unable to convert ${fromCurrency} to ${toCurrency}: no rate path`
         );
+    }
+
+    getInstrumentBaseCurrency(instrument) {
+        const [baseCurrency] = String(instrument || "").split("_");
+        if (!baseCurrency) {
+            throw new Error(`Invalid instrument: ${instrument}`);
+        }
+        return baseCurrency;
+    }
+
+    async getInstrumentBaseToAccountRate(
+        instrument,
+        accountCurrency = "AUD",
+        entryPrice = null
+    ) {
+        const baseCurrency = this.getInstrumentBaseCurrency(instrument);
+        return this.getConversionRate(baseCurrency, accountCurrency, {
+            instrument,
+            entryPrice,
+        });
+    }
+
+    async calculateMarginRequiredInAccountCurrency(
+        instrument,
+        units,
+        entryPrice,
+        config,
+        accountCurrency = "AUD"
+    ) {
+        const absoluteUnits = Math.abs(Number(units));
+        if (!Number.isFinite(absoluteUnits) || absoluteUnits <= 0) return 0;
+
+        const leverage = Number(config.leverage) || 10;
+        const baseToAccountRate =
+            await this.getInstrumentBaseToAccountRate(
+                instrument,
+                accountCurrency,
+                entryPrice
+            );
+
+        if (
+            !Number.isFinite(baseToAccountRate) ||
+            baseToAccountRate <= 0
+        ) {
+            throw new Error(
+                `Invalid base-to-${accountCurrency} conversion rate for ${instrument}: ${baseToAccountRate}`
+            );
+        }
+
+        return (absoluteUnits * baseToAccountRate) / leverage;
     }
 
     /**

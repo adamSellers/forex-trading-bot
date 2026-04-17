@@ -146,6 +146,27 @@ describe('LiveTradingEngine', () => {
     let mockEntryDecisionRepository;
     let oandaClient;
 
+    const mockAudUsdPricingOnly = () => {
+        oandaClient.getPricing.mockImplementation(async (instruments) => {
+            const instrument = instruments[0];
+            if (instrument === 'AUD_USD') {
+                return {
+                    prices: [
+                        {
+                            instrument: 'AUD_USD',
+                            closeoutBid: '0.6599',
+                            closeoutAsk: '0.6601',
+                            bids: [{ price: '0.6599' }],
+                            asks: [{ price: '0.6601' }],
+                        },
+                    ],
+                };
+            }
+
+            throw new Error(`Unexpected pricing request: ${instrument}`);
+        });
+    };
+
     beforeEach(() => {
         // Reset all mocks
         jest.clearAllMocks();
@@ -665,6 +686,72 @@ describe('LiveTradingEngine', () => {
 
             expect(units).toBe(250);
         });
+
+        test.each([
+            ['AUD_USD', 0.66, 1600],
+            ['EUR_USD', 1.08, 977],
+            ['GBP_USD', 1.27, 831],
+            ['USD_JPY', 150.0, 1056],
+        ])(
+            'should cap %s units using account-currency base notional',
+            async (instrument, currentPrice, expectedUnits) => {
+                oandaClient.getAccountSummary.mockResolvedValue({
+                    account: {
+                        currency: 'AUD',
+                        balance: '1000.00',
+                        marginAvailable: '100.00',
+                    },
+                });
+                mockAudUsdPricingOnly();
+
+                const config = {
+                    ...mockConfigService.get(),
+                    riskPerTrade: 1,
+                    maxCapitalAtRisk: 1000,
+                    marginBuffer: 0.20,
+                    leverage: 20,
+                };
+
+                const units = await engine.calculatePositionSize(
+                    instrument,
+                    1,
+                    currentPrice,
+                    config
+                );
+
+                expect(units).toBe(expectedUnits);
+            }
+        );
+    });
+
+    describe('estimateEntryMargin', () => {
+        test.each([
+            ['AUD_USD', 0.66, 50.0],
+            ['EUR_USD', 1.08, 81.81818],
+            ['GBP_USD', 1.27, 96.21212],
+            ['USD_JPY', 150.0, 75.75758],
+        ])(
+            'should estimate %s margin in AUD from base-currency notional',
+            async (instrument, currentPrice, expectedMarginAud) => {
+                mockAudUsdPricingOnly();
+                jest.spyOn(engine, 'calculatePositionSize').mockResolvedValue(1000);
+
+                const signal = createMockSignal({
+                    symbol: instrument,
+                    currentPrice,
+                });
+                const config = {
+                    ...mockConfigService.get(),
+                    stopLossType: 'FIXED',
+                    stopLossPips: 1,
+                    leverage: 20,
+                };
+
+                const margin = await engine.estimateEntryMargin(signal, config);
+
+                expect(margin).toBeCloseTo(expectedMarginAud, 5);
+            }
+        );
     });
 
     describe('calculateStopLoss', () => {
