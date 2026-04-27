@@ -27,7 +27,7 @@ Important behavior:
 
 ## Strategy Catalog
 
-The canonical strategy registry currently includes five strategies:
+The canonical strategy registry currently includes six strategies:
 
 | Strategy Key | Label | Runtime Status | Intended Use |
 | --- | --- | --- | --- |
@@ -36,12 +36,13 @@ The canonical strategy registry currently includes five strategies:
 | `range_breakout` | Range Breakout | `candidate` | Paper comparison |
 | `stochastic_divergence` | Stochastic Divergence | `candidate` | Paper comparison |
 | `squeeze_play` | Squeeze Play | `candidate` | Paper comparison |
+| `timesfm_directional` | TimesFM Directional | `candidate` | Paper comparison, promotable to live |
 
 Notes:
 
 - The runtime supports `baseline` and `live_ready` strategies for live selection.
-- In the current catalog, only `supertrend_momentum` is live-selectable today.
-- Candidate strategies are launched from the Paper view for comparison against the shadow baseline.
+- In the current catalog, only `supertrend_momentum` is directly live-selectable from the dashboard today.
+- Candidate strategies are launched from the Paper view for comparison against the shadow baseline. Live-capable candidates can be promoted from an active paper run after review.
 
 ## Highlights
 
@@ -204,6 +205,7 @@ What each candidate is testing:
 - `range_breakout`: looks for continuation when intraday ranges compress and then break, with an opening-range breakout bias.
 - `stochastic_divergence`: looks for reversal setups where divergence and stochastic timing align.
 - `squeeze_play`: looks for directional expansion after low-volatility compression releases.
+- `timesfm_directional`: originates entries directly from TimesFM forecast direction, confidence, and expected return.
 
 How to watch candidate performance:
 

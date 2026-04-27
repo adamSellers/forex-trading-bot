@@ -64,6 +64,11 @@ describe("strategy registry", () => {
             expect.objectContaining({
                 key: "timesfm_directional",
                 runtimeStatus: "candidate",
+                metadata: expect.objectContaining({
+                    supportsLive: true,
+                    supportsShadow: true,
+                    supportsCandidate: true,
+                }),
             })
         );
     });

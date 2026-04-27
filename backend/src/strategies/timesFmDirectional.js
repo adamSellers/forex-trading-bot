@@ -347,7 +347,7 @@ const timesFmDirectionalStrategy = createStrategyDefinition({
     key: "timesfm_directional",
     label: "TimesFM Directional",
     description:
-        "Candidate paper strategy that originates entries directly from TimesFM forecast direction and confidence.",
+        "Promotable strategy that originates entries directly from TimesFM forecast direction and confidence.",
     phaseIntroduced: 4,
     runtimeStatus: "candidate",
     requiredData: {
@@ -356,8 +356,8 @@ const timesFmDirectionalStrategy = createStrategyDefinition({
         indicators: ["atr"],
     },
     metadata: {
-        supportsLive: false,
-        supportsShadow: false,
+        supportsLive: true,
+        supportsShadow: true,
         supportsCandidate: true,
         defaultConfig: DEFAULT_TIMESFM_DIRECTIONAL_CONFIG,
     },

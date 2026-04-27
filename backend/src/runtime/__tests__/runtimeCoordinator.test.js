@@ -264,6 +264,47 @@ describe("RuntimeCoordinator", () => {
         );
     });
 
+    test("runCycle prefetched TimesFM context for a promoted live TimesFM strategy", async () => {
+        await coordinator.startRun({
+            runId: "run-timesfm-live-1",
+            mode: RUNTIME_MODES.LIVE,
+            strategy: "timesfm_directional",
+            status: RUN_STATUSES.ACTIVE,
+            selectionId: "selection-timesfm-live",
+            configSnapshot: {
+                strategy: "timesfm_directional",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                timesFmEnabled: true,
+                timesFmMode: "observe",
+            },
+        });
+
+        const signals = await coordinator.runCycle();
+
+        expect(timesFmSignalService.getForecastContext).toHaveBeenCalledWith(
+            expect.objectContaining({
+                instrument: "AUD_USD",
+                timeframe: "15m",
+                config: expect.objectContaining({
+                    strategy: "timesfm_directional",
+                }),
+            })
+        );
+        expect(signals).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    runId: "run-timesfm-live-1",
+                    mode: RUNTIME_MODES.LIVE,
+                    strategy: "timesfm_directional",
+                    entryEnabled: true,
+                    signal: "BUY",
+                    reasonCode: "TIMESFM_DIRECTIONAL_LONG_ACTIONABLE",
+                }),
+            ])
+        );
+    });
+
     test("managing-only live runs evaluate only managed instruments", async () => {
         await coordinator.startRun({
             runId: "run-live-old",
