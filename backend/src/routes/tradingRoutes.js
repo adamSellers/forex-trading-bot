@@ -6,7 +6,10 @@ const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
 const logger = require("../utils/logger");
 
 function isLiveSelectionReady(strategyDefinition = {}) {
-    return ["baseline", "live_ready"].includes(strategyDefinition.runtimeStatus);
+    return (
+        ["baseline", "live_ready"].includes(strategyDefinition.runtimeStatus) ||
+        strategyDefinition.metadata?.supportsLive === true
+    );
 }
 
 // Oanda configuration

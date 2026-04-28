@@ -56,6 +56,7 @@ const getStrategyOptions = (catalog = []) => {
 const isStrategySelectable = (strategy = {}, liveStrategyKey = null) =>
   strategy.runtimeStatus === 'baseline' ||
   strategy.runtimeStatus === 'live_ready' ||
+  strategy.metadata?.supportsLive === true ||
   strategy.key === liveStrategyKey;
 
 const getStrategyAvailabilitySuffix = (strategy = {}, liveStrategyKey = null) => {
@@ -64,7 +65,7 @@ const getStrategyAvailabilitySuffix = (strategy = {}, liveStrategyKey = null) =>
   }
 
   if (strategy.runtimeStatus === 'candidate') {
-    return ' (Paper Only)';
+    return strategy.metadata?.supportsLive === true ? ' (Candidate Live)' : ' (Paper Only)';
   }
 
   if (strategy.runtimeStatus === 'planned') {
@@ -418,7 +419,7 @@ const TradingDashboard = () => {
     isStrategySelectable(selectedStrategyOption, liveSelection?.strategy) &&
     !isApplyingStrategy;
   const strategyActionLabel =
-    liveSelection?.strategy === selectedStrategy ? 'Restart Live Run' : 'Apply Live Strategy';
+    liveSelection?.strategy === selectedStrategy ? 'Restart Live Run' : 'Switch Live Strategy';
 
   const calculatedDailyPnL = useMemo(() => {
     if (!trades || trades.length === 0) return 0;
