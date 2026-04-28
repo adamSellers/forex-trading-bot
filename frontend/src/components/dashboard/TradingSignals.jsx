@@ -26,6 +26,7 @@ import {
 import { formatInstrument, INSTRUMENT_INFO } from './Shared';
 
 const STOCHASTIC_DIVERGENCE_KEY = 'stochastic_divergence';
+const TIMESFM_DIRECTIONAL_KEY = 'timesfm_directional';
 
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
   '&:nth-of-type(odd)': {
@@ -374,6 +375,84 @@ const getStochasticPivotLine = (context) => {
   return `Pivots ${firstPrice.toFixed(5)} -> ${secondPrice.toFixed(5)}`;
 };
 
+const getTimesFmContext = (signal = {}) =>
+  signal.timesFm ||
+  signal.strategyContext?.timesFm ||
+  signal.decisionContext?.timesFm ||
+  null;
+
+const getTimesFmDirection = (signal = {}, timesFm = null) => {
+  const forecastDirection = String(timesFm?.direction || '').toUpperCase();
+  if (forecastDirection === 'BULLISH' || forecastDirection === 'BEARISH') {
+    return forecastDirection;
+  }
+  if (forecastDirection === 'NEUTRAL') {
+    return 'NEUTRAL';
+  }
+  if (signal.signal === 'BUY') return 'BULLISH';
+  if (signal.signal === 'SELL') return 'BEARISH';
+  return 'NEUTRAL';
+};
+
+const getTimesFmMeta = (signal = {}, timesFm = null) => {
+  const direction = getTimesFmDirection(signal, timesFm);
+  if (direction === 'BULLISH') {
+    return { direction, color: 'success', icon: <TrendingUp fontSize="small" /> };
+  }
+  if (direction === 'BEARISH') {
+    return { direction, color: 'error', icon: <TrendingDown fontSize="small" /> };
+  }
+  return { direction, color: 'info', icon: <Timeline fontSize="small" /> };
+};
+
+const getTimesFmConfidence = (signal = {}, timesFm = null) => {
+  const confidence = Number(timesFm?.confidence);
+  if (Number.isFinite(confidence)) {
+    return `${(confidence * 100).toFixed(0)}%`;
+  }
+
+  const strength = Number(signal.strength);
+  return Number.isFinite(strength) ? `${strength.toFixed(0)}%` : '--';
+};
+
+const getTimesFmReturn = (timesFm = null) => {
+  const returnBps = Number(timesFm?.returnBps);
+  return Number.isFinite(returnBps) ? `${returnBps.toFixed(1)} bps` : '--';
+};
+
+const getTimesFmVolatility = (timesFm = null) =>
+  timesFm?.volatilityRegime || '--';
+
+const getTimesFmReasonLabel = (signal = {}, timesFm = null) => {
+  if (timesFm?.available === false && timesFm.reason) {
+    return `TimesFM ${humanizeToken(timesFm.reason)}`;
+  }
+  return humanizeToken(signal.reasonCode || signal.signalClass || 'runtime signal');
+};
+
+const getTimesFmStatusBadges = (signal = {}, timesFm = null) => {
+  const badges = [];
+
+  if (signal.signal === 'BUY' || signal.signal === 'SELL') {
+    badges.push({
+      label: 'ENTRY',
+      color: signal.signal === 'SELL' ? 'error' : 'success',
+    });
+  } else if (timesFm?.available === false) {
+    badges.push({ label: 'NO FORECAST', color: 'warning' });
+  } else if (getTimesFmDirection(signal, timesFm) === 'NEUTRAL') {
+    badges.push({ label: 'NEUTRAL', color: 'default' });
+  } else {
+    badges.push({ label: signal.signalClass || 'FILTERED', color: 'default' });
+  }
+
+  if (timesFm?.cacheHit === true) {
+    badges.push({ label: 'CACHE', color: 'info' });
+  }
+
+  return badges;
+};
+
 const TradingSignals = ({
   signals,
   systemStatus,
@@ -414,6 +493,9 @@ const TradingSignals = ({
   );
 
   if (filteredSignals.length === 0) {
+    const timesFmMode = systemStatus?.config?.timesFmMode || 'disabled';
+    const isTimesFmStrategy = resolvedStrategy === TIMESFM_DIRECTIONAL_KEY;
+
     return (
       <Box
         height="100%"
@@ -426,11 +508,13 @@ const TradingSignals = ({
       >
         <Radar sx={{ fontSize: 48, opacity: 0.2, mb: 2, animation: 'pulse 2s infinite' }} />
         <Typography variant="body2" fontWeight="bold">
-          NO ACTIVE SIGNALS
+          {isTimesFmStrategy ? 'NO TIMESFM SIGNAL SNAPSHOT' : 'NO ACTIVE SIGNALS'}
         </Typography>
         <Typography variant="caption" sx={{ opacity: 0.6 }}>
           {signals && signals.length > 0
             ? 'Signals exist but match no active assets.'
+            : isTimesFmStrategy
+            ? `Waiting for the next TimesFM ${timesFmMode} runtime cycle...`
             : 'Scanning portfolio assets...'}
         </Typography>
 
@@ -452,6 +536,251 @@ const TradingSignals = ({
           </Box>
         )}
       </Box>
+    );
+  }
+
+  if (resolvedStrategy === TIMESFM_DIRECTIONAL_KEY) {
+    if (compact) {
+      return (
+        <Stack spacing={0} sx={{ height: '100%', overflowY: 'auto' }}>
+          {filteredSignals.map((signal) => {
+            const timesFm = getTimesFmContext(signal);
+            const { direction, color, icon } = getTimesFmMeta(signal, timesFm);
+            const paletteColor = theme.palette[color];
+            const info = INSTRUMENT_INFO[signal.symbol] || {};
+            const reasonLabel = getTimesFmReasonLabel(signal, timesFm);
+
+            return (
+              <Box
+                key={getSignalKey(signal)}
+                sx={{
+                  p: 1.5,
+                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 1.5,
+                  '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.05) },
+                }}
+              >
+                <Box display="flex" alignItems="center" gap={1.5} minWidth={0}>
+                  <Avatar
+                    variant="rounded"
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      bgcolor: alpha(paletteColor.main, 0.1),
+                      color: paletteColor.main,
+                      border: `1px solid ${alpha(paletteColor.main, 0.2)}`,
+                    }}
+                  >
+                    {icon}
+                  </Avatar>
+                  <Box minWidth={0}>
+                    <Typography variant="body2" fontWeight="bold">
+                      {info.flag || '💱'} {formatInstrument(signal.symbol)}
+                    </Typography>
+                    <MonoText sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                      {new Date(signal.timestamp).toLocaleTimeString([], { hour12: false })}
+                    </MonoText>
+                  </Box>
+                </Box>
+                <Box textAlign="right" minWidth={0}>
+                  <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+                    <Chip
+                      label={direction}
+                      size="small"
+                      sx={{
+                        height: 18,
+                        fontSize: '0.65rem',
+                        fontWeight: 'bold',
+                        bgcolor: alpha(paletteColor.main, 0.1),
+                        color: paletteColor.main,
+                      }}
+                    />
+                    <Chip
+                      label={signal.signal || 'HOLD'}
+                      size="small"
+                      color={signal.signal === 'SELL' ? 'error' : signal.signal === 'BUY' ? 'success' : 'default'}
+                      sx={{ height: 18, fontSize: '0.6rem', fontWeight: 'bold' }}
+                    />
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', mt: 0.5, fontSize: '0.68rem' }}
+                  >
+                    Conf {getTimesFmConfidence(signal, timesFm)} | {getTimesFmReturn(timesFm)}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      fontSize: '0.63rem',
+                      color:
+                        signal.signalClass === 'ACTIONABLE'
+                          ? paletteColor.main
+                          : theme.palette.text.secondary,
+                      letterSpacing: 0.3,
+                      maxWidth: 240,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {reasonLabel}
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          })}
+        </Stack>
+      );
+    }
+
+    return (
+      <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              <HeaderCell>Pair</HeaderCell>
+              <HeaderCell>Time</HeaderCell>
+              <HeaderCell>Forecast</HeaderCell>
+              <HeaderCell align="right">Confidence</HeaderCell>
+              <HeaderCell align="right">Return</HeaderCell>
+              <HeaderCell align="center">Volatility</HeaderCell>
+              <HeaderCell align="center">Status</HeaderCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredSignals.map((signal) => {
+              const timesFm = getTimesFmContext(signal);
+              const { direction, color, icon } = getTimesFmMeta(signal, timesFm);
+              const paletteColor = theme.palette[color];
+              const info = INSTRUMENT_INFO[signal.symbol] || {};
+              const statusBadges = getTimesFmStatusBadges(signal, timesFm);
+              const reasonLabel = getTimesFmReasonLabel(signal, timesFm);
+
+              return (
+                <StyledTableRow key={getSignalKey(signal)}>
+                  <StyledTableCell>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Avatar
+                        variant="rounded"
+                        sx={{
+                          width: 24,
+                          height: 24,
+                          bgcolor: alpha(paletteColor.main, 0.1),
+                          color: paletteColor.main,
+                        }}
+                      >
+                        {icon}
+                      </Avatar>
+                      <Typography variant="body2" sx={{ fontSize: '0.9rem' }}>
+                        {info.flag || '💱'}
+                      </Typography>
+                      <Typography variant="body2" fontWeight="bold">
+                        {formatInstrument(signal.symbol)}
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+
+                  <StyledTableCell>
+                    {new Date(signal.timestamp).toLocaleTimeString([], {
+                      hour12: false,
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </StyledTableCell>
+
+                  <StyledTableCell>
+                    <Chip
+                      label={direction}
+                      size="small"
+                      sx={{
+                        height: 20,
+                        fontSize: '0.7rem',
+                        fontWeight: 'bold',
+                        bgcolor: alpha(paletteColor.main, 0.1),
+                        color: paletteColor.main,
+                        border: `1px solid ${alpha(paletteColor.main, 0.2)}`,
+                      }}
+                    />
+                  </StyledTableCell>
+
+                  <StyledTableCell align="right">
+                    <MonoText>{getTimesFmConfidence(signal, timesFm)}</MonoText>
+                  </StyledTableCell>
+
+                  <StyledTableCell align="right">
+                    <MonoText
+                      color={
+                        Number(timesFm?.returnBps) > 0
+                          ? theme.palette.success.main
+                          : Number(timesFm?.returnBps) < 0
+                          ? theme.palette.error.main
+                          : theme.palette.text.secondary
+                      }
+                    >
+                      {getTimesFmReturn(timesFm)}
+                    </MonoText>
+                  </StyledTableCell>
+
+                  <StyledTableCell align="center">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        color:
+                          getTimesFmVolatility(timesFm) === 'EXTREME'
+                            ? 'error.main'
+                            : getTimesFmVolatility(timesFm) === 'HIGH'
+                            ? 'warning.main'
+                            : 'text.secondary',
+                      }}
+                    >
+                      {getTimesFmVolatility(timesFm)}
+                    </Typography>
+                  </StyledTableCell>
+
+                  <StyledTableCell align="center">
+                    <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                      <Box display="flex" gap={0.5} justifyContent="center" flexWrap="wrap">
+                        {statusBadges.map((badge) => (
+                          <Chip
+                            key={`${badge.label}-${signal.symbol}`}
+                            label={badge.label}
+                            size="small"
+                            color={badge.color}
+                            sx={{
+                              height: 18,
+                              fontSize: '0.6rem',
+                              fontWeight: 'bold',
+                              '& .MuiChip-label': { px: 0.75 },
+                            }}
+                          />
+                        ))}
+                      </Box>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontSize: '0.62rem',
+                          color: 'text.secondary',
+                          letterSpacing: 0.4,
+                        }}
+                      >
+                        {reasonLabel}
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+                </StyledTableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
     );
   }
 

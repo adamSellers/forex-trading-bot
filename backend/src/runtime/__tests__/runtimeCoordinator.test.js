@@ -259,9 +259,15 @@ describe("RuntimeCoordinator", () => {
                     strategy: "timesfm_directional",
                     signal: "BUY",
                     reasonCode: "TIMESFM_DIRECTIONAL_LONG_ACTIONABLE",
+                    timesFm: expect.objectContaining({
+                        available: true,
+                        direction: "BULLISH",
+                        returnBps: 14.4,
+                    }),
                 }),
             ])
         );
+        expect(timesFmSignalService.enrichSignal).not.toHaveBeenCalled();
     });
 
     test("runCycle prefetched TimesFM context for a promoted live TimesFM strategy", async () => {
@@ -300,9 +306,61 @@ describe("RuntimeCoordinator", () => {
                     entryEnabled: true,
                     signal: "BUY",
                     reasonCode: "TIMESFM_DIRECTIONAL_LONG_ACTIONABLE",
+                    timesFm: expect.objectContaining({
+                        available: true,
+                        direction: "BULLISH",
+                        returnBps: 14.4,
+                    }),
                 }),
             ])
         );
+        expect(timesFmSignalService.enrichSignal).not.toHaveBeenCalled();
+    });
+
+    test("native TimesFM HOLD signals retain forecast context", async () => {
+        timesFmSignalService.getForecastContext.mockResolvedValueOnce({
+            available: false,
+            reason: "sidecar_unavailable",
+            mode: "observe",
+            direction: null,
+            confidence: 0,
+            returnBps: 0,
+        });
+
+        await coordinator.startRun({
+            runId: "run-timesfm-live-hold",
+            mode: RUNTIME_MODES.LIVE,
+            strategy: "timesfm_directional",
+            status: RUN_STATUSES.ACTIVE,
+            selectionId: "selection-timesfm-live",
+            configSnapshot: {
+                strategy: "timesfm_directional",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                timesFmEnabled: true,
+                timesFmMode: "observe",
+            },
+        });
+
+        const signals = await coordinator.runCycle();
+
+        expect(signals).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    runId: "run-timesfm-live-hold",
+                    mode: RUNTIME_MODES.LIVE,
+                    strategy: "timesfm_directional",
+                    entryEnabled: true,
+                    signal: "HOLD",
+                    reasonCode: "TIMESFM_DIRECTIONAL_NO_FORECAST",
+                    timesFm: expect.objectContaining({
+                        available: false,
+                        reason: "sidecar_unavailable",
+                    }),
+                }),
+            ])
+        );
+        expect(timesFmSignalService.enrichSignal).not.toHaveBeenCalled();
     });
 
     test("managing-only live runs evaluate only managed instruments", async () => {

@@ -127,6 +127,11 @@ const TradingDashboard = () => {
   const updateSignalState = useCallback((newSignals) => {
     if (!newSignals) return;
     const signalArray = Array.isArray(newSignals) ? newSignals : [newSignals];
+    if (signalArray.length === 0) {
+      setLatestSignals(new Map());
+      return;
+    }
+
     setLatestSignals((prevMap) => {
       const newMap = new Map(prevMap);
       let hasUpdates = false;
@@ -240,10 +245,12 @@ const TradingDashboard = () => {
     socket.on('engineStatus', (s) => isMountedRef.current && setEngineStatus(s));
     socket.on('liveSelectionUpdated', (selection) => {
       if (isMountedRef.current) {
+        setLatestSignals(new Map());
         setLiveSelection(selection || null);
         setSelectedStrategy((current) =>
           normalizeStrategySelection(selection?.strategy || current, strategyCatalog)
         );
+        fetchInitialData();
         setLastUpdate(Date.now());
       }
     });

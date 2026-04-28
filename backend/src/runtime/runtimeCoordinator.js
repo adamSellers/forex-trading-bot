@@ -529,11 +529,21 @@ class RuntimeCoordinator extends EventEmitter {
             }
 
             let enrichedSignal = this.enrichSignal(session, signal);
-            enrichedSignal = await this.enrichTimesFm(enrichedSignal, {
-                candles,
-                timeframe,
-                config: session.run.configSnapshot || session.generator.config,
-            });
+            if (
+                session.run.strategy === "timesfm_directional" &&
+                preparedContext?.timesFmForecast
+            ) {
+                enrichedSignal = {
+                    ...enrichedSignal,
+                    timesFm: preparedContext.timesFmForecast,
+                };
+            } else {
+                enrichedSignal = await this.enrichTimesFm(enrichedSignal, {
+                    candles,
+                    timeframe,
+                    config: session.run.configSnapshot || session.generator.config,
+                });
+            }
             signals.push(enrichedSignal);
             this.emit("signalGenerated", enrichedSignal);
         }

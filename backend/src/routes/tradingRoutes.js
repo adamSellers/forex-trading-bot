@@ -614,26 +614,45 @@ router.get("/candles/:instrument", async (req, res) => {
     }
 });
 
-// Trading signals - from SignalGenerator
+// Trading signals - current live runtime snapshot, with persisted fallback
 router.get("/signals", async (req, res) => {
     try {
-        const signalGenerator = req.app.locals.signalGenerator;
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        const signalRepository = req.app.locals.signalRepository;
 
-        if (!signalGenerator) {
+        if (!runtimeCoordinator) {
             return res.json({ signals: [], timestamp: Date.now() });
         }
 
-        const status = signalGenerator.getStatus();
+        const status = runtimeCoordinator.getStatus();
+        const limit = parseLimit(req.query.limit, 50);
+        let signals = Array.isArray(status.activeSignals)
+            ? status.activeSignals
+            : [];
+
+        if (signals.length === 0 && signalRepository?.getRecent) {
+            const liveSelection = runtimeCoordinator.getLiveSelection?.();
+            const liveRunId = liveSelection?.liveRun?.runId || liveSelection?.liveRunId;
+
+            if (liveRunId) {
+                signals = await signalRepository.getRecent(limit, {
+                    mode: RUNTIME_MODES.LIVE,
+                    runId: liveRunId,
+                });
+            }
+        }
 
         res.json({
-            signals: status.activeSignals || [],
+            signals: signals.slice(0, limit),
             pendingEntries: status.pendingEntries || [],
             isActive: status.isActive,
             config: {
                 minAdx: status.config?.minAdx,
                 timeframe: status.config?.timeframe,
                 assets: status.config?.assets,
+                strategy: status.config?.strategy,
             },
+            liveSelection: runtimeCoordinator.getLiveSelection?.() || null,
             timestamp: Date.now(),
         });
     } catch (error) {
