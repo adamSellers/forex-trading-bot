@@ -4,6 +4,8 @@ const { createStrategyDefinition } = require("./strategyContract");
 const DEFAULT_TIMESFM_DIRECTIONAL_CONFIG = Object.freeze({
     timesFmStrategyMinConfidence: 0.7,
     timesFmStrategyMinReturnBps: 10,
+    timesFmStrategyHighConfidenceThreshold: 0.8,
+    timesFmStrategyHighConfidenceMinReturnBps: 7.5,
     timesFmStrategyStopLossAtrMultiplier: 1.5,
     timesFmStrategyRiskReward: 1.5,
     timesFmStrategyBlockExtremeVolatility: true,
@@ -70,6 +72,36 @@ function buildForecastSummary(forecast = {}) {
     return `TimesFM ${direction.toLowerCase()} | conf ${(confidence * 100).toFixed(
         0
     )}% | ${returnBps.toFixed(1)}bps | vol ${volatilityRegime}`;
+}
+
+function resolveMinReturnBps(config = {}, confidence = 0) {
+    const baseMinReturnBps = toFiniteNumber(
+        config.timesFmStrategyMinReturnBps,
+        DEFAULT_TIMESFM_DIRECTIONAL_CONFIG.timesFmStrategyMinReturnBps
+    );
+    const highConfidenceThreshold = toFiniteNumber(
+        config.timesFmStrategyHighConfidenceThreshold,
+        DEFAULT_TIMESFM_DIRECTIONAL_CONFIG.timesFmStrategyHighConfidenceThreshold
+    );
+    const highConfidenceMinReturnBps = toFiniteNumber(
+        config.timesFmStrategyHighConfidenceMinReturnBps,
+        DEFAULT_TIMESFM_DIRECTIONAL_CONFIG.timesFmStrategyHighConfidenceMinReturnBps
+    );
+
+    const minReturnBps =
+        confidence >= highConfidenceThreshold
+            ? Math.min(baseMinReturnBps, highConfidenceMinReturnBps)
+            : baseMinReturnBps;
+
+    return {
+        minReturnBps,
+        baseMinReturnBps,
+        highConfidenceThreshold,
+        highConfidenceMinReturnBps,
+        highConfidenceOverride:
+            confidence >= highConfidenceThreshold &&
+            highConfidenceMinReturnBps < baseMinReturnBps,
+    };
 }
 
 function buildHoldResult(context = {}, overrides = {}) {
@@ -264,15 +296,13 @@ async function evaluateTimesFmDirectionalEntry({
         });
     }
 
-    const minReturnBps = toFiniteNumber(
-        resolvedConfig.timesFmStrategyMinReturnBps,
-        10
-    );
+    const returnGate = resolveMinReturnBps(resolvedConfig, confidence);
+    const minReturnBps = returnGate.minReturnBps;
     if (Math.abs(returnBps) < minReturnBps) {
         return buildHoldResult(context, {
             reason: `HOLD: TimesFM return ${Math.abs(returnBps).toFixed(
                 1
-            )}bps is below the configured threshold`,
+            )}bps is below the configured ${minReturnBps.toFixed(1)}bps threshold`,
             reasonCode: "TIMESFM_DIRECTIONAL_RETURN_FILTERED",
         });
     }
@@ -300,7 +330,9 @@ async function evaluateTimesFmDirectionalEntry({
             `${signalType}: TimesFM directional ${direction.toLowerCase()} | ` +
             `conf ${(confidence * 100).toFixed(0)}% | ${returnBps.toFixed(
                 1
-            )}bps | vol ${forecast.volatilityRegime || "NORMAL"}`,
+            )}bps | min ${minReturnBps.toFixed(1)}bps | vol ${
+                forecast.volatilityRegime || "NORMAL"
+            }`,
         reasonCode:
             signalType === "BUY"
                 ? "TIMESFM_DIRECTIONAL_LONG_ACTIONABLE"
@@ -367,4 +399,5 @@ const timesFmDirectionalStrategy = createStrategyDefinition({
 module.exports = Object.assign({}, timesFmDirectionalStrategy, {
     DEFAULT_TIMESFM_DIRECTIONAL_CONFIG,
     evaluateTimesFmDirectionalEntry,
+    resolveMinReturnBps,
 });

@@ -170,6 +170,27 @@ class ConfigService extends EventEmitter {
                     this.config.continuationPullbackMaxAtr,
                 enableHTFFilter: this.config.enableHTFFilter,
                 htfTimeframe: this.config.htfTimeframe,
+                timesFmEnabled: this.config.timesFmEnabled,
+                timesFmMode: this.config.timesFmMode,
+                timesFmHorizonBars: this.config.timesFmHorizonBars,
+                timesFmTimeoutMs: this.config.timesFmTimeoutMs,
+                timesFmVetoConfidence: this.config.timesFmVetoConfidence,
+                timesFmDeadZoneBps: this.config.timesFmDeadZoneBps,
+                timesFmStrategyMinConfidence:
+                    this.config.timesFmStrategyMinConfidence,
+                timesFmStrategyMinReturnBps:
+                    this.config.timesFmStrategyMinReturnBps,
+                timesFmStrategyHighConfidenceThreshold:
+                    this.config.timesFmStrategyHighConfidenceThreshold,
+                timesFmStrategyHighConfidenceMinReturnBps:
+                    this.config.timesFmStrategyHighConfidenceMinReturnBps,
+                timesFmStrategyStopLossAtrMultiplier:
+                    this.config.timesFmStrategyStopLossAtrMultiplier,
+                timesFmStrategyRiskReward: this.config.timesFmStrategyRiskReward,
+                timesFmStrategyBlockExtremeVolatility:
+                    this.config.timesFmStrategyBlockExtremeVolatility,
+                timeStopHours: this.config.timeStopHours,
+                maxSpreadPips: this.config.maxSpreadPips,
                 signalCooldown: this.config.signalCooldown,
                 atrPeriod: this.config.supertrendPeriod,
                 factor: this.config.supertrendMultiplier,
