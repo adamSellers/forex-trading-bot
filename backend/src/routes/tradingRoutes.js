@@ -72,9 +72,10 @@ function normalizeString(value) {
     return typeof value === "string" ? value.trim() : "";
 }
 
-function parseLimit(value, fallback) {
+function parseLimit(value, fallback, max = null) {
     const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    const limit = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    return Number.isFinite(max) && max > 0 ? Math.min(limit, max) : limit;
 }
 
 function isForexMarketOpen(date = new Date()) {
@@ -219,6 +220,17 @@ async function buildRuntimeRunsResponse(req, filters = {}) {
     let runs = Array.from(mergedRuns.values()).sort(
         (left, right) => (right.startedAt || 0) - (left.startedAt || 0)
     );
+    const maxRuns = parseLimit(filters.limit, 80, 200);
+    const activeRunIds = new Set(activeRuns.map((run) => run.runId));
+    if (runs.length > maxRuns) {
+        const limitedRuns = [];
+        for (const run of runs) {
+            if (activeRunIds.has(run.runId) || limitedRuns.length < maxRuns) {
+                limitedRuns.push(run);
+            }
+        }
+        runs = limitedRuns;
+    }
     runs = paperTradingRuntime?.enrichRuns
         ? await paperTradingRuntime.enrichRuns(runs)
         : runs;
@@ -635,7 +647,7 @@ router.get("/signals", async (req, res) => {
         }
 
         const status = runtimeCoordinator.getStatus();
-        const limit = parseLimit(req.query.limit, 50);
+        const limit = parseLimit(req.query.limit, 50, 500);
         let signals = Array.isArray(status.activeSignals)
             ? status.activeSignals
             : [];
@@ -724,7 +736,7 @@ router.get("/trades", async (req, res) => {
             tradeRepo = new TradeRepository();
         }
 
-        const limit = parseInt(req.query.limit) || 20;
+        const limit = parseLimit(req.query.limit, 20, 500);
         const trades = await tradeRepo.getRecent(limit);
 
         res.json({
@@ -1188,25 +1200,38 @@ router.get("/runtime/runs/:runId/trades", async (req, res) => {
             return res.status(404).json({ error: "Run not found" });
         }
 
-        const limit = parseLimit(req.query.limit, 200);
-        const trades = await tradeRepository.getAllTrades({
+        const limit = parseLimit(req.query.limit, 200, 1000);
+        const tradeFilters = {
             mode: run.mode,
             ownerRunId: run.runId,
-        });
-        const sortedTrades = [...trades]
-            .sort(
-                (left, right) =>
-                    (right.exitTime || right.entryTime || 0) -
-                    (left.exitTime || left.entryTime || 0)
-            )
-            .slice(0, limit);
+        };
+        const [trades, summary] = await Promise.all([
+            tradeRepository.getRecentByActivity
+                ? tradeRepository.getRecentByActivity(limit, tradeFilters)
+                : tradeRepository.getAllTrades(tradeFilters),
+            tradeRepository.getTradeSummary
+                ? tradeRepository.getTradeSummary(tradeFilters)
+                : Promise.resolve(null),
+        ]);
+        const sortedTrades = tradeRepository.getRecentByActivity
+            ? trades
+            : [...trades]
+                  .sort(
+                      (left, right) =>
+                          (right.exitTime || right.entryTime || 0) -
+                          (left.exitTime || left.entryTime || 0)
+                  )
+                  .slice(0, limit);
+        const fallbackTotal = trades.length;
+        const fallbackOpen = trades.filter((trade) => trade.isOpen).length;
+        const fallbackClosed = trades.filter((trade) => !trade.isOpen).length;
 
         res.json({
             run,
             trades: sortedTrades,
-            total: trades.length,
-            openTrades: trades.filter((trade) => trade.isOpen).length,
-            closedTrades: trades.filter((trade) => !trade.isOpen).length,
+            total: summary?.totalTrades ?? fallbackTotal,
+            openTrades: summary?.openTradeCount ?? fallbackOpen,
+            closedTrades: summary?.closedTradeCount ?? fallbackClosed,
             timestamp: Date.now(),
         });
     } catch (error) {
@@ -1223,7 +1248,7 @@ router.get("/runtime/runs/:runId/signals", async (req, res) => {
             return res.status(404).json({ error: "Run not found" });
         }
 
-        const limit = parseLimit(req.query.limit, 250);
+        const limit = parseLimit(req.query.limit, 250, 1000);
         const signals = await signalRepository.getRecent(limit, {
             mode: run.mode,
             runId: run.runId,
@@ -1258,7 +1283,7 @@ router.get("/runtime/runs/:runId/equity", async (req, res) => {
             return res.status(404).json({ error: "Run not found" });
         }
 
-        const limit = parseLimit(req.query.limit, 300);
+        const limit = parseLimit(req.query.limit, 300, 1000);
         const history = await portfolioRepository.getHistory(limit, {
             mode: run.mode,
             runId: run.runId,
@@ -1287,12 +1312,25 @@ router.get("/runtime/runs/:runId/equity", async (req, res) => {
             });
         }
 
-        const trades = await tradeRepository.getAllTrades({
+        const tradeFilters = {
             mode: run.mode,
             ownerRunId: run.runId,
-        });
-        const closedTrades = trades.filter((trade) => !trade.isOpen);
+        };
+        const tradeLimit = parseLimit(req.query.tradeLimit, 1000, 5000);
+        const [closedTradesDesc, summary] = await Promise.all([
+            tradeRepository.getClosedTrades
+                ? tradeRepository.getClosedTrades(tradeLimit, tradeFilters)
+                : tradeRepository.getAllTrades(tradeFilters),
+            tradeRepository.getTradeSummary
+                ? tradeRepository.getTradeSummary(tradeFilters)
+                : Promise.resolve(null),
+        ]);
+        const closedTrades = tradeRepository.getClosedTrades
+            ? [...closedTradesDesc].reverse()
+            : closedTradesDesc.filter((trade) => !trade.isOpen);
         const equityData = analyticsService.calculateEquityData(closedTrades);
+        const closedTradeTotal =
+            summary?.closedTradeCount ?? closedTrades.length;
 
         res.json({
             run,
@@ -1300,7 +1338,8 @@ router.get("/runtime/runs/:runId/equity", async (req, res) => {
             equityCurve: equityData.equityCurve || [],
             dailyPnL: equityData.dailyPnL || [],
             latestSnapshot: null,
-            total: equityData.equityCurve?.length || 0,
+            total: closedTradeTotal,
+            limited: closedTradeTotal > closedTrades.length,
             timestamp: Date.now(),
         });
     } catch (error) {

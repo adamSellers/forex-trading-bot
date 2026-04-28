@@ -40,6 +40,38 @@ function createTradeRepository() {
                 .filter((trade) => matchesRuntimeIdentity(trade, filters))
                 .map((trade) => ({ ...trade }))
         ),
+        getTradeSummary: jest.fn(async (filters = {}) => {
+            const matchingTrades = trades.filter((trade) =>
+                matchesRuntimeIdentity(trade, filters)
+            );
+            const closedTrades = matchingTrades.filter(
+                (trade) => trade.isOpen === false
+            );
+            const winningTrades = closedTrades.filter(
+                (trade) => Number(trade.pnlAud || 0) > 0
+            );
+            const losingTrades = closedTrades.filter(
+                (trade) => Number(trade.pnlAud || 0) < 0
+            );
+
+            return {
+                totalTrades: matchingTrades.length,
+                openTradeCount: matchingTrades.filter(
+                    (trade) => trade.isOpen !== false
+                ).length,
+                closedTradeCount: closedTrades.length,
+                winningTrades: winningTrades.length,
+                losingTrades: losingTrades.length,
+                flatTrades:
+                    closedTrades.length -
+                    winningTrades.length -
+                    losingTrades.length,
+                realizedPnlAud: closedTrades.reduce(
+                    (sum, trade) => sum + Number(trade.pnlAud || 0),
+                    0
+                ),
+            };
+        }),
         updateTrade: jest.fn(async (tradeId, updates = {}) => {
             const trade = trades.find((candidate) => candidate.id === tradeId);
             if (!trade) return;

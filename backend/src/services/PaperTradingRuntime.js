@@ -869,21 +869,59 @@ class PaperTradingRuntime {
         return closedTrades;
     }
 
+    buildTradeSummaryFromTrades(trades = []) {
+        const closedTrades = trades.filter((trade) => !trade.isOpen);
+        const winningTrades = closedTrades.filter(
+            (trade) => toFiniteNumber(trade.pnlAud, 0) > 0
+        );
+        const losingTrades = closedTrades.filter(
+            (trade) => toFiniteNumber(trade.pnlAud, 0) < 0
+        );
+
+        return {
+            totalTrades: trades.length,
+            openTradeCount: trades.filter((trade) => trade.isOpen).length,
+            closedTradeCount: closedTrades.length,
+            winningTrades: winningTrades.length,
+            losingTrades: losingTrades.length,
+            flatTrades: Math.max(
+                0,
+                closedTrades.length - winningTrades.length - losingTrades.length
+            ),
+            realizedPnlAud: closedTrades.reduce(
+                (sum, trade) => sum + toFiniteNumber(trade.pnlAud, 0),
+                0
+            ),
+        };
+    }
+
+    async getRunTradeSummary(run) {
+        const filters = {
+            mode: run.mode,
+            runId: run.runId,
+        };
+
+        if (this.tradeRepository.getTradeSummary) {
+            return this.tradeRepository.getTradeSummary(filters);
+        }
+
+        const trades = await this.tradeRepository.getAllTrades(filters);
+        return this.buildTradeSummaryFromTrades(trades);
+    }
+
     async saveRunSnapshot(run, config = {}) {
         if (!run || !isPaperMode(run.mode)) {
             return null;
         }
 
-        const allTrades = await this.tradeRepository.getAllTrades({
-            mode: run.mode,
-            runId: run.runId,
-        });
-        const openTrades = allTrades.filter((trade) => trade.isOpen);
-        const closedTrades = allTrades.filter((trade) => !trade.isOpen);
-        const realizedPnlAud = closedTrades.reduce(
-            (sum, trade) => sum + toFiniteNumber(trade.pnlAud, 0),
-            0
-        );
+        const [openTrades, tradeSummary] = await Promise.all([
+            this.tradeRepository.getOpenTrades({
+                mode: run.mode,
+                runId: run.runId,
+            }),
+            this.getRunTradeSummary(run),
+        ]);
+        const realizedPnlAud = toFiniteNumber(tradeSummary.realizedPnlAud, 0);
         const positions = openTrades.map((trade) => {
             const currentPrice =
                 this.getCurrentPrice(trade.instrument) ||
@@ -1011,32 +1049,18 @@ class PaperTradingRuntime {
             return null;
         }
 
-        const [portfolio, trades, latestSignalBatch] = await Promise.all([
+        const [portfolio, tradeSummary, latestSignalBatch] = await Promise.all([
             this.portfolioRepository.getCurrent({
                 mode: run.mode,
                 runId: run.runId,
             }),
-            this.tradeRepository.getAllTrades({
-                mode: run.mode,
-                runId: run.runId,
-            }),
+            this.getRunTradeSummary(run),
             this.signalRepository?.getRecent?.(1, {
                 mode: run.mode,
                 runId: run.runId,
             }) || Promise.resolve([]),
         ]);
 
-        const closedTrades = trades.filter((trade) => !trade.isOpen);
-        const winningTrades = closedTrades.filter(
-            (trade) => toFiniteNumber(trade.pnlAud, 0) > 0
-        );
-        const losingTrades = closedTrades.filter(
-            (trade) => toFiniteNumber(trade.pnlAud, 0) < 0
-        );
-        const flatTrades = Math.max(
-            0,
-            closedTrades.length - winningTrades.length - losingTrades.length
-        );
         const latestSignal = Array.isArray(latestSignalBatch)
             ? latestSignalBatch[0] || null
             : null;
@@ -1051,17 +1075,17 @@ class PaperTradingRuntime {
             : balanceAud;
 
         return {
-            totalTrades: trades.length,
-            openTradeCount: trades.filter((trade) => trade.isOpen).length,
-            closedTradeCount: closedTrades.length,
-            winningTrades: winningTrades.length,
-            losingTrades: losingTrades.length,
-            flatTrades,
+            totalTrades: tradeSummary.totalTrades || 0,
+            openTradeCount: tradeSummary.openTradeCount || 0,
+            closedTradeCount: tradeSummary.closedTradeCount || 0,
+            winningTrades: tradeSummary.winningTrades || 0,
+            losingTrades: tradeSummary.losingTrades || 0,
+            flatTrades: tradeSummary.flatTrades || 0,
             balanceAud,
             totalValueAud,
             realizedPnlAud: hasSnapshot
                 ? toFiniteNumber(portfolio.realizedPnlAud, 0)
-                : 0,
+                : toFiniteNumber(tradeSummary.realizedPnlAud, 0),
             unrealizedPnlAud: hasSnapshot
                 ? toFiniteNumber(portfolio.unrealizedPnlAud, 0)
                 : 0,

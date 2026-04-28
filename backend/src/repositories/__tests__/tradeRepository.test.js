@@ -340,6 +340,82 @@ describe('TradeRepository', () => {
         });
     });
 
+    describe('getRecentByActivity', () => {
+        test('should return bounded trades ordered by exit time then entry time', async () => {
+            const now = Date.now();
+            await repository.save(createClosedTrade({
+                id: 'older-close',
+                entryTime: now - 5000,
+                exitTime: now - 4000,
+            }));
+            await repository.save(createMockTrade({
+                id: 'open-recent',
+                entryTime: now - 1000,
+                exitTime: null,
+            }));
+            await repository.save(createClosedTrade({
+                id: 'newer-close',
+                entryTime: now - 3000,
+                exitTime: now - 500,
+            }));
+
+            const trades = await repository.getRecentByActivity(2);
+
+            expect(trades).toHaveLength(2);
+            expect(trades[0].id).toBe('newer-close');
+            expect(trades[1].id).toBe('open-recent');
+        });
+    });
+
+    describe('getTradeSummary', () => {
+        test('should calculate counts and realized P/L in SQL', async () => {
+            await repository.save(createClosedTrade({ id: 'summary-win', pnlAud: 5, pnlPips: 20 }));
+            await repository.save(createLosingTrade({ id: 'summary-loss', pnlAud: -2, pnlPips: -10 }));
+            await repository.save(createClosedTrade({ id: 'summary-flat', pnlAud: 0, pnlPips: 0 }));
+            await repository.save(createMockTrade({ id: 'summary-open', isOpen: true }));
+
+            const summary = await repository.getTradeSummary();
+
+            expect(summary).toEqual(
+                expect.objectContaining({
+                    totalTrades: 4,
+                    openTradeCount: 1,
+                    closedTradeCount: 3,
+                    winningTrades: 1,
+                    losingTrades: 1,
+                    flatTrades: 1,
+                    realizedPnlAud: 3,
+                    realizedPnlPips: 10,
+                })
+            );
+        });
+
+        test('should honor runtime owner filters', async () => {
+            await repository.save(createClosedTrade({
+                id: 'summary-run-a',
+                pnlAud: 5,
+                mode: 'paper_candidate',
+                runId: 'run-a',
+                ownerRunId: 'run-a',
+            }));
+            await repository.save(createClosedTrade({
+                id: 'summary-run-b',
+                pnlAud: 7,
+                mode: 'paper_candidate',
+                runId: 'run-b',
+                ownerRunId: 'run-b',
+            }));
+
+            const summary = await repository.getTradeSummary({
+                mode: 'paper_candidate',
+                ownerRunId: 'run-a',
+            });
+
+            expect(summary.totalTrades).toBe(1);
+            expect(summary.realizedPnlAud).toBe(5);
+        });
+    });
+
     describe('updateTrade', () => {
         test('should update trade fields', async () => {
             const trade = createMockTrade({ id: 'trade-update' });

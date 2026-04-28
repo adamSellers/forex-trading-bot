@@ -30,6 +30,11 @@ class TradeRepository {
         }
     }
 
+    _toInteger(value, fallback = 0) {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
     _applyRuntimeFilters(query, filters = {}) {
         const {
             mode = "live",
@@ -256,6 +261,78 @@ class TradeRepository {
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting all trades:", error);
+            throw error;
+        }
+    }
+
+    async getRecentByActivity(limit = 200, filters = {}) {
+        try {
+            const records = await this._applyRuntimeFilters(db("trades"), filters)
+                .orderByRaw("COALESCE(exit_time, entry_time, 0) DESC")
+                .limit(limit);
+            return records.map((r) => this._mapToTradeObject(r));
+        } catch (error) {
+            logger.error("Error getting recent trades by activity:", error);
+            throw error;
+        }
+    }
+
+    async getClosedTrades(limit = 1000, filters = {}) {
+        try {
+            const records = await this._applyRuntimeFilters(
+                db("trades").where("is_open", false),
+                filters
+            )
+                .orderByRaw("COALESCE(exit_time, entry_time, 0) DESC")
+                .limit(limit);
+            return records.map((r) => this._mapToTradeObject(r));
+        } catch (error) {
+            logger.error("Error getting closed trades:", error);
+            throw error;
+        }
+    }
+
+    async getTradeSummary(filters = {}) {
+        try {
+            const row = await this._applyRuntimeFilters(db("trades"), filters)
+                .select(
+                    db.raw("COUNT(*) AS total_trades"),
+                    db.raw(
+                        "SUM(CASE WHEN is_open = 1 THEN 1 ELSE 0 END) AS open_trades"
+                    ),
+                    db.raw(
+                        "SUM(CASE WHEN is_open = 0 THEN 1 ELSE 0 END) AS closed_trades"
+                    ),
+                    db.raw(
+                        "SUM(CASE WHEN is_open = 0 AND COALESCE(pnl_aud, 0) > 0 THEN 1 ELSE 0 END) AS winning_trades"
+                    ),
+                    db.raw(
+                        "SUM(CASE WHEN is_open = 0 AND COALESCE(pnl_aud, 0) < 0 THEN 1 ELSE 0 END) AS losing_trades"
+                    ),
+                    db.raw(
+                        "SUM(CASE WHEN is_open = 0 AND COALESCE(pnl_aud, 0) = 0 THEN 1 ELSE 0 END) AS flat_trades"
+                    ),
+                    db.raw(
+                        "SUM(CASE WHEN is_open = 0 THEN COALESCE(pnl_aud, 0) ELSE 0 END) AS realized_pnl_aud"
+                    ),
+                    db.raw(
+                        "SUM(CASE WHEN is_open = 0 THEN COALESCE(pnl_pips, 0) ELSE 0 END) AS realized_pnl_pips"
+                    )
+                )
+                .first();
+
+            return {
+                totalTrades: this._toInteger(row?.total_trades),
+                openTradeCount: this._toInteger(row?.open_trades),
+                closedTradeCount: this._toInteger(row?.closed_trades),
+                winningTrades: this._toInteger(row?.winning_trades),
+                losingTrades: this._toInteger(row?.losing_trades),
+                flatTrades: this._toInteger(row?.flat_trades),
+                realizedPnlAud: this._toNumber(row?.realized_pnl_aud) || 0,
+                realizedPnlPips: this._toNumber(row?.realized_pnl_pips) || 0,
+            };
+        } catch (error) {
+            logger.error("Error getting trade summary:", error);
             throw error;
         }
     }
