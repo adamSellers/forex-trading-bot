@@ -338,12 +338,19 @@ router.get("/system/health", async (req, res) => {
         }
 
         // Get service statuses
+        const candleCache = dataService?.candleCache || {};
+        const candleCount = Object.values(candleCache).reduce(
+            (total, candles) => total + (Array.isArray(candles) ? candles.length : 0),
+            0
+        );
         const dataServiceStatus = dataService
             ? {
                   isRunning: dataService.isRunning || false,
                   instruments: dataService.instruments || [],
                   priceCount: Object.keys(dataService.getAllPrices?.() || {})
                       .length,
+                  candlesCached: Object.keys(candleCache).length,
+                  candleCount,
                   lastUpdate: dataService.lastUpdate || null,
               }
             : { isRunning: false };

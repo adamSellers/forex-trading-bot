@@ -114,6 +114,8 @@ const TradingDashboard = () => {
 
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
+  const strategyCatalogRef = useRef(strategyCatalog);
+  const liveSelectionRef = useRef(liveSelection);
 
   // --- WEBSOCKET & DATA ---
   useEffect(() => {
@@ -123,6 +125,14 @@ const TradingDashboard = () => {
       if (socketRef.current) socketRef.current.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    strategyCatalogRef.current = strategyCatalog;
+  }, [strategyCatalog]);
+
+  useEffect(() => {
+    liveSelectionRef.current = liveSelection;
+  }, [liveSelection]);
 
   const updateSignalState = useCallback((newSignals) => {
     if (!newSignals) return;
@@ -245,10 +255,18 @@ const TradingDashboard = () => {
     socket.on('engineStatus', (s) => isMountedRef.current && setEngineStatus(s));
     socket.on('liveSelectionUpdated', (selection) => {
       if (isMountedRef.current) {
-        setLatestSignals(new Map());
+        const previousSelection = liveSelectionRef.current;
+        const selectionChanged =
+          selection?.liveRunId &&
+          previousSelection?.liveRunId &&
+          selection.liveRunId !== previousSelection.liveRunId;
+
+        if (selectionChanged) {
+          setLatestSignals(new Map());
+        }
         setLiveSelection(selection || null);
         setSelectedStrategy((current) =>
-          normalizeStrategySelection(selection?.strategy || current, strategyCatalog)
+          normalizeStrategySelection(selection?.strategy || current, strategyCatalogRef.current)
         );
         fetchInitialData();
         setLastUpdate(Date.now());
@@ -320,14 +338,17 @@ const TradingDashboard = () => {
         setSystemStatus((prev) => ({ ...prev, config: newConfig }));
         setTradingEnabled(newConfig.enableTrading || false);
         setSelectedStrategy((current) =>
-          normalizeStrategySelection(liveSelection?.strategy || newConfig.strategy || current, strategyCatalog)
+          normalizeStrategySelection(
+            liveSelectionRef.current?.strategy || newConfig.strategy || current,
+            strategyCatalogRef.current
+          )
         );
         setLastUpdate(Date.now());
       }
     });
 
     return () => socket.disconnect();
-  }, [fetchInitialData, liveSelection?.strategy, strategyCatalog, updateSignalState]);
+  }, [fetchInitialData, updateSignalState]);
 
   // --- HANDLERS ---
   const handleToggleTrading = async () => {

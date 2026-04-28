@@ -204,11 +204,17 @@ class OandaDataService extends EventEmitter {
     }
 
     getStatus() {
+        const candleCount = Object.values(this.candleCache).reduce(
+            (total, candles) => total + (Array.isArray(candles) ? candles.length : 0),
+            0
+        );
+
         return {
             isRunning: this.isRunning,
             instruments: this.instruments,
             pricesCached: Object.keys(this.priceCache).length,
             candlesCached: Object.keys(this.candleCache).length,
+            candleCount,
             candleGranularities: this.getRequiredGranularities(),
         };
     }
