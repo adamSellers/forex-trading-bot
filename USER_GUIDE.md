@@ -6,21 +6,47 @@ A practical guide for understanding and configuring your forex trading bot, writ
 
 ## Table of Contents
 
-1. [Forex vs Crypto: Key Differences](#forex-vs-crypto-key-differences)
-2. [Understanding Leverage & Margin](#understanding-leverage--margin)
-3. [What Are Pips?](#what-are-pips)
-4. [Trading Sessions](#trading-sessions)
-5. [Strategy Settings](#strategy-settings)
-6. [Risk Management Settings](#risk-management-settings)
-7. [Position Sizing](#position-sizing)
-8. [Stop Loss Configuration](#stop-loss-configuration)
-9. [Take Profit (Balance-Based)](#take-profit-balance-based)
-10. [Email Notifications](#email-notifications)
-11. [S3 Analytics Reports](#s3-analytics-reports)
-12. [Engine Activation](#engine-activation)
-13. [Monitoring & Commands](#monitoring--commands)
-14. [Safety Features](#safety-features)
-15. [Troubleshooting](#troubleshooting)
+1. [Current App Model](#current-app-model)
+2. [Forex vs Crypto: Key Differences](#forex-vs-crypto-key-differences)
+3. [Understanding Leverage & Margin](#understanding-leverage--margin)
+4. [What Are Pips?](#what-are-pips)
+5. [Trading Sessions](#trading-sessions)
+6. [Strategy Settings](#strategy-settings)
+7. [Risk Management Settings](#risk-management-settings)
+8. [Position Sizing](#position-sizing)
+9. [Stop Loss Configuration](#stop-loss-configuration)
+10. [Take Profit (Margin-Based)](#take-profit-margin-based)
+11. [Email Notifications](#email-notifications)
+12. [S3 Analytics Reports](#s3-analytics-reports)
+13. [Engine Activation](#engine-activation)
+14. [Monitoring & Commands](#monitoring--commands)
+15. [Safety Features](#safety-features)
+16. [Troubleshooting](#troubleshooting)
+
+---
+
+## Current App Model
+
+The app now uses a shared runtime for live trading and paper comparison:
+
+- `live`: the active broker-connected strategy run
+- `paper_shadow`: the always-on paper mirror paired with the active live selection
+- `paper_candidate`: isolated paper runs launched from the Paper view for comparison
+
+There is one active live entry strategy at a time. Existing live positions stay attached to the run that opened them through `ownerRunId`, so switching or promoting strategies affects new entries rather than rewriting ownership of open trades.
+
+The current strategy registry contains:
+
+| Strategy | Role | Live Path |
+| --- | --- | --- |
+| `supertrend_momentum` | Baseline | Direct dashboard selection |
+| `mean_reversion` | Candidate | Paper run, then Promote to Live |
+| `range_breakout` | Candidate | Paper run, then Promote to Live |
+| `stochastic_divergence` | Candidate | Paper run, then Promote to Live |
+| `squeeze_play` | Candidate | Paper run, then Promote to Live |
+| `timesfm_directional` | Candidate | Paper run, then Promote to Live; requires TimesFM sidecar forecasts |
+
+The older offline backtest/lab workflow is retired. Use the Paper and Analytics views for comparison.
 
 ---
 
@@ -84,10 +110,10 @@ With 10:1 leverage:
 ### Your Leverage Setting
 
 ```javascript
-leverage: 10; // 10:1 leverage
+leverage: 20; // 20:1 leverage
 ```
 
-This is moderate and sensible. ASIC allows up to 30:1 for major forex pairs, but 10:1 gives you room for error.
+The shared default is 20:1. ASIC allows up to 30:1 for major forex pairs; reducing leverage lowers maximum notional exposure.
 
 ---
 
@@ -144,7 +170,7 @@ USD_JPY: 150.25
 | `trailingStopPips`           | 25    | Trail this far behind price           |
 | `trailingStopActivationPips` | 20    | Start trailing after this much profit |
 
-**Note:** Take profit now uses balance-based targeting (`takeProfitPercent: 0.06`) instead of fixed pips. See [Take Profit section](#take-profit-balance-based) for details.
+**Note:** Take profit is optional and disabled by default. When enabled, it uses margin-based targeting (`takeProfitPercent: 0.06`) instead of fixed pips. See [Take Profit section](#take-profit-margin-based) for details.
 
 ---
 
@@ -205,7 +231,7 @@ When enabled, the bot only enters trades during selected sessions. With all four
 
 ## Strategy Settings
 
-The bot uses a **SuperTrend + ADX Momentum** strategy - a trend-following approach that enters when trends flip direction.
+The active live default is **SuperTrend Momentum**, a trend-following strategy that combines SuperTrend, ADX, RSI momentum, ATR sizing context, and optional higher-timeframe confirmation. The app also supports paper candidate strategies that can be promoted to live after review from the Paper view.
 
 ### Timeframe
 
@@ -256,7 +282,7 @@ These filters BLOCK trades that don't meet quality criteria.
 
 ```javascript
 enableAdxFilter: true,
-minAdx: 22
+minAdx: 21
 ```
 
 **ADX (Average Directional Index)** measures trend strength, not direction:
@@ -276,13 +302,16 @@ SuperTrend flips 🟢 + ADX = 25:  ✅ Allowed - "Strong trend confirmed"
 **Tuning guide:**
 
 -   Lower (18-20): More trades, more false signals
--   Standard (22): Good balance for forex
+-   Current default (21): Good balance for the deployed forex cohort
 -   Higher (25-28): Fewer trades, higher quality
 
 #### RSI Filter (Momentum Exhaustion)
 
 ```javascript
 enableRsiFilter: true,
+longRsiMomentumFloor: 52,
+shortRsiMomentumCeiling: 50,
+freshLongRsiCeiling: 68,
 rsiOverbought: 75,
 rsiOversold: 30
 ```
@@ -300,32 +329,55 @@ SuperTrend flips 🟢 + RSI = 80:  ❌ Blocked - "Already overbought"
 SuperTrend flips 🟢 + RSI = 55:  ✅ Allowed - "Room to run"
 ```
 
-This prevents buying at the top of a move.
+The live baseline now uses both momentum floors and overextension ceilings. In plain English: longs need enough bullish RSI momentum but should not be freshly overextended; shorts mirror that with bearish momentum checks.
 
 ### Continuation Entry
 
 ```javascript
 enableContinuationEntry: true,
+enableLongContinuationEntry: true,
+enableShortContinuationEntry: true,
 continuationWindowMs: 14400000,  // 4 hours
-continuationRsiThreshold: 70,
-continuationMaxPriceDeviation: 0.02  // 2%
+continuationPullbackMinAtr: 0.5,
+continuationPullbackMaxAtr: 1.5
 ```
 
-**The problem:** Sometimes SuperTrend flips but RSI is too high, blocking entry. Then price keeps going and you miss the move.
+**The problem:** Sometimes a valid flip needs H1 confirmation or a pullback before the entry is worth taking.
 
-**The solution:** Save the blocked signal as "pending" and enter later when RSI cools down.
+**The solution:** Save the setup as pending and wait for higher-timeframe confirmation or a pullback-and-reacceleration sequence inside the configured window.
 
 ```
-Candle 1:  SuperTrend flips 🟢, RSI = 78 → ❌ Blocked, saved as pending
-Candle 10: RSI drops to 65 → ✅ Continuation entry triggered!
-4 hours+:  Pending expires if RSI never cooled
+Candle 1:  SuperTrend flips 🟢, H1 not aligned → setup saved as pending
+Candle 4:  H1 confirms but move is stretched → wait for pullback
+Candle 9:  Pullback stays inside ATR band and price breaks out → ✅ Continuation entry
+4 hours+:  Pending expires if setup never confirms
 ```
 
 **Settings explained:**
 
--   `continuationWindowMs`: How long to wait for RSI cooldown (4 hours)
--   `continuationRsiThreshold`: RSI must drop below this (70)
--   `continuationMaxPriceDeviation`: Cancel if price moved more than 2% from original signal
+-   `continuationWindowMs`: How long to keep the setup alive (4 hours)
+-   `continuationPullbackMinAtr`: Minimum pullback depth before reacceleration is meaningful
+-   `continuationPullbackMaxAtr`: Maximum pullback depth before the setup is considered damaged
+
+### TimesFM Settings
+
+TimesFM can run in two ways:
+
+- Overlay enrichment for normal strategy signals. Modes are `observe`, `size`, and `veto`.
+- Native `timesfm_directional` candidate strategy, which creates entries directly from forecast direction, confidence, and expected return.
+
+Shared defaults:
+
+```javascript
+timesFmEnabled: true,
+timesFmMode: "observe",
+timesFmHorizonBars: 12,
+timesFmTimeoutMs: 5000,
+timesFmVetoConfidence: 0.75,
+timesFmDeadZoneBps: 3
+```
+
+The sidecar is fail-open for overlay enrichment. For the native TimesFM Directional strategy, unavailable forecasts produce HOLD signals rather than guessed entries.
 
 ---
 
@@ -336,26 +388,26 @@ These settings protect your capital.
 ### Risk Per Trade
 
 ```javascript
-riskPerTrade: 0.02; // 2%
+riskPerTrade: 0.01; // 1%
 ```
 
-This means each trade risks 2% of your account balance.
+This means each trade risks 1% of the available sizing base before leverage and margin caps are applied.
 
-| Account Balance | 2% Risk | Max Loss Per Trade |
+| Account Balance | 1% Risk | Max Loss Per Trade |
 | --------------- | ------- | ------------------ |
-| $100            | $2      | ~$2                |
-| $1,000          | $20     | ~$20               |
-| $10,000         | $200    | ~$200              |
+| $100            | $1      | ~$1                |
+| $1,000          | $10     | ~$10               |
+| $10,000         | $100    | ~$100              |
 
 **Professional standard:** 1-2% per trade. Never exceed 5%.
 
 ### Maximum Capital at Risk
 
 ```javascript
-maxCapitalAtRisk: 100; // AUD
+maxCapitalAtRisk: 500; // AUD
 ```
 
-This is a hard cap. Even if 2% of your balance exceeds this, you won't risk more than $100 per trade.
+This is a hard cap on the capital base used for risk sizing. Even if the account has more available margin, sizing is capped by this value.
 
 ### Maximum Open Positions
 
@@ -363,7 +415,7 @@ This is a hard cap. Even if 2% of your balance exceeds this, you won't risk more
 maxOpenPositions: 2;
 ```
 
-Limits how many trades can be open simultaneously. With 2 positions at 2% risk each, your maximum exposure is 4% of account.
+Limits how many trades can be open simultaneously. The shared default is 2 positions; portfolio exposure is also capped separately.
 
 ### Maximum Portfolio Exposure
 
@@ -395,11 +447,11 @@ Position Size = Risk Amount / (Stop Loss Pips × Pip Value)
 
 Example:
 Account: $1,000
-Risk: 2% = $20
+Risk: 1% = $10
 Stop Loss: 30 pips
 Pip Value: $0.10 per pip per 1,000 units
 
-Position = $20 / (30 × $0.0001) = ~6,666 units
+Position = $10 / (30 × $0.0001) = ~3,333 units
 ```
 
 **Benefits:**
@@ -437,7 +489,8 @@ stopLossType: "ATR"; // or "FIXED"
 
 ```javascript
 stopLossType: "ATR",
-stopLossAtrMultiplier: 2.0
+stopLossAtrMultiplier: 2.0,
+minStopLossPips: 15
 ```
 
 **ATR (Average True Range)** measures recent volatility. Your stop loss adapts to market conditions:
@@ -496,46 +549,40 @@ Result: +25 pips profit instead of +50, but locked in gains
 
 ---
 
-## Take Profit (Balance-Based)
+## Take Profit (Margin-Based)
 
 ```javascript
-enableTakeProfit: true,
-takeProfitPercent: 0.06  // 6% of account balance
+enableTakeProfit: false,
+takeProfitPercent: 0.06  // 6% of margin used when enabled
 ```
 
-The take profit feature uses a **balance-based approach** rather than fixed pips. This creates a consistent 1:3 risk:reward ratio with your 2% risk per trade.
+Take profit is disabled by default. When enabled, it uses a **margin-based approach** rather than fixed pips or account-balance targeting.
 
 **How it works:**
 
 ```
-Target Profit = Account Balance × takeProfitPercent
+Target Profit = Margin Used × takeProfitPercent
 TP Price = Entry Price + (Target Profit / Units)
 
-Example (on $100 account with 850 units EUR_USD):
-Target = $100 × 0.06 = $6.00
-Price Change = $6.00 / 850 = 0.00706
-TP Price = 1.1050 + 0.00706 = 1.1121 (~70 pips above entry)
+Example (with $46 margin used and 850 units EUR_USD):
+Target = $46 × 0.06 = $2.76
+Price Change = $2.76 / 850 = 0.00325
+TP Price = 1.1050 + 0.00325 = 1.10825 (~32.5 pips above entry)
 ```
-
-**Risk:Reward calculation:**
-- Risk: 2% of balance (~$2 on $100 account)
-- Reward: 6% of balance (~$6 on $100 account)
-- **R:R = 1:3** (only need 25% win rate to break even)
 
 **Key behaviors:**
 - TP order is set on Oanda at entry time (server-side execution, no lag)
-- Scales automatically with account balance (larger account = larger TP target)
+- Scales with actual margin used by that trade
 - Can be adjusted from 2% to 15% via UI slider
 - Coexists with signal reversal exits (whichever comes first)
 
 | Setting | Range | Description |
 |---------|-------|-------------|
 | `enableTakeProfit` | true/false | Enable/disable the feature |
-| `takeProfitPercent` | 0.02-0.15 | Target as percentage of balance |
+| `takeProfitPercent` | 0.02-0.15 | Target as percentage of margin used |
 
-**Why balance-based instead of fixed pips?**
-- Adapts to your account size automatically
-- Maintains consistent risk:reward ratio
+**Why margin-based instead of fixed pips?**
+- Adapts to actual trade size and leverage
 - Prevents the issue of trades reaching large unrealized profits but exiting small due to lagging signal reversals
 
 ---
@@ -790,7 +837,7 @@ The bot includes multiple safety layers:
 | Feature                     | Description                                    |
 | --------------------------- | ---------------------------------------------- |
 | Trading disabled by default | Must explicitly enable                         |
-| Paper mode                  | Test without real money                        |
+| Paper runtime               | Shadow and candidate runs test without real money |
 | Position limits             | `maxOpenPositions` cap                         |
 | Capital limits              | `maxCapitalAtRisk` cap                         |
 | Entry validation            | Multiple checks before execution               |
@@ -798,7 +845,10 @@ The bot includes multiple safety layers:
 | Session filter              | Avoid low-liquidity periods                    |
 | ADX filter                  | Avoid choppy markets                           |
 | RSI filter                  | Avoid buying tops                              |
-| Take profit                 | Balance-based TP (6% target, 1:3 risk:reward)  |
+| Take profit                 | Optional margin-based TP when enabled          |
+| Runtime ownership           | Open live positions stay attached to their owner run |
+| Candidate promotion review  | Live-capable candidates promote only from Paper |
+| TimesFM fail-open overlay   | Sidecar failure does not block normal strategies |
 | Email alerts                | Get notified when trades open/close            |
 | S3 analytics reports        | Daily/weekly performance uploads to AWS S3     |
 | Graceful shutdown           | Clean stop with timeout                        |
@@ -855,21 +905,22 @@ Check in order:
 
 | Category      | Setting             | Value          |
 | ------------- | ------------------- | -------------- |
-| **Risk**      | Risk Per Trade      | 2%             |
-| **Risk**      | Max Capital at Risk | $100           |
+| **Risk**      | Risk Per Trade      | 1%             |
+| **Risk**      | Max Capital at Risk | $500           |
 | **Risk**      | Max Open Positions  | 2              |
-| **Risk**      | Leverage            | 10:1           |
+| **Risk**      | Leverage            | 20:1           |
 | **Strategy**  | Timeframe           | 15 minutes     |
-| **Strategy**  | Min ADX             | 22             |
+| **Strategy**  | Min ADX             | 21             |
 | **Strategy**  | RSI Overbought      | 75             |
 | **Stop Loss** | Type                | ATR-based      |
 | **Stop Loss** | ATR Multiplier      | 2.0            |
+| **Stop Loss** | Minimum             | 15 pips        |
 | **Trailing**  | Enabled             | Yes            |
 | **Trailing**  | Activation          | 20 pips profit |
 | **Trailing**  | Distance            | 25 pips        |
-| **Take Profit** | Enabled           | Yes            |
-| **Take Profit** | Target            | 6% of balance  |
-| **Take Profit** | Risk:Reward       | 1:3            |
+| **Take Profit** | Enabled           | No             |
+| **Take Profit** | Target when on    | 6% of margin used |
+| **TimesFM**   | Mode                | Observe        |
 | **Sessions**  | Filter Enabled      | Yes            |
 | **Sessions**  | Active              | All four       |
 
@@ -882,16 +933,16 @@ Every 60 seconds:
     SuperTrend Flipped? ──No──► HOLD
          │ Yes
          ▼
-    ADX ≥ 22? ──No──► REJECTED
+    ADX ≥ 21? ──No──► REJECTED
          │ Yes
          ▼
-    RSI < 75? ──No──► Save as PENDING
-         │ Yes         │
-         ▼             ▼
-    ✅ BUY SIGNAL    Wait for RSI < 70
-         │             │
-         ▼             ▼
-    Execute Trade    ✅ CONTINUATION ENTRY
+    Momentum + HTF OK? ──No──► Save as PENDING
+         │ Yes              │
+         ▼                  ▼
+    ✅ BUY/SELL SIGNAL   Wait for confirmation or pullback
+         │                  │
+         ▼                  ▼
+    Execute Trade       ✅ CONTINUATION ENTRY
 ```
 
 ### Key Commands
@@ -928,8 +979,9 @@ curl http://localhost:3101/api/signals
 | **Spread**        | Difference between buy and sell price (broker's fee)              |
 | **Stop Loss**     | Automatic exit to limit losses                                    |
 | **SuperTrend**    | Trend indicator that flips between bullish/bearish                |
+| **TimesFM**       | Time-series forecast sidecar used for optional signal context or native directional entries |
 | **Trailing Stop** | Stop loss that follows price, locking in profits                  |
 
 ---
 
-_Last updated: January 20, 2026_
+_Last updated: April 28, 2026_

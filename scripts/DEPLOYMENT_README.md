@@ -115,6 +115,7 @@ After Phase 5, the supported comparison path is:
 1. Open the `Paper` view to inspect the active shadow baseline and any candidate runs
 2. Open the `Analytics` view and filter by `mode`, `strategy`, `runId`, or `selectionId`
 3. Use the runtime endpoints under `/api/runtime/*` plus `/api/analytics`
+4. Promote a live-capable candidate only through `POST /api/runtime/runs/:runId/promote` after reviewing its paper run
 
 Legacy `/api/backtest` routes and offline backtest CLI workflows are no longer part
 of the supported operator workflow.
@@ -205,7 +206,7 @@ curl http://localhost:3101/api/health
 
 ### TimesFM sidecar
 
-The bot can enrich actionable signals through the Mac-hosted TimesFM sidecar.
+The bot can enrich actionable signals through the Mac-hosted TimesFM sidecar, and the native `timesfm_directional` strategy depends on the same sidecar for forecast-led entries.
 
 1. Deploy the Python service from [`timesfm-sidecar/`](../timesfm-sidecar/README.md) on Lathe
 2. Store `TIMESFM_URL` and `TIMESFM_KEY` on the Pi via `./scripts/setup-secrets.sh`
@@ -220,7 +221,10 @@ Verification endpoints:
 ```bash
 curl http://localhost:3101/api/system/health
 curl http://localhost:3101/api/engine/status
+curl http://localhost:3101/api/strategies/catalog
 ```
+
+Operational note: overlay enrichment fails open when TimesFM is unavailable. The native `timesfm_directional` strategy emits HOLD until a usable forecast is available.
 
 ### Database issues
 

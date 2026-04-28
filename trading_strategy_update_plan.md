@@ -27,7 +27,8 @@ As of 2026-03-30:
 - Phases 1-5 are complete in code
 - Comparison and analytics now flow through the shared runtime only
 - Legacy backtest/lab production paths and offline comparison tooling are retired
-- The next implementation thread should begin at Phase 6
+- Phase 6 rollout/monitoring remains the operator checkpoint
+- As of 2026-04-28, `timesfm_directional` is registered as the sixth canonical strategy and is live-promotable from a reviewed paper candidate run
 
 ## Current Baseline
 
@@ -53,13 +54,14 @@ Observed from the current codebase:
 
 ### Canonical Strategy Catalog
 
-The canonical strategy catalog is locked to these five strategy keys:
+The canonical strategy catalog is locked to these six strategy keys:
 
 - `supertrend_momentum`
 - `mean_reversion`
 - `range_breakout`
 - `stochastic_divergence`
 - `squeeze_play`
+- `timesfm_directional`
 
 Legacy pseudo-strategy labels such as `balanced`, `conservative`, and `responsive` are removed from the active runtime, validation, and UI during Phase 1.
 
@@ -84,7 +86,7 @@ Legacy pseudo-strategy labels such as `balanced`, `conservative`, and `responsiv
 
 ## Runtime Terms
 
-- `strategyKey`: one of the five canonical strategy names
+- `strategyKey`: one of the six canonical strategy names
 - `selectionId`: durable identifier for a live strategy selection event from the UI
 - `runId`: durable identifier for an executing strategy run
 - `mode`: `live`, `paper_shadow`, or `paper_candidate`
@@ -98,7 +100,7 @@ Legacy pseudo-strategy labels such as `balanced`, `conservative`, and `responsiv
 | Area | Target |
 | --- | --- |
 | Strategy contract | `backend/src/strategies/*` exports metadata, required data, `evaluateEntry`, `evaluateExit`, and optional state hooks |
-| Strategy registry | One registry enumerates the five canonical strategies and exposes metadata to API/UI |
+| Strategy registry | One registry enumerates the six canonical strategies and exposes metadata to API/UI |
 | Shared runtime | A runtime coordinator creates and manages live, shadow, and candidate runs using shared market context and indicator precomputation |
 | Live execution | Live order placement remains broker-backed, but entry decisions come from the shared runtime instead of a dedicated `signalGenerator` path |
 | Position ownership | Open live trades are routed back to the owning strategy run for exit decisions until closure |
@@ -163,13 +165,14 @@ The final runtime/API direction is:
 - `GET /api/runtime/runs/:runId/trades`
 - `GET /api/runtime/runs/:runId/signals`
 - `GET /api/runtime/runs/:runId/equity`
+- `POST /api/runtime/runs/:runId/promote`
 - `GET /api/analytics?mode=&strategy=&runId=&period=`
 
 Behavior rules:
 
 - `POST /api/runtime/live-selection` starts a new live run and a paired shadow paper run immediately
 - Existing live trades are not force-closed on strategy selection changes
-- Promotion is no longer a deploy-time config rewrite; selecting a live strategy from the UI is the runtime promotion action
+- Promotion is no longer a deploy-time config rewrite. Direct live selection uses `POST /api/runtime/live-selection` for baseline/live-ready strategies; reviewed candidate strategies use `POST /api/runtime/runs/:runId/promote`.
 
 ## Strategy-To-Phase Map
 
@@ -180,6 +183,7 @@ Behavior rules:
 | `range_breakout` | Phase 3 | Candidate paper | Requires M5 context support in shared runtime |
 | `stochastic_divergence` | Phase 4 | Candidate paper | Uses pivot and divergence helpers |
 | `squeeze_play` | Phase 4 | Candidate paper | Uses Bollinger, Keltner, and low-volatility release logic |
+| `timesfm_directional` | Post Phase 4 | Candidate paper, live-promotable | Uses the TimesFM sidecar forecast as the entry thesis |
 
 ## Canonical Strategy Specs
 
@@ -431,6 +435,48 @@ Default config:
 }
 ```
 
+### `timesfm_directional`
+
+Thesis:
+
+- Trade directly from TimesFM forecast direction when confidence and expected return clear explicit thresholds
+
+Required data:
+
+- M15 candles
+- Live price, session, and spread context
+- ATR for sizing
+- TimesFM sidecar forecast context
+
+Entry:
+
+- Forecast must be available from the sidecar
+- Forecast direction must be BULLISH or BEARISH, not neutral
+- Confidence must be at least `timesFmStrategyMinConfidence`
+- Absolute expected return must be at least `timesFmStrategyMinReturnBps`
+- Extreme volatility is blocked by default
+- Session and spread filters must pass
+
+Exit and management:
+
+- Stop loss: `timesFmStrategyStopLossAtrMultiplier x ATR`
+- Take profit: `timesFmStrategyRiskReward x stop distance`
+- Time stop: `3h` by default
+- If the sidecar is unavailable, the strategy emits HOLD instead of guessing direction
+
+Default config:
+
+```json
+{
+  "timesFmStrategyMinConfidence": 0.7,
+  "timesFmStrategyMinReturnBps": 10,
+  "timesFmStrategyStopLossAtrMultiplier": 1.5,
+  "timesFmStrategyRiskReward": 1.5,
+  "timesFmStrategyBlockExtremeVolatility": true,
+  "timeStopHours": 3
+}
+```
+
 ## Atomic Packet Set
 
 ### Phase 0 - Documentation Alignment
@@ -460,7 +506,7 @@ Goal:
 
 Packets:
 
-- `ARC-01` Create `backend/src/strategies/` contract, metadata shape, and registry for the five canonical strategies
+- `ARC-01` Create `backend/src/strategies/` contract, metadata shape, and registry for the canonical strategies
 - `ARC-02` Extract `supertrend_momentum` from `signalGenerator.js` with parity tests against the current runtime behavior
 - `ARC-03` Remove legacy strategy aliases from validation, dashboard controls, and config affordances
 - `DB-01` Add `strategy_runs` and extend `trades`, `signals`, `entry_decisions`, and `portfolio_snapshots` with `runId`/`selectionId`/`strategy`
@@ -547,7 +593,7 @@ Packets:
 
 Verification:
 
-- All five strategies are registered and runnable through the shared runtime
+- All runtime strategies are registered and runnable through the shared runtime
 - Analytics and UI can compare live, shadow, and candidate runs from one storage model
 - The paper comparison system is functional enough to replace the legacy lab flow
 

@@ -107,9 +107,9 @@ git push origin main
 
 ## Project Overview
 
-**Forex Trading Bot** is a live automated trading system running on a Raspberry Pi 5 (8GB) that executes trades on the Forex market via the Oanda API using a SuperTrend + ADX Momentum strategy.
+**Forex Trading Bot** is a live automated trading system running on a Raspberry Pi 5 (8GB) that executes trades on the Forex market via the Oanda API using a shared strategy runtime. The current live baseline is SuperTrend Momentum; additional candidate strategies run in paper and can be promoted through the Paper workflow after review.
 
-**Current State**: Production live trading is active. Phases 1-5 of the shared strategy runtime migration are now complete in code: live strategy selection is hot-swappable, shadow paper runs pair automatically with the active live run, candidate paper runs share the same runtime identity model, unified analytics run by `mode`/`runId`/`strategy`, and the legacy backtest/lab stack is retired from the supported workflow.
+**Current State**: Production live trading is active. The shared strategy runtime is complete in code: live strategy selection is hot-swappable, shadow paper runs pair automatically with the active live run, candidate paper runs share the same runtime identity model, unified analytics run by `mode`/`runId`/`strategy`, live-capable candidates can be promoted from Paper, and the legacy backtest/lab stack is retired from the supported workflow.
 
 | Item              | Value                            |
 | ----------------- | -------------------------------- |
@@ -119,7 +119,8 @@ git push origin main
 | Deployment        | Raspberry Pi 5 (8GB)             |
 | Backend Port      | 3101                             |
 | Frontend Port     | 3100                             |
-| Strategy          | SuperTrend + ADX Momentum (v4.5) |
+| Live Baseline     | `supertrend_momentum`            |
+| Strategy Catalog  | 6 canonical strategies           |
 | Database          | SQLite with WAL                  |
 | Production Host   | img.oakroad                      |
 | Dashboard         | http://img.oakroad:3100          |
@@ -136,6 +137,7 @@ git push origin main
 - Live strategy hot-swap from the UI applies to new entries only
 - Existing live positions remain managed by the strategy run that opened them
 - Unified storage and analytics keyed by `mode`, `runId`, and `strategy`
+- Candidate runs remain `paper_candidate` unless deliberately promoted through `/api/runtime/runs/:runId/promote`
 - Legacy backtest/lab architecture is retired; do not recreate a parallel production comparison path
 
 ---
@@ -147,39 +149,39 @@ git push origin main
 | Term              | Description                                                                 |
 | ----------------- | --------------------------------------------------------------------------- |
 | SuperTrend        | Trend-following indicator that flips RED/GREEN based on ATR and price       |
-| ADX               | Average Directional Index - measures trend strength (≥22 required)          |
+| ADX               | Average Directional Index - measures trend strength (shared default: ≥21)   |
 | FRESH_FLIP        | Entry signal when SuperTrend flips + ADX/RSI conditions met                 |
 | CONTINUATION      | Entry signal when blocked flip's conditions improve within 4 hours          |
 | Margin-based TP   | Take profit targets 6% of the margin used for that trade                    |
 | WAL Mode          | SQLite Write-Ahead Logging for safe concurrent access                       |
 
-### Trading Strategy (v4.5)
+### Live Baseline Strategy
 
 **Signal Generation** (every 60 seconds):
 1. Fetch 20 recent 15-min candles per pair
 2. Calculate SuperTrend line (ATR multiplier: 3.0)
 3. Detect SuperTrend flip (RED → GREEN = potential BUY)
-4. Filter by ADX ≥ 22 and RSI < 75
-5. Emit BUY signal if all conditions met
+4. Filter by ADX, directional ADX, RSI momentum/overextension, optional HTF context, session, and spread
+5. Emit BUY/SELL/HOLD signal if all conditions are met
 
 **Entry Validation**:
 - Trading enabled (`enableTrading: true`)
 - Open positions < `maxOpenPositions` (default 2)
 - Pair in configured `assets` array
 - No existing position for this pair
-- Signal ADX >= `minAdx` threshold (22)
+- Signal ADX >= `minAdx` threshold (default 21)
 - Sufficient margin available (with 20% buffer)
 
 **Position Sizing** (risk-based):
 ```
-stop_loss_pips = max(ATR × 2.0, 12 pips floor)
-risk_amount = margin_available × 0.8 × 0.02 (2% risk)
+stop_loss_pips = max(ATR × 2.0, 15 pips floor)
+risk_amount = sizing_base × 0.01 (1% risk)
 units = risk_amount / (stop_loss_pips × pip_value × current_price)
 ```
 
 **Exit Management**:
-- Take Profit: 6% of margin used
-- Stop Loss: ATR-based, minimum 12 pips
+- Take Profit: optional, 6% of margin used when enabled
+- Stop Loss: ATR-based, minimum 15 pips by shared default
 - Signal Reversal: SuperTrend flip to RED
 
 ---
@@ -216,8 +218,12 @@ forex-trend-bot/
 │   │   └── trading_config_initial.json    # Config template (tracked)
 │   ├── migrations/
 │   │   ├── 001_create_forex_tables.js     # Core forex schema
+│   │   ├── 002_create_backtest_results.js # Historical, later retired
+│   │   ├── 003_add_strategy_telemetry_and_reconciliation.js
+│   │   ├── 004_add_entry_decisions.js
 │   │   ├── 005_add_strategy_runs_and_runtime_identity.js
-│   │   └── 006_drop_backtest_results.js   # Retires legacy table during rollout
+│   │   ├── 006_drop_backtest_results.js   # Retires legacy table during rollout
+│   │   └── 007_add_timesfm_context.js      # TimesFM signal/decision context
 │   ├── src/
 │   │   ├── routes/tradingRoutes.js        # 50+ API endpoints
 │   │   ├── runtime/                       # Shared runtime orchestration + market context
@@ -226,6 +232,8 @@ forex-trend-bot/
 │   │   │   ├── LiveTradingEngine.js       # CRITICAL - Broker-backed live execution
 │   │   │   ├── PaperTradingRuntime.js     # Shadow/candidate paper execution
 │   │   │   ├── signalGenerator.js         # Legacy-compatible signal helper surface
+│   │   │   ├── timesFmClient.js           # Fail-open client for Lathe TimesFM sidecar
+│   │   │   ├── timesFmSignalService.js    # Forecast enrichment, caching, and status
 │   │   │   ├── historicalDataService.js   # Offline historical candle helper
 │   │   │   ├── Oandaclient.js             # Oanda API wrapper
 │   │   │   ├── OandaDataService.js        # Price polling
@@ -262,6 +270,7 @@ forex-trend-bot/
 │   ├── restore.sh                         # Restore from backup
 │   ├── setup-secrets.sh                   # API key setup
 │   └── status.sh                          # Operations status helper
+├── timesfm-sidecar/                        # FastAPI TimesFM 2.5 sidecar for Lathe
 ├── ecosystem.config.js                    # PM2 configuration
 ├── claude.md                              # This file
 ├── project_roadmap.md                     # Future features
@@ -386,7 +395,7 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ### Current Phase (2026-03-30)
 
-Phase 6 rollout and monitoring guidance is now prepared for the swappable live strategies + shadow paper trading program.
+Shared runtime and TimesFM Directional promotion readiness are complete in code. Phase 6 rollout and monitoring guidance is prepared for the swappable live strategies + shadow paper trading program.
 
 Completed in this phase:
 
@@ -405,9 +414,10 @@ Completed in this phase:
   - live strategy changes affect new entries only
   - open live trades remain attached to their original `ownerRunId`
   - the paired shadow run remains tied to the active live selection
-  - candidate strategies remain paper-only until an explicit promotion step says otherwise
+  - candidate runs remain paper mode until an explicit promotion step creates a new live selection
   - analytics/reporting continue from unified runtime identity columns
 - Kept migration `006_drop_backtest_results.js` called out explicitly in rollout guidance so old research rows can be exported before deployment if needed
+- Updated `timesfm_directional` metadata so a reviewed TimesFM paper candidate can be promoted to live when the sidecar-backed strategy has enough evidence
 
 Locked decisions carried forward:
 
@@ -417,6 +427,7 @@ Locked decisions carried forward:
 - Existing live positions remain owned by the strategy run that opened them until closure
 - Default shadow paper run always tracks the active live strategy
 - Multiple concurrent paper candidate runs are supported
+- Live-capable candidates can be promoted from the Paper view; the source run remains `paper_candidate`
 - Unified persistence and analytics are keyed by `mode`, `runId`, and `strategy`
 - Legacy backtest/lab comparison is retired; do not reintroduce a second production comparison path
 - Canonical strategy catalog is fixed to:
@@ -425,6 +436,7 @@ Locked decisions carried forward:
   - `range_breakout`
   - `stochastic_divergence`
   - `squeeze_play`
+  - `timesfm_directional`
 
 ### Next Recommended Phase
 
@@ -453,7 +465,7 @@ Manual steps still pending outside this session:
 - `backend/src/services/PaperTradingRuntime.js` owns paper trade open/close, run reset cleanup, portfolio snapshots, and paper-only management rules for `paper_shadow` / `paper_candidate`
 - `backend/src/routes/tradingRoutes.js` now exposes the unified run detail APIs; analytics/detail work should continue using runtime identity columns instead of paper-specific reporting tables
 - `frontend/src/components/BacktestLab.jsx` keeps the legacy filename but is now the runtime-backed paper comparison surface
-- Candidate strategies remain paper-only until an explicit promotion step says otherwise
+- Candidate runs remain paper mode unless promoted through the dedicated promotion endpoint
 - `backend/migrations/006_drop_backtest_results.js` removes the retired legacy table during rollout; export old research rows before deployment if they matter
 
 ### Validation Completed In This Session
@@ -478,7 +490,7 @@ Manual rollout follow-up still pending:
 3. Preserve the Phase 2 live ownership model:
    - live strategy changes affect new entries only
    - open live trades stay attached to their original `ownerRunId`
-   - candidate strategies remain paper-only until a dedicated promotion step says otherwise
+   - candidate runs remain paper mode unless a dedicated promotion step creates a new live selection
 4. Keep `runtimeCoordinator` and `paperTradingRuntime` as the shared backbone; do not reintroduce paper-only orchestration outside that path
 5. Use unified runtime identity columns for any further analytics/reporting work
 6. Remember that rollout will drop the retired `backtest_results` table via migration `006`

@@ -4,7 +4,7 @@ This packet is limited to Phase 6 only:
 
 - Rollout and monitoring only
 - Preserve the Phase 2 live runtime and `ownerRunId` ownership behavior
-- Keep candidate strategies paper-only unless a dedicated promotion step explicitly says otherwise
+- Keep candidate runs in `paper_candidate` unless a dedicated promotion step explicitly creates a new live selection
 - Continue reporting from the unified runtime identity columns
 - Do not reintroduce any legacy lab/backtest production path
 
@@ -109,7 +109,7 @@ Verify the paired shadow baseline and candidate paper isolation:
 1. Open the `Paper` view.
 2. Confirm the active shadow run is present for the active live strategy.
 3. Start or inspect a candidate run from the Paper view.
-4. Confirm candidate rows remain paper-only:
+4. Confirm candidate rows remain paper-mode unless deliberately promoted:
 
 ```bash
 cd /opt/forex-trading-bot/backend
@@ -121,8 +121,27 @@ Expected:
 
 - The shadow baseline stays in `paper_shadow`
 - Candidate runs stay in `paper_candidate`
-- No candidate action writes `mode = 'live'`
+- Launch, stop, and reset candidate actions do not write `mode = 'live'`
 - No separate paper-only reporting tables are introduced
+
+Verify candidate promotion separately before using it operationally:
+
+1. Choose a reviewed active `paper_candidate` run in the Paper view.
+2. Confirm the strategy metadata allows live support:
+   ```bash
+   curl -s http://localhost:3101/api/strategies/catalog | python3 -m json.tool
+   ```
+3. Promote only when comfortable with the cutover behavior:
+   ```bash
+   curl -s -X POST http://localhost:3101/api/runtime/runs/<candidateRunId>/promote | python3 -m json.tool
+   ```
+
+Expected:
+
+- The response includes a new `liveSelection`
+- The promoted source run remains `paper_candidate` and receives promotion metadata
+- A new `live` run and paired `paper_shadow` run are created from the candidate config snapshot
+- Any live-position liquidation is explicit in the response payload
 
 Verify analytics and reporting still use the unified runtime identity columns:
 

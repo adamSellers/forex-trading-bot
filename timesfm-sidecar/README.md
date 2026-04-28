@@ -8,6 +8,7 @@ FastAPI sidecar for serving Google Research TimesFM 2.5 on Lathe.
 - Loads the `google/timesfm-2.5-200m-pytorch` checkpoint once at startup
 - Exposes a small authenticated HTTP API for forecast enrichment
 - Fails independently from the Node.js bot
+- Supports both optional TimesFM overlay enrichment and the native `timesfm_directional` strategy in the shared runtime
 
 ## Layout
 
@@ -84,3 +85,4 @@ The request must include `X-TimesFM-Key`.
 - The service first tries `torch_compile=true` and falls back to `false` if the
   Mac runtime rejects it
 - Refresh `requirements.lock` with `uv lock` on Lathe if upstream packages move
+- If the sidecar is unavailable, normal strategies fail open without the forecast overlay; the native `timesfm_directional` strategy emits HOLD until a forecast is available

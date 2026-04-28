@@ -30,18 +30,20 @@ Approved on 2026-03-30. This is now the primary roadmap item and supersedes the 
 | Priority | Phase | Status | Notes |
 | -------- | ----- | ------ | ----- |
 | HIGH | Phase 0 - Documentation alignment | Complete | Plan and session docs rewritten around the approved target architecture |
-| HIGH | Phase 1 - Strategy catalog + unified run registry | Complete (code) | Canonical five-strategy catalog, `strategy_runs`, unified `runId`/`selectionId` telemetry |
+| HIGH | Phase 1 - Strategy catalog + unified run registry | Complete (code) | Canonical strategy catalog, `strategy_runs`, unified `runId`/`selectionId` telemetry |
 | HIGH | Phase 2 - Shared runtime core + live hot swap + shadow baseline | Complete (code) | One active live entry strategy, ownership-safe switching, default shadow paper run |
 | HIGH | Phase 3 - Candidate paper infrastructure + `mean_reversion` + `range_breakout` | Complete (code) | Multiple concurrent candidate runs and the runtime-backed paper comparison shell |
 | HIGH | Phase 4 - Remaining strategies + unified analytics | Complete (code) | Added `stochastic_divergence`, `squeeze_play`, and runtime-wide analytics filters |
 | HIGH | Phase 5 - Legacy backtest/lab removal | Complete (code) | Removed the retired comparison stack and switched docs/operators to the runtime-only workflow |
-| HIGH | Phase 6 - Rollout and monitoring | Planned | Deploy the shared runtime stack and monitor live/shadow/candidate behavior in production |
+| HIGH | Phase 6 - Rollout and monitoring | Ready for operator rollout | Deploy the shared runtime stack and monitor live/shadow/candidate behavior in production |
+| HIGH | TimesFM Directional live promotion | Complete (code) | `timesfm_directional` is a sixth catalog strategy and can be promoted from a reviewed paper candidate run |
 
 Program rules:
 
 - Existing live positions stay managed by the strategy run that opened them
 - New live strategy selections affect new entries only
 - Shadow paper is the default baseline for the active live strategy
+- Candidate runs stay in paper mode unless promoted through the dedicated promotion endpoint
 - Comparison stays runtime-only; do not reintroduce a parallel backtest/lab production path
 
 ---
@@ -79,6 +81,7 @@ Program rules:
 | HIGH | Hot-swappable live strategy selection with ownership-safe exits | Complete (code) | Preserve `ownerRunId` continuity during Phase 6 rollout |
 | HIGH | Shadow paper baseline plus concurrent candidate paper runs | Complete (code) | Runtime-backed Paper and Analytics surfaces are ready for rollout validation |
 | HIGH | Legacy backtest/lab retirement | Complete (code) | Offline backtest engine/scripts and `backtest_results` have been retired from the supported stack |
+| HIGH | TimesFM sidecar integration and native directional strategy | Complete (code) | Overlay enrichment, health status, analytics context, and `timesfm_directional` paper/live promotion support are implemented |
 | MEDIUM | 2-week live cohort review on March 20 deployment baseline | In progress | Preserve findings as benchmark input while the new strategy runtime is being delivered |
 
 ---
@@ -91,6 +94,19 @@ Program rules:
 | MEDIUM | Backtest engine and result store | Retired (code) | `backtestEngine`, `backtestRepository`, CLI scripts, and `backtest_results` are removed from the supported stack |
 | MEDIUM | Walk-forward analysis | Retired | Do not rebuild this on the legacy backtest path; use runtime paper comparison instead |
 | LOW | Genetic algorithm params | Retired | Do not rebuild this on the legacy backtest path |
+
+---
+
+## Current Strategy Catalog
+
+| Strategy Key | Runtime Status | Live Path | Notes |
+| --- | --- | --- | --- |
+| `supertrend_momentum` | `baseline` | Direct dashboard selection | Current live baseline and default shadow benchmark |
+| `mean_reversion` | `candidate` | Promote from Paper | Range-regime Bollinger/RSI strategy |
+| `range_breakout` | `candidate` | Promote from Paper | Opening-range expansion strategy with M5 context |
+| `stochastic_divergence` | `candidate` | Promote from Paper | Pivot/stochastic reversal strategy |
+| `squeeze_play` | `candidate` | Promote from Paper | Compression/release strategy |
+| `timesfm_directional` | `candidate` | Promote from Paper | Forecast-led strategy using the TimesFM sidecar |
 
 ---
 
@@ -195,7 +211,7 @@ Program rules:
 
 - [ ] Add more currency pairs beyond the current 4-pair cohort
 - [ ] Telegram bot integration for alerts
-- [ ] Performance comparison vs benchmark (buy-and-hold)
+- [ ] Performance comparison vs a runtime shadow/candidate benchmark
 - [ ] Risk-adjusted position sizing based on recent volatility
 - [ ] Session-based trading (only trade during London/NY overlap)
 - [ ] Sentiment analysis integration
@@ -213,4 +229,4 @@ Program rules:
 
 ---
 
-_Last updated: 2026-03-30_
+_Last updated: 2026-04-28_

@@ -22,7 +22,65 @@ When a feature is **fully completed AND deployed to production**:
 
 ---
 
+## Current Repository State
+
+The repository now contains the shared runtime architecture in code:
+
+- One active `live` run, one paired `paper_shadow` run, and any number of `paper_candidate` runs
+- Unified runtime identity across trades, signals, entry decisions, strategy runs, and portfolio snapshots
+- Runtime-backed Paper comparison and Analytics filters by `mode`, `strategy`, `runId`, and `selectionId`
+- Retired legacy offline backtest/lab production path and retired `backtest_results` migration
+- Six canonical strategies:
+  - `supertrend_momentum`
+  - `mean_reversion`
+  - `range_breakout`
+  - `stochastic_divergence`
+  - `squeeze_play`
+  - `timesfm_directional`
+- Live-capable candidate strategies can be promoted from reviewed `paper_candidate` runs; the candidate source run stays paper history and a new live selection is created
+- TimesFM overlay enrichment and the native TimesFM Directional strategy use the Mac-hosted sidecar and fail safely when forecasts are unavailable
+
+Deployment status is still recorded separately from code status. Only move these items into the deployed history below after the production rollout has actually run.
+
+---
+
 ## Completed Features
+
+### 2026-04-28 - TimesFM Directional Promotion Readiness (Code Complete)
+
+**Summary**: Updated the strategy catalog metadata so `timesfm_directional` can be promoted from a candidate paper run to a live selection after review.
+
+**Code Changes**:
+1. Marked `timesfm_directional` as `supportsLive: true` and `supportsShadow: true`.
+2. Added registry coverage to lock live/shadow/candidate support metadata.
+3. Added runtime coordinator coverage proving a live TimesFM run prefetches forecast context and emits an entry-enabled live signal.
+4. Updated operator docs to describe candidate promotion and sidecar dependency behavior.
+
+**Validation**:
+- Targeted backend suites passing:
+  - `src/strategies/__tests__/registry.test.js`
+  - `src/runtime/__tests__/runtimeCoordinator.test.js`
+  - `src/strategies/__tests__/timesFmDirectional.test.js`
+- Full backend suite requires a compatible local `better-sqlite3` native binding for the active Node version before DB-backed repository suites can run.
+
+**Deployment Note**:
+- Not marked deployed here until the user confirms the production rollout.
+
+### 2026-03-30 - Shared Strategy Runtime Phases 1-5 (Code Complete)
+
+**Summary**: Completed the runtime migration in code: strategy runs, live hot-swap, shadow paper baseline, candidate paper runs, unified analytics, and legacy backtest/lab retirement.
+
+**Code Changes**:
+1. Added the shared `strategy_runs` registry and runtime identity columns.
+2. Routed live, shadow paper, and candidate paper signal generation through `runtimeCoordinator`.
+3. Preserved `ownerRunId` semantics so existing live positions remain managed by their opening run.
+4. Added `PaperTradingRuntime` for shadow/candidate execution, resets, snapshots, and run summaries.
+5. Replaced the supported operator comparison workflow with the runtime-backed Paper view.
+6. Added runtime analytics and run detail APIs for trades, signals, and equity.
+7. Retired the legacy backtest/lab production path.
+
+**Deployment Note**:
+- Phase 6 rollout and monitoring remain the operator checkpoint before this becomes deployed production history.
 
 ### 2026-03-20 - Trading Telemetry, Reconciliation, and Parity Hardening (Deployed)
 
@@ -701,6 +759,8 @@ pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
 | 2026-01-31 | Signal persistence for analytics, 90-day retention (193 tests) |
 | 2026-02-02 | Signals component enhancement, Short entry signal filtering    |
 | 2026-02-15 | Short-side hardening and short health analytics                |
+| 2026-03-30 | Shared runtime Phases 1-5 code complete, legacy lab retired    |
+| 2026-04-28 | TimesFM Directional promotion readiness code complete          |
 
 ---
 

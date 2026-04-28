@@ -23,6 +23,7 @@ Important behavior:
 - Live trades stay attached to the run that opened them through `ownerRunId`
 - Replacing the live strategy only affects new entries
 - Older live runs can drop into `managing_only` until their open trades are resolved
+- Live-capable candidate strategies can be promoted from an active `paper_candidate` run; the source run remains paper history and a new live selection is created
 - Analytics, signals, trade history, and equity views can all be filtered by `mode`, `strategy`, `runId`, and `selectionId`
 
 ## Strategy Catalog
@@ -42,7 +43,7 @@ Notes:
 
 - The runtime supports `baseline` and `live_ready` strategies for live selection.
 - In the current catalog, only `supertrend_momentum` is directly live-selectable from the dashboard today.
-- Candidate strategies are launched from the Paper view for comparison against the shadow baseline. Live-capable candidates can be promoted from an active paper run after review.
+- Candidate strategies are launched from the Paper view for comparison against the shadow baseline. All implemented candidates expose live/shadow support in metadata, but promotion is intentionally routed through a reviewed paper run rather than the dashboard selector.
 
 ## Highlights
 
@@ -55,6 +56,7 @@ Notes:
 - SQLite persistence for trades, signals, entry decisions, strategy runs, and portfolio snapshots
 - Optional email notifications and S3 analytics uploads
 - Optional TimesFM 2.5 signal enrichment via a Mac-hosted FastAPI sidecar
+- Native TimesFM Directional strategy that uses the sidecar forecast as its entry thesis and can be promoted from Paper after review
 - PM2 and Raspberry Pi deployment scripts in `scripts/`
 
 ## Architecture
@@ -185,6 +187,7 @@ Typical flow:
 2. Launch one or more candidate paper runs.
 3. Inspect each run's signals, trades, equity curve, and config snapshot.
 4. Compare outcomes in the unified analytics view.
+5. Promote a live-capable candidate only after the paper run has enough evidence and you are comfortable with the cutover behavior.
 
 How to use it:
 
@@ -233,6 +236,13 @@ Before promoting a candidate, look for:
 - stable behavior across sessions and pairs
 - understandable signal reasons, not just accidental outlier wins
 
+Promotion notes:
+
+- `POST /api/runtime/runs/:runId/promote` only accepts `paper_candidate` runs.
+- Promotion pauses/restarts the live engine if it was running, liquidates open live positions when the market is open, then creates a new live run plus paired shadow run from the candidate config snapshot.
+- The promoted source run remains `paper_candidate` and is annotated with promotion metadata for audit.
+- TimesFM Directional promotion requires the TimesFM sidecar to be reachable for actionable forecasts; if the forecast is unavailable, the strategy holds rather than inventing a direction.
+
 ### Analytics
 
 `GET /api/analytics` supports runtime filters such as:
@@ -263,6 +273,7 @@ When no runtime filters are supplied, analytics default to the live cohort.
 - `GET /api/runtime/runs/:runId/trades`
 - `GET /api/runtime/runs/:runId/signals`
 - `GET /api/runtime/runs/:runId/equity`
+- `POST /api/runtime/runs/:runId/promote`
 - `POST /api/runtime/runs/:runId/stop`
 - `POST /api/runtime/runs/:runId/reset`
 
@@ -327,6 +338,12 @@ Shared defaults live in [shared/tradingConfigDefaults.json](/Users/adams/code/fo
   "enableHTFFilter": true,
   "htfTimeframe": "1h",
   "enableShorting": true,
+  "timesFmEnabled": true,
+  "timesFmMode": "observe",
+  "timesFmHorizonBars": 12,
+  "timesFmTimeoutMs": 5000,
+  "timesFmVetoConfidence": 0.75,
+  "timesFmDeadZoneBps": 3,
   "riskPerTrade": 0.01,
   "maxOpenPositions": 2,
   "maxPortfolioExposure": 0.5,
