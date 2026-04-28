@@ -58,7 +58,7 @@ module.exports = {
                 // we can be generous for this forex backend on Pi 5.
                 // -------------------------------------------------------------
                 UV_THREADPOOL_SIZE: "4", // Use all 4 cores
-                NODE_OPTIONS: "--max-old-space-size=512", // 512MB heap
+                NODE_OPTIONS: "--max-old-space-size=1024", // 1GB heap
                 LANG: "en_AU.UTF-8",
                 LC_ALL: "en_AU.UTF-8",
             },
@@ -68,7 +68,7 @@ module.exports = {
             // =================================================================
             autorestart: true,
             watch: false,
-            max_memory_restart: "512M", // Generous limit for Pi 5 8GB
+            max_memory_restart: "1G", // Generous limit for Pi 5 8GB
             restart_delay: 4000,
             max_restarts: 10,
             min_uptime: "10s",
