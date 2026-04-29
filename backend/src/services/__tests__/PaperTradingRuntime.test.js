@@ -197,11 +197,17 @@ describe("PaperTradingRuntime", () => {
                 configHash: "cfg-1",
                 configSnapshot: {
                     strategy: "mean_reversion",
+                    assets: ["AUD_USD", "EUR_USD", "USD_JPY"],
                     paperStartingBalanceAud: 10000,
                     maxOpenPositions: 2,
                     positionSizeMethod: "FIXED",
                     fixedPositionUnits: 1000,
                     leverage: 20,
+                    maxPortfolioExposure: 0.5,
+                    maxSpreadPips: 2,
+                    maxPriceAgeMs: 15000,
+                    enableShorting: true,
+                    enableSessionFilter: false,
                     breakevenAtTpPercent: 0.5,
                     timeStopHours: 8,
                 },
@@ -210,11 +216,17 @@ describe("PaperTradingRuntime", () => {
             generator: {
                 config: {
                     strategy: "mean_reversion",
+                    assets: ["AUD_USD", "EUR_USD", "USD_JPY"],
                     paperStartingBalanceAud: 10000,
                     maxOpenPositions: 2,
                     positionSizeMethod: "FIXED",
                     fixedPositionUnits: 1000,
                     leverage: 20,
+                    maxPortfolioExposure: 0.5,
+                    maxSpreadPips: 2,
+                    maxPriceAgeMs: 15000,
+                    enableShorting: true,
+                    enableSessionFilter: false,
                     breakevenAtTpPercent: 0.5,
                     timeStopHours: 8,
                 },
@@ -230,6 +242,8 @@ describe("PaperTradingRuntime", () => {
             getCurrentPrice: jest.fn(() => ({
                 price: 1.1,
                 spread: 1.1,
+                tradeable: true,
+                timestamp: Date.now(),
             })),
             getPipValue: jest.fn(() => 0.0001),
         };
@@ -277,6 +291,137 @@ describe("PaperTradingRuntime", () => {
                 positionCount: 1,
             })
         );
+    });
+
+    test("processRunSession rejects paper entries when spread is too wide for live gates", async () => {
+        dataService.getCurrentPrice.mockReturnValue({
+            price: 1.1,
+            spread: 2.5,
+            tradeable: true,
+            timestamp: Date.now(),
+        });
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.098,
+                    takeProfitPrice: 1.101,
+                },
+            },
+        ]);
+
+        expect(tradeRepository.save).not.toHaveBeenCalled();
+        expect(portfolioRepository.save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                runId: "run-candidate-1",
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                positionCount: 0,
+            })
+        );
+    });
+
+    test("processRunSession rejects stale paper entries before they inflate candidate results", async () => {
+        dataService.getCurrentPrice.mockReturnValue({
+            price: 1.1,
+            spread: 1.1,
+            tradeable: true,
+            timestamp: Date.now() - 30000,
+        });
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.098,
+                    takeProfitPrice: 1.101,
+                },
+            },
+        ]);
+
+        expect(tradeRepository.save).not.toHaveBeenCalled();
+    });
+
+    test("processRunSession rejects paper shorts when live shorting is disabled", async () => {
+        session.run.configSnapshot.enableShorting = false;
+        session.generator.config.enableShorting = false;
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "SELL",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.102,
+                    takeProfitPrice: 1.099,
+                },
+            },
+        ]);
+
+        expect(tradeRepository.save).not.toHaveBeenCalled();
+    });
+
+    test("processRunSession rejects paper entries that breach projected exposure", async () => {
+        session.run.configSnapshot.fixedPositionUnits = 100000;
+        session.run.configSnapshot.maxPortfolioExposure = 0.05;
+        session.generator.config.fixedPositionUnits = 100000;
+        session.generator.config.maxPortfolioExposure = 0.05;
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.098,
+                    takeProfitPrice: 1.101,
+                },
+            },
+        ]);
+
+        expect(tradeRepository.save).not.toHaveBeenCalled();
+    });
+
+    test("risk sizing uses max capital at risk instead of the whole paper balance", async () => {
+        session.run.configSnapshot.positionSizeMethod = "RISK";
+        session.run.configSnapshot.maxCapitalAtRisk = 100;
+        session.run.configSnapshot.riskPerTrade = 0.01;
+        session.generator.config.positionSizeMethod = "RISK";
+        session.generator.config.maxCapitalAtRisk = 100;
+        session.generator.config.riskPerTrade = 0.01;
+
+        const units = await runtime.calculatePositionUnits(
+            session.run,
+            runtime.getResolvedRunConfig(session.run, session.generator.config),
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                currentPrice: 1.1,
+            },
+            1.098
+        );
+
+        expect(units).toBe(499);
     });
 
     test("evaluateOpenTrade closes paper trades when take profit is reached", async () => {
