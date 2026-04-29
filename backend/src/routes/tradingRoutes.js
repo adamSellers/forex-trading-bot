@@ -12,6 +12,17 @@ function isLiveSelectionReady(strategyDefinition = {}) {
     );
 }
 
+const MANUALLY_RESETTABLE_PAPER_MODES = new Set([
+    RUNTIME_MODES.PAPER_SHADOW,
+    RUNTIME_MODES.PAPER_CANDIDATE,
+]);
+
+function getManualResetMessage(mode) {
+    return mode === RUNTIME_MODES.PAPER_SHADOW
+        ? "Shadow baseline reset"
+        : "Candidate paper run reset";
+}
+
 // Oanda configuration
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
 const OANDA_ACCOUNT_ID = process.env.OANDA_ACCOUNT_ID || "001-011-20128302-001";
@@ -1410,16 +1421,16 @@ router.post("/runtime/runs/:runId/reset", async (req, res) => {
         if (!session) {
             return res.status(404).json({ error: "Run not found" });
         }
-        if (session.run.mode !== RUNTIME_MODES.PAPER_CANDIDATE) {
+        if (!MANUALLY_RESETTABLE_PAPER_MODES.has(session.run.mode)) {
             return res.status(400).json({
-                error: "Only candidate paper runs can be reset manually",
+                error: "Only shadow baseline and candidate paper runs can be reset manually",
             });
         }
 
         const resetRun = await paperTradingRuntime.resetRun(runId);
         const runtimePayload = await buildRuntimeRunsResponse(req);
         const currentRun = runtimePayload.runs.find(
-            (candidate) => candidate.runId === runId
+            (run) => run.runId === runId
         );
 
         res.json({
@@ -1427,7 +1438,7 @@ router.post("/runtime/runs/:runId/reset", async (req, res) => {
             run: currentRun || resetRun,
             runs: runtimePayload.runs,
             liveSelection: runtimePayload.liveSelection,
-            message: "Candidate paper run reset",
+            message: getManualResetMessage(session.run.mode),
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

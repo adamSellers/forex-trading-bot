@@ -199,7 +199,7 @@ How to use it:
    - `Recent Trades`
    - `Recent Signals`
    - `Config Snapshot`
-5. Reset a candidate if you want to restart its paper history from a clean point-in-time.
+5. Reset a candidate or the shadow baseline if you want to restart its paper history from a clean point-in-time.
 6. Stop a candidate when you are done comparing it.
 
 What each candidate is testing:

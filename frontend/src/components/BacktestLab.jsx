@@ -43,7 +43,7 @@ const PAPER_COMPARISON_STEPS = [
   'Launch one or more candidate runs from the candidate launcher below.',
   'Click a run card to focus it and inspect its exact signals, trades, equity, and config snapshot.',
   'Use Promote to Live only when you are comfortable pausing the engine and flattening any current live positions.',
-  'Reset a candidate when you want a fresh paper sample from the current market context.',
+  'Reset a candidate or the shadow baseline when you want a fresh paper sample from the current market context.',
   'Stop a candidate when you are finished comparing it or when the run is no longer useful.',
 ];
 const PERFORMANCE_WATCHLIST = [
@@ -706,6 +706,34 @@ const BacktestLab = () => {
     }
   };
 
+  const handleResetShadowBaseline = async (run) => {
+    if (!run?.runId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Reset shadow baseline?\n\nThis clears the current shadow paper history and starts a fresh sample from the current market context. The live selection and live trades are not changed.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setMutatingRunId(run.runId);
+      setError(null);
+      setActionMessage(null);
+      const response = await runtimeAPI.resetRun(run.runId);
+      setSelectedRunId(response?.run?.runId || run.runId);
+      setActionMessage(response?.message || 'Shadow baseline reset');
+      await loadPaperComparison(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMutatingRunId(null);
+    }
+  };
+
   const handleStopCandidate = async (runId) => {
     try {
       setMutatingRunId(runId);
@@ -987,16 +1015,42 @@ const BacktestLab = () => {
             selected={selectedRunId === shadowRun?.runId}
             onSelect={() => shadowRun?.runId && setSelectedRunId(shadowRun.runId)}
             controls={
-              <Alert
-                severity="success"
-                sx={{
-                  py: 0.5,
-                  bgcolor: alpha(theme.palette.success.main, 0.08),
-                  border: `1px solid ${alpha(theme.palette.success.main, 0.18)}`,
-                }}
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+                spacing={1}
               >
-                This is the paper twin of the current live selection from its own start time. It does not include older candidate history or actual live fills, and it stays read-only here.
-              </Alert>
+                <Alert
+                  severity="success"
+                  sx={{
+                    flex: 1,
+                    py: 0.5,
+                    bgcolor: alpha(theme.palette.success.main, 0.08),
+                    border: `1px solid ${alpha(theme.palette.success.main, 0.18)}`,
+                  }}
+                >
+                  This is the paper twin of the current live selection from its own start time. Manual reset starts a fresh sample without touching live trades.
+                </Alert>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  color="success"
+                  startIcon={<RestartAlt />}
+                  disabled={
+                    !shadowRun?.runId ||
+                    shadowRun.status !== 'active' ||
+                    mutatingRunId !== null ||
+                    promotingRunId !== null
+                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleResetShadowBaseline(shadowRun);
+                  }}
+                  sx={{ alignSelf: { xs: 'stretch', sm: 'center' }, whiteSpace: 'nowrap' }}
+                >
+                  {mutatingRunId === shadowRun?.runId ? 'Resetting...' : 'Reset Baseline'}
+                </Button>
+              </Stack>
             }
           />
 
