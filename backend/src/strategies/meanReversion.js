@@ -86,6 +86,65 @@ function buildBollingerContext(candles = [], config = {}) {
     };
 }
 
+function buildStrategyContext(context = {}, overrides = {}) {
+    const config = overrides.config || context.config || {};
+    const bollingerContext =
+        overrides.bollingerContext || context.bollingerContext || {};
+    const currentBand = bollingerContext.currentBand || {};
+    const currentPrice = toFiniteNumber(context.currentPrice, null);
+    const lowerBand = toFiniteNumber(currentBand.lower, null);
+    const middleBand = toFiniteNumber(currentBand.middle, null);
+    const upperBand = toFiniteNumber(currentBand.upper, null);
+    const widthRatio = toFiniteNumber(bollingerContext.widthRatio, null);
+    let bandPosition = "inside";
+
+    if (Number.isFinite(currentPrice) && Number.isFinite(lowerBand) && currentPrice <= lowerBand) {
+        bandPosition = "below_lower";
+    } else if (
+        Number.isFinite(currentPrice) &&
+        Number.isFinite(upperBand) &&
+        currentPrice >= upperBand
+    ) {
+        bandPosition = "above_upper";
+    }
+
+    return {
+        family: "mean_reversion",
+        setup: overrides.setup || "scan",
+        entryBias: overrides.entryBias || null,
+        bandPosition,
+        currentPrice,
+        m15: {
+            rsi: toFiniteNumber(context.rsiVal, null),
+            atrPips: toFiniteNumber(context.atrPips, null),
+        },
+        bollinger: {
+            lower: lowerBand,
+            middle: middleBand,
+            upper: upperBand,
+            width: toFiniteNumber(bollingerContext.currentWidth, null),
+            averageWidth: toFiniteNumber(bollingerContext.averageWidth, null),
+            widthRatio,
+            minWidthRatio: toFiniteNumber(config.bbwMinRatio, 0.5),
+        },
+        regime: {
+            h1Adx: toFiniteNumber(context.regimeAdx, null),
+            maxH1Adx: toFiniteNumber(config.maxRegimeAdx, 25),
+            pdi: toFiniteNumber(context.pdiVal, null),
+            mdi: toFiniteNumber(context.mdiVal, null),
+        },
+        thresholds: {
+            rsiOversold: toFiniteNumber(config.rsiOversoldEntry, 30),
+            rsiOverbought: toFiniteNumber(config.rsiOverboughtEntry, 70),
+        },
+        session: {
+            name: context.sessionName || null,
+            active: context.sessionActive ?? null,
+            spreadPips: toFiniteNumber(context.spreadPips, null),
+        },
+    };
+}
+
 function deriveIndicatorsFromCandles(candles = []) {
     const highs = candles.map((candle) => candle.high);
     const lows = candles.map((candle) => candle.low);
@@ -146,6 +205,8 @@ function buildHoldResult(context = {}, overrides = {}) {
         pendingAction: "clear",
         pending: null,
         tradePlan: null,
+        strategyContext:
+            overrides.strategyContext || buildStrategyContext(context, overrides),
     };
 }
 
@@ -223,6 +284,11 @@ async function evaluateMeanReversionEntry({
         pdiVal,
         mdiVal,
         prevAdxVal,
+        config: resolvedConfig,
+        bollingerContext,
+        sessionName,
+        sessionActive: activeSessions.includes(sessionKey),
+        spreadPips,
     };
 
     if (!bollingerContext || !Number.isFinite(entryPrice)) {
@@ -346,6 +412,12 @@ async function evaluateMeanReversionEntry({
                 stopLossPrice: entryPrice - stopDistance,
                 takeProfitPrice: middleBand,
             },
+            strategyContext: buildStrategyContext(evaluationContext, {
+                config: resolvedConfig,
+                bollingerContext,
+                setup: "lower_band_fade",
+                entryBias: "long",
+            }),
         };
     }
 
@@ -385,6 +457,12 @@ async function evaluateMeanReversionEntry({
                 stopLossPrice: entryPrice + stopDistance,
                 takeProfitPrice: middleBand,
             },
+            strategyContext: buildStrategyContext(evaluationContext, {
+                config: resolvedConfig,
+                bollingerContext,
+                setup: "upper_band_fade",
+                entryBias: "short",
+            }),
         };
     }
 

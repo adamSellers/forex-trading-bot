@@ -83,6 +83,17 @@ describe("squeezePlayStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                strategyContext: expect.objectContaining({
+                    family: "squeeze_play",
+                    setup: "release",
+                    entryBias: "long",
+                    compression: expect.objectContaining({
+                        priorBars: 7,
+                    }),
+                    volatility: expect.objectContaining({
+                        h1AtrPercentile: 42,
+                    }),
+                }),
             })
         );
         expect(result.tradePlan.stopLossPrice).toBeLessThan(1.1011);
@@ -123,6 +134,17 @@ describe("squeezePlayStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                strategyContext: expect.objectContaining({
+                    family: "squeeze_play",
+                    setup: "release",
+                    entryBias: "short",
+                    compression: expect.objectContaining({
+                        priorBars: 8,
+                    }),
+                    volatility: expect.objectContaining({
+                        h1AtrPercentile: 38,
+                    }),
+                }),
             })
         );
         expect(result.tradePlan.stopLossPrice).toBeGreaterThan(1.1997);
@@ -156,6 +178,13 @@ describe("squeezePlayStrategy", () => {
                 signalType: "HOLD",
                 reasonCode: "SQUEEZE_PLAY_H1_REGIME_FILTERED",
                 signalClass: "FILTERED",
+                strategyContext: expect.objectContaining({
+                    family: "squeeze_play",
+                    volatility: expect.objectContaining({
+                        h1AtrPercentile: 74,
+                        maxH1AtrPercentile: 60,
+                    }),
+                }),
             })
         );
     });

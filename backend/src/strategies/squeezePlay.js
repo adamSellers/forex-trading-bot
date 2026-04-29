@@ -292,6 +292,54 @@ function buildSqueezePlayDerivedContext(
     };
 }
 
+function buildStrategyContext(context = {}, overrides = {}) {
+    const config = overrides.config || context.config || {};
+    const squeezeContext =
+        overrides.squeezeContext || context.squeezeContext || null;
+    const direction = squeezeContext?.direction || "FLAT";
+    let setup = overrides.setup || "scan";
+
+    if (squeezeContext?.releaseTriggered) {
+        setup = "release";
+    } else if (squeezeContext?.isInSqueeze) {
+        setup = "compression";
+    }
+
+    return {
+        family: "squeeze_play",
+        setup,
+        entryBias:
+            overrides.entryBias ||
+            (direction === "LONG" ? "long" : direction === "SHORT" ? "short" : null),
+        currentPrice: toFiniteNumber(context.currentPrice, null),
+        compression: {
+            inSqueeze: squeezeContext?.isInSqueeze === true,
+            priorBars: toFiniteNumber(squeezeContext?.priorSqueezeCount, null),
+            minBars: toFiniteNumber(config.minSqueezeBarCount, 6),
+        },
+        release: {
+            triggered: squeezeContext?.releaseTriggered === true,
+            direction,
+            slope: toFiniteNumber(squeezeContext?.slope, null),
+        },
+        volatility: {
+            h1AtrPercentile: toFiniteNumber(
+                squeezeContext?.h1AtrPercentile ?? context.h1AtrPercentile,
+                null
+            ),
+            maxH1AtrPercentile: toFiniteNumber(config.h1AtrPercentileMax, 60),
+        },
+        m15: {
+            atrPips: toFiniteNumber(context.atrPips, null),
+        },
+        session: {
+            name: context.sessionName || null,
+            active: context.sessionActive ?? null,
+            spreadPips: toFiniteNumber(context.spreadPips, null),
+        },
+    };
+}
+
 function buildHoldResult(context = {}, overrides = {}) {
     return {
         signalType: "HOLD",
@@ -327,6 +375,8 @@ function buildHoldResult(context = {}, overrides = {}) {
         pendingAction: "clear",
         pending: null,
         tradePlan: null,
+        strategyContext:
+            overrides.strategyContext || buildStrategyContext(context, overrides),
     };
 }
 
@@ -386,6 +436,11 @@ async function evaluateSqueezePlayEntry({
         atrVal,
         atrPips,
         h1AtrPercentile: squeezeContext?.h1AtrPercentile,
+        config: resolvedConfig,
+        squeezeContext,
+        sessionName,
+        sessionActive: activeSessions.includes(sessionKey),
+        spreadPips,
     };
 
     if (!activeSessions.includes(sessionKey)) {
@@ -511,6 +566,12 @@ async function evaluateSqueezePlayEntry({
                 stopLossPrice: entryPrice - stopDistance,
                 takeProfitPrice: entryPrice + takeProfitDistance,
             },
+            strategyContext: buildStrategyContext(evaluationContext, {
+                config: resolvedConfig,
+                squeezeContext,
+                setup: "release",
+                entryBias: "long",
+            }),
         };
     }
 
@@ -551,6 +612,12 @@ async function evaluateSqueezePlayEntry({
             stopLossPrice: entryPrice + stopDistance,
             takeProfitPrice: entryPrice - takeProfitDistance,
         },
+        strategyContext: buildStrategyContext(evaluationContext, {
+            config: resolvedConfig,
+            squeezeContext,
+            setup: "release",
+            entryBias: "short",
+        }),
     };
 }
 

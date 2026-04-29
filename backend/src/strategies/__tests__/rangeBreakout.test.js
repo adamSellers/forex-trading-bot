@@ -115,6 +115,17 @@ describe("rangeBreakoutStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                strategyContext: expect.objectContaining({
+                    family: "range_breakout",
+                    setup: "opening_range_breakout",
+                    entryBias: "long",
+                    openingRange: expect.objectContaining({
+                        session: "London",
+                        high: expect.any(Number),
+                        low: expect.any(Number),
+                        atrRatio: expect.any(Number),
+                    }),
+                }),
             })
         );
         expect(result.tradePlan.stopLossPrice).toBeCloseTo(1.0995, 5);
@@ -160,6 +171,17 @@ describe("rangeBreakoutStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                strategyContext: expect.objectContaining({
+                    family: "range_breakout",
+                    setup: "opening_range_breakdown",
+                    entryBias: "short",
+                    openingRange: expect.objectContaining({
+                        session: "New York",
+                        high: expect.any(Number),
+                        low: expect.any(Number),
+                        atrRatio: expect.any(Number),
+                    }),
+                }),
             })
         );
         expect(result.tradePlan.stopLossPrice).toBeCloseTo(1.2005, 5);
@@ -199,6 +221,13 @@ describe("rangeBreakoutStrategy", () => {
                 signalType: "HOLD",
                 reasonCode: "RANGE_BREAKOUT_RANGE_FILTERED",
                 signalClass: "FILTERED",
+                strategyContext: expect.objectContaining({
+                    family: "range_breakout",
+                    openingRange: expect.objectContaining({
+                        session: "London",
+                        atrRatio: expect.any(Number),
+                    }),
+                }),
             })
         );
     });

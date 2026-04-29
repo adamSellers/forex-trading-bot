@@ -25,6 +25,9 @@ import {
 } from '@mui/icons-material';
 import { formatInstrument, INSTRUMENT_INFO } from './Shared';
 
+const MEAN_REVERSION_KEY = 'mean_reversion';
+const RANGE_BREAKOUT_KEY = 'range_breakout';
+const SQUEEZE_PLAY_KEY = 'squeeze_play';
 const STOCHASTIC_DIVERGENCE_KEY = 'stochastic_divergence';
 const TIMESFM_DIRECTIONAL_KEY = 'timesfm_directional';
 
@@ -69,16 +72,35 @@ const MonoText = styled(Typography)(({ theme, color }) => ({
 }));
 
 const formatMetric = (value, digits = 1) => {
+  if (value === null || value === undefined || value === '') {
+    return '--';
+  }
+
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric.toFixed(digits) : '--';
 };
+
+const formatPrice = (value) => formatMetric(value, 5);
 
 const humanizeToken = (value = '') =>
   String(value || '')
     .replace(/_/g, ' ')
     .trim();
 
+const titleizeToken = (value = '') =>
+  humanizeToken(value)
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 const getSignalKey = (signal = {}) => `${signal.symbol || 'unknown'}-${signal.timestamp || '0'}`;
+
+const getSignalTime = (signal = {}) =>
+  new Date(signal.timestamp).toLocaleTimeString([], {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 
 const getResolvedStrategy = (signals = [], activeStrategy = null, systemStatus = null) =>
   activeStrategy ||
@@ -95,6 +117,120 @@ const getSignalMeta = (signalType) => {
     return { color: 'error', icon: <TrendingDown fontSize="small" /> };
   }
   return { color: 'info', icon: <Timeline fontSize="small" /> };
+};
+
+const SignalIdentity = ({ signal, paletteColor, icon }) => {
+  const info = INSTRUMENT_INFO[signal.symbol] || {};
+
+  return (
+    <Box display="flex" alignItems="center" gap={1}>
+      <Avatar
+        variant="rounded"
+        sx={{
+          width: 24,
+          height: 24,
+          bgcolor: alpha(paletteColor.main, 0.1),
+          color: paletteColor.main,
+        }}
+      >
+        {icon}
+      </Avatar>
+      <Typography variant="body2" sx={{ fontSize: '0.9rem' }}>
+        {info.flag || '💱'}
+      </Typography>
+      <Typography variant="body2" fontWeight="bold">
+        {formatInstrument(signal.symbol)}
+      </Typography>
+    </Box>
+  );
+};
+
+const SignalActionChip = ({ signal, paletteColor }) => (
+  <Chip
+    label={signal.signal?.replace(/_/g, ' ') || 'UNKNOWN'}
+    size="small"
+    sx={{
+      height: 20,
+      fontSize: '0.7rem',
+      fontWeight: 'bold',
+      bgcolor: alpha(paletteColor.main, 0.1),
+      color: paletteColor.main,
+      border: `1px solid ${alpha(paletteColor.main, 0.2)}`,
+    }}
+  />
+);
+
+const dedupeBadges = (badges = []) =>
+  badges.filter(
+    (badge, index, collection) =>
+      badge?.label &&
+      collection.findIndex((candidate) => candidate.label === badge.label) === index
+  );
+
+const getBaseStatusBadges = (signal = {}) => {
+  if (signal.signal === 'BUY' || signal.signal === 'SELL' || signal.signalClass === 'ACTIONABLE') {
+    return [{ label: 'ENTRY', color: signal.signal === 'SELL' ? 'error' : 'success' }];
+  }
+
+  if (signal.signalClass === 'PENDING') {
+    return [{ label: 'PENDING', color: 'warning' }];
+  }
+
+  if (signal.signalClass === 'COOLDOWN') {
+    return [{ label: 'COOLDOWN', color: 'default' }];
+  }
+
+  return [{ label: signal.signalClass || 'WAIT', color: 'default' }];
+};
+
+const StatusBadgeStack = ({ badges }) => (
+  <Box display="flex" gap={0.5} justifyContent="center" flexWrap="wrap">
+    {badges.map((badge) => (
+      <Chip
+        key={badge.label}
+        label={badge.label}
+        size="small"
+        color={badge.color}
+        sx={{
+          height: 18,
+          fontSize: '0.6rem',
+          fontWeight: 'bold',
+          '& .MuiChip-label': { px: 0.75 },
+        }}
+      />
+    ))}
+  </Box>
+);
+
+const ReasonText = ({ children, color = 'text.secondary' }) => (
+  <Typography
+    variant="caption"
+    sx={{
+      fontSize: '0.62rem',
+      color,
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
+    }}
+  >
+    {children}
+  </Typography>
+);
+
+const getTradePlanLine = (signal = {}) => {
+  const stopLoss = signal.tradePlan?.stopLossPrice;
+  const takeProfit = signal.tradePlan?.takeProfitPrice;
+  const hasStopLoss =
+    stopLoss !== null && stopLoss !== undefined && Number.isFinite(Number(stopLoss));
+  const hasTakeProfit =
+    takeProfit !== null && takeProfit !== undefined && Number.isFinite(Number(takeProfit));
+
+  if (!hasStopLoss && !hasTakeProfit) {
+    return 'Plan --';
+  }
+
+  return `SL ${hasStopLoss ? formatPrice(stopLoss) : '--'} / TP ${
+    hasTakeProfit ? formatPrice(takeProfit) : '--'
+  }`;
 };
 
 const getTrendContext = (signal) => {
@@ -250,7 +386,8 @@ const inferStochasticCrossState = (signal, strategyContext = null) => {
 };
 
 const getStochasticContext = (signal) => {
-  const strategyContext = signal.strategyContext || null;
+  const strategyContext =
+    signal.strategyContext || signal.decisionContext?.strategyContext || null;
   const setup = inferStochasticSetup(signal, strategyContext);
 
   return {
@@ -453,6 +590,293 @@ const getTimesFmStatusBadges = (signal = {}, timesFm = null) => {
   return badges;
 };
 
+const getStrategyReasonLabel = (signal = {}, prefix = '') => {
+  const normalized = String(signal.reasonCode || signal.signalClass || 'runtime signal').replace(
+    new RegExp(`^${prefix}_`),
+    ''
+  );
+  return humanizeToken(normalized || 'runtime signal');
+};
+
+const getStoredStrategyContext = (signal = {}) =>
+  signal.strategyContext || signal.decisionContext?.strategyContext || {};
+
+const getMeanReversionContext = (signal = {}) => {
+  const context = getStoredStrategyContext(signal);
+  const rsi = context.m15?.rsi ?? signal.decisionContext?.rsi ?? signal.trend?.rsi ?? null;
+  const h1Adx =
+    context.regime?.h1Adx ?? signal.decisionContext?.adx ?? signal.trend?.adx ?? signal.strength;
+
+  return {
+    setup: context.setup || 'scan',
+    entryBias:
+      context.entryBias || (signal.signal === 'BUY' ? 'long' : signal.signal === 'SELL' ? 'short' : null),
+    bandPosition: context.bandPosition || 'inside',
+    rsi,
+    rsiOversold: context.thresholds?.rsiOversold ?? 30,
+    rsiOverbought: context.thresholds?.rsiOverbought ?? 70,
+    lower: context.bollinger?.lower ?? null,
+    middle: context.bollinger?.middle ?? null,
+    upper: context.bollinger?.upper ?? null,
+    widthRatio: context.bollinger?.widthRatio ?? null,
+    minWidthRatio: context.bollinger?.minWidthRatio ?? 0.5,
+    h1Adx,
+    maxH1Adx: context.regime?.maxH1Adx ?? 25,
+    sessionName: context.session?.name || null,
+    spreadPips: context.session?.spreadPips ?? null,
+  };
+};
+
+const getMeanReversionSetupLabel = (context) => {
+  if (context.setup === 'lower_band_fade') return 'Lower Band Fade';
+  if (context.setup === 'upper_band_fade') return 'Upper Band Fade';
+  if (context.bandPosition === 'below_lower') return 'Testing Lower Band';
+  if (context.bandPosition === 'above_upper') return 'Testing Upper Band';
+  return 'Inside Bands';
+};
+
+const getMeanReversionBadges = (signal, context) => {
+  const badges = [...getBaseStatusBadges(signal)];
+  const h1Adx = Number(context.h1Adx);
+  const rsi = Number(context.rsi);
+  const widthRatio = Number(context.widthRatio);
+
+  if (Number.isFinite(h1Adx)) {
+    badges.push(
+      h1Adx < Number(context.maxH1Adx)
+        ? { label: 'RANGE OK', color: 'success' }
+        : { label: 'TRENDY', color: 'warning' }
+    );
+  }
+
+  if (Number.isFinite(rsi) && rsi <= Number(context.rsiOversold)) {
+    badges.push({ label: 'OVERSOLD', color: 'success' });
+  } else if (Number.isFinite(rsi) && rsi >= Number(context.rsiOverbought)) {
+    badges.push({ label: 'OVERBOUGHT', color: 'error' });
+  }
+
+  if (Number.isFinite(widthRatio) && widthRatio < Number(context.minWidthRatio)) {
+    badges.push({ label: 'NARROW BW', color: 'warning' });
+  }
+
+  return dedupeBadges(badges);
+};
+
+const getRangeBreakoutContext = (signal = {}) => {
+  const context = getStoredStrategyContext(signal);
+  const range = context.openingRange || null;
+
+  return {
+    setup: context.setup || 'opening_range',
+    entryBias:
+      context.entryBias || (signal.signal === 'BUY' ? 'long' : signal.signal === 'SELL' ? 'short' : null),
+    breakoutState: context.breakoutState || 'waiting',
+    range,
+    atrRatio: range?.atrRatio ?? null,
+    h1Atr: context.h1?.atr ?? signal.atr ?? null,
+    bodyRatio: context.candle?.bodyRatio ?? null,
+    rangeMinAtrRatio: context.thresholds?.rangeMinAtrRatio ?? 0.5,
+    rangeMaxAtrRatio: context.thresholds?.rangeMaxAtrRatio ?? 2.0,
+    maxBreakoutBodyRatio: context.thresholds?.maxBreakoutBodyRatio ?? 0.7,
+    sessionName: context.session?.name || range?.session || null,
+  };
+};
+
+const getBreakoutStateLabel = (state) => {
+  if (state === 'above_range') return 'Above Range High';
+  if (state === 'below_range') return 'Below Range Low';
+  if (state === 'inside_range') return 'Inside Active Range';
+  return 'Waiting For Range';
+};
+
+const getRangeBreakoutBadges = (signal, context) => {
+  const badges = [...getBaseStatusBadges(signal)];
+  const atrRatio = Number(context.atrRatio);
+  const bodyRatio = Number(context.bodyRatio);
+
+  if (context.range) {
+    badges.push({ label: 'RANGE', color: 'success' });
+  } else {
+    badges.push({ label: 'NO RANGE', color: 'warning' });
+  }
+
+  if (
+    Number.isFinite(atrRatio) &&
+    (atrRatio < Number(context.rangeMinAtrRatio) || atrRatio > Number(context.rangeMaxAtrRatio))
+  ) {
+    badges.push({ label: 'SIZE', color: 'warning' });
+  }
+
+  if (Number.isFinite(bodyRatio) && bodyRatio > Number(context.maxBreakoutBodyRatio)) {
+    badges.push({ label: 'BODY', color: 'warning' });
+  }
+
+  return dedupeBadges(badges);
+};
+
+const getSqueezePlayContext = (signal = {}) => {
+  const context = getStoredStrategyContext(signal);
+
+  return {
+    setup: context.setup || 'scan',
+    entryBias:
+      context.entryBias || (signal.signal === 'BUY' ? 'long' : signal.signal === 'SELL' ? 'short' : null),
+    inSqueeze: context.compression?.inSqueeze === true,
+    priorBars: context.compression?.priorBars ?? null,
+    minBars: context.compression?.minBars ?? 6,
+    releaseTriggered: context.release?.triggered === true,
+    direction: context.release?.direction || 'FLAT',
+    slope: context.release?.slope ?? null,
+    h1AtrPercentile: context.volatility?.h1AtrPercentile ?? null,
+    maxH1AtrPercentile: context.volatility?.maxH1AtrPercentile ?? 60,
+    atrPips: context.m15?.atrPips ?? signal.atrPips ?? signal.trend?.atrPips ?? null,
+    sessionName: context.session?.name || null,
+  };
+};
+
+const getSqueezeSetupLabel = (context) => {
+  if (context.releaseTriggered) return 'Release Fired';
+  if (context.inSqueeze) return 'Compression Active';
+  return 'Scanning Compression';
+};
+
+const getSqueezePlayBadges = (signal, context) => {
+  const badges = [...getBaseStatusBadges(signal)];
+  const priorBars = Number(context.priorBars);
+  const h1AtrPercentile = Number(context.h1AtrPercentile);
+
+  if (context.releaseTriggered) {
+    badges.push({ label: 'RELEASE', color: 'success' });
+  } else if (context.inSqueeze) {
+    badges.push({ label: 'SQUEEZE', color: 'warning' });
+  }
+
+  if (Number.isFinite(priorBars) && priorBars >= Number(context.minBars)) {
+    badges.push({ label: 'BARS OK', color: 'success' });
+  }
+
+  if (Number.isFinite(h1AtrPercentile) && h1AtrPercentile > Number(context.maxH1AtrPercentile)) {
+    badges.push({ label: 'VOL HIGH', color: 'warning' });
+  }
+
+  return dedupeBadges(badges);
+};
+
+const StrategyCompactRows = ({
+  signals,
+  theme,
+  getContext,
+  getTitle,
+  getMeta,
+  getBadges,
+  reasonPrefix,
+}) => (
+  <Stack spacing={0} sx={{ height: '100%', overflowY: 'auto' }}>
+    {signals.map((signal) => {
+      const { color, icon } = getSignalMeta(signal.signal);
+      const paletteColor = theme.palette[color];
+      const info = INSTRUMENT_INFO[signal.symbol] || {};
+      const context = getContext(signal);
+
+      return (
+        <Box
+          key={getSignalKey(signal)}
+          sx={{
+            p: 1.5,
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1.5,
+            '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.05) },
+          }}
+        >
+          <Box display="flex" alignItems="center" gap={1.5} minWidth={0}>
+            <Avatar
+              variant="rounded"
+              sx={{
+                width: 28,
+                height: 28,
+                bgcolor: alpha(paletteColor.main, 0.1),
+                color: paletteColor.main,
+                border: `1px solid ${alpha(paletteColor.main, 0.2)}`,
+              }}
+            >
+              {icon}
+            </Avatar>
+            <Box minWidth={0}>
+              <Typography variant="body2" fontWeight="bold">
+                {info.flag || '💱'} {formatInstrument(signal.symbol)}
+              </Typography>
+              <MonoText sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                {getSignalTime(signal)}
+              </MonoText>
+            </Box>
+          </Box>
+
+          <Box textAlign="right" minWidth={0}>
+            <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.5}>
+              <Chip
+                label={signal.signal?.split('_')[0] || 'HOLD'}
+                size="small"
+                sx={{
+                  height: 18,
+                  fontSize: '0.65rem',
+                  fontWeight: 'bold',
+                  bgcolor: alpha(paletteColor.main, 0.1),
+                  color: paletteColor.main,
+                }}
+              />
+              {getBadges(signal, context).slice(1, 3).map((badge) => (
+                <Chip
+                  key={`${badge.label}-${signal.symbol}`}
+                  label={badge.label}
+                  size="small"
+                  color={badge.color}
+                  sx={{ height: 18, fontSize: '0.6rem', fontWeight: 'bold' }}
+                />
+              ))}
+            </Box>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                display: 'block',
+                mt: 0.5,
+                fontSize: '0.68rem',
+                maxWidth: 260,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {getTitle(context)}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                fontSize: '0.63rem',
+                color:
+                  signal.signalClass === 'ACTIONABLE'
+                    ? paletteColor.main
+                    : theme.palette.text.secondary,
+                letterSpacing: 0.3,
+                maxWidth: 260,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {getMeta(signal, context) || getStrategyReasonLabel(signal, reasonPrefix)}
+            </Typography>
+          </Box>
+        </Box>
+      );
+    })}
+  </Stack>
+);
+
 const TradingSignals = ({
   signals,
   systemStatus,
@@ -536,6 +960,331 @@ const TradingSignals = ({
           </Box>
         )}
       </Box>
+    );
+  }
+
+  if (resolvedStrategy === MEAN_REVERSION_KEY) {
+    if (compact) {
+      return (
+        <StrategyCompactRows
+          signals={filteredSignals}
+          theme={theme}
+          getContext={getMeanReversionContext}
+          getTitle={getMeanReversionSetupLabel}
+          getMeta={(_, context) =>
+            `RSI ${formatMetric(context.rsi)} | H1 ADX ${formatMetric(context.h1Adx)}`
+          }
+          getBadges={getMeanReversionBadges}
+          reasonPrefix="MEAN_REVERSION"
+        />
+      );
+    }
+
+    return (
+      <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              <HeaderCell>Pair</HeaderCell>
+              <HeaderCell>Time</HeaderCell>
+              <HeaderCell>Action</HeaderCell>
+              <HeaderCell align="right">Range Regime</HeaderCell>
+              <HeaderCell>Band / RSI</HeaderCell>
+              <HeaderCell>Plan</HeaderCell>
+              <HeaderCell align="center">Status</HeaderCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredSignals.map((signal) => {
+              const { color, icon } = getSignalMeta(signal.signal);
+              const paletteColor = theme.palette[color];
+              const context = getMeanReversionContext(signal);
+              const statusBadges = getMeanReversionBadges(signal, context);
+              const h1Adx = Number(context.h1Adx);
+              const rangeOk = Number.isFinite(h1Adx) && h1Adx < Number(context.maxH1Adx);
+
+              return (
+                <StyledTableRow key={getSignalKey(signal)}>
+                  <StyledTableCell>
+                    <SignalIdentity signal={signal} paletteColor={paletteColor} icon={icon} />
+                  </StyledTableCell>
+                  <StyledTableCell>{getSignalTime(signal)}</StyledTableCell>
+                  <StyledTableCell>
+                    <SignalActionChip signal={signal} paletteColor={paletteColor} />
+                  </StyledTableCell>
+                  <StyledTableCell align="right">
+                    <Box display="flex" flexDirection="column" alignItems="flex-end" gap={0.15}>
+                      <MonoText
+                        color={
+                          rangeOk ? theme.palette.success.main : theme.palette.warning.main
+                        }
+                        sx={{ fontSize: '0.72rem' }}
+                      >
+                        H1 ADX {formatMetric(context.h1Adx)} / {formatMetric(context.maxH1Adx)}
+                      </MonoText>
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem', color: 'text.secondary' }}>
+                        {context.sessionName || 'Session --'}
+                        {Number.isFinite(Number(context.spreadPips))
+                          ? ` | spread ${formatMetric(context.spreadPips)}`
+                          : ''}
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <Box display="flex" flexDirection="column" gap={0.15}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color:
+                            context.entryBias === 'short'
+                              ? 'error.main'
+                              : context.entryBias === 'long'
+                              ? 'success.main'
+                              : 'text.secondary',
+                          fontWeight: 'bold',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        {getMeanReversionSetupLabel(context)}
+                      </Typography>
+                      <MonoText sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                        RSI {formatMetric(context.rsi)} | BBW {formatMetric(context.widthRatio, 2)}x
+                      </MonoText>
+                      <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>
+                        L {formatPrice(context.lower)} / M {formatPrice(context.middle)} / U{' '}
+                        {formatPrice(context.upper)}
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <MonoText sx={{ fontSize: '0.72rem' }}>{getTradePlanLine(signal)}</MonoText>
+                  </StyledTableCell>
+                  <StyledTableCell align="center">
+                    <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                      <StatusBadgeStack badges={statusBadges} />
+                      <ReasonText>{getStrategyReasonLabel(signal, 'MEAN_REVERSION')}</ReasonText>
+                    </Box>
+                  </StyledTableCell>
+                </StyledTableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  }
+
+  if (resolvedStrategy === RANGE_BREAKOUT_KEY) {
+    if (compact) {
+      return (
+        <StrategyCompactRows
+          signals={filteredSignals}
+          theme={theme}
+          getContext={getRangeBreakoutContext}
+          getTitle={(context) => getBreakoutStateLabel(context.breakoutState)}
+          getMeta={(_, context) =>
+            `${context.sessionName || 'Range'} | ${formatMetric(context.atrRatio, 2)}x H1 ATR`
+          }
+          getBadges={getRangeBreakoutBadges}
+          reasonPrefix="RANGE_BREAKOUT"
+        />
+      );
+    }
+
+    return (
+      <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              <HeaderCell>Pair</HeaderCell>
+              <HeaderCell>Time</HeaderCell>
+              <HeaderCell>Action</HeaderCell>
+              <HeaderCell>Opening Range</HeaderCell>
+              <HeaderCell>Breakout</HeaderCell>
+              <HeaderCell>Plan</HeaderCell>
+              <HeaderCell align="center">Status</HeaderCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredSignals.map((signal) => {
+              const { color, icon } = getSignalMeta(signal.signal);
+              const paletteColor = theme.palette[color];
+              const context = getRangeBreakoutContext(signal);
+              const statusBadges = getRangeBreakoutBadges(signal, context);
+
+              return (
+                <StyledTableRow key={getSignalKey(signal)}>
+                  <StyledTableCell>
+                    <SignalIdentity signal={signal} paletteColor={paletteColor} icon={icon} />
+                  </StyledTableCell>
+                  <StyledTableCell>{getSignalTime(signal)}</StyledTableCell>
+                  <StyledTableCell>
+                    <SignalActionChip signal={signal} paletteColor={paletteColor} />
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <Box display="flex" flexDirection="column" gap={0.15}>
+                      <Typography variant="caption" sx={{ fontSize: '0.72rem', fontWeight: 'bold' }}>
+                        {context.range?.session || context.sessionName || 'No Active Range'}
+                      </Typography>
+                      <MonoText sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                        {formatPrice(context.range?.low)} - {formatPrice(context.range?.high)}
+                      </MonoText>
+                      <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>
+                        {formatMetric(context.atrRatio, 2)}x H1 ATR
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <Box display="flex" flexDirection="column" gap={0.15}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color:
+                            context.entryBias === 'short'
+                              ? 'error.main'
+                              : context.entryBias === 'long'
+                              ? 'success.main'
+                              : 'text.secondary',
+                          fontWeight: 'bold',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        {getBreakoutStateLabel(context.breakoutState)}
+                      </Typography>
+                      <MonoText sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                        Body {formatMetric(context.bodyRatio, 2)} / max{' '}
+                        {formatMetric(context.maxBreakoutBodyRatio, 2)}
+                      </MonoText>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <Box display="flex" flexDirection="column" gap={0.15}>
+                      <MonoText sx={{ fontSize: '0.72rem' }}>{getTradePlanLine(signal)}</MonoText>
+                      <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>
+                        H1 ATR {formatPrice(context.h1Atr)}
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell align="center">
+                    <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                      <StatusBadgeStack badges={statusBadges} />
+                      <ReasonText>{getStrategyReasonLabel(signal, 'RANGE_BREAKOUT')}</ReasonText>
+                    </Box>
+                  </StyledTableCell>
+                </StyledTableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  }
+
+  if (resolvedStrategy === SQUEEZE_PLAY_KEY) {
+    if (compact) {
+      return (
+        <StrategyCompactRows
+          signals={filteredSignals}
+          theme={theme}
+          getContext={getSqueezePlayContext}
+          getTitle={getSqueezeSetupLabel}
+          getMeta={(_, context) =>
+            `${context.direction} | ${formatMetric(context.priorBars, 0)} bars | H1 vol ${formatMetric(
+              context.h1AtrPercentile
+            )}`
+          }
+          getBadges={getSqueezePlayBadges}
+          reasonPrefix="SQUEEZE_PLAY"
+        />
+      );
+    }
+
+    return (
+      <TableContainer component={Box} sx={{ height: '100%', overflow: 'auto' }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              <HeaderCell>Pair</HeaderCell>
+              <HeaderCell>Time</HeaderCell>
+              <HeaderCell>Action</HeaderCell>
+              <HeaderCell>Compression</HeaderCell>
+              <HeaderCell>Release / Volatility</HeaderCell>
+              <HeaderCell>Plan</HeaderCell>
+              <HeaderCell align="center">Status</HeaderCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredSignals.map((signal) => {
+              const { color, icon } = getSignalMeta(signal.signal);
+              const paletteColor = theme.palette[color];
+              const context = getSqueezePlayContext(signal);
+              const statusBadges = getSqueezePlayBadges(signal, context);
+
+              return (
+                <StyledTableRow key={getSignalKey(signal)}>
+                  <StyledTableCell>
+                    <SignalIdentity signal={signal} paletteColor={paletteColor} icon={icon} />
+                  </StyledTableCell>
+                  <StyledTableCell>{getSignalTime(signal)}</StyledTableCell>
+                  <StyledTableCell>
+                    <SignalActionChip signal={signal} paletteColor={paletteColor} />
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <Box display="flex" flexDirection="column" gap={0.15}>
+                      <Typography variant="caption" sx={{ fontSize: '0.72rem', fontWeight: 'bold' }}>
+                        {getSqueezeSetupLabel(context)}
+                      </Typography>
+                      <MonoText sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                        {formatMetric(context.priorBars, 0)} / {formatMetric(context.minBars, 0)} bars
+                      </MonoText>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <Box display="flex" flexDirection="column" gap={0.15}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color:
+                            context.entryBias === 'short'
+                              ? 'error.main'
+                              : context.entryBias === 'long'
+                              ? 'success.main'
+                              : 'text.secondary',
+                          fontWeight: 'bold',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        {titleizeToken(context.direction)}
+                      </Typography>
+                      <MonoText sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                        Slope {Number.isFinite(Number(context.slope)) ? Number(context.slope).toExponential(2) : '--'}
+                      </MonoText>
+                      <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>
+                        H1 ATR pct {formatMetric(context.h1AtrPercentile)} /{' '}
+                        {formatMetric(context.maxH1AtrPercentile)}
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <Box display="flex" flexDirection="column" gap={0.15}>
+                      <MonoText sx={{ fontSize: '0.72rem' }}>{getTradePlanLine(signal)}</MonoText>
+                      <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>
+                        ATR {formatMetric(context.atrPips)} pips
+                      </Typography>
+                    </Box>
+                  </StyledTableCell>
+                  <StyledTableCell align="center">
+                    <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
+                      <StatusBadgeStack badges={statusBadges} />
+                      <ReasonText>{getStrategyReasonLabel(signal, 'SQUEEZE_PLAY')}</ReasonText>
+                    </Box>
+                  </StyledTableCell>
+                </StyledTableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
     );
   }
 

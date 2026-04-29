@@ -72,6 +72,15 @@ describe("meanReversionStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                strategyContext: expect.objectContaining({
+                    family: "mean_reversion",
+                    setup: "lower_band_fade",
+                    entryBias: "long",
+                    regime: expect.objectContaining({
+                        h1Adx: 18,
+                        maxH1Adx: 25,
+                    }),
+                }),
             })
         );
         expect(result.tradePlan.stopLossPrice).toBeLessThan(1.096);
@@ -102,6 +111,15 @@ describe("meanReversionStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                strategyContext: expect.objectContaining({
+                    family: "mean_reversion",
+                    setup: "upper_band_fade",
+                    entryBias: "short",
+                    regime: expect.objectContaining({
+                        h1Adx: 17,
+                        maxH1Adx: 25,
+                    }),
+                }),
             })
         );
         expect(result.tradePlan.stopLossPrice).toBeGreaterThan(1.104);
@@ -126,6 +144,13 @@ describe("meanReversionStrategy", () => {
                 signalType: "HOLD",
                 reasonCode: "MEAN_REVERSION_REGIME_FILTERED",
                 signalClass: "FILTERED",
+                strategyContext: expect.objectContaining({
+                    family: "mean_reversion",
+                    regime: expect.objectContaining({
+                        h1Adx: 31,
+                        maxH1Adx: 25,
+                    }),
+                }),
             })
         );
     });

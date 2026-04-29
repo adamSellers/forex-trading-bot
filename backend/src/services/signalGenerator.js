@@ -245,6 +245,25 @@ class SignalGenerator extends EventEmitter {
             entryType
         );
         const configHash = computeConfigHash(this.config);
+        const decisionContext = this.createDecisionContext({
+            currentDir,
+            prevDir,
+            adxVal,
+            adxRising,
+            prevAdxVal,
+            pdiVal,
+            mdiVal,
+            rsiVal,
+            atrVal,
+            atrPips,
+            htfContext: safeHtfContext,
+            pending,
+            currentPrice,
+        });
+
+        if (strategyContext) {
+            decisionContext.strategyContext = strategyContext;
+        }
 
         return {
             symbol: instrument,
@@ -266,21 +285,7 @@ class SignalGenerator extends EventEmitter {
             strategy: this.config.strategy || "supertrend_momentum",
             timeframe: this.config.timeframe || "15m",
             configHash,
-            decisionContext: this.createDecisionContext({
-                currentDir,
-                prevDir,
-                adxVal,
-                adxRising,
-                prevAdxVal,
-                pdiVal,
-                mdiVal,
-                rsiVal,
-                atrVal,
-                atrPips,
-                htfContext: safeHtfContext,
-                pending,
-                currentPrice,
-            }),
+            decisionContext,
 
             trend: {
                 currentPrice,

@@ -60,6 +60,72 @@ function deriveAtrFromCandles(candles = []) {
     return getLastIndicatorValue(atrSeries);
 }
 
+function buildStrategyContext(context = {}, overrides = {}) {
+    const config = overrides.config || context.config || {};
+    const openingRange = overrides.openingRange || context.openingRange || null;
+    const entryPrice = toFiniteNumber(context.currentPrice, null);
+    const high = toFiniteNumber(openingRange?.high, null);
+    const low = toFiniteNumber(openingRange?.low, null);
+    const height = toFiniteNumber(openingRange?.height, null);
+    const h1Atr = toFiniteNumber(context.atrVal, null);
+    const atrRatio =
+        Number.isFinite(height) && Number.isFinite(h1Atr) && h1Atr > 0
+            ? height / h1Atr
+            : toFiniteNumber(context.atrRatio, null);
+    const bodyRatio = toFiniteNumber(context.bodyRatio, null);
+    let breakoutState = "waiting";
+
+    if (Number.isFinite(entryPrice) && Number.isFinite(high) && entryPrice > high) {
+        breakoutState = "above_range";
+    } else if (
+        Number.isFinite(entryPrice) &&
+        Number.isFinite(low) &&
+        entryPrice < low
+    ) {
+        breakoutState = "below_range";
+    } else if (openingRange) {
+        breakoutState = "inside_range";
+    }
+
+    return {
+        family: "range_breakout",
+        setup: overrides.setup || "opening_range",
+        entryBias: overrides.entryBias || null,
+        breakoutState,
+        currentPrice: entryPrice,
+        openingRange: openingRange
+            ? {
+                  session: openingRange.session || null,
+                  high,
+                  low,
+                  height,
+                  formedAt: openingRange.formedAt || null,
+                  ageMinutes: Number.isFinite(openingRange.ageMs)
+                      ? Math.round(openingRange.ageMs / 60000)
+                      : null,
+                  atrRatio,
+              }
+            : null,
+        h1: {
+            atr: h1Atr,
+            atrPips: toFiniteNumber(context.atrPips, null),
+        },
+        candle: {
+            bodyRatio,
+        },
+        thresholds: {
+            rangeMinAtrRatio: toFiniteNumber(config.rangeMinAtrRatio, 0.5),
+            rangeMaxAtrRatio: toFiniteNumber(config.rangeMaxAtrRatio, 2.0),
+            maxBreakoutBodyRatio: toFiniteNumber(config.maxBreakoutBodyRatio, 0.7),
+            entryWindowHours: toFiniteNumber(config.entryWindowHours, 4),
+        },
+        session: {
+            name: context.sessionName || null,
+            spreadPips: toFiniteNumber(context.spreadPips, null),
+        },
+    };
+}
+
 function createHoldResult(context = {}, overrides = {}) {
     return {
         signalType: "HOLD",
@@ -95,6 +161,8 @@ function createHoldResult(context = {}, overrides = {}) {
         pendingAction: "clear",
         pending: null,
         tradePlan: null,
+        strategyContext:
+            overrides.strategyContext || buildStrategyContext(context, overrides),
     };
 }
 
@@ -216,6 +284,9 @@ async function evaluateRangeBreakoutEntry({
         currentPrice: entryPrice,
         atrVal: h1Atr,
         atrPips,
+        config: resolvedConfig,
+        sessionName: marketContext?.session?.session || null,
+        spreadPips,
     };
 
     if (!Array.isArray(m5Candles) || m5Candles.length < 12) {
@@ -260,8 +331,10 @@ async function evaluateRangeBreakoutEntry({
         });
     }
 
+    evaluationContext.openingRange = openingRange;
     const rangeHeight = openingRange.height;
     const atrRatio = rangeHeight / h1Atr;
+    evaluationContext.atrRatio = atrRatio;
     if (
         atrRatio < toFiniteNumber(resolvedConfig.rangeMinAtrRatio, 0.5) ||
         atrRatio > toFiniteNumber(resolvedConfig.rangeMaxAtrRatio, 2.0)
@@ -282,6 +355,7 @@ async function evaluateRangeBreakoutEntry({
         resolvedConfig.maxBreakoutBodyRatio,
         0.7
     );
+    evaluationContext.bodyRatio = candleBody / Math.max(rangeHeight, 0.00001);
     if (rangeHeight <= 0 || candleBody / rangeHeight > maxBodyRatio) {
         return createHoldResult(evaluationContext, {
             reason:
@@ -336,6 +410,12 @@ async function evaluateRangeBreakoutEntry({
                 stopLossPrice: openingRange.low,
                 takeProfitPrice: entryPrice + takeProfitDistance,
             },
+            strategyContext: buildStrategyContext(evaluationContext, {
+                config: resolvedConfig,
+                openingRange,
+                setup: "opening_range_breakout",
+                entryBias: "long",
+            }),
         };
     }
 
@@ -375,6 +455,12 @@ async function evaluateRangeBreakoutEntry({
                 stopLossPrice: openingRange.high,
                 takeProfitPrice: entryPrice - takeProfitDistance,
             },
+            strategyContext: buildStrategyContext(evaluationContext, {
+                config: resolvedConfig,
+                openingRange,
+                setup: "opening_range_breakdown",
+                entryBias: "short",
+            }),
         };
     }
 
