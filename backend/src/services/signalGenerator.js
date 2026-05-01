@@ -221,6 +221,7 @@ class SignalGenerator extends EventEmitter {
         htfContext,
         pending,
         tradePlan = null,
+        expectedEdge = null,
         strategyContext = null,
     }) {
         const safeHtfContext = htfContext || {
@@ -263,6 +264,9 @@ class SignalGenerator extends EventEmitter {
 
         if (strategyContext) {
             decisionContext.strategyContext = strategyContext;
+        }
+        if (expectedEdge) {
+            decisionContext.expectedEdge = expectedEdge;
         }
 
         return {
@@ -332,6 +336,7 @@ class SignalGenerator extends EventEmitter {
                   }
                 : null,
             tradePlan,
+            expectedEdge,
             strategyContext,
         };
     }
@@ -1256,6 +1261,7 @@ class SignalGenerator extends EventEmitter {
                         ? null
                         : evaluation.pending,
                 tradePlan: evaluation.tradePlan || null,
+                expectedEdge: evaluation.expectedEdge || null,
                 strategyContext: evaluation.strategyContext || null,
             });
         } catch (error) {

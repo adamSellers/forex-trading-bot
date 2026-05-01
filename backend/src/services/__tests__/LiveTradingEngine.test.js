@@ -1270,6 +1270,69 @@ describe('LiveTradingEngine', () => {
             );
         });
 
+        test('should honor strategy tradePlan stop loss and take profit on live entry', async () => {
+            const signal = createMockSignal({
+                currentPrice: 1.16571,
+                tradePlan: {
+                    stopLossPrice: 1.16471,
+                    takeProfitPrice: 1.16888,
+                },
+            });
+            const config = mockConfigService.get();
+            const sizeSpy = jest
+                .spyOn(engine, 'calculatePositionSize')
+                .mockResolvedValue(795);
+            const takeProfitSpy = jest.spyOn(engine, 'calculateTakeProfit');
+
+            const trade = await engine.executeEntry(signal, config);
+
+            expect(sizeSpy.mock.calls[0][1]).toBeCloseTo(10, 5);
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(
+                'AUD_USD',
+                795,
+                {
+                    stopLossPrice: 1.16471,
+                    takeProfitPrice: 1.16888,
+                }
+            );
+            expect(takeProfitSpy).not.toHaveBeenCalled();
+            expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
+            expect(trade).toEqual(
+                expect.objectContaining({
+                    stopLossPrice: 1.16471,
+                    takeProfitPrice: 1.16888,
+                })
+            );
+        });
+
+        test('should ignore strategy tradePlan prices that are invalid for the entry direction', async () => {
+            const signal = createMockSignal({
+                currentPrice: 1.16571,
+                tradePlan: {
+                    stopLossPrice: 1.1665,
+                    takeProfitPrice: 1.164,
+                },
+            });
+            const config = mockConfigService.get();
+            const sizeSpy = jest
+                .spyOn(engine, 'calculatePositionSize')
+                .mockResolvedValue(795);
+
+            const trade = await engine.executeEntry(signal, config);
+
+            expect(sizeSpy.mock.calls[0][1]).toBeCloseTo(30, 5);
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(
+                'AUD_USD',
+                795,
+                {
+                    stopLossPrice: 1.16271,
+                    takeProfitPrice: null,
+                }
+            );
+            expect(trade.stopLossPrice).toBeCloseTo(1.16271, 5);
+            expect(trade.takeProfitPrice).toBeGreaterThan(signal.currentPrice);
+        });
+
         test('should not execute when position size is 0', async () => {
             // Force position size to return 0 by setting marginAvailable to 0
             // With 0 margin, safeMarginAvailable will be 0, effectiveBalance will be 0

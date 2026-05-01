@@ -75,6 +75,22 @@ function buildNewYorkRangeCandles() {
     return candles;
 }
 
+function buildVolatileLondonRangeCandles() {
+    return buildLondonRangeCandles().map((candle, index) => {
+        if (index < 22 || index > 27) {
+            return candle;
+        }
+
+        return {
+            ...candle,
+            open: 1.1002,
+            high: 1.1012,
+            low: 1.0988,
+            close: 1.1001,
+        };
+    });
+}
+
 describe("rangeBreakoutStrategy", () => {
     test("emits a long entry on a valid London opening-range breakout", async () => {
         const result = await rangeBreakoutStrategy.evaluateEntry({
@@ -115,10 +131,24 @@ describe("rangeBreakoutStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                expectedEdge: expect.objectContaining({
+                    grossTargetPips: expect.any(Number),
+                    grossStopPips: expect.any(Number),
+                    spreadCostPips: 1,
+                    breakEvenWinRate: expect.any(Number),
+                    brokerFeedingOnly: expect.any(Boolean),
+                }),
                 strategyContext: expect.objectContaining({
                     family: "range_breakout",
                     setup: "opening_range_breakout",
                     entryBias: "long",
+                    breakoutQuality: expect.objectContaining({
+                        compressionOk: true,
+                        longQualityOk: true,
+                    }),
+                    expectedEdge: expect.objectContaining({
+                        spreadCostPips: 1,
+                    }),
                     openingRange: expect.objectContaining({
                         session: "London",
                         high: expect.any(Number),
@@ -171,10 +201,21 @@ describe("rangeBreakoutStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                expectedEdge: expect.objectContaining({
+                    grossTargetPips: expect.any(Number),
+                    grossStopPips: expect.any(Number),
+                    spreadCostPips: 0.9,
+                    breakEvenWinRate: expect.any(Number),
+                    brokerFeedingOnly: expect.any(Boolean),
+                }),
                 strategyContext: expect.objectContaining({
                     family: "range_breakout",
                     setup: "opening_range_breakdown",
                     entryBias: "short",
+                    breakoutQuality: expect.objectContaining({
+                        compressionOk: true,
+                        shortQualityOk: true,
+                    }),
                     openingRange: expect.objectContaining({
                         session: "New York",
                         high: expect.any(Number),
@@ -226,6 +267,50 @@ describe("rangeBreakoutStrategy", () => {
                     openingRange: expect.objectContaining({
                         session: "London",
                         atrRatio: expect.any(Number),
+                    }),
+                }),
+            })
+        );
+    });
+
+    test("filters fresh breaks without acceptance, retest, or pre-breakout compression", async () => {
+        const result = await rangeBreakoutStrategy.evaluateEntry({
+            instrument: "AUD_USD",
+            candles: [
+                createCandle("2026-01-01T09:00:00.000Z", 1.1001, 1.10035, 1.09995, 1.1003),
+                createCandle("2026-01-01T09:15:00.000Z", 1.1002, 1.10085, 1.1001, 1.10075),
+            ],
+            currentPrice: 1.10075,
+            config: {},
+            marketContext: {
+                session: {
+                    session: "London",
+                    spreadPips: 1.0,
+                },
+                timeframes: {
+                    "5m": {
+                        candles: buildVolatileLondonRangeCandles(),
+                    },
+                    "1h": {
+                        indicators: {
+                            atr: [0.0008],
+                        },
+                        candles: [],
+                    },
+                },
+            },
+        });
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                signalType: "HOLD",
+                reasonCode: "RANGE_BREAKOUT_QUALITY_FILTERED",
+                signalClass: "FILTERED",
+                strategyContext: expect.objectContaining({
+                    breakoutQuality: expect.objectContaining({
+                        compressionOk: false,
+                        longAcceptanceOk: false,
+                        longQualityOk: false,
                     }),
                 }),
             })

@@ -67,6 +67,67 @@ describe("supertrendMomentumStrategy parity", () => {
                 reasonCode: "LONG_FRESH_FLIP_ACTIONABLE",
                 signalClass: "ACTIONABLE",
                 intent: "ENTER_LONG",
+                expectedEdge: expect.objectContaining({
+                    grossTargetPips: expect.any(Number),
+                    grossStopPips: expect.any(Number),
+                    breakEvenWinRate: expect.any(Number),
+                    brokerFeedingOnly: expect.any(Boolean),
+                }),
+                strategyContext: expect.objectContaining({
+                    family: "supertrend_momentum",
+                    expectedEdge: expect.objectContaining({
+                        grossTargetPips: expect.any(Number),
+                    }),
+                    filters: expect.objectContaining({
+                        freshFlipEntriesEnabled: true,
+                    }),
+                }),
+            })
+        );
+    });
+
+    test("queues continuation instead of chasing a fresh flip when disabled", async () => {
+        const candles = generateCandles(250);
+        const currentPrice = candles[candles.length - 1].close;
+
+        generator.updateConfig({
+            enableFreshFlipEntries: false,
+            enableContinuationEntry: true,
+            enableLongContinuationEntry: true,
+        });
+
+        jest.spyOn(generator, "calculateSuperTrend").mockImplementation(() => ({
+            superTrend: new Array(candles.length).fill(currentPrice),
+            direction: [...new Array(candles.length - 2).fill(-1), -1, 1],
+            atr: new Array(candles.length).fill(0.001),
+        }));
+        jest.spyOn(RSI, "calculate").mockReturnValue([62]);
+        jest.spyOn(ATR, "calculate").mockReturnValue([0.001]);
+        jest.spyOn(ADX, "calculate").mockReturnValue([
+            { adx: 20, pdi: 18, mdi: 12 },
+            { adx: 21, pdi: 20, mdi: 12 },
+            { adx: 22, pdi: 21, mdi: 11 },
+            { adx: 25, pdi: 24, mdi: 10 },
+        ]);
+
+        const direct = await evaluateDirectly("AUD_USD", candles, currentPrice);
+        expect(direct).toEqual(
+            expect.objectContaining({
+                signalType: "HOLD",
+                reasonCode: "LONG_FRESH_FLIP_CONTINUATION_ONLY",
+                signalClass: "PENDING",
+                intent: "WAIT",
+                pendingAction: "set",
+                pending: expect.objectContaining({
+                    state: "AWAIT_PULLBACK",
+                    waitingFor: "PULLBACK",
+                    direction: "LONG",
+                }),
+                strategyContext: expect.objectContaining({
+                    filters: expect.objectContaining({
+                        freshFlipEntriesEnabled: false,
+                    }),
+                }),
             })
         );
     });

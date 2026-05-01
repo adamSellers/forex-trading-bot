@@ -241,11 +241,15 @@ describe("PaperTradingRuntime", () => {
         dataService = {
             getCurrentPrice: jest.fn(() => ({
                 price: 1.1,
+                bid: 1.09995,
+                ask: 1.10005,
                 spread: 1.1,
                 tradeable: true,
                 timestamp: Date.now(),
             })),
-            getPipValue: jest.fn(() => 0.0001),
+            getPipValue: jest.fn((instrument) =>
+                instrument?.includes("JPY") ? 0.01 : 0.0001
+            ),
         };
 
         runtime = new PaperTradingRuntime({
@@ -289,6 +293,144 @@ describe("PaperTradingRuntime", () => {
                 runId: "run-candidate-1",
                 mode: RUNTIME_MODES.PAPER_CANDIDATE,
                 positionCount: 1,
+            })
+        );
+    });
+
+    test("processRunSession fills paper BUY entries at ask instead of mid", async () => {
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.098,
+                    takeProfitPrice: 1.105,
+                },
+            },
+        ]);
+
+        const savedTrade = tradeRepository.save.mock.calls[0][0];
+        expect(savedTrade.entryPrice).toBeCloseTo(1.10005, 5);
+        expect(savedTrade.entryCostAud).toBeCloseTo(1000, 2);
+        expect(savedTrade.marginUsedAud).toBeCloseTo(50, 2);
+        expect(savedTrade.brokerReconciliationPayload.paperRuntime).toEqual(
+            expect.objectContaining({
+                entryPriceSource: "PAPER_ASK",
+                entrySlippagePips: 0,
+                accountCurrency: "AUD",
+                baseToAccountRate: 1,
+                quoteToAccountRate: expect.any(Number),
+            })
+        );
+        expect(
+            savedTrade.brokerReconciliationPayload.paperRuntime
+                .quoteToAccountRate
+        ).toBeCloseTo(1 / 1.10005, 8);
+    });
+
+    test("processRunSession falls back when strategy tradePlan has invalid stop direction", async () => {
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.102,
+                    takeProfitPrice: 1.099,
+                },
+            },
+        ]);
+
+        const savedTrade = tradeRepository.save.mock.calls[0][0];
+        expect(savedTrade.entryPrice).toBeCloseTo(1.10005, 5);
+        expect(savedTrade.stopLossPrice).toBeLessThan(savedTrade.entryPrice);
+        expect(savedTrade.stopLossPrice).not.toBe(1.102);
+        expect(savedTrade.takeProfitPrice).toBeNull();
+    });
+
+    test("processRunSession closes paper BUY trades at bid on reversal", async () => {
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.098,
+                    takeProfitPrice: 1.105,
+                },
+            },
+        ]);
+
+        const openedTrade = tradeRepository.trades[0];
+        dataService.getCurrentPrice.mockReturnValue({
+            price: 1.101,
+            bid: 1.1009,
+            ask: 1.1011,
+            spread: 2,
+            tradeable: true,
+            timestamp: Date.now(),
+        });
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "SELL",
+                strength: 28,
+                entryType: "EXIT_ONLY",
+                currentPrice: 1.101,
+                configHash: "cfg-1",
+            },
+        ]);
+
+        expect(tradeRepository.updateTrade).toHaveBeenCalledWith(
+            openedTrade.id,
+            expect.objectContaining({
+                exitPrice: 1.1009,
+                closePriceSource: "PAPER_BID",
+                isOpen: false,
+            })
+        );
+    });
+
+    test("processRunSession applies optional paper slippage against the fill", async () => {
+        session.run.configSnapshot.paperSlippagePips = 0.5;
+        session.generator.config.paperSlippagePips = 0.5;
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.098,
+                    takeProfitPrice: 1.105,
+                },
+            },
+        ]);
+
+        const savedTrade = tradeRepository.save.mock.calls[0][0];
+        expect(savedTrade.entryPrice).toBeCloseTo(1.1001, 5);
+        expect(savedTrade.brokerReconciliationPayload.paperRuntime).toEqual(
+            expect.objectContaining({
+                entryPriceSource: "PAPER_ASK_WITH_SLIPPAGE",
+                entrySlippagePips: 0.5,
             })
         );
     });
@@ -421,7 +563,7 @@ describe("PaperTradingRuntime", () => {
             1.098
         );
 
-        expect(units).toBe(499);
+        expect(units).toBe(549);
     });
 
     test("evaluateOpenTrade closes paper trades when take profit is reached", async () => {
@@ -460,6 +602,103 @@ describe("PaperTradingRuntime", () => {
                 isOpen: false,
             })
         );
+    });
+
+    test("closeTrade converts USD quote PnL into AUD account currency", async () => {
+        const trade = {
+            id: "paper-aud-usd-pnl",
+            instrument: "AUD_USD",
+            side: "BUY",
+            units: 1000,
+            entryPrice: 0.65,
+            entryCostAud: 1000,
+            entryTime: Date.now() - 1000,
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    accountCurrency: "AUD",
+                },
+            },
+        };
+
+        const closedTrade = await runtime.closeTrade(
+            trade,
+            0.651,
+            "MANUAL"
+        );
+
+        const expectedPnlAud = 1000 * 0.001 * (1 / 0.651);
+        expect(closedTrade.pnlPips).toBeCloseTo(10, 5);
+        expect(closedTrade.pnlAud).toBeCloseTo(expectedPnlAud, 5);
+        expect(tradeRepository.updateTrade).toHaveBeenCalledWith(
+            "paper-aud-usd-pnl",
+            expect.objectContaining({
+                pnlAud: expect.any(Number),
+                exitValueAud: 1000,
+                brokerReconciliationPayload: expect.objectContaining({
+                    paperRuntime: expect.objectContaining({
+                        accountCurrency: "AUD",
+                        quoteCurrency: "USD",
+                        quoteToAccountRate: expect.any(Number),
+                        pnlQuote: expect.any(Number),
+                    }),
+                }),
+            })
+        );
+        expect(
+            tradeRepository.updateTrade.mock.calls[0][1]
+                .brokerReconciliationPayload.paperRuntime.quoteToAccountRate
+        ).toBeCloseTo(1 / 0.651, 8);
+    });
+
+    test("closeTrade bridges JPY quote PnL through USD into AUD", async () => {
+        dataService.getCurrentPrice.mockImplementation((instrument) => {
+            if (instrument === "AUD_USD") {
+                return {
+                    price: 0.65,
+                    bid: 0.64995,
+                    ask: 0.65005,
+                    spread: 1,
+                    tradeable: true,
+                    timestamp: Date.now(),
+                };
+            }
+            if (instrument === "USD_JPY") {
+                return {
+                    price: 150.1,
+                    bid: 150.095,
+                    ask: 150.105,
+                    spread: 1,
+                    tradeable: true,
+                    timestamp: Date.now(),
+                };
+            }
+            return null;
+        });
+
+        const trade = {
+            id: "paper-usd-jpy-pnl",
+            instrument: "USD_JPY",
+            side: "BUY",
+            units: 1000,
+            entryPrice: 150,
+            entryCostAud: 1000 / 0.65,
+            entryTime: Date.now() - 1000,
+        };
+
+        const closedTrade = await runtime.closeTrade(
+            trade,
+            150.1,
+            "MANUAL"
+        );
+
+        const expectedQuoteToAud = (1 / 150.1) * (1 / 0.65);
+        const expectedPnlAud = 100 * expectedQuoteToAud;
+        expect(closedTrade.pnlPips).toBeCloseTo(10, 5);
+        expect(closedTrade.pnlAud).toBeCloseTo(expectedPnlAud, 5);
+        expect(
+            tradeRepository.updateTrade.mock.calls[0][1]
+                .brokerReconciliationPayload.paperRuntime.quoteToAccountRate
+        ).toBeCloseTo(expectedQuoteToAud, 8);
     });
 
     test("resetRun clears telemetry and re-seeds the candidate snapshot", async () => {

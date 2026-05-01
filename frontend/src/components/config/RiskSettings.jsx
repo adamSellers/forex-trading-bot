@@ -7,9 +7,19 @@ import {
 } from '@mui/material';
 import { Security, ExpandMore, ExpandLess } from '@mui/icons-material';
 import { GlassCard, SectionHeader } from './ConfigShared';
+import { getFreshFlipToggleKey } from '../analytics/signalTelemetry';
 
 const RiskSettings = ({ config, updateConfig }) => {
   const [showAdvancedRisk, setShowAdvancedRisk] = useState(false);
+  const hasConfigKey = (key) => Object.prototype.hasOwnProperty.call(config, key);
+  const freshFlipToggleKey = getFreshFlipToggleKey(config);
+  const freshFlipToggleIsDisable =
+    freshFlipToggleKey && freshFlipToggleKey.toLowerCase().startsWith('disable');
+  const freshFlipEnabled = freshFlipToggleKey
+    ? freshFlipToggleIsDisable
+      ? !Boolean(config[freshFlipToggleKey])
+      : Boolean(config[freshFlipToggleKey])
+    : null;
 
   return (
     <Stack spacing={3}>
@@ -92,9 +102,94 @@ const RiskSettings = ({ config, updateConfig }) => {
             </Grid>
           )}
 
+          {freshFlipToggleKey && (
+            <Grid item xs={12} md={6}>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                height="100%"
+                sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}
+              >
+                <Box>
+                  <Typography fontWeight="bold">Fresh Flip Entries</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Backend key: {freshFlipToggleKey}
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={freshFlipEnabled}
+                  onChange={(e) =>
+                    updateConfig(
+                      freshFlipToggleKey,
+                      freshFlipToggleIsDisable ? !e.target.checked : e.target.checked
+                    )
+                  }
+                  color="warning"
+                />
+              </Box>
+            </Grid>
+          )}
+
           <Grid item xs={12}>
             <Divider sx={{ my: 1 }} />
           </Grid>
+
+          {(hasConfigKey('maxSpreadPips') || hasConfigKey('maxPriceAgeMs')) && (
+            <Grid item xs={12}>
+              <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                <Stack
+                  direction={{ xs: 'column', md: 'row' }}
+                  spacing={3}
+                  alignItems={{ xs: 'stretch', md: 'center' }}
+                >
+                  <Box minWidth={190}>
+                    <Typography fontWeight="bold">Execution Cost Gate</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Broker-facing entries are blocked when live cost or quote freshness breaches these limits.
+                    </Typography>
+                  </Box>
+
+                  {hasConfigKey('maxSpreadPips') && (
+                    <Box flex={1} minWidth={220}>
+                      <Typography gutterBottom variant="subtitle2" color="text.secondary">
+                        MAX SPREAD
+                      </Typography>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <Slider
+                          value={config.maxSpreadPips ?? 1.2}
+                          min={0.4}
+                          max={4}
+                          step={0.1}
+                          onChange={(_, v) => updateConfig('maxSpreadPips', v)}
+                          sx={{ flexGrow: 1 }}
+                        />
+                        <Chip
+                          label={`${(config.maxSpreadPips ?? 1.2).toFixed(1)} pips`}
+                          color={(config.maxSpreadPips ?? 1.2) > 2 ? 'warning' : 'success'}
+                          size="small"
+                        />
+                      </Stack>
+                    </Box>
+                  )}
+
+                  {hasConfigKey('maxPriceAgeMs') && (
+                    <Box minWidth={190}>
+                      <TextField
+                        fullWidth
+                        label="Max Price Age"
+                        type="number"
+                        value={config.maxPriceAgeMs ?? 15000}
+                        onChange={(e) => updateConfig('maxPriceAgeMs', parseInt(e.target.value, 10))}
+                        InputProps={{ endAdornment: <InputAdornment position="end">ms</InputAdornment> }}
+                        size="small"
+                      />
+                    </Box>
+                  )}
+                </Stack>
+              </Box>
+            </Grid>
+          )}
           
           <Grid item xs={12} md={6}>
             <Typography gutterBottom variant="subtitle2" color="text.secondary">LEVERAGE</Typography>

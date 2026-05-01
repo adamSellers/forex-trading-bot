@@ -11,6 +11,12 @@ import {
   Divider,
   LinearProgress,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
   alpha,
   useTheme,
@@ -29,6 +35,7 @@ import { runtimeAPI, socket, strategiesAPI } from '../config/api';
 import { GlassCard } from './dashboard/Shared';
 import EquityChart from './analytics/EquityChart';
 import RecentTrades from './dashboard/RecentTrades';
+import { extractRunTelemetry, extractSignalTelemetry } from './analytics/signalTelemetry';
 
 const PAPER_REFRESH_INTERVAL_MS = 30000;
 const PAPER_EVENT_NAMES = [
@@ -213,6 +220,214 @@ const SummaryMetric = ({ label, value, tone = 'text.primary' }) => (
   </Box>
 );
 
+const formatPercent = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? `${parsed.toFixed(1)}%` : '--';
+};
+
+const getWinRate = (summary = {}) => {
+  const provided = Number(summary?.winRate);
+  if (Number.isFinite(provided)) {
+    return provided;
+  }
+
+  const closedTrades = Number(summary?.closedTradeCount ?? summary?.totalTrades ?? 0);
+  const winners = Number(summary?.winningTrades ?? 0);
+  return closedTrades > 0 ? (winners / closedTrades) * 100 : null;
+};
+
+const TelemetryMetric = ({ label, value, tone = 'text.primary' }) => (
+  <Box minWidth={118}>
+    <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 0.8 }}>
+      {label}
+    </Typography>
+    <Typography
+      variant="caption"
+      sx={{
+        display: 'block',
+        color: tone,
+        fontWeight: 800,
+        fontFamily: '"Roboto Mono", monospace',
+      }}
+    >
+      {value || '--'}
+    </Typography>
+  </Box>
+);
+
+const RunTelemetryStrip = ({ run }) => {
+  const telemetry = extractRunTelemetry(run || {});
+
+  return (
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr 1fr',
+          md: 'repeat(5, minmax(116px, 1fr))',
+        },
+        gap: 1,
+      }}
+    >
+      <TelemetryMetric
+        label="Expected Edge"
+        value={telemetry.hasEdge ? telemetry.edgeLabel : telemetry.edgeGateLabel}
+        tone={telemetry.edgeTone}
+      />
+      <TelemetryMetric
+        label="Cost Gate"
+        value={telemetry.hasCost ? telemetry.spreadLabel : telemetry.costGateLabel}
+        tone={telemetry.costTone}
+      />
+      <TelemetryMetric
+        label="Regime"
+        value={telemetry.regimeLabel}
+        tone={telemetry.regimeTone}
+      />
+      <TelemetryMetric label="Fresh Flip" value={telemetry.freshFlip.label} />
+      <Box minWidth={118}>
+        <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 0.8 }}>
+          Broker
+        </Typography>
+        <Box mt={0.35}>
+          <Chip
+            size="small"
+            label={telemetry.broker.label}
+            color={telemetry.broker.color}
+            variant={telemetry.broker.feedsBroker ? 'filled' : 'outlined'}
+            sx={{ height: 20, fontSize: '0.62rem', fontWeight: 800 }}
+          />
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+
+const RunComparisonTable = ({ shadowRun, candidateRuns = [], strategyCatalog = [] }) => {
+  const theme = useTheme();
+  const rows = [shadowRun, ...candidateRuns].filter(Boolean);
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <GlassCard sx={{ p: 2 }}>
+      <Stack spacing={1.5}>
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={1}>
+          <Box>
+            <Typography variant="overline" sx={{ letterSpacing: 1.4, color: 'primary.main', fontWeight: 800 }}>
+              Run Comparison
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              Baseline, Candidates, Gates
+            </Typography>
+          </Box>
+          <Chip size="small" label={`${rows.length} runs`} variant="outlined" />
+        </Stack>
+
+        <TableContainer sx={{ maxHeight: 420 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Run</TableCell>
+                <TableCell>Mode</TableCell>
+                <TableCell align="right">Realized</TableCell>
+                <TableCell align="right">Win</TableCell>
+                <TableCell align="right">Signals</TableCell>
+                <TableCell>Expected Edge</TableCell>
+                <TableCell>Cost</TableCell>
+                <TableCell>Regime</TableCell>
+                <TableCell>Broker</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((run) => {
+                const telemetry = extractRunTelemetry(run);
+                const summary = run.summary || {};
+                const closedTrades = summary.closedTradeCount ?? summary.totalTrades ?? 0;
+                const signalCount =
+                  summary.totalSignals ??
+                  summary.signalCount ??
+                  (summary.lastSignal ? 1 : 0);
+
+                return (
+                  <TableRow key={run.runId} hover>
+                    <TableCell sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                        {run.metadata?.displayName || getStrategyLabel(run.strategy, strategyCatalog)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: '"Roboto Mono", monospace' }}>
+                        {formatRunId(run.runId)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      <Chip
+                        size="small"
+                        label={String(run.mode || 'unknown').replace(/_/g, ' ')}
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: '0.62rem' }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: Number(summary.realizedPnlAud || 0) >= 0 ? 'success.main' : 'error.main',
+                          fontFamily: '"Roboto Mono", monospace',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {formatCurrency(summary.realizedPnlAud)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {closedTrades} closed
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right" sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      {formatPercent(getWinRate(summary))}
+                    </TableCell>
+                    <TableCell align="right" sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      {signalCount}
+                    </TableCell>
+                    <TableCell sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      <Typography variant="caption" sx={{ color: telemetry.edgeTone, fontFamily: '"Roboto Mono", monospace', fontWeight: 800 }}>
+                        {telemetry.hasEdge ? telemetry.edgeLabel : telemetry.edgeGateLabel}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      <Typography variant="caption" sx={{ color: telemetry.costTone, fontFamily: '"Roboto Mono", monospace', fontWeight: 800 }}>
+                        {telemetry.hasCost ? telemetry.spreadLabel : telemetry.costGateLabel}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {telemetry.freshnessGateLabel}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      <Typography variant="caption" sx={{ color: telemetry.regimeTone, fontWeight: 800 }}>
+                        {telemetry.regimeLabel}
+                      </Typography>
+                    </TableCell>
+                    <TableCell sx={{ borderColor: alpha(theme.palette.divider, 0.08) }}>
+                      <Chip
+                        size="small"
+                        label={telemetry.broker.label}
+                        color={telemetry.broker.color}
+                        variant={telemetry.broker.feedsBroker ? 'filled' : 'outlined'}
+                        sx={{ height: 20, fontSize: '0.62rem', fontWeight: 800 }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Stack>
+    </GlassCard>
+  );
+};
+
 const InstructionList = ({ items = [], ordered = false }) => {
   const theme = useTheme();
 
@@ -330,36 +545,74 @@ const CandidateStrategyGuide = ({ strategies = [] }) => {
   );
 };
 
-const SignalFeed = ({ signals = [] }) => (
+const SignalFeed = ({ signals = [], run = null }) => (
   <Stack spacing={1.25}>
     {signals.length === 0 && (
       <Alert severity="info">No persisted runtime signals for this run yet.</Alert>
     )}
-    {signals.map((signal, index) => (
-      <GlassCard key={`${signal.timestamp}-${signal.symbol}-${index}`} sx={{ p: 1.5 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
-          <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-              {signal.symbol} {signal.signal}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {signal.reasonCode || signal.message || 'Runtime signal'}
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Chip
-              size="small"
-              label={signal.signalClass || 'signal'}
-              color={signal.signal === 'BUY' ? 'success' : signal.signal === 'SELL' ? 'error' : 'default'}
-              variant="outlined"
-            />
-            <Typography variant="caption" color="text.secondary">
-              {formatDateTime(signal.timestamp)}
-            </Typography>
+    {signals.map((signal, index) => {
+      const telemetry = extractSignalTelemetry(signal, {
+        config: run?.configSnapshot,
+        runtimeMode: run?.mode,
+        tradingEnabled: run?.mode === 'live' ? run?.configSnapshot?.enableTrading : false,
+      });
+
+      return (
+        <GlassCard key={`${signal.timestamp}-${signal.symbol}-${index}`} sx={{ p: 1.5 }}>
+          <Stack spacing={1}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  {signal.symbol} {signal.signal}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {signal.reasonCode || signal.message || 'Runtime signal'}
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip
+                  size="small"
+                  label={signal.signalClass || 'signal'}
+                  color={signal.signal === 'BUY' ? 'success' : signal.signal === 'SELL' ? 'error' : 'default'}
+                  variant="outlined"
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {formatDateTime(signal.timestamp)}
+                </Typography>
+              </Stack>
+            </Stack>
+
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              <Chip
+                size="small"
+                label={`Edge ${telemetry.edgeLabel}`}
+                variant="outlined"
+                sx={{ height: 20, fontSize: '0.62rem', color: telemetry.edgeTone, fontWeight: 800 }}
+              />
+              <Chip
+                size="small"
+                label={`Cost ${telemetry.spreadLabel}`}
+                variant="outlined"
+                sx={{ height: 20, fontSize: '0.62rem', color: telemetry.costTone, fontWeight: 800 }}
+              />
+              <Chip
+                size="small"
+                label={telemetry.regimeLabel}
+                variant="outlined"
+                sx={{ height: 20, fontSize: '0.62rem', color: telemetry.regimeTone, fontWeight: 800 }}
+              />
+              <Chip
+                size="small"
+                label={telemetry.broker.label}
+                color={telemetry.broker.color}
+                variant={telemetry.broker.feedsBroker ? 'filled' : 'outlined'}
+                sx={{ height: 20, fontSize: '0.62rem', fontWeight: 800 }}
+              />
+            </Stack>
           </Stack>
-        </Stack>
-      </GlassCard>
-    ))}
+        </GlassCard>
+      );
+    })}
   </Stack>
 );
 
@@ -479,6 +732,8 @@ const RunCard = ({
           <SummaryMetric label="Last Signal" value={summary?.lastSignal?.signal || 'Waiting'} />
           <SummaryMetric label="Last Update" value={formatDateTime(summary?.lastSignalAt || run?.startedAt)} />
         </Stack>
+
+        <RunTelemetryStrip run={run} />
 
         {summary?.lastSignal && (
           <Alert
@@ -822,8 +1077,7 @@ const BacktestLab = () => {
                 Shadow Baseline vs Candidate Runs
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 760, mt: 1 }}>
-                Every paper run now exposes unified trades, signals, equity, and config snapshots from the shared runtime.
-                Select any run card below to inspect its exact behavior without leaving the comparison screen.
+                Compare paper PnL, signal feed, cost gates, expected edge, regime, and config snapshot on the same run identity.
               </Typography>
             </Box>
 
@@ -998,6 +1252,12 @@ const BacktestLab = () => {
             </Stack>
           </Stack>
         </GlassCard>
+
+        <RunComparisonTable
+          shadowRun={shadowRun}
+          candidateRuns={candidateRuns}
+          strategyCatalog={strategyCatalog}
+        />
 
         <Box
           sx={{
@@ -1260,7 +1520,7 @@ const BacktestLab = () => {
                       Recent Signals
                     </Typography>
                   </Stack>
-                  <SignalFeed signals={selectedRunDetail.signals} />
+                  <SignalFeed signals={selectedRunDetail.signals} run={selectedRun} />
                 </GlassCard>
               </Box>
             </Stack>

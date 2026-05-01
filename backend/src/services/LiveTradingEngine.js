@@ -16,6 +16,14 @@ const {
     ENTRY_DECISION_OUTCOMES,
 } = require("../constants/entryDecisionCodes");
 
+function toFiniteNumber(value, fallback = null) {
+    if (value === null || value === undefined || value === "") {
+        return fallback;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator
  *
@@ -963,7 +971,7 @@ class LiveTradingEngine extends EventEmitter {
      * Estimate margin that would be used by a new entry using current risk settings.
      */
     async estimateEntryMargin(signal, config) {
-        const { stopLossPips } = this.calculateStopLoss(signal, config);
+        const { stopLossPips } = this.resolveStopLoss(signal, config);
         const units = await this.calculatePositionSize(
             signal.symbol,
             stopLossPips,
@@ -1281,6 +1289,79 @@ class LiveTradingEngine extends EventEmitter {
         };
     }
 
+    resolveStopLoss(signal, config, entryPrice = null) {
+        const fallbackStop = this.calculateStopLoss(signal, config, entryPrice);
+        const plannedStopLossPrice = toFiniteNumber(
+            signal?.tradePlan?.stopLossPrice,
+            null
+        );
+
+        if (!Number.isFinite(plannedStopLossPrice)) {
+            return {
+                ...fallbackStop,
+                source: "GLOBAL_CONFIG",
+            };
+        }
+
+        const referencePrice = Number.isFinite(entryPrice)
+            ? entryPrice
+            : toFiniteNumber(signal?.currentPrice, null);
+        const signalSide = String(signal?.signal || "").toUpperCase();
+        const pipValue = oandaClient.getPipValue(signal.symbol);
+        const plannedStopLossPips =
+            Number.isFinite(referencePrice) && pipValue > 0
+                ? Math.abs(referencePrice - plannedStopLossPrice) / pipValue
+                : fallbackStop.stopLossPips;
+        const stopDirectionValid =
+            !Number.isFinite(referencePrice) ||
+            (signalSide === "BUY" && plannedStopLossPrice < referencePrice) ||
+            (signalSide === "SELL" && plannedStopLossPrice > referencePrice);
+
+        if (
+            !Number.isFinite(plannedStopLossPips) ||
+            plannedStopLossPips <= 0 ||
+            !stopDirectionValid
+        ) {
+            return {
+                ...fallbackStop,
+                source: "GLOBAL_CONFIG",
+            };
+        }
+
+        return {
+            stopLossPips: plannedStopLossPips,
+            stopLossPrice: plannedStopLossPrice,
+            source: "SIGNAL_TRADE_PLAN",
+        };
+    }
+
+    getPlannedTakeProfitPrice(signal, entryPrice = null) {
+        const plannedTakeProfitPrice = toFiniteNumber(
+            signal?.tradePlan?.takeProfitPrice,
+            null
+        );
+        if (!Number.isFinite(plannedTakeProfitPrice)) {
+            return null;
+        }
+
+        const referencePrice = Number.isFinite(entryPrice)
+            ? entryPrice
+            : toFiniteNumber(signal?.currentPrice, null);
+        if (!Number.isFinite(referencePrice)) {
+            return plannedTakeProfitPrice;
+        }
+
+        const signalSide = String(signal?.signal || "").toUpperCase();
+        if (signalSide === "BUY" && plannedTakeProfitPrice <= referencePrice) {
+            return null;
+        }
+        if (signalSide === "SELL" && plannedTakeProfitPrice >= referencePrice) {
+            return null;
+        }
+
+        return plannedTakeProfitPrice;
+    }
+
     /**
      * Get mid price from Oanda pricing payload for a single instrument.
      */
@@ -1502,11 +1583,15 @@ class LiveTradingEngine extends EventEmitter {
 
         logger.info(`🎯 Executing entry for ${symbol} at ${currentPrice}`);
 
-        // Calculate initial stop loss from signal price (will be corrected to fill price after execution)
-        const { stopLossPips, stopLossPrice: initialStopLossPrice } = this.calculateStopLoss(
+        const {
+            stopLossPips,
+            stopLossPrice: initialStopLossPrice,
+            source: stopLossSource,
+        } = this.resolveStopLoss(
             signal,
             config
         );
+        const plannedTakeProfitPrice = this.getPlannedTakeProfitPrice(signal);
         const configHash =
             signal.configHash ||
             config.configHash ||
@@ -1580,6 +1665,7 @@ class LiveTradingEngine extends EventEmitter {
                 units,
                 orderUnits,
                 stopLossPrice: initialStopLossPrice,
+                takeProfitPrice: plannedTakeProfitPrice,
             });
 
             const orderResult = await oandaClient.placeMarketOrder(
@@ -1587,7 +1673,7 @@ class LiveTradingEngine extends EventEmitter {
                 orderUnits,
                 {
                     stopLossPrice: initialStopLossPrice,
-                    // Note: TP will be set after order fills using actual margin
+                    takeProfitPrice: plannedTakeProfitPrice,
                 }
             );
 
@@ -1614,15 +1700,21 @@ class LiveTradingEngine extends EventEmitter {
             const fillPrice = parseFloat(fillTransaction.price);
             let stopLossPrice = initialStopLossPrice;
 
-            // Align SL to actual fill so true stop distance and risk match sizing assumptions.
-            const fillBasedStop = this.calculateStopLoss(
-                signal,
-                config,
-                fillPrice
-            );
-            stopLossPrice = fillBasedStop.stopLossPrice;
+            if (stopLossSource !== "SIGNAL_TRADE_PLAN") {
+                // Align fallback SL to actual fill so true stop distance and risk match sizing assumptions.
+                const fillBasedStop = this.calculateStopLoss(
+                    signal,
+                    config,
+                    fillPrice
+                );
+                stopLossPrice = fillBasedStop.stopLossPrice;
+            }
 
-            if (oandaTradeId && Number.isFinite(stopLossPrice)) {
+            if (
+                oandaTradeId &&
+                Number.isFinite(stopLossPrice) &&
+                stopLossSource !== "SIGNAL_TRADE_PLAN"
+            ) {
                 try {
                     await oandaClient.modifyTrade(oandaTradeId, {
                         stopLossPrice,
@@ -1641,9 +1733,15 @@ class LiveTradingEngine extends EventEmitter {
 
             // Calculate take profit based on actual margin used
             let takeProfit = null;
-            let takeProfitPrice = null;
+            let takeProfitPrice = Number.isFinite(plannedTakeProfitPrice)
+                ? plannedTakeProfitPrice
+                : null;
 
-            if (marginUsed > 0 && config.enableTakeProfit) {
+            if (
+                !Number.isFinite(takeProfitPrice) &&
+                marginUsed > 0 &&
+                config.enableTakeProfit
+            ) {
                 takeProfit = await this.calculateTakeProfit(
                     signal,
                     config,
@@ -1737,7 +1835,11 @@ class LiveTradingEngine extends EventEmitter {
             this.broadcastTradeOpened(trade);
 
             const tpInfo = takeProfitPrice
-                ? ` | TP: ${takeProfitPrice} ($${takeProfit.targetProfitAud.toFixed(2)})`
+                ? ` | TP: ${takeProfitPrice}${
+                      takeProfit?.targetProfitAud
+                          ? ` ($${takeProfit.targetProfitAud.toFixed(2)})`
+                          : ""
+                  }`
                 : "";
             logger.success(
                 `✅ LIVE ${trade.side} executed: ${symbol} @ ${fillPrice} | Units: ${units} | SL: ${stopLossPrice}${tpInfo}`

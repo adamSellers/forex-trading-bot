@@ -1,7 +1,13 @@
 const { RSI, ADX, ATR } = require("technicalindicators");
 const logger = require("../utils/logger");
 const { calculateSuperTrend } = require("../utils/indicators");
+const { calculateExpectedEdge } = require("./expectedEdge");
 const { createStrategyDefinition } = require("./strategyContract");
+
+function toFiniteNumber(value, fallback = null) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 function getCandleTimestampMs(candleTime) {
     if (typeof candleTime === "number") {
@@ -20,6 +26,10 @@ function isLongContinuationEnabled(config) {
 function isShortContinuationEnabled(config) {
     if (config.enableContinuationEntry === false) return false;
     return config.enableShortContinuationEntry !== false;
+}
+
+function areFreshFlipEntriesEnabled(config) {
+    return config.enableFreshFlipEntries !== false;
 }
 
 function isAdxFilterEnabled(config) {
@@ -60,6 +70,97 @@ function passesLongOverboughtCeiling(config, rsiVal) {
 
 function passesFreshShortRsiFloor(config, rsiVal) {
     return !isRsiFilterEnabled(config) || rsiVal > (config.rsiOversold || 30);
+}
+
+function estimateSupertrendStopPips(config = {}, atrPips = 0) {
+    const atrStopPips =
+        Math.max(0, toFiniteNumber(atrPips, 0)) *
+        Math.max(1, toFiniteNumber(config.stopLossAtrMultiplier, 2));
+    const configuredStopPips = Math.max(
+        toFiniteNumber(config.stopLossPips, 15),
+        toFiniteNumber(config.minStopLossPips, 0)
+    );
+
+    if (String(config.stopLossType || "").toUpperCase() === "FIXED") {
+        return configuredStopPips;
+    }
+
+    return Math.max(atrStopPips, configuredStopPips);
+}
+
+function estimateSupertrendTargetPips(config = {}, stopPips = 0) {
+    const explicitTargetPips = toFiniteNumber(config.expectedTargetPips, null);
+    if (Number.isFinite(explicitTargetPips) && explicitTargetPips > 0) {
+        return explicitTargetPips;
+    }
+
+    const trailingActivationPips = toFiniteNumber(
+        config.trailingStopActivationPips,
+        null
+    );
+    if (
+        config.enableTrailingStops !== false &&
+        Number.isFinite(trailingActivationPips) &&
+        trailingActivationPips > 0
+    ) {
+        return trailingActivationPips;
+    }
+
+    const expectedRewardRisk = Math.max(
+        0.1,
+        toFiniteNumber(config.expectedRewardRisk, 1)
+    );
+    return Math.max(0, toFiniteNumber(stopPips, 0)) * expectedRewardRisk;
+}
+
+function buildSupertrendStrategyContext({
+    signalType,
+    entryType,
+    currentPrice,
+    atrPips,
+    rsiVal,
+    adxVal,
+    pdiVal,
+    mdiVal,
+    currentDir,
+    prevDir,
+    htfContext,
+    freshFlipEntriesEnabled,
+    longContinuationEnabled,
+    shortContinuationEnabled,
+    spreadPips,
+    expectedEdge,
+}) {
+    return {
+        family: "supertrend_momentum",
+        setup: entryType || "scan",
+        entryBias:
+            signalType === "BUY"
+                ? "long"
+                : signalType === "SELL" && entryType !== "EXIT_ONLY"
+                ? "short"
+                : null,
+        currentPrice: toFiniteNumber(currentPrice, null),
+        m15: {
+            supertrendDirection: currentDir,
+            previousSupertrendDirection: prevDir,
+            adx: toFiniteNumber(adxVal, null),
+            pdi: toFiniteNumber(pdiVal, null),
+            mdi: toFiniteNumber(mdiVal, null),
+            rsi: toFiniteNumber(rsiVal, null),
+            atrPips: toFiniteNumber(atrPips, null),
+        },
+        htf: htfContext || null,
+        filters: {
+            freshFlipEntriesEnabled,
+            longContinuationEnabled,
+            shortContinuationEnabled,
+        },
+        session: {
+            spreadPips: toFiniteNumber(spreadPips, null),
+        },
+        expectedEdge: expectedEdge || null,
+    };
 }
 
 function getHtfTrendContext(config, dataService, instrument, options = {}) {
@@ -942,6 +1043,11 @@ async function evaluateSupertrendMomentumEntry(context) {
         : getHtfTrendContext(config, dataService, instrument, {
               calculateSuperTrendFn,
           });
+    const spreadPips = toFiniteNumber(
+        marketContext?.session?.spreadPips ?? marketContext?.price?.spread,
+        null
+    );
+    const freshFlipEntriesEnabled = areFreshFlipEntriesEnabled(config);
     const longContinuationEnabled = isLongContinuationEnabled(config);
     const shortContinuationEnabled = isShortContinuationEnabled(config);
     const currentCandle = resolvedCandles[idx];
@@ -1013,7 +1119,7 @@ async function evaluateSupertrendMomentumEntry(context) {
             clearPending();
         }
 
-        if (freshLongEntryOk) {
+        if (freshFlipEntriesEnabled && freshLongEntryOk) {
             signalType = "BUY";
             entryType = "FRESH_FLIP";
             reasonCode = "LONG_FRESH_FLIP_ACTIONABLE";
@@ -1040,14 +1146,18 @@ async function evaluateSupertrendMomentumEntry(context) {
                     signalCandleTime,
                 })
             );
-            reasonCode = "LONG_FRESH_FLIP_PULLBACK_PENDING";
+            reasonCode =
+                !freshFlipEntriesEnabled && freshLongEntryOk
+                    ? "LONG_FRESH_FLIP_CONTINUATION_ONLY"
+                    : "LONG_FRESH_FLIP_PULLBACK_PENDING";
             signalClass = "PENDING";
             intent = "WAIT";
-            reason =
-                `HOLD: long trend valid but not chaseable | ` +
-                `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
-                    1
-                )} | waiting for pullback`;
+            reason = !freshFlipEntriesEnabled && freshLongEntryOk
+                ? `HOLD: fresh long flip entries disabled | waiting for pullback continuation`
+                : `HOLD: long trend valid but not chaseable | ` +
+                  `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
+                      1
+                  )} | waiting for pullback`;
         } else if (
             !htfContext.longAllowed &&
             adxMeetsThreshold &&
@@ -1096,6 +1206,11 @@ async function evaluateSupertrendMomentumEntry(context) {
                 `HOLD: ST Flip blocked by weak momentum RSI ${rsiVal.toFixed(
                     1
                 )} < ${longMomentumFloor}`;
+        } else if (!freshFlipEntriesEnabled && freshLongEntryOk) {
+            reasonCode = "LONG_FRESH_FLIP_DISABLED";
+            signalClass = "FILTERED";
+            intent = "WAIT";
+            reason = "HOLD: fresh long flip entries disabled";
         } else {
             reasonCode = "LONG_FRESH_FLIP_FILTERED";
             signalClass = "FILTERED";
@@ -1164,7 +1279,7 @@ async function evaluateSupertrendMomentumEntry(context) {
             clearPending();
         }
 
-        if (freshShortEntryOk) {
+        if (freshFlipEntriesEnabled && freshShortEntryOk) {
             entryType = "SHORT_ENTRY";
             reasonCode = "SHORT_FRESH_FLIP_ACTIONABLE";
             signalClass = "ACTIONABLE";
@@ -1214,14 +1329,18 @@ async function evaluateSupertrendMomentumEntry(context) {
                 })
             );
             entryType = "EXIT_ONLY";
-            reasonCode = "SHORT_FRESH_FLIP_PULLBACK_PENDING";
+            reasonCode =
+                !freshFlipEntriesEnabled && freshShortEntryOk
+                    ? "SHORT_FRESH_FLIP_CONTINUATION_ONLY"
+                    : "SHORT_FRESH_FLIP_PULLBACK_PENDING";
             signalClass = "EXIT_ONLY";
             intent = "EXIT_LONG_ONLY";
-            reason =
-                `EXIT_ONLY: short trend valid but waiting for pullback | ` +
-                `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
-                    1
-                )}`;
+            reason = !freshFlipEntriesEnabled && freshShortEntryOk
+                ? `EXIT_ONLY: fresh short flip entries disabled | waiting for pullback continuation`
+                : `EXIT_ONLY: short trend valid but waiting for pullback | ` +
+                  `ADX ${adxVal.toFixed(1)}${adxRising ? "↑" : "↓"} | RSI ${rsiVal.toFixed(
+                      1
+                  )}`;
         } else if (!htfContext.shortAllowed) {
             entryType = "EXIT_ONLY";
             reasonCode = "SHORT_FRESH_FLIP_BLOCKED_HTF";
@@ -1252,6 +1371,12 @@ async function evaluateSupertrendMomentumEntry(context) {
                 `📉 EXIT: ST Flip RED (short blocked: momentum too strong RSI ${rsiVal.toFixed(
                     1
                 )} > ${shortMomentumCeiling})`;
+        } else if (!freshFlipEntriesEnabled && freshShortEntryOk) {
+            entryType = "EXIT_ONLY";
+            reasonCode = "SHORT_FRESH_FLIP_DISABLED";
+            signalClass = "EXIT_ONLY";
+            intent = "EXIT_LONG_ONLY";
+            reason = "📉 EXIT: ST Flip RED (fresh short entries disabled)";
         } else {
             entryType = "EXIT_ONLY";
             reasonCode = "SHORT_FRESH_FLIP_FILTERED";
@@ -1325,6 +1450,41 @@ async function evaluateSupertrendMomentumEntry(context) {
         intent = evaluation.intent || intent;
     }
 
+    const expectedEdge =
+        signalClass === "ACTIONABLE" &&
+        (signalType === "BUY" || signalType === "SELL")
+            ? calculateExpectedEdge({
+                  entryPrice: currentPrice,
+                  stopPips: estimateSupertrendStopPips(config, atrPips),
+                  targetPips: estimateSupertrendTargetPips(
+                      config,
+                      estimateSupertrendStopPips(config, atrPips)
+                  ),
+                  pipValue,
+                  spreadPips,
+                  slippagePips: config.expectedSlippagePips,
+                  minNetEdgePips: config.minNetEdgePips,
+              })
+            : null;
+    const strategyContext = buildSupertrendStrategyContext({
+        signalType,
+        entryType,
+        currentPrice,
+        atrPips,
+        rsiVal,
+        adxVal,
+        pdiVal,
+        mdiVal,
+        currentDir,
+        prevDir,
+        htfContext,
+        freshFlipEntriesEnabled,
+        longContinuationEnabled,
+        shortContinuationEnabled,
+        spreadPips,
+        expectedEdge,
+    });
+
     return {
         signalType,
         reason,
@@ -1347,6 +1507,8 @@ async function evaluateSupertrendMomentumEntry(context) {
         htfContext,
         pendingAction,
         pending: nextPending || null,
+        expectedEdge,
+        strategyContext,
     };
 }
 

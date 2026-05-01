@@ -48,11 +48,11 @@ function createMarketContext({ rsi, atr, h1Adx, spreadPips = 1.0, session = "Lon
 }
 
 describe("meanReversionStrategy", () => {
-    test("emits a long entry when price closes through the lower band in a ranging regime", async () => {
+    test("emits a long entry after a lower-band failed sweep and reclaim", async () => {
         const result = await meanReversionStrategy.evaluateEntry({
             instrument: "AUD_USD",
-            candles: buildCandles(1.096),
-            currentPrice: 1.096,
+            candles: buildCandles(1.0998),
+            currentPrice: 1.0998,
             config: {},
             marketContext: createMarketContext({
                 rsi: 24,
@@ -72,10 +72,23 @@ describe("meanReversionStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                expectedEdge: expect.objectContaining({
+                    grossTargetPips: expect.any(Number),
+                    grossStopPips: expect.any(Number),
+                    spreadCostPips: 1,
+                    breakEvenWinRate: expect.any(Number),
+                    brokerFeedingOnly: expect.any(Boolean),
+                }),
                 strategyContext: expect.objectContaining({
                     family: "mean_reversion",
                     setup: "lower_band_fade",
                     entryBias: "long",
+                    failedSweep: expect.objectContaining({
+                        longFailedSweep: true,
+                    }),
+                    expectedEdge: expect.objectContaining({
+                        spreadCostPips: 1,
+                    }),
                     regime: expect.objectContaining({
                         h1Adx: 18,
                         maxH1Adx: 25,
@@ -83,15 +96,15 @@ describe("meanReversionStrategy", () => {
                 }),
             })
         );
-        expect(result.tradePlan.stopLossPrice).toBeLessThan(1.096);
-        expect(result.tradePlan.takeProfitPrice).toBeGreaterThan(1.096);
+        expect(result.tradePlan.stopLossPrice).toBeLessThan(1.0998);
+        expect(result.tradePlan.takeProfitPrice).toBeGreaterThan(1.0998);
     });
 
-    test("emits a short entry when price closes through the upper band in a ranging regime", async () => {
+    test("emits a short entry after an upper-band failed sweep and reclaim", async () => {
         const result = await meanReversionStrategy.evaluateEntry({
             instrument: "AUD_USD",
-            candles: buildCandles(1.104),
-            currentPrice: 1.104,
+            candles: buildCandles(1.1003),
+            currentPrice: 1.1003,
             config: {},
             marketContext: createMarketContext({
                 rsi: 76,
@@ -111,10 +124,20 @@ describe("meanReversionStrategy", () => {
                     stopLossPrice: expect.any(Number),
                     takeProfitPrice: expect.any(Number),
                 }),
+                expectedEdge: expect.objectContaining({
+                    grossTargetPips: expect.any(Number),
+                    grossStopPips: expect.any(Number),
+                    spreadCostPips: 1,
+                    breakEvenWinRate: expect.any(Number),
+                    brokerFeedingOnly: expect.any(Boolean),
+                }),
                 strategyContext: expect.objectContaining({
                     family: "mean_reversion",
                     setup: "upper_band_fade",
                     entryBias: "short",
+                    failedSweep: expect.objectContaining({
+                        shortFailedSweep: true,
+                    }),
                     regime: expect.objectContaining({
                         h1Adx: 17,
                         maxH1Adx: 25,
@@ -122,8 +145,37 @@ describe("meanReversionStrategy", () => {
                 }),
             })
         );
-        expect(result.tradePlan.stopLossPrice).toBeGreaterThan(1.104);
-        expect(result.tradePlan.takeProfitPrice).toBeLessThan(1.104);
+        expect(result.tradePlan.stopLossPrice).toBeGreaterThan(1.1003);
+        expect(result.tradePlan.takeProfitPrice).toBeLessThan(1.1003);
+    });
+
+    test("filters raw lower-band touches that do not reclaim the band", async () => {
+        const result = await meanReversionStrategy.evaluateEntry({
+            instrument: "AUD_USD",
+            candles: buildCandles(1.096),
+            currentPrice: 1.096,
+            config: {},
+            marketContext: createMarketContext({
+                rsi: 24,
+                atr: 0.001,
+                h1Adx: 18,
+            }),
+        });
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                signalType: "HOLD",
+                reasonCode: "MEAN_REVERSION_FAILED_SWEEP_FILTERED",
+                signalClass: "FILTERED",
+                strategyContext: expect.objectContaining({
+                    failedSweep: expect.objectContaining({
+                        longSwept: true,
+                        longReclaimed: false,
+                        longFailedSweep: false,
+                    }),
+                }),
+            })
+        );
     });
 
     test("filters the setup when the higher-timeframe ADX regime is too strong", async () => {

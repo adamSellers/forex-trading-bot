@@ -1,4 +1,5 @@
 const { BollingerBands, RSI, ADX, ATR } = require("technicalindicators");
+const { calculateExpectedEdge } = require("./expectedEdge");
 const { createStrategyDefinition } = require("./strategyContract");
 
 const DEFAULT_MEAN_REVERSION_CONFIG = Object.freeze({
@@ -8,6 +9,7 @@ const DEFAULT_MEAN_REVERSION_CONFIG = Object.freeze({
     maxRegimeAdx: 25,
     rsiOversoldEntry: 30,
     rsiOverboughtEntry: 70,
+    requireFailedSweepReclaim: true,
     stopLossAtrMultiplier: 1.5,
     breakevenAtTpPercent: 0.5,
     timeStopHours: 8,
@@ -137,11 +139,50 @@ function buildStrategyContext(context = {}, overrides = {}) {
             rsiOversold: toFiniteNumber(config.rsiOversoldEntry, 30),
             rsiOverbought: toFiniteNumber(config.rsiOverboughtEntry, 70),
         },
+        failedSweep: overrides.failedSweep || context.failedSweep || null,
+        expectedEdge: overrides.expectedEdge || context.expectedEdge || null,
         session: {
             name: context.sessionName || null,
             active: context.sessionActive ?? null,
             spreadPips: toFiniteNumber(context.spreadPips, null),
         },
+    };
+}
+
+function buildFailedSweepContext({
+    currentCandle = null,
+    previousCandle = null,
+    lowerBand = null,
+    upperBand = null,
+    entryPrice = null,
+} = {}) {
+    const currentLow = toFiniteNumber(currentCandle?.low, null);
+    const currentHigh = toFiniteNumber(currentCandle?.high, null);
+    const previousClose = toFiniteNumber(previousCandle?.close, null);
+    const lower = toFiniteNumber(lowerBand, null);
+    const upper = toFiniteNumber(upperBand, null);
+    const entry = toFiniteNumber(entryPrice, null);
+
+    const longSwept =
+        Number.isFinite(lower) &&
+        ((Number.isFinite(currentLow) && currentLow <= lower) ||
+            (Number.isFinite(previousClose) && previousClose < lower));
+    const shortSwept =
+        Number.isFinite(upper) &&
+        ((Number.isFinite(currentHigh) && currentHigh >= upper) ||
+            (Number.isFinite(previousClose) && previousClose > upper));
+    const longReclaimed =
+        Number.isFinite(entry) && Number.isFinite(lower) && entry > lower;
+    const shortReclaimed =
+        Number.isFinite(entry) && Number.isFinite(upper) && entry < upper;
+
+    return {
+        longSwept,
+        longReclaimed,
+        longFailedSweep: longSwept && longReclaimed,
+        shortSwept,
+        shortReclaimed,
+        shortFailedSweep: shortSwept && shortReclaimed,
     };
 }
 
@@ -241,6 +282,7 @@ async function evaluateMeanReversionEntry({
         h1Context.candles || []
     );
     const currentCandle = candles[candles.length - 1];
+    const previousCandle = candles[candles.length - 2];
     const entryPrice = toFiniteNumber(currentPrice, currentCandle?.close);
     const pipValue = getPipValue(instrument, dataService);
     const bollingerContext = buildBollingerContext(candles, resolvedConfig);
@@ -286,6 +328,7 @@ async function evaluateMeanReversionEntry({
         prevAdxVal,
         config: resolvedConfig,
         bollingerContext,
+        failedSweep: null,
         sessionName,
         sessionActive: activeSessions.includes(sessionKey),
         spreadPips,
@@ -366,21 +409,48 @@ async function evaluateMeanReversionEntry({
 
     const stopDistance =
         atrVal * toFiniteNumber(resolvedConfig.stopLossAtrMultiplier, 1.5);
+    const failedSweep = buildFailedSweepContext({
+        currentCandle,
+        previousCandle,
+        lowerBand,
+        upperBand,
+        entryPrice,
+    });
+    evaluationContext.failedSweep = failedSweep;
+    const requireFailedSweep =
+        resolvedConfig.requireFailedSweepReclaim !== false;
 
     const longSetup =
-        entryPrice <= lowerBand &&
+        (!requireFailedSweep || failedSweep.longFailedSweep) &&
         rsiVal < toFiniteNumber(resolvedConfig.rsiOversoldEntry, 30) &&
         middleBand > entryPrice;
     const shortSetup =
-        entryPrice >= upperBand &&
+        (!requireFailedSweep || failedSweep.shortFailedSweep) &&
         rsiVal > toFiniteNumber(resolvedConfig.rsiOverboughtEntry, 70) &&
         middleBand < entryPrice;
 
     if (longSetup) {
+        const tradePlan = {
+            stopLossPrice: entryPrice - stopDistance,
+            takeProfitPrice: middleBand,
+        };
+        const expectedEdge = calculateExpectedEdge({
+            entryPrice,
+            stopLossPrice: tradePlan.stopLossPrice,
+            takeProfitPrice: tradePlan.takeProfitPrice,
+            pipValue,
+            spreadPips,
+            slippagePips: resolvedConfig.expectedSlippagePips,
+            minNetEdgePips: resolvedConfig.minNetEdgePips,
+        });
         return {
             signalType: "BUY",
             reason:
-                `BUY: Mean reversion long | close ${entryPrice.toFixed(5)} <= lower band ${lowerBand.toFixed(5)} | ` +
+                `BUY: Mean reversion long | low ${toFiniteNumber(currentCandle.low, entryPrice).toFixed(
+                    5
+                )} swept lower band ${lowerBand.toFixed(5)} | close ${entryPrice.toFixed(
+                    5
+                )} reclaimed | ` +
                 `RSI ${rsiVal.toFixed(1)} | H1 ADX ${regimeAdx.toFixed(1)}`,
             reasonCode: "MEAN_REVERSION_LONG_ACTIONABLE",
             signalClass: "ACTIONABLE",
@@ -408,13 +478,13 @@ async function evaluateMeanReversionEntry({
             },
             pendingAction: "clear",
             pending: null,
-            tradePlan: {
-                stopLossPrice: entryPrice - stopDistance,
-                takeProfitPrice: middleBand,
-            },
+            tradePlan,
+            expectedEdge,
             strategyContext: buildStrategyContext(evaluationContext, {
                 config: resolvedConfig,
                 bollingerContext,
+                failedSweep,
+                expectedEdge,
                 setup: "lower_band_fade",
                 entryBias: "long",
             }),
@@ -422,10 +492,27 @@ async function evaluateMeanReversionEntry({
     }
 
     if (shortSetup) {
+        const tradePlan = {
+            stopLossPrice: entryPrice + stopDistance,
+            takeProfitPrice: middleBand,
+        };
+        const expectedEdge = calculateExpectedEdge({
+            entryPrice,
+            stopLossPrice: tradePlan.stopLossPrice,
+            takeProfitPrice: tradePlan.takeProfitPrice,
+            pipValue,
+            spreadPips,
+            slippagePips: resolvedConfig.expectedSlippagePips,
+            minNetEdgePips: resolvedConfig.minNetEdgePips,
+        });
         return {
             signalType: "SELL",
             reason:
-                `SELL: Mean reversion short | close ${entryPrice.toFixed(5)} >= upper band ${upperBand.toFixed(5)} | ` +
+                `SELL: Mean reversion short | high ${toFiniteNumber(currentCandle.high, entryPrice).toFixed(
+                    5
+                )} swept upper band ${upperBand.toFixed(5)} | close ${entryPrice.toFixed(
+                    5
+                )} reclaimed | ` +
                 `RSI ${rsiVal.toFixed(1)} | H1 ADX ${regimeAdx.toFixed(1)}`,
             reasonCode: "MEAN_REVERSION_SHORT_ACTIONABLE",
             signalClass: "ACTIONABLE",
@@ -453,17 +540,33 @@ async function evaluateMeanReversionEntry({
             },
             pendingAction: "clear",
             pending: null,
-            tradePlan: {
-                stopLossPrice: entryPrice + stopDistance,
-                takeProfitPrice: middleBand,
-            },
+            tradePlan,
+            expectedEdge,
             strategyContext: buildStrategyContext(evaluationContext, {
                 config: resolvedConfig,
                 bollingerContext,
+                failedSweep,
+                expectedEdge,
                 setup: "upper_band_fade",
                 entryBias: "short",
             }),
         };
+    }
+
+    if (
+        requireFailedSweep &&
+        ((rsiVal < toFiniteNumber(resolvedConfig.rsiOversoldEntry, 30) &&
+            middleBand > entryPrice) ||
+            (rsiVal > toFiniteNumber(resolvedConfig.rsiOverboughtEntry, 70) &&
+                middleBand < entryPrice))
+    ) {
+        return buildHoldResult(evaluationContext, {
+            reason:
+                `HOLD: Mean reversion requires failed sweep and reclaim | ` +
+                `long ${failedSweep.longFailedSweep ? "yes" : "no"} | ` +
+                `short ${failedSweep.shortFailedSweep ? "yes" : "no"}`,
+            reasonCode: "MEAN_REVERSION_FAILED_SWEEP_FILTERED",
+        });
     }
 
     return buildHoldResult(evaluationContext, {

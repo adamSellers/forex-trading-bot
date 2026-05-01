@@ -10,6 +10,7 @@ import { GlassCard, SectionHeader, msToHours, hoursToMs } from './ConfigShared';
 
 const StrategySettings = ({ config, updateConfig }) => {
   const [showAdvancedStrategy, setShowAdvancedStrategy] = useState(false);
+  const hasConfigKey = (key) => Object.prototype.hasOwnProperty.call(config, key);
 
   return (
     <Stack spacing={3}>
@@ -146,6 +147,59 @@ const StrategySettings = ({ config, updateConfig }) => {
               helperText="Small forecasts inside this range become neutral"
             />
           </Grid>
+          {hasConfigKey('timesFmStrategyMinReturnBps') && (
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                disabled={!config.timesFmEnabled}
+                label="Min Expected Edge"
+                type="number"
+                value={config.timesFmStrategyMinReturnBps ?? 10}
+                onChange={(e) => updateConfig('timesFmStrategyMinReturnBps', parseFloat(e.target.value))}
+                InputProps={{ endAdornment: <InputAdornment position="end">bps</InputAdornment> }}
+                helperText="Minimum absolute forecast return before a TimesFM entry is eligible"
+              />
+            </Grid>
+          )}
+          {hasConfigKey('timesFmStrategyHighConfidenceMinReturnBps') && (
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                disabled={!config.timesFmEnabled}
+                label="High Confidence Edge"
+                type="number"
+                value={config.timesFmStrategyHighConfidenceMinReturnBps ?? 7.5}
+                onChange={(e) =>
+                  updateConfig('timesFmStrategyHighConfidenceMinReturnBps', parseFloat(e.target.value))
+                }
+                InputProps={{ endAdornment: <InputAdornment position="end">bps</InputAdornment> }}
+                helperText="Lower edge floor when confidence clears the high-confidence gate"
+              />
+            </Grid>
+          )}
+          {hasConfigKey('timesFmStrategyBlockExtremeVolatility') && (
+            <Grid item xs={12} md={4}>
+              <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1, height: '100%' }}
+              >
+                <Box>
+                  <Typography fontWeight="bold">Block Extreme Regime</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Reject forecast entries during extreme volatility
+                  </Typography>
+                </Box>
+                <Switch
+                  checked={config.timesFmStrategyBlockExtremeVolatility ?? true}
+                  onChange={(e) => updateConfig('timesFmStrategyBlockExtremeVolatility', e.target.checked)}
+                  disabled={!config.timesFmEnabled}
+                  color="warning"
+                />
+              </Box>
+            </Grid>
+          )}
           <Grid item xs={12}>
             <Typography gutterBottom variant="subtitle2" color="text.secondary">
               VETO CONFIDENCE

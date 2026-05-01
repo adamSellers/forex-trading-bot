@@ -1,4 +1,5 @@
 const { ATR } = require("technicalindicators");
+const { calculateExpectedEdge } = require("./expectedEdge");
 const { createStrategyDefinition } = require("./strategyContract");
 
 const DEFAULT_RANGE_BREAKOUT_CONFIG = Object.freeze({
@@ -10,6 +11,11 @@ const DEFAULT_RANGE_BREAKOUT_CONFIG = Object.freeze({
     trailActivationMultiplier: 1.0,
     trailDistanceMultiplier: 0.5,
     maxBreakoutBodyRatio: 0.7,
+    requireBreakoutQuality: true,
+    breakoutCompressionLookbackCandles: 6,
+    maxBreakoutCompressionRatio: 0.75,
+    breakoutAcceptanceCloses: 2,
+    breakoutRetestToleranceRatio: 0.15,
     entryWindowHours: 4,
     sessionCloseHourUTC: 17,
 });
@@ -113,12 +119,15 @@ function buildStrategyContext(context = {}, overrides = {}) {
         candle: {
             bodyRatio,
         },
+        breakoutQuality:
+            overrides.breakoutQuality || context.breakoutQuality || null,
         thresholds: {
             rangeMinAtrRatio: toFiniteNumber(config.rangeMinAtrRatio, 0.5),
             rangeMaxAtrRatio: toFiniteNumber(config.rangeMaxAtrRatio, 2.0),
             maxBreakoutBodyRatio: toFiniteNumber(config.maxBreakoutBodyRatio, 0.7),
             entryWindowHours: toFiniteNumber(config.entryWindowHours, 4),
         },
+        expectedEdge: overrides.expectedEdge || context.expectedEdge || null,
         session: {
             name: context.sessionName || null,
             spreadPips: toFiniteNumber(context.spreadPips, null),
@@ -237,6 +246,128 @@ function buildOpeningRange(candles = [], currentTimeMs, config = {}) {
         .sort((left, right) => right.formedAt - left.formedAt);
 
     return candidates[0] || null;
+}
+
+function buildBreakoutQualityContext({
+    m5Candles = [],
+    currentTimeMs = null,
+    openingRange = null,
+    config = {},
+} = {}) {
+    const high = toFiniteNumber(openingRange?.high, null);
+    const low = toFiniteNumber(openingRange?.low, null);
+    const height = toFiniteNumber(openingRange?.height, null);
+    const formedAt = toFiniteNumber(openingRange?.formedAt, null);
+
+    if (
+        !Number.isFinite(high) ||
+        !Number.isFinite(low) ||
+        !Number.isFinite(height) ||
+        height <= 0 ||
+        !Number.isFinite(formedAt) ||
+        !Number.isFinite(currentTimeMs)
+    ) {
+        return {
+            compressionOk: false,
+            longAcceptanceOk: false,
+            shortAcceptanceOk: false,
+            longQualityOk: false,
+            shortQualityOk: false,
+            reason: "breakout quality context unavailable",
+        };
+    }
+
+    const postRangeCandles = m5Candles.filter((candle) => {
+        const timestampMs = getTimestampMs(candle.time);
+        return (
+            Number.isFinite(timestampMs) &&
+            timestampMs >= formedAt &&
+            timestampMs <= currentTimeMs
+        );
+    });
+    const lookback = Math.max(
+        3,
+        Math.floor(toFiniteNumber(config.breakoutCompressionLookbackCandles, 6))
+    );
+    const recentCandles = postRangeCandles.slice(-lookback);
+    const recentHigh = Math.max(
+        ...recentCandles.map((candle) => toFiniteNumber(candle.high, -Infinity))
+    );
+    const recentLow = Math.min(
+        ...recentCandles.map((candle) => toFiniteNumber(candle.low, Infinity))
+    );
+    const compressionRatio =
+        recentCandles.length > 0 && Number.isFinite(recentHigh) && Number.isFinite(recentLow)
+            ? (recentHigh - recentLow) / height
+            : null;
+    const recentClosesInside =
+        recentCandles.length >= lookback &&
+        recentCandles.every((candle) => {
+            const close = toFiniteNumber(candle.close, null);
+            return Number.isFinite(close) && close <= high && close >= low;
+        });
+    const compressionOk =
+        recentClosesInside &&
+        Number.isFinite(compressionRatio) &&
+        compressionRatio <= toFiniteNumber(config.maxBreakoutCompressionRatio, 0.75);
+    const requiredAcceptanceCloses = Math.max(
+        1,
+        Math.floor(toFiniteNumber(config.breakoutAcceptanceCloses, 2))
+    );
+    const retestTolerance =
+        height * toFiniteNumber(config.breakoutRetestToleranceRatio, 0.15);
+    const longAcceptedCloses = postRangeCandles.filter(
+        (candle) => toFiniteNumber(candle.close, null) > high
+    ).length;
+    const shortAcceptedCloses = postRangeCandles.filter(
+        (candle) => toFiniteNumber(candle.close, null) < low
+    ).length;
+    const longRetestOk = postRangeCandles.some((candle, index) => {
+        const previousClose =
+            index > 0 ? toFiniteNumber(postRangeCandles[index - 1].close, null) : null;
+        const lowPrice = toFiniteNumber(candle.low, null);
+        const close = toFiniteNumber(candle.close, null);
+        return (
+            Number.isFinite(previousClose) &&
+            previousClose > high &&
+            Number.isFinite(lowPrice) &&
+            lowPrice <= high + retestTolerance &&
+            Number.isFinite(close) &&
+            close > high
+        );
+    });
+    const shortRetestOk = postRangeCandles.some((candle, index) => {
+        const previousClose =
+            index > 0 ? toFiniteNumber(postRangeCandles[index - 1].close, null) : null;
+        const highPrice = toFiniteNumber(candle.high, null);
+        const close = toFiniteNumber(candle.close, null);
+        return (
+            Number.isFinite(previousClose) &&
+            previousClose < low &&
+            Number.isFinite(highPrice) &&
+            highPrice >= low - retestTolerance &&
+            Number.isFinite(close) &&
+            close < low
+        );
+    });
+    const longAcceptanceOk =
+        longAcceptedCloses >= requiredAcceptanceCloses || longRetestOk;
+    const shortAcceptanceOk =
+        shortAcceptedCloses >= requiredAcceptanceCloses || shortRetestOk;
+
+    return {
+        compressionOk,
+        compressionRatio: toFiniteNumber(compressionRatio, null),
+        compressionLookback: lookback,
+        longAcceptedCloses,
+        shortAcceptedCloses,
+        longRetestOk,
+        shortRetestOk,
+        longAcceptanceOk,
+        shortAcceptanceOk,
+        longQualityOk: compressionOk || longAcceptanceOk,
+        shortQualityOk: compressionOk || shortAcceptanceOk,
+    };
 }
 
 async function evaluateRangeBreakoutEntry({
@@ -373,8 +504,51 @@ async function evaluateRangeBreakoutEntry({
         toFiniteNumber(previousCandle.close, entryPrice) >= openingRange.low;
     const takeProfitDistance =
         rangeHeight * toFiniteNumber(resolvedConfig.tpRangeMultiplier, 1.5);
+    const breakoutQuality = buildBreakoutQualityContext({
+        m5Candles,
+        currentTimeMs,
+        openingRange,
+        config: resolvedConfig,
+    });
+    evaluationContext.breakoutQuality = breakoutQuality;
+    const requireBreakoutQuality = resolvedConfig.requireBreakoutQuality !== false;
+
+    if (
+        requireBreakoutQuality &&
+        ((longBreakout && !breakoutQuality.longQualityOk) ||
+            (shortBreakout && !breakoutQuality.shortQualityOk))
+    ) {
+        return createHoldResult(evaluationContext, {
+            reason:
+                `HOLD: breakout lacks acceptance/retest or compression | ` +
+                `compression ${breakoutQuality.compressionOk ? "yes" : "no"} | ` +
+                `acceptance ${
+                    longBreakout
+                        ? breakoutQuality.longAcceptanceOk
+                            ? "yes"
+                            : "no"
+                        : breakoutQuality.shortAcceptanceOk
+                        ? "yes"
+                        : "no"
+                }`,
+            reasonCode: "RANGE_BREAKOUT_QUALITY_FILTERED",
+        });
+    }
 
     if (longBreakout) {
+        const tradePlan = {
+            stopLossPrice: openingRange.low,
+            takeProfitPrice: entryPrice + takeProfitDistance,
+        };
+        const expectedEdge = calculateExpectedEdge({
+            entryPrice,
+            stopLossPrice: tradePlan.stopLossPrice,
+            takeProfitPrice: tradePlan.takeProfitPrice,
+            pipValue,
+            spreadPips,
+            slippagePips: resolvedConfig.expectedSlippagePips,
+            minNetEdgePips: resolvedConfig.minNetEdgePips,
+        });
         return {
             signalType: "BUY",
             reason:
@@ -406,13 +580,13 @@ async function evaluateRangeBreakoutEntry({
             },
             pendingAction: "clear",
             pending: null,
-            tradePlan: {
-                stopLossPrice: openingRange.low,
-                takeProfitPrice: entryPrice + takeProfitDistance,
-            },
+            tradePlan,
+            expectedEdge,
             strategyContext: buildStrategyContext(evaluationContext, {
                 config: resolvedConfig,
                 openingRange,
+                breakoutQuality,
+                expectedEdge,
                 setup: "opening_range_breakout",
                 entryBias: "long",
             }),
@@ -420,6 +594,19 @@ async function evaluateRangeBreakoutEntry({
     }
 
     if (shortBreakout) {
+        const tradePlan = {
+            stopLossPrice: openingRange.high,
+            takeProfitPrice: entryPrice - takeProfitDistance,
+        };
+        const expectedEdge = calculateExpectedEdge({
+            entryPrice,
+            stopLossPrice: tradePlan.stopLossPrice,
+            takeProfitPrice: tradePlan.takeProfitPrice,
+            pipValue,
+            spreadPips,
+            slippagePips: resolvedConfig.expectedSlippagePips,
+            minNetEdgePips: resolvedConfig.minNetEdgePips,
+        });
         return {
             signalType: "SELL",
             reason:
@@ -451,13 +638,13 @@ async function evaluateRangeBreakoutEntry({
             },
             pendingAction: "clear",
             pending: null,
-            tradePlan: {
-                stopLossPrice: openingRange.high,
-                takeProfitPrice: entryPrice - takeProfitDistance,
-            },
+            tradePlan,
+            expectedEdge,
             strategyContext: buildStrategyContext(evaluationContext, {
                 config: resolvedConfig,
                 openingRange,
+                breakoutQuality,
+                expectedEdge,
                 setup: "opening_range_breakdown",
                 entryBias: "short",
             }),
@@ -497,4 +684,5 @@ module.exports = Object.assign({}, rangeBreakoutStrategy, {
     DEFAULT_RANGE_BREAKOUT_CONFIG,
     evaluateRangeBreakoutEntry,
     buildOpeningRange,
+    buildBreakoutQualityContext,
 });

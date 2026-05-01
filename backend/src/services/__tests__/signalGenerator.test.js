@@ -174,6 +174,11 @@ describe('SignalGenerator', () => {
                 m15: { k: 18.4, d: 22.1 },
                 h1: { k: 41.7, direction: 'rising' },
             };
+            const expectedEdge = {
+                targetAfterCostPips: 12.8,
+                netEdgePips: null,
+                requiresProbabilityModel: true,
+            };
 
             const signal = generator.buildSignalPayload({
                 instrument: 'AUD_USD',
@@ -205,6 +210,7 @@ describe('SignalGenerator', () => {
                 },
                 pending: null,
                 tradePlan: null,
+                expectedEdge,
                 strategyContext,
             });
 
@@ -212,10 +218,12 @@ describe('SignalGenerator', () => {
                 expect.objectContaining({
                     strategy: 'stochastic_divergence',
                     strategyContext,
+                    expectedEdge,
                     reasonCode: 'STOCHASTIC_DIVERGENCE_WAIT_CROSS',
                     signalClass: 'PENDING',
                 })
             );
+            expect(signal.decisionContext.expectedEdge).toBe(expectedEdge);
         });
 
         test('should include ATR pips in signal', async () => {

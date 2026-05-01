@@ -24,6 +24,7 @@ import {
   ShowChart,
 } from '@mui/icons-material';
 import { formatInstrument, INSTRUMENT_INFO } from './Shared';
+import { extractSignalTelemetry } from '../analytics/signalTelemetry';
 
 const MEAN_REVERSION_KEY = 'mean_reversion';
 const RANGE_BREAKOUT_KEY = 'range_breakout';
@@ -215,6 +216,113 @@ const ReasonText = ({ children, color = 'text.secondary' }) => (
     {children}
   </Typography>
 );
+
+const SignalTelemetryCell = ({ signal, systemStatus, align = 'left' }) => {
+  const telemetry = extractSignalTelemetry(signal, { systemStatus });
+  const alignItems = align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start';
+  const justifyContent = align === 'right' ? 'flex-end' : align === 'center' ? 'center' : 'flex-start';
+
+  return (
+    <Box display="flex" flexDirection="column" alignItems={alignItems} gap={0.15}>
+      <Box display="flex" alignItems="center" justifyContent={justifyContent} gap={0.5} flexWrap="wrap">
+        <Typography
+          variant="caption"
+          sx={{
+            fontSize: '0.7rem',
+            fontFamily: '"Roboto Mono", monospace',
+            fontWeight: 800,
+            color: telemetry.edgeTone,
+          }}
+        >
+          Edge {telemetry.edgeLabel}
+        </Typography>
+        <Chip
+          label={telemetry.broker.label}
+          size="small"
+          color={telemetry.broker.color}
+          variant={telemetry.broker.feedsBroker ? 'filled' : 'outlined'}
+          sx={{
+            height: 18,
+            fontSize: '0.57rem',
+            fontWeight: 800,
+            '& .MuiChip-label': { px: 0.65 },
+          }}
+        />
+      </Box>
+      <Typography
+        variant="caption"
+        sx={{
+          fontSize: '0.63rem',
+          color: telemetry.costTone,
+          fontFamily: '"Roboto Mono", monospace',
+        }}
+      >
+        Cost {telemetry.spreadLabel}
+        {telemetry.priceAgeMs !== null ? ` | age ${telemetry.priceAgeLabel}` : ''}
+      </Typography>
+      <Typography
+        variant="caption"
+        sx={{
+          fontSize: '0.62rem',
+          color: telemetry.regimeTone,
+          letterSpacing: 0.35,
+          maxWidth: 180,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {telemetry.regimeLabel}
+      </Typography>
+    </Box>
+  );
+};
+
+const SignalCompactTelemetry = ({ signal, systemStatus, maxWidth = 260 }) => {
+  const telemetry = extractSignalTelemetry(signal, { systemStatus });
+
+  return (
+    <Box
+      display="flex"
+      alignItems="center"
+      justifyContent="flex-end"
+      gap={0.5}
+      mt={0.35}
+      sx={{ maxWidth, overflow: 'hidden' }}
+    >
+      <Chip
+        label={telemetry.broker.label}
+        size="small"
+        color={telemetry.broker.color}
+        variant={telemetry.broker.feedsBroker ? 'filled' : 'outlined'}
+        sx={{ height: 16, fontSize: '0.52rem', fontWeight: 800, '& .MuiChip-label': { px: 0.5 } }}
+      />
+      <Typography
+        variant="caption"
+        sx={{
+          minWidth: 0,
+          color: 'text.secondary',
+          fontSize: '0.62rem',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        <Box component="span" sx={{ color: telemetry.edgeTone, fontWeight: 800 }}>
+          {telemetry.edgeLabel}
+        </Box>
+        {' | '}
+        <Box component="span" sx={{ color: telemetry.costTone }}>
+          {telemetry.spreadLabel}
+        </Box>
+        {' | '}
+        <Box component="span" sx={{ color: telemetry.regimeTone }}>
+          {telemetry.regimeLabel}
+        </Box>
+      </Typography>
+    </Box>
+  );
+};
 
 const getTradePlanLine = (signal = {}) => {
   const stopLoss = signal.tradePlan?.stopLossPrice;
@@ -765,6 +873,7 @@ const getSqueezePlayBadges = (signal, context) => {
 const StrategyCompactRows = ({
   signals,
   theme,
+  systemStatus,
   getContext,
   getTitle,
   getMeta,
@@ -870,6 +979,7 @@ const StrategyCompactRows = ({
             >
               {getMeta(signal, context) || getStrategyReasonLabel(signal, reasonPrefix)}
             </Typography>
+            <SignalCompactTelemetry signal={signal} systemStatus={systemStatus} />
           </Box>
         </Box>
       );
@@ -969,6 +1079,7 @@ const TradingSignals = ({
         <StrategyCompactRows
           signals={filteredSignals}
           theme={theme}
+          systemStatus={systemStatus}
           getContext={getMeanReversionContext}
           getTitle={getMeanReversionSetupLabel}
           getMeta={(_, context) =>
@@ -991,6 +1102,7 @@ const TradingSignals = ({
               <HeaderCell align="right">Range Regime</HeaderCell>
               <HeaderCell>Band / RSI</HeaderCell>
               <HeaderCell>Plan</HeaderCell>
+              <HeaderCell>Edge / Cost</HeaderCell>
               <HeaderCell align="center">Status</HeaderCell>
             </TableRow>
           </TableHead>
@@ -1059,6 +1171,9 @@ const TradingSignals = ({
                   <StyledTableCell>
                     <MonoText sx={{ fontSize: '0.72rem' }}>{getTradePlanLine(signal)}</MonoText>
                   </StyledTableCell>
+                  <StyledTableCell>
+                    <SignalTelemetryCell signal={signal} systemStatus={systemStatus} />
+                  </StyledTableCell>
                   <StyledTableCell align="center">
                     <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
                       <StatusBadgeStack badges={statusBadges} />
@@ -1080,6 +1195,7 @@ const TradingSignals = ({
         <StrategyCompactRows
           signals={filteredSignals}
           theme={theme}
+          systemStatus={systemStatus}
           getContext={getRangeBreakoutContext}
           getTitle={(context) => getBreakoutStateLabel(context.breakoutState)}
           getMeta={(_, context) =>
@@ -1102,6 +1218,7 @@ const TradingSignals = ({
               <HeaderCell>Opening Range</HeaderCell>
               <HeaderCell>Breakout</HeaderCell>
               <HeaderCell>Plan</HeaderCell>
+              <HeaderCell>Edge / Cost</HeaderCell>
               <HeaderCell align="center">Status</HeaderCell>
             </TableRow>
           </TableHead>
@@ -1165,6 +1282,9 @@ const TradingSignals = ({
                       </Typography>
                     </Box>
                   </StyledTableCell>
+                  <StyledTableCell>
+                    <SignalTelemetryCell signal={signal} systemStatus={systemStatus} />
+                  </StyledTableCell>
                   <StyledTableCell align="center">
                     <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
                       <StatusBadgeStack badges={statusBadges} />
@@ -1186,6 +1306,7 @@ const TradingSignals = ({
         <StrategyCompactRows
           signals={filteredSignals}
           theme={theme}
+          systemStatus={systemStatus}
           getContext={getSqueezePlayContext}
           getTitle={getSqueezeSetupLabel}
           getMeta={(_, context) =>
@@ -1210,6 +1331,7 @@ const TradingSignals = ({
               <HeaderCell>Compression</HeaderCell>
               <HeaderCell>Release / Volatility</HeaderCell>
               <HeaderCell>Plan</HeaderCell>
+              <HeaderCell>Edge / Cost</HeaderCell>
               <HeaderCell align="center">Status</HeaderCell>
             </TableRow>
           </TableHead>
@@ -1272,6 +1394,9 @@ const TradingSignals = ({
                         ATR {formatMetric(context.atrPips)} pips
                       </Typography>
                     </Box>
+                  </StyledTableCell>
+                  <StyledTableCell>
+                    <SignalTelemetryCell signal={signal} systemStatus={systemStatus} />
                   </StyledTableCell>
                   <StyledTableCell align="center">
                     <Box display="flex" flexDirection="column" alignItems="center" gap={0.5}>
@@ -1379,6 +1504,7 @@ const TradingSignals = ({
                   >
                     {reasonLabel}
                   </Typography>
+                  <SignalCompactTelemetry signal={signal} systemStatus={systemStatus} maxWidth={240} />
                 </Box>
               </Box>
             );
@@ -1396,7 +1522,7 @@ const TradingSignals = ({
               <HeaderCell>Time</HeaderCell>
               <HeaderCell>Forecast</HeaderCell>
               <HeaderCell align="right">Confidence</HeaderCell>
-              <HeaderCell align="right">Return</HeaderCell>
+              <HeaderCell align="right">Edge / Cost</HeaderCell>
               <HeaderCell align="center">Volatility</HeaderCell>
               <HeaderCell align="center">Status</HeaderCell>
             </TableRow>
@@ -1463,17 +1589,7 @@ const TradingSignals = ({
                   </StyledTableCell>
 
                   <StyledTableCell align="right">
-                    <MonoText
-                      color={
-                        Number(timesFm?.returnBps) > 0
-                          ? theme.palette.success.main
-                          : Number(timesFm?.returnBps) < 0
-                          ? theme.palette.error.main
-                          : theme.palette.text.secondary
-                      }
-                    >
-                      {getTimesFmReturn(timesFm)}
-                    </MonoText>
+                    <SignalTelemetryCell signal={signal} systemStatus={systemStatus} align="right" />
                   </StyledTableCell>
 
                   <StyledTableCell align="center">
@@ -1643,6 +1759,7 @@ const TradingSignals = ({
                   >
                     {reasonLabel}
                   </Typography>
+                  <SignalCompactTelemetry signal={signal} systemStatus={systemStatus} maxWidth={240} />
                 </Box>
               </Box>
             );
@@ -1661,6 +1778,7 @@ const TradingSignals = ({
               <HeaderCell>Action</HeaderCell>
               <HeaderCell>Setup</HeaderCell>
               <HeaderCell>Context</HeaderCell>
+              <HeaderCell>Edge / Cost</HeaderCell>
               <HeaderCell align="center">Reason</HeaderCell>
             </TableRow>
           </TableHead>
@@ -1765,6 +1883,10 @@ const TradingSignals = ({
                         </Typography>
                       )}
                     </Box>
+                  </StyledTableCell>
+
+                  <StyledTableCell>
+                    <SignalTelemetryCell signal={signal} systemStatus={systemStatus} />
                   </StyledTableCell>
 
                   <StyledTableCell align="center">
@@ -1908,6 +2030,7 @@ const TradingSignals = ({
                     </Typography>
                   )}
                 </Box>
+                <SignalCompactTelemetry signal={signal} systemStatus={systemStatus} />
               </Box>
             </Box>
           );
@@ -1926,6 +2049,7 @@ const TradingSignals = ({
             <HeaderCell>Signal Type</HeaderCell>
             <HeaderCell align="right">Strength (ADX)</HeaderCell>
             <HeaderCell align="center">Trend / RSI</HeaderCell>
+            <HeaderCell>Edge / Cost</HeaderCell>
             <HeaderCell align="center">Status</HeaderCell>
           </TableRow>
         </TableHead>
@@ -2010,6 +2134,10 @@ const TradingSignals = ({
                       )}
                     </Box>
                   </Box>
+                </StyledTableCell>
+
+                <StyledTableCell>
+                  <SignalTelemetryCell signal={signal} systemStatus={systemStatus} />
                 </StyledTableCell>
 
                 <StyledTableCell align="center">
