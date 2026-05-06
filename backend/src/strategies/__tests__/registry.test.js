@@ -19,6 +19,7 @@ describe("strategy registry", () => {
             "stochastic_divergence",
             "squeeze_play",
             "timesfm_directional",
+            "correlation_divergence",
         ]);
 
         expect(Object.keys(strategyRegistry)).toEqual(CANONICAL_STRATEGY_KEYS);
@@ -27,7 +28,7 @@ describe("strategy registry", () => {
     test("returns canonical catalog metadata in locked order", () => {
         const catalog = listStrategyCatalog();
 
-        expect(catalog).toHaveLength(6);
+        expect(catalog).toHaveLength(7);
         expect(catalog.map((strategy) => strategy.key)).toEqual(
             CANONICAL_STRATEGY_KEYS
         );
@@ -67,6 +68,16 @@ describe("strategy registry", () => {
                 metadata: expect.objectContaining({
                     supportsLive: true,
                     supportsShadow: true,
+                    supportsCandidate: true,
+                }),
+            })
+        );
+        expect(getStrategyDefinition("correlation_divergence")).toEqual(
+            expect.objectContaining({
+                key: "correlation_divergence",
+                runtimeStatus: "candidate",
+                metadata: expect.objectContaining({
+                    supportsLive: false,
                     supportsCandidate: true,
                 }),
             })

@@ -127,6 +127,7 @@ pm2-logs/
 # don't ship the backtesting data
 backend/data/historical
 backend/data/backtests
+backend/data/correlation
 binance_orders/
 
 # --- Local Analysis & Shadow Lab (NEW) ---

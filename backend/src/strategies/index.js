@@ -4,6 +4,7 @@ const rangeBreakoutStrategy = require("./rangeBreakout");
 const stochasticDivergenceStrategy = require("./stochasticDivergence");
 const squeezePlayStrategy = require("./squeezePlay");
 const timesFmDirectionalStrategy = require("./timesFmDirectional");
+const correlationDivergenceStrategy = require("./correlationDivergence");
 const {
     CANONICAL_STRATEGY_KEYS,
     assertCanonicalStrategyKey,
@@ -16,6 +17,7 @@ const strategyRegistry = Object.freeze({
     stochastic_divergence: stochasticDivergenceStrategy,
     squeeze_play: squeezePlayStrategy,
     timesfm_directional: timesFmDirectionalStrategy,
+    correlation_divergence: correlationDivergenceStrategy,
 });
 
 function isCanonicalStrategyKey(strategyKey) {

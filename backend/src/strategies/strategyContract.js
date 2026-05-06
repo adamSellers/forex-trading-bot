@@ -5,6 +5,7 @@ const CANONICAL_STRATEGY_KEYS = Object.freeze([
     "stochastic_divergence",
     "squeeze_play",
     "timesfm_directional",
+    "correlation_divergence",
 ]);
 
 const CANONICAL_STRATEGY_KEY_SET = new Set(CANONICAL_STRATEGY_KEYS);

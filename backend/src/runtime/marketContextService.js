@@ -299,6 +299,12 @@ class MarketContextService {
         const precomputedInstrument =
             sharedContext?.precomputed?.[contextKey]?.instruments?.[instrument] || {};
         const timeframes = {};
+        const peers = {};
+        const runAssets = new Set(
+            Array.isArray(normalizedRun.assets) && normalizedRun.assets.length > 0
+                ? normalizedRun.assets
+                : Object.keys(sharedContext.instruments || {})
+        );
 
         Object.entries(instrumentContext.timeframes || {}).forEach(
             ([timeframe, timeframeContext]) => {
@@ -312,12 +318,47 @@ class MarketContextService {
             }
         );
 
+        Object.entries(sharedContext.instruments || {}).forEach(
+            ([peerInstrument, peerInstrumentContext]) => {
+                if (peerInstrument === instrument) return;
+                if (!runAssets.has(peerInstrument)) return;
+
+                const peerPrecomputedInstrument =
+                    sharedContext?.precomputed?.[contextKey]?.instruments?.[
+                        peerInstrument
+                    ] || {};
+                const peerTimeframes = {};
+
+                Object.entries(peerInstrumentContext.timeframes || {}).forEach(
+                    ([timeframe, timeframeContext]) => {
+                        peerTimeframes[timeframe] = {
+                            candles: timeframeContext.candles || [],
+                            indicators:
+                                peerPrecomputedInstrument.timeframes?.[timeframe]
+                                    ?.indicators || {},
+                            derived:
+                                peerPrecomputedInstrument.timeframes?.[timeframe]
+                                    ?.derived || {},
+                        };
+                    }
+                );
+
+                peers[peerInstrument] = {
+                    instrument: peerInstrument,
+                    price: peerInstrumentContext.price || null,
+                    session: peerInstrumentContext.session || null,
+                    timeframes: peerTimeframes,
+                };
+            }
+        );
+
         return {
             generatedAt: sharedContext.generatedAt,
             instrument,
             price: instrumentContext.price || null,
             session: instrumentContext.session || null,
             timeframes,
+            peers,
         };
     }
 }

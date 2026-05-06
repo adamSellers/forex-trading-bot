@@ -121,6 +121,41 @@ function buildRangeBreakoutDataService() {
     };
 }
 
+function buildPeerDataService() {
+    const instruments = ["AUD_USD", "EUR_USD", "GBP_USD", "USD_JPY"];
+    const candlesByInstrument = instruments.reduce((acc, instrument, instrumentIndex) => {
+        acc[instrument] = Array.from({ length: 220 }, (_, index) => {
+            const base =
+                instrument === "USD_JPY"
+                    ? 150 - index * 0.01
+                    : 1.05 + instrumentIndex * 0.05 + index * 0.0003;
+
+            return {
+                time: new Date(Date.UTC(2026, 0, 1, 0, index * 15)).toISOString(),
+                open: base,
+                high: base + (instrument === "USD_JPY" ? 0.03 : 0.0005),
+                low: base - (instrument === "USD_JPY" ? 0.03 : 0.0005),
+                close: base + (instrument === "USD_JPY" ? -0.005 : 0.0001),
+                volume: 100 + index,
+            };
+        });
+        return acc;
+    }, {});
+
+    return {
+        getCurrentPrice: jest.fn((instrument) => ({
+            instrument,
+            price: instrument === "USD_JPY" ? 148.5 : 1.1,
+            bid: instrument === "USD_JPY" ? 148.49 : 1.0999,
+            ask: instrument === "USD_JPY" ? 148.51 : 1.1001,
+            spread: 1.2,
+            tradeable: true,
+            timestamp: Date.now(),
+        })),
+        getCandles: jest.fn((instrument) => candlesByInstrument[instrument] || []),
+    };
+}
+
 describe("MarketContextService", () => {
     let service;
     let dataService;
@@ -291,5 +326,38 @@ describe("MarketContextService", () => {
         expect(
             instrumentContext.timeframes["15m"].derived.squeezePlay.h1AtrPercentile
         ).toEqual(expect.any(Number));
+    });
+
+    test("createInstrumentContext exposes peer candles for correlation_divergence", () => {
+        const dataService = buildPeerDataService();
+        const runDescriptor = {
+            runId: "candidate-run-correlation",
+            strategy: "correlation_divergence",
+            configHash: "cfg-correlation-1",
+            config: {
+                strategy: "correlation_divergence",
+                assets: ["AUD_USD", "EUR_USD", "GBP_USD", "USD_JPY"],
+                timeframe: "15m",
+            },
+        };
+
+        const sharedContext = service.buildSharedContext([runDescriptor], dataService);
+        const instrumentContext = service.createInstrumentContext(
+            sharedContext,
+            runDescriptor,
+            "AUD_USD"
+        );
+
+        expect(Object.keys(instrumentContext.peers).sort()).toEqual([
+            "EUR_USD",
+            "GBP_USD",
+            "USD_JPY",
+        ]);
+        expect(instrumentContext.peers.EUR_USD.timeframes["15m"].candles).toHaveLength(
+            220
+        );
+        expect(
+            instrumentContext.peers.USD_JPY.timeframes["15m"].indicators.atr.length
+        ).toBeGreaterThan(0);
     });
 });
