@@ -33,6 +33,10 @@ S3_BUCKET_NAME_FILE="$SECRETS_DIR/s3_bucket_name.enc"
 TIMESFM_URL_FILE="$SECRETS_DIR/timesfm_url.enc"
 TIMESFM_KEY_FILE="$SECRETS_DIR/timesfm_key.enc"
 
+# --- Node Runtime ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-node-runtime.sh"
+
 # --- Decrypt and Export ---
 if [ -f "$ENCRYPTION_KEY_FILE" ]; then
     ENCRYPTION_KEY=$(cat "$ENCRYPTION_KEY_FILE")

@@ -13,6 +13,9 @@ BACKUP_DIR="$HOME/forex-trading-bot-backups"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="forex_backup_${TIMESTAMP}.tar.gz"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-node-runtime.sh"
+
 # Colors
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'

@@ -12,6 +12,9 @@ PROJECT_DIR="/opt/forex-trading-bot"
 PROJECT_USER=$(whoami)
 BACKUP_DIR="$HOME/forex-trading-bot-backups"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-node-runtime.sh"
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

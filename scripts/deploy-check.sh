@@ -2,6 +2,9 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-node-runtime.sh"
+
 echo "🩺 Running shared runtime deployment checks..."
 
 # Colors

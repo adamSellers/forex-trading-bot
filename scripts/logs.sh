@@ -7,6 +7,9 @@
 APP_NAME="forex-backend"
 LOG_DIR="/opt/forex-trading-bot/backend/logs"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-node-runtime.sh"
+
 case "$1" in
     ""|"pm2")
         echo "📋 PM2 Logs (live):"

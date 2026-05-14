@@ -15,6 +15,9 @@ BACKUP_DIR="$HOME/forex-backups"
 REPO_URL="git@github.com:adamSellers/forex-trading-bot.git"
 BRANCH="main"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-node-runtime.sh"
+
 # --- Styling ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

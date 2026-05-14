@@ -15,6 +15,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/load-node-runtime.sh"
+
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
 echo -e "${CYAN}         💱 FOREX TRADING BOT - STATUS DASHBOARD${NC}"
