@@ -709,7 +709,7 @@ const getStrategyReasonLabel = (signal = {}, prefix = '') => {
 const getStoredStrategyContext = (signal = {}) =>
   signal.strategyContext || signal.decisionContext?.strategyContext || {};
 
-const getMeanReversionContext = (signal = {}) => {
+const getMeanReversionContext = (signal = {}, config = {}) => {
   const context = getStoredStrategyContext(signal);
   const rsi = context.m15?.rsi ?? signal.decisionContext?.rsi ?? signal.trend?.rsi ?? null;
   const h1Adx =
@@ -729,7 +729,7 @@ const getMeanReversionContext = (signal = {}) => {
     widthRatio: context.bollinger?.widthRatio ?? null,
     minWidthRatio: context.bollinger?.minWidthRatio ?? 0.5,
     h1Adx,
-    maxH1Adx: context.regime?.maxH1Adx ?? 25,
+    maxH1Adx: context.regime?.maxH1Adx ?? config.maxRegimeAdx ?? 25,
     sessionName: context.session?.name || null,
     spreadPips: context.session?.spreadPips ?? null,
   };
@@ -1080,7 +1080,7 @@ const TradingSignals = ({
           signals={filteredSignals}
           theme={theme}
           systemStatus={systemStatus}
-          getContext={getMeanReversionContext}
+          getContext={(signal) => getMeanReversionContext(signal, systemStatus?.config)}
           getTitle={getMeanReversionSetupLabel}
           getMeta={(_, context) =>
             `RSI ${formatMetric(context.rsi)} | H1 ADX ${formatMetric(context.h1Adx)}`
@@ -1110,7 +1110,7 @@ const TradingSignals = ({
             {filteredSignals.map((signal) => {
               const { color, icon } = getSignalMeta(signal.signal);
               const paletteColor = theme.palette[color];
-              const context = getMeanReversionContext(signal);
+              const context = getMeanReversionContext(signal, systemStatus?.config);
               const statusBadges = getMeanReversionBadges(signal, context);
               const h1Adx = Number(context.h1Adx);
               const rangeOk = Number.isFinite(h1Adx) && h1Adx < Number(context.maxH1Adx);

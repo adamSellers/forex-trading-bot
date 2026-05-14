@@ -593,6 +593,9 @@ const meanReversionStrategy = createStrategyDefinition({
         supportsLive: true,
         supportsShadow: true,
         supportsCandidate: true,
+        entryValidation: {
+            enforceGlobalMinAdx: false,
+        },
         defaultConfig: DEFAULT_MEAN_REVERSION_CONFIG,
     },
     evaluateEntry: evaluateMeanReversionEntry,

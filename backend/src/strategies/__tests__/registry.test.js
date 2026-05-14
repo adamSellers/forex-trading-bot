@@ -47,6 +47,11 @@ describe("strategy registry", () => {
             expect.objectContaining({
                 key: "mean_reversion",
                 label: "Mean Reversion",
+                metadata: expect.objectContaining({
+                    entryValidation: expect.objectContaining({
+                        enforceGlobalMinAdx: false,
+                    }),
+                }),
             })
         );
         expect(getStrategyDefinition("stochastic_divergence")).toEqual(

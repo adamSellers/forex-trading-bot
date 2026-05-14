@@ -742,6 +742,11 @@ class LiveTradingEngine extends EventEmitter {
 
         try {
             const strategyDefinition = getStrategyDefinition(strategyKey);
+            const entryValidation = strategyDefinition?.metadata?.entryValidation || {};
+            if (entryValidation.enforceGlobalMinAdx === false) {
+                return false;
+            }
+
             const indicators = Array.isArray(strategyDefinition?.requiredData?.indicators)
                 ? strategyDefinition.requiredData.indicators
                 : [];

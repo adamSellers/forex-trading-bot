@@ -161,6 +161,7 @@ const createMockConfigService = (config = {}) => {
         stopLossAtrMultiplier: 2.0,
         minStopLossPips: 12,
         minAdx: 22,
+        maxRegimeAdx: 25,
         assets: ['AUD_USD', 'EUR_USD'],
         enableEmailAlerts: false,
         timesFmEnabled: true,
@@ -316,6 +317,7 @@ const createMockSignalGenerator = (signals = []) => {
         config: {
             assets: ['AUD_USD', 'EUR_USD'],
             minAdx: 22,
+            maxRegimeAdx: 25,
             rsiOverbought: 75,
         },
         start: jest.fn(function () {

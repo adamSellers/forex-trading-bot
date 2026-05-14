@@ -145,6 +145,7 @@ class ConfigService extends EventEmitter {
                 timeframe: this.config.timeframe,
                 enableAdxFilter: this.config.enableAdxFilter,
                 minAdx: this.config.minAdx,
+                maxRegimeAdx: this.config.maxRegimeAdx,
                 adxSlopeFilter: this.config.adxSlopeFilter,
                 adxSlopeLookback: this.config.adxSlopeLookback,
                 requireDirectionalAdx: this.config.requireDirectionalAdx,

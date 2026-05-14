@@ -11,6 +11,24 @@ import { GlassCard, SectionHeader, msToHours, hoursToMs } from './ConfigShared';
 const StrategySettings = ({ config, updateConfig }) => {
   const [showAdvancedStrategy, setShowAdvancedStrategy] = useState(false);
   const hasConfigKey = (key) => Object.prototype.hasOwnProperty.call(config, key);
+  const strategyKey = config.strategy || 'supertrend_momentum';
+  const isSupertrend = strategyKey === 'supertrend_momentum';
+  const isMeanReversion = strategyKey === 'mean_reversion';
+  const strategyTitle = isMeanReversion
+    ? 'Mean Reversion Strategy'
+    : isSupertrend
+      ? 'SuperTrend + ADX Strategy'
+      : 'Strategy Settings';
+  const strategySubtitle = isMeanReversion
+    ? 'Range-fade configuration for Bollinger reclaim entries'
+    : isSupertrend
+      ? 'Core trend-following configuration'
+      : 'Core runtime configuration';
+  const entryFilterSubtitle = isMeanReversion
+    ? 'Range-regime requirements for band-fade entries'
+    : isSupertrend
+      ? 'Trend strength requirements'
+      : 'Strategy-specific runtime filters';
 
   return (
     <Stack spacing={3}>
@@ -18,8 +36,8 @@ const StrategySettings = ({ config, updateConfig }) => {
       <GlassCard>
         <SectionHeader
           icon={<Science />}
-          title="SuperTrend + ADX Strategy"
-          subtitle="Core trend-following configuration"
+          title={strategyTitle}
+          subtitle={strategySubtitle}
         />
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
@@ -231,6 +249,7 @@ const StrategySettings = ({ config, updateConfig }) => {
       </GlassCard>
 
       {/* SuperTrend Parameters */}
+      {isSupertrend && (
       <GlassCard>
         <SectionHeader
           icon={<Tune />}
@@ -270,139 +289,187 @@ const StrategySettings = ({ config, updateConfig }) => {
           </Grid>
         </Grid>
       </GlassCard>
+      )}
 
       {/* Entry Filters */}
       <GlassCard>
         <SectionHeader
           icon={<Speed />}
-          title="Entry Filters"
-          subtitle="Trend strength requirements"
+          title={isMeanReversion ? 'Mean Reversion Range Filters' : 'Entry Filters'}
+          subtitle={entryFilterSubtitle}
         />
-        <Box mb={4}>
-          <Box display="flex" justifyContent="space-between" mb={1}>
-            <Box>
-              <Typography fontWeight="bold">Minimum ADX Strength</Typography>
-              <Typography variant="caption" color="text.secondary">
-                Only enter when trend is strong enough
-              </Typography>
-            </Box>
-            <Switch
-              size="small"
-              checked={config.enableAdxFilter}
-              onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)}
-            />
-          </Box>
-          <Box px={2} display="flex" alignItems="center" gap={2} sx={{ opacity: config.enableAdxFilter ? 1 : 0.5 }}>
-            <Slider
-              value={config.minAdx}
-              min={15} max={40}
-              onChange={(_, v) => updateConfig('minAdx', v)}
-              disabled={!config.enableAdxFilter}
-              sx={{ flexGrow: 1 }}
-              marks={[
-                { value: 20, label: '20' },
-                { value: 25, label: '25' },
-                { value: 30, label: '30' },
-              ]}
-            />
-            <Chip
-              label={config.minAdx}
-              color={config.minAdx < 20 ? 'warning' : config.minAdx > 30 ? 'error' : 'success'}
-              size="small"
-            />
-          </Box>
-          <Alert severity="info" sx={{ mt: 2 }}>
-            <Typography variant="caption">
-              <strong>Forex Tip:</strong> ADX 22 is a practical baseline for major pairs on this strategy.
-            </Typography>
-          </Alert>
-
-          {/* ADX Slope Filter - nested under ADX filter */}
-          <Box sx={{ mt: 3, ml: 2, pl: 2, borderLeft: 2, borderColor: 'divider', opacity: config.enableAdxFilter ? 1 : 0.5 }}>
+        {isMeanReversion ? (
+          <Box>
             <Box display="flex" justifyContent="space-between" mb={1}>
               <Box>
-                <Typography fontWeight="bold" variant="body2">
-                  <TrendingUpOutlined sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
-                  Require Rising ADX
-                </Typography>
+                <Typography fontWeight="bold">Maximum H1 ADX</Typography>
                 <Typography variant="caption" color="text.secondary">
-                  Only enter when ADX is increasing vs N bars ago
+                  Allow range fades only while the hourly trend is weak enough
                 </Typography>
               </Box>
-              <Switch
+              <Chip
+                label={config.maxRegimeAdx ?? 25}
+                color={(config.maxRegimeAdx ?? 25) > 30 ? 'warning' : 'success'}
                 size="small"
-                checked={config.adxSlopeFilter ?? true}
-                onChange={(e) => updateConfig('adxSlopeFilter', e.target.checked)}
-                disabled={!config.enableAdxFilter}
               />
             </Box>
-            <Box px={2} display="flex" alignItems="center" gap={2} sx={{ opacity: config.adxSlopeFilter && config.enableAdxFilter ? 1 : 0.5 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>Lookback:</Typography>
+            <Box px={2} display="flex" alignItems="center" gap={2}>
               <Slider
-                value={config.adxSlopeLookback ?? 3}
-                min={2} max={10}
-                onChange={(_, v) => updateConfig('adxSlopeLookback', v)}
-                disabled={!config.adxSlopeFilter || !config.enableAdxFilter}
+                value={config.maxRegimeAdx ?? 25}
+                min={10}
+                max={40}
+                step={1}
+                onChange={(_, v) => updateConfig('maxRegimeAdx', v)}
                 sx={{ flexGrow: 1 }}
                 marks={[
-                  { value: 2, label: '2' },
-                  { value: 5, label: '5' },
-                  { value: 10, label: '10' },
+                  { value: 15, label: '15' },
+                  { value: 25, label: '25' },
+                  { value: 35, label: '35' },
                 ]}
               />
-              <Chip
-                label={`${config.adxSlopeLookback ?? 3} bars`}
-                size="small"
-                variant="outlined"
-              />
             </Box>
-            <Alert severity="warning" sx={{ mt: 1 }} icon={false}>
+            <Alert severity="info" sx={{ mt: 2 }}>
               <Typography variant="caption">
-                Catches trends early - when ADX is rising, not mature/plateauing.
+                Mean reversion uses ADX as a range ceiling. Higher values allow more trades in stronger hourly trends; lower values are stricter.
               </Typography>
             </Alert>
           </Box>
-        </Box>
-        <Divider sx={{ my: 3 }} />
-        <Box>
-          <Box display="flex" justifyContent="space-between" mb={2}>
-            <Box>
-              <Typography fontWeight="bold">RSI Overbought Filter</Typography>
-              <Typography variant="caption" color="text.secondary">
-                Block entries when momentum is exhausted
-              </Typography>
+        ) : isSupertrend ? (
+          <>
+            <Box mb={4}>
+              <Box display="flex" justifyContent="space-between" mb={1}>
+                <Box>
+                  <Typography fontWeight="bold">Minimum ADX Strength</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Only enter when trend is strong enough
+                  </Typography>
+                </Box>
+                <Switch
+                  size="small"
+                  checked={config.enableAdxFilter}
+                  onChange={(e) => updateConfig('enableAdxFilter', e.target.checked)}
+                />
+              </Box>
+              <Box px={2} display="flex" alignItems="center" gap={2} sx={{ opacity: config.enableAdxFilter ? 1 : 0.5 }}>
+                <Slider
+                  value={config.minAdx}
+                  min={15} max={40}
+                  onChange={(_, v) => updateConfig('minAdx', v)}
+                  disabled={!config.enableAdxFilter}
+                  sx={{ flexGrow: 1 }}
+                  marks={[
+                    { value: 20, label: '20' },
+                    { value: 25, label: '25' },
+                    { value: 30, label: '30' },
+                  ]}
+                />
+                <Chip
+                  label={config.minAdx}
+                  color={config.minAdx < 20 ? 'warning' : config.minAdx > 30 ? 'error' : 'success'}
+                  size="small"
+                />
+              </Box>
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="caption">
+                  <strong>Forex Tip:</strong> ADX 22 is a practical baseline for major pairs on this strategy.
+                </Typography>
+              </Alert>
+
+              {/* ADX Slope Filter - nested under ADX filter */}
+              <Box sx={{ mt: 3, ml: 2, pl: 2, borderLeft: 2, borderColor: 'divider', opacity: config.enableAdxFilter ? 1 : 0.5 }}>
+                <Box display="flex" justifyContent="space-between" mb={1}>
+                  <Box>
+                    <Typography fontWeight="bold" variant="body2">
+                      <TrendingUpOutlined sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
+                      Require Rising ADX
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Only enter when ADX is increasing vs N bars ago
+                    </Typography>
+                  </Box>
+                  <Switch
+                    size="small"
+                    checked={config.adxSlopeFilter ?? true}
+                    onChange={(e) => updateConfig('adxSlopeFilter', e.target.checked)}
+                    disabled={!config.enableAdxFilter}
+                  />
+                </Box>
+                <Box px={2} display="flex" alignItems="center" gap={2} sx={{ opacity: config.adxSlopeFilter && config.enableAdxFilter ? 1 : 0.5 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>Lookback:</Typography>
+                  <Slider
+                    value={config.adxSlopeLookback ?? 3}
+                    min={2} max={10}
+                    onChange={(_, v) => updateConfig('adxSlopeLookback', v)}
+                    disabled={!config.adxSlopeFilter || !config.enableAdxFilter}
+                    sx={{ flexGrow: 1 }}
+                    marks={[
+                      { value: 2, label: '2' },
+                      { value: 5, label: '5' },
+                      { value: 10, label: '10' },
+                    ]}
+                  />
+                  <Chip
+                    label={`${config.adxSlopeLookback ?? 3} bars`}
+                    size="small"
+                    variant="outlined"
+                  />
+                </Box>
+                <Alert severity="warning" sx={{ mt: 1 }} icon={false}>
+                  <Typography variant="caption">
+                    Catches trends early - when ADX is rising, not mature/plateauing.
+                  </Typography>
+                </Alert>
+              </Box>
             </Box>
-            <Switch
-              size="small"
-              checked={config.enableRsiFilter}
-              onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)}
-            />
-          </Box>
-          <TextField
-            fullWidth
-            label="RSI Overbought Threshold"
-            type="number"
-            value={config.rsiOverbought}
-            onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))}
-            size="small"
-            disabled={!config.enableRsiFilter}
-            helperText="Block BUY signals when RSI exceeds this value"
-          />
-          <TextField
-            fullWidth
-            sx={{ mt: 2 }}
-            label="Fresh Long RSI Ceiling"
-            type="number"
-            value={config.freshLongRsiCeiling ?? 68}
-            onChange={(e) => updateConfig('freshLongRsiCeiling', parseFloat(e.target.value))}
-            size="small"
-            disabled={!config.enableRsiFilter}
-            helperText="Applies only to fresh long flips; HTF confirmations can still use the broader ceiling"
-          />
-        </Box>
+            <Divider sx={{ my: 3 }} />
+            <Box>
+              <Box display="flex" justifyContent="space-between" mb={2}>
+                <Box>
+                  <Typography fontWeight="bold">RSI Overbought Filter</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Block entries when momentum is exhausted
+                  </Typography>
+                </Box>
+                <Switch
+                  size="small"
+                  checked={config.enableRsiFilter}
+                  onChange={(e) => updateConfig('enableRsiFilter', e.target.checked)}
+                />
+              </Box>
+              <TextField
+                fullWidth
+                label="RSI Overbought Threshold"
+                type="number"
+                value={config.rsiOverbought}
+                onChange={(e) => updateConfig('rsiOverbought', parseFloat(e.target.value))}
+                size="small"
+                disabled={!config.enableRsiFilter}
+                helperText="Block BUY signals when RSI exceeds this value"
+              />
+              <TextField
+                fullWidth
+                sx={{ mt: 2 }}
+                label="Fresh Long RSI Ceiling"
+                type="number"
+                value={config.freshLongRsiCeiling ?? 68}
+                onChange={(e) => updateConfig('freshLongRsiCeiling', parseFloat(e.target.value))}
+                size="small"
+                disabled={!config.enableRsiFilter}
+                helperText="Applies only to fresh long flips; HTF confirmations can still use the broader ceiling"
+              />
+            </Box>
+          </>
+        ) : (
+          <Alert severity="info">
+            <Typography variant="caption">
+              This strategy manages its entry filters through its own runtime rules.
+            </Typography>
+          </Alert>
+        )}
       </GlassCard>
 
       {/* Continuation Entry Settings */}
+      {isSupertrend && (
       <GlassCard>
         <Box
           display="flex"
@@ -495,6 +562,7 @@ const StrategySettings = ({ config, updateConfig }) => {
           </Box>
         </Collapse>
       </GlassCard>
+      )}
     </Stack>
   );
 };

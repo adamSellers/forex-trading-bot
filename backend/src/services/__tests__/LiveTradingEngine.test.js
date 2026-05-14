@@ -440,6 +440,32 @@ describe('LiveTradingEngine', () => {
             expect(result.valid).toBe(true);
         });
 
+        test('should not apply the generic ADX floor to mean reversion range entries', async () => {
+            const signal = createMockSignal({
+                strength: 18,
+                strategy: 'mean_reversion',
+                entryType: 'MEAN_REVERSION_BAND_FADE',
+            });
+            const config = {
+                ...mockConfigService.get(),
+                strategy: 'mean_reversion',
+                enableSessionFilter: false,
+            };
+
+            jest.spyOn(engine, 'estimateEntryMargin').mockResolvedValue(10);
+            oandaClient.getAccountSummary.mockResolvedValue({
+                account: {
+                    balance: '100.00',
+                    marginUsed: '20.00',
+                    marginAvailable: '80.00',
+                },
+            });
+
+            const result = await engine.validateEntry(signal, config);
+
+            expect(result.valid).toBe(true);
+        });
+
         test('should reject SELL signal when shorting disabled', async () => {
             const signal = createSellSignal();
             const config = { ...mockConfigService.get(), enableShorting: false };

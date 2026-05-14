@@ -11,6 +11,7 @@
     "supertrendMultiplier": 3,
     "enableAdxFilter": true,
     "minAdx": 21,
+    "maxRegimeAdx": 25,
     "adxSlopeFilter": true,
     "adxSlopeLookback": 3,
     "requireDirectionalAdx": true,

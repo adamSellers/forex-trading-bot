@@ -24,6 +24,7 @@ class SignalGenerator extends EventEmitter {
             // Forex default ADX threshold
             enableAdxFilter: true,
             minAdx: 22,
+            maxRegimeAdx: 25,
             adxSlopeFilter: true, // Only enter when ADX is rising
             adxSlopeLookback: 3, // Compare current ADX vs N bars ago
             requireDirectionalAdx: true,
