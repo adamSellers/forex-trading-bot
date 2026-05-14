@@ -37,20 +37,41 @@ cd "$PROJECT_DIR" || log_error "Project directory $PROJECT_DIR not found."
 
 # 1. Backup database BEFORE any git operations (prevents data loss from git reset)
 BACKUP_DIR="$HOME/forex-backups"
+MAX_DB_BACKUPS=5
 CONFIG_PATH="backend/data/trading_config.json"
 CONFIG_BACKUP=""
+
+prune_db_backups() {
+    local max_keep="$1"
+    local delete_from=$((max_keep + 1))
+    local old_backups=()
+
+    mapfile -t old_backups < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +"$delete_from")
+
+    if [ "${#old_backups[@]}" -eq 0 ]; then
+        return
+    fi
+
+    for old_db in "${old_backups[@]}"; do
+        rm -f "$old_db" "$old_db-wal" "$old_db-shm"
+    done
+
+    log_info "Pruned ${#old_backups[@]} old database backup(s); keeping max ${max_keep}"
+}
+
 log_info "Creating database backup..."
 mkdir -p "$BACKUP_DIR"
 if [ -f "backend/data/trading.db" ]; then
+    # Free space before copying the multi-GB SQLite DB. After the new backup is
+    # created, prune again so the retention cap is always enforced.
+    prune_db_backups $((MAX_DB_BACKUPS - 1))
+
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     cp backend/data/trading.db "$BACKUP_DIR/trading_$TIMESTAMP.db"
     # Also backup WAL files if they exist (critical for SQLite integrity)
     cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
     cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
-    # Keep only last 7 backups (including WAL/SHM companions)
-    while IFS= read -r old_db; do
-        rm -f "$old_db" "$old_db-wal" "$old_db-shm"
-    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +8)
+    prune_db_backups "$MAX_DB_BACKUPS"
     log_success "Database backed up to $BACKUP_DIR"
 else
     log_info "No existing database to backup"
