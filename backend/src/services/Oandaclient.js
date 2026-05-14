@@ -1,5 +1,6 @@
 // backend/src/services/OandaClient.js - Oanda REST v20 API Client
 const logger = require("../utils/logger");
+const { buildOandaApiError } = require("../utils/oandaErrors");
 
 class OandaClient {
     constructor() {
@@ -87,20 +88,7 @@ class OandaClient {
             const response = await fetch(url, options);
 
             if (!response.ok) {
-                const errorBody = await response.text();
-                let errorMessage;
-                try {
-                    const errorJson = JSON.parse(errorBody);
-                    errorMessage =
-                        errorJson.errorMessage ||
-                        errorJson.message ||
-                        errorBody;
-                } catch {
-                    errorMessage = errorBody;
-                }
-                throw new Error(
-                    `Oanda API Error (${response.status}): ${errorMessage}`
-                );
+                throw await buildOandaApiError(response);
             }
 
             return await response.json();

@@ -1,6 +1,7 @@
 // backend/src/services/OandaDataService.js - Oanda Data Service with EventEmitter
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
+const { buildOandaApiError } = require("../utils/oandaErrors");
 
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
 const OANDA_ACCOUNT_ID = process.env.OANDA_ACCOUNT_ID || "001-011-20128302-001";
@@ -32,8 +33,7 @@ class OandaDataService extends EventEmitter {
         });
 
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`Oanda API error: ${response.status} - ${error}`);
+            throw await buildOandaApiError(response);
         }
 
         return response.json();

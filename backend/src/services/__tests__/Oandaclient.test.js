@@ -21,6 +21,18 @@ const createErrorResponse = (status, errorMessage) => ({
     json: async () => ({ errorMessage }),
 });
 
+const createHtmlErrorResponse = (status, body) => ({
+    ok: false,
+    status,
+    headers: {
+        get: (header) => (header.toLowerCase() === "content-type" ? "text/html" : null),
+    },
+    text: async () => body,
+    json: async () => {
+        throw new Error("HTML body is not JSON");
+    },
+});
+
 describe('OandaClient', () => {
     let OandaClient;
     let client;
@@ -92,6 +104,20 @@ describe('OandaClient', () => {
             global.fetch.mockResolvedValueOnce(createErrorResponse(401, 'Unauthorized'));
 
             await expect(client.initialize()).rejects.toThrow('Oanda API Error');
+        });
+
+        test('should summarize HTML API failures instead of surfacing the full page', async () => {
+            global.fetch.mockResolvedValueOnce(createHtmlErrorResponse(
+                525,
+                '<html><body><div class="cf-error-details cf-error-525"><h1>SSL handshake failed</h1></div><p>'.concat(
+                    'x'.repeat(2000),
+                    '</p></body></html>'
+                )
+            ));
+
+            await expect(client.initialize()).rejects.toThrow(
+                'Oanda API Error (525): Cloudflare 525: SSL handshake failed'
+            );
         });
     });
 

@@ -4,6 +4,7 @@ const router = express.Router();
 const { listStrategyCatalog, getStrategyDefinition } = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
 const logger = require("../utils/logger");
+const { buildOandaApiError } = require("../utils/oandaErrors");
 
 function isLiveSelectionReady(strategyDefinition = {}) {
     return (
@@ -41,8 +42,7 @@ async function oandaRequest(endpoint) {
     });
 
     if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Oanda API error: ${response.status} - ${error}`);
+        throw await buildOandaApiError(response);
     }
 
     return response.json();
@@ -782,8 +782,8 @@ router.post("/trade/close/:id", async (req, res) => {
         );
 
         if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`Failed to close trade: ${error}`);
+            const error = await buildOandaApiError(response);
+            throw new Error(`Failed to close trade: ${error.message}`);
         }
 
         const data = await response.json();
