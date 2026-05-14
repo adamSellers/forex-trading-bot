@@ -117,6 +117,14 @@ export const getExpectedEdgeContext = (signal = {}) => {
   );
 };
 
+const getTimesFmEdgeBps = (timesFm = {}) => {
+  if (!timesFm || timesFm.available === false) {
+    return null;
+  }
+
+  return firstFiniteValue([timesFm.netReturnBps, timesFm.returnBps]);
+};
+
 export const deriveSignalSide = (signal = {}) => {
   const intent = String(signal.intent || '').toUpperCase();
   if (intent === 'LONG') return 'BUY';
@@ -264,28 +272,28 @@ export const extractSignalTelemetry = (signal = {}, options = {}) => {
   const side = deriveSignalSide(signal);
   const mode = getSignalMode(signal, options);
 
-  const edgeBps =
-    firstFiniteByPath(signal, [
-      'netEdgeBps',
-      'expectedEdgeBps',
-      'edgeBps',
-      'expectedReturnBps',
-      'expectedMoveBps',
-      'tradePlan.expectedEdgeBps',
-      'tradePlan.netEdgeBps',
-      'decisionContext.netEdgeBps',
-      'decisionContext.expectedEdgeBps',
-      'decisionContext.expectedReturnBps',
-      'decisionContext.strategyContext.edge.netBps',
-      'decisionContext.strategyContext.expectedEdgeBps',
-      'decisionContext.strategyContext.expectedReturnBps',
-    ]) ?? firstFiniteValue([
-      timesFm.netReturnBps,
-      timesFm.returnBps,
-      strategyContext.edge?.netBps,
-      strategyContext.expectedEdgeBps,
-      strategyContext.expectedReturnBps,
-    ]);
+  const explicitEdgeBps = firstFiniteByPath(signal, [
+    'netEdgeBps',
+    'expectedEdgeBps',
+    'edgeBps',
+    'expectedReturnBps',
+    'expectedMoveBps',
+    'tradePlan.expectedEdgeBps',
+    'tradePlan.netEdgeBps',
+    'decisionContext.netEdgeBps',
+    'decisionContext.expectedEdgeBps',
+    'decisionContext.expectedReturnBps',
+    'decisionContext.strategyContext.edge.netBps',
+    'decisionContext.strategyContext.expectedEdgeBps',
+    'decisionContext.strategyContext.expectedReturnBps',
+  ]);
+  const strategyEdgeBps = firstFiniteValue([
+    strategyContext.edge?.netBps,
+    strategyContext.expectedEdgeBps,
+    strategyContext.expectedReturnBps,
+  ]);
+  const timesFmEdgeBps = expectedEdge ? null : getTimesFmEdgeBps(timesFm);
+  const edgeBps = explicitEdgeBps ?? strategyEdgeBps ?? timesFmEdgeBps;
 
   const edgePips =
     firstFiniteByPath(signal, [
