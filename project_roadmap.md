@@ -6,9 +6,9 @@ This document tracks all planned features, enhancements, and technical improveme
 
 | Document             | Purpose                          | When to update                            |
 | -------------------- | -------------------------------- | ----------------------------------------- |
-| `claude.md`          | Current context, in-progress work | During/after active work sessions         |
+| `CLAUDE.md`          | Current context, in-progress work | During/after active work sessions         |
 | `project_roadmap.md` | Future work, feature requests    | When user requests new features           |
-| `PROJECT_HISTORY.md` | Completed & deployed features    | After features are deployed to production |
+| `PROJECT_HISTORY.md` | Completed/deployed feature record | After production deployments or explicit code-complete milestones |
 
 ---
 
@@ -36,7 +36,8 @@ Approved on 2026-03-30. This is now the primary roadmap item and supersedes the 
 | HIGH | Phase 4 - Remaining strategies + unified analytics | Complete (code) | Added `stochastic_divergence`, `squeeze_play`, and runtime-wide analytics filters |
 | HIGH | Phase 5 - Legacy backtest/lab removal | Complete (code) | Removed the retired comparison stack and switched docs/operators to the runtime-only workflow |
 | HIGH | Phase 6 - Rollout and monitoring | Ready for operator rollout | Deploy the shared runtime stack and monitor live/shadow/candidate behavior in production |
-| HIGH | TimesFM Directional live promotion | Complete (code) | `timesfm_directional` is a sixth catalog strategy and can be promoted from a reviewed paper candidate run |
+| HIGH | TimesFM Directional live promotion | Complete (code) | `timesfm_directional` can be promoted from a reviewed paper candidate run |
+| MEDIUM | Correlation Divergence paper candidate | Complete (code) | `correlation_divergence` is the seventh catalog strategy and is intentionally paper-only today |
 
 Program rules:
 
@@ -82,6 +83,7 @@ Program rules:
 | HIGH | Shadow paper baseline plus concurrent candidate paper runs | Complete (code) | Runtime-backed Paper and Analytics surfaces are ready for rollout validation |
 | HIGH | Legacy backtest/lab retirement | Complete (code) | Offline backtest engine/scripts and `backtest_results` have been retired from the supported stack |
 | HIGH | TimesFM sidecar integration and native directional strategy | Complete (code) | Overlay enrichment, health status, analytics context, and `timesfm_directional` paper/live promotion support are implemented |
+| MEDIUM | Correlation Divergence paper candidate | Complete (code) | Registered as a candidate-only strategy with peer-candle runtime context and paper comparison support |
 | MEDIUM | 2-week live cohort review on March 20 deployment baseline | In progress | Preserve findings as benchmark input while the new strategy runtime is being delivered |
 
 ---
@@ -107,6 +109,7 @@ Program rules:
 | `stochastic_divergence` | `candidate` | Promote from Paper | Pivot/stochastic reversal strategy |
 | `squeeze_play` | `candidate` | Promote from Paper | Compression/release strategy |
 | `timesfm_directional` | `candidate` | Promote from Paper | Forecast-led strategy using the TimesFM sidecar |
+| `correlation_divergence` | `candidate` | Paper only | USD peer-factor divergence strategy; `supportsLive=false` |
 
 ---
 
@@ -203,7 +206,7 @@ Program rules:
 
 | Item                    | Blocked By                      | Notes                                        |
 | ----------------------- | ------------------------------- | -------------------------------------------- |
-| Parameter optimization  | Walk-forward framework          | Need robust anti-overfitting flow            |
+| Parameter optimization  | Runtime paper sample size       | Avoid rebuilding the retired walk-forward stack; use Paper runs plus the strategy evaluation framework |
 
 ---
 
@@ -229,4 +232,4 @@ Program rules:
 
 ---
 
-_Last updated: 2026-04-28_
+_Last updated: 2026-05-26_

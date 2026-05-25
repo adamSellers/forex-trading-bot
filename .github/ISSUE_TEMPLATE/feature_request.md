@@ -2,19 +2,24 @@
 name: Feature request
 about: Suggest an idea for this project
 title: ''
-labels: ''
+labels: 'enhancement'
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+**Problem / opportunity**
+Describe the workflow, strategy, reporting gap, or operational pain this would improve.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**Proposed solution**
+Describe what should change in the app, API, runtime, strategy catalog, deployment scripts, or docs.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**Runtime scope**
+- Mode(s): `live`, `paper_shadow`, `paper_candidate`, docs/ops only, or unknown
+- Strategy, if relevant:
+- Expected risk impact:
+
+**Alternatives considered**
+List simpler approaches, paper-only approaches, or reasons not to do this yet.
 
 **Additional context**
-Add any other context or screenshots about the feature request here.
+Add screenshots, logs, API payloads, candidate run IDs, or strategy-review notes if useful.

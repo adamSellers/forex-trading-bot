@@ -6,19 +6,20 @@ This document records completed and deployed features, serving as a historical r
 
 | Document             | Purpose                          | When to update                            |
 | -------------------- | -------------------------------- | ----------------------------------------- |
-| `claude.md`          | Current context, in-progress work | During/after active work sessions         |
+| `CLAUDE.md`          | Current context, in-progress work | During/after active work sessions         |
 | `project_roadmap.md` | Future work, feature requests    | When user requests new features           |
-| `PROJECT_HISTORY.md` | Completed & deployed features    | After features are deployed to production |
+| `PROJECT_HISTORY.md` | Completed/deployed feature record | After production deployments or explicit code-complete milestones |
 
 ---
 
 ## How to Use This Document
 
-When a feature is **fully completed AND deployed to production**:
+When a feature is **fully completed in code** or **deployed to production**:
 
-1. Move it from `claude.md` IN PROGRESS section to this document
-2. Include the deployment date and a brief summary
-3. Add implementation details that might be useful for future reference
+1. Move it from `CLAUDE.md` IN PROGRESS section to this document
+2. Include the completion/deployment date and a brief summary
+3. State deployment status explicitly when code is complete but not yet rolled out
+4. Add implementation details that might be useful for future reference
 
 ---
 
@@ -30,14 +31,16 @@ The repository now contains the shared runtime architecture in code:
 - Unified runtime identity across trades, signals, entry decisions, strategy runs, and portfolio snapshots
 - Runtime-backed Paper comparison and Analytics filters by `mode`, `strategy`, `runId`, and `selectionId`
 - Retired legacy offline backtest/lab production path and retired `backtest_results` migration
-- Six canonical strategies:
+- Seven canonical strategies:
   - `supertrend_momentum`
   - `mean_reversion`
   - `range_breakout`
   - `stochastic_divergence`
   - `squeeze_play`
   - `timesfm_directional`
+  - `correlation_divergence`
 - Live-capable candidate strategies can be promoted from reviewed `paper_candidate` runs; the candidate source run stays paper history and a new live selection is created
+- `correlation_divergence` is a candidate-only paper research strategy and is not live-promotable in current metadata
 - TimesFM overlay enrichment and the native TimesFM Directional strategy use the Mac-hosted sidecar and fail safely when forecasts are unavailable
 
 Deployment status is still recorded separately from code status. Only move these items into the deployed history below after the production rollout has actually run.
@@ -45,6 +48,19 @@ Deployment status is still recorded separately from code status. Only move these
 ---
 
 ## Completed Features
+
+### 2026-05-26 - Correlation Divergence Candidate (Code Complete)
+
+**Summary**: Registered `correlation_divergence` as the seventh canonical strategy. It runs as a paper-only candidate that compares a target USD pair against peer USD-factor moves and tests single-leg mean reversion when residual divergence is large.
+
+**Code State**:
+1. `backend/src/strategies/correlationDivergence.js` exports the strategy definition, default config, and analysis helpers.
+2. The strategy catalog marks it as `runtimeStatus: "candidate"` with `supportsCandidate: true`, `supportsLive: false`, and `supportsShadow: false`.
+3. `MarketContextService` exposes peer candles so the strategy can compare the active instrument against other configured assets.
+4. Backend tests cover the strategy and peer-candle runtime context.
+
+**Deployment Note**:
+- Not marked deployed here until the user confirms a production rollout.
 
 ### 2026-04-28 - TimesFM Directional Promotion Readiness (Code Complete)
 
@@ -540,7 +556,7 @@ pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
 
 **Key Changes**:
 - Untracked `trading.db-wal` and `trading.db-shm` from git
-- Untracked `trading_config.json` from git
+- Preserved `trading_config.json` across deploy resets so production runtime settings are not overwritten
 - Added `trading_config_initial.json` as tracked config template
 - Deploy scripts now backup WAL files and initialize config from template
 
@@ -549,6 +565,7 @@ pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
 - `scripts/update.sh` - WAL backup + config template logic
 - `scripts/deploy.sh` - WAL backup + config template logic
 - `backend/data/trading_config_initial.json` - NEW tracked template
+- `backend/data/trading_config.json` - current runtime config file; deploy/update scripts back it up before git reset and restore it afterward
 
 **Root Cause**: `git reset --hard` during deployment overwrote WAL files with stale versions, corrupting/losing uncommitted transactions.
 
@@ -761,7 +778,8 @@ pm2 logs forex-backend --lines 50 | grep "cleanup scheduled"
 | 2026-02-15 | Short-side hardening and short health analytics                |
 | 2026-03-30 | Shared runtime Phases 1-5 code complete, legacy lab retired    |
 | 2026-04-28 | TimesFM Directional promotion readiness code complete          |
+| 2026-05-26 | Correlation Divergence paper candidate code complete           |
 
 ---
 
-_This document is updated when features are deployed to production._
+_This document records deployed features and code-complete milestones. Deployment status is called out explicitly for unreleased items._

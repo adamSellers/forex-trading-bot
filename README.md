@@ -28,7 +28,7 @@ Important behavior:
 
 ## Strategy Catalog
 
-The canonical strategy registry currently includes six strategies:
+The canonical strategy registry currently includes seven strategies:
 
 | Strategy Key | Label | Runtime Status | Intended Use |
 | --- | --- | --- | --- |
@@ -38,12 +38,15 @@ The canonical strategy registry currently includes six strategies:
 | `stochastic_divergence` | Stochastic Divergence | `candidate` | Paper comparison |
 | `squeeze_play` | Squeeze Play | `candidate` | Paper comparison |
 | `timesfm_directional` | TimesFM Directional | `candidate` | Paper comparison, promotable to live |
+| `correlation_divergence` | Correlation Divergence | `candidate` | Paper-only USD peer divergence research |
 
 Notes:
 
 - The runtime supports `baseline` and `live_ready` strategies for live selection.
 - In the current catalog, only `supertrend_momentum` is directly live-selectable from the dashboard today.
-- Candidate strategies are launched from the Paper view for comparison against the shadow baseline. All implemented candidates expose live/shadow support in metadata, but promotion is intentionally routed through a reviewed paper run rather than the dashboard selector.
+- Candidate strategies are launched from the Paper view for comparison against the shadow baseline.
+- Live-capable candidates are promoted through a reviewed paper run rather than the dashboard selector.
+- `correlation_divergence` is intentionally paper-only today (`supportsLive: false`, `supportsShadow: false`), so it is useful for research/comparison but cannot be promoted to live without a code change.
 
 ## Highlights
 
@@ -57,6 +60,7 @@ Notes:
 - Optional email notifications and S3 analytics uploads
 - Optional TimesFM 2.5 signal enrichment via a Mac-hosted FastAPI sidecar
 - Native TimesFM Directional strategy that uses the sidecar forecast as its entry thesis and can be promoted from Paper after review
+- Correlation Divergence paper candidate that compares a target USD pair against peer USD-factor moves
 - PM2 and Raspberry Pi deployment scripts in `scripts/`
 
 ## Architecture
@@ -143,10 +147,12 @@ OANDA_ENVIRONMENT=practice
 Optional backend environment variables:
 
 - `DB_PATH`
+- `LOG_LEVEL`, `LOG_PATH`
+- `CORS_ORIGIN`
 - `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_TO`
 - `ENABLE_S3_ANALYTICS`
-- `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`
-- `TIMESFM_URL`, `TIMESFM_KEY`
+- `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET_NAME`, `S3_BUCKET_FOR_SIGNALS`
+- `TIMESFM_URL`, `TIMESFM_KEY`, `TIMESFM_PREPROCESS_MODE`
 
 ### Migrate and run
 
@@ -209,6 +215,7 @@ What each candidate is testing:
 - `stochastic_divergence`: looks for reversal setups where divergence and stochastic timing align.
 - `squeeze_play`: looks for directional expansion after low-volatility compression releases.
 - `timesfm_directional`: originates entries directly from TimesFM forecast direction, confidence, and expected return.
+- `correlation_divergence`: looks for one USD pair diverging from its peer USD-factor basket, then paper-tests single-leg mean reversion. This strategy is not live-promotable today.
 
 How to watch candidate performance:
 
@@ -235,10 +242,12 @@ Before promoting a candidate, look for:
 - enough trades to avoid judging on a tiny sample
 - stable behavior across sessions and pairs
 - understandable signal reasons, not just accidental outlier wins
+- live support in strategy metadata; paper-only candidates such as `correlation_divergence` are research runs only
 
 Promotion notes:
 
 - `POST /api/runtime/runs/:runId/promote` only accepts `paper_candidate` runs.
+- The strategy must allow live support in catalog metadata.
 - Promotion pauses/restarts the live engine if it was running, liquidates open live positions when the market is open, then creates a new live run plus paired shadow run from the candidate config snapshot.
 - The promoted source run remains `paper_candidate` and is annotated with promotion metadata for audit.
 - TimesFM Directional promotion requires the TimesFM sidecar to be reachable for actionable forecasts; if the forecast is unavailable, the strategy holds rather than inventing a direction.
@@ -262,6 +271,7 @@ When no runtime filters are supplied, analytics default to the live cohort.
 - `GET /api/health`
 - `GET /api/system/health`
 - `GET /api/system/info`
+- `POST /api/email/test`
 
 ### Strategy and runtime
 
@@ -295,6 +305,8 @@ When no runtime filters are supplied, analytics default to the live cohort.
 - `GET /api/engine/status`
 - `GET /api/engine/stats`
 - `GET /api/engine/trades`
+- `POST /api/engine/start`
+- `POST /api/engine/stop`
 - `POST /api/engine/close/:tradeId`
 - `POST /api/engine/sync`
 - `POST /api/engine/reset-stats`
@@ -319,6 +331,7 @@ The backend currently emits:
 - `tradeClosed`
 - `tradeUpdate`
 - `engineStatus`
+- `engineTelemetry`
 - `configUpdate`
 - `liveSelectionUpdated`
 - `runtimeRunsChanged`
@@ -326,7 +339,7 @@ The backend currently emits:
 
 ## Current Shared Defaults
 
-Shared defaults live in [shared/tradingConfigDefaults.json](/Users/adams/code/forex-trading-bot/shared/tradingConfigDefaults.json). A few important baseline values:
+Shared defaults live in [shared/tradingConfigDefaults.json](shared/tradingConfigDefaults.json). A few important baseline values:
 
 ```json
 {
@@ -427,10 +440,14 @@ Key production files:
 
 ## Additional Documentation
 
-- [USER_GUIDE.md](/Users/adams/code/forex-trading-bot/USER_GUIDE.md)
-- [scripts/DEPLOYMENT_README.md](/Users/adams/code/forex-trading-bot/scripts/DEPLOYMENT_README.md)
-- [PROJECT_HISTORY.md](/Users/adams/code/forex-trading-bot/PROJECT_HISTORY.md)
-- [project_roadmap.md](/Users/adams/code/forex-trading-bot/project_roadmap.md)
+- [USER_GUIDE.md](USER_GUIDE.md)
+- [STRATEGY_EVALUATION.md](STRATEGY_EVALUATION.md)
+- [scripts/DEPLOYMENT_README.md](scripts/DEPLOYMENT_README.md)
+- [scripts/PHASE6_ROLLOUT_CHECKLIST.md](scripts/PHASE6_ROLLOUT_CHECKLIST.md)
+- [timesfm-sidecar/README.md](timesfm-sidecar/README.md)
+- [PROJECT_HISTORY.md](PROJECT_HISTORY.md)
+- [project_roadmap.md](project_roadmap.md)
+- [trading_strategy_update_plan.md](trading_strategy_update_plan.md)
 
 ## Disclaimer
 

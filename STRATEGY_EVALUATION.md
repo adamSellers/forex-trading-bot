@@ -137,6 +137,21 @@ For the current live gate, high-confidence forecasts can use the lower return fl
 
 This should be reviewed as its own cohort, especially the `7.5-10 bps` bucket. If that bucket underperforms, raise the lower floor or require tighter spread/stronger confidence.
 
+## Correlation Divergence Checks
+
+For `correlation_divergence`, review these extra dimensions:
+
+- Peer candle availability for every configured asset in the candidate run.
+- Observation count versus `correlationDivergenceMinObservations`.
+- Peer count versus `correlationDivergenceMinPeerInstruments`.
+- Rolling correlation buckets and beta clipping frequency.
+- Residual z-score buckets around the entry threshold.
+- Target underperformance versus outperformance cases.
+- Whether entries revert toward the peer factor before the time stop.
+- Pair concentration, because this strategy depends heavily on the active asset basket.
+
+This strategy is paper-only in current catalog metadata. Do not treat a good paper run as live-promotable unless a separate review changes `supportsLive` and validates live-risk behavior.
+
 ## Decision Process
 
 Use this order during reviews:
@@ -145,7 +160,8 @@ Use this order during reviews:
 2. Compare live performance to the paired shadow run.
 3. Check whether losses are concentrated by pair, side, session, spread, or volatility regime.
 4. Review rejected entries and filtered signals to see whether the thesis is producing usable trades.
-5. Decide one of: continue, continue at lower risk, narrow deployment, tune one parameter, pause, retire config, retire strategy family.
+5. Confirm whether the strategy is live-capable in catalog metadata before considering promotion.
+6. Decide one of: continue, continue at lower risk, narrow deployment, tune one parameter, pause, retire config, retire strategy family.
 
 ## Review Cadence
 
@@ -180,4 +196,3 @@ Use this template in project notes or issue comments when making a strategy deci
 - Decision:
 - Next review date:
 ```
-

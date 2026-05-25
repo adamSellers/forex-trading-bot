@@ -45,6 +45,7 @@ The current strategy registry contains:
 | `stochastic_divergence` | Candidate | Paper run, then Promote to Live |
 | `squeeze_play` | Candidate | Paper run, then Promote to Live |
 | `timesfm_directional` | Candidate | Paper run, then Promote to Live; requires TimesFM sidecar forecasts |
+| `correlation_divergence` | Candidate | Paper only; not live-promotable today |
 
 The older offline backtest/lab workflow is retired. Use the Paper and Analytics views for comparison.
 
@@ -231,7 +232,18 @@ When enabled, the bot only enters trades during selected sessions. With all four
 
 ## Strategy Settings
 
-The active live default is **SuperTrend Momentum**, a trend-following strategy that combines SuperTrend, ADX, RSI momentum, ATR sizing context, and optional higher-timeframe confirmation. The app also supports paper candidate strategies that can be promoted to live after review from the Paper view.
+The active live default is **SuperTrend Momentum**, a trend-following strategy that combines SuperTrend, ADX, RSI momentum, ATR sizing context, and optional higher-timeframe confirmation. The app also supports paper candidate strategies in the Paper view. Most candidates are live-capable only after paper review and promotion; `correlation_divergence` is intentionally paper-only today.
+
+### Candidate Strategy Summary
+
+| Strategy | What It Tests | Live Promotion |
+| --- | --- | --- |
+| `mean_reversion` | Fades stretched moves back toward the mean during ranging conditions | Yes, after paper review |
+| `range_breakout` | Looks for continuation after opening-range compression and breakout | Yes, after paper review |
+| `stochastic_divergence` | Looks for reversal setups where price divergence and stochastic timing align | Yes, after paper review |
+| `squeeze_play` | Looks for directional expansion after low-volatility compression releases | Yes, after paper review |
+| `timesfm_directional` | Trades directly from TimesFM forecast direction, confidence, and expected return | Yes, after paper review and sidecar validation |
+| `correlation_divergence` | Compares one USD pair against peer USD-factor moves and paper-tests mean reversion | No; paper-only research candidate |
 
 ### Timeframe
 
@@ -848,6 +860,7 @@ The bot includes multiple safety layers:
 | Take profit                 | Optional margin-based TP when enabled          |
 | Runtime ownership           | Open live positions stay attached to their owner run |
 | Candidate promotion review  | Live-capable candidates promote only from Paper |
+| Paper-only research runs    | `correlation_divergence` cannot be promoted unless metadata/code changes |
 | TimesFM fail-open overlay   | Sidecar failure does not block normal strategies |
 | Email alerts                | Get notified when trades open/close            |
 | S3 analytics reports        | Daily/weekly performance uploads to AWS S3     |
@@ -984,4 +997,4 @@ curl http://localhost:3101/api/signals
 
 ---
 
-_Last updated: April 28, 2026_
+_Last updated: May 26, 2026_

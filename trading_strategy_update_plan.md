@@ -28,7 +28,8 @@ As of 2026-03-30:
 - Comparison and analytics now flow through the shared runtime only
 - Legacy backtest/lab production paths and offline comparison tooling are retired
 - Phase 6 rollout/monitoring remains the operator checkpoint
-- As of 2026-04-28, `timesfm_directional` is registered as the sixth canonical strategy and is live-promotable from a reviewed paper candidate run
+- As of 2026-04-28, `timesfm_directional` is live-promotable from a reviewed paper candidate run
+- As of 2026-05-26, `correlation_divergence` is registered as the seventh canonical strategy and is intentionally paper-only (`supportsLive: false`)
 
 ## Current Baseline
 
@@ -54,7 +55,7 @@ Observed from the current codebase:
 
 ### Canonical Strategy Catalog
 
-The canonical strategy catalog is locked to these six strategy keys:
+The canonical strategy catalog is locked to these seven strategy keys:
 
 - `supertrend_momentum`
 - `mean_reversion`
@@ -62,6 +63,7 @@ The canonical strategy catalog is locked to these six strategy keys:
 - `stochastic_divergence`
 - `squeeze_play`
 - `timesfm_directional`
+- `correlation_divergence`
 
 Legacy pseudo-strategy labels such as `balanced`, `conservative`, and `responsive` are removed from the active runtime, validation, and UI during Phase 1.
 
@@ -86,7 +88,7 @@ Legacy pseudo-strategy labels such as `balanced`, `conservative`, and `responsiv
 
 ## Runtime Terms
 
-- `strategyKey`: one of the six canonical strategy names
+- `strategyKey`: one of the seven canonical strategy names
 - `selectionId`: durable identifier for a live strategy selection event from the UI
 - `runId`: durable identifier for an executing strategy run
 - `mode`: `live`, `paper_shadow`, or `paper_candidate`
@@ -100,7 +102,7 @@ Legacy pseudo-strategy labels such as `balanced`, `conservative`, and `responsiv
 | Area | Target |
 | --- | --- |
 | Strategy contract | `backend/src/strategies/*` exports metadata, required data, `evaluateEntry`, `evaluateExit`, and optional state hooks |
-| Strategy registry | One registry enumerates the six canonical strategies and exposes metadata to API/UI |
+| Strategy registry | One registry enumerates the seven canonical strategies and exposes metadata to API/UI |
 | Shared runtime | A runtime coordinator creates and manages live, shadow, and candidate runs using shared market context and indicator precomputation |
 | Live execution | Live order placement remains broker-backed, but entry decisions come from the shared runtime instead of a dedicated `signalGenerator` path |
 | Position ownership | Open live trades are routed back to the owning strategy run for exit decisions until closure |
@@ -184,6 +186,7 @@ Behavior rules:
 | `stochastic_divergence` | Phase 4 | Candidate paper | Uses pivot and divergence helpers |
 | `squeeze_play` | Phase 4 | Candidate paper | Uses Bollinger, Keltner, and low-volatility release logic |
 | `timesfm_directional` | Post Phase 4 | Candidate paper, live-promotable | Uses the TimesFM sidecar forecast as the entry thesis |
+| `correlation_divergence` | Phase 7 | Candidate paper only | Uses peer USD-factor candles to test single-leg mean reversion after residual divergence |
 
 ## Canonical Strategy Specs
 
@@ -470,10 +473,60 @@ Default config:
 {
   "timesFmStrategyMinConfidence": 0.7,
   "timesFmStrategyMinReturnBps": 10,
+  "timesFmStrategyHighConfidenceThreshold": 0.8,
+  "timesFmStrategyHighConfidenceMinReturnBps": 7.5,
   "timesFmStrategyStopLossAtrMultiplier": 1.5,
   "timesFmStrategyRiskReward": 1.5,
   "timesFmStrategyBlockExtremeVolatility": true,
   "timeStopHours": 3
+}
+```
+
+### `correlation_divergence`
+
+Thesis:
+
+- When one USD pair materially diverges from the anti-USD move implied by peer USD pairs, paper-test single-leg mean reversion back toward the peer factor.
+
+Required data:
+
+- M15 candles for the target instrument
+- M15 candles for peer instruments in the same configured asset set
+- Live price, session, and spread context
+- ATR for stop sizing
+
+Entry:
+
+- Build lookback log returns for the target and peer instruments.
+- Normalize pairs into an anti-USD direction so quote-USD and base-USD instruments can be compared.
+- Estimate peer factor return, rolling correlation, beta-adjusted residual, residual mean/stddev, and z-score.
+- Require enough observations, enough peer instruments, minimum peer move, and minimum rolling correlation.
+- BUY when the target has underperformed the peer factor by the configured negative z-score.
+- SELL when the target has outperformed the peer factor by the configured positive z-score.
+
+Exit and management:
+
+- Stop loss: `correlationDivergenceStopLossAtrMultiplier x ATR`
+- Take profit: `correlationDivergenceRiskReward x stop distance`
+- Time stop: `4h` by default
+- Current catalog metadata makes this strategy paper-only: `supportsLive=false`, `supportsShadow=false`, `supportsCandidate=true`
+
+Default config:
+
+```json
+{
+  "correlationDivergenceLookbackBars": 16,
+  "correlationDivergenceZWindowBars": 320,
+  "correlationDivergenceMinObservations": 120,
+  "correlationDivergenceEntryZScore": 2.0,
+  "correlationDivergenceMinPeerMoveBps": 5,
+  "correlationDivergenceMinPeerInstruments": 2,
+  "correlationDivergenceMinCorrelation": 0.35,
+  "correlationDivergenceBetaMin": 0.25,
+  "correlationDivergenceBetaMax": 1.75,
+  "correlationDivergenceStopLossAtrMultiplier": 1.25,
+  "correlationDivergenceRiskReward": 1.0,
+  "timeStopHours": 4
 }
 ```
 
@@ -652,6 +705,31 @@ Checkpoint:
 - Update `CLAUDE.md` `IN PROGRESS`
 - Capture rollout learnings in project docs
 
+### Phase 7 - Correlation Divergence Paper Candidate
+
+Goal:
+
+- Add a paper-only research candidate that uses peer USD-factor divergence without expanding the live promotion surface.
+
+Packets:
+
+- `STRAT-05` Implement `correlation_divergence` with residual/z-score entry logic and ATR-based trade planning
+- `DATA-02` Expose peer candles in the shared market context
+- `TEST-01` Cover strategy math and peer-candle runtime context
+- `DOC-03` Update strategy catalog docs so collaborators know the strategy is paper-only
+
+Verification:
+
+- Strategy registry includes `correlation_divergence`
+- Catalog metadata has `supportsCandidate=true`, `supportsLive=false`, and `supportsShadow=false`
+- Candidate runs can be launched from Paper without becoming promotable
+- Backend strategy/runtime tests cover peer-candle context
+
+Checkpoint:
+
+- Phase 7 complete in code
+- Deployment remains separate from the code-complete status
+
 ## Implementation Guardrails
 
 - Do not change strategy logic and runtime architecture in the same packet unless the packet explicitly calls for parity-backed extraction
@@ -659,6 +737,7 @@ Checkpoint:
 - Do not add a permanent second comparison system beside the new paper comparison runtime
 - Do not force-close open live positions when switching strategies
 - Do not permit candidate paper controls to bypass unified storage or analytics
+- Do not promote `correlation_divergence` to live unless its catalog metadata and live-risk review are deliberately changed in a separate packet
 
 ## Phase 0 Checkpoint
 

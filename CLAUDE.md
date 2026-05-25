@@ -8,9 +8,9 @@ When user says **"continue where we left off"**, check **IN PROGRESS** section f
 
 When user says **"prepare for a new session"**:
 
-1. **Update claude.md** - Add all relevant context, next steps, and current work items to IN PROGRESS section. Ensure enough detail so "continue where we left off" works seamlessly in a new thread.
+1. **Update CLAUDE.md** - Add all relevant context, next steps, and current work items to IN PROGRESS section. Ensure enough detail so "continue where we left off" works seamlessly in a new thread.
 2. **Update project_roadmap.md** - If new features were discussed or requested during the session, add them to the appropriate section of the roadmap.
-3. **Update PROJECT_HISTORY.md** - Move any fully completed AND deployed features from the current session. Ask user for clarification if unsure whether a feature has been deployed.
+3. **Update PROJECT_HISTORY.md** - Move completed code milestones or deployed features from the current session, and state deployment status explicitly. Ask user for clarification if unsure whether a feature has been deployed.
 4. **Prompt user** - Instruct them to start a new thread and say "continue where we left off".
 
 ### Multi-Phase Feature Rule
@@ -30,14 +30,14 @@ When generating implementation plans (using plan mode), **always structure plans
 1. **Break work into phases** - Each phase should be completable within a single session
 2. **Include checkpoints** - After each phase, include a checkpoint section with:
     - Verification criteria (tests passing, functionality working)
-    - claude.md update instructions
+    - CLAUDE.md update instructions
     - Prompt to start new thread: _"Phase X complete. Recommend starting a new thread. Say 'continue where we left off'."_
 3. **Session management header** - Include at the top:
     ```
     ## Session Management
     This is a multi-phase feature. To preserve context:
     - **Start implementation in a new session** (say "continue where we left off")
-    - **After each phase completion**, update claude.md IN PROGRESS section and prompt user to start a new thread
+    - **After each phase completion**, update CLAUDE.md IN PROGRESS section and prompt user to start a new thread
     - Each phase is designed to be completable within a single session
     ```
 4. **Final checkpoint** - Last phase should include deployment readiness prompt
@@ -50,7 +50,7 @@ When user says **"update project documentation"**:
 
 1. **Review current state** - Check the IN PROGRESS section to understand the last feature being worked on and its status
 2. **Create a documentation plan** - Prepare a phased plan (following plan generation rules) for updating all relevant docs:
-    - `claude.md` - Update IN PROGRESS section with current status
+    - `CLAUDE.md` - Update IN PROGRESS section with current status
     - `project_roadmap.md` - Mark completed items, add new features discussed
     - `PROJECT_HISTORY.md` - Move fully deployed features to history
     - Any user-facing documentation (guides, READMEs, etc.)
@@ -109,7 +109,7 @@ git push origin main
 
 **Forex Trading Bot** is a live automated trading system running on a Raspberry Pi 5 (8GB) that executes trades on the Forex market via the Oanda API using a shared strategy runtime. The current live baseline is SuperTrend Momentum; additional candidate strategies run in paper and can be promoted through the Paper workflow after review.
 
-**Current State**: Production live trading is active. The shared strategy runtime is complete in code: live strategy selection is hot-swappable, shadow paper runs pair automatically with the active live run, candidate paper runs share the same runtime identity model, unified analytics run by `mode`/`runId`/`strategy`, live-capable candidates can be promoted from Paper, and the legacy backtest/lab stack is retired from the supported workflow.
+**Current State**: Production live trading is active. The shared strategy runtime is complete in code: live strategy selection is hot-swappable, shadow paper runs pair automatically with the active live run, candidate paper runs share the same runtime identity model, unified analytics run by `mode`/`runId`/`strategy`, live-capable candidates can be promoted from Paper, `correlation_divergence` is available as a paper-only research candidate, and the legacy backtest/lab stack is retired from the supported workflow.
 
 | Item              | Value                            |
 | ----------------- | -------------------------------- |
@@ -120,7 +120,7 @@ git push origin main
 | Backend Port      | 3101                             |
 | Frontend Port     | 3100                             |
 | Live Baseline     | `supertrend_momentum`            |
-| Strategy Catalog  | 6 canonical strategies           |
+| Strategy Catalog  | 7 canonical strategies           |
 | Database          | SQLite with WAL                  |
 | Production Host   | img.oakroad                      |
 | Dashboard         | http://img.oakroad:3100          |
@@ -200,13 +200,14 @@ units = risk_amount / (stop_loss_pips × pip_value × current_price)
 | Alerts      | Nodemailer                     | Gmail SMTP for trade notifications                               |
 | Reports     | AWS S3 SDK                     | Daily/weekly analytics uploads                                   |
 | Testing     | Jest + Nock + Supertest        | Unit tests with HTTP mocking, API integration tests              |
+| Logging     | Custom JSON file/console logger | PM2 captures stdout/stderr; daily files are written under backend logs |
 
 ---
 
 ## Project Structure
 
 ```
-forex-trend-bot/
+forex-trading-bot/
 ├── backend/
 │   ├── server.js                          # Express + Socket.IO entry point
 │   ├── knexfile.js                        # Database config (WAL mode)
@@ -247,7 +248,7 @@ forex-trend-bot/
 │   │   │   ├── portfolioRepository.js     # Portfolio snapshots CRUD
 │   │   │   └── strategyRunRepository.js   # Shared runtime run registry
 │   │   └── utils/
-│   │       ├── logger.js                  # Winston with daily rotation
+│   │       ├── logger.js                  # Custom JSON logger with daily files
 │   │       └── awsS3Utils.js              # S3 upload helpers
 │   └── __tests__/                         # Test infrastructure
 │       ├── setup.js                       # Global test setup
@@ -272,7 +273,7 @@ forex-trend-bot/
 │   └── status.sh                          # Operations status helper
 ├── timesfm-sidecar/                        # FastAPI TimesFM 2.5 sidecar for Lathe
 ├── ecosystem.config.js                    # PM2 configuration
-├── claude.md                              # This file
+├── CLAUDE.md                              # This file
 ├── project_roadmap.md                     # Future features
 └── PROJECT_HISTORY.md                     # Completed features
 ```
@@ -310,9 +311,9 @@ For all planned features, enhancements, and technical improvements, see **[proje
 
 | Document              | Purpose                          | When to update                              |
 | --------------------- | -------------------------------- | ------------------------------------------- |
-| `claude.md`           | Current context, in-progress work | During/after active work sessions           |
+| `CLAUDE.md`           | Current context, in-progress work | During/after active work sessions           |
 | `project_roadmap.md`  | Future work, feature requests    | When user requests new features             |
-| `PROJECT_HISTORY.md`  | Completed & deployed features    | After features are deployed to production   |
+| `PROJECT_HISTORY.md`  | Completed/deployed feature record | After production deployments or explicit code-complete milestones |
 
 When user wants to **add features** → update `project_roadmap.md`
 When user wants to **work on a feature** → pick from roadmap, add to IN PROGRESS here
@@ -393,9 +394,17 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Current Phase (2026-03-30)
+### Current Phase (2026-05-26)
 
-Shared runtime and TimesFM Directional promotion readiness are complete in code. Phase 6 rollout and monitoring guidance is prepared for the swappable live strategies + shadow paper trading program.
+Shared runtime, TimesFM Directional promotion readiness, and Correlation Divergence paper-candidate support are complete in code. Phase 6 rollout and monitoring guidance is prepared for the swappable live strategies + shadow paper trading program.
+
+Documentation refresh completed in this pass:
+
+- Updated repository docs to describe seven canonical strategies instead of six.
+- Marked `correlation_divergence` as paper-only wherever strategy promotion is discussed.
+- Replaced collaborator-hostile absolute local links in the README with relative links.
+- Refreshed deployment guidance, issue templates, and TimesFM notes against current code.
+- Kept rollout status separate from code-complete status; production deployment still requires the Phase 6 checklist.
 
 Completed in this phase:
 
@@ -418,6 +427,7 @@ Completed in this phase:
   - analytics/reporting continue from unified runtime identity columns
 - Kept migration `006_drop_backtest_results.js` called out explicitly in rollout guidance so old research rows can be exported before deployment if needed
 - Updated `timesfm_directional` metadata so a reviewed TimesFM paper candidate can be promoted to live when the sidecar-backed strategy has enough evidence
+- Registered `correlation_divergence` as a paper-only candidate strategy with peer-candle context and no live promotion support
 
 Locked decisions carried forward:
 
@@ -437,6 +447,7 @@ Locked decisions carried forward:
   - `stochastic_divergence`
   - `squeeze_play`
   - `timesfm_directional`
+  - `correlation_divergence` (paper-only; not live-promotable today)
 
 ### Next Recommended Phase
 

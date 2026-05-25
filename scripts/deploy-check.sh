@@ -53,9 +53,10 @@ else
     echo "⚠️ Local backend not running - skipping API tests"
 fi
 
-# Test workspace configuration
-check "Root package.json has workspaces" "grep -q '\"workspaces\"' package.json"
-check "Workspace install scripts exist" "grep -q 'install:backend' package.json && grep -q 'install:frontend' package.json"
+# Test root package orchestration. This repo does not use npm workspaces; the
+# root package delegates into backend/frontend through explicit scripts.
+check "Root install scripts exist" "grep -q 'install:backend' package.json && grep -q 'install:frontend' package.json && grep -q 'install:all' package.json"
+check "Root migration script exists" "grep -q 'db:migrate' package.json"
 
 echo
 if [[ $check_failed -eq 0 ]]; then

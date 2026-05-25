@@ -4,13 +4,13 @@
 
 These scripts manage the forex trading bot deployment on Raspberry Pi 5 (8GB).
 
-**Port Allocation:**
+**Current Port Allocation:**
 | Service | Port |
 |---------|------|
 | Forex Backend | 3101 |
 | Forex Frontend | 3100 |
-| Legacy Backend | 3001 |
-| Legacy Frontend | 3000 |
+
+Older bot instances, if still present on the same host, should stay on separate ports and are not managed by these scripts.
 
 ---
 
@@ -39,7 +39,7 @@ These scripts manage the forex trading bot deployment on Raspberry Pi 5 (8GB).
 
 | Script             | Purpose                                     |
 | ------------------ | ------------------------------------------- |
-| `setup-secrets.sh` | Encrypt Oanda API credentials               |
+| `setup-secrets.sh` | Encrypt Oanda credentials plus optional email, S3, and TimesFM settings |
 | `start-wrapper.sh` | Decrypt and inject secrets (PM2 calls this) |
 
 ---
@@ -63,7 +63,7 @@ This will:
 2. Install dependencies (backend + frontend)
 3. Build the frontend
 4. Run database migrations
-5. Prompt for Oanda API credentials (encrypted)
+5. Prompt for encrypted secrets: Oanda is required; email, S3, and TimesFM are optional
 6. Start the service via PM2
 
 ---
@@ -270,7 +270,6 @@ These scripts were specific to the prior bot setup and have been removed:
 
 -   `clean-install.sh` - Redundant with `first_time_setup.sh`
 -   `deploy_crypti.sh` - Legacy deploy script
--   `deploy-check.sh` - Legacy validation script
 -   `dev-setup.sh` - Different development environment
 -   `rollback.sh` - Replaced by `restore.sh`
 -   `monitor.sh` - Merged into `status.sh`
@@ -294,7 +293,7 @@ pm2 logs forex-backend --lines 100 --nostream
 pm2 status
 pm2 monit
 
-# Both bots
+# Process status
 pm2 status
 pm2 restart all
 ```

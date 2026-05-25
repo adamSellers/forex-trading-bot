@@ -21,7 +21,7 @@ FastAPI sidecar for serving Google Research TimesFM 2.5 on Lathe.
 ## Install On Lathe
 
 ```bash
-cd /Users/adams/code/forex-trading-bot/timesfm-sidecar
+cd /path/to/forex-trading-bot/timesfm-sidecar
 uv venv .venv
 source .venv/bin/activate
 uv pip install -r requirements.lock
@@ -30,7 +30,9 @@ uv pip install -e .
 
 The `timesfm` dependency is pulled from the official
 `google-research/timesfm` repository so the sidecar uses the documented
-TimesFM 2.5 torch loader.
+TimesFM 2.5 torch loader for `google/timesfm-2.5-200m-pytorch`. Hugging Face
+also provides a Transformers-format checkpoint, but this sidecar is currently
+wired to the upstream PyTorch loader.
 
 Set environment variables before first run:
 

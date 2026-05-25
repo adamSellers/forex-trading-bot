@@ -85,6 +85,7 @@ Expected:
 - Exactly one active `paper_shadow` run for the active live selection
 - Older live runs may appear as `managing_only` if they still own open trades
 - Candidate runs appear only as `paper_candidate`
+- The strategy catalog includes `correlation_divergence` as a candidate-only strategy with `supportsLive=false`
 
 Verify that live strategy changes affect new entries only:
 
@@ -142,6 +143,7 @@ Expected:
 - The promoted source run remains `paper_candidate` and receives promotion metadata
 - A new `live` run and paired `paper_shadow` run are created from the candidate config snapshot
 - Any live-position liquidation is explicit in the response payload
+- Paper-only candidates such as `correlation_divergence` should be rejected or hidden from promotion controls
 
 Verify analytics and reporting still use the unified runtime identity columns:
 
