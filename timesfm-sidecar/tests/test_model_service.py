@@ -42,6 +42,35 @@ def test_direction_confidence_counts_agreeing_targets():
     assert confidence == 0.75
 
 
+def test_direction_confidence_skips_timesfm_mean_slot():
+    confidence = compute_direction_confidence(
+        1.0,
+        "BULLISH",
+        1.002,
+        [
+            0.5,
+            1.001,
+            1.001,
+            1.001,
+            1.001,
+            1.001,
+            1.001,
+            1.001,
+            1.001,
+            0.999,
+        ],
+    )
+    assert confidence == 0.8889
+
+
 def test_spread_bps_uses_extremes():
     spread_bps = compute_spread_bps(1.0, [0.999, 1.001])
+    assert spread_bps == 20.0
+
+
+def test_spread_bps_uses_timesfm_q10_q90_slots():
+    spread_bps = compute_spread_bps(
+        1.0,
+        [0.5, 0.999, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.001],
+    )
     assert spread_bps == 20.0

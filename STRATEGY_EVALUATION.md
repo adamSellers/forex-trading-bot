@@ -124,10 +124,13 @@ For `timesfm_directional`, review these extra dimensions:
 - Expected return buckets: `7.5-10 bps`, `10-15 bps`, `15+ bps`.
 - Direction: bullish vs bearish.
 - Volatility regime: low, normal, high, extreme.
+- q10/q90 spread calibration vs realized M15 movement.
 - Spread at signal time.
 - Cache hit rate.
 - Forecast agreement with eventual price movement.
 - Entry rejection reasons after an actionable forecast.
+- Whether upstream XReg covariates, such as session, spread, ATR, RSI, or ADX,
+  would improve paper-trading forecasts enough to justify added coupling.
 
 For the current live gate, high-confidence forecasts can use the lower return floor:
 

@@ -19,6 +19,11 @@ except ImportError:  # pragma: no cover - exercised through health state
     torch = None
 
 
+TIMESFM_EXPECTED_QUANTILE_SLOTS = 10
+TIMESFM_Q10_INDEX = 1
+TIMESFM_Q90_INDEX = 9
+
+
 def compute_log_returns(closes: list[float]) -> np.ndarray:
     values = np.asarray(closes, dtype=np.float64)
     if values.size < 2:
@@ -49,6 +54,32 @@ def classify_volatility_regime(spread_bps: float) -> str:
     return "EXTREME"
 
 
+def extract_timesfm_quantile_fan(quantiles_h1: list[float]) -> list[float]:
+    if len(quantiles_h1) >= TIMESFM_EXPECTED_QUANTILE_SLOTS:
+        return list(quantiles_h1[TIMESFM_Q10_INDEX : TIMESFM_Q90_INDEX + 1])
+    return list(quantiles_h1 or [])
+
+
+def extract_confidence_targets(
+    quantiles_h1: list[float],
+    point_forecast_h1: float,
+) -> list[float]:
+    targets = extract_timesfm_quantile_fan(quantiles_h1)
+    if len(quantiles_h1) >= TIMESFM_EXPECTED_QUANTILE_SLOTS:
+        return targets
+    return targets + [point_forecast_h1]
+
+
+def extract_quantile_spread_bounds(
+    quantiles_h1: list[float],
+) -> tuple[float, float] | None:
+    if len(quantiles_h1) >= TIMESFM_EXPECTED_QUANTILE_SLOTS:
+        return quantiles_h1[TIMESFM_Q10_INDEX], quantiles_h1[TIMESFM_Q90_INDEX]
+    if len(quantiles_h1) >= 2:
+        return min(quantiles_h1), max(quantiles_h1)
+    return None
+
+
 def compute_direction_confidence(
     reference_price: float,
     direction: str,
@@ -59,7 +90,7 @@ def compute_direction_confidence(
         return 0.0
 
     direction_is_up = direction == "BULLISH"
-    targets = list(quantiles_h1 or []) + [point_forecast_h1]
+    targets = extract_confidence_targets(quantiles_h1, point_forecast_h1)
     if not targets:
         return 0.0
 
@@ -74,10 +105,10 @@ def compute_direction_confidence(
 
 
 def compute_spread_bps(reference_price: float, quantiles_h1: list[float]) -> float:
-    if len(quantiles_h1) < 2 or reference_price <= 0:
+    bounds = extract_quantile_spread_bounds(quantiles_h1)
+    if bounds is None or reference_price <= 0:
         return 0.0
-    lower = min(quantiles_h1)
-    upper = max(quantiles_h1)
+    lower, upper = bounds
     return round(((upper - lower) / reference_price) * 10000, 4)
 
 
