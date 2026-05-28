@@ -147,3 +147,4 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 timesfm-sidecar/src/timesfm_sidecar.egg-info/
+analysis/
