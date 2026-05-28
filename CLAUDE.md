@@ -394,118 +394,95 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Current Phase (2026-05-26)
+### Current Phase (2026-05-29) — Profitability Remediation
 
-Shared runtime, TimesFM Directional promotion readiness, and Correlation Divergence paper-candidate support are complete in code. Phase 6 rollout and monitoring guidance is prepared for the swappable live strategies + shadow paper trading program.
+Active initiative: stop the live account's slow bleed and rebuild a trustworthy validation loop.
+Plan: `.claude/plans/okay-claude-this-is-iridescent-shore.md` (5 phases, 0–4). Diagnosis came from a
+read-only pull of the production DB: 98 closed live trades Jan 23 → May 27 2026, **−A$48.86**; every
+strategy tried live lost money, and paper P&L is inverted-sign vs live for the *same* strategy
+(paper is fantasy — the core thing Phase 1 fixes).
 
-Documentation refresh completed in this pass:
+The prior shared-runtime program ("Phase 6") is now confirmed LIVE in production: an active live run,
+a paired `paper_shadow`, and multiple `paper_candidate` runs are all running on the Pi. That rollout
+is effectively complete; the architecture constraints below remain in force.
 
-- Updated repository docs to describe seven canonical strategies instead of six.
-- Marked `correlation_divergence` as paper-only wherever strategy promotion is discussed.
-- Replaced collaborator-hostile absolute local links in the README with relative links.
-- Refreshed deployment guidance, issue templates, and TimesFM notes against current code.
-- Kept rollout status separate from code-complete status; production deployment still requires the Phase 6 checklist.
+#### Phase 0 — Stop the bleed + freeze baseline (DONE this session; one user commit pending)
 
-Completed in this phase:
+- **Live trading PAUSED and verified.** `POST /api/trading/stop` set `enableTrading:false` (persists to
+  the Pi config + applies immediately). `/api/engine/status` confirms `tradingEnabled:false`,
+  `isRunning:true` (exits/monitoring still active), 0 open live positions.
+- **Active live selection confirmed = `timesfm_directional`** (run `live_5cafbc39…`, started 2026-05-26;
+  paired shadow `paper_shadow_7a7efb5b…`). WARNING: the repo `trading_config.json` says
+  `supertrend_momentum`/`maxOpenPositions:2`, but the Pi runtime is `timesfm_directional`/`maxPositions:3`.
+  The runtime `strategy_runs` selection is the SOURCE OF TRUTH — do not trust the repo config's
+  `strategy` field. At freeze time the TimesFM sidecar (lathe.oakroad:5050) was timing out/unavailable.
+- **Baseline frozen** in `analysis/baseline/` (384 closed trades: 98 live / 242 candidate / 44 shadow):
+  `closed_trades_baseline_2026-05-29.csv`, `summary_stats_baseline_2026-05-29.json`,
+  `manifest_baseline_2026-05-29.json`. Every later change is measured against this fixed reference.
+- **PENDING USER ACTION:** commit the baseline — `git add analysis/baseline/ && git commit`. Not yet
+  committed as of this session's end.
 
-- Prepared an operator-facing Phase 6 rollout packet in `scripts/PHASE6_ROLLOUT_CHECKLIST.md` with the packet order locked to:
-  - local manual frontend build
-  - deployment
-  - runtime QA
-  - monitoring window
-- Updated `scripts/DEPLOYMENT_README.md` so deployment guidance now matches the shared runtime stack and points operators to the Phase 6 checklist
-- Tightened shared-runtime monitoring helpers:
-  - `scripts/status.sh` now shows the active live selection, paired shadow run, active candidate count, and managing-only live runs
-  - `scripts/health-check.sh` now verifies that the active live run has a paired shadow run after startup
-  - `scripts/logs.sh runtime` now filters runtime/shadow/candidate activity
-- Updated `scripts/deploy-check.sh` so the optional preflight uses the current ports and runtime endpoints instead of legacy management/backtest paths
-- Kept the Phase 2 ownership model and runtime-only comparison workflow intact:
-  - live strategy changes affect new entries only
-  - open live trades remain attached to their original `ownerRunId`
-  - the paired shadow run remains tied to the active live selection
-  - candidate runs remain paper mode until an explicit promotion step creates a new live selection
-  - analytics/reporting continue from unified runtime identity columns
-- Kept migration `006_drop_backtest_results.js` called out explicitly in rollout guidance so old research rows can be exported before deployment if needed
-- Updated `timesfm_directional` metadata so a reviewed TimesFM paper candidate can be promoted to live when the sidecar-backed strategy has enough evidence
-- Registered `correlation_divergence` as a paper-only candidate strategy with peer-candle context and no live promotion support
+#### Profitability plan — locked decisions
 
-Locked decisions carried forward:
+- Live trading stays PAUSED while iterating.
+- Do BOTH in sequence: fix the live strategy's structural flaws AND validate candidates in realistic paper.
+- Claude has READ-ONLY SSH to the Pi for data only (`adam@img.oakroad`, `sqlite3 -readonly`); user runs
+  all git/deploy/build and any live-config writes per the Git & Deployment Rules above.
 
-- Shared runtime across live, `paper_shadow`, and `paper_candidate`
-- Exactly one active live entry strategy at a time
-- Strategy switches from the UI apply to new entries only
-- Existing live positions remain owned by the strategy run that opened them until closure
-- Default shadow paper run always tracks the active live strategy
-- Multiple concurrent paper candidate runs are supported
-- Live-capable candidates can be promoted from the Paper view; the source run remains `paper_candidate`
-- Unified persistence and analytics are keyed by `mode`, `runId`, and `strategy`
-- Legacy backtest/lab comparison is retired; do not reintroduce a second production comparison path
-- Canonical strategy catalog is fixed to:
-  - `supertrend_momentum`
-  - `mean_reversion`
-  - `range_breakout`
-  - `stochastic_divergence`
-  - `squeeze_play`
-  - `timesfm_directional`
-  - `correlation_divergence` (paper-only; not live-promotable today)
+#### Carried-forward architecture constraints (still true)
 
-### Next Recommended Phase
+- Shared runtime across live, `paper_shadow`, `paper_candidate`; exactly one active live entry strategy.
+- Live strategy switches apply to NEW entries only; open live trades stay owned by their original `ownerRunId`.
+- Default shadow run always tracks the active live strategy; multiple paper candidates supported.
+- Unified persistence/analytics keyed by `mode`, `runId`, `strategy`. Legacy backtest/lab is retired —
+  do not reintroduce a second comparison path.
+- Canonical strategy catalog: `supertrend_momentum`, `mean_reversion`, `range_breakout`,
+  `stochastic_divergence`, `squeeze_play`, `timesfm_directional`, `correlation_divergence`
+  (paper-only; not live-promotable today).
 
-Run the Phase 6 rollout packet manually on the target environment.
+### Next Recommended Phase — Phase 1: Make paper trustworthy
 
-Manual steps still pending outside this session:
+Goal: make `paper_shadow` per-pip track `live` so promotion decisions stop being made on fantasy numbers.
 
-1. Run `cd frontend && npm run build`
-2. Push the Phase 6 docs/script updates
-3. On the Pi, export `backtest_results` first if historical research rows still matter
-4. On the Pi, run `./scripts/deploy.sh` for the first shared-runtime rollout
-5. Execute the QA and monitoring checklist in `scripts/PHASE6_ROLLOUT_CHECKLIST.md`
-6. Capture any production observations before deciding on follow-up code changes
+1. Add realistic execution cost to `PaperTradingRuntime` — non-zero `paperSlippagePips` (defaults to 0
+   at `PaperTradingRuntime.js:385`) and worse stop-loss fills (stop slippage separate from entry slippage).
+2. Calibrate slippage from real data: compute the realized per-pip gap between paired `paper_shadow`
+   and `live` on the same signals; set slippage so shadow ≈ live going forward.
+3. Align the time-stop between live and paper. `timeStopHours:3` is implemented only in
+   `PaperTradingRuntime.js:1300`, NOT in `LiveTradingEngine`. Prefer loosening/removing the 3h stop
+   (it kills winners) over porting it to live.
+4. Re-evaluate existing candidates under realistic costs; expect most paper edges to shrink/vanish.
+
+Checkpoint: paper_shadow per-pip tracks live within tolerance; candidate re-evaluation done.
 
 ### Codebase Reminders For The Next Thread
 
-- `backend/server.js` now boots three runtime layers in sequence:
-  - `runtimeCoordinator` for shared run orchestration
-  - `paperTradingRuntime` for simulated paper execution/snapshots
-  - `LiveTradingEngine` for broker-backed live execution only
-- Production comparison flow is now runtime-only:
-  - no `/api/backtest` mount
-  - no legacy lab socket/worker pipeline
-  - no active frontend path uses `frontend/src/components/lab/*`
-- `backend/src/runtime/runtimeCoordinator.js` remains the source of truth for active runs, live selection, paired shadow runs, and ownership-aware live signal evaluation; do not fork a separate paper coordinator
-- `backend/src/services/PaperTradingRuntime.js` owns paper trade open/close, run reset cleanup, portfolio snapshots, and paper-only management rules for `paper_shadow` / `paper_candidate`
-- `backend/src/routes/tradingRoutes.js` now exposes the unified run detail APIs; analytics/detail work should continue using runtime identity columns instead of paper-specific reporting tables
-- `frontend/src/components/BacktestLab.jsx` keeps the legacy filename but is now the runtime-backed paper comparison surface
-- Candidate runs remain paper mode unless promoted through the dedicated promotion endpoint
-- `backend/migrations/006_drop_backtest_results.js` removes the retired legacy table during rollout; export old research rows before deployment if they matter
-
-### Validation Completed In This Session
-
-- `bash -n scripts/status.sh`
-- `bash -n scripts/health-check.sh`
-- `bash -n scripts/logs.sh`
-- `bash -n scripts/deploy-check.sh`
-
-Manual rollout follow-up still pending:
-
-- Frontend build was not run in this session because repo workflow rules reserve build commands for the user; run `cd frontend && npm run build` manually before rollout
-- No browser/manual QA was run against the updated `Dashboard`, `Paper`, or `Analytics` views in this session
-- Deployment/update was not run in this session, so `006_drop_backtest_results.js` has not been applied to a real environment yet
-- The first live comparison monitoring window still needs to be observed on the Pi
-- This thread re-read the Phase 6 packet, revalidated the rollout scripts/endpoints, and prepared the exact Pi command sequence plus production verification checks; the Phase 6 checkpoint is still pending the user's manual rollout execution
+- `backend/server.js` boots three runtime layers: `runtimeCoordinator` (shared run orchestration),
+  `paperTradingRuntime` (simulated paper execution/snapshots), `LiveTradingEngine` (broker-backed live only).
+- Production comparison is runtime-only: no `/api/backtest` mount, no legacy lab socket/worker, no
+  active frontend path uses `frontend/src/components/lab/*`.
+- `backend/src/runtime/runtimeCoordinator.js` is the source of truth for active runs, live selection,
+  paired shadow runs, and ownership-aware live signal evaluation; do not fork a separate paper coordinator.
+- `backend/src/services/PaperTradingRuntime.js` owns paper open/close, run reset, snapshots, and
+  paper-only management for `paper_shadow`/`paper_candidate` — this is the Phase 1 edit surface.
+- `backend/src/services/LiveTradingEngine.js` holds the live exit stack (break-even `:2110-2176`,
+  trailing `:2192`) — the Phase 2 exit-redesign surface.
+- `backend/src/strategies/expectedEdge.js` + `backend/src/services/analyticsService.js` — Phase 3 cohort
+  expectancy + the promotion gate.
+- Pause/resume live via `POST /api/trading/stop` / `POST /api/trading/start` (persists to config + applies live).
 
 ### Next Session Start Checklist
 
-1. Start a new thread and read this `IN PROGRESS` section plus `trading_strategy_update_plan.md`
-2. Have the user run `cd frontend && npm run build`
-3. Preserve the Phase 2 live ownership model:
-   - live strategy changes affect new entries only
-   - open live trades stay attached to their original `ownerRunId`
-   - candidate runs remain paper mode unless a dedicated promotion step creates a new live selection
-4. Keep `runtimeCoordinator` and `paperTradingRuntime` as the shared backbone; do not reintroduce paper-only orchestration outside that path
-5. Use unified runtime identity columns for any further analytics/reporting work
-6. Remember that rollout will drop the retired `backtest_results` table via migration `006`
-7. Follow `scripts/PHASE6_ROLLOUT_CHECKLIST.md` in packet order and record any production observations before changing code again
+1. Start a new thread; read this `IN PROGRESS` section and `.claude/plans/okay-claude-this-is-iridescent-shore.md`.
+2. Confirm live is still paused (`/api/engine/status` → `tradingEnabled:false`) before any work.
+3. Confirm the baseline commit landed (`analysis/baseline/` tracked); if not, prompt the user to commit it.
+4. Begin Phase 1 in `PaperTradingRuntime.js` (slippage + stop-fill realism), then calibrate from
+   paired shadow-vs-live data via read-only SQL.
+5. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
+   identity columns (`mode`/`runId`/`strategy`). No live changes in Phase 1.
+6. Run `cd backend && npm test` after each code change.
+7. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
+   not the repo `trading_config.json` field.
 
 ### Future UI Enhancement (Captured)
 
