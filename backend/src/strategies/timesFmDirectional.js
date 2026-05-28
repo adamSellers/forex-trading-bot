@@ -7,9 +7,16 @@ const DEFAULT_TIMESFM_DIRECTIONAL_CONFIG = Object.freeze({
     timesFmStrategyHighConfidenceThreshold: 0.8,
     timesFmStrategyHighConfidenceMinReturnBps: 7.5,
     timesFmStrategyStopLossAtrMultiplier: 1.5,
-    timesFmStrategyRiskReward: 1.5,
+    timesFmStrategyRiskReward: 3.0,
     timesFmStrategyBlockExtremeVolatility: true,
-    timeStopHours: 3,
+    enableShorting: false,
+    enableSessionFilter: true,
+    activeSessions: ["london", "newyork"],
+    enableBreakeven: true,
+    breakevenTriggerRiskMultiple: 1.0,
+    trailingStopActivationRiskMultiple: 1.5,
+    trailingStopRiskMultiple: 1.0,
+    timeStopHours: 0,
 });
 
 function toFiniteNumber(value, fallback = null) {
@@ -323,6 +330,13 @@ async function evaluateTimesFmDirectionalEntry({
             toFiniteNumber(resolvedConfig.timesFmStrategyRiskReward, 1.5) || 1.5
         );
     const signalType = currentDir > 0 ? "BUY" : "SELL";
+
+    if (signalType === "SELL" && resolvedConfig.enableShorting === false) {
+        return buildHoldResult(context, {
+            reason: "HOLD: TimesFM short forecast blocked by long-only Phase 2 config",
+            reasonCode: "TIMESFM_DIRECTIONAL_SHORTS_DISABLED",
+        });
+    }
 
     return {
         signalType,

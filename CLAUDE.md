@@ -440,7 +440,7 @@ is effectively complete; the architecture constraints below remain in force.
   `stochastic_divergence`, `squeeze_play`, `timesfm_directional`, `correlation_divergence`
   (paper-only; not live-promotable today).
 
-### Current Phase — Phase 1: Make paper trustworthy (LOCAL CODE DONE; user commit/deploy pending)
+### Phase 1: Make paper trustworthy (LOCAL CODE DONE; user commit/deploy pending)
 
 Goal: make `paper_shadow` per-pip track `live` so promotion decisions stop being made on fantasy numbers.
 
@@ -479,6 +479,46 @@ Pending user actions before Phase 1 can be considered deployed:
 Checkpoint after deploy: reset/continue shadow paper under the active `timesfm_directional` run and verify
 new `paper_shadow` per-pip tracks live within tolerance over forward trades.
 
+### Current Phase — Phase 2: Long-only room-to-run candidate (LOCAL CODE DONE; paper launch pending)
+
+Goal: address the LIVE-loss drivers without re-enabling live yet. Phase 2 builds a candidate that removes
+negative-edge cohorts and lets winners breathe, then validates it in realistic paper before any promotion.
+
+Completed locally on 2026-05-29:
+
+1. Added shared risk/ATR-aware exit-policy helpers in `backend/src/runtime/exitPolicy.js`.
+2. `LiveTradingEngine` now persists live runtime stop metadata at entry (`initialStopLossPrice`,
+   `initialStopDistance`, `atrDistance`) and supports risk/ATR-based breakeven/trailing controls:
+   `breakevenTriggerRiskMultiple`, `breakevenTriggerAtrMultiplier`,
+   `trailingStopActivationRiskMultiple`, `trailingStopActivationAtrMultiplier`,
+   `trailingStopRiskMultiple`, `trailingStopAtrMultiplier`. Existing pip configs still work.
+3. `PaperTradingRuntime` now supports the same risk/ATR exit controls, so Phase 2 paper candidates and
+   future live management use the same protective-stop policy.
+4. Added `phase2_room_to_run` candidate preset:
+   long-only, short continuations off, London/New York only, excludes AUD_USD, `timeStopHours:0`,
+   TimesFM target widened to 3R, breakeven at 1R, trailing activates at 1.5R and trails by 1R.
+5. TimesFM directional defaults now mirror that Phase 2 posture (`enableShorting:false`,
+   `activeSessions:["london","newyork"]`, `timesFmStrategyRiskReward:3.0`, no time stop). Explicit
+   config can still re-enable shorts.
+6. Local `backend/data/trading_config*.json` now mirror the Phase 2 candidate posture for fresh installs.
+   IMPORTANT: deploy scripts preserve the Pi config, so these do not automatically alter the running Pi config.
+7. Read-only Pi cohort checks used to justify the preset: live shorts `-A$35.03`, AUD_USD `-A$33.99`,
+   Tokyo `-A$45.48`, Sydney `-A$33.65`, New York `+A$4.07`.
+8. Tests: focused Phase 2 suites pass:
+   `npm test -- LiveTradingEngine.test.js PaperTradingRuntime.test.js runtimeCoordinator.test.js timesFmDirectional.test.js validation.test.js`
+   (`128/128`) and `npm test -- tradingRoutes.test.js` (`3/3`). Full `npm test` remains locally blocked
+   by the known missing native `better-sqlite3` binding in repository tests.
+
+Pending user actions after commit/deploy:
+
+- Launch the paper-only Phase 2 candidate on the Pi:
+  `curl -s -X POST http://img.oakroad:3101/api/runtime/runs -H 'Content-Type: application/json' -d '{"strategyKey":"timesfm_directional","presetKey":"phase2_room_to_run","label":"TimesFM Phase 2 room-to-run"}'`
+- Let it collect a forward sample under realistic paper costs. Do not promote or re-enable live until the
+  realistic-paper sample passes the Phase 3 gate.
+
+Checkpoint: the `phase2_room_to_run` candidate shows positive net expectancy in realistic paper over a
+minimum sample, ideally by side/session/pair, before live promotion is considered.
+
 ### Codebase Reminders For The Next Thread
 
 - `backend/server.js` boots three runtime layers: `runtimeCoordinator` (shared run orchestration),
@@ -500,12 +540,14 @@ new `paper_shadow` per-pip tracks live within tolerance over forward trades.
 1. Start a new thread; read this `IN PROGRESS` section and `.claude/plans/okay-claude-this-is-iridescent-shore.md`.
 2. Do not re-check that live is paused; the user has confirmed it. The active live strategy remains whatever
    `strategy_runs` says, currently `timesfm_directional`, not the repo config's strategy field.
-3. Prompt the user to commit Phase 0 baseline + Phase 1 changes if they have not already.
+3. Prompt the user to commit Phase 0 baseline + Phase 1/2 changes if they have not already.
 4. Prompt the user to set Pi `timeStopHours:0` and deploy via `./scripts/update.sh`; do not run git/deploy/build.
-5. After deploy, forward-monitor paired live/shadow data via read-only SQL to confirm tracking.
-6. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
-   identity columns (`mode`/`runId`/`strategy`). No live changes in Phase 1.
-7. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
+5. After deploy, ask the user to launch the `phase2_room_to_run` paper candidate via the curl command above.
+6. Forward-monitor paired live/shadow data and the Phase 2 candidate via read-only SQL.
+7. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
+   identity columns (`mode`/`runId`/`strategy`). Do not re-enable live or promote a candidate without
+   explicit user approval.
+8. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
    not the repo `trading_config.json` field.
 
 ### Future UI Enhancement (Captured)

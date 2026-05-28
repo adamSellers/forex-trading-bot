@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const { RUNTIME_MODES, RUN_STATUSES } = require("../runtime/runtimeConstants");
 const { getStrategyDefinition } = require("../strategies");
+const { resolveConfiguredDistance } = require("../runtime/exitPolicy");
 
 const PAPER_MODES = new Set([
     RUNTIME_MODES.PAPER_SHADOW,
@@ -1372,7 +1373,8 @@ class PaperTradingRuntime {
         }
 
         let activationDistance = null;
-        const { initialStopDistance } = this.getPaperRuntimeMetadata(trade);
+        const { initialStopDistance, atrDistance } =
+            this.getPaperRuntimeMetadata(trade);
 
         if (
             trade.strategy === "mean_reversion" &&
@@ -1392,9 +1394,16 @@ class PaperTradingRuntime {
                 initialStopDistance *
                 Math.max(0, toFiniteNumber(config.breakevenSlMultiplier, 1.0));
         } else if (config.enableBreakeven !== false) {
-            activationDistance =
-                toFiniteNumber(config.breakevenTriggerPips, 5) *
-                this.getPipValue(trade.instrument);
+            activationDistance = resolveConfiguredDistance({
+                trade,
+                config,
+                pipValue: this.getPipValue(trade.instrument),
+                runtimeMetadata: { initialStopDistance, atrDistance },
+                pipsKey: "breakevenTriggerPips",
+                riskMultipleKey: "breakevenTriggerRiskMultiple",
+                atrMultipleKey: "breakevenTriggerAtrMultiplier",
+                defaultPips: 5,
+            });
         }
 
         if (!Number.isFinite(activationDistance) || activationDistance <= 0) {
@@ -1473,12 +1482,26 @@ class PaperTradingRuntime {
                 atrDistance *
                 Math.max(0, toFiniteNumber(config.trailDistanceAtr, 1.0));
         } else if (config.enableTrailingStops !== false) {
-            activationDistance =
-                toFiniteNumber(config.trailingStopActivationPips, 20) *
-                this.getPipValue(trade.instrument);
-            trailDistance =
-                toFiniteNumber(config.trailingStopPips, 25) *
-                this.getPipValue(trade.instrument);
+            activationDistance = resolveConfiguredDistance({
+                trade,
+                config,
+                pipValue: this.getPipValue(trade.instrument),
+                runtimeMetadata: { initialStopDistance, atrDistance },
+                pipsKey: "trailingStopActivationPips",
+                riskMultipleKey: "trailingStopActivationRiskMultiple",
+                atrMultipleKey: "trailingStopActivationAtrMultiplier",
+                defaultPips: 20,
+            });
+            trailDistance = resolveConfiguredDistance({
+                trade,
+                config,
+                pipValue: this.getPipValue(trade.instrument),
+                runtimeMetadata: { initialStopDistance, atrDistance },
+                pipsKey: "trailingStopPips",
+                riskMultipleKey: "trailingStopRiskMultiple",
+                atrMultipleKey: "trailingStopAtrMultiplier",
+                defaultPips: 25,
+            });
         }
 
         if (

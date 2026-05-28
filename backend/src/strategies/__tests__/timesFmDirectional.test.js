@@ -173,6 +173,64 @@ describe("timesFmDirectionalStrategy", () => {
         );
     });
 
+    test("blocks bearish forecasts by default for the long-only Phase 2 posture", async () => {
+        const candles = buildCandles();
+        const result = await timesFmDirectionalStrategy.evaluateEntry({
+            instrument: "EUR_USD",
+            candles,
+            currentPrice: candles[candles.length - 1].close,
+            dataService: {
+                getPipValue: jest.fn(() => 0.0001),
+            },
+            marketContext: buildMarketContext({
+                direction: "BEARISH",
+                confidence: 0.82,
+                returnBps: -14.4,
+            }),
+            config: {
+                timeframe: "15m",
+                maxSpreadPips: 1.2,
+            },
+        });
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                signalType: "HOLD",
+                reasonCode: "TIMESFM_DIRECTIONAL_SHORTS_DISABLED",
+            })
+        );
+    });
+
+    test("allows bearish forecasts when shorting is explicitly enabled", async () => {
+        const candles = buildCandles();
+        const result = await timesFmDirectionalStrategy.evaluateEntry({
+            instrument: "EUR_USD",
+            candles,
+            currentPrice: candles[candles.length - 1].close,
+            dataService: {
+                getPipValue: jest.fn(() => 0.0001),
+            },
+            marketContext: buildMarketContext({
+                direction: "BEARISH",
+                confidence: 0.82,
+                returnBps: -14.4,
+            }),
+            config: {
+                timeframe: "15m",
+                maxSpreadPips: 1.2,
+                enableShorting: true,
+            },
+        });
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                signalType: "SELL",
+                reasonCode: "TIMESFM_DIRECTIONAL_SHORT_ACTIONABLE",
+                signalClass: "ACTIONABLE",
+            })
+        );
+    });
+
     test("allows the lower return floor when confidence is high", async () => {
         const candles = buildCandles();
         const result = await timesFmDirectionalStrategy.evaluateEntry({

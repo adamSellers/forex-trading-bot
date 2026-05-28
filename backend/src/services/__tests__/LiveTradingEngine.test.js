@@ -1281,6 +1281,39 @@ describe('LiveTradingEngine', () => {
             );
         });
 
+        test('should persist live runtime stop metadata on executed trades', async () => {
+            const signal = createMockSignal({
+                currentPrice: 1.16571,
+                atrPips: 12.5,
+                tradePlan: {
+                    stopLossPrice: 1.16471,
+                    takeProfitPrice: 1.16888,
+                },
+            });
+            const config = mockConfigService.get();
+            jest.spyOn(engine, 'calculatePositionSize').mockResolvedValue(795);
+
+            const trade = await engine.executeEntry(signal, config);
+
+            expect(mockTradeRepository.save).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    brokerReconciliationPayload: expect.objectContaining({
+                        liveRuntime: expect.objectContaining({
+                            initialStopLossPrice: 1.16471,
+                            initialStopDistance: expect.any(Number),
+                            atrDistance: expect.any(Number),
+                        }),
+                    }),
+                })
+            );
+            expect(
+                trade.brokerReconciliationPayload.liveRuntime.initialStopDistance
+            ).toBeCloseTo(0.001, 6);
+            expect(
+                trade.brokerReconciliationPayload.liveRuntime.atrDistance
+            ).toBeCloseTo(0.00125, 6);
+        });
+
         test('should set take profit after order fills', async () => {
             const signal = createMockSignal();
             const config = mockConfigService.get();
@@ -1660,6 +1693,90 @@ describe('LiveTradingEngine', () => {
                 expect.objectContaining({ stopLossPrice: 1.3 })
             );
             expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
+        });
+
+        test('should support risk-multiple breakeven instead of tight pip scratches', async () => {
+            const trade = createMockTrade({
+                id: 'trade-breakeven-risk',
+                side: 'BUY',
+                entryPrice: 1.10000,
+                stopLossPrice: 1.09800,
+                oandaTradeId: '489',
+                brokerReconciliationPayload: {
+                    liveRuntime: {
+                        initialStopLossPrice: 1.09800,
+                        initialStopDistance: 0.00200,
+                        atrDistance: 0.00125,
+                    },
+                },
+            });
+
+            const config = {
+                ...mockConfigService.get(),
+                enableBreakeven: true,
+                breakevenTriggerPips: 5,
+                breakevenTriggerRiskMultiple: 1,
+                enableTrailingStops: false,
+            };
+
+            await engine.updateBreakevenStop(trade, 1.10150, config);
+            expect(mockTradeRepository.updateTrade).not.toHaveBeenCalled();
+
+            await engine.updateBreakevenStop(trade, 1.10210, config);
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-breakeven-risk',
+                expect.objectContaining({
+                    stopLossPrice: 1.1,
+                    activeStopType: 'BREAKEVEN',
+                })
+            );
+        });
+    });
+
+    describe('Trailing Logic', () => {
+        test('should support risk-multiple trailing activation and distance', async () => {
+            const trade = createMockTrade({
+                id: 'trade-trailing-risk',
+                side: 'BUY',
+                entryPrice: 1.10000,
+                stopLossPrice: 1.09800,
+                oandaTradeId: '489',
+                brokerReconciliationPayload: {
+                    liveRuntime: {
+                        initialStopLossPrice: 1.09800,
+                        initialStopDistance: 0.00200,
+                        atrDistance: 0.00125,
+                    },
+                },
+            });
+
+            const config = {
+                ...mockConfigService.get(),
+                enableTrailingStops: true,
+                trailingStopActivationPips: 5,
+                trailingStopPips: 5,
+                trailingStopActivationRiskMultiple: 1.5,
+                trailingStopRiskMultiple: 1,
+            };
+
+            await engine.updateTrailingStop(trade, 1.10250, config);
+            expect(mockTradeRepository.updateTrade).not.toHaveBeenCalled();
+
+            await engine.updateTrailingStop(trade, 1.10350, config);
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-trailing-risk',
+                expect.objectContaining({
+                    stopLossPrice: 1.1015,
+                    trailingStopPrice: 1.1015,
+                    activeStopType: 'TRAILING',
+                })
+            );
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith(
+                '489',
+                expect.objectContaining({
+                    stopLossPrice: 1.1015,
+                })
+            );
         });
     });
 

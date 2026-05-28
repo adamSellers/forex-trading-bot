@@ -15,6 +15,10 @@ const {
     ENTRY_DECISION_STAGES,
     ENTRY_DECISION_OUTCOMES,
 } = require("../constants/entryDecisionCodes");
+const {
+    getTradeExitMetadata,
+    resolveConfiguredDistance,
+} = require("../runtime/exitPolicy");
 
 function toFiniteNumber(value, fallback = null) {
     if (value === null || value === undefined || value === "") {
@@ -1367,6 +1371,31 @@ class LiveTradingEngine extends EventEmitter {
         return plannedTakeProfitPrice;
     }
 
+    buildLiveRuntimeMetadata(signal, entryPrice, stopLossPrice) {
+        const initialStopDistance = Math.abs(
+            toFiniteNumber(entryPrice, 0) - toFiniteNumber(stopLossPrice, 0)
+        );
+        const atrDistance =
+            Math.max(0, toFiniteNumber(signal?.atrPips, 0)) *
+            oandaClient.getPipValue(signal?.symbol || "");
+
+        return {
+            initialStopLossPrice: stopLossPrice,
+            initialStopDistance,
+            atrDistance,
+        };
+    }
+
+    getLiveRuntimeMetadata(trade = {}) {
+        const liveRuntime =
+            trade?.brokerReconciliationPayload?.liveRuntime || {};
+        return getTradeExitMetadata({
+            trade,
+            runtimeMetadata: liveRuntime,
+            pipValue: oandaClient.getPipValue(trade.instrument || ""),
+        });
+    }
+
     /**
      * Get mid price from Oanda pricing payload for a single instrument.
      */
@@ -1805,6 +1834,13 @@ class LiveTradingEngine extends EventEmitter {
                 ownerRunId: signal.runId || null,
                 selectionId: signal.selectionId || null,
                 strategy: signal.strategy || config.strategy || null,
+                brokerReconciliationPayload: {
+                    liveRuntime: this.buildLiveRuntimeMetadata(
+                        signal,
+                        fillPrice,
+                        stopLossPrice
+                    ),
+                },
                 isOpen: true,
             };
 
@@ -2125,14 +2161,28 @@ class LiveTradingEngine extends EventEmitter {
         if (trade.breakevenHit) return;
 
         const pipValue = oandaClient.getPipValue(trade.instrument);
-        const triggerPips = config.breakevenTriggerPips || 12;
+        const liveRuntime = this.getLiveRuntimeMetadata(trade);
+        const activationDistance = resolveConfiguredDistance({
+            trade,
+            config,
+            pipValue,
+            runtimeMetadata: liveRuntime,
+            pipsKey: "breakevenTriggerPips",
+            riskMultipleKey: "breakevenTriggerRiskMultiple",
+            atrMultipleKey: "breakevenTriggerAtrMultiplier",
+            defaultPips: 12,
+        });
+        if (!Number.isFinite(activationDistance) || activationDistance <= 0) {
+            return;
+        }
+
         const isBuy = trade.side === "BUY";
 
-        const profitPips = isBuy
-            ? (currentPrice - trade.entryPrice) / pipValue
-            : (trade.entryPrice - currentPrice) / pipValue;
+        const profitDistance = isBuy
+            ? currentPrice - trade.entryPrice
+            : trade.entryPrice - currentPrice;
 
-        if (profitPips < triggerPips) {
+        if (profitDistance < activationDistance) {
             return;
         }
 
@@ -2191,16 +2241,43 @@ class LiveTradingEngine extends EventEmitter {
      */
     async updateTrailingStop(trade, currentPrice, config) {
         const pipValue = oandaClient.getPipValue(trade.instrument);
-        const trailingPips = config.trailingStopPips || 25;
-        const activationPips = config.trailingStopActivationPips || 20;
+        const liveRuntime = this.getLiveRuntimeMetadata(trade);
+        const activationDistance = resolveConfiguredDistance({
+            trade,
+            config,
+            pipValue,
+            runtimeMetadata: liveRuntime,
+            pipsKey: "trailingStopActivationPips",
+            riskMultipleKey: "trailingStopActivationRiskMultiple",
+            atrMultipleKey: "trailingStopActivationAtrMultiplier",
+            defaultPips: 20,
+        });
+        const trailingDistance = resolveConfiguredDistance({
+            trade,
+            config,
+            pipValue,
+            runtimeMetadata: liveRuntime,
+            pipsKey: "trailingStopPips",
+            riskMultipleKey: "trailingStopRiskMultiple",
+            atrMultipleKey: "trailingStopAtrMultiplier",
+            defaultPips: 25,
+        });
+        if (
+            !Number.isFinite(activationDistance) ||
+            activationDistance <= 0 ||
+            !Number.isFinite(trailingDistance) ||
+            trailingDistance <= 0
+        ) {
+            return;
+        }
+
         const isBuy = trade.side === "BUY";
 
-        // Calculate profit in pips (direction-aware)
-        const profitPips = isBuy
-            ? (currentPrice - trade.entryPrice) / pipValue
-            : (trade.entryPrice - currentPrice) / pipValue;
+        const profitDistance = isBuy
+            ? currentPrice - trade.entryPrice
+            : trade.entryPrice - currentPrice;
 
-        if (profitPips < activationPips) {
+        if (profitDistance < activationDistance) {
             return; // Not in profit enough to activate trailing
         }
 
@@ -2208,8 +2285,8 @@ class LiveTradingEngine extends EventEmitter {
         // BUY: stop is BELOW current price, moves UP
         // SELL: stop is ABOVE current price, moves DOWN
         const newStopLossPrice = isBuy
-            ? currentPrice - trailingPips * pipValue
-            : currentPrice + trailingPips * pipValue;
+            ? currentPrice - trailingDistance
+            : currentPrice + trailingDistance;
 
         // Check if we should update (stop should only move in favorable direction)
         // BUY: new stop must be HIGHER than current

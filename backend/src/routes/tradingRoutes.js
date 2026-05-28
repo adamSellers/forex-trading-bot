@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { listStrategyCatalog, getStrategyDefinition } = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
+const { listCandidatePresets } = require("../runtime/candidatePresets");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
 
@@ -1158,6 +1159,7 @@ router.post("/runtime/runs", async (req, res) => {
         const run = await runtimeCoordinator.createCandidateRun({
             strategyKey,
             configSnapshot: req.body?.configSnapshot || req.body?.config || null,
+            presetKey: req.body?.presetKey || req.body?.preset || null,
             initiatedBy: "ui",
             metadata: {
                 displayName: req.body?.label || null,
@@ -1182,6 +1184,13 @@ router.post("/runtime/runs", async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+router.get("/runtime/candidate-presets", (_req, res) => {
+    res.json({
+        presets: listCandidatePresets(),
+        timestamp: Date.now(),
+    });
 });
 
 router.get("/runtime/runs", async (req, res) => {

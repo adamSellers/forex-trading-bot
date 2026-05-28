@@ -6,6 +6,7 @@ const logger = require("../utils/logger");
 const { computeConfigHash } = require("../config/tradingConfig");
 const { RUNTIME_MODES, RUN_STATUSES } = require("./runtimeConstants");
 const { getStrategyDefinition } = require("../strategies");
+const { applyCandidatePreset } = require("./candidatePresets");
 
 function createRunId(mode = RUNTIME_MODES.LIVE) {
     return `${mode}_${uuidv4()}`;
@@ -808,6 +809,7 @@ class RuntimeCoordinator extends EventEmitter {
         configSnapshot = null,
         initiatedBy = "ui",
         metadata = {},
+        presetKey = null,
     } = {}) {
         if (!strategyKey) {
             throw new Error("strategyKey is required");
@@ -827,10 +829,17 @@ class RuntimeCoordinator extends EventEmitter {
             activeLiveSession?.run.configSnapshot ||
             this.configService?.get?.() ||
             {};
-        const nextConfig = {
+        const baseNextConfig = {
             ...baseConfig,
             strategy: strategyKey,
         };
+        const { config: nextConfig, preset } = applyCandidatePreset(
+            baseNextConfig,
+            presetKey
+        );
+        if (presetKey && !preset) {
+            throw new Error(`Unknown candidate preset: ${presetKey}`);
+        }
 
         return this.startRun({
             mode: RUNTIME_MODES.PAPER_CANDIDATE,
@@ -844,6 +853,8 @@ class RuntimeCoordinator extends EventEmitter {
                 entryEnabled: false,
                 initiatedBy,
                 pairedLiveRunId: activeLiveSession?.run.runId || null,
+                candidatePreset: preset?.key || null,
+                candidatePresetLabel: preset?.label || null,
                 ...metadata,
             },
         });

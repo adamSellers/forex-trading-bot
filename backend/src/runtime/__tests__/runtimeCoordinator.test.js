@@ -238,6 +238,7 @@ describe("RuntimeCoordinator", () => {
                 timeframe: "15m",
                 timesFmEnabled: true,
                 timesFmMode: "observe",
+                activeSessions: ["sydney", "london"],
             },
         });
 
@@ -283,6 +284,7 @@ describe("RuntimeCoordinator", () => {
                 timeframe: "15m",
                 timesFmEnabled: true,
                 timesFmMode: "observe",
+                activeSessions: ["sydney", "london"],
             },
         });
 
@@ -516,6 +518,39 @@ describe("RuntimeCoordinator", () => {
             expect.objectContaining({
                 mode: RUNTIME_MODES.PAPER_CANDIDATE,
                 selectionId: liveSelection.selectionId,
+            })
+        );
+    });
+
+    test("createCandidateRun applies the Phase 2 room-to-run preset", async () => {
+        const liveSelection = await coordinator.ensureLiveSelectionInitialized();
+
+        const candidateRun = await coordinator.createCandidateRun({
+            strategyKey: "timesfm_directional",
+            presetKey: "phase2_room_to_run",
+            initiatedBy: "ui",
+        });
+
+        expect(candidateRun).toEqual(
+            expect.objectContaining({
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                strategy: "timesfm_directional",
+                selectionId: liveSelection.selectionId,
+                configSnapshot: expect.objectContaining({
+                    strategy: "timesfm_directional",
+                    enableShorting: false,
+                    enableShortContinuationEntry: false,
+                    activeSessions: ["london", "newyork"],
+                    assets: ["EUR_USD", "GBP_USD", "USD_JPY"],
+                    breakevenTriggerRiskMultiple: 1,
+                    trailingStopActivationRiskMultiple: 1.5,
+                    trailingStopRiskMultiple: 1,
+                    timesFmStrategyRiskReward: 3,
+                }),
+                metadata: expect.objectContaining({
+                    candidatePreset: "phase2_room_to_run",
+                    candidatePresetLabel: "Phase 2 Room To Run",
+                }),
             })
         );
     });

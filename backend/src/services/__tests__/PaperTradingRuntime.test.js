@@ -691,6 +691,81 @@ describe("PaperTradingRuntime", () => {
         );
     });
 
+    test("paper breakeven can wait for an initial-risk multiple", async () => {
+        const trade = {
+            id: "paper-risk-breakeven",
+            instrument: "AUD_USD",
+            side: "BUY",
+            entryPrice: 1.1,
+            stopLossPrice: 1.098,
+            atrPips: 12.5,
+            breakevenHit: false,
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    initialStopLossPrice: 1.098,
+                    initialStopDistance: 0.002,
+                    atrDistance: 0.00125,
+                },
+            },
+        };
+        const config = {
+            enableBreakeven: true,
+            breakevenTriggerPips: 5,
+            breakevenTriggerRiskMultiple: 1,
+        };
+
+        await runtime.applyBreakeven(trade, 1.1015, config);
+        expect(tradeRepository.updateTrade).not.toHaveBeenCalled();
+
+        await runtime.applyBreakeven(trade, 1.1021, config);
+        expect(tradeRepository.updateTrade).toHaveBeenCalledWith(
+            "paper-risk-breakeven",
+            expect.objectContaining({
+                stopLossPrice: 1.1,
+                activeStopType: "BREAKEVEN",
+            })
+        );
+    });
+
+    test("paper trailing stop can use initial-risk multiples", async () => {
+        const trade = {
+            id: "paper-risk-trailing",
+            instrument: "AUD_USD",
+            side: "BUY",
+            entryPrice: 1.1,
+            stopLossPrice: 1.098,
+            atrPips: 12.5,
+            highestPrice: 1.1,
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    initialStopLossPrice: 1.098,
+                    initialStopDistance: 0.002,
+                    atrDistance: 0.00125,
+                },
+            },
+        };
+        const config = {
+            enableTrailingStops: true,
+            trailingStopActivationPips: 5,
+            trailingStopPips: 5,
+            trailingStopActivationRiskMultiple: 1.5,
+            trailingStopRiskMultiple: 1,
+        };
+
+        await runtime.applyTrailingStop(trade, 1.1025, config);
+        expect(tradeRepository.updateTrade).not.toHaveBeenCalled();
+
+        await runtime.applyTrailingStop(trade, 1.1035, config);
+        expect(tradeRepository.updateTrade).toHaveBeenCalledWith(
+            "paper-risk-trailing",
+            expect.objectContaining({
+                stopLossPrice: 1.1015,
+                trailingStopPrice: 1.1015,
+                activeStopType: "TRAILING",
+            })
+        );
+    });
+
     test("closeTrade converts USD quote PnL into AUD account currency", async () => {
         const trade = {
             id: "paper-aud-usd-pnl",
