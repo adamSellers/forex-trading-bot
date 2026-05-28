@@ -410,6 +410,43 @@ describe("tradingRoutes controlled live start", () => {
         expect(configService.update).not.toHaveBeenCalled();
     });
 
+    test("allows a dashboard manual override when live readiness fails", async () => {
+        const session = createSession(RUNTIME_MODES.LIVE);
+        const { req, res } = createRouteContext(session);
+        const configService = {
+            get: jest.fn(() => ({
+                maxOpenPositions: 1,
+                riskPerTrade: 0.005,
+                maxCapitalAtRisk: 50,
+                maxPortfolioExposure: 0.1,
+            })),
+            update: jest.fn(),
+        };
+        req.body = {
+            manualOverride: true,
+            source: "dashboard",
+        };
+        req.app.locals.configService = configService;
+
+        await startHandler(req, res);
+
+        expect(res.status).not.toHaveBeenCalled();
+        expect(configService.update).toHaveBeenCalledWith({
+            enableTrading: true,
+        });
+        expect(res.body).toEqual(
+            expect.objectContaining({
+                success: true,
+                manualOverride: true,
+                warning:
+                    "Live entries enabled by manual dashboard override despite readiness failure",
+                liveReadiness: expect.objectContaining({
+                    status: "FAIL",
+                }),
+            })
+        );
+    });
+
     test("allows live start only when promotion evidence and risk caps pass", async () => {
         const session = createSession(RUNTIME_MODES.LIVE);
         session.run = {

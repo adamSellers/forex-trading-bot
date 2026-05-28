@@ -180,7 +180,11 @@ export const tradingAPI = {
         }),
 
     // Trading Control (enables/disables trading in config)
-    startTrading: () => apiCall(API_ENDPOINTS.tradingStart, { method: "POST" }),
+    startTrading: (payload = {}) =>
+        apiCall(API_ENDPOINTS.tradingStart, {
+            method: "POST",
+            body: JSON.stringify(payload),
+        }),
     stopTrading: () => apiCall(API_ENDPOINTS.tradingStop, { method: "POST" }),
     resetSignals: () => apiCall(API_ENDPOINTS.tradingReset, { method: "POST" }),
 };

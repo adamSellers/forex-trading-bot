@@ -558,7 +558,7 @@ const SystemHealth = () => {
                     title="Trading Mode"
                     value="LIVE"
                     subValue={
-                      health.config?.enableTrading ? 'Engine Active' : 'Engine Paused'
+                      health.config?.enableTrading ? 'Live Entries Enabled' : 'Live Entries Paused'
                     }
                     icon={<Sensors fontSize="small" />}
                     color="error"

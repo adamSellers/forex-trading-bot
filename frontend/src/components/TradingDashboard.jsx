@@ -356,7 +356,10 @@ const TradingDashboard = () => {
     try {
       tradingEnabled
         ? await tradingAPI.stopTrading()
-        : await tradingAPI.startTrading();
+        : await tradingAPI.startTrading({
+            manualOverride: true,
+            source: 'dashboard',
+          });
       setTradingEnabled(!tradingEnabled);
     } catch (err) {
       setError(err.message);
@@ -519,7 +522,7 @@ const TradingDashboard = () => {
             size="small"
             sx={{ px: 3, fontWeight: 'bold' }}
           >
-            {tradingEnabled ? 'STOP ENGINE' : 'START ENGINE'}
+            {tradingEnabled ? 'PAUSE LIVE' : 'ENABLE LIVE'}
           </Button>
           <Tooltip title="Sync engine with Oanda">
             <Button

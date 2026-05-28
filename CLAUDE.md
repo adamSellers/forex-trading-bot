@@ -574,9 +574,10 @@ Completed locally on 2026-05-29:
    shadow run, candidate audit metadata, and API response.
 4. Added `GET /api/trading/live-readiness` to report whether the active live selection is eligible
    for controlled activation.
-5. `POST /api/trading/start` now fails closed with `409 Controlled live readiness failed` unless
+5. `POST /api/trading/start` returns `409 Controlled live readiness failed` by default unless
    the active live run has passing promotion-gate evidence and the controlled risk caps are intact.
-   This closes the manual `/trading/start` bypass.
+   The dashboard sends an explicit `manualOverride:true` when the user clicks `ENABLE LIVE`, so the
+   user can still manually enable live entries while seeing the readiness warning/result.
 6. Tests: `npm test -- liveActivationReadiness.test.js promotionGate.test.js tradingRoutes.test.js runtimeCoordinator.test.js`
    passes (`28/28`). The full focused remediation set should be run before deploy.
 
@@ -585,8 +586,8 @@ Pending operational steps (user-run only):
 - Deploy the full Phase 1-4 commit set.
 - Let `phase2_room_to_run` collect the required realistic-paper sample and verify the promotion gate.
 - Only after explicit approval, promote the passing candidate. Promotion will keep entries paused.
-- Check `GET /api/trading/live-readiness`; only if it returns `PASS`, the user may explicitly call
-  `POST /api/trading/start` to enable controlled live entries.
+- Check `GET /api/trading/live-readiness` before live enablement. Dashboard `ENABLE LIVE` can
+  manually override a failed readiness result if the user deliberately chooses to proceed.
 - After controlled live starts, monitor live vs paired `paper_shadow` per-pip tracking and compare
   against the frozen Phase 0 baseline.
 
@@ -620,8 +621,8 @@ Pending operational steps (user-run only):
 7. Forward-monitor paired live/shadow data and the Phase 2 candidate via read-only SQL.
 8. Use `/api/analytics?mode=paper_candidate&runId=<runId>&strategy=timesfm_directional&period=all`
    to inspect `cohortExpectancy` before any promotion attempt.
-9. Use `/api/trading/live-readiness` before any live re-enable. `POST /api/trading/start` is now
-   guarded and should fail unless the promoted live run has passing gate evidence and controlled caps.
+9. Use `/api/trading/live-readiness` before any live re-enable. Dashboard `ENABLE LIVE` sends a
+   manual override, so it will still let the user proceed even if readiness is not `PASS`.
 10. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
    identity columns (`mode`/`runId`/`strategy`). Do not re-enable live or promote a candidate without
    explicit user approval.

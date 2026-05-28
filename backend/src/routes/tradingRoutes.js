@@ -883,7 +883,10 @@ router.post("/trading/start", (req, res) => {
             liveSelection: runtimeCoordinator.getLiveSelection?.() || null,
             config: configService.get?.() || {},
         });
-        if (!liveReadiness.passed) {
+        const manualOverride =
+            req.body?.manualOverride === true ||
+            req.body?.overrideLiveReadiness === true;
+        if (!liveReadiness.passed && !manualOverride) {
             return res.status(409).json({
                 error: "Controlled live readiness failed",
                 liveReadiness,
@@ -899,6 +902,11 @@ router.post("/trading/start", (req, res) => {
             success: true,
             message: "Trading enabled",
             liveReadiness,
+            manualOverride,
+            warning:
+                manualOverride && !liveReadiness.passed
+                    ? "Live entries enabled by manual dashboard override despite readiness failure"
+                    : null,
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
