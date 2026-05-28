@@ -1,5 +1,6 @@
 // backend/src/services/analyticsService.js - Forex Analytics Service
 const logger = require("../utils/logger");
+const { calculateExpectedEdge } = require("../strategies/expectedEdge");
 
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
@@ -71,6 +72,23 @@ function toFiniteNumber(value, fallback = 0) {
 
 function roundTo(value, decimals = 2) {
     return Number.parseFloat(toFiniteNumber(value).toFixed(decimals));
+}
+
+function getPipValue(instrument) {
+    return normalizeString(instrument).includes("JPY") ? 0.01 : 0.0001;
+}
+
+function normalizePayloadObject(value) {
+    if (!value) return {};
+    if (typeof value === "object") return value;
+    if (typeof value !== "string") return {};
+
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+        return {};
+    }
 }
 
 function hasStructuredSignalTelemetry(signal) {
@@ -398,6 +416,8 @@ class AnalyticsService {
             const equityData = this.calculateEquityData(closedTrades);
             const adxAnalysis = this.calculateAdxAnalysis(closedTrades);
             const sidePerformance = this.calculateSidePerformance(closedTrades);
+            const cohortExpectancy =
+                this.calculateCohortExpectancy(closedTrades);
             const timesFmAnalysis = this.calculateTimesFmAnalysis(
                 signals,
                 entryDecisions,
@@ -439,6 +459,7 @@ class AnalyticsService {
                 equityData,
                 adxAnalysis,
                 sidePerformance,
+                cohortExpectancy,
                 timesFmAnalysis,
                 expectationVsActual,
                 entryFunnel,
@@ -1695,6 +1716,223 @@ class AnalyticsService {
             totalTrades,
             sellSharePercent: parseFloat(sellSharePercent.toFixed(1)),
             byEntryType,
+        };
+    }
+
+    getInitialRiskPips(trade = {}) {
+        const pipValue = getPipValue(trade.instrument);
+        const payload = normalizePayloadObject(trade.brokerReconciliationPayload);
+        const runtimeMetadata =
+            payload.paperRuntime || payload.liveRuntime || payload.runtime || {};
+        const initialStopDistance = toFiniteNumber(
+            runtimeMetadata.initialStopDistance,
+            NaN
+        );
+
+        if (Number.isFinite(initialStopDistance) && initialStopDistance > 0) {
+            return initialStopDistance / pipValue;
+        }
+
+        const entryPrice = toFiniteNumber(trade.entryPrice, NaN);
+        const stopLossPrice = toFiniteNumber(trade.stopLossPrice, NaN);
+        if (
+            Number.isFinite(entryPrice) &&
+            Number.isFinite(stopLossPrice) &&
+            entryPrice !== stopLossPrice
+        ) {
+            return Math.abs(entryPrice - stopLossPrice) / pipValue;
+        }
+
+        return null;
+    }
+
+    calculateCohortExpectancy(trades = []) {
+        const createBucket = (fields = {}) => ({
+            ...fields,
+            trades: 0,
+            wins: 0,
+            losses: 0,
+            flat: 0,
+            totalPnLAud: 0,
+            totalPnLPips: 0,
+            grossWinPips: 0,
+            grossLossPips: 0,
+            grossWinAud: 0,
+            grossLossAud: 0,
+            riskMultipleSum: 0,
+            riskMultipleCount: 0,
+            winRiskMultipleSum: 0,
+            winRiskMultipleCount: 0,
+            lossRiskMultipleSum: 0,
+            lossRiskMultipleCount: 0,
+        });
+
+        const addTrade = (bucket, trade) => {
+            const pnlAud = toFiniteNumber(trade.pnlAud);
+            const pnlPips = toFiniteNumber(trade.pnlPips);
+            const initialRiskPips = this.getInitialRiskPips(trade);
+
+            bucket.trades++;
+            bucket.totalPnLAud += pnlAud;
+            bucket.totalPnLPips += pnlPips;
+
+            if (pnlPips > 0) {
+                bucket.wins++;
+                bucket.grossWinPips += pnlPips;
+                bucket.grossWinAud += Math.max(0, pnlAud);
+            } else if (pnlPips < 0) {
+                bucket.losses++;
+                bucket.grossLossPips += Math.abs(pnlPips);
+                bucket.grossLossAud += Math.abs(Math.min(0, pnlAud));
+            } else {
+                bucket.flat++;
+            }
+
+            if (Number.isFinite(initialRiskPips) && initialRiskPips > 0) {
+                const riskMultiple = pnlPips / initialRiskPips;
+                bucket.riskMultipleSum += riskMultiple;
+                bucket.riskMultipleCount++;
+                if (riskMultiple > 0) {
+                    bucket.winRiskMultipleSum += riskMultiple;
+                    bucket.winRiskMultipleCount++;
+                } else if (riskMultiple < 0) {
+                    bucket.lossRiskMultipleSum += Math.abs(riskMultiple);
+                    bucket.lossRiskMultipleCount++;
+                }
+            }
+        };
+
+        const finalizeBucket = (bucket) => {
+            const tradesCount = bucket.trades;
+            const avgWinPips =
+                bucket.wins > 0 ? bucket.grossWinPips / bucket.wins : 0;
+            const avgLossPips =
+                bucket.losses > 0 ? bucket.grossLossPips / bucket.losses : 0;
+            const winRate = tradesCount > 0 ? bucket.wins / tradesCount : 0;
+            const expectedEdge =
+                tradesCount > 0
+                    ? calculateExpectedEdge({
+                          targetPips: avgWinPips,
+                          stopPips: avgLossPips,
+                          winProbability: winRate,
+                          spreadPips: 0,
+                          slippagePips: 0,
+                      })
+                    : null;
+
+            return {
+                ...bucket,
+                winRatePct:
+                    tradesCount > 0
+                        ? roundTo((bucket.wins / tradesCount) * 100, 1)
+                        : 0,
+                totalPnLAud: roundTo(bucket.totalPnLAud, 2),
+                totalPnLPips: roundTo(bucket.totalPnLPips, 1),
+                netExpectancyAud:
+                    tradesCount > 0
+                        ? roundTo(bucket.totalPnLAud / tradesCount, 2)
+                        : 0,
+                netExpectancyPips:
+                    tradesCount > 0
+                        ? roundTo(bucket.totalPnLPips / tradesCount, 2)
+                        : 0,
+                avgWinPips: roundTo(avgWinPips, 2),
+                avgLossPips: roundTo(avgLossPips, 2),
+                avgR:
+                    bucket.riskMultipleCount > 0
+                        ? roundTo(
+                              bucket.riskMultipleSum /
+                                  bucket.riskMultipleCount,
+                              3
+                          )
+                        : null,
+                avgWinR:
+                    bucket.winRiskMultipleCount > 0
+                        ? roundTo(
+                              bucket.winRiskMultipleSum /
+                                  bucket.winRiskMultipleCount,
+                              3
+                          )
+                        : null,
+                avgLossR:
+                    bucket.lossRiskMultipleCount > 0
+                        ? roundTo(
+                              bucket.lossRiskMultipleSum /
+                                  bucket.lossRiskMultipleCount,
+                              3
+                          )
+                        : null,
+                profitFactorPips:
+                    bucket.grossLossPips > 0
+                        ? roundTo(bucket.grossWinPips / bucket.grossLossPips, 2)
+                        : bucket.grossWinPips > 0
+                        ? 999
+                        : 0,
+                profitFactorAud:
+                    bucket.grossLossAud > 0
+                        ? roundTo(bucket.grossWinAud / bucket.grossLossAud, 2)
+                        : bucket.grossWinAud > 0
+                        ? 999
+                        : 0,
+                expectedEdge,
+            };
+        };
+
+        const getBucket = (map, key, fields) => {
+            if (!map.has(key)) {
+                map.set(key, createBucket(fields));
+            }
+            return map.get(key);
+        };
+
+        const summary = createBucket({ cohort: "ALL" });
+        const bySide = new Map();
+        const byInstrument = new Map();
+        const bySession = new Map();
+        const byEntryType = new Map();
+        const byCohort = new Map();
+
+        trades.forEach((trade) => {
+            const cohort = createTradeCohort(trade);
+            const side = cohort.side || "UNKNOWN";
+            const instrument = cohort.instrument || "UNKNOWN";
+            const session = getSessionForTimestamp(trade.entryTime);
+            const entryType = cohort.cohortType || "UNKNOWN";
+            const combinedKey = `${side}|${session}|${entryType}|${instrument}`;
+
+            addTrade(summary, trade);
+            addTrade(getBucket(bySide, side, { side }), trade);
+            addTrade(getBucket(byInstrument, instrument, { instrument }), trade);
+            addTrade(getBucket(bySession, session, { session }), trade);
+            addTrade(getBucket(byEntryType, entryType, { entryType }), trade);
+            addTrade(
+                getBucket(byCohort, combinedKey, {
+                    cohort: combinedKey,
+                    side,
+                    session,
+                    entryType,
+                    instrument,
+                }),
+                trade
+            );
+        });
+
+        const finalizeCollection = (map) =>
+            Array.from(map.values())
+                .map(finalizeBucket)
+                .sort(
+                    (left, right) =>
+                        right.trades - left.trades ||
+                        right.netExpectancyPips - left.netExpectancyPips
+                );
+
+        return {
+            summary: finalizeBucket(summary),
+            bySide: finalizeCollection(bySide),
+            byInstrument: finalizeCollection(byInstrument),
+            bySession: finalizeCollection(bySession),
+            byEntryType: finalizeCollection(byEntryType),
+            byCohort: finalizeCollection(byCohort),
         };
     }
 

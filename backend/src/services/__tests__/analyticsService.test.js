@@ -41,6 +41,7 @@ describe('AnalyticsService', () => {
             expect(result).toHaveProperty('equityData');
             expect(result).toHaveProperty('adxAnalysis');
             expect(result).toHaveProperty('sidePerformance');
+            expect(result).toHaveProperty('cohortExpectancy');
             expect(result).toHaveProperty('timesFmAnalysis');
             expect(result).toHaveProperty('entryFunnel');
             expect(result).toHaveProperty('rejectionBreakdown');
@@ -944,6 +945,114 @@ describe('AnalyticsService', () => {
             expect(shortEntry.sellPnLAud).toBe(1.0);
             expect(freshFlip.buyTrades).toBe(1);
             expect(freshFlip.buyWinRate).toBe(100.0);
+        });
+    });
+
+    describe('calculateCohortExpectancy', () => {
+        test('groups net expectancy by side, instrument, session, entry type, and combined cohort', () => {
+            const entryTime = Date.UTC(2026, 0, 1, 13, 0, 0);
+            const stopMetadata = {
+                paperRuntime: {
+                    initialStopDistance: 0.002,
+                },
+            };
+            const trades = [
+                createClosedTrade({
+                    side: 'BUY',
+                    instrument: 'EUR_USD',
+                    entryType: 'FRESH_FLIP',
+                    entryTime,
+                    pnlAud: 3,
+                    pnlPips: 30,
+                    brokerReconciliationPayload: stopMetadata,
+                }),
+                createLosingTrade({
+                    side: 'BUY',
+                    instrument: 'EUR_USD',
+                    entryType: 'FRESH_FLIP',
+                    entryTime,
+                    pnlAud: -1,
+                    pnlPips: -10,
+                    brokerReconciliationPayload: stopMetadata,
+                }),
+                createClosedTrade({
+                    side: 'SELL',
+                    instrument: 'GBP_USD',
+                    entryType: 'SHORT_ENTRY',
+                    entryTime,
+                    pnlAud: 2,
+                    pnlPips: 20,
+                    brokerReconciliationPayload: stopMetadata,
+                }),
+            ];
+
+            const expectancy = service.calculateCohortExpectancy(trades);
+
+            expect(expectancy.summary).toEqual(
+                expect.objectContaining({
+                    trades: 3,
+                    wins: 2,
+                    losses: 1,
+                    totalPnLPips: 40,
+                    netExpectancyPips: 13.33,
+                    avgR: 0.667,
+                })
+            );
+            expect(expectancy.bySide).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        side: 'BUY',
+                        trades: 2,
+                        winRatePct: 50,
+                        totalPnLPips: 20,
+                        netExpectancyPips: 10,
+                        avgR: 0.5,
+                        expectedEdge: expect.objectContaining({
+                            edgeVerdict: 'POSITIVE_EXPECTANCY',
+                        }),
+                    }),
+                    expect.objectContaining({
+                        side: 'SELL',
+                        trades: 1,
+                        netExpectancyPips: 20,
+                    }),
+                ])
+            );
+            expect(expectancy.bySession).toEqual([
+                expect.objectContaining({
+                    session: 'New York',
+                    trades: 3,
+                }),
+            ]);
+            expect(expectancy.byInstrument).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        instrument: 'EUR_USD',
+                        trades: 2,
+                        netExpectancyPips: 10,
+                    }),
+                ])
+            );
+            expect(expectancy.byEntryType).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        entryType: 'FRESH_FLIP',
+                        trades: 2,
+                    }),
+                ])
+            );
+            expect(expectancy.byCohort).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        cohort: 'BUY|New York|FRESH_FLIP|EUR_USD',
+                        side: 'BUY',
+                        session: 'New York',
+                        entryType: 'FRESH_FLIP',
+                        instrument: 'EUR_USD',
+                        trades: 2,
+                    }),
+                ])
+            );
         });
     });
 
