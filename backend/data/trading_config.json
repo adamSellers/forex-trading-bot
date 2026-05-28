@@ -38,7 +38,7 @@
     "timesFmStrategyStopLossAtrMultiplier": 1.5,
     "timesFmStrategyRiskReward": 1.5,
     "timesFmStrategyBlockExtremeVolatility": true,
-    "timeStopHours": 3,
+    "timeStopHours": 0,
     "riskPerTrade": 0.01,
     "freshFlipRiskMultiplier": 0.5,
     "maxPortfolioExposure": 0.5,

@@ -8,6 +8,19 @@ const PAPER_MODES = new Set([
     RUNTIME_MODES.PAPER_CANDIDATE,
 ]);
 
+// Realistic paper execution costs. Paper previously filled at idealized prices
+// (zero slippage; stops exactly at the trigger), which made paper P&L diverge in
+// sign from live for the same strategy and caused losers to be promoted to live.
+// Calibrated against paired paper_shadow-vs-live per-pip data in Phase 1.
+// Same-rule pairs already tracked within roughly a pip after bid/ask crossing;
+// keep a small non-zero execution haircut without masking exit-rule mismatches.
+// Any explicit config value (incl. 0) overrides these defaults.
+const DEFAULT_PAPER_ENTRY_SLIPPAGE_PIPS = 0.25;
+const DEFAULT_PAPER_EXIT_SLIPPAGE_PIPS = 0.25;
+// Stops slip *through* the trigger on adverse moves, filling worse than the stop
+// price. Modeled separately from market (entry/exit) slippage.
+const DEFAULT_PAPER_STOP_SLIPPAGE_PIPS = 0.5;
+
 function isPaperMode(mode) {
     return PAPER_MODES.has(mode);
 }
@@ -377,14 +390,28 @@ class PaperTradingRuntime {
             action === "exit"
                 ? config.paperExitSlippagePips
                 : config.paperEntrySlippagePips;
+        const actionDefault =
+            action === "exit"
+                ? DEFAULT_PAPER_EXIT_SLIPPAGE_PIPS
+                : DEFAULT_PAPER_ENTRY_SLIPPAGE_PIPS;
         return Math.max(
             0,
             toFiniteNumber(
                 actionSpecific,
                 toFiniteNumber(
                     config.paperSlippagePips,
-                    toFiniteNumber(config.slippagePips, 0)
+                    toFiniteNumber(config.slippagePips, actionDefault)
                 )
+            )
+        );
+    }
+
+    getPaperStopSlippagePips(config = {}) {
+        return Math.max(
+            0,
+            toFiniteNumber(
+                config.paperStopSlippagePips,
+                DEFAULT_PAPER_STOP_SLIPPAGE_PIPS
             )
         );
     }
@@ -1210,13 +1237,17 @@ class PaperTradingRuntime {
         await this.applyBreakeven(trade, currentPrice, config);
         await this.applyTrailingStop(trade, currentPrice, config);
 
-        const stopResult = this.getStopResult(trade, currentPrice);
+        const stopResult = this.getStopResult(trade, currentPrice, config);
         if (stopResult) {
             await this.closeTrade(
                 trade,
                 stopResult.exitPrice,
                 stopResult.exitReason,
-                exitExecution
+                {
+                    ...exitExecution,
+                    priceSource: "PAPER_STOP_FILL",
+                    slippagePips: stopResult.stopSlippagePips,
+                }
             );
             return true;
         }
@@ -1246,7 +1277,7 @@ class PaperTradingRuntime {
         return false;
     }
 
-    getStopResult(trade, currentPrice) {
+    getStopResult(trade, currentPrice, config = {}) {
         const stopLossPrice = toOptionalFiniteNumber(trade.stopLossPrice);
         if (!Number.isFinite(stopLossPrice)) {
             return null;
@@ -1268,9 +1299,21 @@ class PaperTradingRuntime {
             exitReason = "BREAKEVEN";
         }
 
+        // Real stops slip through the trigger and fill worse than the stop price.
+        // Without this, paper stop exits were idealized (filled exactly at the
+        // stop) — the main reason paper P&L diverged from live for the same signal.
+        const stopSlippagePips = this.getPaperStopSlippagePips(config);
+        const slippageDistance =
+            stopSlippagePips * this.getPipValue(trade.instrument);
+        let exitPrice = stopLossPrice;
+        if (slippageDistance > 0) {
+            exitPrice += trade.side === "BUY" ? -slippageDistance : slippageDistance;
+        }
+
         return {
-            exitPrice: stopLossPrice,
+            exitPrice,
             exitReason,
+            stopSlippagePips,
         };
     }
 

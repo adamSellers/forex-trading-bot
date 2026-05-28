@@ -440,20 +440,44 @@ is effectively complete; the architecture constraints below remain in force.
   `stochastic_divergence`, `squeeze_play`, `timesfm_directional`, `correlation_divergence`
   (paper-only; not live-promotable today).
 
-### Next Recommended Phase — Phase 1: Make paper trustworthy
+### Current Phase — Phase 1: Make paper trustworthy (LOCAL CODE DONE; user commit/deploy pending)
 
 Goal: make `paper_shadow` per-pip track `live` so promotion decisions stop being made on fantasy numbers.
 
-1. Add realistic execution cost to `PaperTradingRuntime` — non-zero `paperSlippagePips` (defaults to 0
-   at `PaperTradingRuntime.js:385`) and worse stop-loss fills (stop slippage separate from entry slippage).
-2. Calibrate slippage from real data: compute the realized per-pip gap between paired `paper_shadow`
-   and `live` on the same signals; set slippage so shadow ≈ live going forward.
-3. Align the time-stop between live and paper. `timeStopHours:3` is implemented only in
-   `PaperTradingRuntime.js:1300`, NOT in `LiveTradingEngine`. Prefer loosening/removing the 3h stop
-   (it kills winners) over porting it to live.
-4. Re-evaluate existing candidates under realistic costs; expect most paper edges to shrink/vanish.
+Completed locally on 2026-05-29:
 
-Checkpoint: paper_shadow per-pip tracks live within tolerance; candidate re-evaluation done.
+1. `PaperTradingRuntime` now has calibrated non-zero default execution costs:
+   `DEFAULT_PAPER_ENTRY_SLIPPAGE_PIPS=0.25`, `DEFAULT_PAPER_EXIT_SLIPPAGE_PIPS=0.25`,
+   `DEFAULT_PAPER_STOP_SLIPPAGE_PIPS=0.5`. Explicit config values, including `0`, still override.
+2. Paper stop fills now execute worse than the trigger: BUY stop exits fill below stop, SELL stop exits
+   fill above stop, and close metadata uses `PAPER_STOP_FILL` with stop slippage recorded.
+3. Local repo config templates set `timeStopHours:0` so fresh installs align with live's no-time-stop behavior.
+   IMPORTANT: deploy scripts preserve the Pi config, so the user still needs to set `timeStopHours:0`
+   on the Pi for the currently running paper runtime.
+4. Calibration used read-only Pi SQL and paired 20 live/shadow trades by live run -> shadow run plus
+   same instrument/side/nearest entry time. Same-stop/same-exit pairs were already close (`n=5`,
+   avg paper-live gap `-0.53` pips), so the original rough 5-pip gap was mostly time-stop/stop-plan
+   mismatch rather than pure execution slippage. Chosen defaults are intentionally small and non-zero.
+5. Candidate re-check with calibrated costs:
+   `timesfm_directional` paper_candidate `+2.30 -> +1.72` pips/trade,
+   `mean_reversion` `+1.90 -> +1.30`,
+   `correlation_divergence` `-1.17 -> -1.68`,
+   `squeeze_play` `-2.92 -> -3.61`,
+   `stochastic_divergence` `-1.04 -> -1.63`.
+   Active candidates: `timesfm_directional` remains positive in paper (`30` closed, adjusted `+3.93`
+   pips/trade), `correlation_divergence` is negative, active `stochastic_divergence` is only `4` trades.
+6. Tests: `npm test -- PaperTradingRuntime.test.js` passes (`18/18`). Full `npm test` was attempted;
+   `PaperTradingRuntime` passed in the full run, but repository tests are blocked locally by a missing
+   native `better-sqlite3` binding.
+
+Pending user actions before Phase 1 can be considered deployed:
+
+- Commit the untracked Phase 0 baseline artifacts, `CLAUDE.md`, memory/plan updates, and Phase 1 code/config.
+- Set `timeStopHours:0` on the Pi's preserved runtime config.
+- Deploy with the standard update script.
+
+Checkpoint after deploy: reset/continue shadow paper under the active `timesfm_directional` run and verify
+new `paper_shadow` per-pip tracks live within tolerance over forward trades.
 
 ### Codebase Reminders For The Next Thread
 
@@ -474,13 +498,13 @@ Checkpoint: paper_shadow per-pip tracks live within tolerance; candidate re-eval
 ### Next Session Start Checklist
 
 1. Start a new thread; read this `IN PROGRESS` section and `.claude/plans/okay-claude-this-is-iridescent-shore.md`.
-2. Confirm live is still paused (`/api/engine/status` → `tradingEnabled:false`) before any work.
-3. Confirm the baseline commit landed (`analysis/baseline/` tracked); if not, prompt the user to commit it.
-4. Begin Phase 1 in `PaperTradingRuntime.js` (slippage + stop-fill realism), then calibrate from
-   paired shadow-vs-live data via read-only SQL.
-5. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
+2. Do not re-check that live is paused; the user has confirmed it. The active live strategy remains whatever
+   `strategy_runs` says, currently `timesfm_directional`, not the repo config's strategy field.
+3. Prompt the user to commit Phase 0 baseline + Phase 1 changes if they have not already.
+4. Prompt the user to set Pi `timeStopHours:0` and deploy via `./scripts/update.sh`; do not run git/deploy/build.
+5. After deploy, forward-monitor paired live/shadow data via read-only SQL to confirm tracking.
+6. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
    identity columns (`mode`/`runId`/`strategy`). No live changes in Phase 1.
-6. Run `cd backend && npm test` after each code change.
 7. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
    not the repo `trading_config.json` field.
 

@@ -177,6 +177,11 @@ function createRuntimeCoordinator(session) {
     return emitter;
 }
 
+function setRunConfig(session, updates = {}) {
+    Object.assign(session.run.configSnapshot, updates);
+    Object.assign(session.generator.config, updates);
+}
+
 describe("PaperTradingRuntime", () => {
     let tradeRepository;
     let portfolioRepository;
@@ -298,6 +303,8 @@ describe("PaperTradingRuntime", () => {
     });
 
     test("processRunSession fills paper BUY entries at ask instead of mid", async () => {
+        setRunConfig(session, { paperEntrySlippagePips: 0 });
+
         await runtime.processRunSession(session, [
             {
                 symbol: "AUD_USD",
@@ -334,6 +341,8 @@ describe("PaperTradingRuntime", () => {
     });
 
     test("processRunSession falls back when strategy tradePlan has invalid stop direction", async () => {
+        setRunConfig(session, { paperEntrySlippagePips: 0 });
+
         await runtime.processRunSession(session, [
             {
                 symbol: "AUD_USD",
@@ -358,6 +367,11 @@ describe("PaperTradingRuntime", () => {
     });
 
     test("processRunSession closes paper BUY trades at bid on reversal", async () => {
+        setRunConfig(session, {
+            paperEntrySlippagePips: 0,
+            paperExitSlippagePips: 0,
+        });
+
         await runtime.processRunSession(session, [
             {
                 symbol: "AUD_USD",
@@ -406,8 +420,7 @@ describe("PaperTradingRuntime", () => {
     });
 
     test("processRunSession applies optional paper slippage against the fill", async () => {
-        session.run.configSnapshot.paperSlippagePips = 0.5;
-        session.generator.config.paperSlippagePips = 0.5;
+        setRunConfig(session, { paperSlippagePips: 1 });
 
         await runtime.processRunSession(session, [
             {
@@ -426,13 +439,87 @@ describe("PaperTradingRuntime", () => {
         ]);
 
         const savedTrade = tradeRepository.save.mock.calls[0][0];
-        expect(savedTrade.entryPrice).toBeCloseTo(1.1001, 5);
+        expect(savedTrade.entryPrice).toBeCloseTo(1.10015, 5);
         expect(savedTrade.brokerReconciliationPayload.paperRuntime).toEqual(
             expect.objectContaining({
                 entryPriceSource: "PAPER_ASK_WITH_SLIPPAGE",
-                entrySlippagePips: 0.5,
+                entrySlippagePips: 1,
             })
         );
+    });
+
+    test("paper execution applies default non-zero entry and exit slippage", () => {
+        const entryExecution = runtime.getPaperEntryPrice(
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                currentPrice: 1.1,
+            },
+            {}
+        );
+        const exitExecution = runtime.getPaperExitPrice(
+            {
+                instrument: "AUD_USD",
+                side: "BUY",
+                entryPrice: 1.1,
+            },
+            {}
+        );
+
+        expect(entryExecution.price).toBeCloseTo(1.100075, 6);
+        expect(entryExecution.priceSource).toBe("PAPER_ASK_WITH_SLIPPAGE");
+        expect(entryExecution.slippagePips).toBe(0.25);
+        expect(exitExecution.price).toBeCloseTo(1.099925, 6);
+        expect(exitExecution.priceSource).toBe("PAPER_BID_WITH_SLIPPAGE");
+        expect(exitExecution.slippagePips).toBe(0.25);
+    });
+
+    test("getStopResult fills worse than stop for BUY and SELL paper exits", () => {
+        const isolatedRuntime = new PaperTradingRuntime();
+
+        const buyResult = isolatedRuntime.getStopResult(
+            {
+                side: "BUY",
+                instrument: "EUR_USD",
+                stopLossPrice: 1.098,
+            },
+            1.0979,
+            {}
+        );
+        const sellResult = isolatedRuntime.getStopResult(
+            {
+                side: "SELL",
+                instrument: "EUR_USD",
+                stopLossPrice: 1.102,
+            },
+            1.1021,
+            {}
+        );
+
+        expect(buyResult).toEqual(
+            expect.objectContaining({
+                exitReason: "STOP_LOSS",
+                stopSlippagePips: 0.5,
+            })
+        );
+        expect(buyResult.exitPrice).toBeCloseTo(1.09795, 5);
+        expect(sellResult).toEqual(
+            expect.objectContaining({
+                exitReason: "STOP_LOSS",
+                stopSlippagePips: 0.5,
+            })
+        );
+        expect(sellResult.exitPrice).toBeCloseTo(1.10205, 5);
+    });
+
+    test("getPaperStopSlippagePips uses default unless explicitly overridden", () => {
+        expect(runtime.getPaperStopSlippagePips({})).toBe(0.5);
+        expect(
+            runtime.getPaperStopSlippagePips({ paperStopSlippagePips: 0 })
+        ).toBe(0);
+        expect(
+            runtime.getPaperStopSlippagePips({ paperStopSlippagePips: 0.75 })
+        ).toBe(0.75);
     });
 
     test("processRunSession rejects paper entries when spread is too wide for live gates", async () => {
