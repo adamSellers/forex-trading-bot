@@ -10,6 +10,16 @@ const resetRoute = tradingRoutes.stack.find(
         layer.route?.methods?.post
 );
 const resetHandler = resetRoute.route.stack[0].handle;
+const promoteRoute = tradingRoutes.stack.find(
+    (layer) =>
+        layer.route?.path === "/runtime/runs/:runId/promote" &&
+        layer.route?.methods?.post
+);
+const promoteHandler = promoteRoute.route.stack[0].handle;
+const startRoute = tradingRoutes.stack.find(
+    (layer) => layer.route?.path === "/trading/start" && layer.route?.methods?.post
+);
+const startHandler = startRoute.route.stack[0].handle;
 
 function createSession(mode) {
     return {
@@ -35,7 +45,10 @@ function createRouteContext(session) {
         listRuns: jest.fn(() => [session.run]),
         getLiveSelection: jest.fn(() => ({
             selectionId: "selection-1",
-            liveRun: { runId: "run-live", strategy: "supertrend_momentum" },
+            liveRun:
+                session.run.mode === RUNTIME_MODES.LIVE
+                    ? session.run
+                    : { runId: "run-live", strategy: "supertrend_momentum" },
             shadowRun:
                 session.run.mode === RUNTIME_MODES.PAPER_SHADOW
                     ? session.run
@@ -87,6 +100,105 @@ function createRouteContext(session) {
     };
 
     return { req, res, runtimeCoordinator, paperTradingRuntime };
+}
+
+function createClosedPaperTrade(overrides = {}) {
+    return {
+        id: overrides.id || "paper-trade-1",
+        instrument: "EUR_USD",
+        side: "BUY",
+        entryType: "FRESH_FLIP",
+        entryPrice: 1.1,
+        stopLossPrice: 1.098,
+        pnlAud: 1,
+        pnlPips: 10,
+        entryTime: Date.UTC(2026, 0, 1, 13, 0, 0),
+        exitTime: Date.UTC(2026, 0, 1, 14, 0, 0),
+        mode: RUNTIME_MODES.PAPER_CANDIDATE,
+        strategy: "timesfm_directional",
+        ownerRunId: "run-paper_candidate",
+        isOpen: false,
+        brokerReconciliationPayload: {
+            paperRuntime: {
+                initialStopDistance: 0.002,
+            },
+        },
+        ...overrides,
+    };
+}
+
+function createPromoteRouteContext({ trades }) {
+    const session = createSession(RUNTIME_MODES.PAPER_CANDIDATE);
+    session.run = {
+        ...session.run,
+        strategy: "timesfm_directional",
+        configSnapshot: {
+            strategy: "timesfm_directional",
+            enableShorting: false,
+            assets: ["EUR_USD"],
+        },
+    };
+
+    const { req, res, runtimeCoordinator, paperTradingRuntime } =
+        createRouteContext(session);
+    const tradingEngine = {
+        isRunning: false,
+        syncOpenTrades: jest.fn(async () => undefined),
+        getOpenTrades: jest.fn(() => []),
+        stop: jest.fn(),
+        start: jest.fn(async () => undefined),
+        startMonitoring: jest.fn(),
+    };
+    const configService = {
+        get: jest.fn(() => ({
+            strategy: "supertrend_momentum",
+            assets: ["AUD_USD"],
+            maxOpenPositions: 2,
+            riskPerTrade: 0.01,
+            maxCapitalAtRisk: 100,
+            maxPortfolioExposure: 0.5,
+        })),
+        update: jest.fn(),
+    };
+
+    runtimeCoordinator.selectLiveStrategy = jest.fn(async () => ({
+        selectionId: "selection-live",
+        liveRun: {
+            runId: "run-live",
+            strategy: "timesfm_directional",
+        },
+        shadowRun: {
+            runId: "run-shadow",
+            strategy: "timesfm_directional",
+        },
+    }));
+    runtimeCoordinator.updateRun = jest.fn(async (_runId, updates) => updates);
+
+    req.body = {};
+    req.app.locals = {
+        ...req.app.locals,
+        configService,
+        tradingEngine,
+        dataService: {},
+        tradeRepository: {
+            getTradesSince: jest.fn(async () => trades),
+        },
+        signalRepository: {
+            getSignalsSince: jest.fn(async () => []),
+        },
+        entryDecisionRepository: {
+            getDecisionsSince: jest.fn(async () => []),
+        },
+    };
+
+    return {
+        req,
+        res,
+        runtimeCoordinator,
+        paperTradingRuntime,
+        tradingEngine,
+        configService,
+    };
 }
 
 describe("tradingRoutes runtime run reset", () => {
@@ -153,5 +265,188 @@ describe("tradingRoutes runtime run reset", () => {
         expect(res.body).toEqual({
             error: "Only shadow baseline and candidate paper runs can be reset manually",
         });
+    });
+});
+
+describe("tradingRoutes runtime run promotion gate", () => {
+    test("blocks promotion before live side effects when the gate fails", async () => {
+        const trades = Array.from({ length: 49 }, (_, index) =>
+            createClosedPaperTrade({
+                id: `trade-${index}`,
+                pnlAud: 1,
+                pnlPips: 10,
+            })
+        );
+        const { req, res, runtimeCoordinator, tradingEngine } =
+            createPromoteRouteContext({ trades });
+
+        await promoteHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.body).toEqual(
+            expect.objectContaining({
+                error: "Promotion gate failed",
+                promotionGate: expect.objectContaining({
+                    status: "FAIL",
+                    reasons: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: "MIN_CLOSED_TRADES",
+                        }),
+                    ]),
+                }),
+            })
+        );
+        expect(tradingEngine.syncOpenTrades).not.toHaveBeenCalled();
+        expect(runtimeCoordinator.selectLiveStrategy).not.toHaveBeenCalled();
+    });
+
+    test("records the passing gate when a candidate is promoted", async () => {
+        const trades = Array.from({ length: 60 }, (_, index) =>
+            createClosedPaperTrade({
+                id: `trade-${index}`,
+                pnlAud: 1,
+                pnlPips: 10,
+            })
+        );
+        const { req, res, runtimeCoordinator, tradingEngine, configService } =
+            createPromoteRouteContext({ trades });
+
+        await promoteHandler(req, res);
+
+        expect(res.status).not.toHaveBeenCalled();
+        expect(tradingEngine.syncOpenTrades).toHaveBeenCalled();
+        expect(runtimeCoordinator.selectLiveStrategy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                strategyKey: "timesfm_directional",
+                initiatedBy: "paper-promotion",
+                metadata: expect.objectContaining({
+                    promotedFromRunId: "run-paper_candidate",
+                    promotionGate: expect.objectContaining({
+                        status: "PASS",
+                    }),
+                    phase4ControlledLive: expect.objectContaining({
+                        promotedFromRunId: "run-paper_candidate",
+                    }),
+                }),
+            })
+        );
+        expect(runtimeCoordinator.updateRun).toHaveBeenCalledWith(
+            "run-paper_candidate",
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    promotionStatus: "promoted_to_live",
+                    promotionGate: expect.objectContaining({
+                        status: "PASS",
+                        requirements: expect.objectContaining({
+                            requiredSides: ["BUY"],
+                        }),
+                    }),
+                    phase4ControlledLive: expect.objectContaining({
+                        riskLimits: expect.objectContaining({
+                            maxOpenPositions: 1,
+                            riskPerTrade: 0.005,
+                            maxCapitalAtRisk: 50,
+                            maxPortfolioExposure: 0.1,
+                        }),
+                    }),
+                }),
+            })
+        );
+        expect(configService.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                strategy: "timesfm_directional",
+                enableShorting: false,
+                enableTrading: false,
+                maxOpenPositions: 1,
+                riskPerTrade: 0.005,
+                maxCapitalAtRisk: 50,
+                maxPortfolioExposure: 0.1,
+                liveActivationPhase: "phase4_controlled",
+            })
+        );
+        expect(res.body.promotion.promotionGate).toEqual(
+            expect.objectContaining({
+                status: "PASS",
+                summary: expect.objectContaining({
+                    closedTrades: 60,
+                    netExpectancyPips: 10,
+                }),
+            })
+        );
+    });
+});
+
+describe("tradingRoutes controlled live start", () => {
+    test("blocks live start without gate-passing promotion evidence", async () => {
+        const session = createSession(RUNTIME_MODES.LIVE);
+        const { req, res } = createRouteContext(session);
+        const configService = {
+            get: jest.fn(() => ({
+                maxOpenPositions: 1,
+                riskPerTrade: 0.005,
+                maxCapitalAtRisk: 50,
+                maxPortfolioExposure: 0.1,
+            })),
+            update: jest.fn(),
+        };
+        req.app.locals.configService = configService;
+
+        await startHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.body).toEqual(
+            expect.objectContaining({
+                error: "Controlled live readiness failed",
+                liveReadiness: expect.objectContaining({
+                    status: "FAIL",
+                    reasons: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: "PROMOTION_GATE_NOT_PASSED",
+                        }),
+                    ]),
+                }),
+            })
+        );
+        expect(configService.update).not.toHaveBeenCalled();
+    });
+
+    test("allows live start only when promotion evidence and risk caps pass", async () => {
+        const session = createSession(RUNTIME_MODES.LIVE);
+        session.run = {
+            ...session.run,
+            strategy: "timesfm_directional",
+            metadata: {
+                promotionGate: {
+                    passed: true,
+                    status: "PASS",
+                },
+            },
+        };
+        const { req, res } = createRouteContext(session);
+        const configService = {
+            get: jest.fn(() => ({
+                maxOpenPositions: 1,
+                riskPerTrade: 0.005,
+                maxCapitalAtRisk: 50,
+                maxPortfolioExposure: 0.1,
+            })),
+            update: jest.fn(),
+        };
+        req.app.locals.configService = configService;
+
+        await startHandler(req, res);
+
+        expect(res.status).not.toHaveBeenCalled();
+        expect(configService.update).toHaveBeenCalledWith({
+            enableTrading: true,
+        });
+        expect(res.body).toEqual(
+            expect.objectContaining({
+                success: true,
+                liveReadiness: expect.objectContaining({
+                    status: "PASS",
+                }),
+            })
+        );
     });
 });

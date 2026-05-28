@@ -659,6 +659,7 @@ class RuntimeCoordinator extends EventEmitter {
         selectionId = null,
         initiatedBy = "runtime",
         startShadow = true,
+        metadata = {},
     } = {}) {
         const activeLiveSession = this.getActiveLiveSession();
         const nextConfig = {
@@ -716,6 +717,7 @@ class RuntimeCoordinator extends EventEmitter {
             metadata: {
                 entryEnabled: true,
                 initiatedBy,
+                ...metadata,
             },
         });
 
@@ -733,6 +735,9 @@ class RuntimeCoordinator extends EventEmitter {
                     entryEnabled: false,
                     initiatedBy,
                     pairedLiveRunId: liveRun.runId,
+                    ...(metadata.phase4ControlledLive
+                        ? { phase4ControlledLive: metadata.phase4ControlledLive }
+                        : {}),
                 },
             });
         }

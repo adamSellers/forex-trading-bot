@@ -479,7 +479,7 @@ Pending user actions before Phase 1 can be considered deployed:
 Checkpoint after deploy: reset/continue shadow paper under the active `timesfm_directional` run and verify
 new `paper_shadow` per-pip tracks live within tolerance over forward trades.
 
-### Current Phase — Phase 2: Long-only room-to-run candidate (LOCAL CODE DONE; paper launch pending)
+### Phase 2: Long-only room-to-run candidate (LOCAL CODE DONE; paper launch pending)
 
 Goal: address the LIVE-loss drivers without re-enabling live yet. Phase 2 builds a candidate that removes
 negative-edge cohorts and lets winners breathe, then validates it in realistic paper before any promotion.
@@ -519,6 +519,77 @@ Pending user actions after commit/deploy:
 Checkpoint: the `phase2_room_to_run` candidate shows positive net expectancy in realistic paper over a
 minimum sample, ideally by side/session/pair, before live promotion is considered.
 
+### Phase 3: Measurement + hard promotion gate (LOCAL CODE DONE; deploy pending)
+
+Goal: prevent another fantasy-paper promotion by making the promotion path consume realistic-paper
+cohort expectancy and fail closed before touching live state.
+
+Completed locally on 2026-05-29:
+
+1. `AnalyticsService` now returns `cohortExpectancy` from closed trades, keyed by the existing
+   runtime identity filters (`mode`/`runId`/`strategy`) and grouped by side, instrument, session,
+   entry type, and combined `side|session|entryType|instrument` cohort.
+2. Cohort expectancy reports net expectancy in pips/AUD using realized trade outcomes, win/loss
+   counts, win rate, profit factor, empirical expected edge, and `avgR` where the Phase 2 paper/live
+   stop metadata is present.
+3. Added `backend/src/runtime/promotionGate.js` with the hard default policy:
+   minimum `50` closed realistic-paper trades, positive overall net expectancy, and positive
+   expectancy on every side the candidate config can trade. Long-only configs require only BUY;
+   configs with shorts enabled require BUY and SELL to both clear the gate.
+4. `/api/runtime/runs/:runId/promote` now evaluates the gate for the candidate run using
+   `AnalyticsService.getAnalytics("all", { mode:"paper_candidate", runId, strategy })` before
+   syncing live trades, stopping/restarting the engine, liquidating positions, updating config, or
+   selecting a live strategy. Failed gates return `409 Promotion gate failed`.
+5. Passing promotions annotate the candidate run metadata and response payload with the gate result
+   so the exact evidence used for promotion is auditable later.
+6. Tests: `npm test -- analyticsService.test.js promotionGate.test.js tradingRoutes.test.js` passes
+   (`56/56`). Earlier focused Phase 2 suites were also passing; full `npm test` remains locally
+   blocked by the known missing native `better-sqlite3` binding in repository tests.
+
+Pending user actions after commit/deploy:
+
+- Ensure new files are included in the commit/deploy set, especially `backend/src/runtime/candidatePresets.js`,
+  `backend/src/runtime/exitPolicy.js`, new Phase 3 `backend/src/runtime/promotionGate.js`, and
+  Phase 4 `backend/src/runtime/liveActivationReadiness.js`.
+- Launch or continue the `phase2_room_to_run` paper candidate and let it reach at least 50 closed
+  realistic-paper trades. Promotion should remain blocked until the gate returns `PASS`.
+- Do not re-enable live or promote any candidate without explicit user approval.
+
+Checkpoint: candidate promotion is now gated on realistic-paper numbers; a negative or under-sampled
+candidate cannot reach live through the promotion endpoint.
+
+### Current Phase — Phase 4: Controlled live re-enable (LOCAL CODE DONE; operational approval pending)
+
+Goal: make the final live re-enable a separate, explicit, size-capped step after a paper candidate
+passes the Phase 3 gate.
+
+Completed locally on 2026-05-29:
+
+1. Added `backend/src/runtime/liveActivationReadiness.js` with the Phase 4 controlled-live policy:
+   promotion keeps `enableTrading:false`, caps `maxOpenPositions` at `1`, `riskPerTrade` at `0.005`,
+   `maxCapitalAtRisk` at `50`, and `maxPortfolioExposure` at `0.1`.
+2. Candidate promotion now applies that controlled-live config overlay, so a successful promotion
+   selects the gate-passing strategy for live/shadow but still leaves live entries paused.
+3. Promotion metadata now carries `promotionGate` and `phase4ControlledLive` onto the live run,
+   shadow run, candidate audit metadata, and API response.
+4. Added `GET /api/trading/live-readiness` to report whether the active live selection is eligible
+   for controlled activation.
+5. `POST /api/trading/start` now fails closed with `409 Controlled live readiness failed` unless
+   the active live run has passing promotion-gate evidence and the controlled risk caps are intact.
+   This closes the manual `/trading/start` bypass.
+6. Tests: `npm test -- liveActivationReadiness.test.js promotionGate.test.js tradingRoutes.test.js runtimeCoordinator.test.js`
+   passes (`28/28`). The full focused remediation set should be run before deploy.
+
+Pending operational steps (user-run only):
+
+- Deploy the full Phase 1-4 commit set.
+- Let `phase2_room_to_run` collect the required realistic-paper sample and verify the promotion gate.
+- Only after explicit approval, promote the passing candidate. Promotion will keep entries paused.
+- Check `GET /api/trading/live-readiness`; only if it returns `PASS`, the user may explicitly call
+  `POST /api/trading/start` to enable controlled live entries.
+- After controlled live starts, monitor live vs paired `paper_shadow` per-pip tracking and compare
+  against the frozen Phase 0 baseline.
+
 ### Codebase Reminders For The Next Thread
 
 - `backend/server.js` boots three runtime layers: `runtimeCoordinator` (shared run orchestration),
@@ -531,8 +602,9 @@ minimum sample, ideally by side/session/pair, before live promotion is considere
   paper-only management for `paper_shadow`/`paper_candidate` — this is the Phase 1 edit surface.
 - `backend/src/services/LiveTradingEngine.js` holds the live exit stack (break-even `:2110-2176`,
   trailing `:2192`) — the Phase 2 exit-redesign surface.
-- `backend/src/strategies/expectedEdge.js` + `backend/src/services/analyticsService.js` — Phase 3 cohort
-  expectancy + the promotion gate.
+- `backend/src/strategies/expectedEdge.js`, `backend/src/services/analyticsService.js`, and
+  `backend/src/runtime/promotionGate.js` — Phase 3 cohort expectancy + hard promotion gate.
+- `backend/src/runtime/liveActivationReadiness.js` — Phase 4 controlled live-start guardrail.
 - Pause/resume live via `POST /api/trading/stop` / `POST /api/trading/start` (persists to config + applies live).
 
 ### Next Session Start Checklist
@@ -541,13 +613,19 @@ minimum sample, ideally by side/session/pair, before live promotion is considere
 2. Do not re-check that live is paused; the user has confirmed it. The active live strategy remains whatever
    `strategy_runs` says, currently `timesfm_directional`, not the repo config's strategy field.
 3. Prompt the user to commit Phase 0 baseline + Phase 1/2 changes if they have not already.
-4. Prompt the user to set Pi `timeStopHours:0` and deploy via `./scripts/update.sh`; do not run git/deploy/build.
-5. After deploy, ask the user to launch the `phase2_room_to_run` paper candidate via the curl command above.
-6. Forward-monitor paired live/shadow data and the Phase 2 candidate via read-only SQL.
-7. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
+4. Include Phase 3 files in the same commit/deploy set. The Pi boot issue on 2026-05-29 was caused by
+   a deployed route requiring a new runtime file that was not present on the Pi.
+5. Prompt the user to set Pi `timeStopHours:0` and deploy via `./scripts/update.sh`; do not run git/deploy/build.
+6. After deploy, ask the user to launch the `phase2_room_to_run` paper candidate via the curl command above.
+7. Forward-monitor paired live/shadow data and the Phase 2 candidate via read-only SQL.
+8. Use `/api/analytics?mode=paper_candidate&runId=<runId>&strategy=timesfm_directional&period=all`
+   to inspect `cohortExpectancy` before any promotion attempt.
+9. Use `/api/trading/live-readiness` before any live re-enable. `POST /api/trading/start` is now
+   guarded and should fail unless the promoted live run has passing gate evidence and controlled caps.
+10. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
    identity columns (`mode`/`runId`/`strategy`). Do not re-enable live or promote a candidate without
    explicit user approval.
-8. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
+11. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
    not the repo `trading_config.json` field.
 
 ### Future UI Enhancement (Captured)

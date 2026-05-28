@@ -116,6 +116,7 @@ function normalizeExpectancySummary(analytics = {}) {
             cohortSummary.profitFactorPips,
             toFiniteNumber(analyticsSummary.profitFactor, 0)
         ),
+        expectedEdge: cohortSummary.expectedEdge || null,
     };
 }
 
@@ -138,6 +139,7 @@ function normalizeSideRows(analytics = {}) {
                     ? null
                     : toFiniteNumber(row.avgR, null),
             profitFactorPips: toFiniteNumber(row.profitFactorPips, 0),
+            expectedEdge: row.expectedEdge || null,
         }));
     }
 
@@ -158,6 +160,7 @@ function normalizeSideRows(analytics = {}) {
             totalPnLPips,
             avgR: null,
             profitFactorPips: 0,
+            expectedEdge: null,
         };
     });
 }
@@ -186,6 +189,7 @@ function evaluatePromotionGate({
             netExpectancyPips: 0,
             avgR: null,
             profitFactorPips: 0,
+            expectedEdge: null,
         }),
     }));
     const reasons = [];

@@ -4,6 +4,10 @@ const router = express.Router();
 const { listStrategyCatalog, getStrategyDefinition } = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
 const { listCandidatePresets } = require("../runtime/candidatePresets");
+const {
+    applyControlledLiveConfig,
+    evaluateControlledLiveReadiness,
+} = require("../runtime/liveActivationReadiness");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
 
@@ -274,6 +278,37 @@ async function resolveRunForResponse(req, runId) {
     }
 
     return normalizeRunResponse(persistedRun);
+}
+
+async function evaluateRunPromotionGate(req, run) {
+    const tradeRepo = req.app.locals.tradeRepository;
+    const signalRepo = req.app.locals.signalRepository;
+    const entryDecisionRepo = req.app.locals.entryDecisionRepository;
+
+    if (!tradeRepo || !signalRepo) {
+        const error = new Error("Analytics repositories not available");
+        error.statusCode = 503;
+        throw error;
+    }
+
+    const AnalyticsService = require("../services/analyticsService");
+    const { evaluatePromotionGate } = require("../runtime/promotionGate");
+    const analyticsService = new AnalyticsService(
+        tradeRepo,
+        signalRepo,
+        entryDecisionRepo
+    );
+    const analytics = await analyticsService.getAnalytics("all", {
+        mode: RUNTIME_MODES.PAPER_CANDIDATE,
+        runId: run.runId,
+        strategy: run.strategy,
+    });
+
+    return evaluatePromotionGate({
+        analytics,
+        run,
+        configSnapshot: run.configSnapshot,
+    });
 }
 
 // ============ HEALTH & STATUS ============
@@ -807,17 +842,64 @@ router.post("/trade/close/:id", async (req, res) => {
 
 // ============ TRADING CONTROL ============
 
+router.get("/trading/live-readiness", (req, res) => {
+    try {
+        const configService = req.app.locals.configService;
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        if (!configService) {
+            return res.status(503).json({ error: "Config service not available" });
+        }
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+
+        res.json(
+            evaluateControlledLiveReadiness({
+                liveSelection: runtimeCoordinator.getLiveSelection?.() || null,
+                config: configService.get?.() || {},
+            })
+        );
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.post("/trading/start", (req, res) => {
     try {
         const configService = req.app.locals.configService;
-        if (configService) {
-            configService.update({ enableTrading: true });
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        if (!configService) {
+            return res.status(503).json({ error: "Config service not available" });
         }
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+
+        const liveReadiness = evaluateControlledLiveReadiness({
+            liveSelection: runtimeCoordinator.getLiveSelection?.() || null,
+            config: configService.get?.() || {},
+        });
+        if (!liveReadiness.passed) {
+            return res.status(409).json({
+                error: "Controlled live readiness failed",
+                liveReadiness,
+            });
+        }
+
+        configService.update({ enableTrading: true });
 
         const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
         if (broadcastEngineStatus) broadcastEngineStatus();
 
-        res.json({ success: true, message: "Trading enabled" });
+        res.json({
+            success: true,
+            message: "Trading enabled",
+            liveReadiness,
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -987,6 +1069,22 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
         });
     }
 
+    let promotionGate;
+    try {
+        promotionGate = await evaluateRunPromotionGate(req, run);
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({
+            error: error.message,
+        });
+    }
+
+    if (!promotionGate.passed) {
+        return res.status(409).json({
+            error: "Promotion gate failed",
+            promotionGate,
+        });
+    }
+
     const marketOpen = isForexMarketOpen();
     const engineWasRunning = tradingEngine.isRunning === true;
     let engineRestarted = false;
@@ -1021,16 +1119,32 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
                 );
             }
 
-            const nextConfig = {
+            const nextConfig = applyControlledLiveConfig({
                 ...configService.get(),
                 ...(run.configSnapshot || {}),
                 strategy: run.strategy,
+            });
+            const phase4ControlledLive = {
+                appliedAt: Date.now(),
+                promotedFromRunId: run.runId,
+                promotionGate,
+                riskLimits: {
+                    maxOpenPositions: nextConfig.maxOpenPositions,
+                    riskPerTrade: nextConfig.riskPerTrade,
+                    maxCapitalAtRisk: nextConfig.maxCapitalAtRisk,
+                    maxPortfolioExposure: nextConfig.maxPortfolioExposure,
+                },
             };
 
             const liveSelection = await runtimeCoordinator.selectLiveStrategy({
                 strategyKey: run.strategy,
                 configSnapshot: nextConfig,
                 initiatedBy: "paper-promotion",
+                metadata: {
+                    promotedFromRunId: run.runId,
+                    promotionGate,
+                    phase4ControlledLive,
+                },
             });
 
             try {
@@ -1049,6 +1163,8 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
                             liveSelection?.shadowRun?.runId ||
                             liveSelection?.shadowRunId ||
                             null,
+                        promotionGate,
+                        phase4ControlledLive,
                     },
                 });
             } catch (metadataError) {
@@ -1092,6 +1208,8 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
                     })),
                     promotedFromRunId: run.runId,
                     strategy: run.strategy,
+                    promotionGate,
+                    phase4ControlledLive,
                 },
             });
         } catch (error) {
@@ -1123,6 +1241,7 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
                     })),
                     promotedFromRunId: run.runId,
                     strategy: run.strategy,
+                    promotionGate,
                 },
             });
         }
