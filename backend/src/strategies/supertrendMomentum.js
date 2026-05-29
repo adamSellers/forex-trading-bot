@@ -3,8 +3,16 @@ const logger = require("../utils/logger");
 const { calculateSuperTrend } = require("../utils/indicators");
 const { calculateExpectedEdge } = require("./expectedEdge");
 const { createStrategyDefinition } = require("./strategyContract");
+const {
+    resolveSupertrendPeriod,
+    resolveSupertrendMultiplier,
+} = require("../config/supertrendParams");
 
 function toFiniteNumber(value, fallback = null) {
+    if (value === null || value === undefined || value === "") {
+        return fallback;
+    }
+
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -28,6 +36,10 @@ function isShortContinuationEnabled(config) {
     return config.enableShortContinuationEntry !== false;
 }
 
+function isShortingEnabled(config) {
+    return config.enableShorting !== false;
+}
+
 function areFreshFlipEntriesEnabled(config) {
     return config.enableFreshFlipEntries !== false;
 }
@@ -41,15 +53,18 @@ function isRsiFilterEnabled(config) {
 }
 
 function getLongMomentumFloor(config) {
-    return config.longRsiMomentumFloor || 52;
+    return toFiniteNumber(config.longRsiMomentumFloor, 52);
 }
 
 function getShortMomentumCeiling(config) {
-    return config.shortRsiMomentumCeiling || 48;
+    return toFiniteNumber(config.shortRsiMomentumCeiling, 50);
 }
 
 function getFreshLongRsiCeiling(config) {
-    return config.freshLongRsiCeiling || config.rsiOverbought || 75;
+    return toFiniteNumber(
+        config.freshLongRsiCeiling ?? config.rsiOverbought,
+        75
+    );
 }
 
 function passesLongMomentum(config, rsiVal) {
@@ -65,11 +80,17 @@ function passesFreshLongRsiCeiling(config, rsiVal) {
 }
 
 function passesLongOverboughtCeiling(config, rsiVal) {
-    return !isRsiFilterEnabled(config) || rsiVal < (config.rsiOverbought || 75);
+    return (
+        !isRsiFilterEnabled(config) ||
+        rsiVal < toFiniteNumber(config.rsiOverbought, 75)
+    );
 }
 
 function passesFreshShortRsiFloor(config, rsiVal) {
-    return !isRsiFilterEnabled(config) || rsiVal > (config.rsiOversold || 30);
+    return (
+        !isRsiFilterEnabled(config) ||
+        rsiVal > toFiniteNumber(config.rsiOversold, 30)
+    );
 }
 
 function estimateSupertrendStopPips(config = {}, atrPips = 0) {
@@ -196,8 +217,8 @@ function getHtfTrendContext(config, dataService, instrument, options = {}) {
         highs,
         lows,
         closes,
-        config.atrPeriod || 10,
-        config.factor || 3
+        resolveSupertrendPeriod(config),
+        resolveSupertrendMultiplier(config)
     );
     const direction = stData.direction[stData.direction.length - 1] || 0;
 
@@ -958,8 +979,8 @@ async function evaluateSupertrendMomentumEntry(context) {
             highs,
             lows,
             closes,
-            config.atrPeriod || 10,
-            config.factor || 3
+            resolveSupertrendPeriod(config),
+            resolveSupertrendMultiplier(config)
         );
 
     const idx = closes.length - 1;
@@ -1050,6 +1071,7 @@ async function evaluateSupertrendMomentumEntry(context) {
     const freshFlipEntriesEnabled = areFreshFlipEntriesEnabled(config);
     const longContinuationEnabled = isLongContinuationEnabled(config);
     const shortContinuationEnabled = isShortContinuationEnabled(config);
+    const shortingEnabled = isShortingEnabled(config);
     const currentCandle = resolvedCandles[idx];
     const previousCandle = resolvedCandles[idx - 1];
     const pending = pendingEntry;
@@ -1110,6 +1132,7 @@ async function evaluateSupertrendMomentumEntry(context) {
         adxSlopeOk &&
         passesFreshLongRsiCeiling(config, rsiVal);
     const freshShortEntryOk =
+        shortingEnabled &&
         shortBaseRegimeOk &&
         adxSlopeOk &&
         passesFreshShortRsiFloor(config, rsiVal);
@@ -1279,7 +1302,14 @@ async function evaluateSupertrendMomentumEntry(context) {
             clearPending();
         }
 
-        if (freshFlipEntriesEnabled && freshShortEntryOk) {
+        if (!shortingEnabled) {
+            entryType = "EXIT_ONLY";
+            reasonCode = "SHORT_FRESH_FLIP_SHORTING_DISABLED";
+            signalClass = "EXIT_ONLY";
+            intent = "EXIT_LONG_ONLY";
+            reason = "EXIT_ONLY: ST Flip RED (short entries disabled)";
+            clearPending();
+        } else if (freshFlipEntriesEnabled && freshShortEntryOk) {
             entryType = "SHORT_ENTRY";
             reasonCode = "SHORT_FRESH_FLIP_ACTIONABLE";
             signalClass = "ACTIONABLE";
@@ -1389,65 +1419,75 @@ async function evaluateSupertrendMomentumEntry(context) {
                 )})`;
         }
     } else if (currentDir === -1 && pending && pending.direction === "SHORT") {
-        const evaluation =
-            pending.state === "AWAIT_HTF_CONFIRMATION"
-                ? evaluateShortHtfConfirmationSetup(config, {
-                      pending,
-                      signalCandleTime,
-                      currentDir,
-                      currentClose: currentCandle.close,
-                      currentHigh: currentCandle.high,
-                      currentLow: currentCandle.low,
-                      adxMeetsThreshold,
-                      adxOk,
-                      shortDiOk,
-                      shortBaseRegimeOk,
-                      shortContinuationEnabled,
-                      htfContext,
-                      rsiVal,
-                      adxVal,
-                  })
-                : evaluateShortPullbackSetup(config, {
-                      instrument,
-                      pending,
-                      signalCandleTime,
-                      currentOpen: currentCandle.open,
-                      currentClose: currentCandle.close,
-                      currentHigh: currentCandle.high,
-                      currentLow: currentCandle.low,
-                      previousCandle,
-                      atrVal,
-                      rsiVal,
-                      adxMeetsThreshold,
-                      adxOk,
-                      shortDiOk,
-                      htfContext,
-                  });
-
-        if (evaluation.clearPending) {
+        if (!shortingEnabled) {
+            signalType = "SELL";
+            entryType = "EXIT_ONLY";
+            reasonCode = "SHORT_PENDING_SHORTING_DISABLED";
+            signalClass = "EXIT_ONLY";
+            intent = "EXIT_LONG_ONLY";
+            reason = "EXIT_ONLY: short setup cleared because short entries are disabled";
             clearPending();
-        } else if (evaluation.pending) {
-            setPending(evaluation.pending);
-        }
-
-        if (evaluation.signalType) {
-            signalType = evaluation.signalType;
-            entryType = evaluation.entryType;
-            reason = evaluation.reason;
         } else {
-            signalType =
-                pending.state === "AWAIT_HTF_CONFIRMATION" ? "HOLD" : "SELL";
-            entryType =
-                pending.state === "AWAIT_HTF_CONFIRMATION" ? null : "EXIT_ONLY";
-            reason = evaluation.reason;
+            const evaluation =
+                pending.state === "AWAIT_HTF_CONFIRMATION"
+                    ? evaluateShortHtfConfirmationSetup(config, {
+                          pending,
+                          signalCandleTime,
+                          currentDir,
+                          currentClose: currentCandle.close,
+                          currentHigh: currentCandle.high,
+                          currentLow: currentCandle.low,
+                          adxMeetsThreshold,
+                          adxOk,
+                          shortDiOk,
+                          shortBaseRegimeOk,
+                          shortContinuationEnabled,
+                          htfContext,
+                          rsiVal,
+                          adxVal,
+                      })
+                    : evaluateShortPullbackSetup(config, {
+                          instrument,
+                          pending,
+                          signalCandleTime,
+                          currentOpen: currentCandle.open,
+                          currentClose: currentCandle.close,
+                          currentHigh: currentCandle.high,
+                          currentLow: currentCandle.low,
+                          previousCandle,
+                          atrVal,
+                          rsiVal,
+                          adxMeetsThreshold,
+                          adxOk,
+                          shortDiOk,
+                          htfContext,
+                      });
+
+            if (evaluation.clearPending) {
+                clearPending();
+            } else if (evaluation.pending) {
+                setPending(evaluation.pending);
+            }
+
+            if (evaluation.signalType) {
+                signalType = evaluation.signalType;
+                entryType = evaluation.entryType;
+                reason = evaluation.reason;
+            } else {
+                signalType =
+                    pending.state === "AWAIT_HTF_CONFIRMATION" ? "HOLD" : "SELL";
+                entryType =
+                    pending.state === "AWAIT_HTF_CONFIRMATION" ? null : "EXIT_ONLY";
+                reason = evaluation.reason;
+            }
+            reasonCode = evaluation.reasonCode || reasonCode;
+            signalClass =
+                evaluation.signalClass ||
+                (signalType === "SELL" && entryType === "EXIT_ONLY"
+                    ? "EXIT_ONLY"
+                    : signalClass);
+            intent = evaluation.intent || intent;
         }
-        reasonCode = evaluation.reasonCode || reasonCode;
-        signalClass =
-            evaluation.signalClass ||
-            (signalType === "SELL" && entryType === "EXIT_ONLY"
-                ? "EXIT_ONLY"
-                : signalClass);
-        intent = evaluation.intent || intent;
     }
 
     const expectedEdge =

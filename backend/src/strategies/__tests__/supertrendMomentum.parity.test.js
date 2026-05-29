@@ -86,6 +86,49 @@ describe("supertrendMomentumStrategy parity", () => {
         );
     });
 
+    test("uses user-facing SuperTrend period and multiplier config", async () => {
+        const candles = generateCandles(250);
+        const currentPrice = candles[candles.length - 1].close;
+        const calculateSuperTrendFn = jest.fn(() => ({
+            superTrend: new Array(candles.length).fill(currentPrice),
+            direction: [...new Array(candles.length - 2).fill(-1), -1, 1],
+            atr: new Array(candles.length).fill(0.001),
+        }));
+
+        jest.spyOn(RSI, "calculate").mockReturnValue([62]);
+        jest.spyOn(ATR, "calculate").mockReturnValue([0.001]);
+        jest.spyOn(ADX, "calculate").mockReturnValue([
+            { adx: 20, pdi: 18, mdi: 12 },
+            { adx: 21, pdi: 20, mdi: 12 },
+            { adx: 22, pdi: 21, mdi: 11 },
+            { adx: 25, pdi: 24, mdi: 10 },
+        ]);
+
+        await supertrendMomentumStrategy.evaluateEntry({
+            instrument: "AUD_USD",
+            candles,
+            currentPrice,
+            config: {
+                ...generator.config,
+                enableHTFFilter: false,
+                supertrendPeriod: 14,
+                supertrendMultiplier: 4,
+                atrPeriod: 10,
+                factor: 3,
+            },
+            dataService: generator.dataService,
+            calculateSuperTrendFn,
+        });
+
+        expect(calculateSuperTrendFn).toHaveBeenCalledWith(
+            expect.any(Array),
+            expect.any(Array),
+            expect.any(Array),
+            14,
+            4
+        );
+    });
+
     test("queues continuation instead of chasing a fresh flip when disabled", async () => {
         const candles = generateCandles(250);
         const currentPrice = candles[candles.length - 1].close;
@@ -128,6 +171,44 @@ describe("supertrendMomentumStrategy parity", () => {
                         freshFlipEntriesEnabled: false,
                     }),
                 }),
+            })
+        );
+    });
+
+    test("emits exit-only red flip when shorting is disabled", async () => {
+        const candles = generateCandles(250);
+        const currentPrice = candles[candles.length - 1].close;
+
+        generator.updateConfig({
+            enableFreshFlipEntries: true,
+            enableShorting: false,
+            enableHTFFilter: false,
+        });
+
+        jest.spyOn(generator, "calculateSuperTrend").mockImplementation(() => ({
+            superTrend: new Array(candles.length).fill(currentPrice),
+            direction: [...new Array(candles.length - 2).fill(1), 1, -1],
+            atr: new Array(candles.length).fill(0.001),
+        }));
+        jest.spyOn(RSI, "calculate").mockReturnValue([42]);
+        jest.spyOn(ATR, "calculate").mockReturnValue([0.001]);
+        jest.spyOn(ADX, "calculate").mockReturnValue([
+            { adx: 20, pdi: 20, mdi: 18 },
+            { adx: 21, pdi: 18, mdi: 20 },
+            { adx: 22, pdi: 14, mdi: 21 },
+            { adx: 25, pdi: 12, mdi: 24 },
+        ]);
+
+        const direct = await evaluateDirectly("AUD_USD", candles, currentPrice);
+        expect(direct).toEqual(
+            expect.objectContaining({
+                signalType: "SELL",
+                entryType: "EXIT_ONLY",
+                reasonCode: "SHORT_FRESH_FLIP_SHORTING_DISABLED",
+                signalClass: "EXIT_ONLY",
+                intent: "EXIT_LONG_ONLY",
+                pendingAction: "clear",
+                expectedEdge: null,
             })
         );
     });

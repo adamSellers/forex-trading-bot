@@ -1,6 +1,10 @@
 // backend/src/utils/indicators.js - Shared indicator calculations
 // Used by the live runtime and shared analytics/helpers
 const { RSI, ADX, ATR } = require("technicalindicators");
+const {
+    resolveSupertrendPeriod,
+    resolveSupertrendMultiplier,
+} = require("../config/supertrendParams");
 
 /**
  * Calculate SuperTrend indicator from OHLC arrays
@@ -121,7 +125,7 @@ function getPipValue(instrument) {
  * Convenience helper for non-runtime indicator consumers.
  *
  * @param {Array<{high: number, low: number, close: number}>} candles
- * @param {object} config - Strategy config with atrPeriod, factor
+ * @param {object} config - Strategy config with supertrendPeriod/supertrendMultiplier
  * @returns {object} All indicator values for the latest candle
  */
 function calculateAllIndicators(candles, config = {}) {
@@ -133,8 +137,8 @@ function calculateAllIndicators(candles, config = {}) {
         highs,
         lows,
         closes,
-        config.atrPeriod || 10,
-        config.factor || 3
+        resolveSupertrendPeriod(config),
+        resolveSupertrendMultiplier(config)
     );
 
     const idx = closes.length - 1;

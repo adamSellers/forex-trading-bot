@@ -5,6 +5,10 @@ const { RSI, ADX, ATR } = require("technicalindicators");
 const { calculateSuperTrend } = require("../utils/indicators");
 const { computeConfigHash } = require("../config/tradingConfig");
 const { getStrategyDefinition } = require("../strategies");
+const {
+    resolveSupertrendPeriod,
+    resolveSupertrendMultiplier,
+} = require("../config/supertrendParams");
 
 class SignalGenerator extends EventEmitter {
     constructor(config = {}, signalRepository = null) {
@@ -34,6 +38,8 @@ class SignalGenerator extends EventEmitter {
             freshLongRsiCeiling: 68,
             rsiOverbought: 75,
             rsiOversold: 30,
+            supertrendPeriod: 10,
+            supertrendMultiplier: 3,
             atrPeriod: 10,
             factor: 3, // SuperTrend multiplier
 
@@ -53,6 +59,10 @@ class SignalGenerator extends EventEmitter {
 
             ...config,
         };
+        this.config.atrPeriod = resolveSupertrendPeriod(this.config);
+        this.config.factor = resolveSupertrendMultiplier(this.config);
+        this.config.supertrendPeriod = this.config.atrPeriod;
+        this.config.supertrendMultiplier = this.config.factor;
 
         this.lastSignals = new Map();
         this._pendingEntries = new Map();
@@ -356,17 +366,17 @@ class SignalGenerator extends EventEmitter {
     }
 
     getLongMomentumFloor() {
-        return this.config.longRsiMomentumFloor || 52;
+        return this.config.longRsiMomentumFloor ?? 52;
     }
 
     getShortMomentumCeiling() {
-        return this.config.shortRsiMomentumCeiling || 48;
+        return this.config.shortRsiMomentumCeiling ?? 50;
     }
 
     getFreshLongRsiCeiling() {
         return (
-            this.config.freshLongRsiCeiling ||
-            this.config.rsiOverbought ||
+            this.config.freshLongRsiCeiling ??
+            this.config.rsiOverbought ??
             75
         );
     }
@@ -386,11 +396,11 @@ class SignalGenerator extends EventEmitter {
     }
 
     passesLongOverboughtCeiling(rsiVal) {
-        return !this.isRsiFilterEnabled() || rsiVal < (this.config.rsiOverbought || 75);
+        return !this.isRsiFilterEnabled() || rsiVal < (this.config.rsiOverbought ?? 75);
     }
 
     passesFreshShortRsiFloor(rsiVal) {
-        return !this.isRsiFilterEnabled() || rsiVal > (this.config.rsiOversold || 30);
+        return !this.isRsiFilterEnabled() || rsiVal > (this.config.rsiOversold ?? 30);
     }
 
     isShortContinuationEnabled() {
@@ -429,8 +439,8 @@ class SignalGenerator extends EventEmitter {
             highs,
             lows,
             closes,
-            this.config.atrPeriod || 10,
-            this.config.factor || 3
+            resolveSupertrendPeriod(this.config),
+            resolveSupertrendMultiplier(this.config)
         );
         const direction = stData.direction[stData.direction.length - 1] || 0;
 
@@ -1372,6 +1382,10 @@ class SignalGenerator extends EventEmitter {
 
     updateConfig(newConfig) {
         this.config = { ...this.config, ...newConfig };
+        this.config.atrPeriod = resolveSupertrendPeriod(this.config);
+        this.config.factor = resolveSupertrendMultiplier(this.config);
+        this.config.supertrendPeriod = this.config.atrPeriod;
+        this.config.supertrendMultiplier = this.config.factor;
         logger.info(
             `ðŸ”„ Signal Generator config updated. ADX threshold: ${this.config.minAdx}`
         );

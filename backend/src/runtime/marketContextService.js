@@ -3,6 +3,10 @@ const { calculateSuperTrend } = require("../utils/indicators");
 const { getStrategyDefinition } = require("../strategies");
 const { buildOpeningRange } = require("../strategies/rangeBreakout");
 const {
+    resolveSupertrendPeriod,
+    resolveSupertrendMultiplier,
+} = require("../config/supertrendParams");
+const {
     calculateAlignedStochasticSeries,
 } = require("../strategies/stochasticDivergence");
 const { buildSqueezePlayDerivedContext } = require("../strategies/squeezePlay");
@@ -75,8 +79,8 @@ function buildIndicatorBundle(candles = [], indicators = [], config = {}) {
             highs,
             lows,
             closes,
-            config.atrPeriod || 10,
-            config.factor || 3
+            resolveSupertrendPeriod(config),
+            resolveSupertrendMultiplier(config)
         );
     }
 

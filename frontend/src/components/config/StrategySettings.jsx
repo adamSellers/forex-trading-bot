@@ -78,7 +78,7 @@ const StrategySettings = ({ config, updateConfig }) => {
                 </Typography>
               </Box>
               <Switch
-                checked={config.enableShorting ?? true}
+                checked={config.enableShorting ?? false}
                 onChange={(e) => updateConfig('enableShorting', e.target.checked)}
                 color="warning"
               />
