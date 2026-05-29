@@ -23,8 +23,7 @@ import {
   Circle,
   MonitorHeart,
 } from '@mui/icons-material';
-import { io } from 'socket.io-client';
-import { SOCKET_URL, tradingAPI } from '../config/api';
+import { socket, tradingAPI } from '../config/api';
 
 const Navigation = ({ currentView, onViewChange, views }) => {
   const theme = useTheme();
@@ -50,28 +49,34 @@ const Navigation = ({ currentView, onViewChange, views }) => {
   };
 
   useEffect(() => {
-    const socket = io(SOCKET_URL || window.location.origin, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-    });
-
-    socket.on('connect', () => {
+    const handleConnect = () => {
       setConnectionStatus('connected');
       setLastUpdate(Date.now());
-    });
+    };
 
-    socket.on('disconnect', () => {
+    const handleDisconnect = () => {
       setConnectionStatus('disconnected');
-    });
+    };
 
-    socket.on('connect_error', () => {
+    const handleConnectError = () => {
       setConnectionStatus('error');
-    });
+    };
 
-    socket.on('configUpdate', (config) => {
+    const handleConfigUpdate = (config) => {
       setTradingEnabled(config?.enableTrading || false);
       setLastUpdate(Date.now());
-    });
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('configUpdate', handleConfigUpdate);
+
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      handleConnect();
+    }
 
     // Initial fetch
     tradingAPI.getStatus()
@@ -81,6 +86,10 @@ const Navigation = ({ currentView, onViewChange, views }) => {
       .catch(console.error);
 
     return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('configUpdate', handleConfigUpdate);
       socket.disconnect();
     };
   }, []);

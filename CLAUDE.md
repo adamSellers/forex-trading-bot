@@ -580,6 +580,11 @@ Completed locally on 2026-05-29:
    user can still manually enable live entries while seeing the readiness warning/result.
 6. Tests: `npm test -- liveActivationReadiness.test.js promotionGate.test.js tradingRoutes.test.js runtimeCoordinator.test.js`
    passes (`28/28`). The full focused remediation set should be run before deploy.
+7. Added an operational Paper Lab reset-all control:
+   `POST /api/runtime/paper/reset` with `{ "confirm": "RESET_PAPER" }` clears paper shadow/candidate
+   trades, signals, entry decisions, portfolio snapshots, and active paper run summaries, then
+   re-seeds active paper snapshots at starting balance. The Paper Comparison UI exposes this as
+   `Reset All Paper`. Live trades and live selection are untouched.
 
 Pending operational steps (user-run only):
 
@@ -623,10 +628,12 @@ Pending operational steps (user-run only):
    to inspect `cohortExpectancy` before any promotion attempt.
 9. Use `/api/trading/live-readiness` before any live re-enable. Dashboard `ENABLE LIVE` sends a
    manual override, so it will still let the user proceed even if readiness is not `PASS`.
-10. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
+10. To zero all paper state, use the Paper Comparison `Reset All Paper` button or
+   `POST /api/runtime/paper/reset` with `{ "confirm": "RESET_PAPER" }`.
+11. Keep `runtimeCoordinator`/`paperTradingRuntime` as the shared backbone; analytics use runtime
    identity columns (`mode`/`runId`/`strategy`). Do not re-enable live or promote a candidate without
    explicit user approval.
-11. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
+12. Remember the config/runtime mismatch: the live strategy is whatever `strategy_runs` says is active,
    not the repo `trading_config.json` field.
 
 ### Future UI Enhancement (Captured)

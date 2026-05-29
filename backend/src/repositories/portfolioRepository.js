@@ -125,6 +125,21 @@ class PortfolioRepository {
         }
     }
 
+    async deleteByRuntimeFilters(filters = {}) {
+        try {
+            return await this._applyRuntimeFilters(
+                db("portfolio_snapshots"),
+                filters
+            ).del();
+        } catch (error) {
+            logger.error(
+                "Error deleting portfolio snapshots by runtime filters:",
+                error
+            );
+            throw error;
+        }
+    }
+
     _emptySnapshot() {
         return {
             totalValueAud: 0,

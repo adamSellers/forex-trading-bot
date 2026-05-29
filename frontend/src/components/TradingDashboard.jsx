@@ -29,8 +29,7 @@ import {
   Sync,
   FiberManualRecord,
 } from '@mui/icons-material';
-import { io } from 'socket.io-client';
-import { SOCKET_URL, tradingAPI, engineAPI, runtimeAPI, strategiesAPI } from '../config/api';
+import { socket, tradingAPI, engineAPI, runtimeAPI, strategiesAPI } from '../config/api';
 
 // --- IMPORTED WIDGETS ---
 import { GlassCard, FOREX_INSTRUMENTS } from './dashboard/Shared';
@@ -113,7 +112,6 @@ const TradingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
 
-  const socketRef = useRef(null);
   const isMountedRef = useRef(true);
   const strategyCatalogRef = useRef(strategyCatalog);
   const liveSelectionRef = useRef(liveSelection);
@@ -123,7 +121,6 @@ const TradingDashboard = () => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
-      if (socketRef.current) socketRef.current.disconnect();
     };
   }, []);
 
@@ -173,7 +170,7 @@ const TradingDashboard = () => {
           tradingAPI.getPrices(),
           tradingAPI.getAccount(),
           engineAPI.getStatus(),
-          runtimeAPI.getLiveSelection(),
+          runtimeAPI.getLiveSelection({ includeRuns: false }),
           strategiesAPI.getCatalog(),
         ]);
 
@@ -237,24 +234,16 @@ const TradingDashboard = () => {
   }, [updateSignalState]);
 
   useEffect(() => {
-    const socketUrl = SOCKET_URL || window.location.origin;
-    socketRef.current = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-      reconnection: true,
-    });
-    const socket = socketRef.current;
-
-    socket.on('connect', () => {
+    const handleConnect = () => {
       if (isMountedRef.current) {
         setError(null);
         fetchInitialData();
       }
-    });
+    };
 
-    socket.on('systemStatus', (s) => isMountedRef.current && setSystemStatus(s));
-    socket.on('engineStatus', (s) => isMountedRef.current && setEngineStatus(s));
-    socket.on('liveSelectionUpdated', (selection) => {
+    const handleSystemStatus = (s) => isMountedRef.current && setSystemStatus(s);
+    const handleEngineStatus = (s) => isMountedRef.current && setEngineStatus(s);
+    const handleLiveSelectionUpdated = (selection) => {
       if (isMountedRef.current) {
         const previousSelection = liveSelectionRef.current;
         const selectionChanged =
@@ -272,14 +261,14 @@ const TradingDashboard = () => {
         fetchInitialData();
         setLastUpdate(Date.now());
       }
-    });
-    socket.on('portfolioUpdated', (d) => {
+    };
+    const handlePortfolioUpdated = (d) => {
       if (isMountedRef.current) {
         setPortfolio(d);
         setLastUpdate(Date.now());
       }
-    });
-    socket.on('priceUpdate', (data) => {
+    };
+    const handlePriceUpdate = (data) => {
       if (isMountedRef.current && data) {
         if (typeof data === 'object' && !data.instrument && !data.symbol) {
           setPrices((prev) => {
@@ -304,37 +293,37 @@ const TradingDashboard = () => {
         }
         setLastUpdate(Date.now());
       }
-    });
-    socket.on('signalUpdate', (d) => {
+    };
+    const handleSignalUpdate = (d) => {
       if (isMountedRef.current) {
         updateSignalState(d);
         setLastUpdate(Date.now());
       }
-    });
-    socket.on('signalGenerated', (d) => {
+    };
+    const handleSignalGenerated = (d) => {
       if (isMountedRef.current) {
         updateSignalState(d);
         setLastUpdate(Date.now());
       }
-    });
-    socket.on('tradeExecuted', (t) => {
+    };
+    const handleTradeExecuted = (t) => {
       if (isMountedRef.current) {
         setTrades((prev) => [t, ...prev].slice(0, FETCH_LIMITS.TRADES));
         setLastUpdate(Date.now());
       }
-    });
+    };
     // New: Listen for trade events from engine
-    socket.on('tradeOpened', (t) => {
+    const handleTradeOpened = () => {
       if (isMountedRef.current) {
         fetchInitialData(); // Refresh all data when trade opens
       }
-    });
-    socket.on('tradeClosed', (t) => {
+    };
+    const handleTradeClosed = () => {
       if (isMountedRef.current) {
         fetchInitialData(); // Refresh all data when trade closes
       }
-    });
-    socket.on('configUpdate', (newConfig) => {
+    };
+    const handleConfigUpdate = (newConfig) => {
       if (isMountedRef.current && newConfig) {
         setSystemStatus((prev) => ({ ...prev, config: newConfig }));
         setTradingEnabled(newConfig.enableTrading || false);
@@ -346,9 +335,41 @@ const TradingDashboard = () => {
         );
         setLastUpdate(Date.now());
       }
-    });
+    };
 
-    return () => socket.disconnect();
+    socket.on('connect', handleConnect);
+    socket.on('systemStatus', handleSystemStatus);
+    socket.on('engineStatus', handleEngineStatus);
+    socket.on('liveSelectionUpdated', handleLiveSelectionUpdated);
+    socket.on('portfolioUpdated', handlePortfolioUpdated);
+    socket.on('priceUpdate', handlePriceUpdate);
+    socket.on('signalUpdate', handleSignalUpdate);
+    socket.on('signalGenerated', handleSignalGenerated);
+    socket.on('tradeExecuted', handleTradeExecuted);
+    socket.on('tradeOpened', handleTradeOpened);
+    socket.on('tradeClosed', handleTradeClosed);
+    socket.on('configUpdate', handleConfigUpdate);
+
+    if (!socket.connected) {
+      socket.connect();
+    } else {
+      handleConnect();
+    }
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('systemStatus', handleSystemStatus);
+      socket.off('engineStatus', handleEngineStatus);
+      socket.off('liveSelectionUpdated', handleLiveSelectionUpdated);
+      socket.off('portfolioUpdated', handlePortfolioUpdated);
+      socket.off('priceUpdate', handlePriceUpdate);
+      socket.off('signalUpdate', handleSignalUpdate);
+      socket.off('signalGenerated', handleSignalGenerated);
+      socket.off('tradeExecuted', handleTradeExecuted);
+      socket.off('tradeOpened', handleTradeOpened);
+      socket.off('tradeClosed', handleTradeClosed);
+      socket.off('configUpdate', handleConfigUpdate);
+    };
   }, [fetchInitialData, updateSignalState]);
 
   // --- HANDLERS ---

@@ -56,6 +56,8 @@ class RuntimeCoordinator extends EventEmitter {
         this.isRunning = false;
         this.runInterval = null;
         this.lastRunTime = null;
+        this.isCycleRunning = false;
+        this.lastSkippedCycleAt = null;
         this.latestSignals = [];
         this.runSessions = new Map();
         this.liveSelection = null;
@@ -559,46 +561,61 @@ class RuntimeCoordinator extends EventEmitter {
             return [];
         }
 
-        await this.syncLiveTradeOwnership();
-
-        const descriptors = Array.from(this.runSessions.values()).map((session) => ({
-            ...session.run,
-            config: session.generator.config,
-            assets: this.getRunAssets(session),
-        }));
-        const sharedContext = this.marketContextService.buildSharedContext(
-            descriptors,
-            this.dataService
-        );
-        const allSignals = [];
-
-        for (const session of this.runSessions.values()) {
-            const signals = await this.evaluateRunSession(session, sharedContext);
-            allSignals.push(...signals);
-
-            if (signals.length > 0 && this.signalRepository?.saveBatch) {
-                await this.signalRepository.saveBatch(signals);
+        if (this.isCycleRunning) {
+            const now = Date.now();
+            if (!this.lastSkippedCycleAt || now - this.lastSkippedCycleAt > 60000) {
+                logger.warn("Runtime coordinator cycle skipped: previous cycle still running");
+                this.lastSkippedCycleAt = now;
             }
-
-            this.emit("runSignalsGenerated", {
-                runId: session.run.runId,
-                mode: session.run.mode,
-                strategy: session.run.strategy,
-                signals,
-            });
+            return this.latestSignals;
         }
 
-        const activeLiveSession = Array.from(this.runSessions.values()).find(
-            (session) =>
-                session.run.mode === RUNTIME_MODES.LIVE &&
-                session.run.status === RUN_STATUSES.ACTIVE
-        );
+        this.isCycleRunning = true;
 
-        this.latestSignals = activeLiveSession?.latestSignals || [];
-        this.lastRunTime = Date.now();
-        this.emit("allSignalsGenerated", this.latestSignals);
+        try {
+            await this.syncLiveTradeOwnership();
 
-        return allSignals;
+            const descriptors = Array.from(this.runSessions.values()).map((session) => ({
+                ...session.run,
+                config: session.generator.config,
+                assets: this.getRunAssets(session),
+            }));
+            const sharedContext = this.marketContextService.buildSharedContext(
+                descriptors,
+                this.dataService
+            );
+            const allSignals = [];
+
+            for (const session of this.runSessions.values()) {
+                const signals = await this.evaluateRunSession(session, sharedContext);
+                allSignals.push(...signals);
+
+                if (signals.length > 0 && this.signalRepository?.saveBatch) {
+                    await this.signalRepository.saveBatch(signals);
+                }
+
+                this.emit("runSignalsGenerated", {
+                    runId: session.run.runId,
+                    mode: session.run.mode,
+                    strategy: session.run.strategy,
+                    signals,
+                });
+            }
+
+            const activeLiveSession = Array.from(this.runSessions.values()).find(
+                (session) =>
+                    session.run.mode === RUNTIME_MODES.LIVE &&
+                    session.run.status === RUN_STATUSES.ACTIVE
+            );
+
+            this.latestSignals = activeLiveSession?.latestSignals || [];
+            this.lastRunTime = Date.now();
+            this.emit("allSignalsGenerated", this.latestSignals);
+
+            return allSignals;
+        } finally {
+            this.isCycleRunning = false;
+        }
     }
 
     async start(dataService = this.dataService, intervalMs = this.pollIntervalMs) {

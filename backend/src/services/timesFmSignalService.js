@@ -35,6 +35,9 @@ class TimesFmSignalService {
         this.healthStaleMs = Number.isFinite(Number(options.healthStaleMs))
             ? Number(options.healthStaleMs)
             : 30000;
+        this.failureBackoffMs = Number.isFinite(Number(options.failureBackoffMs))
+            ? Number(options.failureBackoffMs)
+            : 30000;
         this.preprocessMode =
             options.preprocessMode || process.env.TIMESFM_PREPROCESS_MODE || "raw";
         this.volatilityMultipliers = {
@@ -43,6 +46,8 @@ class TimesFmSignalService {
         };
 
         this.cache = new Map();
+        this.inFlightForecasts = new Map();
+        this.failureBackoff = new Map();
         this.healthPromise = null;
     }
 
@@ -95,6 +100,7 @@ class TimesFmSignalService {
         horizon,
         lastCandleTime,
         preprocessMode,
+        deadZoneBps,
     }) {
         return [
             instrument || "UNKNOWN",
@@ -102,6 +108,7 @@ class TimesFmSignalService {
             horizon || 12,
             lastCandleTime || "no-candle-time",
             preprocessMode || "raw",
+            deadZoneBps || 3,
         ].join("|");
     }
 
@@ -263,6 +270,7 @@ class TimesFmSignalService {
             horizon: request.horizon,
             lastCandleTime,
             preprocessMode: this.preprocessMode,
+            deadZoneBps: request.deadZoneBps,
         });
         const cached = this.cache.get(cacheKey);
         const isCacheValid =
@@ -274,29 +282,69 @@ class TimesFmSignalService {
         let cacheHit = Boolean(isCacheValid);
 
         if (!forecast) {
-            forecast = await this.client.getForecast(instrument, closes, {
-                horizon: request.horizon,
-                timeoutMs: request.timeoutMs,
-                preprocessMode: this.preprocessMode,
-                useLogReturns: false,
-                deadZoneBps: request.deadZoneBps,
-            });
-
-            if (!forecast) {
+            const recentFailure = this.failureBackoff.get(cacheKey);
+            if (
+                recentFailure &&
+                Date.now() - recentFailure.failedAt < this.failureBackoffMs
+            ) {
                 return {
                     ...request,
                     inputBars: closes.length,
                     lastCandleTime,
                     unavailableReason:
+                        recentFailure.reason || "sidecar_unavailable",
+                };
+            }
+
+            const existingRequest = this.inFlightForecasts.get(cacheKey);
+            if (existingRequest) {
+                forecast = await existingRequest;
+            } else {
+                const forecastRequest = this.client
+                    .getForecast(instrument, closes, {
+                        horizon: request.horizon,
+                        timeoutMs: request.timeoutMs,
+                        preprocessMode: this.preprocessMode,
+                        useLogReturns: false,
+                        deadZoneBps: request.deadZoneBps,
+                    })
+                    .then((result) => {
+                        if (result) {
+                            this.failureBackoff.delete(cacheKey);
+                            this.cache.set(cacheKey, {
+                                forecast: result,
+                                cachedAt: Date.now(),
+                            });
+                            return result;
+                        }
+
+                        const failure = this.client.getLastFailure?.();
+                        this.failureBackoff.set(cacheKey, {
+                            failedAt: Date.now(),
+                            reason: failure?.reason || "sidecar_unavailable",
+                        });
+                        return null;
+                    })
+                    .finally(() => {
+                        this.inFlightForecasts.delete(cacheKey);
+                    });
+
+                this.inFlightForecasts.set(cacheKey, forecastRequest);
+                forecast = await forecastRequest;
+            }
+
+            if (!forecast) {
+                const recentFailureAfterRequest = this.failureBackoff.get(cacheKey);
+                return {
+                    ...request,
+                    inputBars: closes.length,
+                    lastCandleTime,
+                    unavailableReason:
+                        recentFailureAfterRequest?.reason ||
                         this.client.getLastFailure?.()?.reason ||
                         "sidecar_unavailable",
                 };
             }
-
-            this.cache.set(cacheKey, {
-                forecast,
-                cachedAt: Date.now(),
-            });
         }
 
         return {

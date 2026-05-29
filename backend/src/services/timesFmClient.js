@@ -28,6 +28,7 @@ class TimesFmClient {
         this.lastHealth = null;
         this.lastFailure = null;
         this.lastForecastAt = null;
+        this.failureLogTimestamps = new Map();
     }
 
     isConfigured() {
@@ -78,6 +79,17 @@ class TimesFmClient {
         return "sidecar_unavailable";
     }
 
+    _warnThrottled(key, message, intervalMs = 60000) {
+        const now = Date.now();
+        const lastLoggedAt = this.failureLogTimestamps.get(key) || 0;
+        if (now - lastLoggedAt < intervalMs) {
+            return;
+        }
+
+        this.failureLogTimestamps.set(key, now);
+        logger.warn(message);
+    }
+
     async _request(
         path,
         { method = "GET", body = null, timeoutMs = this.defaultTimeoutMs } = {}
@@ -122,7 +134,8 @@ class TimesFmClient {
                     timestamp: Date.now(),
                 };
                 this.lastFailure = failure;
-                logger.warn(
+                this._warnThrottled(
+                    `${path}:${failure.reason}:${response.status}`,
                     `TimesFM request failed (${response.status} ${path}): ${failure.message}`
                 );
                 return { ok: false, latencyMs, ...failure };
@@ -138,7 +151,10 @@ class TimesFmClient {
                 timestamp: Date.now(),
             };
             this.lastFailure = failure;
-            logger.warn(`TimesFM request failed (${path}): ${failure.message}`);
+            this._warnThrottled(
+                `${path}:${failure.reason}`,
+                `TimesFM request failed (${path}): ${failure.message}`
+            );
             return { ok: false, ...failure };
         } finally {
             clearTimeout(timeout);

@@ -61,6 +61,7 @@ class LiveTradingEngine extends EventEmitter {
         // Position monitoring
         this.monitorInterval = null;
         this.monitorIntervalMs = options.monitorIntervalMs || 10000; // 10s default
+        this.isMonitoringPositions = false;
 
         // Stats
         this.stats = {
@@ -2116,22 +2117,31 @@ class LiveTradingEngine extends EventEmitter {
      */
     async monitorPositions() {
         if (this.openTrades.size === 0) return;
-
-        const config = this.configService.get();
-
-        for (const [tradeId, trade] of this.openTrades) {
-            try {
-                await this.checkPosition(trade, config);
-            } catch (error) {
-                logger.error(
-                    `❌ Error monitoring position ${tradeId}:`,
-                    error.message
-                );
-            }
+        if (this.isMonitoringPositions) {
+            return;
         }
 
-        // Sync with Oanda periodically
-        await this.syncWithOanda();
+        this.isMonitoringPositions = true;
+
+        try {
+            const config = this.configService.get();
+
+            for (const [tradeId, trade] of this.openTrades) {
+                try {
+                    await this.checkPosition(trade, config);
+                } catch (error) {
+                    logger.error(
+                        `❌ Error monitoring position ${tradeId}:`,
+                        error.message
+                    );
+                }
+            }
+
+            // Sync with Oanda periodically
+            await this.syncWithOanda();
+        } finally {
+            this.isMonitoringPositions = false;
+        }
     }
 
     /**

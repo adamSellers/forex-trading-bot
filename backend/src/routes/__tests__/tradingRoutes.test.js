@@ -20,6 +20,11 @@ const startRoute = tradingRoutes.stack.find(
     (layer) => layer.route?.path === "/trading/start" && layer.route?.methods?.post
 );
 const startHandler = startRoute.route.stack[0].handle;
+const paperResetRoute = tradingRoutes.stack.find(
+    (layer) =>
+        layer.route?.path === "/runtime/paper/reset" && layer.route?.methods?.post
+);
+const paperResetHandler = paperResetRoute.route.stack[0].handle;
 
 function createSession(mode) {
     return {
@@ -68,6 +73,16 @@ function createRouteContext(session) {
             };
             return session.run;
         }),
+        resetAllPaper: jest.fn(async () => ({
+            resetAt: 1710001234567,
+            counts: {
+                tradesDeleted: 4,
+                signalsDeleted: 8,
+                entryDecisionsDeleted: 2,
+                portfolioSnapshotsDeleted: 3,
+            },
+            runs: [session.run],
+        })),
         enrichRuns: jest.fn(async (runs) => runs),
     };
     const strategyRunRepository = {
@@ -371,6 +386,54 @@ describe("tradingRoutes runtime run promotion gate", () => {
                     closedTrades: 60,
                     netExpectancyPips: 10,
                 }),
+            })
+        );
+    });
+});
+
+describe("tradingRoutes paper runtime reset", () => {
+    test("requires explicit confirmation before resetting all paper state", async () => {
+        const session = createSession(RUNTIME_MODES.PAPER_SHADOW);
+        const { req, res, paperTradingRuntime } = createRouteContext(session);
+        req.body = {};
+
+        await paperResetHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.body).toEqual({
+            error: "Paper reset confirmation required",
+            requiredConfirm: "RESET_PAPER",
+        });
+        expect(paperTradingRuntime.resetAllPaper).not.toHaveBeenCalled();
+    });
+
+    test("resets all paper state and returns refreshed runtime runs", async () => {
+        const session = createSession(RUNTIME_MODES.PAPER_SHADOW);
+        const { req, res, paperTradingRuntime } = createRouteContext(session);
+        req.body = {
+            confirm: "RESET_PAPER",
+        };
+
+        await paperResetHandler(req, res);
+
+        expect(paperTradingRuntime.resetAllPaper).toHaveBeenCalled();
+        expect(res.status).not.toHaveBeenCalled();
+        expect(res.body).toEqual(
+            expect.objectContaining({
+                success: true,
+                message: "All paper trading state reset",
+                reset: expect.objectContaining({
+                    counts: expect.objectContaining({
+                        tradesDeleted: 4,
+                        signalsDeleted: 8,
+                    }),
+                }),
+                runs: expect.arrayContaining([
+                    expect.objectContaining({
+                        runId: session.run.runId,
+                        mode: RUNTIME_MODES.PAPER_SHADOW,
+                    }),
+                ]),
             })
         );
     });

@@ -16,12 +16,27 @@ class OandaDataService extends EventEmitter {
         this.instruments = instruments;
         this.priceCache = {};
         this.candleCache = {};
+        this.candleCacheUpdatedAt = {};
         this.primaryTimeframe = "15m";
         this.enableHTFFilter = false;
         this.htfTimeframe = "1h";
         this.isRunning = false;
         this.priceInterval = null;
         this.candleInterval = null;
+        this.isFetchingPrices = false;
+        this.isFetchingCandles = false;
+        this.failureLogTimestamps = new Map();
+    }
+
+    logFailureThrottled(key, message, data = null, intervalMs = 60000) {
+        const now = Date.now();
+        const lastLoggedAt = this.failureLogTimestamps.get(key) || 0;
+        if (now - lastLoggedAt < intervalMs) {
+            return;
+        }
+
+        this.failureLogTimestamps.set(key, now);
+        logger.error(message, data);
     }
 
     async oandaRequest(endpoint) {
@@ -73,6 +88,11 @@ class OandaDataService extends EventEmitter {
     }
 
     async fetchAllPrices() {
+        if (this.isFetchingPrices) {
+            return;
+        }
+
+        this.isFetchingPrices = true;
         try {
             const instruments = this.instruments.join(",");
             const data = await this.oandaRequest(
@@ -107,24 +127,32 @@ class OandaDataService extends EventEmitter {
             // Emit price update event for socket.io broadcasting
             this.emit("priceUpdate", updatedPrices);
         } catch (error) {
-            logger.error("❌ Price fetch error:", error.message);
+            this.logFailureThrottled(
+                "prices",
+                "❌ Price fetch error:",
+                error.message
+            );
+        } finally {
+            this.isFetchingPrices = false;
         }
     }
 
     async fetchAllCandles() {
+        if (this.isFetchingCandles) {
+            return;
+        }
+
+        this.isFetchingCandles = true;
         const granularities = this.getRequiredGranularities();
 
-        for (const instrument of this.instruments) {
-            for (const granularity of granularities) {
-                try {
+        try {
+            for (const instrument of this.instruments) {
+                for (const granularity of granularities) {
                     await this.fetchCandles(instrument, granularity, 500);
-                } catch (error) {
-                    logger.error(
-                        `❌ Candle fetch error for ${instrument} (${granularity}):`,
-                        error.message
-                    );
                 }
             }
+        } finally {
+            this.isFetchingCandles = false;
         }
     }
 
@@ -159,10 +187,12 @@ class OandaDataService extends EventEmitter {
 
             const key = `${instrument}_${granularity}`;
             this.candleCache[key] = candles;
+            this.candleCacheUpdatedAt[key] = Date.now();
 
             return candles;
         } catch (error) {
-            logger.error(
+            this.logFailureThrottled(
+                `candles:${instrument}:${granularity}`,
                 `❌ Candle fetch error for ${instrument}:`,
                 error.message
             );
@@ -265,6 +295,7 @@ class OandaDataService extends EventEmitter {
             Object.keys(this.candleCache).forEach((key) => {
                 if (key.startsWith(instrument + "_")) {
                     delete this.candleCache[key];
+                    delete this.candleCacheUpdatedAt[key];
                 }
             });
         });

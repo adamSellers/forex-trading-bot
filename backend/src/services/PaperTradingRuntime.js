@@ -90,6 +90,7 @@ class PaperTradingRuntime {
         this.runtimeCoordinator = options.runtimeCoordinator || null;
         this.tradeRepository = options.tradeRepository || null;
         this.signalRepository = options.signalRepository || null;
+        this.entryDecisionRepository = options.entryDecisionRepository || null;
         this.portfolioRepository = options.portfolioRepository || null;
         this.dataService = options.dataService || null;
         this.io = options.io || null;
@@ -107,6 +108,7 @@ class PaperTradingRuntime {
         runtimeCoordinator = null,
         tradeRepository = null,
         signalRepository = null,
+        entryDecisionRepository = null,
         portfolioRepository = null,
         dataService = null,
         io = null,
@@ -114,6 +116,8 @@ class PaperTradingRuntime {
         this.runtimeCoordinator = runtimeCoordinator || this.runtimeCoordinator;
         this.tradeRepository = tradeRepository || this.tradeRepository;
         this.signalRepository = signalRepository || this.signalRepository;
+        this.entryDecisionRepository =
+            entryDecisionRepository || this.entryDecisionRepository;
         this.portfolioRepository =
             portfolioRepository || this.portfolioRepository;
         this.dataService = dataService || this.dataService;
@@ -1844,6 +1848,83 @@ class PaperTradingRuntime {
 
         await this.ensureRunSnapshot(runId);
         return resetRun;
+    }
+
+    async resetAllPaper() {
+        if (!this.runtimeCoordinator || !this.tradeRepository || !this.portfolioRepository) {
+            throw new Error(
+                "Paper trading runtime not properly initialized - missing dependencies"
+            );
+        }
+
+        const resetAt = Date.now();
+        const counts = {
+            tradesDeleted: 0,
+            signalsDeleted: 0,
+            entryDecisionsDeleted: 0,
+            portfolioSnapshotsDeleted: 0,
+        };
+
+        for (const mode of PAPER_MODES) {
+            counts.tradesDeleted +=
+                (await this.tradeRepository.deleteByRuntimeFilters?.({ mode })) || 0;
+            counts.signalsDeleted +=
+                (await this.signalRepository?.deleteByRuntimeFilters?.({ mode })) ||
+                0;
+            counts.entryDecisionsDeleted +=
+                (await this.entryDecisionRepository?.deleteByRuntimeFilters?.({
+                    mode,
+                })) || 0;
+            counts.portfolioSnapshotsDeleted +=
+                (await this.portfolioRepository.deleteByRuntimeFilters?.({
+                    mode,
+                })) || 0;
+        }
+
+        const activePaperRuns = (this.runtimeCoordinator.listRuns?.() || []).filter(
+            (run) => isPaperMode(run.mode)
+        );
+        const resetRuns = [];
+
+        for (const run of activePaperRuns) {
+            const session = this.runtimeCoordinator.getRunSession?.(run.runId);
+            if (!session || !isPaperMode(session.run.mode)) {
+                continue;
+            }
+
+            const resetRun = await this.runtimeCoordinator.resetRun(run.runId, {
+                startedAt: resetAt,
+                metadata: {
+                    ...(session.run.metadata || {}),
+                    lastResetAt: resetAt,
+                    lastGlobalPaperResetAt: resetAt,
+                },
+                status: session.run.status,
+            });
+            await this.ensureRunSnapshot(run.runId);
+            resetRuns.push(resetRun || session.run);
+        }
+
+        if (this.io) {
+            this.io.emit("paperRuntimeReset", {
+                type: "paperRuntimeReset",
+                resetAt,
+                counts,
+                runs: resetRuns.map((run) => ({
+                    runId: run.runId,
+                    mode: run.mode,
+                    strategy: run.strategy,
+                    status: run.status,
+                })),
+            });
+            this.io.emit("runtimeRunsChanged", this.runtimeCoordinator.listRuns?.() || []);
+        }
+
+        return {
+            resetAt,
+            counts,
+            runs: resetRuns,
+        };
     }
 
     async stopRun(runId) {

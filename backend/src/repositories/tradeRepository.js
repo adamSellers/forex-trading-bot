@@ -453,6 +453,15 @@ class TradeRepository {
         }
     }
 
+    async deleteByRuntimeFilters(filters = {}) {
+        try {
+            return await this._applyRuntimeFilters(db("trades"), filters).del();
+        } catch (error) {
+            logger.error("Error deleting trades by runtime filters:", error);
+            throw error;
+        }
+    }
+
     /**
      * Get performance metrics for a period
      */

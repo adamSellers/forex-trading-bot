@@ -190,6 +190,57 @@ describe("TimesFmSignalService", () => {
         );
     });
 
+    test("deduplicates in-flight forecast requests for the same candle key", async () => {
+        const candles = buildCandles();
+        const config = {
+            timesFmEnabled: true,
+            timesFmMode: "observe",
+            timesFmHorizonBars: 12,
+        };
+        let resolveForecast;
+        client.getForecast.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    resolveForecast = resolve;
+                })
+        );
+
+        const prefetched = service.getForecastContext({
+            instrument: "AUD_USD",
+            candles,
+            timeframe: "15m",
+            config,
+        });
+        const enriched = service.enrichSignal(createMockSignal(), {
+            candles,
+            config,
+        });
+
+        await Promise.resolve();
+        expect(client.getForecast).toHaveBeenCalledTimes(1);
+
+        resolveForecast({
+            instrument: "AUD_USD",
+            horizon: 12,
+            inputBars: 220,
+            preprocessMode: "raw",
+            usedLogReturns: false,
+            inferenceMs: 80,
+            direction: "BULLISH",
+            confidence: 0.82,
+            returnBps: 13.1,
+            volatilityRegime: "NORMAL",
+            quantileSpreadBps: 25,
+            pointForecast: [1.101],
+            quantilesH1: [1.09, 1.11],
+        });
+
+        const [context, signal] = await Promise.all([prefetched, enriched]);
+        expect(context.available).toBe(true);
+        expect(signal.timesFm.available).toBe(true);
+        expect(client.getForecast).toHaveBeenCalledTimes(1);
+    });
+
     test("fails open when the sidecar is unavailable", async () => {
         client.getForecast.mockResolvedValueOnce(null);
         client.getLastFailure.mockReturnValueOnce({
@@ -211,5 +262,27 @@ describe("TimesFmSignalService", () => {
                 positionSizeMultiplier: 1,
             })
         );
+    });
+
+    test("backs off briefly after a failed forecast request", async () => {
+        client.getForecast.mockResolvedValue(null);
+        client.getLastFailure.mockReturnValue({
+            reason: "timeout",
+        });
+
+        const options = {
+            candles: buildCandles(),
+            config: {
+                timesFmEnabled: true,
+                timesFmMode: "observe",
+            },
+        };
+
+        const first = await service.enrichSignal(createMockSignal(), options);
+        const second = await service.enrichSignal(createMockSignal(), options);
+
+        expect(first.timesFm.reason).toBe("timeout");
+        expect(second.timesFm.reason).toBe("timeout");
+        expect(client.getForecast).toHaveBeenCalledTimes(1);
     });
 });

@@ -89,6 +89,15 @@ function createTradeRepository() {
             }
             return before - trades.length;
         }),
+        deleteByRuntimeFilters: jest.fn(async (filters = {}) => {
+            const before = trades.length;
+            for (let index = trades.length - 1; index >= 0; index -= 1) {
+                if (matchesRuntimeIdentity(trades[index], filters)) {
+                    trades.splice(index, 1);
+                }
+            }
+            return before - trades.length;
+        }),
     };
 }
 
@@ -136,6 +145,15 @@ function createPortfolioRepository() {
             }
             return before - snapshots.length;
         }),
+        deleteByRuntimeFilters: jest.fn(async (filters = {}) => {
+            const before = snapshots.length;
+            for (let index = snapshots.length - 1; index >= 0; index -= 1) {
+                if (matchesRuntimeIdentity(snapshots[index], filters)) {
+                    snapshots.splice(index, 1);
+                }
+            }
+            return before - snapshots.length;
+        }),
     };
 }
 
@@ -143,6 +161,7 @@ function createSignalRepository() {
     return {
         getRecent: jest.fn(async () => []),
         deleteByRunId: jest.fn(async () => 0),
+        deleteByRuntimeFilters: jest.fn(async () => 0),
     };
 }
 
@@ -186,6 +205,7 @@ describe("PaperTradingRuntime", () => {
     let tradeRepository;
     let portfolioRepository;
     let signalRepository;
+    let entryDecisionRepository;
     let runtimeCoordinator;
     let dataService;
     let session;
@@ -242,6 +262,9 @@ describe("PaperTradingRuntime", () => {
         tradeRepository = createTradeRepository();
         portfolioRepository = createPortfolioRepository();
         signalRepository = createSignalRepository();
+        entryDecisionRepository = {
+            deleteByRuntimeFilters: jest.fn(async () => 0),
+        };
         runtimeCoordinator = createRuntimeCoordinator(session);
         dataService = {
             getCurrentPrice: jest.fn(() => ({
@@ -261,6 +284,7 @@ describe("PaperTradingRuntime", () => {
             runtimeCoordinator,
             tradeRepository,
             signalRepository,
+            entryDecisionRepository,
             portfolioRepository,
             dataService,
         });
@@ -926,6 +950,82 @@ describe("PaperTradingRuntime", () => {
             })
         );
         expect(resetRun.runId).toBe("run-candidate-1");
+    });
+
+    test("resetAllPaper clears paper modes and re-seeds active paper snapshots", async () => {
+        tradeRepository.trades.push(
+            {
+                id: "paper-shadow-trade",
+                mode: RUNTIME_MODES.PAPER_SHADOW,
+                runId: "run-shadow-1",
+                ownerRunId: "run-shadow-1",
+                isOpen: false,
+            },
+            {
+                id: "paper-candidate-trade",
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                runId: "run-candidate-1",
+                ownerRunId: "run-candidate-1",
+                isOpen: false,
+            },
+            {
+                id: "live-trade",
+                mode: RUNTIME_MODES.LIVE,
+                runId: "run-live-1",
+                ownerRunId: "run-live-1",
+                isOpen: false,
+            }
+        );
+        portfolioRepository.snapshots.push(
+            {
+                runId: "run-candidate-1",
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                totalValueAud: 9990,
+                balanceAud: 9990,
+            },
+            {
+                runId: "run-live-1",
+                mode: RUNTIME_MODES.LIVE,
+                totalValueAud: 10000,
+                balanceAud: 10000,
+            }
+        );
+
+        const result = await runtime.resetAllPaper();
+
+        expect(tradeRepository.deleteByRuntimeFilters).toHaveBeenCalledWith({
+            mode: RUNTIME_MODES.PAPER_SHADOW,
+        });
+        expect(tradeRepository.deleteByRuntimeFilters).toHaveBeenCalledWith({
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+        });
+        expect(signalRepository.deleteByRuntimeFilters).toHaveBeenCalledTimes(2);
+        expect(entryDecisionRepository.deleteByRuntimeFilters).toHaveBeenCalledTimes(2);
+        expect(portfolioRepository.deleteByRuntimeFilters).toHaveBeenCalledTimes(2);
+        expect(tradeRepository.trades).toEqual([
+            expect.objectContaining({
+                id: "live-trade",
+                mode: RUNTIME_MODES.LIVE,
+            }),
+        ]);
+        expect(runtimeCoordinator.resetRun).toHaveBeenCalledWith(
+            "run-candidate-1",
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    lastGlobalPaperResetAt: expect.any(Number),
+                }),
+            })
+        );
+        expect(portfolioRepository.save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                runId: "run-candidate-1",
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                totalValueAud: 10000,
+                positionCount: 0,
+            })
+        );
+        expect(result.counts.tradesDeleted).toBe(2);
+        expect(result.runs).toHaveLength(1);
     });
 
     test("buildRunSummary reports flat closed trades separately from wins and losses", async () => {

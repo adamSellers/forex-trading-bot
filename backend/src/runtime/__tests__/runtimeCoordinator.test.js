@@ -238,7 +238,7 @@ describe("RuntimeCoordinator", () => {
                 timeframe: "15m",
                 timesFmEnabled: true,
                 timesFmMode: "observe",
-                activeSessions: ["sydney", "london"],
+                activeSessions: ["sydney", "tokyo", "london"],
             },
         });
 
@@ -284,7 +284,7 @@ describe("RuntimeCoordinator", () => {
                 timeframe: "15m",
                 timesFmEnabled: true,
                 timesFmMode: "observe",
-                activeSessions: ["sydney", "london"],
+                activeSessions: ["sydney", "tokyo", "london"],
             },
         });
 

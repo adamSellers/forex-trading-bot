@@ -251,7 +251,11 @@ class MarketContextService {
                 instruments: {},
             };
 
-            instrumentRequirements.forEach((_instrumentRequirement, instrument) => {
+            instrumentRequirements.forEach((instrumentRequirement, instrument) => {
+                if (!instrumentRequirement.runKeys.has(contextKey)) {
+                    return;
+                }
+
                 const baseInstrumentContext = instruments[instrument];
                 const timeframeContexts = {};
 

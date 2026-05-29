@@ -41,6 +41,7 @@ const PAPER_REFRESH_INTERVAL_MS = 30000;
 const PAPER_EVENT_NAMES = [
   'runtimeRunsChanged',
   'paperRunUpdated',
+  'paperRuntimeReset',
   'liveSelectionUpdated',
   'tradeOpened',
   'tradeClosed',
@@ -827,6 +828,9 @@ const BacktestLab = () => {
     };
 
     PAPER_EVENT_NAMES.forEach((eventName) => socket.on(eventName, refresh));
+    if (!socket.connected) {
+      socket.connect();
+    }
     const intervalId = window.setInterval(() => refresh(), PAPER_REFRESH_INTERVAL_MS);
 
     return () => {
@@ -989,6 +993,30 @@ const BacktestLab = () => {
     }
   };
 
+  const handleResetAllPaper = async () => {
+    const confirmed = window.confirm(
+      'Reset ALL paper trading?\n\nThis clears shadow and candidate paper trades, signals, entry decisions, portfolio snapshots, and paper run summaries. Live trades and live selection are not changed.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setMutatingRunId('__all_paper__');
+      setError(null);
+      setActionMessage(null);
+      const response = await runtimeAPI.resetAllPaper();
+      setSelectedRunId(response?.liveSelection?.shadowRun?.runId || selectedRunId);
+      setActionMessage(response?.message || 'All paper trading state reset');
+      await loadPaperComparison(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMutatingRunId(null);
+    }
+  };
+
   const handleStopCandidate = async (runId) => {
     try {
       setMutatingRunId(runId);
@@ -1099,6 +1127,16 @@ const BacktestLab = () => {
               />
               <Button variant="outlined" size="small" startIcon={<Refresh />} onClick={() => loadPaperComparison(true)}>
                 Refresh
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                startIcon={<RestartAlt />}
+                onClick={handleResetAllPaper}
+                disabled={mutatingRunId === '__all_paper__'}
+              >
+                {mutatingRunId === '__all_paper__' ? 'Resetting Paper...' : 'Reset All Paper'}
               </Button>
             </Stack>
           </Stack>

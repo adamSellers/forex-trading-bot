@@ -58,7 +58,11 @@ class Logger {
                 new Date().toISOString().split("T")[0]
             }.log`;
             const filepath = path.join(this.logDir, filename);
-            fs.appendFileSync(filepath, formattedMessage + "\n");
+            fs.appendFile(filepath, formattedMessage + "\n", (error) => {
+                if (error) {
+                    console.error("Failed to write to log file:", error.message);
+                }
+            });
         } catch (error) {
             // Fail silently to avoid logging loops
             console.error("Failed to write to log file:", error.message);

@@ -302,6 +302,15 @@ class SignalRepository {
         }
     }
 
+    async deleteByRuntimeFilters(filters = {}) {
+        try {
+            return await this._applyRuntimeFilters(db("signals"), filters).del();
+        } catch (error) {
+            logger.error("Error deleting signals by runtime filters:", error);
+            throw error;
+        }
+    }
+
     async getSignalStats(period = "24h") {
         try {
             const periodMs = this.parsePeriod(period);

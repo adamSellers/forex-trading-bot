@@ -242,6 +242,21 @@ class EntryDecisionRepository {
             throw error;
         }
     }
+
+    async deleteByRuntimeFilters(filters = {}) {
+        try {
+            return await this._applyRuntimeFilters(
+                db("entry_decisions"),
+                filters
+            ).del();
+        } catch (error) {
+            logger.error(
+                "Error deleting entry decisions by runtime filters:",
+                error
+            );
+            throw error;
+        }
+    }
 }
 
 module.exports = EntryDecisionRepository;

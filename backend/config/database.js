@@ -56,6 +56,8 @@ const config = {
     pool: {
         afterCreate: (conn, cb) => {
             conn.pragma("journal_mode = WAL");
+            conn.pragma("synchronous = NORMAL");
+            conn.pragma("wal_autocheckpoint = 1000");
             conn.pragma("busy_timeout = 30000");
             cb();
         },

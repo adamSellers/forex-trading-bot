@@ -21,7 +21,7 @@ export const SOCKET_URL = config.socketURL;
 // Initialize Socket with reconnection settings
 export const socket = io(SOCKET_URL, {
     transports: ["websocket", "polling"],
-    autoConnect: true,
+    autoConnect: false,
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
@@ -81,6 +81,7 @@ export const API_ENDPOINTS = {
     runtimeRunTrades: "/api/runtime/runs", // /:runId/trades
     runtimeRunSignals: "/api/runtime/runs", // /:runId/signals
     runtimeRunEquity: "/api/runtime/runs", // /:runId/equity
+    runtimePaperReset: "/api/runtime/paper/reset",
 
     // S3 Reports
     reportsStatus: "/api/reports/status",
@@ -253,7 +254,14 @@ export const strategiesAPI = {
 };
 
 export const runtimeAPI = {
-    getLiveSelection: () => apiCall(API_ENDPOINTS.runtimeLiveSelection),
+    getLiveSelection: (params = {}) => {
+        const query = new URLSearchParams(
+            Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+        ).toString();
+        return apiCall(
+            `${API_ENDPOINTS.runtimeLiveSelection}${query ? `?${query}` : ""}`
+        );
+    },
     setLiveSelection: (payload) =>
         apiCall(API_ENDPOINTS.runtimeLiveSelection, {
             method: "POST",
@@ -277,6 +285,11 @@ export const runtimeAPI = {
     resetRun: (runId) =>
         apiCall(`${API_ENDPOINTS.runtimeRunReset}/${runId}/reset`, {
             method: "POST",
+        }),
+    resetAllPaper: () =>
+        apiCall(API_ENDPOINTS.runtimePaperReset, {
+            method: "POST",
+            body: JSON.stringify({ confirm: "RESET_PAPER" }),
         }),
     promoteRun: (runId) =>
         apiCall(`${API_ENDPOINTS.runtimeRunPromote}/${runId}/promote`, {

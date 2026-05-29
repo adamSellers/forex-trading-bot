@@ -613,7 +613,42 @@ router.get("/prices", async (req, res) => {
             "GBP_USD",
             "USD_JPY",
         ];
-        const instruments = req.query.instruments || configAssets.join(",");
+        const requestedInstruments = String(
+            req.query.instruments || configAssets.join(",")
+        )
+            .split(",")
+            .map((instrument) => instrument.trim())
+            .filter(Boolean);
+        const instruments = requestedInstruments.join(",");
+        const dataService = req.app.locals.dataService;
+        const cachedPrices = dataService?.getAllPrices?.() || {};
+        const cachedPriceRows = requestedInstruments
+            .map((instrument) => cachedPrices[instrument])
+            .filter(Boolean);
+        const maxCachedPriceAgeMs = 15000;
+        const cachedPricesAreFresh = cachedPriceRows.every((price) => {
+            const timestamp = Number(price.timestamp || 0);
+            return timestamp > 0 && Date.now() - timestamp <= maxCachedPriceAgeMs;
+        });
+
+        if (
+            requestedInstruments.length > 0 &&
+            cachedPriceRows.length === requestedInstruments.length &&
+            cachedPricesAreFresh
+        ) {
+            return res.json({
+                prices: cachedPriceRows.map((price) => ({
+                    instrument: price.instrument,
+                    bid: Number(price.bid || 0),
+                    ask: Number(price.ask || 0),
+                    mid: Number(price.mid ?? price.price ?? 0),
+                    spread: Number(price.spread || 0),
+                    tradeable: price.tradeable,
+                    time: price.time,
+                })),
+                timestamp: Date.now(),
+            });
+        }
 
         const data = await oandaRequest(
             `/v3/accounts/${OANDA_ACCOUNT_ID}/pricing?instruments=${instruments}`
@@ -656,7 +691,24 @@ router.get("/candles/:instrument", async (req, res) => {
 
         const { instrument } = req.params;
         const granularity = req.query.granularity || "M15";
-        const count = req.query.count || 100;
+        const count = parseLimit(req.query.count, 100, 5000);
+        const dataService = req.app.locals.dataService;
+        const cacheKey = `${instrument}_${granularity}`;
+        const cachedCandles = dataService?.candleCache?.[cacheKey];
+        const cachedAt = Number(dataService?.candleCacheUpdatedAt?.[cacheKey] || 0);
+        const candlesAreFresh = cachedAt > 0 && Date.now() - cachedAt <= 120000;
+
+        if (
+            candlesAreFresh &&
+            Array.isArray(cachedCandles) &&
+            cachedCandles.length >= count
+        ) {
+            return res.json({
+                instrument,
+                granularity,
+                candles: cachedCandles.slice(-count),
+            });
+        }
 
         const data = await oandaRequest(
             `/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=M`
@@ -954,8 +1006,11 @@ router.get("/runtime/live-selection", async (req, res) => {
             (await runtimeCoordinator.ensureLiveSelectionInitialized?.()) ||
             runtimeCoordinator.getLiveSelection?.() ||
             null;
+        const includeRuns = req.query.includeRuns !== "false";
 
-        const runtimePayload = await buildRuntimeRunsResponse(req);
+        const runtimePayload = includeRuns
+            ? await buildRuntimeRunsResponse(req)
+            : { runs: [], timestamp: Date.now() };
 
         res.json({
             liveSelection,
@@ -1487,6 +1542,41 @@ router.get("/runtime/runs/:runId/equity", async (req, res) => {
             latestSnapshot: null,
             total: closedTradeTotal,
             limited: closedTradeTotal > closedTrades.length,
+            timestamp: Date.now(),
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/runtime/paper/reset", async (req, res) => {
+    try {
+        const paperTradingRuntime = req.app.locals.paperTradingRuntime;
+        const confirmed =
+            req.body?.confirm === "RESET_PAPER" || req.body?.confirmed === true;
+
+        if (!paperTradingRuntime) {
+            return res
+                .status(503)
+                .json({ error: "Paper trading runtime not available" });
+        }
+
+        if (!confirmed) {
+            return res.status(400).json({
+                error: "Paper reset confirmation required",
+                requiredConfirm: "RESET_PAPER",
+            });
+        }
+
+        const reset = await paperTradingRuntime.resetAllPaper();
+        const runtimePayload = await buildRuntimeRunsResponse(req);
+
+        res.json({
+            success: true,
+            message: "All paper trading state reset",
+            reset,
+            runs: runtimePayload.runs,
+            liveSelection: runtimePayload.liveSelection,
             timestamp: Date.now(),
         });
     } catch (error) {
