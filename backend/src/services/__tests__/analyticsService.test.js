@@ -15,6 +15,7 @@ describe('AnalyticsService', () => {
         };
         mockSignalRepo = {
             getSignalsSince: jest.fn().mockResolvedValue([]),
+            getSignalsSinceCompact: jest.fn().mockResolvedValue([]),
         };
         mockEntryDecisionRepo = {
             getDecisionsSince: jest.fn().mockResolvedValue([]),
@@ -69,6 +70,23 @@ describe('AnalyticsService', () => {
             expect(result.summary.totalTrades).toBe(0);
             expect(result.summary.winRate).toBe(0);
             expect(result.summary.totalPnLAud).toBe(0);
+        });
+
+        test('dashboard profile uses compact signal reads and skips deep analytics', async () => {
+            const result = await service.getAnalytics('7d', {
+                mode: 'live',
+                profile: 'dashboard',
+            });
+
+            expect(result.profile).toBe('dashboard');
+            expect(mockSignalRepo.getSignalsSinceCompact).toHaveBeenCalledWith(
+                expect.any(Number),
+                expect.objectContaining({ mode: 'live' })
+            );
+            expect(mockSignalRepo.getSignalsSince).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepo.getDecisionsSince).not.toHaveBeenCalled();
+            expect(result).not.toHaveProperty('timesFmAnalysis');
+            expect(result).not.toHaveProperty('executionGapByCohort');
         });
 
         test('should pass a matched cutoff to repositories using their expected argument types', async () => {
@@ -146,6 +164,27 @@ describe('AnalyticsService', () => {
                     strategy: 'mean_reversion',
                 })
             );
+        });
+
+        test('should not default explicit all-mode analytics back to live', async () => {
+            const result = await service.getAnalytics('7d', {
+                mode: 'all',
+            });
+
+            expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(
+                expect.any(Number),
+                expect.not.objectContaining({
+                    mode: 'live',
+                })
+            );
+            expect(mockSignalRepo.getSignalsSince).toHaveBeenCalledWith(
+                expect.any(Date),
+                expect.not.objectContaining({
+                    mode: 'live',
+                })
+            );
+            expect(result.mode).toBe('all');
+            expect(result.filters.mode).toBe('all');
         });
 
         test('should report TimesFM coverage and outcome correlation', async () => {

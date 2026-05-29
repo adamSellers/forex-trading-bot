@@ -268,6 +268,51 @@ class SignalRepository {
         }
     }
 
+    async getSignalsSinceCompact(cutoffTime, filters = {}) {
+        try {
+            const timestamp =
+                cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
+            const rows = await this._applyRuntimeFilters(
+                db("signals")
+                    .select(
+                        "instrument",
+                        "signal",
+                        "strength",
+                        "strategy",
+                        "timeframe",
+                        "price",
+                        "message",
+                        "atr_pips",
+                        "rsi",
+                        "adx",
+                        "supertrend_direction",
+                        "entry_type",
+                        "timestamp",
+                        "reason_code",
+                        "signal_class",
+                        "intent",
+                        "setup_id",
+                        "signal_candle_time",
+                        "unique_event",
+                        "cooldown_suppressed",
+                        "pending_direction",
+                        "pending_state",
+                        "pending_waiting_for",
+                        "config_hash",
+                        "run_id",
+                        "selection_id",
+                        "mode"
+                    )
+                    .where("timestamp", ">=", timestamp),
+                filters
+            ).orderBy("timestamp", "desc");
+            return rows.map((row) => this._mapRow(row));
+        } catch (error) {
+            logger.error("Error getting compact signals since cutoff:", error);
+            throw error;
+        }
+    }
+
     /**
      * Delete signals older than specified number of days
      * Used for retention policy to keep signals table bounded

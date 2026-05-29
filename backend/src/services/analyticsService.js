@@ -375,7 +375,18 @@ class AnalyticsService {
             const periodMs = parsePeriod(period);
             const cutoffTime = now - periodMs;
             const filters = normalizeRuntimeFilters(runtimeFilters);
-            if (!filters.mode && !filters.runId && !filters.strategy) {
+            const profile =
+                normalizeString(runtimeFilters?.profile || runtimeFilters?.view) ===
+                "dashboard"
+                    ? "dashboard"
+                    : "full";
+            const requestedAllModes = normalizeString(runtimeFilters?.mode) === "all";
+            if (
+                !requestedAllModes &&
+                !filters.mode &&
+                !filters.runId &&
+                !filters.strategy
+            ) {
                 filters.mode = "live";
             }
             const tradeFilters = { ...filters };
@@ -385,10 +396,14 @@ class AnalyticsService {
             }
 
             // Fetch raw data
+            const signalQuery =
+                profile === "dashboard" && this.signalRepo.getSignalsSinceCompact
+                    ? this.signalRepo.getSignalsSinceCompact(cutoffTime, filters)
+                    : this.signalRepo.getSignalsSince(new Date(cutoffTime), filters);
             const [trades, signals, entryDecisions] = await Promise.all([
                 this.tradeRepo.getTradesSince(cutoffTime, tradeFilters),
-                this.signalRepo.getSignalsSince(new Date(cutoffTime), filters),
-                this.entryDecisionRepo
+                signalQuery,
+                profile === "full" && this.entryDecisionRepo
                     ? this.entryDecisionRepo.getDecisionsSince(cutoffTime, filters)
                     : Promise.resolve([]),
             ]);
@@ -416,36 +431,43 @@ class AnalyticsService {
             const equityData = this.calculateEquityData(closedTrades);
             const adxAnalysis = this.calculateAdxAnalysis(closedTrades);
             const sidePerformance = this.calculateSidePerformance(closedTrades);
-            const cohortExpectancy =
-                this.calculateCohortExpectancy(closedTrades);
-            const timesFmAnalysis = this.calculateTimesFmAnalysis(
-                signals,
-                entryDecisions,
-                closedTrades,
-                signalEventSummary
-            );
-            const expectationVsActual = this.calculateExpectationVsActual(
-                signalEventSummary.uniqueActionableSignals,
-                closedTrades
-            );
-            const entryFunnel = this.calculateEntryFunnel(
-                signalEventSummary.uniqueActionableSignals,
-                entryDecisions,
-                closedTrades
-            );
-            const rejectionBreakdown =
-                this.calculateRejectionBreakdown(entryDecisions);
-            const executionGapByCohort = this.calculateExecutionGapByCohort(
-                signalEventSummary.uniqueActionableSignals,
-                entryDecisions,
-                closedTrades
-            );
+            const deepAnalytics =
+                profile === "full"
+                    ? {
+                          cohortExpectancy:
+                              this.calculateCohortExpectancy(closedTrades),
+                          timesFmAnalysis: this.calculateTimesFmAnalysis(
+                              signals,
+                              entryDecisions,
+                              closedTrades,
+                              signalEventSummary
+                          ),
+                          expectationVsActual: this.calculateExpectationVsActual(
+                              signalEventSummary.uniqueActionableSignals,
+                              closedTrades
+                          ),
+                          entryFunnel: this.calculateEntryFunnel(
+                              signalEventSummary.uniqueActionableSignals,
+                              entryDecisions,
+                              closedTrades
+                          ),
+                          rejectionBreakdown:
+                              this.calculateRejectionBreakdown(entryDecisions),
+                          executionGapByCohort:
+                              this.calculateExecutionGapByCohort(
+                                  signalEventSummary.uniqueActionableSignals,
+                                  entryDecisions,
+                                  closedTrades
+                              ),
+                      }
+                    : {};
 
             return {
                 period,
-                mode: filters.mode || "all",
+                profile,
+                mode: requestedAllModes ? "all" : filters.mode || "all",
                 filters: {
-                    mode: filters.mode || "all",
+                    mode: requestedAllModes ? "all" : filters.mode || "all",
                     strategy: filters.strategy || null,
                     runId: filters.runId || null,
                     selectionId: filters.selectionId || null,
@@ -459,12 +481,7 @@ class AnalyticsService {
                 equityData,
                 adxAnalysis,
                 sidePerformance,
-                cohortExpectancy,
-                timesFmAnalysis,
-                expectationVsActual,
-                entryFunnel,
-                rejectionBreakdown,
-                executionGapByCohort,
+                ...deepAnalytics,
                 rawCounts: {
                     totalTrades: trades.length,
                     closedTrades: closedTrades.length,

@@ -22,6 +22,9 @@ const MANUALLY_RESETTABLE_PAPER_MODES = new Set([
     RUNTIME_MODES.PAPER_SHADOW,
     RUNTIME_MODES.PAPER_CANDIDATE,
 ]);
+const ANALYTICS_CACHE_TTL_MS = 15000;
+const ANALYTICS_CACHE_MAX_ENTRIES = 50;
+const analyticsResponseCache = new Map();
 
 function getManualResetMessage(mode) {
     return mode === RUNTIME_MODES.PAPER_SHADOW
@@ -92,6 +95,19 @@ function parseLimit(value, fallback, max = null) {
     const parsed = Number.parseInt(value, 10);
     const limit = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
     return Number.isFinite(max) && max > 0 ? Math.min(limit, max) : limit;
+}
+
+function buildCacheKey(parts = {}) {
+    return JSON.stringify(
+        Object.keys(parts)
+            .sort()
+            .reduce((acc, key) => {
+                if (parts[key] !== undefined && parts[key] !== null) {
+                    acc[key] = parts[key];
+                }
+                return acc;
+            }, {})
+    );
 }
 
 function isForexMarketOpen(date = new Date()) {
@@ -237,6 +253,7 @@ async function buildRuntimeRunsResponse(req, filters = {}) {
         (left, right) => (right.startedAt || 0) - (left.startedAt || 0)
     );
     const maxRuns = parseLimit(filters.limit, 80, 200);
+    const includeSummary = filters.includeSummary !== "false";
     const activeRunIds = new Set(activeRuns.map((run) => run.runId));
     if (runs.length > maxRuns) {
         const limitedRuns = [];
@@ -247,7 +264,7 @@ async function buildRuntimeRunsResponse(req, filters = {}) {
         }
         runs = limitedRuns;
     }
-    runs = paperTradingRuntime?.enrichRuns
+    runs = includeSummary && paperTradingRuntime?.enrichRuns
         ? await paperTradingRuntime.enrichRuns(runs)
         : runs;
 
@@ -1935,15 +1952,52 @@ router.get("/analytics", async (req, res) => {
 
         const period = req.query.period || "30d";
         const runtimeFilters = normalizeRuntimeQueryFilters(req.query || {});
+        if (normalizeString(req.query.mode) === "all") {
+            runtimeFilters.mode = "all";
+        }
         delete runtimeFilters.status;
         delete runtimeFilters.shadowOfRunId;
+        const profile = req.query.profile === "dashboard" ? "dashboard" : "full";
+        const cacheKey = buildCacheKey({
+            period,
+            profile,
+            mode: runtimeFilters.mode || "all",
+            strategy: runtimeFilters.strategy || "",
+            runId: runtimeFilters.runId || "",
+            selectionId: runtimeFilters.selectionId || "",
+        });
+        const cached = analyticsResponseCache.get(cacheKey);
+        if (cached && Date.now() - cached.cachedAt < ANALYTICS_CACHE_TTL_MS) {
+            return res.json({
+                ...cached.payload,
+                cached: true,
+                cacheAgeMs: Date.now() - cached.cachedAt,
+            });
+        }
 
         const analytics = await analyticsService.getAnalytics(
             period,
-            runtimeFilters
+            {
+                ...runtimeFilters,
+                profile,
+            }
         );
+        if (analyticsResponseCache.size >= ANALYTICS_CACHE_MAX_ENTRIES) {
+            const oldestKey = analyticsResponseCache.keys().next().value;
+            if (oldestKey) {
+                analyticsResponseCache.delete(oldestKey);
+            }
+        }
+        analyticsResponseCache.set(cacheKey, {
+            cachedAt: Date.now(),
+            payload: analytics,
+        });
 
-        res.json(analytics);
+        res.json({
+            ...analytics,
+            cached: false,
+            cacheAgeMs: 0,
+        });
     } catch (error) {
         console.error("Analytics error:", error);
         res.status(500).json({ error: error.message });

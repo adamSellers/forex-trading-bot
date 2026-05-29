@@ -1,25 +1,34 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Chip,
   CircularProgress,
+  Divider,
   FormControl,
+  IconButton,
+  LinearProgress,
   MenuItem,
   Select,
   Stack,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
   alpha,
   useTheme,
 } from '@mui/material';
 import {
+  Cached,
   DataUsage,
   FilterAlt,
   Insights,
+  QueryStats,
   Radar,
+  Refresh,
   ShowChart,
+  Storage,
   Timeline,
   TrendingUp,
 } from '@mui/icons-material';
@@ -36,11 +45,28 @@ import {
 } from './analytics/StrategyWidgets';
 
 const MODE_OPTIONS = [
-  { value: 'all', label: 'All Modes' },
   { value: 'live', label: 'Live' },
   { value: 'paper_shadow', label: 'Shadow Paper' },
   { value: 'paper_candidate', label: 'Candidate Paper' },
+  { value: 'all', label: 'All Modes' },
 ];
+
+const PERIOD_OPTIONS = ['24h', '7d', '30d', '90d'];
+const DEFAULT_PERIOD = '30d';
+const DEFAULT_MODE = 'live';
+
+const formatNumber = (value) =>
+  new Intl.NumberFormat('en-AU').format(Number.isFinite(Number(value)) ? Number(value) : 0);
+
+const formatMoney = (value) => {
+  const parsed = Number(value || 0);
+  return `${parsed < 0 ? '-' : ''}A$${Math.abs(parsed).toFixed(2)}`;
+};
+
+const formatSignedMoney = (value) => {
+  const parsed = Number(value || 0);
+  return `${parsed >= 0 ? '+' : '-'}A$${Math.abs(parsed).toFixed(2)}`;
+};
 
 const formatHoldingTime = (ms) => {
   if (!ms) return 'N/A';
@@ -62,13 +88,25 @@ const formatRunLabel = (run, catalog = []) => {
     catalog.find((strategy) => strategy.key === run.strategy)?.label || run.strategy;
   const modeLabel = formatModeLabel(run.mode);
   const shortRunId = String(run.runId || '').slice(0, 12);
-  return `${strategyLabel} • ${modeLabel} • ${shortRunId}`;
+  const status = run.status ? ` | ${String(run.status).toUpperCase()}` : '';
+  return `${strategyLabel} | ${modeLabel} | ${shortRunId}${status}`;
+};
+
+const formatGeneratedAt = (value) => {
+  if (!value) return 'Not loaded';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not loaded';
+  return date.toLocaleTimeString('en-AU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 };
 
 const AnalyticsDashboard = () => {
   const theme = useTheme();
-  const [period, setPeriod] = useState('30d');
-  const [mode, setMode] = useState('all');
+  const [period, setPeriod] = useState(DEFAULT_PERIOD);
+  const [mode, setMode] = useState(DEFAULT_MODE);
   const [strategy, setStrategy] = useState('');
   const [runId, setRunId] = useState('');
   const [analytics, setAnalytics] = useState(null);
@@ -77,50 +115,68 @@ const AnalyticsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const requestSeqRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadFilterContext = async () => {
-      setContextLoading(true);
-      try {
-        const [runsResponse, catalog] = await Promise.all([
-          runtimeAPI.getRuns({
-            mode: mode === 'all' ? undefined : mode,
-            strategy: strategy || undefined,
-          }),
-          strategiesAPI.getCatalog(),
-        ]);
-
-        if (cancelled) return;
-
-        const runs = Array.isArray(runsResponse?.runs) ? runsResponse.runs : [];
-        setAvailableRuns(runs);
-        setStrategyCatalog(Array.isArray(catalog) ? catalog : []);
-
-        if (runId && !runs.some((run) => run.runId === runId)) {
-          setRunId('');
-        }
-      } catch (err) {
+    strategiesAPI
+      .getCatalog()
+      .then((catalog) => {
         if (!cancelled) {
-          setError(err.message);
+          setStrategyCatalog(Array.isArray(catalog) ? catalog : []);
         }
-      } finally {
-        if (!cancelled) {
-          setContextLoading(false);
-        }
-      }
-    };
-
-    loadFilterContext();
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [mode, strategy, runId]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+
+    const loadRuns = async () => {
+      setContextLoading(true);
+      try {
+        const runsResponse = await runtimeAPI.getRuns({
+          mode: mode === 'all' ? undefined : mode,
+          strategy: strategy || undefined,
+          includeSummary: false,
+          limit: 150,
+        });
+
+        if (cancelled) return;
+        const runs = Array.isArray(runsResponse?.runs) ? runsResponse.runs : [];
+        setAvailableRuns(runs);
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      } finally {
+        if (!cancelled) setContextLoading(false);
+      }
+    };
+
+    loadRuns();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, strategy]);
+
+  useEffect(() => {
+    if (runId && !availableRuns.some((run) => run.runId === runId)) {
+      setRunId('');
+    }
+  }, [availableRuns, runId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
 
     const loadAnalytics = async () => {
       setLoading(true);
@@ -131,17 +187,18 @@ const AnalyticsDashboard = () => {
           mode,
           strategy: strategy || undefined,
           runId: runId || undefined,
+          profile: 'dashboard',
         });
 
-        if (!cancelled) {
+        if (!cancelled && requestSeqRef.current === requestSeq) {
           setAnalytics(data);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && requestSeqRef.current === requestSeq) {
           setError(err.message);
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && requestSeqRef.current === requestSeq) {
           setLoading(false);
         }
       }
@@ -152,22 +209,53 @@ const AnalyticsDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [period, mode, strategy, runId]);
+  }, [period, mode, strategy, runId, refreshNonce]);
 
   const selectedRun = useMemo(
     () => availableRuns.find((run) => run.runId === runId) || null,
     [availableRuns, runId]
   );
 
-  if ((loading || contextLoading) && !analytics) {
+  const selectedStrategyLabel = useMemo(() => {
+    if (!strategy) return 'All Strategies';
+    return strategyCatalog.find((option) => option.key === strategy)?.label || strategy;
+  }, [strategy, strategyCatalog]);
+
+  const selectedScopeLabel = useMemo(() => {
+    if (selectedRun) return formatRunLabel(selectedRun, strategyCatalog);
+    return `${formatModeLabel(mode)} | ${selectedStrategyLabel}`;
+  }, [mode, selectedRun, selectedStrategyLabel, strategyCatalog]);
+
+  const handleModeChange = useCallback((event) => {
+    setMode(event.target.value);
+    setRunId('');
+  }, []);
+
+  const handleStrategyChange = useCallback((event) => {
+    setStrategy(event.target.value);
+    setRunId('');
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshNonce((value) => value + 1);
+  }, []);
+
+  const firstLoad = (loading || contextLoading) && !analytics;
+
+  if (firstLoad) {
     return (
       <Box minHeight="80vh" display="flex" alignItems="center" justifyContent="center">
-        <CircularProgress />
+        <Stack alignItems="center" spacing={2}>
+          <CircularProgress />
+          <Typography variant="body2" color="text.secondary">
+            Loading analytics
+          </Typography>
+        </Stack>
       </Box>
     );
   }
 
-  if (error) {
+  if (error && !analytics) {
     return (
       <Box p={3}>
         <Alert severity="error">Error loading analytics: {error}</Alert>
@@ -184,67 +272,110 @@ const AnalyticsDashboard = () => {
   }
 
   const {
-    summary,
-    signalAnalysis,
-    equityData,
+    summary = {},
+    signalAnalysis = {},
+    equityData = {},
     adxAnalysis,
     exitAnalysis,
-    pairPerformance,
-    sessionPerformance,
+    pairPerformance = [],
+    sessionPerformance = [],
     sidePerformance,
-    filters,
-    rawCounts,
+    filters = {},
+    rawCounts = {},
   } = analytics;
 
+  const netPnL = Number(summary.totalPnLAud || 0);
+  const loadingFreshData = loading || contextLoading;
+
   return (
-    <Box px={3} pb={4} pt={2}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} gap={2} flexWrap="wrap">
-        <Box display="flex" alignItems="center" gap={1}>
+    <Box px={{ xs: 2, md: 3 }} pb={4} pt={2}>
+      {loadingFreshData && (
+        <LinearProgress
+          sx={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 2,
+            mb: 2,
+            borderRadius: 1,
+          }}
+        />
+      )}
+
+      {error && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Showing last analytics snapshot. Refresh failed: {error}
+        </Alert>
+      )}
+
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2} gap={2} flexWrap="wrap">
+        <Box display="flex" alignItems="center" gap={1.25}>
           <Insights color="primary" fontSize="large" />
           <Box>
-            <Typography variant="h5" fontWeight="900" sx={{ letterSpacing: -0.5 }}>
-              RUNTIME<span style={{ color: theme.palette.primary.main }}>ANALYTICS</span>
+            <Typography variant="h5" fontWeight="900">
+              Runtime Analytics
             </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 2 }}>
-              UNIFIED LIVE, SHADOW, AND CANDIDATE PERFORMANCE
+            <Typography variant="caption" color="text.secondary">
+              {selectedScopeLabel}
             </Typography>
           </Box>
         </Box>
 
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Chip
+            icon={<Storage sx={{ fontSize: 16 }} />}
+            label={`${formatNumber(rawCounts.totalSignals)} signals`}
+            variant="outlined"
+          />
+          <Chip
+            icon={<QueryStats sx={{ fontSize: 16 }} />}
+            label={`${formatNumber(rawCounts.closedTrades)} closed trades`}
+            variant="outlined"
+          />
+          <Chip
+            icon={<Cached sx={{ fontSize: 16 }} />}
+            label={analytics.cached ? `Cache ${Math.round((analytics.cacheAgeMs || 0) / 1000)}s` : 'Fresh'}
+            color={analytics.cached ? 'default' : 'primary'}
+            variant="outlined"
+          />
+          <Tooltip title="Refresh analytics">
+            <span>
+              <IconButton onClick={handleRefresh} disabled={loadingFreshData} size="small">
+                <Refresh fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+      </Box>
+
+      <Box
+        display="flex"
+        flexDirection={{ xs: 'column', lg: 'row' }}
+        gap={1.5}
+        alignItems={{ xs: 'stretch', lg: 'center' }}
+        mb={2}
+        p={1.5}
+        sx={{
+          border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+          bgcolor: alpha(theme.palette.background.paper, 0.25),
+          borderRadius: 2,
+        }}
+      >
         <ToggleButtonGroup
           value={period}
           exclusive
           onChange={(_, value) => value && setPeriod(value)}
           size="small"
-          sx={{
-            bgcolor: alpha(theme.palette.background.paper, 0.1),
-            backdropFilter: 'blur(5px)',
-            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-          }}
+          sx={{ flexShrink: 0 }}
         >
-          <ToggleButton value="24h" sx={{ px: 3, fontWeight: 'bold' }}>
-            24H
-          </ToggleButton>
-          <ToggleButton value="7d" sx={{ px: 3, fontWeight: 'bold' }}>
-            7D
-          </ToggleButton>
-          <ToggleButton value="30d" sx={{ px: 3, fontWeight: 'bold' }}>
-            30D
-          </ToggleButton>
-          <ToggleButton value="90d" sx={{ px: 3, fontWeight: 'bold' }}>
-            90D
-          </ToggleButton>
+          {PERIOD_OPTIONS.map((option) => (
+            <ToggleButton key={option} value={option} sx={{ px: 2.5, fontWeight: 'bold' }}>
+              {option.toUpperCase()}
+            </ToggleButton>
+          ))}
         </ToggleButtonGroup>
-      </Box>
 
-      <Stack
-        direction={{ xs: 'column', lg: 'row' }}
-        spacing={1.5}
-        alignItems={{ xs: 'stretch', lg: 'center' }}
-        mb={2}
-      >
-        <FormControl size="small" sx={{ minWidth: 180 }}>
-          <Select value={mode} onChange={(event) => setMode(event.target.value)}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }}>
+          <Select value={mode} onChange={handleModeChange}>
             {MODE_OPTIONS.map((option) => (
               <MenuItem key={option.value} value={option.value}>
                 {option.label}
@@ -253,8 +384,8 @@ const AnalyticsDashboard = () => {
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: 220 }}>
-          <Select value={strategy} onChange={(event) => setStrategy(event.target.value)}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+          <Select value={strategy} onChange={handleStrategyChange}>
             <MenuItem value="">All Strategies</MenuItem>
             {strategyCatalog.map((option) => (
               <MenuItem key={option.key} value={option.key}>
@@ -264,7 +395,7 @@ const AnalyticsDashboard = () => {
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: 320 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', md: 360 }, flex: 1 }}>
           <Select
             value={runId}
             onChange={(event) => setRunId(event.target.value)}
@@ -279,71 +410,71 @@ const AnalyticsDashboard = () => {
           </Select>
         </FormControl>
 
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Chip
-            icon={<FilterAlt sx={{ fontSize: 16 }} />}
-            label={`Mode ${formatModeLabel(filters?.mode || mode)}`}
-            variant="outlined"
-          />
-          <Chip
-            icon={<Radar sx={{ fontSize: 16 }} />}
-            label={`Signals ${rawCounts?.totalSignals || 0}`}
-            variant="outlined"
-          />
-          <Chip
-            icon={<Timeline sx={{ fontSize: 16 }} />}
-            label={`Run ${selectedRun ? String(selectedRun.runId).slice(0, 12) : 'All'}`}
-            variant="outlined"
-          />
-        </Stack>
+        <Button
+          variant="outlined"
+          startIcon={<Refresh />}
+          onClick={handleRefresh}
+          disabled={loadingFreshData}
+          sx={{ flexShrink: 0 }}
+        >
+          Refresh
+        </Button>
+      </Box>
+
+      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap mb={2}>
+        <Chip
+          icon={<FilterAlt sx={{ fontSize: 16 }} />}
+          label={`Mode ${formatModeLabel(filters.mode || mode)}`}
+          variant="outlined"
+        />
+        <Chip
+          icon={<Timeline sx={{ fontSize: 16 }} />}
+          label={`Run ${selectedRun ? String(selectedRun.runId).slice(0, 12) : 'All'}`}
+          variant="outlined"
+        />
+        <Chip
+          icon={<Radar sx={{ fontSize: 16 }} />}
+          label={`Generated ${formatGeneratedAt(analytics.generatedAt)}`}
+          variant="outlined"
+        />
       </Stack>
 
-      <Box display="flex" gap={2} mb={2} sx={{ overflowX: 'auto', pb: 0.5 }}>
-        <Box flex={1} minWidth={200}>
-          <KPICard
-            title="Net Profit"
-            value={`A$${summary.totalPnLAud?.toFixed(2) || '0.00'}`}
-            subtitle={`${summary.totalTrades || 0} trades | ${summary.totalPnLPips?.toFixed(0) || 0} pips`}
-            color={summary.totalPnLAud >= 0 ? 'success.main' : 'error.main'}
-            icon={<ShowChart fontSize="small" />}
-          />
-        </Box>
-        <Box flex={1} minWidth={200}>
-          <KPICard
-            title="Win Rate"
-            value={`${summary.winRate?.toFixed(1) || 0}%`}
-            subtitle={`${summary.winningTrades || 0}W / ${summary.losingTrades || 0}L`}
-            color={summary.winRate > 50 ? 'success.main' : 'warning.main'}
-            icon={<DataUsage fontSize="small" />}
-          />
-        </Box>
-        <Box flex={1} minWidth={200}>
-          <KPICard
-            title="Profit Factor"
-            value={summary.profitFactor?.toFixed(2) || '0.00'}
-            subtitle={`Avg Win: A$${summary.avgWinAud?.toFixed(2) || 0}`}
-            color={summary.profitFactor > 1 ? 'success.main' : 'error.main'}
-            icon={<TrendingUp fontSize="small" />}
-          />
-        </Box>
-        <Box flex={1} minWidth={200}>
-          <KPICard
-            title="Sharpe Ratio"
-            value={summary.sharpeRatio?.toFixed(2) || '0.00'}
-            subtitle={selectedRun ? formatRunLabel(selectedRun, strategyCatalog) : 'Aggregate runtime view'}
-            color={summary.sharpeRatio > 1 ? 'success.main' : 'warning.main'}
-            icon={<Insights fontSize="small" />}
-          />
-        </Box>
-        <Box flex={1} minWidth={200}>
-          <KPICard
-            title="Avg Hold Time"
-            value={formatHoldingTime(summary.avgHoldingTimeMs)}
-            subtitle={`Largest win: +A$${summary.largestWinAud || 0}`}
-            color="info.main"
-            icon={<FilterAlt fontSize="small" />}
-          />
-        </Box>
+      <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(5, 1fr)' }} gap={2} mb={2}>
+        <KPICard
+          title="Net Profit"
+          value={formatMoney(netPnL)}
+          subtitle={`${summary.totalTrades || 0} trades | ${summary.totalPnLPips?.toFixed?.(0) || 0} pips`}
+          color={netPnL >= 0 ? 'success.main' : 'error.main'}
+          icon={<ShowChart fontSize="small" />}
+        />
+        <KPICard
+          title="Win Rate"
+          value={`${summary.winRate?.toFixed?.(1) || 0}%`}
+          subtitle={`${summary.winningTrades || 0}W / ${summary.losingTrades || 0}L`}
+          color={summary.winRate > 50 ? 'success.main' : 'warning.main'}
+          icon={<DataUsage fontSize="small" />}
+        />
+        <KPICard
+          title="Profit Factor"
+          value={summary.profitFactor?.toFixed?.(2) || '0.00'}
+          subtitle={`Avg win ${formatSignedMoney(summary.avgWinAud || 0)}`}
+          color={summary.profitFactor > 1 ? 'success.main' : 'error.main'}
+          icon={<TrendingUp fontSize="small" />}
+        />
+        <KPICard
+          title="Sharpe Ratio"
+          value={summary.sharpeRatio?.toFixed?.(2) || '0.00'}
+          subtitle={selectedRun ? 'Selected run' : 'Aggregate scope'}
+          color={summary.sharpeRatio > 1 ? 'success.main' : 'warning.main'}
+          icon={<Insights fontSize="small" />}
+        />
+        <KPICard
+          title="Avg Hold Time"
+          value={formatHoldingTime(summary.avgHoldingTimeMs)}
+          subtitle={`Largest win ${formatSignedMoney(summary.largestWinAud || 0)}`}
+          color="info.main"
+          icon={<FilterAlt fontSize="small" />}
+        />
       </Box>
 
       <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={2} mb={2}>
@@ -362,23 +493,13 @@ const AnalyticsDashboard = () => {
         </Box>
       </Box>
 
-      <Box
-        display="flex"
-        flexDirection={{ xs: 'column', md: 'row' }}
-        gap={2}
-        mb={2}
-        sx={{ minHeight: 320 }}
-      >
-        <Box flex={1}>
-          <TrendAnalysisWidget totalTrades={summary.totalTrades || 0} adxAnalysis={adxAnalysis} />
-        </Box>
-        <Box flex={1}>
-          <SessionPerformanceWidget sessions={sessionPerformance || []} />
-        </Box>
-        <Box flex={1}>
-          <ExitAnalysisWidget exitAnalysis={exitAnalysis} />
-        </Box>
+      <Box display="grid" gridTemplateColumns={{ xs: '1fr', md: 'repeat(3, 1fr)' }} gap={2} mb={2}>
+        <TrendAnalysisWidget totalTrades={summary.totalTrades || 0} adxAnalysis={adxAnalysis} />
+        <SessionPerformanceWidget sessions={sessionPerformance || []} />
+        <ExitAnalysisWidget exitAnalysis={exitAnalysis} />
       </Box>
+
+      <Divider sx={{ my: 2 }} />
 
       <Box mb={2}>
         <SidePerformanceWidget sidePerformance={sidePerformance} />

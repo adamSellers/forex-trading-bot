@@ -246,11 +246,19 @@ export const engineAPI = {
 };
 
 export const strategiesAPI = {
-    getCatalog: () =>
-        apiCall(API_ENDPOINTS.strategiesCatalog).then((data) => {
+    _catalogPromise: null,
+    getCatalog: ({ force = false } = {}) => {
+        if (!force && strategiesAPI._catalogPromise) {
+            return strategiesAPI._catalogPromise;
+        }
+
+        strategiesAPI._catalogPromise = apiCall(API_ENDPOINTS.strategiesCatalog).then((data) => {
             if (data && Array.isArray(data.strategies)) return data.strategies;
             return [];
-        }),
+        });
+
+        return strategiesAPI._catalogPromise;
+    },
 };
 
 export const runtimeAPI = {
@@ -268,7 +276,9 @@ export const runtimeAPI = {
             body: JSON.stringify(payload),
         }),
     getRuns: (params = {}) => {
-        const query = new URLSearchParams(params).toString();
+        const query = new URLSearchParams(
+            Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
+        ).toString();
         return apiCall(
             `${API_ENDPOINTS.runtimeRuns}${query ? `?${query}` : ""}`
         );
