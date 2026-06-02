@@ -423,9 +423,22 @@ class RuntimeCoordinator extends EventEmitter {
     }
 
     async prepareInstrumentContext(session, instrumentContext, options = {}) {
+        const sourceStrategies = Array.isArray(
+            session?.run?.configSnapshot?.counterSignalSourceStrategies ||
+                session?.generator?.config?.counterSignalSourceStrategies
+        )
+            ? session.run.configSnapshot?.counterSignalSourceStrategies ||
+              session.generator?.config?.counterSignalSourceStrategies
+            : [];
+        const needsTimesFmForecast =
+            session?.run?.strategy === "timesfm_directional" ||
+            (session?.run?.strategy === "counter_signal_reversion" &&
+                (sourceStrategies.length === 0 ||
+                    sourceStrategies.includes("timesfm_directional")));
+
         if (
             !instrumentContext ||
-            session?.run?.strategy !== "timesfm_directional" ||
+            !needsTimesFmForecast ||
             !this.timesFmSignalService?.getForecastContext
         ) {
             return instrumentContext;
@@ -853,6 +866,9 @@ class RuntimeCoordinator extends EventEmitter {
             {};
         const baseNextConfig = {
             ...baseConfig,
+            ...(strategyKey === "counter_signal_reversion"
+                ? strategyDefinition.metadata?.defaultConfig || {}
+                : {}),
             strategy: strategyKey,
         };
         const { config: nextConfig, preset } = applyCandidatePreset(

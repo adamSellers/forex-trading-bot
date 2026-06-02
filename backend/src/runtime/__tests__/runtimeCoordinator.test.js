@@ -319,6 +319,47 @@ describe("RuntimeCoordinator", () => {
         expect(timesFmSignalService.enrichSignal).not.toHaveBeenCalled();
     });
 
+    test("runCycle prefetched TimesFM context for counter-signal candidates that source TimesFM", async () => {
+        await coordinator.startRun({
+            runId: "run-counter-1",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "counter_signal_reversion",
+            status: RUN_STATUSES.ACTIVE,
+            selectionId: "selection-counter",
+            configSnapshot: {
+                strategy: "counter_signal_reversion",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                counterSignalSourceStrategies: ["timesfm_directional"],
+                enableShorting: true,
+                activeSessions: ["sydney", "tokyo", "london"],
+            },
+        });
+
+        const signals = await coordinator.runCycle();
+
+        expect(timesFmSignalService.getForecastContext).toHaveBeenCalledWith(
+            expect.objectContaining({
+                instrument: "AUD_USD",
+                timeframe: "15m",
+                config: expect.objectContaining({
+                    strategy: "counter_signal_reversion",
+                }),
+            })
+        );
+        expect(signals).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    runId: "run-counter-1",
+                    mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                    strategy: "counter_signal_reversion",
+                    signal: "SELL",
+                    reasonCode: "COUNTER_SIGNAL_INVERSE_SHORT_ACTIONABLE",
+                }),
+            ])
+        );
+    });
+
     test("native TimesFM HOLD signals retain forecast context", async () => {
         timesFmSignalService.getForecastContext.mockResolvedValueOnce({
             available: false,
@@ -518,6 +559,37 @@ describe("RuntimeCoordinator", () => {
             expect.objectContaining({
                 mode: RUNTIME_MODES.PAPER_CANDIDATE,
                 selectionId: liveSelection.selectionId,
+            })
+        );
+    });
+
+    test("createCandidateRun applies counter-signal defaults for dashboard launches", async () => {
+        const liveSelection = await coordinator.ensureLiveSelectionInitialized();
+
+        const candidateRun = await coordinator.createCandidateRun({
+            strategyKey: "counter_signal_reversion",
+            initiatedBy: "ui",
+        });
+
+        expect(candidateRun).toEqual(
+            expect.objectContaining({
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                strategy: "counter_signal_reversion",
+                selectionId: liveSelection.selectionId,
+                configSnapshot: expect.objectContaining({
+                    strategy: "counter_signal_reversion",
+                    enableShorting: true,
+                    enableSessionFilter: false,
+                    counterSignalSourceStrategies: [
+                        "timesfm_directional",
+                        "mean_reversion",
+                        "stochastic_divergence",
+                        "supertrend_momentum",
+                    ],
+                    counterSignalStopLossPips: 15,
+                    counterSignalTakeProfitPips: 15,
+                    timeStopHours: 0,
+                }),
             })
         );
     });

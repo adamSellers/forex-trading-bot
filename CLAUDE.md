@@ -426,7 +426,8 @@ is effectively complete; the architecture constraints below remain in force.
 
 - Live trading stays PAUSED while iterating.
 - Do BOTH in sequence: fix the live strategy's structural flaws AND validate candidates in realistic paper.
-- Claude has READ-ONLY SSH to the Pi for data only (`adam@img.oakroad`, `sqlite3 -readonly`); user runs
+- Claude has READ-ONLY SSH to the Pi for data only (`adam@img.oakroad`, bot path `/opt/forex-trading-bot`,
+  `sqlite3 -readonly`); user runs
   all git/deploy/build and any live-config writes per the Git & Deployment Rules above.
 
 #### Carried-forward architecture constraints (still true)
