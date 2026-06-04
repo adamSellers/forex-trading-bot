@@ -360,6 +360,47 @@ describe("RuntimeCoordinator", () => {
         );
     });
 
+    test("runCycle prefetched TimesFM context for signal-following candidates that source TimesFM", async () => {
+        await coordinator.startRun({
+            runId: "run-follow-1",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "signal_following",
+            status: RUN_STATUSES.ACTIVE,
+            selectionId: "selection-follow",
+            configSnapshot: {
+                strategy: "signal_following",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                counterSignalSourceStrategies: ["timesfm_directional"],
+                enableShorting: true,
+                activeSessions: ["sydney", "tokyo", "london"],
+            },
+        });
+
+        const signals = await coordinator.runCycle();
+
+        expect(timesFmSignalService.getForecastContext).toHaveBeenCalledWith(
+            expect.objectContaining({
+                instrument: "AUD_USD",
+                timeframe: "15m",
+                config: expect.objectContaining({
+                    strategy: "signal_following",
+                }),
+            })
+        );
+        expect(signals).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    runId: "run-follow-1",
+                    mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                    strategy: "signal_following",
+                    signal: "BUY",
+                    reasonCode: "SIGNAL_FOLLOWING_LONG_ACTIONABLE",
+                }),
+            ])
+        );
+    });
+
     test("native TimesFM HOLD signals retain forecast context", async () => {
         timesFmSignalService.getForecastContext.mockResolvedValueOnce({
             available: false,
@@ -578,6 +619,37 @@ describe("RuntimeCoordinator", () => {
                 selectionId: liveSelection.selectionId,
                 configSnapshot: expect.objectContaining({
                     strategy: "counter_signal_reversion",
+                    enableShorting: true,
+                    enableSessionFilter: false,
+                    counterSignalSourceStrategies: [
+                        "timesfm_directional",
+                        "mean_reversion",
+                        "stochastic_divergence",
+                        "supertrend_momentum",
+                    ],
+                    counterSignalStopLossPips: 15,
+                    counterSignalTakeProfitPips: 15,
+                    timeStopHours: 0,
+                }),
+            })
+        );
+    });
+
+    test("createCandidateRun applies signal-following defaults for dashboard launches", async () => {
+        const liveSelection = await coordinator.ensureLiveSelectionInitialized();
+
+        const candidateRun = await coordinator.createCandidateRun({
+            strategyKey: "signal_following",
+            initiatedBy: "ui",
+        });
+
+        expect(candidateRun).toEqual(
+            expect.objectContaining({
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                strategy: "signal_following",
+                selectionId: liveSelection.selectionId,
+                configSnapshot: expect.objectContaining({
+                    strategy: "signal_following",
                     enableShorting: true,
                     enableSessionFilter: false,
                     counterSignalSourceStrategies: [

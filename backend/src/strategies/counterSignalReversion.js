@@ -2,6 +2,11 @@ const { ATR } = require("technicalindicators");
 const { createStrategyDefinition } = require("./strategyContract");
 
 const COUNTER_SIGNAL_REVERSION_KEY = "counter_signal_reversion";
+const SIGNAL_FOLLOWING_KEY = "signal_following";
+const AGGREGATE_SIGNAL_STRATEGY_KEYS = Object.freeze([
+    COUNTER_SIGNAL_REVERSION_KEY,
+    SIGNAL_FOLLOWING_KEY,
+]);
 const DEFAULT_COUNTER_SIGNAL_SOURCE_STRATEGIES = Object.freeze([
     "timesfm_directional",
     "mean_reversion",
@@ -64,7 +69,9 @@ function normalizeSourceStrategies(config = {}) {
     return rawSources
         .map((source) => String(source || "").trim())
         .filter((source) => {
-            if (!source || source === COUNTER_SIGNAL_REVERSION_KEY) return false;
+            if (!source || AGGREGATE_SIGNAL_STRATEGY_KEYS.includes(source)) {
+                return false;
+            }
             if (seen.has(source)) return false;
             seen.add(source);
             return true;
@@ -402,6 +409,7 @@ const counterSignalReversionStrategy = createStrategyDefinition({
         supportsLive: true,
         supportsShadow: true,
         supportsCandidate: true,
+        sourceSignalAggregation: true,
         entryValidation: {
             enforceGlobalMinAdx: false,
         },
@@ -412,10 +420,21 @@ const counterSignalReversionStrategy = createStrategyDefinition({
 
 module.exports = Object.assign({}, counterSignalReversionStrategy, {
     COUNTER_SIGNAL_REVERSION_KEY,
+    SIGNAL_FOLLOWING_KEY,
+    AGGREGATE_SIGNAL_STRATEGY_KEYS,
     DEFAULT_COUNTER_SIGNAL_REVERSION_CONFIG,
     DEFAULT_COUNTER_SIGNAL_SOURCE_STRATEGIES,
+    buildFallbackTradePlan,
+    deriveAtrFromCandles,
+    evaluateSourceStrategy,
+    getLastIndicatorValue,
+    getPipValue,
     evaluateCounterSignalReversionEntry,
     invertSide,
     invertTradePlan,
+    isActionableEntry,
+    isStopValid,
+    isTakeProfitValid,
     normalizeSourceStrategies,
+    toFiniteNumber,
 });

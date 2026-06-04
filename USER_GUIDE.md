@@ -46,6 +46,8 @@ The current strategy registry contains:
 | `squeeze_play` | Candidate | Paper run, then Promote to Live |
 | `timesfm_directional` | Candidate | Paper run, then Promote to Live; requires TimesFM sidecar forecasts |
 | `correlation_divergence` | Candidate | Paper only; not live-promotable today |
+| `counter_signal_reversion` | Candidate | Paper run, then Promote to Live |
+| `signal_following` | Candidate | Paper run, then Promote to Live |
 
 The older offline backtest/lab workflow is retired. Use the Paper and Analytics views for comparison.
 
@@ -244,6 +246,8 @@ The active live default is **SuperTrend Momentum**, a trend-following strategy t
 | `squeeze_play` | Looks for directional expansion after low-volatility compression releases | Yes, after paper review |
 | `timesfm_directional` | Trades directly from TimesFM forecast direction, confidence, and expected return | Yes, after paper review and sidecar validation |
 | `correlation_divergence` | Compares one USD pair against peer USD-factor moves and paper-tests mean reversion | No; paper-only research candidate |
+| `counter_signal_reversion` | Fades the first actionable signal from the configured source strategy stack | Yes, after paper review |
+| `signal_following` | Follows the first actionable signal from the configured source strategy stack | Yes, after paper review |
 
 ### Timeframe
 

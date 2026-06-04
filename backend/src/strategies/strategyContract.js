@@ -7,6 +7,7 @@ const CANONICAL_STRATEGY_KEYS = Object.freeze([
     "timesfm_directional",
     "correlation_divergence",
     "counter_signal_reversion",
+    "signal_following",
 ]);
 
 const CANONICAL_STRATEGY_KEY_SET = new Set(CANONICAL_STRATEGY_KEYS);

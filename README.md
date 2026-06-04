@@ -28,7 +28,7 @@ Important behavior:
 
 ## Strategy Catalog
 
-The canonical strategy registry currently includes seven strategies:
+The canonical strategy registry currently includes nine strategies:
 
 | Strategy Key | Label | Runtime Status | Intended Use |
 | --- | --- | --- | --- |
@@ -39,6 +39,8 @@ The canonical strategy registry currently includes seven strategies:
 | `squeeze_play` | Squeeze Play | `candidate` | Paper comparison |
 | `timesfm_directional` | TimesFM Directional | `candidate` | Paper comparison, promotable to live |
 | `correlation_divergence` | Correlation Divergence | `candidate` | Paper-only USD peer divergence research |
+| `counter_signal_reversion` | Counter Signal Reversion | `candidate` | Paper comparison, aggregate source-signal fade |
+| `signal_following` | Signal Following | `candidate` | Paper comparison, aggregate source-signal follow |
 
 Notes:
 
@@ -61,6 +63,7 @@ Notes:
 - Optional TimesFM 2.5 signal enrichment via a Mac-hosted FastAPI sidecar
 - Native TimesFM Directional strategy that uses the sidecar forecast as its entry thesis and can be promoted from Paper after review
 - Correlation Divergence paper candidate that compares a target USD pair against peer USD-factor moves
+- Aggregate signal candidates for fading or following actionable signals from the configured strategy stack
 - PM2 and Raspberry Pi deployment scripts in `scripts/`
 
 ## Architecture

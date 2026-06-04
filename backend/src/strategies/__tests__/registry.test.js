@@ -21,6 +21,7 @@ describe("strategy registry", () => {
             "timesfm_directional",
             "correlation_divergence",
             "counter_signal_reversion",
+            "signal_following",
         ]);
 
         expect(Object.keys(strategyRegistry)).toEqual(CANONICAL_STRATEGY_KEYS);
@@ -29,7 +30,7 @@ describe("strategy registry", () => {
     test("returns canonical catalog metadata in locked order", () => {
         const catalog = listStrategyCatalog();
 
-        expect(catalog).toHaveLength(8);
+        expect(catalog).toHaveLength(9);
         expect(catalog.map((strategy) => strategy.key)).toEqual(
             CANONICAL_STRATEGY_KEYS
         );
@@ -95,6 +96,21 @@ describe("strategy registry", () => {
                 metadata: expect.objectContaining({
                     supportsLive: true,
                     supportsCandidate: true,
+                    sourceSignalAggregation: true,
+                    entryValidation: expect.objectContaining({
+                        enforceGlobalMinAdx: false,
+                    }),
+                }),
+            })
+        );
+        expect(getStrategyDefinition("signal_following")).toEqual(
+            expect.objectContaining({
+                key: "signal_following",
+                runtimeStatus: "candidate",
+                metadata: expect.objectContaining({
+                    supportsLive: true,
+                    supportsCandidate: true,
+                    sourceSignalAggregation: true,
                     entryValidation: expect.objectContaining({
                         enforceGlobalMinAdx: false,
                     }),

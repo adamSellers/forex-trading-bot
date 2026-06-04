@@ -12,6 +12,25 @@ function createRunId(mode = RUNTIME_MODES.LIVE) {
     return `${mode}_${uuidv4()}`;
 }
 
+function getConfiguredSourceStrategies(session = {}) {
+    const configuredSources =
+        session?.run?.configSnapshot?.counterSignalSourceStrategies ||
+        session?.generator?.config?.counterSignalSourceStrategies;
+
+    return Array.isArray(configuredSources) ? configuredSources : [];
+}
+
+function usesSourceSignalAggregation(strategyKey) {
+    try {
+        return (
+            getStrategyDefinition(strategyKey).metadata?.sourceSignalAggregation ===
+            true
+        );
+    } catch (_error) {
+        return false;
+    }
+}
+
 function normalizeRunRecord(runRecord = {}) {
     const configSnapshot = {
         ...(runRecord.configSnapshot || runRecord.config || {}),
@@ -423,16 +442,10 @@ class RuntimeCoordinator extends EventEmitter {
     }
 
     async prepareInstrumentContext(session, instrumentContext, options = {}) {
-        const sourceStrategies = Array.isArray(
-            session?.run?.configSnapshot?.counterSignalSourceStrategies ||
-                session?.generator?.config?.counterSignalSourceStrategies
-        )
-            ? session.run.configSnapshot?.counterSignalSourceStrategies ||
-              session.generator?.config?.counterSignalSourceStrategies
-            : [];
+        const sourceStrategies = getConfiguredSourceStrategies(session);
         const needsTimesFmForecast =
             session?.run?.strategy === "timesfm_directional" ||
-            (session?.run?.strategy === "counter_signal_reversion" &&
+            (usesSourceSignalAggregation(session?.run?.strategy) &&
                 (sourceStrategies.length === 0 ||
                     sourceStrategies.includes("timesfm_directional")));
 
@@ -866,7 +879,7 @@ class RuntimeCoordinator extends EventEmitter {
             {};
         const baseNextConfig = {
             ...baseConfig,
-            ...(strategyKey === "counter_signal_reversion"
+            ...(strategyDefinition.metadata?.sourceSignalAggregation === true
                 ? strategyDefinition.metadata?.defaultConfig || {}
                 : {}),
             strategy: strategyKey,

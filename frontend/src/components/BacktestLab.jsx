@@ -78,6 +78,10 @@ const CANDIDATE_WATCH_NOTES = {
     'Watch whether post-compression releases turn into sustained directional moves rather than repeated false starts.',
   timesfm_directional:
     'Watch whether raw forecast-led entries produce enough quality setups to justify deeper model-driven logic beyond the overlay path.',
+  counter_signal_reversion:
+    'Watch whether fading the aggregate source stack reliably catches exhaustion, or simply fights strong trend agreement.',
+  signal_following:
+    'Watch whether following the aggregate source stack improves signal confirmation without concentrating too heavily in one source strategy.',
 };
 
 const formatCurrency = (value) =>
