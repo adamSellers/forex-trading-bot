@@ -91,6 +91,60 @@ describe("timesFmDirectionalStrategy", () => {
         );
     });
 
+    test("floors the plan stop at minStopLossPips and scales the target to keep R:R", async () => {
+        const candles = buildCandles();
+        const entryPrice = candles[candles.length - 1].close;
+        const marketContext = buildMarketContext();
+        // 4-pip ATR x 1.5 = 6-pip raw stop, below the 15-pip default floor.
+        marketContext.timeframes["15m"].indicators.atr = Array.from(
+            { length: 20 },
+            () => 0.0004
+        );
+
+        const result = await timesFmDirectionalStrategy.evaluateEntry({
+            instrument: "EUR_USD",
+            candles,
+            currentPrice: entryPrice,
+            dataService: {
+                getPipValue: jest.fn(() => 0.0001),
+            },
+            marketContext,
+            config: {
+                timeframe: "15m",
+                maxSpreadPips: 1.2,
+            },
+        });
+
+        expect(result.signalType).toBe("BUY");
+        // Stop floored to 15 pips; reward = floored stop x default 3.0 R:R.
+        expect(result.tradePlan.stopLossPrice).toBeCloseTo(entryPrice - 0.0015, 8);
+        expect(result.tradePlan.takeProfitPrice).toBeCloseTo(entryPrice + 0.0045, 8);
+    });
+
+    test("uses the raw ATR stop when it is wider than the floor", async () => {
+        const candles = buildCandles();
+        const entryPrice = candles[candles.length - 1].close;
+
+        const result = await timesFmDirectionalStrategy.evaluateEntry({
+            instrument: "EUR_USD",
+            candles,
+            currentPrice: entryPrice,
+            dataService: {
+                getPipValue: jest.fn(() => 0.0001),
+            },
+            // Default context ATR is 12 pips: 12 x 1.5 = 18-pip stop, above the floor.
+            marketContext: buildMarketContext(),
+            config: {
+                timeframe: "15m",
+                maxSpreadPips: 1.2,
+            },
+        });
+
+        expect(result.signalType).toBe("BUY");
+        expect(result.tradePlan.stopLossPrice).toBeCloseTo(entryPrice - 0.0018, 8);
+        expect(result.tradePlan.takeProfitPrice).toBeCloseTo(entryPrice + 0.0054, 8);
+    });
+
     test("returns HOLD when the forecast is unavailable", async () => {
         const candles = buildCandles();
         const result = await timesFmDirectionalStrategy.evaluateEntry({

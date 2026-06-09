@@ -394,6 +394,48 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-06-10 — Live-only diagnosis + stop-floor fix (CODE DONE; user config apply + deploy pending)
+
+User direction this session: ignore paper entirely, focus on live trading only. Live trading was
+re-enabled by the user (~2026-06-01) and is ACTIVE — the "live stays PAUSED" statements below are
+historical. Active live strategy remains `timesfm_directional` (run `live_5cafbc39…`).
+
+**Root cause found — config drift:** deploy scripts preserve the Pi's `trading_config.json`, so the
+Phase 2 remediation config NEVER reached the Pi. The Pi runtime config still has the pre-remediation
+tuning that the data condemned: `enableShorting:true` (live shorts −A$35.03), all four sessions
+(Tokyo −A$36.32, Sydney −A$33.65; NY overlap +A$9.86 is the only positive cohort), AUD_USD in assets
+(−A$35.80, worst pair), `timesFmStrategyRiskReward:1.5` (can't carry a ~21% win rate; needs ~3.8x),
+no risk-multiple exit keys so the engine falls back to `breakevenTriggerPips:10` /
+`trailingStopActivationPips:15` / `trailingStopPips:5` (strangles winners; live avg win A$2.78 vs
+avg loss −A$1.43 at 21% win rate = guaranteed bleed), `riskPerTrade:0.02`, `maxOpenPositions:3`.
+Live evidence base: 99 closed live trades, −A$50.67; 68 died at STOP_LOSS (avg 2.8h hold).
+
+**Code bug found + fixed locally:** strategy `tradePlan` stops bypassed the `minStopLossPips` floor —
+`LiveTradingEngine.resolveStopLoss` only floored the GLOBAL_CONFIG fallback path. Live AUD_USD trade
+2026-06-01 entered with an 8.7-pip stop and was stopped out in 6 minutes. Fixes:
+1. `backend/src/strategies/timesFmDirectional.js` — plan stop floored at `minStopLossPips`
+   (default 15, added to strategy defaults); target scales off the floored stop so configured R:R
+   geometry is preserved. Covers live AND paper since both run the same strategy code.
+2. `backend/src/services/LiveTradingEngine.js` `resolveStopLoss` — defensive floor for ALL
+   strategies' plan stops (widens to floor from reference price, keeps `SIGNAL_TRADE_PLAN` source so
+   post-fill realignment doesn't replace it, adds `floored:true`).
+3. Tests updated/added: `timesFmDirectional.test.js` (2 new geometry tests),
+   `LiveTradingEngine.test.js` (sub-floor plan widened; existing plan tests moved above floor).
+   Focused suites pass: timesFmDirectional + LiveTradingEngine (96), PaperTradingRuntime +
+   runtimeCoordinator + registry + tradingRoutes (53). Full `npm test` still blocked locally by the
+   known `better-sqlite3` native binding issue.
+
+**Pending user actions:**
+1. Commit + push the code fix, then deploy on the Pi via `./scripts/update.sh`.
+2. Apply the live config reconciliation on the Pi (POST /api/config payload — see session summary;
+   merge-updates and applies immediately, no restart needed): drop AUD_USD, long-only, London/NY
+   sessions only, 3R target, risk-multiple exits (BE 1.0R / trail activate 1.5R / trail 1.0R),
+   `riskPerTrade:0.01`, `maxOpenPositions:2`, `timeStopHours:0`.
+3. Forward-monitor live expectancy by cohort (side/session/pair) against the Phase 0 baseline.
+
+Note: `timeStopHours` is a no-op in the live engine (paper-only feature) — the Pi's `3` wasn't
+hurting live, but set it to 0 for paper parity and clarity.
+
 ### Current Phase (2026-05-29) — Profitability Remediation
 
 Active initiative: stop the live account's slow bleed and rebuild a trustworthy validation loop.

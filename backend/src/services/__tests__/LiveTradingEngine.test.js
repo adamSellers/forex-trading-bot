@@ -1286,7 +1286,7 @@ describe('LiveTradingEngine', () => {
                 currentPrice: 1.16571,
                 atrPips: 12.5,
                 tradePlan: {
-                    stopLossPrice: 1.16471,
+                    stopLossPrice: 1.16371,
                     takeProfitPrice: 1.16888,
                 },
             });
@@ -1299,7 +1299,7 @@ describe('LiveTradingEngine', () => {
                 expect.objectContaining({
                     brokerReconciliationPayload: expect.objectContaining({
                         liveRuntime: expect.objectContaining({
-                            initialStopLossPrice: 1.16471,
+                            initialStopLossPrice: 1.16371,
                             initialStopDistance: expect.any(Number),
                             atrDistance: expect.any(Number),
                         }),
@@ -1308,7 +1308,7 @@ describe('LiveTradingEngine', () => {
             );
             expect(
                 trade.brokerReconciliationPayload.liveRuntime.initialStopDistance
-            ).toBeCloseTo(0.001, 6);
+            ).toBeCloseTo(0.002, 6);
             expect(
                 trade.brokerReconciliationPayload.liveRuntime.atrDistance
             ).toBeCloseTo(0.00125, 6);
@@ -1333,7 +1333,7 @@ describe('LiveTradingEngine', () => {
             const signal = createMockSignal({
                 currentPrice: 1.16571,
                 tradePlan: {
-                    stopLossPrice: 1.16471,
+                    stopLossPrice: 1.16371,
                     takeProfitPrice: 1.16888,
                 },
             });
@@ -1345,12 +1345,12 @@ describe('LiveTradingEngine', () => {
 
             const trade = await engine.executeEntry(signal, config);
 
-            expect(sizeSpy.mock.calls[0][1]).toBeCloseTo(10, 5);
+            expect(sizeSpy.mock.calls[0][1]).toBeCloseTo(20, 5);
             expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(
                 'AUD_USD',
                 795,
                 {
-                    stopLossPrice: 1.16471,
+                    stopLossPrice: 1.16371,
                     takeProfitPrice: 1.16888,
                 }
             );
@@ -1358,10 +1358,42 @@ describe('LiveTradingEngine', () => {
             expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
             expect(trade).toEqual(
                 expect.objectContaining({
-                    stopLossPrice: 1.16471,
+                    stopLossPrice: 1.16371,
                     takeProfitPrice: 1.16888,
                 })
             );
+        });
+
+        test('should widen sub-floor tradePlan stops to the minStopLossPips floor', async () => {
+            // Plan stop is 8 pips vs the mock config floor of 12: live evidence
+            // showed sub-floor plan stops get tagged by spread+noise within minutes.
+            const signal = createMockSignal({
+                currentPrice: 1.16571,
+                tradePlan: {
+                    stopLossPrice: 1.16491,
+                    takeProfitPrice: 1.16888,
+                },
+            });
+            const config = mockConfigService.get();
+            const sizeSpy = jest
+                .spyOn(engine, 'calculatePositionSize')
+                .mockResolvedValue(795);
+
+            const trade = await engine.executeEntry(signal, config);
+
+            expect(sizeSpy.mock.calls[0][1]).toBeCloseTo(12, 5);
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(
+                'AUD_USD',
+                795,
+                {
+                    stopLossPrice: 1.16451,
+                    takeProfitPrice: 1.16888,
+                }
+            );
+            // Floored plan stops keep SIGNAL_TRADE_PLAN source, so the
+            // post-fill realignment must not replace them.
+            expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
+            expect(trade.stopLossPrice).toBeCloseTo(1.16451, 5);
         });
 
         test('should ignore strategy tradePlan prices that are invalid for the entry direction', async () => {

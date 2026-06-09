@@ -1338,6 +1338,32 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
+        // Defensive floor for strategy trade plans: a plan stop tighter than
+        // minStopLossPips sits inside spread+noise and gets tagged almost
+        // immediately (observed live). Widen to the floor from the same
+        // reference price; keep source SIGNAL_TRADE_PLAN so the post-fill
+        // realignment path does not replace the plan stop entirely.
+        const minStopPips = config.minStopLossPips || 12;
+        if (
+            Number.isFinite(referencePrice) &&
+            pipValue > 0 &&
+            plannedStopLossPips < minStopPips
+        ) {
+            const flooredStopLossPrice =
+                signalSide === "SELL"
+                    ? referencePrice + minStopPips * pipValue
+                    : referencePrice - minStopPips * pipValue;
+            logger.info(
+                `📏 Trade plan stop adjusted: ${plannedStopLossPips.toFixed(1)} pips -> ${minStopPips} pips (minimum floor)`
+            );
+            return {
+                stopLossPips: minStopPips,
+                stopLossPrice: parseFloat(flooredStopLossPrice.toFixed(5)),
+                source: "SIGNAL_TRADE_PLAN",
+                floored: true,
+            };
+        }
+
         return {
             stopLossPips: plannedStopLossPips,
             stopLossPrice: plannedStopLossPrice,

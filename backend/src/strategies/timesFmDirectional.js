@@ -9,6 +9,7 @@ const DEFAULT_TIMESFM_DIRECTIONAL_CONFIG = Object.freeze({
     timesFmStrategyStopLossAtrMultiplier: 1.5,
     timesFmStrategyRiskReward: 3.0,
     timesFmStrategyBlockExtremeVolatility: true,
+    minStopLossPips: 15,
     enableShorting: false,
     enableSessionFilter: true,
     activeSessions: ["london", "newyork"],
@@ -314,7 +315,19 @@ async function evaluateTimesFmDirectionalEntry({
         });
     }
 
-    const stopDistance =
+    // Floor the plan stop at minStopLossPips: in quiet regimes 1.5x ATR can be
+    // under 10 pips, which sits inside spread+noise (live AUD_USD trade on
+    // 2026-06-01 had an 8.7-pip stop and died in 6 minutes). Reward scales off
+    // the floored stop so the configured R:R geometry is preserved.
+    const minStopDistance =
+        Math.max(
+            0,
+            toFiniteNumber(
+                resolvedConfig.minStopLossPips,
+                DEFAULT_TIMESFM_DIRECTIONAL_CONFIG.minStopLossPips
+            ) || 0
+        ) * pipValue;
+    const atrStopDistance =
         atrVal *
         Math.max(
             0.5,
@@ -323,6 +336,7 @@ async function evaluateTimesFmDirectionalEntry({
                 1.5
             ) || 1.5
         );
+    const stopDistance = Math.max(atrStopDistance, minStopDistance);
     const rewardDistance =
         stopDistance *
         Math.max(
