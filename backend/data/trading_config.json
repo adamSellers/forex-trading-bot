@@ -20,6 +20,7 @@
     "enableRsiFilter": true,
     "rsiOverbought": 75,
     "rsiOversold": 30,
+    "enableFreshFlipEntries": false,
     "enableContinuationEntry": true,
     "enableLongContinuationEntry": true,
     "enableShortContinuationEntry": false,

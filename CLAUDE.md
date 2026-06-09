@@ -425,13 +425,26 @@ Live evidence base: 99 closed live trades, −A$50.67; 68 died at STOP_LOSS (avg
    runtimeCoordinator + registry + tradingRoutes (53). Full `npm test` still blocked locally by the
    known `better-sqlite3` native binding issue.
 
+**Strategy decision (user, 2026-06-10): switch live back to `supertrend_momentum`.** The bot was
+originally designed for momentum; TimesFM and the other strategies were edge-hunting attempts. With
+the structural fixes in, the user wants the original methodology back. Live entry-type evidence
+supports the configured posture: long continuations (`CONTINUATION_ADX`) were the only positive
+entry family (+A$4.45/23 overall, +A$11.71/9 in the restricted cohort), FRESH_FLIP went 1/5
+(−A$3.74, keep disabled), every SHORT_* family lost (keep `enableShorting:false` AND
+`enableShortContinuationEntry:false`). Momentum has no `tradePlan` stops, so it uses the engine's
+global ATR stop path (always floored); `enableTakeProfit:false` stays — winners exit via
+trail/reversal, which is the runner profile the new exits are designed to harvest.
+
 **Pending user actions:**
-1. Commit + push the code fix, then deploy on the Pi via `./scripts/update.sh`.
-2. Apply the live config reconciliation on the Pi (POST /api/config payload — see session summary;
-   merge-updates and applies immediately, no restart needed): drop AUD_USD, long-only, London/NY
-   sessions only, 3R target, risk-multiple exits (BE 1.0R / trail activate 1.5R / trail 1.0R),
-   `riskPerTrade:0.01`, `maxOpenPositions:2`, `timeStopHours:0`.
-3. Forward-monitor live expectancy by cohort (side/session/pair) against the Phase 0 baseline.
+1. Commit + push the stop-floor code fix, then deploy on the Pi via `./scripts/update.sh`.
+2. Switch strategy + apply the reconciled config in ONE call:
+   `POST /api/runtime/live-selection` with `strategyKey:"supertrend_momentum"` and `config` overrides
+   (drop AUD_USD, long-only incl. short continuations off, London/NY only, risk-multiple exits
+   BE 1.0R / trail activate 1.5R / trail 1.0R, `riskPerTrade:0.01`, `maxOpenPositions:2`,
+   `timeStopHours:0`). Exact curl in session summary. This creates a NEW live run (fresh runId) —
+   clean attribution for the new posture. 0 open live positions at decision time, so a clean switch.
+3. Forward-monitor the new run's cohort expectancy after ~20–30 closed trades via
+   `/api/analytics?mode=live&runId=<new>&strategy=supertrend_momentum&period=all`.
 
 Note: `timeStopHours` is a no-op in the live engine (paper-only feature) — the Pi's `3` wasn't
 hurting live, but set it to 0 for paper parity and clarity.
