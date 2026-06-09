@@ -55,14 +55,21 @@ log_info "Creating database backup..."
 mkdir -p $BACKUP_DIR
 if [ -f "backend/data/trading.db" ]; then
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    cp backend/data/trading.db "$BACKUP_DIR/trading_$TIMESTAMP.db"
-    # Also backup WAL files if they exist (critical for SQLite integrity)
-    cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
-    cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
-    # Keep only last 7 backups (including WAL/SHM companions)
+    # sqlite3 .backup folds the WAL into a single consistent snapshot — safe
+    # while the bot is still running, and avoids storing a multi-GB -wal copy.
+    if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 -cmd ".timeout 5000" backend/data/trading.db \
+            ".backup '$BACKUP_DIR/trading_$TIMESTAMP.db'"
+    else
+        cp backend/data/trading.db "$BACKUP_DIR/trading_$TIMESTAMP.db"
+        # Also backup WAL files if they exist (critical for SQLite integrity)
+        cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
+        cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
+    fi
+    # Keep only last 2 backups (including legacy WAL/SHM companions)
     while IFS= read -r old_db; do
         rm -f "$old_db" "$old_db-wal" "$old_db-shm"
-    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +8)
+    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +3)
     log_success "Database backed up to $BACKUP_DIR"
 else
     log_info "No existing database to backup"

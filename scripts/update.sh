@@ -37,7 +37,7 @@ cd "$PROJECT_DIR" || log_error "Project directory $PROJECT_DIR not found."
 
 # 1. Backup database BEFORE any git operations (prevents data loss from git reset)
 BACKUP_DIR="$HOME/forex-backups"
-MAX_DB_BACKUPS=5
+MAX_DB_BACKUPS=2
 CONFIG_PATH="backend/data/trading_config.json"
 CONFIG_BACKUP=""
 
@@ -67,10 +67,17 @@ if [ -f "backend/data/trading.db" ]; then
     prune_db_backups $((MAX_DB_BACKUPS - 1))
 
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    cp backend/data/trading.db "$BACKUP_DIR/trading_$TIMESTAMP.db"
-    # Also backup WAL files if they exist (critical for SQLite integrity)
-    cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
-    cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
+    # sqlite3 .backup folds the WAL into a single consistent snapshot — safe
+    # while the bot is still running, and avoids storing a multi-GB -wal copy.
+    if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 -cmd ".timeout 5000" backend/data/trading.db \
+            ".backup '$BACKUP_DIR/trading_$TIMESTAMP.db'"
+    else
+        cp backend/data/trading.db "$BACKUP_DIR/trading_$TIMESTAMP.db"
+        # Also backup WAL files if they exist (critical for SQLite integrity)
+        cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
+        cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
+    fi
     prune_db_backups "$MAX_DB_BACKUPS"
     log_success "Database backed up to $BACKUP_DIR"
 else

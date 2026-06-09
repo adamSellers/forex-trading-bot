@@ -128,9 +128,18 @@ if [ "$restore_type" = "full" ]; then
     
     log_info "Creating safety backup of current state..."
     if [ -d "$PROJECT_DIR" ]; then
-        tar -czf "$BACKUP_DIR/pre_restore_$(date +%Y%m%d_%H%M%S).tar.gz" \
+        pre_ts=$(date +%Y%m%d_%H%M%S)
+        tar -czf "$BACKUP_DIR/pre_restore_${pre_ts}.tar.gz" \
             --exclude='node_modules' \
+            --exclude='backend/logs/*' \
+            --exclude='backend/data/trading.db*' \
             -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null || true
+        # Snapshot the database separately (service is stopped at this point);
+        # keeps the safety tar small and the DB copy consistent.
+        if [ -f "$PROJECT_DIR/backend/data/trading.db" ] && command -v sqlite3 >/dev/null 2>&1; then
+            sqlite3 "$PROJECT_DIR/backend/data/trading.db" \
+                ".backup '$BACKUP_DIR/pre_restore_${pre_ts}.db'" 2>/dev/null || true
+        fi
     fi
     
     log_info "Removing current installation..."
@@ -157,12 +166,47 @@ if [ "$restore_type" = "full" ]; then
     fi
     
     chmod +x "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
-    
+
+    # Newer archives exclude the live SQLite files (backup.sh snapshots the DB
+    # separately). If the tar didn't contain a database, restore the snapshot
+    # with the matching timestamp, falling back to the newest one available.
+    if [ ! -f "$PROJECT_DIR/backend/data/trading.db" ]; then
+        archive_ts=$(basename "$backup_file" | sed -n 's/^forex_backup_\(.*\)\.tar\.gz$/\1/p')
+        db_snapshot=""
+        if [ -n "$archive_ts" ] && [ -f "$BACKUP_DIR/trading_${archive_ts}.db" ]; then
+            db_snapshot="$BACKUP_DIR/trading_${archive_ts}.db"
+        else
+            db_snapshot=$(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | head -1 || true)
+            if [ -n "$db_snapshot" ]; then
+                log_warn "No snapshot matches the archive timestamp; using newest: $(basename "$db_snapshot")"
+            fi
+        fi
+        if [ -n "$db_snapshot" ]; then
+            log_info "Restoring database from $(basename "$db_snapshot")..."
+            mkdir -p "$PROJECT_DIR/backend/data"
+            cp "$db_snapshot" "$PROJECT_DIR/backend/data/trading.db"
+            # Legacy snapshots may carry -wal/-shm companions (set -e: keep
+            # the missing-file case non-fatal)
+            cp "$db_snapshot-wal" "$PROJECT_DIR/backend/data/trading.db-wal" 2>/dev/null || true
+            cp "$db_snapshot-shm" "$PROJECT_DIR/backend/data/trading.db-shm" 2>/dev/null || true
+            chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"* 2>/dev/null || true
+        else
+            log_warn "No database snapshot found in $BACKUP_DIR — restored code only"
+        fi
+    fi
+
 else
-    # Database-only restore
+    # Database-only restore.
+    # Remove the previous database's -wal/-shm first: SQLite would otherwise
+    # replay the old WAL against the restored file and corrupt it.
     log_info "Restoring database..."
+    rm -f "$PROJECT_DIR/backend/data/trading.db" \
+          "$PROJECT_DIR/backend/data/trading.db-wal" \
+          "$PROJECT_DIR/backend/data/trading.db-shm"
     cp "$backup_file" "$PROJECT_DIR/backend/data/trading.db"
-    chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"
+    cp "$backup_file-wal" "$PROJECT_DIR/backend/data/trading.db-wal" 2>/dev/null || true
+    cp "$backup_file-shm" "$PROJECT_DIR/backend/data/trading.db-shm" 2>/dev/null || true
+    chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"* 2>/dev/null || true
 fi
 
 # Restart service

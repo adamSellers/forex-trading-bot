@@ -43,7 +43,10 @@ fi
 
 log_info "Creating archive..."
 
-# Create backup (excludes node_modules, logs, and large generated files)
+# Create backup (excludes node_modules, logs, and large generated files).
+# The live SQLite files are excluded: tar-ing a multi-GB WAL-mode database on
+# every run is what was filling the SD card, and a raw copy without its WAL is
+# inconsistent anyway. The database is snapshotted separately below.
 tar -czf "$BACKUP_DIR/$BACKUP_FILE" \
     --exclude='node_modules' \
     --exclude='frontend/node_modules' \
@@ -51,20 +54,38 @@ tar -czf "$BACKUP_DIR/$BACKUP_FILE" \
     --exclude='*.log' \
     --exclude='backend/logs/*' \
     --exclude='frontend/dist' \
+    --exclude='backend/data/trading.db*' \
     -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")"
 
 log_success "Backup created: $BACKUP_DIR/$BACKUP_FILE"
 
-# Database-only backup (quick restore option)
+# Database snapshot (quick restore option).
+# sqlite3 .backup takes a consistent point-in-time copy with the WAL contents
+# folded in — a plain cp of a WAL-mode database silently drops transactions
+# still sitting in trading.db-wal.
 if [ -f "$PROJECT_DIR/backend/data/trading.db" ]; then
-    cp "$PROJECT_DIR/backend/data/trading.db" "$BACKUP_DIR/trading_${TIMESTAMP}.db"
-    log_success "Database backup: $BACKUP_DIR/trading_${TIMESTAMP}.db"
+    DB_SNAPSHOT="$BACKUP_DIR/trading_${TIMESTAMP}.db"
+    if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 -cmd ".timeout 5000" "$PROJECT_DIR/backend/data/trading.db" \
+            ".backup '$DB_SNAPSHOT'"
+    else
+        cp "$PROJECT_DIR/backend/data/trading.db" "$DB_SNAPSHOT"
+        cp "$PROJECT_DIR/backend/data/trading.db-wal" "$DB_SNAPSHOT-wal" 2>/dev/null || true
+        cp "$PROJECT_DIR/backend/data/trading.db-shm" "$DB_SNAPSHOT-shm" 2>/dev/null || true
+    fi
+    log_success "Database backup: $DB_SNAPSHOT"
 fi
 
-# Clean old backups (keep last 7 full, last 14 DB-only)
+# Clean old backups (keep the latest 2 of each — the Pi SD card is small)
 log_info "Cleaning old backups..."
-ls -tp "$BACKUP_DIR"/forex_backup_*.tar.gz 2>/dev/null | tail -n +8 | xargs -r rm -f
-ls -tp "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +15 | xargs -r rm -f
+MAX_KEEP=2
+ls -tp "$BACKUP_DIR"/forex_backup_*.tar.gz 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
+ls -tp "$BACKUP_DIR"/pre_restore_*.tar.gz 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
+ls -tp "$BACKUP_DIR"/pre_restore_*.db 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
+# DB snapshots may have legacy -wal/-shm companions; remove them with their .db
+while IFS= read -r old_db; do
+    rm -f "$old_db" "$old_db-wal" "$old_db-shm"
+done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +$((MAX_KEEP + 1)))
 
 # Restart if was running
 if [ "$was_running" = true ] && [ "$1" = "--cold" ]; then
