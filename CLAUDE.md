@@ -394,6 +394,35 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-06-10 — Database retention overhaul + one-off shrink (CODE DONE; user deploy + Pi shrink pending)
+
+Root cause of oversized backups: Pi `trading.db` was 3.3GB (47% freelist, never VACUUMed) plus a
+1.6GB WAL. The WAL grew because passive autocheckpoints (`wal_autocheckpoint=1000`) can never RESET
+the WAL while readers are active, and the bot reads constantly — nothing ever ran
+`wal_checkpoint(TRUNCATE)`. The 90-day signal sweep itself WAS working (oldest signal exactly 90d);
+the volume is just high (~13k signal rows/day across live+shadow+candidate runs, 13 indexes,
+`timesfm_context` ~600B/row = 347MB). `portfolio_snapshots` had NO retention at all.
+
+Code changes (storage only, no trading logic):
+- `backend/server.js`: `scheduleSignalCleanup` → `scheduleDataRetention`. Daily midnight sweep now:
+  signals 30d (was 90d), TimesFM context nulled after 7d, entry_decisions 90d, portfolio_snapshots
+  90d, then `PRAGMA wal_checkpoint(TRUNCATE)`. All retention days env-overridable
+  (`SIGNAL_RETENTION_DAYS`, `TIMESFM_CONTEXT_RETENTION_DAYS`, `ENTRY_DECISION_RETENTION_DAYS`,
+  `PORTFOLIO_SNAPSHOT_RETENTION_DAYS`).
+- `signalRepository.deleteOlderThan` now batched (5k-row id-subquery chunks, short transactions so
+  big purges never block live writes); new `clearTimesFmContextOlderThan`. New `deleteOlderThan` on
+  `entryDecisionRepository` (`decision_time`) and `portfolioRepository` (`snapshot_time`).
+- Tests: full `npm test` = 400 pass / 44 fail, failures ONLY the pre-existing better-sqlite3 binding
+  issue in the 3 real-DB repo suites (tradeRepository, portfolioRepository, strategyRunRepository —
+  failing before this change too). Batched SQL verified against real SQLite via sqlite3 CLI.
+  NOTE: `require('better-sqlite3')` succeeds locally — the binding fails lazily at `new Database()`,
+  so a bare require is not a valid health check.
+
+Pending user actions: commit/push, then on the Pi run the one-off shrink (pm2 stop → purge SQL +
+`wal_checkpoint(TRUNCATE)` + `VACUUM` → `./scripts/update.sh`). Exact commands in session summary.
+Expected: ~4.9GB (db+WAL) → ~0.9GB. Trade-off accepted: signal-event counters on the 90d analytics
+view only cover 30d of signals (trade/P&L analytics unaffected — `trades` is never touched).
+
 ### Update 2026-06-10 — Live-only diagnosis + stop-floor fix (CODE DONE; user config apply + deploy pending)
 
 User direction this session: ignore paper entirely, focus on live trading only. Live trading was

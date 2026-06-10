@@ -140,6 +140,32 @@ class PortfolioRepository {
         }
     }
 
+    /**
+     * Delete portfolio snapshots older than specified number of days
+     * Snapshots are written every minute per active run and previously had
+     * no retention at all; the daily sweep keeps this table bounded.
+     * Returns 0 on error (never throws) so the sweep continues.
+     * @param {number} days - Delete snapshots older than this many days
+     * @returns {number} - Number of deleted records
+     */
+    async deleteOlderThan(days) {
+        try {
+            const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+            const deleted = await db("portfolio_snapshots")
+                .where("snapshot_time", "<", cutoff)
+                .del();
+            if (deleted > 0) {
+                logger.info(
+                    `Cleaned up ${deleted} portfolio snapshots older than ${days} days`
+                );
+            }
+            return deleted;
+        } catch (error) {
+            logger.error("Error deleting old portfolio snapshots:", error);
+            return 0;
+        }
+    }
+
     _emptySnapshot() {
         return {
             totalValueAud: 0,

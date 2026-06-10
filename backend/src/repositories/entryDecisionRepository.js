@@ -257,6 +257,31 @@ class EntryDecisionRepository {
             throw error;
         }
     }
+
+    /**
+     * Delete entry decisions older than specified number of days
+     * Used by the daily retention sweep; returns 0 on error (never throws)
+     * so one failed step cannot abort the rest of the sweep.
+     * @param {number} days - Delete decisions older than this many days
+     * @returns {number} - Number of deleted records
+     */
+    async deleteOlderThan(days) {
+        try {
+            const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+            const deleted = await db("entry_decisions")
+                .where("decision_time", "<", cutoff)
+                .del();
+            if (deleted > 0) {
+                logger.info(
+                    `Cleaned up ${deleted} entry decisions older than ${days} days`
+                );
+            }
+            return deleted;
+        } catch (error) {
+            logger.error("Error deleting old entry decisions:", error);
+            return 0;
+        }
+    }
 }
 
 module.exports = EntryDecisionRepository;

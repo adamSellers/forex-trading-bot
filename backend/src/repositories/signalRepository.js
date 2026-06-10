@@ -316,19 +316,78 @@ class SignalRepository {
     /**
      * Delete signals older than specified number of days
      * Used for retention policy to keep signals table bounded
+     * Deletes in batches: each batch is its own short transaction, so a large
+     * purge (retention shortened, or sweep catching up after downtime) never
+     * holds a single long write lock that would block live trade persistence.
      * @param {number} days - Delete signals older than this many days
+     * @param {object} [options]
+     * @param {number} [options.batchSize=5000] - Max rows deleted per transaction
      * @returns {number} - Number of deleted records
      */
-    async deleteOlderThan(days) {
+    async deleteOlderThan(days, { batchSize = 5000 } = {}) {
         try {
             const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-            const deleted = await db("signals").where("timestamp", "<", cutoff).del();
-            if (deleted > 0) {
-                logger.info(`Cleaned up ${deleted} signals older than ${days} days`);
+            let totalDeleted = 0;
+            let deletedInBatch = 0;
+            do {
+                deletedInBatch = await db("signals")
+                    .whereIn(
+                        "id",
+                        db("signals")
+                            .select("id")
+                            .where("timestamp", "<", cutoff)
+                            .limit(batchSize)
+                    )
+                    .del();
+                totalDeleted += deletedInBatch;
+            } while (deletedInBatch >= batchSize);
+            if (totalDeleted > 0) {
+                logger.info(`Cleaned up ${totalDeleted} signals older than ${days} days`);
             }
-            return deleted;
+            return totalDeleted;
         } catch (error) {
             logger.error("Error deleting old signals:", error);
+            return 0;
+        }
+    }
+
+    /**
+     * Null out the TimesFM context JSON on signals older than the given age.
+     * timesfm_context averages ~600 bytes per row (it was ~347MB of the
+     * production signals table) and is only useful for recent diagnostics,
+     * so retention trims it earlier than the signal rows themselves.
+     * Batched for the same live-write-lock reason as deleteOlderThan.
+     * @param {number} days - Clear context on signals older than this many days
+     * @param {object} [options]
+     * @param {number} [options.batchSize=5000] - Max rows updated per transaction
+     * @returns {number} - Number of updated records
+     */
+    async clearTimesFmContextOlderThan(days, { batchSize = 5000 } = {}) {
+        try {
+            const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+            let totalCleared = 0;
+            let clearedInBatch = 0;
+            do {
+                clearedInBatch = await db("signals")
+                    .whereIn(
+                        "id",
+                        db("signals")
+                            .select("id")
+                            .where("timestamp", "<", cutoff)
+                            .whereNotNull("timesfm_context")
+                            .limit(batchSize)
+                    )
+                    .update({ timesfm_context: null });
+                totalCleared += clearedInBatch;
+            } while (clearedInBatch >= batchSize);
+            if (totalCleared > 0) {
+                logger.info(
+                    `Cleared TimesFM context on ${totalCleared} signals older than ${days} days`
+                );
+            }
+            return totalCleared;
+        } catch (error) {
+            logger.error("Error clearing old TimesFM signal context:", error);
             return 0;
         }
     }

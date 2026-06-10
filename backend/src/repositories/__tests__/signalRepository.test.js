@@ -35,28 +35,66 @@ describe('SignalRepository', () => {
         jest.clearAllMocks();
     });
 
+    // Retention methods delete/update via batched whereIn-id-subquery chains:
+    // db('signals').whereIn('id', db('signals').select('id').where(...).limit(n)).del()
+    // The mock builder below records the chain and returns per-batch results
+    // so the loop accumulation/termination logic is what gets verified here.
+    const makeBatchBuilder = (batchResults) => {
+        const builder = {
+            capturedWhere: null,
+            capturedLimit: null,
+            whereNotNullCalls: [],
+        };
+        builder.select = jest.fn(() => builder);
+        builder.where = jest.fn((column, op, value) => {
+            builder.capturedWhere = { column, op, value };
+            return builder;
+        });
+        builder.whereNotNull = jest.fn((column) => {
+            builder.whereNotNullCalls.push(column);
+            return builder;
+        });
+        builder.limit = jest.fn((n) => {
+            builder.capturedLimit = n;
+            return builder;
+        });
+        builder.whereIn = jest.fn(() => builder);
+        builder.del = jest.fn(() => {
+            const next = batchResults.shift();
+            return next instanceof Error
+                ? Promise.reject(next)
+                : Promise.resolve(next ?? 0);
+        });
+        builder.update = jest.fn(() => {
+            const next = batchResults.shift();
+            return next instanceof Error
+                ? Promise.reject(next)
+                : Promise.resolve(next ?? 0);
+        });
+        return builder;
+    };
+
     describe('deleteOlderThan', () => {
         test('should delete signals older than specified days', async () => {
-            const mockDel = jest.fn().mockResolvedValue(5);
-            const mockWhere = jest.fn().mockReturnValue({ del: mockDel });
-            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+            const builder = makeBatchBuilder([5]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
 
             const deleted = await repository.deleteOlderThan(90);
 
             expect(deleted).toBe(5);
             expect(mockTestDbInstance).toHaveBeenCalledWith('signals');
-            expect(mockWhere).toHaveBeenCalledWith('timestamp', '<', expect.any(Number));
-            expect(mockDel).toHaveBeenCalled();
+            expect(builder.capturedWhere).toEqual({
+                column: 'timestamp',
+                op: '<',
+                value: expect.any(Number),
+            });
+            expect(builder.whereIn).toHaveBeenCalledWith('id', builder);
+            expect(builder.del).toHaveBeenCalledTimes(1);
         });
 
         test('should calculate correct cutoff date for 90 days', async () => {
-            let capturedCutoff = null;
-            const mockDel = jest.fn().mockResolvedValue(0);
-            const mockWhere = jest.fn((column, op, value) => {
-                capturedCutoff = value;
-                return { del: mockDel };
-            });
-            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+            const builder = makeBatchBuilder([0]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
 
             const now = Date.now();
             await repository.deleteOlderThan(90);
@@ -65,13 +103,37 @@ describe('SignalRepository', () => {
             const expectedCutoff = now - 90 * 24 * 60 * 60 * 1000;
 
             // Allow 1 second tolerance for test execution time
-            expect(Math.abs(capturedCutoff - expectedCutoff)).toBeLessThan(1000);
+            expect(
+                Math.abs(builder.capturedWhere.value - expectedCutoff)
+            ).toBeLessThan(1000);
+        });
+
+        test('should loop batches until a batch comes back short', async () => {
+            // Two full batches then a short one -> three delete calls total
+            const builder = makeBatchBuilder([5000, 5000, 123]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
+
+            const deleted = await repository.deleteOlderThan(30);
+
+            expect(deleted).toBe(10123);
+            expect(builder.del).toHaveBeenCalledTimes(3);
+            expect(builder.capturedLimit).toBe(5000);
+        });
+
+        test('should respect a custom batchSize', async () => {
+            const builder = makeBatchBuilder([2, 1]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
+
+            const deleted = await repository.deleteOlderThan(30, { batchSize: 2 });
+
+            expect(deleted).toBe(3);
+            expect(builder.del).toHaveBeenCalledTimes(2);
+            expect(builder.capturedLimit).toBe(2);
         });
 
         test('should return 0 when no signals deleted', async () => {
-            const mockDel = jest.fn().mockResolvedValue(0);
-            const mockWhere = jest.fn().mockReturnValue({ del: mockDel });
-            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+            const builder = makeBatchBuilder([0]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
 
             const deleted = await repository.deleteOlderThan(90);
 
@@ -79,31 +141,53 @@ describe('SignalRepository', () => {
         });
 
         test('should handle database errors gracefully', async () => {
-            const mockDel = jest.fn().mockRejectedValue(new Error('DB connection failed'));
-            const mockWhere = jest.fn().mockReturnValue({ del: mockDel });
-            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+            const builder = makeBatchBuilder([new Error('DB connection failed')]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
 
             const deleted = await repository.deleteOlderThan(90);
 
             // Should return 0 on error, not throw
             expect(deleted).toBe(0);
         });
+    });
 
-        test('should work with different day values', async () => {
-            let capturedCutoff = null;
-            const mockDel = jest.fn().mockResolvedValue(10);
-            const mockWhere = jest.fn((column, op, value) => {
-                capturedCutoff = value;
-                return { del: mockDel };
-            });
-            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
-
-            await repository.deleteOlderThan(30);
+    describe('clearTimesFmContextOlderThan', () => {
+        test('should null context on rows older than the cutoff', async () => {
+            const builder = makeBatchBuilder([4]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
 
             const now = Date.now();
-            const expected30Days = now - 30 * 24 * 60 * 60 * 1000;
+            const cleared = await repository.clearTimesFmContextOlderThan(7);
 
-            expect(Math.abs(capturedCutoff - expected30Days)).toBeLessThan(1000);
+            expect(cleared).toBe(4);
+            // Only rows that still have context are targeted
+            expect(builder.whereNotNullCalls).toContain('timesfm_context');
+            expect(builder.update).toHaveBeenCalledWith({ timesfm_context: null });
+            const expectedCutoff = now - 7 * 24 * 60 * 60 * 1000;
+            expect(
+                Math.abs(builder.capturedWhere.value - expectedCutoff)
+            ).toBeLessThan(1000);
+        });
+
+        test('should loop batches until a batch comes back short', async () => {
+            const builder = makeBatchBuilder([2, 2, 1]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
+
+            const cleared = await repository.clearTimesFmContextOlderThan(7, {
+                batchSize: 2,
+            });
+
+            expect(cleared).toBe(5);
+            expect(builder.update).toHaveBeenCalledTimes(3);
+        });
+
+        test('should handle database errors gracefully', async () => {
+            const builder = makeBatchBuilder([new Error('DB connection failed')]);
+            mockTestDbInstance = jest.fn().mockReturnValue(builder);
+
+            const cleared = await repository.clearTimesFmContextOlderThan(7);
+
+            expect(cleared).toBe(0);
         });
     });
 

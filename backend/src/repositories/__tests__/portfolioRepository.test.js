@@ -108,4 +108,55 @@ describe("PortfolioRepository", () => {
             })
         );
     });
+
+    describe("deleteOlderThan", () => {
+        const daysAgoMs = (days) => Date.now() - days * 24 * 60 * 60 * 1000;
+
+        test("should delete only snapshots older than the cutoff", async () => {
+            await repository.save({
+                totalValueAud: 10000,
+                balanceAud: 10000,
+                snapshotTime: daysAgoMs(91),
+                mode: "live",
+            });
+            await repository.save({
+                totalValueAud: 10001,
+                balanceAud: 10000,
+                snapshotTime: daysAgoMs(1),
+                mode: "live",
+            });
+
+            const deleted = await repository.deleteOlderThan(90);
+
+            expect(deleted).toBe(1);
+            const remaining = await testDb("portfolio_snapshots");
+            expect(remaining).toHaveLength(1);
+            expect(Number(remaining[0].snapshot_time)).toBeGreaterThan(
+                daysAgoMs(90)
+            );
+        });
+
+        test("should return 0 when nothing is old enough", async () => {
+            await repository.save({
+                totalValueAud: 10000,
+                balanceAud: 10000,
+                snapshotTime: daysAgoMs(5),
+                mode: "live",
+            });
+
+            const deleted = await repository.deleteOlderThan(90);
+
+            expect(deleted).toBe(0);
+            expect(await testDb("portfolio_snapshots")).toHaveLength(1);
+        });
+
+        test("should return 0 on database errors instead of throwing", async () => {
+            mockTestDbInstance = null;
+
+            const deleted = await repository.deleteOlderThan(90);
+
+            expect(deleted).toBe(0);
+            mockTestDbInstance = testDb;
+        });
+    });
 });

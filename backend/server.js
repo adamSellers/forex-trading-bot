@@ -7,6 +7,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const logger = require("./src/utils/logger");
+const { db } = require("./config/database");
 const tradingRoutes = require("./src/routes/tradingRoutes");
 const OandaDataService = require("./src/services/OandaDataService");
 const ConfigService = require("./src/services/configService");
@@ -324,14 +325,58 @@ tradingEngine.on("entryRejected", ({ signal, reason }) => {
 });
 
 // ============================================
-// Signal Cleanup Scheduler (90-day retention)
+// Data Retention Scheduler (daily at midnight)
 // ============================================
-const scheduleSignalCleanup = () => {
-    const RETENTION_DAYS = 90;
+// Storage policy only — never touches trades (the permanent record) or any
+// trading logic. Sizing context from the 2026-06-10 production audit:
+// signals dominate growth (~13k rows/day across live + shadow + candidate
+// runs, amplified by 13 indexes), timesfm_context JSON averages ~600B/row,
+// and portfolio_snapshots previously had no retention at all.
+const SIGNAL_RETENTION_DAYS = Number(process.env.SIGNAL_RETENTION_DAYS) || 30;
+const TIMESFM_CONTEXT_RETENTION_DAYS =
+    Number(process.env.TIMESFM_CONTEXT_RETENTION_DAYS) || 7;
+const ENTRY_DECISION_RETENTION_DAYS =
+    Number(process.env.ENTRY_DECISION_RETENTION_DAYS) || 90;
+const PORTFOLIO_SNAPSHOT_RETENTION_DAYS =
+    Number(process.env.PORTFOLIO_SNAPSHOT_RETENTION_DAYS) || 90;
+
+const runDataRetention = async () => {
+    // Each repository method catches its own errors and returns 0, so one
+    // failed step never aborts the rest of the sweep.
+    await signalRepository.deleteOlderThan(SIGNAL_RETENTION_DAYS);
+    await signalRepository.clearTimesFmContextOlderThan(
+        TIMESFM_CONTEXT_RETENTION_DAYS
+    );
+    await entryDecisionRepository.deleteOlderThan(ENTRY_DECISION_RETENTION_DAYS);
+    await portfolioRepository.deleteOlderThan(PORTFOLIO_SNAPSHOT_RETENTION_DAYS);
+
+    // Passive autocheckpoints (wal_autocheckpoint=1000) copy WAL pages into
+    // the main db but can only RESET the WAL file when no reader is active —
+    // and this process reads constantly, so the production WAL grew to 1.6GB
+    // unchecked. TRUNCATE forces a full checkpoint + WAL reset; busy_timeout
+    // (30s) bounds how long it waits for in-flight readers.
+    try {
+        const rows = await db.raw("PRAGMA wal_checkpoint(TRUNCATE)");
+        const result = Array.isArray(rows) ? rows[0] : rows;
+        if (result && result.busy) {
+            logger.warn(
+                "WAL checkpoint (TRUNCATE) could not complete (readers/writers busy); will retry on next sweep"
+            );
+        } else {
+            logger.info("WAL checkpoint (TRUNCATE) completed after retention sweep");
+        }
+    } catch (error) {
+        logger.error("WAL checkpoint after retention sweep failed:", error);
+    }
+};
+
+const scheduleDataRetention = () => {
     const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-    // Run cleanup immediately on startup
-    signalRepository.deleteOlderThan(RETENTION_DAYS);
+    // Run retention immediately on startup
+    runDataRetention().catch((error) =>
+        logger.error("Startup retention sweep failed:", error)
+    );
 
     // Calculate ms until next midnight
     const now = new Date();
@@ -340,15 +385,23 @@ const scheduleSignalCleanup = () => {
     tomorrow.setHours(0, 0, 0, 0);
     const msUntilMidnight = tomorrow - now;
 
-    // Schedule first cleanup at midnight, then daily
+    // Schedule first sweep at midnight, then daily
     setTimeout(() => {
-        signalRepository.deleteOlderThan(RETENTION_DAYS);
+        runDataRetention().catch((error) =>
+            logger.error("Retention sweep failed:", error)
+        );
         setInterval(() => {
-            signalRepository.deleteOlderThan(RETENTION_DAYS);
+            runDataRetention().catch((error) =>
+                logger.error("Retention sweep failed:", error)
+            );
         }, ONE_DAY_MS);
     }, msUntilMidnight);
 
-    logger.info(`🗓️ Signal cleanup scheduled: ${RETENTION_DAYS}-day retention, runs at midnight`);
+    logger.info(
+        `🗓️ Data retention scheduled (midnight daily): signals ${SIGNAL_RETENTION_DAYS}d, ` +
+            `TimesFM context ${TIMESFM_CONTEXT_RETENTION_DAYS}d, entry decisions ${ENTRY_DECISION_RETENTION_DAYS}d, ` +
+            `portfolio snapshots ${PORTFOLIO_SNAPSHOT_RETENTION_DAYS}d, WAL checkpoint after each sweep`
+    );
 };
 
 // ============================================
@@ -410,7 +463,7 @@ server.listen(PORT, async () => {
             s3ReportScheduler.start();
 
             // Schedule daily signal cleanup (90-day retention)
-            scheduleSignalCleanup();
+            scheduleDataRetention();
         }, 5000); // Wait 5s for initial candle data
     }
 });

@@ -212,4 +212,42 @@ describe("EntryDecisionRepository", () => {
             })
         );
     });
+
+    describe("deleteOlderThan", () => {
+        test("should delete decisions older than specified days", async () => {
+            let capturedCutoff = null;
+            const mockDel = jest.fn().mockResolvedValue(3);
+            const mockWhere = jest.fn((column, op, value) => {
+                capturedCutoff = value;
+                return { del: mockDel };
+            });
+            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+
+            const now = Date.now();
+            const deleted = await repository.deleteOlderThan(90);
+
+            expect(deleted).toBe(3);
+            expect(mockTestDbInstance).toHaveBeenCalledWith("entry_decisions");
+            expect(mockWhere).toHaveBeenCalledWith(
+                "decision_time",
+                "<",
+                expect.any(Number)
+            );
+            // Cutoff should be approximately 90 days ago (ms epoch)
+            const expectedCutoff = now - 90 * 24 * 60 * 60 * 1000;
+            expect(Math.abs(capturedCutoff - expectedCutoff)).toBeLessThan(1000);
+        });
+
+        test("should return 0 on database errors instead of throwing", async () => {
+            const mockDel = jest
+                .fn()
+                .mockRejectedValue(new Error("DB connection failed"));
+            const mockWhere = jest.fn().mockReturnValue({ del: mockDel });
+            mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+
+            const deleted = await repository.deleteOlderThan(90);
+
+            expect(deleted).toBe(0);
+        });
+    });
 });
