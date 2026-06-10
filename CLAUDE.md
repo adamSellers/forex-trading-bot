@@ -394,7 +394,7 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Update 2026-06-10 — Database retention overhaul + one-off shrink (CODE DONE; user deploy + Pi shrink pending)
+### Update 2026-06-10 — Database retention overhaul + one-off shrink (DEPLOYED + VERIFIED)
 
 Root cause of oversized backups: Pi `trading.db` was 3.3GB (47% freelist, never VACUUMed) plus a
 1.6GB WAL. The WAL grew because passive autocheckpoints (`wal_autocheckpoint=1000`) can never RESET
@@ -418,10 +418,22 @@ Code changes (storage only, no trading logic):
   NOTE: `require('better-sqlite3')` succeeds locally — the binding fails lazily at `new Database()`,
   so a bare require is not a valid health check.
 
-Pending user actions: commit/push, then on the Pi run the one-off shrink (pm2 stop → purge SQL +
-`wal_checkpoint(TRUNCATE)` + `VACUUM` → `./scripts/update.sh`). Exact commands in session summary.
-Expected: ~4.9GB (db+WAL) → ~0.9GB. Trade-off accepted: signal-event counters on the 90d analytics
-view only cover 30d of signals (trade/P&L analytics unaffected — `trades` is never touched).
+DEPLOYED 2026-06-10: user committed/pushed, ran the one-off Pi shrink (pm2 stop → purge SQL +
+`wal_checkpoint(TRUNCATE)` + `VACUUM`) and `./scripts/update.sh`. Verified via read-only SSH:
+db 3.3GB → 838MB, WAL 1.6GB → 0, freelist 0, oldest signal 29.5d, no TimesFM context older than 7d,
+`trades` untouched (168). Startup sweep + WAL checkpoint confirmed in Pi logs. Trade-off accepted:
+signal-event counters on the 90d analytics view only cover 30d of signals (trade/P&L analytics
+unaffected). Passive follow-ups only: confirm tomorrow's midnight sweep logs + WAL stays in the MBs,
+and confirm the next backup is small. This `update.sh` also deployed the stop-floor fix from the
+live-only diagnosis session below, and the user completed the `supertrend_momentum` live-selection
+switch — VERIFIED 2026-06-10 via read-only SSH: active live run `live_7b62da29…` =
+`supertrend_momentum` (started 2026-06-09 22:46:22 UTC, old TimesFM run stopped same second, shadow
+paired), full reconciled config confirmed (no AUD_USD, long-only both flags, London/NY only,
+risk-multiple exits 1.0R/1.5R/1.0R with breakeven+trailing enabled, riskPerTrade 0.01,
+maxOpenPositions 2, timeStopHours 0, enableTrading true). Leftover pip exit keys in the snapshot are
+inert — `exitPolicy.resolveConfiguredDistance` prefers risk multiples; pips are last-resort fallback
+only. 0 trades yet (expected; restricted posture). Next: review cohort expectancy after ~20–30
+closed trades via `/api/analytics?mode=live&runId=live_7b62da29-7325-4819-8df8-15466282a78d&strategy=supertrend_momentum&period=all`.
 
 ### Update 2026-06-10 — Live-only diagnosis + stop-floor fix (CODE DONE; user config apply + deploy pending)
 
