@@ -360,4 +360,48 @@ describe("MarketContextService", () => {
             instrumentContext.peers.USD_JPY.timeframes["15m"].indicators.atr.length
         ).toBeGreaterThan(0);
     });
+
+    test("getRequiredTimeframesForRun unions strategy requiredData with the run config", () => {
+        const timeframes = service.getRequiredTimeframesForRun({
+            runId: "candidate-htf4h",
+            strategy: "supertrend_momentum",
+            config: {
+                strategy: "supertrend_momentum",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                enableHTFFilter: true,
+                htfTimeframe: "4h",
+            },
+        });
+
+        // requiredData ["15m", "1h"] + config primary "15m" + run-level HTF "4h".
+        expect(timeframes.sort()).toEqual(["15m", "1h", "4h"]);
+    });
+
+    test("getRequiredTimeframesForRun omits htfTimeframe when the run disables HTF", () => {
+        const timeframes = service.getRequiredTimeframesForRun({
+            strategy: "timesfm_directional",
+            config: {
+                strategy: "timesfm_directional",
+                timeframe: "15m",
+                enableHTFFilter: false,
+                htfTimeframe: "4h",
+            },
+        });
+
+        expect(timeframes).toEqual(["15m"]);
+    });
+
+    test("getRequiredTimeframesForRun still returns config timeframes for unknown strategies", () => {
+        const timeframes = service.getRequiredTimeframesForRun({
+            strategy: "not_a_real_strategy",
+            config: {
+                timeframe: "15m",
+                enableHTFFilter: true,
+                htfTimeframe: "1h",
+            },
+        });
+
+        expect(timeframes.sort()).toEqual(["15m", "1h"]);
+    });
 });

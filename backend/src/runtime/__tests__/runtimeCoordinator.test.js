@@ -51,6 +51,7 @@ function createMockDataService() {
         getPipValue: jest.fn((instrument) =>
             instrument.includes("JPY") ? 0.01 : 0.0001
         ),
+        updateRuntimeTimeframes: jest.fn(),
     };
 }
 
@@ -234,6 +235,104 @@ describe("RuntimeCoordinator", () => {
             lateCoordinator.getRunSession("run-late").generator.dataService
         ).toBe(dataService);
         lateCoordinator.stop();
+    });
+
+    test("syncs per-run timeframe requirements onto the data service when runs change", async () => {
+        // A candidate run with its own HTF config (4h) that the GLOBAL config
+        // never enables. Before the sync existed, the data service only
+        // honored the global config, the 4h candles were never fetched, and
+        // the run's HTF filter failed closed — the run silently never traded.
+        await coordinator.startRun({
+            runId: "run-candidate-htf4h",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "supertrend_momentum",
+            status: RUN_STATUSES.ACTIVE,
+            configSnapshot: {
+                strategy: "supertrend_momentum",
+                assets: ["EUR_USD"],
+                timeframe: "15m",
+                enableHTFFilter: true,
+                htfTimeframe: "4h",
+            },
+        });
+
+        const lastSync =
+            dataService.updateRuntimeTimeframes.mock.calls.at(-1)[0];
+        expect(lastSync).toEqual(expect.arrayContaining(["15m", "1h", "4h"]));
+    });
+
+    test("strategy requiredData timeframes are requested even when the run config has HTF off", async () => {
+        await coordinator.startRun({
+            runId: "run-no-htf",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "supertrend_momentum",
+            status: RUN_STATUSES.ACTIVE,
+            configSnapshot: {
+                strategy: "supertrend_momentum",
+                assets: ["EUR_USD"],
+                timeframe: "15m",
+                enableHTFFilter: false,
+            },
+        });
+
+        // supertrend_momentum declares requiredData.timeframes ["15m", "1h"].
+        const lastSync =
+            dataService.updateRuntimeTimeframes.mock.calls.at(-1)[0];
+        expect(lastSync).toEqual(expect.arrayContaining(["15m", "1h"]));
+    });
+
+    test("stopping a run drops its timeframes from the data service requirements", async () => {
+        await coordinator.startRun({
+            runId: "run-htf4h-stop",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "supertrend_momentum",
+            status: RUN_STATUSES.ACTIVE,
+            configSnapshot: {
+                strategy: "supertrend_momentum",
+                assets: ["EUR_USD"],
+                timeframe: "15m",
+                enableHTFFilter: true,
+                htfTimeframe: "4h",
+            },
+        });
+        expect(
+            dataService.updateRuntimeTimeframes.mock.calls.at(-1)[0]
+        ).toContain("4h");
+
+        await coordinator.stopRun("run-htf4h-stop");
+        expect(
+            dataService.updateRuntimeTimeframes.mock.calls.at(-1)[0]
+        ).not.toContain("4h");
+    });
+
+    test("syncDataServiceTimeframes tolerates data services without updateRuntimeTimeframes", async () => {
+        const legacyDataService = createMockDataService();
+        delete legacyDataService.updateRuntimeTimeframes;
+
+        const legacyCoordinator = new RuntimeCoordinator({
+            dataService: legacyDataService,
+            signalRepository,
+            strategyRunRepository,
+            tradeRepository,
+            configService,
+            timesFmSignalService,
+            pollIntervalMs: 50,
+        });
+
+        await expect(
+            legacyCoordinator.startRun({
+                runId: "run-legacy-ds",
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                strategy: "supertrend_momentum",
+                status: RUN_STATUSES.ACTIVE,
+                configSnapshot: {
+                    strategy: "supertrend_momentum",
+                    assets: ["EUR_USD"],
+                    timeframe: "15m",
+                },
+            })
+        ).resolves.toBeTruthy();
+        legacyCoordinator.stop();
     });
 
     test("runCycle enriches and persists signals with runtime identity", async () => {

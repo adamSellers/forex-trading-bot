@@ -120,6 +120,33 @@ class RuntimeCoordinator extends EventEmitter {
         };
     }
 
+    /**
+     * Push the union of timeframes required by every active run session onto
+     * the data service. Each run carries its own config snapshot, so a run can
+     * require candles the GLOBAL config never fetches (e.g. a paper candidate
+     * with enableHTFFilter:true, or a different htfTimeframe, while the global
+     * config has HTF off). Without this, such a run's HTF filter fails CLOSED
+     * ("HTF <tf> unavailable") and the run silently never trades. Must be
+     * called whenever run sessions change (register/stop/config update).
+     */
+    syncDataServiceTimeframes() {
+        if (typeof this.dataService?.updateRuntimeTimeframes !== "function") {
+            return;
+        }
+
+        const timeframes = new Set();
+        for (const session of this.runSessions.values()) {
+            const runTimeframes =
+                this.marketContextService?.getRequiredTimeframesForRun?.({
+                    ...session.run,
+                    config: session.generator?.config || session.run.configSnapshot,
+                }) || [];
+            runTimeframes.forEach((timeframe) => timeframes.add(timeframe));
+        }
+
+        this.dataService.updateRuntimeTimeframes(Array.from(timeframes));
+    }
+
     registerRunSession(runRecord = {}) {
         const normalizedRun = normalizeRunRecord(runRecord);
         const existing = this.runSessions.get(normalizedRun.runId);
@@ -127,11 +154,13 @@ class RuntimeCoordinator extends EventEmitter {
         if (existing) {
             existing.run = normalizedRun;
             existing.generator.updateConfig(normalizedRun.configSnapshot);
+            this.syncDataServiceTimeframes();
             return existing;
         }
 
         const session = this._createRunSession(normalizedRun);
         this.runSessions.set(normalizedRun.runId, session);
+        this.syncDataServiceTimeframes();
         this.emit("runtimeRunsChanged", this.listRuns());
         return session;
     }
@@ -209,6 +238,7 @@ class RuntimeCoordinator extends EventEmitter {
         }
 
         this.runSessions.delete(runId);
+        this.syncDataServiceTimeframes();
         this.emit(
             "runStopped",
             this.toPublicRun({ run: nextRun, latestSignals: [] })
@@ -236,6 +266,7 @@ class RuntimeCoordinator extends EventEmitter {
 
         session.run = nextRun;
         session.generator.updateConfig(nextRun.configSnapshot);
+        this.syncDataServiceTimeframes();
 
         if (this.strategyRunRepository?.update) {
             await this.strategyRunRepository.update(runId, {
@@ -661,6 +692,10 @@ class RuntimeCoordinator extends EventEmitter {
         for (const session of this.runSessions.values()) {
             session.generator.dataService = this.dataService;
         }
+        // Same late-binding hazard for candle requirements: sessions registered
+        // while this.dataService was null never reached a data service, so the
+        // per-run timeframes (incl. per-run HTF) were never requested.
+        this.syncDataServiceTimeframes();
         this.isRunning = true;
         await this.refreshTimesFmHealth(true);
         await this.ensureLiveSelectionInitialized();
@@ -707,6 +742,8 @@ class RuntimeCoordinator extends EventEmitter {
                 session.run.configHash = computeConfigHash(session.run.configSnapshot);
             }
         }
+
+        this.syncDataServiceTimeframes();
     }
 
     async selectLiveStrategy({

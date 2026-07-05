@@ -179,6 +179,26 @@ class MarketContextService {
         return createRunDescriptor(runDescriptor);
     }
 
+    /**
+     * Timeframes a run needs candles for: the strategy's requiredData
+     * timeframes plus the run config's primary timeframe and, when the run
+     * enables the HTF filter, its htfTimeframe. Used by the runtime
+     * coordinator to tell the data service which granularities to fetch —
+     * per-run configs can require timeframes the global config doesn't.
+     */
+    getRequiredTimeframesForRun(runDescriptor = {}) {
+        const normalizedRun = createRunDescriptor(runDescriptor);
+        let strategyDefinition = null;
+
+        try {
+            strategyDefinition = getStrategyDefinition(normalizedRun.strategy);
+        } catch (_error) {
+            // Unknown strategy keys still contribute their config timeframes.
+        }
+
+        return normalizeTimeframeSet(strategyDefinition, normalizedRun.config);
+    }
+
     getRunContextKey(runDescriptor = {}) {
         const normalizedRun = createRunDescriptor(runDescriptor);
         return [

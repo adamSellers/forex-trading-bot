@@ -438,10 +438,19 @@ Pending user actions:
 4. Then forward-monitor: shadow + live both resume; review cohort expectancy after ~20–30 closed
    trades via `/api/analytics?mode=live&runId=live_7b62da29-7325-4819-8df8-15466282a78d&strategy=supertrend_momentum&period=all`.
 
-Known latent gap (not fixed, low priority): `OandaDataService.getRequiredGranularities` only honors
-the GLOBAL config's `enableHTFFilter`/`htfTimeframe`. A candidate run enabling HTF (or a different
-HTF timeframe) while the global config has it off would hit the same fail-closed block because H1
-candles would never be fetched. Today global config has HTF on, so live/shadow are fine post-fix.
+Known latent gap — FIXED 2026-07-06 on branch `claude/elated-khorana-d72006` (commit/deploy pending):
+`OandaDataService.getRequiredGranularities` only honored the GLOBAL config's
+`enableHTFFilter`/`htfTimeframe`, so a candidate run enabling HTF (or a different HTF timeframe)
+while the global config had it off would hit the same fail-closed block because its candles were
+never fetched. Fix: `runtimeCoordinator.syncDataServiceTimeframes()` pushes the union of every
+active run's required timeframes (strategy `requiredData.timeframes` + run `timeframe` + run HTF
+when enabled, via `marketContextService.getRequiredTimeframesForRun`) onto
+`OandaDataService.updateRuntimeTimeframes()` whenever run sessions change (register/stop/config
+update/global updateConfig/coordinator start). The data service unions these with the global-config
+granularities and refetches immediately when a new granularity appears. Data fetching only — no
+trading logic touched. Tests: new `OandaDataService.test.js` (7), +4 runtimeCoordinator, +3
+marketContextService; full suite 416 pass / 44 fail (only the pre-existing better-sqlite3 binding
+failures in the 3 real-DB repo suites, unchanged).
 
 ### Update 2026-06-10 — Database retention overhaul + one-off shrink (DEPLOYED + VERIFIED)
 

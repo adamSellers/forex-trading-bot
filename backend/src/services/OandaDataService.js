@@ -20,6 +20,13 @@ class OandaDataService extends EventEmitter {
         this.primaryTimeframe = "15m";
         this.enableHTFFilter = false;
         this.htfTimeframe = "1h";
+        // Granularities required by active runtime runs (live/shadow/candidate).
+        // Each run carries its own config snapshot, so a run can need timeframes
+        // the GLOBAL config doesn't (e.g. a candidate with enableHTFFilter:true
+        // while the global config has it off). Kept in sync by the runtime
+        // coordinator via updateRuntimeTimeframes(); if a required granularity
+        // is never fetched, HTF-filtered strategies fail CLOSED and never trade.
+        this.runtimeGranularities = new Set();
         this.isRunning = false;
         this.priceInterval = null;
         this.candleInterval = null;
@@ -165,7 +172,38 @@ class OandaDataService extends EventEmitter {
             granularities.add(this.convertTimeframe(this.htfTimeframe || "1h"));
         }
 
+        this.runtimeGranularities.forEach((granularity) =>
+            granularities.add(granularity)
+        );
+
         return Array.from(granularities);
+    }
+
+    /**
+     * Replace the set of timeframes required by active runtime runs.
+     * Called by the runtime coordinator whenever run sessions change
+     * (register/stop/config update). Accepts config-style timeframes
+     * ("15m", "1h", "4h"); the union with the global-config granularities
+     * is what fetchAllCandles polls.
+     */
+    updateRuntimeTimeframes(timeframes = []) {
+        const previousRequired = new Set(this.getRequiredGranularities());
+
+        this.runtimeGranularities = new Set(
+            (Array.isArray(timeframes) ? timeframes : [])
+                .filter(Boolean)
+                .map((timeframe) => this.convertTimeframe(timeframe))
+        );
+
+        // Fetch immediately when the requirement set grows so a newly launched
+        // run doesn't sit with an empty candle cache until the next 60s poll —
+        // HTF-filtered strategies block all entries while candles are missing.
+        const addedGranularities = this.getRequiredGranularities().filter(
+            (granularity) => !previousRequired.has(granularity)
+        );
+        if (addedGranularities.length > 0 && this.isRunning) {
+            this.fetchAllCandles();
+        }
     }
 
     async fetchCandles(instrument, granularity = "M15", count = 500) {
