@@ -394,6 +394,55 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-07-06 — Why live placed ZERO trades since 2026-06-09: HTF filter fails closed with a null dataService (LOCAL FIX DONE; user commit + deploy pending)
+
+Diagnosis (read-only Pi SSH): engine running, `enableTrading:true`, Oanda + TimesFM healthy, live run
+`live_7b62da29…` (`supertrend_momentum`) active — but **0 trades since 2026-06-01** (last trade was the
+old TimesFM run). Signal funnel for the live run: 111k HOLDs, 68 SELLs (correctly suppressed by
+long-only), and **zero BUYs ever emitted**. All 3,912 long-related events were blocked with
+`"htf":{"direction":0,"longAllowed":false,"shortAllowed":false,"reason":"HTF 1h unavailable"}` —
+never once `longAllowed:true` in the entire run. The paired shadow run has 0 trades too (same block).
+
+Root cause (code bug, NOT market conditions or over-tight tuning):
+- `runtimeCoordinator._createRunSession` builds each per-run generator as
+  `new SignalGenerator(configSnapshot, null)` and never sets `generator.dataService` (the legacy
+  `SignalGenerator.start(dataService)` injection path is never called in the shared runtime).
+- `supertrendMomentum.evaluateEntry` prefers `getHtfTrendContextFn` (bound to the generator) over the
+  marketContext HTF candles the coordinator correctly precomputes.
+- `SignalGenerator.getHtfTrendContext` reads `this.dataService?.getCandles?.(instrument,"1h")` →
+  null → `[]` → <50 candles → "HTF unavailable" → fails CLOSED, blocking BOTH directions.
+- So ANY run with `enableHTFFilter:true` can never enter. The Pi dataService itself DOES cache H1
+  (6 cache keys / ~2994 candles verified) — the candles were there all along; the generator just
+  couldn't see them. TimesFM/other strategies traded before because they don't consult this HTF path.
+
+Fix (local, tests green):
+- `backend/src/runtime/runtimeCoordinator.js`: `_createRunSession` now sets
+  `generator.dataService = this.dataService`; `start()` re-syncs it onto sessions registered before
+  start (rehydrated persisted runs). Two regression tests added in `runtimeCoordinator.test.js`
+  (18/18 pass); focused suites supertrendMomentum + signalGenerator + LiveTradingEngine +
+  PaperTradingRuntime + tradingRoutes = 174/174 pass.
+
+Performance context pulled this session (all-time live: −A$50.67 over 99 closed trades; nothing yet
+has proven positive edge): new paper candidates since 2026-06-09 are BOTH negative —
+`signal_following` 58 closed −A$13.64 (33% win), `counter_signal_reversion` 52 closed −A$19.10 (44% win).
+Neither is promotable under the Phase 3 gate. The restricted supertrend_momentum posture has NO
+forward evidence yet because of this bug; fixing it is how we finally collect it. Do NOT loosen
+filters (ADX 21, long-only, HTF confirm) in response to the silence — the silence was the bug.
+
+Pending user actions:
+1. Commit + push: `backend/src/runtime/runtimeCoordinator.js`,
+   `backend/src/runtime/__tests__/runtimeCoordinator.test.js`, `CLAUDE.md`.
+2. Deploy on Pi: `./scripts/update.sh` (restarts backend; live selection/config are untouched).
+3. Verify within ~1h via read-only SSH: new signals' `decision_context` should show
+   `"reason":"HTF 1h uptrend"` or `"HTF 1h downtrend"` instead of `"HTF 1h unavailable"`.
+4. Then forward-monitor: shadow + live both resume; review cohort expectancy after ~20–30 closed
+   trades via `/api/analytics?mode=live&runId=live_7b62da29-7325-4819-8df8-15466282a78d&strategy=supertrend_momentum&period=all`.
+
+Known latent gap (not fixed, low priority): `OandaDataService.getRequiredGranularities` only honors
+the GLOBAL config's `enableHTFFilter`/`htfTimeframe`. A candidate run enabling HTF (or a different
+HTF timeframe) while the global config has it off would hit the same fail-closed block because H1
+candles would never be fetched. Today global config has HTF on, so live/shadow are fine post-fix.
+
 ### Update 2026-06-10 — Database retention overhaul + one-off shrink (DEPLOYED + VERIFIED)
 
 Root cause of oversized backups: Pi `trading.db` was 3.3GB (47% freelist, never VACUUMed) plus a

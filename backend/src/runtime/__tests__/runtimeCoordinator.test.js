@@ -176,6 +176,66 @@ describe("RuntimeCoordinator", () => {
         expect(coordinator.getRunSession("run-live-1")).toBeTruthy();
     });
 
+    test("wires the shared data service into run session generators so the HTF filter can read candles", async () => {
+        await coordinator.startRun({
+            runId: "run-live-htf",
+            mode: RUNTIME_MODES.LIVE,
+            strategy: "supertrend_momentum",
+            status: RUN_STATUSES.ACTIVE,
+            selectionId: "selection-htf",
+            configSnapshot: {
+                strategy: "supertrend_momentum",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                enableHTFFilter: true,
+                htfTimeframe: "1h",
+            },
+        });
+
+        const session = coordinator.getRunSession("run-live-htf");
+        expect(session.generator.dataService).toBe(dataService);
+
+        // Regression: with a null dataService the HTF filter fails closed
+        // ("HTF 1h unavailable") and blocks every entry in both directions.
+        const htfContext = session.generator.getHtfTrendContext("AUD_USD");
+        expect(htfContext.reason).not.toBe("HTF 1h unavailable");
+        expect(htfContext.longAllowed || htfContext.shortAllowed).toBe(true);
+    });
+
+    test("start() backfills the data service onto sessions registered before start", async () => {
+        const lateCoordinator = new RuntimeCoordinator({
+            signalRepository,
+            strategyRunRepository,
+            tradeRepository,
+            configService,
+            timesFmSignalService,
+            pollIntervalMs: 50,
+        });
+
+        lateCoordinator.registerRunSession({
+            runId: "run-late",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "supertrend_momentum",
+            status: RUN_STATUSES.ACTIVE,
+            configSnapshot: {
+                strategy: "supertrend_momentum",
+                assets: ["AUD_USD"],
+                timeframe: "15m",
+                enableHTFFilter: true,
+                htfTimeframe: "1h",
+            },
+        });
+        expect(
+            lateCoordinator.getRunSession("run-late").generator.dataService
+        ).toBeNull();
+
+        await lateCoordinator.start(dataService, 50);
+        expect(
+            lateCoordinator.getRunSession("run-late").generator.dataService
+        ).toBe(dataService);
+        lateCoordinator.stop();
+    });
+
     test("runCycle enriches and persists signals with runtime identity", async () => {
         await coordinator.startRun({
             runId: "run-shadow-1",

@@ -104,6 +104,13 @@ class RuntimeCoordinator extends EventEmitter {
     _createRunSession(runRecord = {}) {
         const normalizedRun = normalizeRunRecord(runRecord);
         const generator = new SignalGenerator(normalizedRun.configSnapshot, null);
+        // Per-run generators never run their own polling loop, so the legacy
+        // SignalGenerator.start(dataService) path that normally injects the
+        // data service is never called. The strategy HTF filter reads candles
+        // through generator.dataService and fails CLOSED ("HTF unavailable",
+        // blocking both directions) when it is null — leaving it unset means
+        // any run with enableHTFFilter:true can never emit an entry signal.
+        generator.dataService = this.dataService;
 
         return {
             run: normalizedRun,
@@ -648,6 +655,12 @@ class RuntimeCoordinator extends EventEmitter {
         if (this.isRunning) return;
 
         this.dataService = dataService || this.dataService;
+        // Sessions registered before start() (e.g. rehydrated persisted runs)
+        // may have been created while this.dataService was still null; without
+        // this re-sync their HTF filter permanently reports "HTF unavailable".
+        for (const session of this.runSessions.values()) {
+            session.generator.dataService = this.dataService;
+        }
         this.isRunning = true;
         await this.refreshTimesFmHealth(true);
         await this.ensureLiveSelectionInitialized();
