@@ -11,12 +11,6 @@ import {
   IconButton,
   Tooltip,
   Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
   useTheme,
   alpha,
 } from '@mui/material';
@@ -28,27 +22,14 @@ import {
   Refresh,
   Circle,
   MonitorHeart,
-  Lock,
-  LockOpen,
 } from '@mui/icons-material';
-import {
-  clearControlToken,
-  hasControlToken,
-  setControlToken,
-  socket,
-  tradingAPI,
-} from '../config/api';
+import { socket, tradingAPI } from '../config/api';
 
 const Navigation = ({ currentView, onViewChange, views }) => {
   const theme = useTheme();
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const [lastUpdate, setLastUpdate] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(false);
-  const [controlAccessOpen, setControlAccessOpen] = useState(false);
-  const [controlTokenInput, setControlTokenInput] = useState('');
-  const [controlAccessConfigured, setControlAccessConfigured] = useState(
-    hasControlToken
-  );
 
   // Map view to tab index
   const viewToIndex = {
@@ -115,19 +96,6 @@ const Navigation = ({ currentView, onViewChange, views }) => {
 
   const handleRefresh = () => {
     window.location.reload();
-  };
-
-  const handleSaveControlAccess = () => {
-    setControlToken(controlTokenInput);
-    setControlAccessConfigured(Boolean(controlTokenInput.trim()));
-    setControlTokenInput('');
-    setControlAccessOpen(false);
-  };
-
-  const handleClearControlAccess = () => {
-    clearControlToken();
-    setControlAccessConfigured(false);
-    setControlTokenInput('');
   };
 
   const getConnectionColor = () => {
@@ -256,17 +224,6 @@ const Navigation = ({ currentView, onViewChange, views }) => {
 
         {/* Right: Status & Actions */}
         <Box display="flex" alignItems="center" gap={1}>
-          <Tooltip title="Configure session-only control API access">
-            <Chip
-              icon={controlAccessConfigured ? <LockOpen /> : <Lock />}
-              label={controlAccessConfigured ? 'CONTROL READY' : 'CONTROL LOCKED'}
-              size="small"
-              color={controlAccessConfigured ? 'success' : 'default'}
-              variant="outlined"
-              onClick={() => setControlAccessOpen(true)}
-              sx={{ height: 24, fontSize: '0.62rem', fontWeight: 'bold' }}
-            />
-          </Tooltip>
           <Typography
             variant="caption"
             sx={{
@@ -288,45 +245,6 @@ const Navigation = ({ currentView, onViewChange, views }) => {
           </Tooltip>
         </Box>
       </Toolbar>
-      <Dialog
-        open={controlAccessOpen}
-        onClose={() => setControlAccessOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Control API access</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Enter the operator or administrator token for state-changing actions.
-            It is kept only in this browser tab session and is never included in
-            read-only requests.
-          </Typography>
-          <TextField
-            fullWidth
-            autoFocus
-            type="password"
-            label="Control token"
-            value={controlTokenInput}
-            onChange={(event) => setControlTokenInput(event.target.value)}
-            autoComplete="off"
-          />
-        </DialogContent>
-        <DialogActions>
-          {controlAccessConfigured && (
-            <Button color="error" onClick={handleClearControlAccess}>
-              Clear token
-            </Button>
-          )}
-          <Button onClick={() => setControlAccessOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveControlAccess}
-            disabled={!controlTokenInput.trim()}
-          >
-            Use for this session
-          </Button>
-        </DialogActions>
-      </Dialog>
     </AppBar>
   );
 };

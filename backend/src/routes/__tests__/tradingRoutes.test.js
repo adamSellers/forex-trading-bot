@@ -671,20 +671,8 @@ describe("tradingRoutes controlled live start", () => {
     });
 });
 
-describe("tradingRoutes control authentication", () => {
-    const originalToken = process.env.CONTROL_API_ADMIN_TOKEN;
-
-    afterEach(() => {
-        if (originalToken === undefined) {
-            delete process.env.CONTROL_API_ADMIN_TOKEN;
-        } else {
-            process.env.CONTROL_API_ADMIN_TOKEN = originalToken;
-        }
-    });
-
-    test("protects mutations while leaving health reads public", async () => {
-        const token = "route-test-admin-token-with-32-characters";
-        process.env.CONTROL_API_ADMIN_TOKEN = token;
+describe("tradingRoutes control access", () => {
+    test("allows state-changing requests without a control credential", async () => {
         const app = express();
         app.use(express.json());
         app.locals.configService = {
@@ -693,15 +681,7 @@ describe("tradingRoutes control authentication", () => {
         };
         app.use("/api", tradingRoutes);
 
-        await request(app).get("/api/health").expect(200);
-        const unauthorized = await request(app).post("/api/trading/stop");
-        expect(unauthorized.status).toBe(401);
-        expect(unauthorized.body.code).toBe("CONTROL_AUTH_REQUIRED");
-
-        await request(app)
-            .post("/api/trading/stop")
-            .set("Authorization", `Bearer ${token}`)
-            .expect(200);
+        await request(app).post("/api/trading/stop").expect(200);
         expect(app.locals.configService.update).toHaveBeenCalledWith({
             enableTrading: false,
         });

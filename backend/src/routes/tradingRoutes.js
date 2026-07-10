@@ -10,13 +10,7 @@ const {
 } = require("../runtime/liveActivationReadiness");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
-const { createControlAuth } = require("../middleware/controlAuth");
 const { computeConfigHash } = require("../config/tradingConfig");
-
-// All state-changing control-plane requests are authenticated here so a newly
-// added POST/PUT/PATCH/DELETE route is protected by default. Read-only status
-// and health endpoints remain available to monitoring.
-router.use(createControlAuth());
 
 function isLiveSelectionReady(strategyDefinition = {}) {
     return (

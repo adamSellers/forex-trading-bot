@@ -35,7 +35,6 @@ check "Backend dependencies OK" "(cd backend && npm ls --omit=dev > /dev/null 2>
 check "Frontend dependencies OK" "(cd frontend && npm ls > /dev/null 2>&1)"
 check "Backend dependency lock tracked" "[ -f backend/package-lock.json ] && ! git check-ignore -q backend/package-lock.json"
 check "Frontend dependency lock tracked" "[ -f frontend/package-lock.json ] && ! git check-ignore -q frontend/package-lock.json"
-check "Control API token configured" "[ -f .secrets/control_api_token.enc ]"
 check "Shared runtime migration present" "[ -f backend/migrations/005_add_strategy_runs_and_runtime_identity.js ]"
 check "Backtest retirement migration present" "[ -f backend/migrations/006_drop_backtest_results.js ]"
 check "Broker lifecycle migration present" "[ -f backend/migrations/010_add_broker_lifecycle_outbox.js ]"

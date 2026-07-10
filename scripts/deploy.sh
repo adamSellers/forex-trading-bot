@@ -49,10 +49,6 @@ fi
 if [ ! -f ".secrets/oanda_api_key.enc" ]; then
     log_warn "Oanda API key not configured. Run: ./scripts/setup-secrets.sh"
 fi
-if [ ! -f ".secrets/control_api_token.enc" ]; then
-    log_error "Control API token is missing. Run: ./scripts/setup-secrets.sh"
-    exit 1
-fi
 
 # Deploying while orders can be emitted turns a code rollout into a trading
 # event. Require an explicit override for emergency hot deploys.
