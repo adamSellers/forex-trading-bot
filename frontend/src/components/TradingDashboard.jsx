@@ -15,6 +15,11 @@ import {
   Tab,
   Badge,
   Tooltip,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   PlayArrow,
@@ -65,6 +70,44 @@ const getStrategyLabel = (strategyKey, catalog = []) => {
 
 const shortenRuntimeId = (value) => (value ? String(value).slice(0, 12) : 'unassigned');
 
+const getReadinessReasons = (readiness) => (
+  Array.isArray(readiness?.reasons) ? readiness.reasons : []
+);
+
+const getControlledBaselineResume = (readiness) => (
+  readiness?.activationOptions?.controlledBaselineResume || null
+);
+
+const formatApiErrorMessage = (error, fallback) => {
+  const message = error?.payload?.error || error?.message || fallback;
+  const code = error?.payload?.code;
+  return code ? `${message} (${code})` : message;
+};
+
+const formatReadinessValue = (key, value) => {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return 'unavailable';
+  const numericValue = Number(value);
+  if (key === 'maxCapitalAtRisk') return `A$${numericValue.toFixed(2)}`;
+  if (key === 'maxOpenPositions' || key === 'maxConsecutiveLosses') return String(numericValue);
+  if (String(key || '').toLowerCase().includes('pct') || key === 'riskPerTrade' || key === 'maxPortfolioExposure') {
+    return `${(numericValue * 100).toFixed(2)}%`;
+  }
+  return String(numericValue);
+};
+
+const getReadinessReasonDetail = (reason) => {
+  if (reason?.key) {
+    return `Current ${formatReadinessValue(reason.key, reason.actual)}; controlled maximum ${formatReadinessValue(reason.key, reason.max)}.`;
+  }
+  if (reason?.actualConfigHash || reason?.requiredConfigHash) {
+    return `Current ${reason.actualConfigHash || 'unavailable'}; required ${reason.requiredConfigHash || 'unavailable'}.`;
+  }
+  if (reason?.code === 'PROMOTION_GATE_NOT_PASSED' || reason?.code === 'PROMOTION_PATH_REQUIRED') {
+    return 'Promote a gate-passing paper candidate to create an eligible live run.';
+  }
+  return null;
+};
+
 const TradingDashboard = () => {
   const theme = useTheme();
 
@@ -80,9 +123,15 @@ const TradingDashboard = () => {
   const [strategyCatalog, setStrategyCatalog] = useState([]);
   const [liveSelection, setLiveSelection] = useState(null);
   const [selectedStrategy, setSelectedStrategy] = useState(DEFAULT_STRATEGY_KEY);
+  const [liveReadiness, setLiveReadiness] = useState(null);
+  const [readinessDialogOpen, setReadinessDialogOpen] = useState(false);
+  const [baselineConfirmationOpen, setBaselineConfirmationOpen] = useState(false);
+  const [activationFailure, setActivationFailure] = useState(null);
+  const [tradingAction, setTradingAction] = useState(null);
 
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
 
@@ -135,7 +184,7 @@ const TradingDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, liveSelectionData, catalogData] =
+      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, liveSelectionData, catalogData, readinessData] =
         await Promise.allSettled([
           tradingAPI.getStatus(),
           tradingAPI.getPortfolio(),
@@ -146,6 +195,7 @@ const TradingDashboard = () => {
           engineAPI.getStatus(),
           runtimeAPI.getLiveSelection({ includeRuns: false }),
           strategiesAPI.getCatalog(),
+          tradingAPI.getLiveReadiness(),
         ]);
 
       if (!isMountedRef.current) return;
@@ -195,6 +245,9 @@ const TradingDashboard = () => {
         setPrices(pricesObj);
       }
       if (accountData.status === 'fulfilled') setAccount(accountData.value);
+      if (readinessData.status === 'fulfilled') {
+        setLiveReadiness(readinessData.value);
+      }
 
       setLoading(false);
       setLastUpdate(Date.now());
@@ -308,6 +361,13 @@ const TradingDashboard = () => {
           )
         );
         setLastUpdate(Date.now());
+        tradingAPI.getLiveReadiness()
+          .then((readiness) => {
+            if (isMountedRef.current) setLiveReadiness(readiness);
+          })
+          .catch((readinessError) => {
+            console.error('Failed to refresh live readiness:', readinessError);
+          });
       }
     };
 
@@ -348,14 +408,69 @@ const TradingDashboard = () => {
 
   // --- HANDLERS ---
   const handleToggleTrading = async () => {
+    if (tradingAction) return;
+    const action = tradingEnabled ? 'pause' : 'enable';
+    setTradingAction(action);
+    setError(null);
+    setNotice(null);
+    setActivationFailure(null);
+
     try {
-      tradingEnabled
-        ? await tradingAPI.stopTrading()
-        : await tradingAPI.startTrading();
-      setTradingEnabled(!tradingEnabled);
+      let response;
+      if (tradingEnabled) {
+        response = await tradingAPI.stopTrading();
+      } else {
+        const readiness = await tradingAPI.getLiveReadiness();
+        setLiveReadiness(readiness);
+        if (!readiness?.passed) {
+          setReadinessDialogOpen(true);
+          return;
+        }
+
+        response = await tradingAPI.startTrading();
+        if (response?.liveReadiness) setLiveReadiness(response.liveReadiness);
+      }
+
+      await fetchInitialData();
+      setNotice(response?.message || (tradingEnabled ? 'Live entries paused' : 'Live entries enabled'));
     } catch (err) {
-      setError(err.message);
-      fetchInitialData();
+      const readiness = err?.payload?.liveReadiness || null;
+      if (readiness) {
+        setLiveReadiness(readiness);
+        setReadinessDialogOpen(true);
+      }
+      await fetchInitialData();
+      setActivationFailure(err?.payload || null);
+      setError(formatApiErrorMessage(err, `Unable to ${action} live trading`));
+    } finally {
+      setTradingAction(null);
+    }
+  };
+
+  const handleResumeControlledBaseline = async () => {
+    if (tradingAction) return;
+    setBaselineConfirmationOpen(false);
+    setTradingAction('baseline');
+    setError(null);
+    setNotice(null);
+    setActivationFailure(null);
+
+    try {
+      const response = await tradingAPI.resumeControlledBaseline();
+      if (response?.liveReadiness) setLiveReadiness(response.liveReadiness);
+      if (response?.liveSelection) setLiveSelection(response.liveSelection);
+      await fetchInitialData();
+      setNotice(response?.message || 'Controlled baseline resumed');
+    } catch (err) {
+      if (err?.payload?.liveReadiness) {
+        setLiveReadiness(err.payload.liveReadiness);
+      }
+      await fetchInitialData();
+      setActivationFailure(err?.payload || null);
+      setError(formatApiErrorMessage(err, 'Controlled baseline resume failed'));
+      setReadinessDialogOpen(true);
+    } finally {
+      setTradingAction(null);
     }
   };
 
@@ -409,6 +524,16 @@ const TradingDashboard = () => {
   // Engine stats
   const engineOpenPositions = engineStatus?.openPositions || 0;
   const engineIsRunning = engineStatus?.isRunning || false;
+  const readinessReasons = getReadinessReasons(liveReadiness);
+  const controlledBaselineResume = getControlledBaselineResume(liveReadiness);
+  const controlledBaselineResumeEligible =
+    controlledBaselineResume?.eligible === true &&
+    controlledBaselineResume?.code === 'CONTROLLED_BASELINE_RESUME_AVAILABLE';
+  const liveActivationBlocked = !tradingEnabled && liveReadiness?.passed === false;
+  const tradingActionPending = Boolean(tradingAction);
+  const activationFailureReasons = Array.isArray(activationFailure?.baselineResume?.reasons)
+    ? activationFailure.baselineResume.reasons
+    : [];
 
   if (loading && !systemStatus)
     return (
@@ -453,14 +578,43 @@ const TradingDashboard = () => {
           </Tooltip>
           <Button
             variant="contained"
-            color={tradingEnabled ? 'error' : 'success'}
+            color={tradingEnabled ? 'error' : liveActivationBlocked ? 'warning' : 'success'}
             onClick={handleToggleTrading}
-            startIcon={tradingEnabled ? <Stop /> : <PlayArrow />}
+            startIcon={
+              tradingActionPending
+                ? <CircularProgress size={16} color="inherit" />
+                : tradingEnabled
+                  ? <Stop />
+                  : <PlayArrow />
+            }
+            disabled={tradingActionPending}
             size="small"
             sx={{ px: 3, fontWeight: 'bold' }}
           >
-            {tradingEnabled ? 'PAUSE LIVE' : 'ENABLE LIVE'}
+            {tradingAction === 'pause'
+              ? 'PAUSING LIVE'
+              : tradingAction === 'enable'
+                ? 'CHECKING LIVE'
+                : tradingAction === 'baseline'
+                  ? 'RESUMING BASELINE'
+                : tradingEnabled
+                  ? 'PAUSE LIVE'
+                  : liveActivationBlocked
+                    ? 'LIVE BLOCKED'
+                    : 'ENABLE LIVE'}
           </Button>
+          {!tradingEnabled && liveReadiness && (
+            <Tooltip title={liveReadiness.passed ? 'Controlled-live readiness passed' : 'View live activation blockers'}>
+              <Chip
+                label={liveReadiness.passed ? 'READY' : `${readinessReasons.length} BLOCKER${readinessReasons.length === 1 ? '' : 'S'}`}
+                size="small"
+                color={liveReadiness.passed ? 'success' : 'warning'}
+                variant="outlined"
+                onClick={() => setReadinessDialogOpen(true)}
+                sx={{ height: 26, fontSize: '0.65rem', fontWeight: 'bold' }}
+              />
+            </Tooltip>
+          )}
           <Tooltip title="Sync engine with Oanda">
             <Button
               variant="outlined"
@@ -545,6 +699,151 @@ const TradingDashboard = () => {
           {error}
         </Alert>
       )}
+      {notice && (
+        <Alert severity="success" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setNotice(null)}>
+          {notice}
+        </Alert>
+      )}
+
+      <Dialog
+        open={readinessDialogOpen}
+        onClose={() => setReadinessDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {liveReadiness?.passed ? 'Controlled live is ready' : 'Live activation is blocked'}
+        </DialogTitle>
+        <DialogContent dividers>
+          {activationFailure && (
+            <Alert severity="error" sx={{ mb: 1.5 }}>
+              <Typography variant="body2" fontWeight="bold">
+                {activationFailure.error || 'Live activation failed'}
+              </Typography>
+              {activationFailure.code && (
+                <Typography variant="caption" display="block" sx={{ fontFamily: 'monospace' }}>
+                  {activationFailure.code}
+                </Typography>
+              )}
+              {Array.isArray(activationFailure.openPositions) && (
+                <Typography variant="caption" display="block">
+                  {activationFailure.openPositions.length} open position{activationFailure.openPositions.length === 1 ? '' : 's'} must be resolved before resuming.
+                </Typography>
+              )}
+              {!Array.isArray(activationFailure.openPositions) &&
+                Number.isFinite(Number(activationFailure.openPositions)) && (
+                <Typography variant="caption" display="block">
+                  {Number(activationFailure.openPositions)} open position{Number(activationFailure.openPositions) === 1 ? '' : 's'} must be resolved before resuming.
+                </Typography>
+              )}
+              {activationFailureReasons.map((reason, index) => (
+                <Typography key={`${reason.code || 'baseline'}-${index}`} variant="caption" display="block">
+                  {reason.message || reason.code || String(reason)}
+                </Typography>
+              ))}
+            </Alert>
+          )}
+          {liveReadiness?.passed ? (
+            <Alert severity="success">
+              Every controlled-live readiness check currently passes. Close this dialog and choose Enable Live to activate entries.
+            </Alert>
+          ) : (
+            <Stack spacing={1.25}>
+              <Alert severity="warning">
+                Live entries remain paused. Resolve every item below; this safety gate cannot be bypassed from the dashboard.
+              </Alert>
+              {controlledBaselineResumeEligible && (
+                <Alert severity="info">
+                  This pre-promotion baseline can be migrated once, with controlled risk caps. The server will require both the broker and engine to be flat before creating a successor live run.
+                </Alert>
+              )}
+              {readinessReasons.length > 0 ? readinessReasons.map((reason, index) => {
+                const detail = getReadinessReasonDetail(reason);
+                return (
+                  <Box
+                    key={`${reason.code || 'readiness'}-${reason.key || index}`}
+                    sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 1 }}
+                  >
+                    <Stack direction="row" spacing={1} alignItems="center" mb={0.5}>
+                      <Chip
+                        label={reason.code || 'READINESS_CHECK'}
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        sx={{ fontFamily: 'monospace', fontSize: '0.62rem' }}
+                      />
+                      {reason.key && (
+                        <Typography variant="caption" fontWeight="bold">
+                          {reason.key}
+                        </Typography>
+                      )}
+                    </Stack>
+                    <Typography variant="body2">{reason.message || 'Readiness check failed'}</Typography>
+                    {detail && (
+                      <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                        {detail}
+                      </Typography>
+                    )}
+                  </Box>
+                );
+              }) : (
+                <Typography variant="body2" color="text.secondary">
+                  The backend did not return individual readiness reasons. Refresh and try again.
+                </Typography>
+              )}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReadinessDialogOpen(false)}>Close</Button>
+          {controlledBaselineResumeEligible && (
+            <Button
+              variant="contained"
+              color="warning"
+              onClick={() => {
+                setReadinessDialogOpen(false);
+                setBaselineConfirmationOpen(true);
+              }}
+              disabled={tradingActionPending}
+            >
+              Review controlled resume
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={baselineConfirmationOpen}
+        onClose={() => setBaselineConfirmationOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Resume as a controlled baseline?</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5}>
+            <Alert severity="warning">
+              This is an explicit one-time migration path for the existing baseline, not a promotion bypass for future strategies.
+            </Alert>
+            <Typography variant="body2">
+              Confirming will ask the server to verify that both Oanda and the local engine are flat, apply the controlled risk limits, retire the predecessor run, and create a successor live/shadow selection.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Live entries remain paused if any preflight or readiness check fails. The exact backend failure will be shown on the dashboard.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBaselineConfirmationOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={handleResumeControlledBaseline}
+            disabled={tradingActionPending}
+          >
+            Confirm controlled baseline resume
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Market Status Banner - Shows open/closed status with countdown */}
       <Box sx={{ flexShrink: 0 }}>

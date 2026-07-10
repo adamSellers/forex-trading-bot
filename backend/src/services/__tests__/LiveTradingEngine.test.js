@@ -2343,6 +2343,35 @@ describe('LiveTradingEngine', () => {
                 })
             );
         });
+
+        test('strict sync propagates repository failures for fail-closed preflights', async () => {
+            mockTradeRepository.getOpenTrades.mockRejectedValueOnce(
+                new Error('repository unavailable')
+            );
+
+            await expect(
+                engine.syncOpenTrades({ throwOnError: true })
+            ).rejects.toThrow('repository unavailable');
+        });
+
+        test('strict sync propagates broker failures for fail-closed preflights', async () => {
+            mockTradeRepository.getOpenTrades.mockResolvedValueOnce([]);
+            oandaClient.getOpenTrades.mockRejectedValueOnce(
+                new Error('broker unavailable')
+            );
+
+            await expect(
+                engine.syncOpenTrades({ throwOnError: true })
+            ).rejects.toThrow('broker unavailable');
+        });
+
+        test('ordinary lifecycle sync retains best-effort error handling', async () => {
+            mockTradeRepository.getOpenTrades.mockRejectedValueOnce(
+                new Error('transient repository error')
+            );
+
+            await expect(engine.syncOpenTrades()).resolves.toBeUndefined();
+        });
     });
 
     describe('Status and Helpers', () => {

@@ -47,6 +47,8 @@ export const API_ENDPOINTS = {
     tradingStart: "/api/trading/start",
     tradingStop: "/api/trading/stop",
     tradingReset: "/api/trading/reset",
+    tradingLiveReadiness: "/api/trading/live-readiness",
+    tradingResumeBaseline: "/api/trading/resume-baseline",
 
     // configRoutes.js
     config: "/api/config",
@@ -91,17 +93,30 @@ export const API_ENDPOINTS = {
 /**
  * Enhanced API helper function with error handling
  */
+export class ApiError extends Error {
+    constructor(message, details = {}) {
+        super(message);
+        this.name = "ApiError";
+        this.status = details.status ?? null;
+        this.statusText = details.statusText || "";
+        this.payload = details.payload ?? null;
+        this.url = details.url || "";
+        this.method = details.method || "GET";
+    }
+}
+
 export const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const method = String(options.method || "GET").toUpperCase();
+    const { headers: requestHeaders = {}, ...requestOptions } = options;
 
     const defaultOptions = {
+        ...requestOptions,
+        method,
         headers: {
             "Content-Type": "application/json",
-            ...(options.headers || {}),
+            ...requestHeaders,
         },
-        method,
-        ...options,
     };
 
     try {
@@ -109,20 +124,33 @@ export const apiCall = async (endpoint, options = {}) => {
 
         if (!response.ok) {
             let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            let errorPayload = null;
             try {
                 const errorData = await response.json();
-                errorMessage =
-                    errorData.message || errorData.error || errorMessage;
+                errorPayload = errorData;
+                if (errorData && typeof errorData === "object") {
+                    errorMessage =
+                        errorData.message || errorData.error || errorMessage;
+                }
             } catch (parseError) {
                 console.warn("Could not parse error response:", parseError);
             }
-            throw new Error(errorMessage);
+            throw new ApiError(errorMessage, {
+                status: response.status,
+                statusText: response.statusText,
+                payload: errorPayload,
+                url,
+                method,
+            });
         }
 
         const data = await response.json();
         return data;
     } catch (error) {
         console.error(`❌ API Error: ${endpoint}:`, error.message);
+        if (error instanceof ApiError) {
+            throw error;
+        }
         if (error.name === "TypeError" && error.message.includes("fetch")) {
             throw new Error(
                 `Network error: Cannot connect to server at ${url}`
@@ -182,6 +210,12 @@ export const tradingAPI = {
         }),
 
     // Trading Control (enables/disables trading in config)
+    getLiveReadiness: () => apiCall(API_ENDPOINTS.tradingLiveReadiness),
+    resumeControlledBaseline: () =>
+        apiCall(API_ENDPOINTS.tradingResumeBaseline, {
+            method: "POST",
+            body: JSON.stringify({ confirm: "RESUME_CONTROLLED_BASELINE" }),
+        }),
     startTrading: (payload = {}) =>
         apiCall(API_ENDPOINTS.tradingStart, {
             method: "POST",

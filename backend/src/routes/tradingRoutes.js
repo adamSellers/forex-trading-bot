@@ -5,7 +5,12 @@ const { listStrategyCatalog, getStrategyDefinition } = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
 const { listCandidatePresets } = require("../runtime/candidatePresets");
 const {
+    CONTROLLED_BASELINE_ACTIVATION_BASIS,
+    CONTROLLED_BASELINE_CONFIRMATION,
+    CONTROLLED_BASELINE_STRATEGY,
+    CONTROLLED_LIVE_RISK_LIMITS,
     applyControlledLiveConfig,
+    evaluateControlledBaselineResumeEligibility,
     evaluateControlledLiveReadiness,
 } = require("../runtime/liveActivationReadiness");
 const logger = require("../utils/logger");
@@ -1046,6 +1051,196 @@ router.get("/trading/live-readiness", (req, res) => {
         );
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+router.post("/trading/resume-baseline", async (req, res) => {
+    const configService = req.app.locals.configService;
+    const runtimeCoordinator = getRuntimeCoordinator(req);
+    const tradingEngine = req.app.locals.tradingEngine;
+
+    if (!configService) {
+        return res.status(503).json({
+            error: "Config service not available",
+            code: "CONFIG_SERVICE_UNAVAILABLE",
+        });
+    }
+    if (!runtimeCoordinator?.resumeControlledBaseline) {
+        return res.status(503).json({
+            error: "Runtime coordinator not available",
+            code: "RUNTIME_COORDINATOR_UNAVAILABLE",
+        });
+    }
+    if (!tradingEngine?.syncOpenTrades || !tradingEngine?.getOpenTrades) {
+        return res.status(503).json({
+            error: "Trading engine not available",
+            code: "TRADING_ENGINE_UNAVAILABLE",
+        });
+    }
+
+    if (req.body?.confirm !== CONTROLLED_BASELINE_CONFIRMATION) {
+        return res.status(400).json({
+            error: "Explicit confirmation is required to migrate and resume the controlled baseline",
+            code: "CONTROLLED_BASELINE_CONFIRMATION_REQUIRED",
+            requiredConfirmation: CONTROLLED_BASELINE_CONFIRMATION,
+        });
+    }
+
+    const currentConfig = configService.get?.() || {};
+    const currentSelection = runtimeCoordinator.getLiveSelection?.() || null;
+    const baselineResume = evaluateControlledBaselineResumeEligibility({
+        liveSelection: currentSelection,
+        config: currentConfig,
+    });
+    if (!baselineResume.eligible) {
+        return res.status(409).json({
+            error: "The active selection is not eligible for controlled baseline resume",
+            code: "CONTROLLED_BASELINE_RESUME_UNAVAILABLE",
+            baselineResume,
+        });
+    }
+
+    let engineOpenTrades;
+    try {
+        await tradingEngine.syncOpenTrades({ throwOnError: true });
+        engineOpenTrades = tradingEngine.getOpenTrades();
+        if (!Array.isArray(engineOpenTrades)) {
+            throw new Error("Trading engine returned an invalid open-trades payload");
+        }
+    } catch (error) {
+        logger.error(
+            `Controlled baseline engine preflight failed: ${error.message}`
+        );
+        return res.status(502).json({
+            error: "Unable to verify that the live engine is flat",
+            code: "CONTROLLED_BASELINE_ENGINE_PREFLIGHT_FAILED",
+        });
+    }
+
+    if (engineOpenTrades.length > 0) {
+        return res.status(409).json({
+            error: "The live engine must be flat before controlled baseline resume",
+            code: "CONTROLLED_BASELINE_ENGINE_NOT_FLAT",
+            openPositions: engineOpenTrades.length,
+        });
+    }
+
+    let brokerOpenTrades;
+    try {
+        const response = await oandaRequest(
+            `/v3/accounts/${OANDA_ACCOUNT_ID}/openTrades`
+        );
+        if (!Array.isArray(response?.trades)) {
+            throw new Error("Broker returned an invalid open-trades payload");
+        }
+        brokerOpenTrades = response.trades;
+    } catch (error) {
+        logger.error(
+            `Controlled baseline broker preflight failed: ${error.message}`
+        );
+        return res.status(502).json({
+            error: "Unable to verify that the broker account is flat",
+            code: "CONTROLLED_BASELINE_BROKER_PREFLIGHT_FAILED",
+        });
+    }
+
+    if (brokerOpenTrades.length > 0) {
+        return res.status(409).json({
+            error: "The broker account must be flat before controlled baseline resume",
+            code: "CONTROLLED_BASELINE_BROKER_NOT_FLAT",
+            openPositions: brokerOpenTrades.length,
+        });
+    }
+
+    const predecessor = {
+        liveRunId: currentSelection.liveRun.runId,
+        shadowRunId: currentSelection.shadowRun?.runId || null,
+    };
+    const nextConfig = applyControlledLiveConfig({
+        ...currentConfig,
+        strategy: CONTROLLED_BASELINE_STRATEGY,
+    });
+    const liveConfigHash = computeConfigHash(nextConfig);
+    const confirmedAt = Date.now();
+    const controlledBaselineResume = {
+        confirmed: true,
+        confirmedAt,
+        predecessorLiveRunId: predecessor.liveRunId,
+        predecessorShadowRunId: predecessor.shadowRunId,
+    };
+    const phase4ControlledLive = {
+        appliedAt: confirmedAt,
+        activationBasis: CONTROLLED_BASELINE_ACTIVATION_BASIS,
+        predecessorLiveRunId: predecessor.liveRunId,
+        predecessorShadowRunId: predecessor.shadowRunId,
+        sourceConfigHash: currentSelection.liveRun.configHash || null,
+        liveConfigHash,
+        riskLimits: { ...CONTROLLED_LIVE_RISK_LIMITS },
+    };
+
+    try {
+        // Persist the capped, paused canonical config first. If run rotation
+        // fails, the system remains safely paused and the migration is retryable.
+        configService.update(nextConfig);
+
+        const liveSelection =
+            await runtimeCoordinator.resumeControlledBaseline({
+                configSnapshot: nextConfig,
+                metadata: {
+                    activationBasis:
+                        CONTROLLED_BASELINE_ACTIVATION_BASIS,
+                    controlledBaselineResume,
+                    phase4ControlledLive,
+                },
+            });
+        const liveReadiness = evaluateControlledLiveReadiness({
+            liveSelection,
+            config: configService.get?.() || nextConfig,
+        });
+
+        if (!liveReadiness.passed) {
+            return res.status(409).json({
+                error: "Controlled baseline successor failed live readiness and remains paused",
+                code: "CONTROLLED_BASELINE_READINESS_FAILED",
+                activationBasis:
+                    CONTROLLED_BASELINE_ACTIVATION_BASIS,
+                predecessor,
+                liveSelection,
+                liveReadiness,
+            });
+        }
+
+        configService.update(
+            { enableTrading: true },
+            { allowLiveActivation: true }
+        );
+
+        const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
+        if (broadcastEngineStatus) broadcastEngineStatus();
+
+        return res.json({
+            success: true,
+            message: "Controlled SuperTrend baseline resumed",
+            activationBasis: CONTROLLED_BASELINE_ACTIVATION_BASIS,
+            tradingEnabled: true,
+            predecessor,
+            liveSelection,
+            liveReadiness,
+        });
+    } catch (error) {
+        logger.error(`Controlled baseline resume failed: ${error.message}`);
+        const knownConflictCodes = new Set([
+            "CONTROLLED_BASELINE_RESUME_INVALID",
+            "CONTROLLED_BASELINE_ENGINE_NOT_FLAT",
+        ]);
+        const statusCode = knownConflictCodes.has(error.code) ? 409 : 500;
+        return res.status(statusCode).json({
+            error: error.message,
+            code: error.code || "CONTROLLED_BASELINE_RESUME_FAILED",
+            ...(Number.isFinite(error.openPositions)
+                ? { openPositions: error.openPositions }
+                : {}),
+        });
     }
 });
 

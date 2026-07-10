@@ -10,6 +10,15 @@ const {
 const { RUNTIME_MODES, RUN_STATUSES } = require("./runtimeConstants");
 const { getStrategyDefinition } = require("../strategies");
 const { applyCandidatePreset } = require("./candidatePresets");
+const {
+    CONTROLLED_BASELINE_ACTIVATION_BASIS,
+    CONTROLLED_BASELINE_STRATEGY,
+    getControlledRiskLimitViolations,
+} = require("./liveActivationReadiness");
+
+const CONTROLLED_BASELINE_RESUME_CAPABILITY = Symbol(
+    "controlled-baseline-resume"
+);
 
 function createRunId(mode = RUNTIME_MODES.LIVE) {
     return `${mode}_${uuidv4()}`;
@@ -765,6 +774,106 @@ class RuntimeCoordinator extends EventEmitter {
         return newConfig;
     }
 
+    async resumeControlledBaseline({
+        configSnapshot,
+        metadata = {},
+    } = {}) {
+        const activeLiveSession = this.getActiveLiveSession();
+        const activeShadowSession = activeLiveSession
+            ? this.getShadowSessionForSelection(
+                  activeLiveSession.run.selectionId
+              )
+            : null;
+        const liveRun = activeLiveSession?.run || null;
+        const evidence = metadata.controlledBaselineResume || null;
+        const controlledMetadata = metadata.phase4ControlledLive || null;
+        const requestedConfig = materializeStrategyConfig(
+            {
+                ...(configSnapshot || {}),
+                strategy:
+                    configSnapshot?.strategy || liveRun?.strategy || null,
+            },
+            { strategyKey: configSnapshot?.strategy || liveRun?.strategy }
+        );
+        const requestedStrategy = requestedConfig.strategy;
+        const requestedConfigHash = computeConfigHash(requestedConfig);
+        const riskViolations =
+            getControlledRiskLimitViolations(requestedConfig);
+        const canonicalConfig = this.configService?.get?.() || {};
+        const hasControlledConfig =
+            canonicalConfig.enableTrading !== true &&
+            requestedConfig.enableTrading !== true &&
+            requestedConfig.referenceCurrency === "AUD" &&
+            requestedConfig.accountCurrency === "AUD" &&
+            requestedConfig.portfolioRiskEnforcement === true &&
+            riskViolations.length === 0;
+        const isValidLegacyBaseline =
+            liveRun?.strategy === CONTROLLED_BASELINE_STRATEGY &&
+            requestedStrategy === CONTROLLED_BASELINE_STRATEGY &&
+            !liveRun?.metadata?.promotedFromRunId &&
+            !liveRun?.metadata?.promotionGate &&
+            !liveRun?.metadata?.activationBasis;
+        const hasValidEvidence =
+            metadata.activationBasis ===
+                CONTROLLED_BASELINE_ACTIVATION_BASIS &&
+            evidence?.confirmed === true &&
+            Number.isFinite(Number(evidence.confirmedAt)) &&
+            Number(evidence.confirmedAt) > 0 &&
+            evidence.predecessorLiveRunId === liveRun?.runId &&
+            evidence.predecessorShadowRunId ===
+                (activeShadowSession?.run.runId || null) &&
+            controlledMetadata?.activationBasis ===
+                CONTROLLED_BASELINE_ACTIVATION_BASIS &&
+            controlledMetadata?.predecessorLiveRunId === liveRun?.runId &&
+            controlledMetadata?.predecessorShadowRunId ===
+                (activeShadowSession?.run.runId || null) &&
+            controlledMetadata?.sourceConfigHash === liveRun?.configHash &&
+            controlledMetadata?.liveConfigHash === requestedConfigHash &&
+            !metadata.promotedFromRunId &&
+            !metadata.promotionGate;
+
+        if (
+            !isValidLegacyBaseline ||
+            !hasValidEvidence ||
+            !hasControlledConfig
+        ) {
+            const error = new Error(
+                "Explicit baseline resume requires an unmigrated canonical SuperTrend live predecessor and valid confirmation evidence"
+            );
+            error.code = "CONTROLLED_BASELINE_RESUME_INVALID";
+            throw error;
+        }
+
+        const openTrades = this.tradeRepository?.getOpenTrades
+            ? await this.tradeRepository.getOpenTrades({
+                  mode: RUNTIME_MODES.LIVE,
+              })
+            : [];
+        if (openTrades.length > 0) {
+            const error = new Error(
+                "Explicit baseline resume requires a flat live engine"
+            );
+            error.code = "CONTROLLED_BASELINE_ENGINE_NOT_FLAT";
+            error.openPositions = openTrades.length;
+            throw error;
+        }
+
+        return this.selectLiveStrategy({
+            strategyKey: CONTROLLED_BASELINE_STRATEGY,
+            configSnapshot: requestedConfig,
+            initiatedBy: "controlled-baseline-resume",
+            metadata: {
+                activationBasis: CONTROLLED_BASELINE_ACTIVATION_BASIS,
+                controlledBaselineResume: evidence,
+                phase4ControlledLive: controlledMetadata,
+            },
+            parentLiveRunId: liveRun.runId,
+            parentShadowRunId: activeShadowSession?.run.runId || null,
+            controlledBaselineResumeCapability:
+                CONTROLLED_BASELINE_RESUME_CAPABILITY,
+        });
+    }
+
     async selectLiveStrategy({
         strategyKey,
         configSnapshot = null,
@@ -772,11 +881,18 @@ class RuntimeCoordinator extends EventEmitter {
         initiatedBy = "runtime",
         startShadow = true,
         metadata = {},
+        parentLiveRunId = null,
+        parentShadowRunId = null,
+        controlledBaselineResumeCapability = null,
     } = {}) {
         const activeLiveSession = this.getActiveLiveSession();
         const isBootstrap = initiatedBy === "runtime-bootstrap";
+        const isControlledBaselineResume =
+            controlledBaselineResumeCapability ===
+            CONTROLLED_BASELINE_RESUME_CAPABILITY;
         if (
             !isBootstrap &&
+            !isControlledBaselineResume &&
             (metadata?.promotionGate?.passed !== true ||
                 metadata?.promotionGate?.gateVersion !== 2)
         ) {
@@ -840,6 +956,7 @@ class RuntimeCoordinator extends EventEmitter {
             strategy: nextConfig.strategy,
             status: RUN_STATUSES.ACTIVE,
             selectionId: nextSelectionId,
+            parentRunId: parentLiveRunId,
             configSnapshot: nextConfig,
             configHash: nextConfigHash,
             metadata: {
@@ -857,6 +974,7 @@ class RuntimeCoordinator extends EventEmitter {
                 status: RUN_STATUSES.ACTIVE,
                 selectionId: nextSelectionId,
                 shadowOfRunId: liveRun.runId,
+                parentRunId: parentShadowRunId,
                 configSnapshot: nextConfig,
                 configHash: nextConfigHash,
                 metadata: {
@@ -865,6 +983,13 @@ class RuntimeCoordinator extends EventEmitter {
                     pairedLiveRunId: liveRun.runId,
                     ...(metadata.phase4ControlledLive
                         ? { phase4ControlledLive: metadata.phase4ControlledLive }
+                        : {}),
+                    ...(isControlledBaselineResume
+                        ? {
+                              activationBasis: metadata.activationBasis,
+                              controlledBaselineResume:
+                                  metadata.controlledBaselineResume,
+                          }
                         : {}),
                 },
             });

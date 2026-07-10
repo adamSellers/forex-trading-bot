@@ -23,6 +23,12 @@ const startRoute = tradingRoutes.stack.find(
     (layer) => layer.route?.path === "/trading/start" && layer.route?.methods?.post
 );
 const startHandler = startRoute.route.stack[0].handle;
+const resumeBaselineRoute = tradingRoutes.stack.find(
+    (layer) =>
+        layer.route?.path === "/trading/resume-baseline" &&
+        layer.route?.methods?.post
+);
+const resumeBaselineHandler = resumeBaselineRoute.route.stack[0].handle;
 const paperResetRoute = tradingRoutes.stack.find(
     (layer) =>
         layer.route?.path === "/runtime/paper/reset" && layer.route?.methods?.post
@@ -667,6 +673,339 @@ describe("tradingRoutes controlled live start", () => {
                     status: "PASS",
                 }),
             })
+        );
+    });
+});
+
+describe("tradingRoutes explicit controlled baseline resume", () => {
+    const requiredConfirmation = "RESUME_CONTROLLED_BASELINE";
+    const originalFetch = global.fetch;
+
+    function createBaselineResumeContext({
+        strategy = "supertrend_momentum",
+        metadata = {},
+        engineOpenTrades = [],
+        brokerOpenTrades = [],
+        brokerError = null,
+    } = {}) {
+        const session = createSession(RUNTIME_MODES.LIVE);
+        session.run = {
+            ...session.run,
+            runId: "legacy-live-1",
+            strategy,
+            configHash: "legacy-config-hash",
+            metadata,
+        };
+        const { req, res, runtimeCoordinator } = createRouteContext(session);
+        const predecessorSelection = {
+            selectionId: "legacy-selection-1",
+            strategy,
+            liveRun: session.run,
+            shadowRun: {
+                runId: "legacy-shadow-1",
+                strategy,
+                mode: RUNTIME_MODES.PAPER_SHADOW,
+                configHash: "legacy-config-hash",
+                metadata: {},
+            },
+        };
+        let config = {
+            strategy,
+            assets: ["AUD_USD"],
+            enableTrading: false,
+            referenceCurrency: "AUD",
+            accountCurrency: "AUD",
+            portfolioRiskEnforcement: false,
+            maxOpenPositions: 4,
+            riskPerTrade: 0.02,
+            maxCapitalAtRisk: 500,
+            maxPortfolioExposure: 0.5,
+            maxAggregateStopRiskPctNav: 0.05,
+            maxNetCurrencyExposurePctNav: 5,
+            maxCorrelatedExposurePctNav: 5,
+            maxDailyLossPctNav: 0.1,
+            maxDrawdownPctNav: 0.2,
+            maxConsecutiveLosses: 10,
+        };
+        const configService = {
+            get: jest.fn(() => ({ ...config })),
+            update: jest.fn((updates) => {
+                config = { ...config, ...updates };
+                return { ...config };
+            }),
+        };
+        const tradingEngine = {
+            syncOpenTrades: jest.fn(async () => undefined),
+            getOpenTrades: jest.fn(() => engineOpenTrades),
+        };
+
+        runtimeCoordinator.getLiveSelection = jest.fn(
+            () => predecessorSelection
+        );
+        runtimeCoordinator.resumeControlledBaseline = jest.fn(
+            async ({ configSnapshot, metadata: successorMetadata }) => {
+                const configHash = computeConfigHash(configSnapshot);
+                return {
+                    selectionId: "controlled-selection-1",
+                    strategy: "supertrend_momentum",
+                    configHash,
+                    liveRun: {
+                        runId: "controlled-live-1",
+                        parentRunId: "legacy-live-1",
+                        strategy: "supertrend_momentum",
+                        configHash,
+                        metadata: successorMetadata,
+                    },
+                    shadowRun: {
+                        runId: "controlled-shadow-1",
+                        parentRunId: "legacy-shadow-1",
+                        shadowOfRunId: "controlled-live-1",
+                        strategy: "supertrend_momentum",
+                        configHash,
+                        metadata: successorMetadata,
+                    },
+                };
+            }
+        );
+
+        global.fetch = brokerError
+            ? jest.fn(async () => {
+                  throw brokerError;
+              })
+            : jest.fn(async () => ({
+                  ok: true,
+                  json: async () => ({ trades: brokerOpenTrades }),
+              }));
+
+        req.body = { confirm: requiredConfirmation };
+        req.app.locals = {
+            ...req.app.locals,
+            configService,
+            runtimeCoordinator,
+            tradingEngine,
+            broadcastEngineStatus: jest.fn(),
+        };
+
+        return {
+            req,
+            res,
+            runtimeCoordinator,
+            tradingEngine,
+            configService,
+        };
+    }
+
+    afterEach(() => {
+        global.fetch = originalFetch;
+    });
+
+    test("requires the exact explicit confirmation before preflight", async () => {
+        const context = createBaselineResumeContext();
+        context.req.body = { confirm: "yes" };
+
+        await resumeBaselineHandler(context.req, context.res);
+
+        expect(context.res.status).toHaveBeenCalledWith(400);
+        expect(context.res.body).toEqual({
+            error: expect.any(String),
+            code: "CONTROLLED_BASELINE_CONFIRMATION_REQUIRED",
+            requiredConfirmation,
+        });
+        expect(context.tradingEngine.syncOpenTrades).not.toHaveBeenCalled();
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test("rejects non-canonical or already-provenanced live selections", async () => {
+        const wrongStrategy = createBaselineResumeContext({
+            strategy: "timesfm_directional",
+        });
+        await resumeBaselineHandler(wrongStrategy.req, wrongStrategy.res);
+
+        expect(wrongStrategy.res.status).toHaveBeenCalledWith(409);
+        expect(wrongStrategy.res.body).toEqual(
+            expect.objectContaining({
+                code: "CONTROLLED_BASELINE_RESUME_UNAVAILABLE",
+                baselineResume: expect.objectContaining({ eligible: false }),
+            })
+        );
+        expect(
+            wrongStrategy.runtimeCoordinator.resumeControlledBaseline
+        ).not.toHaveBeenCalled();
+
+        const promoted = createBaselineResumeContext({
+            metadata: {
+                promotedFromRunId: "candidate-1",
+                promotionGate: { passed: true, gateVersion: 2 },
+            },
+        });
+        await resumeBaselineHandler(promoted.req, promoted.res);
+
+        expect(promoted.res.status).toHaveBeenCalledWith(409);
+        expect(promoted.res.body.code).toBe(
+            "CONTROLLED_BASELINE_RESUME_UNAVAILABLE"
+        );
+        expect(
+            promoted.runtimeCoordinator.resumeControlledBaseline
+        ).not.toHaveBeenCalled();
+    });
+
+    test("fails closed when engine synchronization cannot be verified", async () => {
+        const context = createBaselineResumeContext();
+        context.tradingEngine.syncOpenTrades.mockRejectedValueOnce(
+            new Error("repository unavailable")
+        );
+
+        await resumeBaselineHandler(context.req, context.res);
+
+        expect(context.res.status).toHaveBeenCalledWith(502);
+        expect(context.res.body.code).toBe(
+            "CONTROLLED_BASELINE_ENGINE_PREFLIGHT_FAILED"
+        );
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(context.configService.update).not.toHaveBeenCalled();
+    });
+
+    test("requires both the engine and broker account to be flat", async () => {
+        const engineNotFlat = createBaselineResumeContext({
+            engineOpenTrades: [{ id: "engine-trade-1" }],
+        });
+        await resumeBaselineHandler(engineNotFlat.req, engineNotFlat.res);
+
+        expect(engineNotFlat.res.status).toHaveBeenCalledWith(409);
+        expect(engineNotFlat.res.body).toEqual(
+            expect.objectContaining({
+                code: "CONTROLLED_BASELINE_ENGINE_NOT_FLAT",
+                openPositions: 1,
+            })
+        );
+        expect(global.fetch).not.toHaveBeenCalled();
+
+        const brokerNotFlat = createBaselineResumeContext({
+            brokerOpenTrades: [{ id: "broker-trade-1" }],
+        });
+        await resumeBaselineHandler(brokerNotFlat.req, brokerNotFlat.res);
+
+        expect(brokerNotFlat.res.status).toHaveBeenCalledWith(409);
+        expect(brokerNotFlat.res.body).toEqual(
+            expect.objectContaining({
+                code: "CONTROLLED_BASELINE_BROKER_NOT_FLAT",
+                openPositions: 1,
+            })
+        );
+        expect(brokerNotFlat.configService.update).not.toHaveBeenCalled();
+    });
+
+    test("fails closed when the broker flat-state preflight is unavailable", async () => {
+        const context = createBaselineResumeContext({
+            brokerError: new Error("broker unavailable"),
+        });
+
+        await resumeBaselineHandler(context.req, context.res);
+
+        expect(context.res.status).toHaveBeenCalledWith(502);
+        expect(context.res.body.code).toBe(
+            "CONTROLLED_BASELINE_BROKER_PREFLIGHT_FAILED"
+        );
+        expect(context.configService.update).not.toHaveBeenCalled();
+    });
+
+    test("creates an honest capped successor lineage and enables only after readiness passes", async () => {
+        const context = createBaselineResumeContext();
+
+        await resumeBaselineHandler(context.req, context.res);
+
+        expect(context.runtimeCoordinator.resumeControlledBaseline).toHaveBeenCalledWith(
+            expect.objectContaining({
+                configSnapshot: expect.objectContaining({
+                    strategy: "supertrend_momentum",
+                    enableTrading: false,
+                    referenceCurrency: "AUD",
+                    accountCurrency: "AUD",
+                    portfolioRiskEnforcement: true,
+                    maxOpenPositions: 1,
+                    riskPerTrade: 0.005,
+                    maxCapitalAtRisk: 50,
+                    maxPortfolioExposure: 0.1,
+                }),
+                metadata: expect.objectContaining({
+                    activationBasis: "explicit_user_baseline_resume",
+                    controlledBaselineResume: expect.objectContaining({
+                        confirmed: true,
+                        predecessorLiveRunId: "legacy-live-1",
+                        predecessorShadowRunId: "legacy-shadow-1",
+                    }),
+                    phase4ControlledLive: expect.objectContaining({
+                        activationBasis: "explicit_user_baseline_resume",
+                        predecessorLiveRunId: "legacy-live-1",
+                    }),
+                }),
+            })
+        );
+        const resumeArguments =
+            context.runtimeCoordinator.resumeControlledBaseline.mock.calls[0][0];
+        expect(resumeArguments.metadata).not.toHaveProperty("promotionGate");
+        expect(resumeArguments.metadata).not.toHaveProperty(
+            "promotedFromRunId"
+        );
+        expect(context.configService.update).toHaveBeenNthCalledWith(
+            2,
+            { enableTrading: true },
+            { allowLiveActivation: true }
+        );
+        expect(context.res.status).not.toHaveBeenCalled();
+        expect(context.res.body).toEqual(
+            expect.objectContaining({
+                success: true,
+                activationBasis: "explicit_user_baseline_resume",
+                tradingEnabled: true,
+                predecessor: {
+                    liveRunId: "legacy-live-1",
+                    shadowRunId: "legacy-shadow-1",
+                },
+                liveReadiness: expect.objectContaining({
+                    status: "PASS",
+                    activationBasis: "explicit_user_baseline_resume",
+                }),
+            })
+        );
+    });
+
+    test("keeps entries paused when the successor fails readiness", async () => {
+        const context = createBaselineResumeContext();
+        context.runtimeCoordinator.resumeControlledBaseline.mockImplementationOnce(
+            async ({ metadata: successorMetadata }) => ({
+                selectionId: "controlled-selection-invalid",
+                strategy: "supertrend_momentum",
+                liveRun: {
+                    runId: "controlled-live-invalid",
+                    parentRunId: "legacy-live-1",
+                    strategy: "supertrend_momentum",
+                    configHash: "wrong-live-config-hash",
+                    metadata: successorMetadata,
+                },
+                shadowRun: null,
+            })
+        );
+
+        await resumeBaselineHandler(context.req, context.res);
+
+        expect(context.res.status).toHaveBeenCalledWith(409);
+        expect(context.res.body).toEqual(
+            expect.objectContaining({
+                code: "CONTROLLED_BASELINE_READINESS_FAILED",
+                liveReadiness: expect.objectContaining({
+                    status: "FAIL",
+                    reasons: expect.arrayContaining([
+                        expect.objectContaining({
+                            code: "LIVE_CONFIG_IDENTITY_MISMATCH",
+                        }),
+                    ]),
+                }),
+            })
+        );
+        expect(context.configService.update).toHaveBeenCalledTimes(1);
+        expect(context.configService.update.mock.calls[0][0]).toEqual(
+            expect.objectContaining({ enableTrading: false })
         );
     });
 });

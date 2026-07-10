@@ -227,7 +227,7 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Sync open trades from database with local state
      */
-    async syncOpenTrades() {
+    async syncOpenTrades({ throwOnError = false } = {}) {
         try {
             const dbTrades = await this.tradeRepository.getOpenTrades();
 
@@ -241,16 +241,17 @@ class LiveTradingEngine extends EventEmitter {
             );
 
             // Also sync with Oanda to verify positions
-            await this.syncWithOanda();
+            await this.syncWithOanda({ throwOnError });
         } catch (error) {
             logger.error("❌ Failed to sync open trades:", error.message);
+            if (throwOnError) throw error;
         }
     }
 
     /**
      * Sync local state with actual Oanda positions
      */
-    async syncWithOanda() {
+    async syncWithOanda({ throwOnError = false } = {}) {
         try {
             const oandaResponse = await oandaClient.getOpenTrades();
             const brokerTrades = oandaResponse?.trades || [];
@@ -299,6 +300,7 @@ class LiveTradingEngine extends EventEmitter {
             }
         } catch (error) {
             logger.error("❌ Failed to sync with Oanda:", error.message);
+            if (throwOnError) throw error;
         }
     }
 

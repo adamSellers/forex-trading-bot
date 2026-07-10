@@ -1,5 +1,9 @@
 const RuntimeCoordinator = require("../runtimeCoordinator");
 const { RUNTIME_MODES, RUN_STATUSES } = require("../runtimeConstants");
+const { computeConfigHash } = require("../../config/tradingConfig");
+const {
+    applyControlledLiveConfig,
+} = require("../liveActivationReadiness");
 
 function createMockDataService() {
     const instruments = {
@@ -734,6 +738,174 @@ describe("RuntimeCoordinator", () => {
                 mode: RUNTIME_MODES.PAPER_SHADOW,
                 status: RUN_STATUSES.ACTIVE,
             })
+        );
+    });
+
+    test("explicit baseline resume creates immutable live and shadow successors", async () => {
+        const initialSelection =
+            await coordinator.ensureLiveSelectionInitialized();
+        const confirmedAt = 1710001234567;
+        const controlledConfig = applyControlledLiveConfig(
+            initialSelection.liveRun.configSnapshot
+        );
+        const controlledConfigHash = computeConfigHash(controlledConfig);
+        const metadata = {
+            activationBasis: "explicit_user_baseline_resume",
+            controlledBaselineResume: {
+                confirmed: true,
+                confirmedAt,
+                predecessorLiveRunId: initialSelection.liveRun.runId,
+                predecessorShadowRunId: initialSelection.shadowRun.runId,
+            },
+            phase4ControlledLive: {
+                appliedAt: confirmedAt,
+                activationBasis: "explicit_user_baseline_resume",
+                predecessorLiveRunId: initialSelection.liveRun.runId,
+                predecessorShadowRunId: initialSelection.shadowRun.runId,
+                sourceConfigHash: initialSelection.liveRun.configHash,
+                liveConfigHash: controlledConfigHash,
+            },
+        };
+
+        const nextSelection = await coordinator.resumeControlledBaseline({
+            configSnapshot: controlledConfig,
+            metadata,
+        });
+
+        expect(nextSelection.liveRun).toEqual(
+            expect.objectContaining({
+                strategy: "supertrend_momentum",
+                parentRunId: initialSelection.liveRun.runId,
+                metadata: expect.objectContaining({
+                    activationBasis: "explicit_user_baseline_resume",
+                    controlledBaselineResume:
+                        metadata.controlledBaselineResume,
+                }),
+            })
+        );
+        expect(nextSelection.shadowRun).toEqual(
+            expect.objectContaining({
+                parentRunId: initialSelection.shadowRun.runId,
+                shadowOfRunId: nextSelection.liveRun.runId,
+                metadata: expect.objectContaining({
+                    activationBasis: "explicit_user_baseline_resume",
+                    controlledBaselineResume:
+                        metadata.controlledBaselineResume,
+                }),
+            })
+        );
+        expect(nextSelection.liveRun.metadata).not.toHaveProperty(
+            "promotionGate"
+        );
+        expect(nextSelection.liveRun.metadata).not.toHaveProperty(
+            "promotedFromRunId"
+        );
+        expect(strategyRunRepository.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                mode: RUNTIME_MODES.LIVE,
+                parentRunId: initialSelection.liveRun.runId,
+            })
+        );
+        expect(strategyRunRepository.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                mode: RUNTIME_MODES.PAPER_SHADOW,
+                parentRunId: initialSelection.shadowRun.runId,
+                shadowOfRunId: nextSelection.liveRun.runId,
+            })
+        );
+        expect(coordinator.getRunSession(initialSelection.liveRun.runId)).toBeNull();
+        expect(coordinator.getRunSession(initialSelection.shadowRun.runId)).toBeNull();
+    });
+
+    test("explicit baseline resume refuses non-flat or invalid predecessor state", async () => {
+        const initialSelection =
+            await coordinator.ensureLiveSelectionInitialized();
+        const controlledConfig = applyControlledLiveConfig(
+            initialSelection.liveRun.configSnapshot
+        );
+        const validMetadata = {
+            activationBasis: "explicit_user_baseline_resume",
+            controlledBaselineResume: {
+                confirmed: true,
+                confirmedAt: 1710001234567,
+                predecessorLiveRunId: initialSelection.liveRun.runId,
+                predecessorShadowRunId: initialSelection.shadowRun.runId,
+            },
+            phase4ControlledLive: {
+                activationBasis: "explicit_user_baseline_resume",
+                predecessorLiveRunId: initialSelection.liveRun.runId,
+                predecessorShadowRunId: initialSelection.shadowRun.runId,
+                sourceConfigHash: initialSelection.liveRun.configHash,
+                liveConfigHash: computeConfigHash(controlledConfig),
+            },
+        };
+        openTrades = [
+            {
+                id: "open-live-1",
+                ownerRunId: initialSelection.liveRun.runId,
+                mode: RUNTIME_MODES.LIVE,
+                isOpen: true,
+            },
+        ];
+
+        await expect(
+            coordinator.resumeControlledBaseline({
+                configSnapshot: controlledConfig,
+                metadata: validMetadata,
+            })
+        ).rejects.toMatchObject({
+            code: "CONTROLLED_BASELINE_ENGINE_NOT_FLAT",
+            openPositions: 1,
+        });
+        expect(coordinator.getLiveSelection().liveRun.runId).toBe(
+            initialSelection.liveRun.runId
+        );
+
+        openTrades = [];
+        await expect(
+            coordinator.resumeControlledBaseline({
+                configSnapshot: controlledConfig,
+                metadata: {
+                    ...validMetadata,
+                    controlledBaselineResume: {
+                        ...validMetadata.controlledBaselineResume,
+                        confirmed: false,
+                    },
+                },
+            })
+        ).rejects.toMatchObject({
+            code: "CONTROLLED_BASELINE_RESUME_INVALID",
+        });
+    });
+
+    test("ordinary callers cannot spoof the explicit baseline resume exception", async () => {
+        const initialSelection =
+            await coordinator.ensureLiveSelectionInitialized();
+
+        await expect(
+            coordinator.selectLiveStrategy({
+                strategyKey: "supertrend_momentum",
+                configSnapshot: initialSelection.liveRun.configSnapshot,
+                initiatedBy: "controlled-baseline-resume",
+                metadata: {
+                    activationBasis: "explicit_user_baseline_resume",
+                    controlledBaselineResume: {
+                        confirmed: true,
+                        confirmedAt: 1710001234567,
+                        predecessorLiveRunId:
+                            initialSelection.liveRun.runId,
+                    },
+                    phase4ControlledLive: {
+                        activationBasis:
+                            "explicit_user_baseline_resume",
+                        predecessorLiveRunId:
+                            initialSelection.liveRun.runId,
+                    },
+                },
+            })
+        ).rejects.toMatchObject({ code: "CANDIDATE_PROMOTION_REQUIRED" });
+        expect(coordinator.getLiveSelection().liveRun.runId).toBe(
+            initialSelection.liveRun.runId
         );
     });
 

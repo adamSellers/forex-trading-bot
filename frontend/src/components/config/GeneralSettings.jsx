@@ -1,7 +1,7 @@
 // frontend/src/components/config/GeneralSettings.jsx - General Settings with Engine Controls
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Typography, TextField, Button, Switch, FormControl,
+  Box, Typography, TextField, Button, FormControl,
   InputLabel, Select, MenuItem, InputAdornment, Grid, Stack,
   Paper, alpha, useTheme, Chip, Divider, CircularProgress
 } from '@mui/material';
@@ -85,7 +85,7 @@ const GeneralSettings = ({ config, updateConfig, onResetEngine }) => {
         <SectionHeader 
           icon={<SettingsRemote />} 
           title="System Controls" 
-          subtitle="Global limits and master switch" 
+          subtitle="Global limits and live-entry status"
         />
         <Grid container spacing={3} alignItems="center">
           <Grid item xs={12} md={6}>
@@ -111,19 +111,20 @@ const GeneralSettings = ({ config, updateConfig, onResetEngine }) => {
               bgcolor={config.enableTrading ? alpha(theme.palette.success.main, 0.05) : 'transparent'}
             >
               <Box>
-                <Typography fontWeight="bold">Master Kill Switch</Typography>
+                <Typography fontWeight="bold">Live Entry Status</Typography>
                 <Typography variant="caption" color={config.enableTrading ? 'success.main' : 'text.secondary'}>
                   {config.enableTrading ? "⚡ TRADING ACTIVE" : "⏸️ TRADING PAUSED"}
                 </Typography>
               </Box>
-              <Switch 
-                checked={config.enableTrading} 
-                disabled
-                color="success" 
+              <Chip
+                label={config.enableTrading ? 'ACTIVE' : 'PAUSED'}
+                color={config.enableTrading ? 'success' : 'default'}
+                variant={config.enableTrading ? 'filled' : 'outlined'}
+                size="small"
               />
             </Box>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Activation is readiness-gated from the dashboard. Configuration saves cannot bypass promotion or risk limits.
+              Display only. Use Dashboard → Enable Live / Live Blocked to review readiness and change live-entry status. Configuration saves cannot bypass promotion or risk limits.
             </Typography>
           </Grid>
            
