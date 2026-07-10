@@ -51,6 +51,9 @@ describe("TimesFmClient", () => {
                     volatility_regime: "HIGH",
                     quantile_spread_bps: 41.5,
                     quantiles_h1: [1.0809, 1.0818],
+                    quantiles_terminal: [1.079, 1.084],
+                    confidence_horizon: 12,
+                    terminal_point_forecast: 1.083,
                 }),
             }),
         });
@@ -70,6 +73,10 @@ describe("TimesFmClient", () => {
                 returnBps: 13.4,
                 volatilityRegime: "HIGH",
                 quantileSpreadBps: 41.5,
+                quantilesH1: [1.0809, 1.0818],
+                quantilesTerminal: [1.079, 1.084],
+                confidenceHorizon: 12,
+                terminalPointForecast: 1.083,
             })
         );
     });

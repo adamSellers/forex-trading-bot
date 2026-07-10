@@ -113,6 +113,42 @@ describe("StrategyRunRepository", () => {
         );
     });
 
+    test("rejects changes to immutable experiment identity", async () => {
+        await repository.create({
+            runId: "run-immutable",
+            mode: "paper_candidate",
+            strategy: "supertrend_momentum",
+            status: "active",
+            configHash: "config-a",
+            configSnapshot: { strategy: "supertrend_momentum" },
+            startedAt: 1710000000000,
+        });
+
+        await expect(
+            repository.update("run-immutable", {
+                configHash: "config-b",
+                configSnapshot: { strategy: "mean_reversion" },
+            })
+        ).rejects.toMatchObject({ code: "IMMUTABLE_STRATEGY_RUN" });
+    });
+
+    test("persists restart lineage on a new run", async () => {
+        await repository.create({
+            runId: "run-fresh-window",
+            parentRunId: "run-original-window",
+            mode: "paper_candidate",
+            strategy: "supertrend_momentum",
+            status: "active",
+            startedAt: 1710000000000,
+        });
+
+        await expect(
+            repository.getByRunId("run-fresh-window")
+        ).resolves.toEqual(
+            expect.objectContaining({ parentRunId: "run-original-window" })
+        );
+    });
+
     test("lists runs filtered by mode, status, and selection", async () => {
         await repository.create({
             runId: "run-live-3",

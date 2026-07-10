@@ -4,9 +4,9 @@
     "description": "Forex trend-following trading bot",
     "private": true,
     "scripts": {
-        "install:all": "cd backend && npm install && cd ../frontend && npm install",
-        "install:backend": "cd backend && npm install",
-        "install:frontend": "cd frontend && npm install",
+        "install:all": "cd backend && npm ci && cd ../frontend && npm ci",
+        "install:backend": "cd backend && npm ci",
+        "install:frontend": "cd frontend && npm ci",
         "build:frontend": "cd frontend && npm run build",
         "dev": "concurrently -n backend,frontend -c blue,green \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
         "start": "concurrently -n backend,frontend -c blue,green \"cd backend && npm start\" \"cd frontend && npm run preview\"",
@@ -20,6 +20,6 @@
         "concurrently": "^8.2.2"
     },
     "engines": {
-        "node": ">=18.0.0"
+        "node": ">=20 <23"
     }
 }

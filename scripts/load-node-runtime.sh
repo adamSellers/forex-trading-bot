@@ -42,6 +42,12 @@ if ! NODE_VERSION_OUTPUT=$(node -v 2>/dev/null); then
     return 1 2>/dev/null || exit 1
 fi
 
+NODE_MAJOR=$(node -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || echo 0)
+if [ "$NODE_MAJOR" -lt 20 ] || [ "$NODE_MAJOR" -ge 23 ]; then
+    echo "❌ Unsupported Node.js runtime $NODE_VERSION_OUTPUT. Install the pinned version from .nvmrc (v22.16.0)." >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 if [ "$(uname -m 2>/dev/null)" = "aarch64" ]; then
     NODE_ARCH=$(node -p "process.arch" 2>/dev/null || true)
     if [ "$NODE_ARCH" != "arm64" ]; then

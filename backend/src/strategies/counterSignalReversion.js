@@ -21,6 +21,7 @@ const DEFAULT_COUNTER_SIGNAL_REVERSION_CONFIG = Object.freeze({
     enableShorting: true,
     enableSessionFilter: false,
     timeStopHours: 0,
+    counterSignalEnabled: false,
 });
 
 function toFiniteNumber(value, fallback = null) {
@@ -298,6 +299,14 @@ async function evaluateCounterSignalReversionEntry({
         sourceStrategies,
     };
 
+    if (resolvedConfig.counterSignalEnabled !== true) {
+        return buildHoldResult(holdContext, {
+            reason:
+                "HOLD: counter-signal inversion is quarantined after negative live/paper evidence",
+            reasonCode: "COUNTER_SIGNAL_QUARANTINED",
+        });
+    }
+
     if (!Number.isFinite(entryPrice)) {
         return buildHoldResult(holdContext, {
             reason: "HOLD: current price is unavailable",
@@ -397,7 +406,7 @@ const counterSignalReversionStrategy = createStrategyDefinition({
     key: COUNTER_SIGNAL_REVERSION_KEY,
     label: "Counter Signal Reversion",
     description:
-        "Pure inverse candidate that treats actionable source strategy entries as lagging exhaustion signals.",
+        "Research-only inverse candidate, quarantined by default after negative live/paper evidence.",
     phaseIntroduced: 5,
     runtimeStatus: "candidate",
     requiredData: {
@@ -406,8 +415,8 @@ const counterSignalReversionStrategy = createStrategyDefinition({
         indicators: ["supertrend", "adx", "rsi", "atr", "stochastic"],
     },
     metadata: {
-        supportsLive: true,
-        supportsShadow: true,
+        supportsLive: false,
+        supportsShadow: false,
         supportsCandidate: true,
         sourceSignalAggregation: true,
         entryValidation: {

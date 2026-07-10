@@ -13,7 +13,7 @@ function createCandle(time, open, high, low, close) {
 
 function buildLondonRangeCandles() {
     const candles = [];
-    const start = Date.UTC(2026, 0, 1, 7, 0, 0, 0);
+    const start = Date.UTC(2026, 0, 1, 8, 0, 0, 0);
     const closes = [
         1.1, 1.1001, 1.10015, 1.09995, 1.1002, 1.10005,
         1.0999, 1.1001, 1.1002, 1.10005, 1.1001, 1.1,
@@ -45,7 +45,7 @@ function buildLondonRangeCandles() {
 
 function buildNewYorkRangeCandles() {
     const candles = [];
-    const start = Date.UTC(2026, 0, 1, 12, 0, 0, 0);
+    const start = Date.UTC(2026, 0, 1, 13, 0, 0, 0);
     const closes = [
         1.2, 1.1999, 1.19985, 1.20005, 1.1998, 1.19995,
         1.2001, 1.1999, 1.19985, 1.19995, 1.1999, 1.2,
@@ -92,12 +92,39 @@ function buildVolatileLondonRangeCandles() {
 }
 
 describe("rangeBreakoutStrategy", () => {
+    test("resolves London and New York opens across daylight-saving changes", () => {
+        expect(
+            rangeBreakoutStrategy.resolveOpeningSession(
+                Date.parse("2026-01-15T08:00:00Z"),
+                rangeBreakoutStrategy.DEFAULT_RANGE_BREAKOUT_CONFIG
+            )
+        ).toBe("London");
+        expect(
+            rangeBreakoutStrategy.resolveOpeningSession(
+                Date.parse("2026-07-15T07:00:00Z"),
+                rangeBreakoutStrategy.DEFAULT_RANGE_BREAKOUT_CONFIG
+            )
+        ).toBe("London");
+        expect(
+            rangeBreakoutStrategy.resolveOpeningSession(
+                Date.parse("2026-01-15T13:00:00Z"),
+                rangeBreakoutStrategy.DEFAULT_RANGE_BREAKOUT_CONFIG
+            )
+        ).toBe("New York");
+        expect(
+            rangeBreakoutStrategy.resolveOpeningSession(
+                Date.parse("2026-07-15T12:00:00Z"),
+                rangeBreakoutStrategy.DEFAULT_RANGE_BREAKOUT_CONFIG
+            )
+        ).toBe("New York");
+    });
+
     test("emits a long entry on a valid London opening-range breakout", async () => {
         const result = await rangeBreakoutStrategy.evaluateEntry({
             instrument: "AUD_USD",
             candles: [
-                createCandle("2026-01-01T09:00:00.000Z", 1.1001, 1.10035, 1.09995, 1.1003),
-                createCandle("2026-01-01T09:15:00.000Z", 1.1002, 1.10085, 1.1001, 1.10075),
+                createCandle("2026-01-01T10:00:00.000Z", 1.1001, 1.10035, 1.09995, 1.1003),
+                createCandle("2026-01-01T10:15:00.000Z", 1.1002, 1.10085, 1.1001, 1.10075),
             ],
             currentPrice: 1.10075,
             config: {},
@@ -166,8 +193,8 @@ describe("rangeBreakoutStrategy", () => {
         const result = await rangeBreakoutStrategy.evaluateEntry({
             instrument: "AUD_USD",
             candles: [
-                createCandle("2026-01-01T14:00:00.000Z", 1.19995, 1.2001, 1.19975, 1.1997),
-                createCandle("2026-01-01T14:15:00.000Z", 1.1998, 1.19985, 1.1992, 1.19925),
+                createCandle("2026-01-01T15:00:00.000Z", 1.19995, 1.2001, 1.19975, 1.1997),
+                createCandle("2026-01-01T15:15:00.000Z", 1.1998, 1.19985, 1.1992, 1.19925),
             ],
             currentPrice: 1.19925,
             config: {},
@@ -233,8 +260,8 @@ describe("rangeBreakoutStrategy", () => {
         const result = await rangeBreakoutStrategy.evaluateEntry({
             instrument: "AUD_USD",
             candles: [
-                createCandle("2026-01-01T09:00:00.000Z", 1.1001, 1.10035, 1.09995, 1.1003),
-                createCandle("2026-01-01T09:15:00.000Z", 1.1002, 1.10085, 1.1001, 1.10075),
+                createCandle("2026-01-01T10:00:00.000Z", 1.1001, 1.10035, 1.09995, 1.1003),
+                createCandle("2026-01-01T10:15:00.000Z", 1.1002, 1.10085, 1.1001, 1.10075),
             ],
             currentPrice: 1.10075,
             config: {},
@@ -277,8 +304,8 @@ describe("rangeBreakoutStrategy", () => {
         const result = await rangeBreakoutStrategy.evaluateEntry({
             instrument: "AUD_USD",
             candles: [
-                createCandle("2026-01-01T09:00:00.000Z", 1.1001, 1.10035, 1.09995, 1.1003),
-                createCandle("2026-01-01T09:15:00.000Z", 1.1002, 1.10085, 1.1001, 1.10075),
+                createCandle("2026-01-01T10:00:00.000Z", 1.1001, 1.10035, 1.09995, 1.1003),
+                createCandle("2026-01-01T10:15:00.000Z", 1.1002, 1.10085, 1.1001, 1.10075),
             ],
             currentPrice: 1.10075,
             config: {},

@@ -106,9 +106,9 @@ describe("squeezePlayStrategy", () => {
             candles: buildCandles({
                 basePrice: 1.2,
                 finalOpen: 1.2008,
-                finalClose: 1.1997,
+                finalClose: 1.1995,
             }),
-            currentPrice: 1.1997,
+            currentPrice: 1.1995,
             config: {},
             marketContext: createMarketContext({
                 session: "New York",
@@ -147,8 +147,8 @@ describe("squeezePlayStrategy", () => {
                 }),
             })
         );
-        expect(result.tradePlan.stopLossPrice).toBeGreaterThan(1.1997);
-        expect(result.tradePlan.takeProfitPrice).toBeLessThan(1.1997);
+        expect(result.tradePlan.stopLossPrice).toBeGreaterThan(1.1995);
+        expect(result.tradePlan.takeProfitPrice).toBeLessThan(1.1995);
     });
 
     test("filters the setup when H1 volatility is outside the squeeze regime", async () => {

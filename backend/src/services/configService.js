@@ -10,6 +10,10 @@ const {
     computeConfigHash,
     getProtectedConfigChanges,
 } = require("../config/tradingConfig");
+const {
+    CONTROLLED_LIVE_RISK_LIMITS,
+    getControlledRiskLimitViolations,
+} = require("../runtime/liveActivationReadiness");
 
 const DEFAULT_CONFIG = cloneDefaultConfig();
 
@@ -52,6 +56,13 @@ class ConfigService extends EventEmitter {
                 const fileConfig = JSON.parse(fileContent);
                 this.config = normalizeTradingConfig(fileConfig);
                 delete this.config.tradingMode;
+                if (this.config.enableTrading) {
+                    this.config.enableTrading = false;
+                    this.save();
+                    logger.warn(
+                        "Live entries were paused during startup; controlled readiness must be re-authorized"
+                    );
+                }
                 logger.info(`📋 Config loaded from ${this.configPath}`);
             } else {
                 // Create default config file
@@ -91,9 +102,29 @@ class ConfigService extends EventEmitter {
     /**
      * Update config with new values
      */
-    update(newConfig) {
+    update(newConfig, options = {}) {
         const oldAssets = [...(this.config.assets || [])];
         const { tradingMode, configHash, ...sanitizedConfig } = newConfig;
+
+        if (
+            (sanitizedConfig.referenceCurrency &&
+                String(sanitizedConfig.referenceCurrency).toUpperCase() !== "AUD") ||
+            (sanitizedConfig.accountCurrency &&
+                String(sanitizedConfig.accountCurrency).toUpperCase() !== "AUD")
+        ) {
+            throw new Error("AUD is the fixed account and reference currency");
+        }
+
+        const requestsActivation =
+            sanitizedConfig.enableTrading === true &&
+            this.config.enableTrading !== true;
+        if (requestsActivation && options.allowLiveActivation !== true) {
+            const error = new Error(
+                "Live trading can only be enabled through the readiness-gated activation endpoint"
+            );
+            error.code = "LIVE_ACTIVATION_PATH_REQUIRED";
+            throw error;
+        }
         const protectedChanges =
             this.config.enforceConfigFreeze === true
                 ? getProtectedConfigChanges(this.config, sanitizedConfig)
@@ -107,11 +138,28 @@ class ConfigService extends EventEmitter {
             );
         }
 
-        // Merge new config
-        this.config = normalizeTradingConfig({
+        const nextConfig = normalizeTradingConfig({
             ...this.config,
             ...sanitizedConfig,
         });
+
+        if (nextConfig.enableTrading) {
+            const violations = getControlledRiskLimitViolations(nextConfig);
+            if (violations.length > 0) {
+                const error = new Error(
+                    `Live risk limits cannot exceed controlled caps: ${violations
+                        .map((violation) => violation.key)
+                        .join(", ")}`
+                );
+                error.code = "CONTROLLED_RISK_LIMIT";
+                error.limits = CONTROLLED_LIVE_RISK_LIMITS;
+                error.violations = violations;
+                throw error;
+            }
+        }
+
+        // Merge only after every fail-closed invariant has passed.
+        this.config = nextConfig;
 
         // Save to file
         this.save();

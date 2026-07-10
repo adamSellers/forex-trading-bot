@@ -3,8 +3,9 @@ const { createStrategyDefinition } = require("./strategyContract");
 
 const DEFAULT_CORRELATION_DIVERGENCE_CONFIG = Object.freeze({
     correlationDivergenceLookbackBars: 16,
-    correlationDivergenceZWindowBars: 320,
-    correlationDivergenceMinObservations: 120,
+    correlationDivergenceReturnStrideBars: 16,
+    correlationDivergenceZWindowBars: 80,
+    correlationDivergenceMinObservations: 30,
     correlationDivergenceEntryZScore: 2.0,
     correlationDivergenceMinPeerMoveBps: 5,
     correlationDivergenceMinPeerInstruments: 2,
@@ -13,6 +14,8 @@ const DEFAULT_CORRELATION_DIVERGENCE_CONFIG = Object.freeze({
     correlationDivergenceBetaMax: 1.75,
     correlationDivergenceStopLossAtrMultiplier: 1.25,
     correlationDivergenceRiskReward: 1.0,
+    correlationDivergenceRequireFreshCross: true,
+    correlationDivergenceExitZScore: 0.5,
     timeStopHours: 4,
 });
 
@@ -88,12 +91,18 @@ function normalizeCandles(candles = []) {
         .sort((a, b) => a.timeMs - b.timeMs);
 }
 
-function buildLookbackReturnMap(candles = [], lookbackBars = 16, sign = 1) {
+function buildLookbackReturnMap(
+    candles = [],
+    lookbackBars = 16,
+    sign = 1,
+    strideBars = lookbackBars
+) {
     const normalized = normalizeCandles(candles);
     const points = [];
     const lookback = Math.max(1, Math.floor(lookbackBars));
 
-    for (let index = lookback; index < normalized.length; index += 1) {
+    const stride = Math.max(1, Math.floor(strideBars));
+    for (let index = lookback; index < normalized.length; index += stride) {
         const previous = normalized[index - lookback];
         const current = normalized[index];
         const value = Math.log(current.close / previous.close) * sign;
@@ -281,7 +290,12 @@ function buildHoldResult(context = {}, overrides = {}) {
     };
 }
 
-function buildPeerReturnMaps(marketContext = {}, timeframe, lookbackBars) {
+function buildPeerReturnMaps(
+    marketContext = {},
+    timeframe,
+    lookbackBars,
+    strideBars
+) {
     return Object.entries(marketContext?.peers || {})
         .map(([instrument, peerContext]) => {
             const sign = getAntiUsdSign(instrument);
@@ -296,7 +310,12 @@ function buildPeerReturnMaps(marketContext = {}, timeframe, lookbackBars) {
 
             return {
                 instrument,
-                returns: buildLookbackReturnMap(candles, lookbackBars, sign),
+                returns: buildLookbackReturnMap(
+                    candles,
+                    lookbackBars,
+                    sign,
+                    strideBars
+                ),
             };
         })
         .filter(Boolean);
@@ -356,6 +375,15 @@ function analyzeDivergence({
             )
         )
     );
+    const strideBars = Math.max(
+        1,
+        Math.floor(
+            toFiniteNumber(
+                config.correlationDivergenceReturnStrideBars,
+                lookbackBars
+            )
+        )
+    );
     const minObservations = Math.max(
         20,
         Math.floor(
@@ -388,7 +416,8 @@ function analyzeDivergence({
     const peerReturnMaps = buildPeerReturnMaps(
         marketContext,
         timeframe,
-        lookbackBars
+        lookbackBars,
+        strideBars
     );
     if (peerReturnMaps.length < minPeerInstruments) {
         return {
@@ -399,7 +428,12 @@ function analyzeDivergence({
         };
     }
 
-    const targetReturns = buildLookbackReturnMap(candles, lookbackBars, targetSign);
+    const targetReturns = buildLookbackReturnMap(
+        candles,
+        lookbackBars,
+        targetSign,
+        strideBars
+    );
     const observations = buildResidualObservations({
         targetReturns,
         peerReturnMaps,
@@ -439,6 +473,10 @@ function analyzeDivergence({
             observationCount: baseline.length,
         };
     }
+    const previousResidual = residuals[residuals.length - 1];
+    const previousZScore = Number.isFinite(previousResidual)
+        ? (previousResidual - residualMean) / residualStdDev
+        : null;
 
     return {
         valid: true,
@@ -450,6 +488,8 @@ function analyzeDivergence({
         residualMean,
         residualStdDev,
         zScore: (residual - residualMean) / residualStdDev,
+        previousZScore,
+        returnStrideBars: strideBars,
         beta,
         rollingCorrelation,
         observationCount: baseline.length,
@@ -514,6 +554,15 @@ async function evaluateCorrelationDivergenceEntry({
         });
     }
 
+    if (
+        toTimestampMs(analysis.time) !== toTimestampMs(currentCandle?.time)
+    ) {
+        return buildHoldResult(context, {
+            reason: "HOLD: waiting for the next non-overlapping return block",
+            reasonCode: "CORRELATION_DIVERGENCE_WAIT_BLOCK",
+        });
+    }
+
     const minCorrelation = toFiniteNumber(
         resolvedConfig.correlationDivergenceMinCorrelation,
         DEFAULT_CORRELATION_DIVERGENCE_CONFIG.correlationDivergenceMinCorrelation
@@ -549,6 +598,20 @@ async function evaluateCorrelationDivergenceEntry({
         return buildHoldResult(context, {
             reason: `HOLD: residual z-score ${analysis.zScore.toFixed(2)} below entry ${entryZScore.toFixed(2)}`,
             reasonCode: "CORRELATION_DIVERGENCE_ZSCORE_TOO_SMALL",
+        });
+    }
+
+    if (
+        resolvedConfig.correlationDivergenceRequireFreshCross !== false &&
+        Number.isFinite(analysis.previousZScore) &&
+        Math.abs(analysis.previousZScore) >= entryZScore
+    ) {
+        return buildHoldResult(context, {
+            reason:
+                `HOLD: residual remains extended at z ${analysis.zScore.toFixed(
+                    2
+                )}; waiting for convergence before re-arming`,
+            reasonCode: "CORRELATION_DIVERGENCE_NOT_FRESH",
         });
     }
 
@@ -632,6 +695,47 @@ async function evaluateCorrelationDivergenceEntry({
     };
 }
 
+async function evaluateCorrelationDivergenceExit(context = {}) {
+    const config = {
+        ...DEFAULT_CORRELATION_DIVERGENCE_CONFIG,
+        ...(context.config || {}),
+    };
+    const analysis = analyzeDivergence({
+        instrument: context.instrument,
+        candles: context.candles || [],
+        marketContext: context.marketContext,
+        config,
+    });
+    const exitZ = Math.max(
+        0,
+        toFiniteNumber(config.correlationDivergenceExitZScore, 0.5)
+    );
+    if (analysis.valid && Math.abs(analysis.zScore) <= exitZ) {
+        return {
+            signalType: "CLOSE",
+            signalClass: "ACTIONABLE",
+            intent: "EXIT_POSITION",
+            reasonCode: "CORRELATION_DIVERGENCE_CONVERGED_EXIT",
+            reason: `EXIT: residual converged to z ${analysis.zScore.toFixed(2)}`,
+            signalCandleTime:
+                context.candles?.[context.candles.length - 1]?.time || null,
+        };
+    }
+    return buildHoldResult(
+        {
+            currentCandle: context.candles?.[context.candles.length - 1],
+            currentPrice: context.currentPrice,
+            ...analysis,
+        },
+        {
+            reason: analysis.valid
+                ? `HOLD: residual z ${analysis.zScore.toFixed(2)} has not converged`
+                : `HOLD: ${analysis.reason || "residual unavailable"}`,
+            reasonCode: "CORRELATION_DIVERGENCE_EXIT_WAIT",
+        }
+    );
+}
+
 const correlationDivergenceStrategy = createStrategyDefinition({
     key: "correlation_divergence",
     label: "Correlation Divergence",
@@ -651,6 +755,7 @@ const correlationDivergenceStrategy = createStrategyDefinition({
         defaultConfig: DEFAULT_CORRELATION_DIVERGENCE_CONFIG,
     },
     evaluateEntry: evaluateCorrelationDivergenceEntry,
+    evaluateExit: evaluateCorrelationDivergenceExit,
 });
 
 module.exports = Object.assign({}, correlationDivergenceStrategy, {
@@ -658,6 +763,7 @@ module.exports = Object.assign({}, correlationDivergenceStrategy, {
     analyzeDivergence,
     buildLookbackReturnMap,
     evaluateCorrelationDivergenceEntry,
+    evaluateCorrelationDivergenceExit,
     getAntiUsdSign,
     mapAntiUsdDirectionToSignal,
 });

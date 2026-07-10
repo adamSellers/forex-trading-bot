@@ -2,7 +2,36 @@ const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const { RUNTIME_MODES, RUN_STATUSES } = require("../runtime/runtimeConstants");
 const { getStrategyDefinition } = require("../strategies");
-const { resolveConfiguredDistance } = require("../runtime/exitPolicy");
+const {
+    buildOwnerRunExitPolicy,
+    calculateMonotonicStop,
+    resolveBreakevenDistance,
+    resolveOwnerRunExitPolicy,
+    resolveTimedExitReason,
+    resolveTrailingStopDistances,
+} = require("../runtime/exitPolicy");
+const {
+    calculateCanonicalPositionSize,
+    calculateProjectedExposure,
+    resolveCanonicalTradePlan,
+    resolveLeverage,
+} = require("../runtime/executionPolicy");
+const {
+    ACCOUNT_CURRENCY,
+    AudCurrencyConverter,
+    CurrencyConversionError,
+    getInstrumentCurrencies,
+} = require("../runtime/currencyConversion");
+const { calculatePaperNetPnl } = require("../runtime/tradingCostModel");
+const {
+    ENTRY_REJECTION_CODES,
+    ENTRY_DECISION_STAGES,
+    ENTRY_DECISION_OUTCOMES,
+} = require("../constants/entryDecisionCodes");
+const {
+    computeConfigHash,
+    normalizeTradingConfig,
+} = require("../config/tradingConfig");
 
 const PAPER_MODES = new Set([
     RUNTIME_MODES.PAPER_SHADOW,
@@ -69,6 +98,7 @@ function isWithinActiveSession(hourUtc, activeSessions = []) {
 function isEntrySignal(signal) {
     if (!signal) return false;
     if (signal.signal !== "BUY" && signal.signal !== "SELL") return false;
+    if (signal.entryEnabled === false) return false;
     if (signal.entryType === "EXIT_ONLY") return false;
     if (signal.signalClass === "COOLDOWN") return false;
     if (signal.cooldownSuppressed === true) return false;
@@ -94,10 +124,13 @@ class PaperTradingRuntime {
         this.portfolioRepository = options.portfolioRepository || null;
         this.dataService = options.dataService || null;
         this.io = options.io || null;
+        this.currencyConverter = options.currencyConverter || null;
+        this.homeConversionProvider = options.homeConversionProvider || null;
         this.paperStartingBalanceAud =
             options.paperStartingBalanceAud || 10000;
 
         this._runQueue = new Map();
+        this._paperEntryDecisionContexts = new Map();
         this._boundRunSignalsGenerated = null;
         this._boundRunStarted = null;
         this._boundRunStopped = null;
@@ -275,7 +308,24 @@ class PaperTradingRuntime {
                 }
             }
 
-            if (openTrade || !isEntrySignal(signal)) {
+            if (!isEntrySignal(signal)) {
+                continue;
+            }
+
+            const entryDecision = await this.createPaperEntryDecision(
+                run,
+                signal,
+                config,
+                { openPositions: tradeByInstrument.size }
+            );
+            const decisionId = entryDecision?.decisionId || null;
+
+            if (openTrade) {
+                await this.rejectPaperEntryDecision(decisionId, {
+                    rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                    rejectionReason: "Already in position for this instrument",
+                    openPositions: tradeByInstrument.size,
+                });
                 continue;
             }
 
@@ -289,14 +339,28 @@ class PaperTradingRuntime {
                 logger.info(
                     `[paper:${run.runId}] Entry rejected for ${signal.symbol}: ${validation.reason}`
                 );
+                await this.rejectPaperEntryDecision(decisionId, {
+                    rejectionCode:
+                        validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                    rejectionReason: validation.reason,
+                    openPositions: tradeByInstrument.size,
+                    ...(validation.context || {}),
+                });
                 continue;
             }
+
+            await this.updatePaperEntryDecision(decisionId, {
+                stage: ENTRY_DECISION_STAGES.VALIDATED,
+                openPositions: tradeByInstrument.size,
+                ...(validation.context || {}),
+            });
 
             const trade = await this.openTradeFromSignal(
                 run,
                 config,
                 signal,
-                Array.from(tradeByInstrument.values())
+                Array.from(tradeByInstrument.values()),
+                decisionId
             );
             if (trade) {
                 tradeByInstrument.set(trade.instrument, trade);
@@ -316,24 +380,44 @@ class PaperTradingRuntime {
     }
 
     getInstrumentCurrencies(instrument) {
-        const [baseCurrency, quoteCurrency] = String(instrument || "")
-            .toUpperCase()
-            .split("_");
-
-        if (!baseCurrency || !quoteCurrency) {
-            throw new Error(`Invalid instrument: ${instrument}`);
-        }
-
-        return { baseCurrency, quoteCurrency };
+        return getInstrumentCurrencies(instrument);
     }
 
-    getAccountCurrency(source = {}) {
-        return String(
-            source.accountCurrency ||
-                source.paperAccountCurrency ||
-                source.currency ||
-                "AUD"
-        ).toUpperCase();
+    getAccountCurrency() {
+        return ACCOUNT_CURRENCY;
+    }
+
+    getCurrencyConverter() {
+        if (!this.currencyConverter) {
+            this.currencyConverter = new AudCurrencyConverter({
+                priceProvider: (instrument) =>
+                    this.getCurrentPriceData(instrument),
+                homeConversionProvider: (currency, options) => {
+                    if (this.homeConversionProvider) {
+                        return this.homeConversionProvider(currency, options);
+                    }
+                    return (
+                        this.dataService?.getHomeConversion?.(currency) ??
+                        this.dataService?.getHomeConversionRate?.(
+                            currency,
+                            options
+                        )
+                    );
+                },
+            });
+        } else {
+            this.currencyConverter.setPriceProvider?.((instrument) =>
+                this.getCurrentPriceData(instrument)
+            );
+        }
+        return this.currencyConverter;
+    }
+
+    seedHomeConversions(homeConversions, updatedAt = Date.now()) {
+        this.getCurrencyConverter().seedHomeConversions(
+            homeConversions,
+            updatedAt
+        );
     }
 
     getCurrentPriceData(instrument) {
@@ -427,6 +511,7 @@ class PaperTradingRuntime {
         action,
         config = {},
         fallbackPrice = null,
+        applySlippage = true,
     }) {
         const priceData = this.getCurrentPriceData(instrument);
         const { bid, ask, mid, spreadPips } = this.getBidAskFromPriceData(
@@ -450,7 +535,10 @@ class PaperTradingRuntime {
             priceSource = "PAPER_FALLBACK";
         }
 
-        const slippagePips = this.getPaperSlippagePips(config, action);
+        const liquidityPrice = price;
+        const slippagePips = applySlippage
+            ? this.getPaperSlippagePips(config, action)
+            : 0;
         const slippageDistance = slippagePips * this.getPipValue(instrument);
         if (Number.isFinite(price) && slippageDistance > 0) {
             price += buysLiquidity ? slippageDistance : -slippageDistance;
@@ -463,6 +551,10 @@ class PaperTradingRuntime {
             priceSource,
             spreadPips,
             slippagePips,
+            liquidityPrice,
+            mid,
+            bid,
+            ask,
         };
     }
 
@@ -489,6 +581,20 @@ class PaperTradingRuntime {
         });
     }
 
+    getPaperLiquidationPrice(trade, fallbackPrice = null) {
+        return this.resolvePaperExecutionPrice({
+            instrument: trade.instrument,
+            side: trade.side,
+            action: "exit",
+            config: {},
+            fallbackPrice:
+                fallbackPrice === null || fallbackPrice === undefined
+                    ? trade.entryPrice
+                    : fallbackPrice,
+            applySlippage: false,
+        });
+    }
+
     getCurrentPrice(instrument) {
         return this.getMidPriceFromPriceData(this.getCurrentPriceData(instrument));
     }
@@ -496,98 +602,56 @@ class PaperTradingRuntime {
     getConversionRate(
         fromCurrency,
         toCurrency,
-        { instrument = null, price = null } = {},
-        visited = new Set()
+        { instrument = null, price = null, purpose = "neutral", amount = 0 } = {}
     ) {
-        const from = String(fromCurrency || "").toUpperCase();
-        const to = String(toCurrency || "").toUpperCase();
-        if (!from || !to) {
-            throw new Error("Missing currency for conversion");
-        }
-        if (from === to) return 1;
-
-        const direct = `${from}_${to}`;
-        const inverse = `${to}_${from}`;
-        const normalizedInstrument = String(instrument || "").toUpperCase();
-        const referencePrice = toOptionalFiniteNumber(price);
-
-        if (
-            normalizedInstrument === direct &&
-            Number.isFinite(referencePrice) &&
-            referencePrice > 0
-        ) {
-            return referencePrice;
-        }
-        if (
-            normalizedInstrument === inverse &&
-            Number.isFinite(referencePrice) &&
-            referencePrice > 0
-        ) {
-            return 1 / referencePrice;
-        }
-
-        const directPrice = this.getCurrentPrice(direct);
-        if (Number.isFinite(directPrice) && directPrice > 0) {
-            return directPrice;
-        }
-
-        const inversePrice = this.getCurrentPrice(inverse);
-        if (Number.isFinite(inversePrice) && inversePrice > 0) {
-            return 1 / inversePrice;
-        }
-
-        const visitKey = `${from}->${to}`;
-        if (visited.has(visitKey)) {
-            throw new Error(`Unable to convert ${from} to ${to}`);
-        }
-        visited.add(visitKey);
-
-        if (from !== "USD" && to !== "USD") {
-            const fromToUsd = this.getConversionRate(
-                from,
-                "USD",
-                { instrument, price },
-                visited
-            );
-            const usdToTarget = this.getConversionRate(
-                "USD",
-                to,
-                { instrument, price },
-                visited
-            );
-            return fromToUsd * usdToTarget;
-        }
-
-        throw new Error(`Unable to convert ${from} to ${to}`);
+        return this.getCurrencyConverter().getRate(fromCurrency, toCurrency, {
+            instrument,
+            price,
+            purpose,
+            amount,
+        });
     }
 
-    getQuoteToAccountRate(instrument, accountCurrency = "AUD", price = null) {
-        const { quoteCurrency } = this.getInstrumentCurrencies(instrument);
-        return this.getConversionRate(quoteCurrency, accountCurrency, {
-            instrument,
+    getQuoteToAccountRate(
+        instrument,
+        accountCurrency = ACCOUNT_CURRENCY,
+        price = null,
+        options = {}
+    ) {
+        if (String(accountCurrency).toUpperCase() !== ACCOUNT_CURRENCY) {
+            throw new CurrencyConversionError(
+                `Paper account currency must be ${ACCOUNT_CURRENCY}`,
+                { accountCurrency }
+            );
+        }
+        return this.getCurrencyConverter().getQuoteToAccountRate(instrument, {
+            ...options,
             price,
         });
     }
 
-    getBaseToAccountRate(instrument, accountCurrency = "AUD", price = null) {
-        const { baseCurrency } = this.getInstrumentCurrencies(instrument);
-        return this.getConversionRate(baseCurrency, accountCurrency, {
-            instrument,
+    getBaseToAccountRate(
+        instrument,
+        accountCurrency = ACCOUNT_CURRENCY,
+        price = null,
+        options = {}
+    ) {
+        if (String(accountCurrency).toUpperCase() !== ACCOUNT_CURRENCY) {
+            throw new CurrencyConversionError(
+                `Paper account currency must be ${ACCOUNT_CURRENCY}`,
+                { accountCurrency }
+            );
+        }
+        return this.getCurrencyConverter().getBaseToAccountRate(instrument, {
+            ...options,
             price,
         });
     }
 
     getFallbackConversionRate(instrument, accountCurrency, price, type) {
-        try {
-            return type === "base"
-                ? this.getBaseToAccountRate(instrument, accountCurrency, price)
-                : this.getQuoteToAccountRate(instrument, accountCurrency, price);
-        } catch (error) {
-            logger.warn(
-                `Paper conversion fallback for ${instrument} ${type}->${accountCurrency}: ${error.message}`
-            );
-            return 1;
-        }
+        return type === "base"
+            ? this.getBaseToAccountRate(instrument, accountCurrency, price)
+            : this.getQuoteToAccountRate(instrument, accountCurrency, price);
     }
 
     calculatePnlInAccountCurrency(trade, exitPrice, source = {}) {
@@ -604,13 +668,13 @@ class PaperTradingRuntime {
             trade.side === "BUY"
                 ? exitPrice - entryPrice
                 : entryPrice - exitPrice;
-        const quoteToAccountRate = this.getFallbackConversionRate(
+        const pnlQuote = toFiniteNumber(trade.units, 0) * priceChange;
+        const quoteToAccountRate = this.getQuoteToAccountRate(
             trade.instrument,
             accountCurrency,
             exitPrice,
-            "quote"
+            { purpose: "pnl", amount: pnlQuote }
         );
-        const pnlQuote = toFiniteNumber(trade.units, 0) * priceChange;
 
         return {
             accountCurrency,
@@ -620,6 +684,47 @@ class PaperTradingRuntime {
             pnlQuote,
             pnlAud: pnlQuote * quoteToAccountRate,
         };
+    }
+
+    calculateNetPaperPnl(
+        trade,
+        exitPrice,
+        closeContext = {},
+        exitTime = Date.now()
+    ) {
+        const pnlContext = this.calculatePnlInAccountCurrency(
+            trade,
+            exitPrice,
+            closeContext
+        );
+        const paperRuntime =
+            trade?.brokerReconciliationPayload?.paperRuntime || {};
+        const exitPolicy = resolveOwnerRunExitPolicy(
+            trade,
+            closeContext.config || {}
+        );
+        const costConfig = this.getPaperCostConfig(
+            trade.instrument,
+            exitPolicy.config || {}
+        );
+        const costs = calculatePaperNetPnl({
+            trade,
+            config: costConfig,
+            fillPnlAud: pnlContext.pnlAud,
+            pipValue: this.getPipValue(trade.instrument),
+            entryQuoteToAudRate: toFiniteNumber(
+                paperRuntime.quoteToAccountRate,
+                pnlContext.quoteToAccountRate
+            ),
+            exitQuoteToAudRate: pnlContext.quoteToAccountRate,
+            entrySpreadPips: paperRuntime.entrySpreadPips,
+            exitSpreadPips: closeContext.spreadPips,
+            entrySlippagePips: paperRuntime.entrySlippagePips,
+            exitSlippagePips: closeContext.slippagePips,
+            exitTime,
+        });
+
+        return { ...pnlContext, ...costs, exitPolicy };
     }
 
     getTimesFmMode(config = {}) {
@@ -650,6 +755,90 @@ class PaperTradingRuntime {
         return `TimesFM vetoed ${signal?.signal || "entry"}: ${direction} forecast at confidence ${confidenceText}`;
     }
 
+    buildPaperDecisionContext(run, signal, config = {}, extras = {}) {
+        const priceData =
+            extras.priceData || this.getCurrentPriceData(signal?.symbol);
+        const decisionTime = extras.decisionTime || Date.now();
+        const configSnapshot = normalizeTradingConfig(config || {});
+        delete configSnapshot.configHash;
+
+        return {
+            decisionId: extras.decisionId || uuidv4(),
+            setupId: signal?.setupId || null,
+            signalCandleTime: signal?.signalCandleTime ?? null,
+            decisionTime,
+            instrument: signal?.symbol,
+            side: signal?.signal === "SELL" ? "SELL" : "BUY",
+            signal: signal?.signal,
+            entryType: signal?.entryType || null,
+            configHash:
+                signal?.configHash ||
+                run?.configHash ||
+                computeConfigHash(config || {}),
+            configSnapshot,
+            outcome: ENTRY_DECISION_OUTCOMES.PENDING,
+            stage: ENTRY_DECISION_STAGES.RECEIVED,
+            spreadPips: toOptionalFiniteNumber(priceData?.spread),
+            priceAgeMs: Number.isFinite(Number(priceData?.timestamp))
+                ? Math.max(0, decisionTime - Number(priceData.timestamp))
+                : null,
+            openPositions: extras.openPositions ?? 0,
+            projectedExposure: extras.projectedExposure ?? null,
+            signalStrength: signal?.strength ?? null,
+            adx: signal?.trend?.adx ?? signal?.strength ?? null,
+            rsi: signal?.trend?.rsi ?? signal?.data?.rsi ?? null,
+            atrPips: signal?.atrPips ?? signal?.trend?.atrPips ?? null,
+            tradeId: extras.tradeId || null,
+            runId: run?.runId || null,
+            selectionId: run?.selectionId || null,
+            mode: run?.mode || RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: run?.strategy || config.strategy || null,
+            timesFmContext: signal?.timesFm || null,
+        };
+    }
+
+    async createPaperEntryDecision(run, signal, config, extras = {}) {
+        if (!this.entryDecisionRepository?.save || !isEntrySignal(signal)) {
+            return null;
+        }
+        const decision = this.buildPaperDecisionContext(
+            run,
+            signal,
+            config,
+            extras
+        );
+        await this.entryDecisionRepository.save(decision);
+        this._paperEntryDecisionContexts.set(decision.decisionId, decision);
+        this.emitPaperEntryDecision(decision);
+        return decision;
+    }
+
+    async updatePaperEntryDecision(decisionId, updates = {}) {
+        if (!decisionId || !this.entryDecisionRepository?.updateDecision) return;
+        await this.entryDecisionRepository.updateDecision(decisionId, updates);
+        const decision = {
+            ...(this._paperEntryDecisionContexts.get(decisionId) || {}),
+            decisionId,
+            ...updates,
+        };
+        this._paperEntryDecisionContexts.set(decisionId, decision);
+        this.emitPaperEntryDecision(decision);
+        if (
+            decision.outcome === ENTRY_DECISION_OUTCOMES.REJECTED ||
+            decision.outcome === ENTRY_DECISION_OUTCOMES.FILLED
+        ) {
+            this._paperEntryDecisionContexts.delete(decisionId);
+        }
+    }
+
+    async rejectPaperEntryDecision(decisionId, updates = {}) {
+        await this.updatePaperEntryDecision(decisionId, {
+            stage: ENTRY_DECISION_STAGES.REJECTED,
+            outcome: ENTRY_DECISION_OUTCOMES.REJECTED,
+            ...updates,
+        });
+    }
+
     getResolvedRunConfig(run, config = {}) {
         const strategyKey =
             run?.strategy || config?.strategy || "supertrend_momentum";
@@ -661,6 +850,31 @@ class PaperTradingRuntime {
             ...(run?.configSnapshot || {}),
             ...(config || {}),
             strategy: strategyKey,
+        };
+    }
+
+    getPaperCostConfig(instrument, config = {}) {
+        const financing = this.dataService?.getInstrumentFinancing?.(instrument);
+        if (!financing) return config;
+
+        const existingRates = config.paperFinancingRates || {};
+        const existingInstrumentRate = existingRates[instrument] || null;
+        const hasExistingRate =
+            existingInstrumentRate &&
+            (existingInstrumentRate.longRateAnnual !== undefined ||
+                existingInstrumentRate.shortRateAnnual !== undefined ||
+                existingInstrumentRate.long !== undefined ||
+                existingInstrumentRate.short !== undefined);
+        if (financing.status !== "MODELED" && hasExistingRate) {
+            return config;
+        }
+
+        return {
+            ...config,
+            paperFinancingRates: {
+                ...existingRates,
+                [instrument]: { ...financing },
+            },
         };
     }
 
@@ -686,34 +900,54 @@ class PaperTradingRuntime {
                 return sum;
             }
 
-            return sum + (units * entryPrice) / leverage;
+            const baseToAudRate = this.getBaseToAccountRate(
+                trade.instrument,
+                ACCOUNT_CURRENCY,
+                entryPrice,
+                { purpose: "margin" }
+            );
+            return sum + (units * baseToAudRate) / leverage;
         }, 0);
     }
 
     async getPaperAccountState(run, config = {}, openTrades = []) {
-        const currentPortfolio = await this.portfolioRepository.getCurrent({
-            mode: run.mode,
-            runId: run.runId,
-        });
         const startingBalanceAud = this.getStartingBalanceAud(run, config);
-        const equityAud = Math.max(
-            0,
-            toFiniteNumber(currentPortfolio.totalValueAud, startingBalanceAud) ||
-                startingBalanceAud
-        );
         const fallbackPrices = Object.fromEntries(
             openTrades.map((trade) => [
                 trade.instrument,
                 this.getCurrentPrice(trade.instrument),
             ])
         );
-        const marginUsedAud =
-            toOptionalFiniteNumber(currentPortfolio.marginUsedAud) ??
-            this.getPaperMarginUsedFromTrades(openTrades, fallbackPrices);
+        const marginUsedAud = this.getPaperMarginUsedFromTrades(
+            openTrades,
+            fallbackPrices
+        );
+        const tradeSummary = await this.getRunTradeSummary(run);
+        const balanceAud =
+            startingBalanceAud + toFiniteNumber(tradeSummary.realizedPnlAud, 0);
+        const unrealizedPnlAud = openTrades.reduce((sum, trade) => {
+            const exitExecution = this.getPaperLiquidationPrice(
+                trade,
+                fallbackPrices[trade.instrument]
+            );
+            if (!Number.isFinite(exitExecution.price)) return sum;
+            return (
+                sum +
+                this.calculateNetPaperPnl(
+                    trade,
+                    exitExecution.price,
+                    exitExecution,
+                    Date.now()
+                ).pnlAud
+            );
+        }, 0);
+        const equityAud = Math.max(0, balanceAud + unrealizedPnlAud);
         const marginAvailableAud = Math.max(0, equityAud - marginUsedAud);
 
         return {
-            equityAud: equityAud > 0 ? equityAud : startingBalanceAud,
+            equityAud,
+            balanceAud,
+            unrealizedPnlAud,
             marginUsedAud,
             marginAvailableAud,
         };
@@ -723,6 +957,7 @@ class PaperTradingRuntime {
         if (!isEntrySignal(signal)) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                 reason: "Signal is not an actionable entry",
             };
         }
@@ -737,6 +972,7 @@ class PaperTradingRuntime {
         if (!assets.includes(signal.symbol)) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.INACTIVE_ASSET,
                 reason: `Instrument ${signal.symbol} not in active list`,
             };
         }
@@ -744,6 +980,7 @@ class PaperTradingRuntime {
         if (!priceData) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.NO_LIVE_PRICE,
                 reason: `No live price data for ${signal.symbol}`,
             };
         }
@@ -751,6 +988,7 @@ class PaperTradingRuntime {
         if (priceData.tradeable === false) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.NOT_TRADEABLE,
                 reason: `${signal.symbol} is not currently tradeable`,
             };
         }
@@ -764,6 +1002,7 @@ class PaperTradingRuntime {
         ) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.STALE_PRICE,
                 reason: `Price data stale (${priceAgeMs}ms > ${maxPriceAgeMs}ms)`,
             };
         }
@@ -777,6 +1016,7 @@ class PaperTradingRuntime {
         ) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.SPREAD_TOO_WIDE,
                 reason: `Spread too wide (${spreadPips.toFixed(1)} > ${maxSpreadPips.toFixed(1)} pips)`,
             };
         }
@@ -788,6 +1028,7 @@ class PaperTradingRuntime {
         if (tradeByInstrument.size >= maxOpenPositions) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.MAX_POSITIONS,
                 reason: `Max positions reached (${tradeByInstrument.size}/${maxOpenPositions})`,
             };
         }
@@ -795,6 +1036,7 @@ class PaperTradingRuntime {
         if (tradeByInstrument.has(signal.symbol)) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
                 reason: "Already in position for this instrument",
             };
         }
@@ -802,6 +1044,7 @@ class PaperTradingRuntime {
         if (signal.signal !== "BUY" && signal.signal !== "SELL") {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                 reason: "Invalid signal type",
             };
         }
@@ -809,6 +1052,7 @@ class PaperTradingRuntime {
         if (signal.signal === "SELL" && !config.enableShorting) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.SHORT_DISABLED,
                 reason: "Short selling is disabled",
             };
         }
@@ -821,6 +1065,7 @@ class PaperTradingRuntime {
             if (activeSessions.length === 0) {
                 return {
                     valid: false,
+                    code: ENTRY_REJECTION_CODES.OUTSIDE_SESSION,
                     reason: "Session filter enabled but no active sessions configured",
                 };
             }
@@ -829,6 +1074,7 @@ class PaperTradingRuntime {
             if (!isWithinActiveSession(hourUtc, activeSessions)) {
                 return {
                     valid: false,
+                    code: ENTRY_REJECTION_CODES.OUTSIDE_SESSION,
                     reason: `Outside active sessions (${activeSessions.join(", ")}) at ${hourUtc}:00 UTC`,
                 };
             }
@@ -837,7 +1083,30 @@ class PaperTradingRuntime {
         if (this.shouldTimesFmVeto(signal, config)) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.TIMESFM_VETO,
                 reason: this.getTimesFmVetoReason(signal),
+            };
+        }
+
+        try {
+            const entryPrice = this.getPaperEntryPrice(signal, config).price;
+            this.getBaseToAccountRate(
+                signal.symbol,
+                ACCOUNT_CURRENCY,
+                entryPrice,
+                { purpose: "margin" }
+            );
+            this.getQuoteToAccountRate(
+                signal.symbol,
+                ACCOUNT_CURRENCY,
+                entryPrice,
+                { purpose: "pnl", amount: -1 }
+            );
+        } catch (error) {
+            return {
+                valid: false,
+                code: "CURRENCY_CONVERSION_UNAVAILABLE",
+                reason: `AUD conversion unavailable for ${signal.symbol}: ${error.message}`,
             };
         }
 
@@ -901,6 +1170,7 @@ class PaperTradingRuntime {
         ) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                 reason: "Unable to validate projected entry margin",
             };
         }
@@ -915,6 +1185,7 @@ class PaperTradingRuntime {
         if (!Number.isFinite(units) || units <= 0) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.POSITION_SIZE_TOO_SMALL,
                 reason: "Position size too small",
             };
         }
@@ -924,88 +1195,53 @@ class PaperTradingRuntime {
             config,
             openTrades
         );
-        const leverage = Math.max(1, toFiniteNumber(config.leverage, 20));
+        const leverage = resolveLeverage(config);
         const accountCurrency = this.getAccountCurrency(config);
-        const baseToAccountRate = this.getFallbackConversionRate(
+        const baseToAccountRate = this.getBaseToAccountRate(
             signal.symbol,
             accountCurrency,
             entryPrice,
-            "base"
+            { purpose: "margin" }
         );
         const projectedMargin =
             (Math.abs(units) * baseToAccountRate) / leverage;
-        const projectedExposure =
-            (accountState.marginUsedAud + projectedMargin) /
-            Math.max(accountState.equityAud, 0.00001);
+        const projectedExposure = calculateProjectedExposure({
+            marginUsedAud: accountState.marginUsedAud,
+            projectedMarginAud: projectedMargin,
+            equityAud: accountState.equityAud,
+        });
 
-        if (projectedExposure >= maxPortfolioExposure) {
+        if (
+            !Number.isFinite(projectedExposure) ||
+            projectedExposure >= maxPortfolioExposure
+        ) {
             return {
                 valid: false,
+                code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 reason: `Portfolio exposure limit reached (projected ${(projectedExposure * 100).toFixed(1)}%, max ${(maxPortfolioExposure * 100).toFixed(1)}%)`,
+                context: { projectedExposure },
             };
         }
 
-        return { valid: true };
+        return { valid: true, context: { projectedExposure } };
     }
 
     buildFallbackTradePlan(signal, config = {}) {
-        const entryPrice = toOptionalFiniteNumber(signal.currentPrice);
-        const pipValue = this.getPipValue(signal.symbol);
-        const atrDistance =
-            toFiniteNumber(signal.atrPips, 0) *
-            Math.max(1, toFiniteNumber(config.stopLossAtrMultiplier, 2)) *
-            pipValue;
-        const minDistance =
-            Math.max(
-                toFiniteNumber(config.minStopLossPips, 0),
-                toFiniteNumber(config.stopLossPips, 15)
-            ) * pipValue;
-        const stopDistance = Math.max(atrDistance, minDistance);
-
-        if (!Number.isFinite(entryPrice) || stopDistance <= 0) {
-            return null;
-        }
-
-        return {
-            stopLossPrice:
-                signal.signal === "BUY"
-                    ? entryPrice - stopDistance
-                    : entryPrice + stopDistance,
-            takeProfitPrice: null,
-        };
+        return resolveCanonicalTradePlan({
+            signal: { ...signal, tradePlan: null },
+            config,
+            entryPrice: signal.currentPrice,
+            pipValue: this.getPipValue(signal.symbol),
+        });
     }
 
     resolveTradePlan(signal, config = {}) {
-        const plannedStopLossPrice = toOptionalFiniteNumber(
-            signal?.tradePlan?.stopLossPrice
-        );
-        const entryPrice = toOptionalFiniteNumber(signal?.currentPrice);
-        const side = signal?.signal === "SELL" ? "SELL" : "BUY";
-        const stopDirectionValid =
-            !Number.isFinite(entryPrice) ||
-            (side === "BUY" && plannedStopLossPrice < entryPrice) ||
-            (side === "SELL" && plannedStopLossPrice > entryPrice);
-
-        if (Number.isFinite(plannedStopLossPrice) && stopDirectionValid) {
-            const plannedTakeProfitPrice = toOptionalFiniteNumber(
-                signal?.tradePlan?.takeProfitPrice
-            );
-            const takeProfitDirectionValid =
-                !Number.isFinite(plannedTakeProfitPrice) ||
-                !Number.isFinite(entryPrice) ||
-                (side === "BUY" && plannedTakeProfitPrice > entryPrice) ||
-                (side === "SELL" && plannedTakeProfitPrice < entryPrice);
-
-            return {
-                ...signal.tradePlan,
-                stopLossPrice: plannedStopLossPrice,
-                takeProfitPrice: takeProfitDirectionValid
-                    ? plannedTakeProfitPrice
-                    : null,
-            };
-        }
-
-        return this.buildFallbackTradePlan(signal, config);
+        return resolveCanonicalTradePlan({
+            signal,
+            config,
+            entryPrice: signal.currentPrice,
+            pipValue: this.getPipValue(signal.symbol),
+        });
     }
 
     buildPaperRuntimeMetadata(signal, entryPrice, stopLossPrice) {
@@ -1058,83 +1294,86 @@ class PaperTradingRuntime {
         stopLossPrice,
         openTrades = []
     ) {
-        if (config.positionSizeMethod === "FIXED") {
-            return Math.max(1, Math.floor(toFiniteNumber(config.fixedPositionUnits, 1000)));
-        }
-
-        const entryPrice = toOptionalFiniteNumber(signal.currentPrice);
-        const stopDistance = Math.abs(entryPrice - toFiniteNumber(stopLossPrice, entryPrice));
-        if (!Number.isFinite(entryPrice) || stopDistance <= 0) {
-            return Math.max(1, Math.floor(toFiniteNumber(config.fixedPositionUnits, 1000)));
-        }
-        const accountCurrency = this.getAccountCurrency(config);
-        const quoteToAccountRate = this.getFallbackConversionRate(
-            signal.symbol,
-            accountCurrency,
-            entryPrice,
-            "quote"
-        );
-        const baseToAccountRate = this.getFallbackConversionRate(
-            signal.symbol,
-            accountCurrency,
-            entryPrice,
-            "base"
-        );
-        const riskPerUnitAud = stopDistance * quoteToAccountRate;
-        if (
-            !Number.isFinite(riskPerUnitAud) ||
-            riskPerUnitAud <= 0 ||
-            !Number.isFinite(baseToAccountRate) ||
-            baseToAccountRate <= 0
-        ) {
-            return 0;
-        }
-
-        const riskFraction = toFiniteNumber(config.riskPerTrade, 0.01);
-        const accountState = await this.getPaperAccountState(
+        const sizing = await this.calculatePositionSizing(
             run,
             config,
+            signal,
+            stopLossPrice,
             openTrades
         );
-        const marginBuffer = Math.min(
-            0.95,
-            Math.max(0, toFiniteNumber(config.marginBuffer, 0.2))
-        );
-        const safeMarginAvailable =
-            accountState.marginAvailableAud * (1 - marginBuffer);
-        const maxCapitalAtRisk = toFiniteNumber(config.maxCapitalAtRisk, 0);
-        const effectiveBalance =
-            maxCapitalAtRisk > 0
-                ? Math.min(safeMarginAvailable, maxCapitalAtRisk)
-                : safeMarginAvailable;
-
-        if (!Number.isFinite(effectiveBalance) || effectiveBalance <= 0) {
-            return 0;
-        }
-
-        const riskAud = Math.max(1, effectiveBalance * Math.max(0.001, riskFraction));
-        const uncappedUnits = Math.floor(riskAud / riskPerUnitAud);
-        const leverageCap = Math.floor(
-            (safeMarginAvailable * Math.max(1, toFiniteNumber(config.maxLeverage, config.leverage || 20))) /
-                Math.max(baseToAccountRate, 0.00001)
-        );
-
-        if (
-            !Number.isFinite(uncappedUnits) ||
-            uncappedUnits <= 0 ||
-            !Number.isFinite(leverageCap) ||
-            leverageCap <= 0
-        ) {
-            return 0;
-        }
-
-        return Math.max(1, Math.min(uncappedUnits, leverageCap));
+        return sizing.units;
     }
 
-    async openTradeFromSignal(run, config, signal, openTrades = []) {
+    async calculatePositionSizing(
+        run,
+        config,
+        signal,
+        stopLossPrice,
+        openTrades = []
+    ) {
+        const entryPrice = toOptionalFiniteNumber(signal.currentPrice);
+        if (!Number.isFinite(entryPrice)) {
+            return {
+                units: 0,
+                valid: false,
+                code: "INVALID_SIZING_INPUT",
+                reason: "Entry price unavailable",
+            };
+        }
+
+        try {
+            const accountState = await this.getPaperAccountState(
+                run,
+                config,
+                openTrades
+            );
+            const quoteToAudRate = this.getQuoteToAccountRate(
+                signal.symbol,
+                ACCOUNT_CURRENCY,
+                entryPrice,
+                { purpose: "pnl", amount: -1 }
+            );
+            const baseToAudRate = this.getBaseToAccountRate(
+                signal.symbol,
+                ACCOUNT_CURRENCY,
+                entryPrice,
+                { purpose: "margin" }
+            );
+            return calculateCanonicalPositionSize({
+                config,
+                signal,
+                entryPrice,
+                stopLossPrice,
+                equityAud: accountState.equityAud,
+                marginAvailableAud: accountState.marginAvailableAud,
+                baseToAudRate,
+                quoteToAudRate,
+            });
+        } catch (error) {
+            if (!(error instanceof CurrencyConversionError)) throw error;
+            return {
+                units: 0,
+                valid: false,
+                code: error.code,
+                reason: error.message,
+            };
+        }
+    }
+
+    async openTradeFromSignal(
+        run,
+        config,
+        signal,
+        openTrades = [],
+        decisionId = null
+    ) {
         const entryExecution = this.getPaperEntryPrice(signal, config);
         const entryPrice = entryExecution.price;
         if (!Number.isFinite(entryPrice)) {
+            await this.rejectPaperEntryDecision(decisionId, {
+                rejectionCode: ENTRY_REJECTION_CODES.NO_LIVE_PRICE,
+                rejectionReason: "Paper entry price unavailable",
+            });
             return null;
         }
 
@@ -1144,34 +1383,46 @@ class PaperTradingRuntime {
         );
         const stopLossPrice = toOptionalFiniteNumber(tradePlan?.stopLossPrice);
         if (!Number.isFinite(stopLossPrice) || stopLossPrice === entryPrice) {
+            await this.rejectPaperEntryDecision(decisionId, {
+                rejectionCode: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                rejectionReason: "Valid stop-loss plan unavailable",
+            });
             return null;
         }
 
-        const units = await this.calculatePositionUnits(
+        const sizing = await this.calculatePositionSizing(
             run,
             config,
             { ...signal, currentPrice: entryPrice },
             stopLossPrice,
             openTrades
         );
+        const units = sizing.units;
+        if (!sizing.valid || units < 1) {
+            await this.rejectPaperEntryDecision(decisionId, {
+                rejectionCode:
+                    sizing.code || ENTRY_REJECTION_CODES.POSITION_SIZE_TOO_SMALL,
+                rejectionReason: sizing.reason || "Position size too small",
+            });
+            return null;
+        }
+        await this.updatePaperEntryDecision(decisionId, {
+            stage: ENTRY_DECISION_STAGES.SIZED,
+        });
         const takeProfitPrice = toOptionalFiniteNumber(
             tradePlan?.takeProfitPrice
         );
         const accountCurrency = this.getAccountCurrency(config);
-        const baseToAccountRate = this.getFallbackConversionRate(
-            signal.symbol,
-            accountCurrency,
-            entryPrice,
-            "base"
-        );
-        const quoteToAccountRate = this.getFallbackConversionRate(
-            signal.symbol,
-            accountCurrency,
-            entryPrice,
-            "quote"
-        );
-        const leverage = Math.max(1, toFiniteNumber(config.leverage, 20));
+        const baseToAccountRate = sizing.baseToAudRate;
+        const quoteToAccountRate = sizing.quoteToAudRate;
+        const leverage = sizing.leverage;
         const entryNotionalAud = Math.abs(units) * baseToAccountRate;
+        const ownerExitPolicy = buildOwnerRunExitPolicy({
+            strategy: run.strategy,
+            config: this.getPaperCostConfig(signal.symbol, config),
+            tradePlan,
+            ownerRunId: run.runId,
+        });
         const brokerReconciliationPayload = {
             paperRuntime: this.buildPaperRuntimeMetadata(
                 signal,
@@ -1189,6 +1440,14 @@ class PaperTradingRuntime {
             baseToAccountRate;
         brokerReconciliationPayload.paperRuntime.quoteToAccountRate =
             quoteToAccountRate;
+        brokerReconciliationPayload.paperRuntime.entryMidPrice =
+            entryExecution.mid;
+        brokerReconciliationPayload.paperRuntime.entrySpreadPips =
+            entryExecution.spreadPips;
+        brokerReconciliationPayload.paperRuntime.sizing = sizing;
+        brokerReconciliationPayload.paperRuntime.ownerExitPolicy =
+            ownerExitPolicy;
+        brokerReconciliationPayload.ownerExitPolicy = ownerExitPolicy;
         const priceData = entryExecution.priceData;
 
         const trade = {
@@ -1198,6 +1457,7 @@ class PaperTradingRuntime {
             units,
             entryPrice,
             entryCostAud: entryNotionalAud,
+            entryNotionalAud,
             signal: signal.signal,
             signalStrength: signal.strength,
             entryType: signal.entryType || null,
@@ -1223,26 +1483,37 @@ class PaperTradingRuntime {
             ownerRunId: run.runId,
             selectionId: run.selectionId || null,
             strategy: run.strategy,
+            ownerExitPolicy,
             brokerReconciliationPayload,
             isOpen: true,
         };
 
         await this.tradeRepository.save(trade);
+        await this.updatePaperEntryDecision(decisionId, {
+            stage: ENTRY_DECISION_STAGES.FILLED,
+            outcome: ENTRY_DECISION_OUTCOMES.FILLED,
+            tradeId: trade.id,
+        });
         this.emitTradeOpened(trade);
         return trade;
     }
 
     async evaluateOpenTrade(trade, config = {}) {
-        const exitExecution = this.getPaperExitPrice(trade, config);
+        const ownerExitPolicy = resolveOwnerRunExitPolicy(trade, config);
+        const exitExecution = this.getPaperLiquidationPrice(trade);
         const currentPrice = exitExecution.price;
         if (!Number.isFinite(currentPrice)) {
             return false;
         }
 
-        await this.applyBreakeven(trade, currentPrice, config);
-        await this.applyTrailingStop(trade, currentPrice, config);
+        await this.applyBreakeven(trade, currentPrice, ownerExitPolicy);
+        await this.applyTrailingStop(trade, currentPrice, ownerExitPolicy);
 
-        const stopResult = this.getStopResult(trade, currentPrice, config);
+        const stopResult = this.getStopResult(
+            trade,
+            currentPrice,
+            ownerExitPolicy.config
+        );
         if (stopResult) {
             await this.closeTrade(
                 trade,
@@ -1268,13 +1539,21 @@ class PaperTradingRuntime {
             return true;
         }
 
-        const timedExitReason = this.getTimedExitReason(trade, config);
+        const timedExitReason = this.getTimedExitReason(
+            trade,
+            ownerExitPolicy
+        );
         if (timedExitReason) {
+            const timedExitExecution = this.getPaperExitPrice(
+                trade,
+                ownerExitPolicy.config,
+                currentPrice
+            );
             await this.closeTrade(
                 trade,
-                currentPrice,
+                timedExitExecution.price,
                 timedExitReason,
-                exitExecution
+                timedExitExecution
             );
             return true;
         }
@@ -1310,7 +1589,13 @@ class PaperTradingRuntime {
         const stopSlippagePips = this.getPaperStopSlippagePips(config);
         const slippageDistance =
             stopSlippagePips * this.getPipValue(trade.instrument);
-        let exitPrice = stopLossPrice;
+        // A stop is a market order after trigger. If the next observable quote
+        // gaps through the stop, fill at that worse quote before slippage.
+        let exitPrice =
+            trade.side === "BUY"
+                ? Math.min(stopLossPrice, currentPrice)
+                : Math.max(stopLossPrice, currentPrice);
+        const gapDistance = Math.abs(exitPrice - stopLossPrice);
         if (slippageDistance > 0) {
             exitPrice += trade.side === "BUY" ? -slippageDistance : slippageDistance;
         }
@@ -1319,6 +1604,10 @@ class PaperTradingRuntime {
             exitPrice,
             exitReason,
             stopSlippagePips,
+            gapPips:
+                this.getPipValue(trade.instrument) > 0
+                    ? gapDistance / this.getPipValue(trade.instrument)
+                    : 0,
         };
     }
 
@@ -1344,31 +1633,10 @@ class PaperTradingRuntime {
     }
 
     getTimedExitReason(trade, config = {}) {
-        const now = Date.now();
-        const timeStopHours = toOptionalFiniteNumber(config.timeStopHours);
-
-        if (
-            Number.isFinite(timeStopHours) &&
-            timeStopHours > 0 &&
-            now - toFiniteNumber(trade.entryTime, now) >=
-                timeStopHours * 60 * 60 * 1000
-        ) {
-            return "TIME_STOP";
-        }
-
-        if (trade.strategy !== "range_breakout") {
-            return null;
-        }
-
-        const sessionCloseHourUTC = toOptionalFiniteNumber(config.sessionCloseHourUTC);
-        if (!Number.isFinite(sessionCloseHourUTC)) {
-            return null;
-        }
-
-        const closeTime = new Date(now);
-        closeTime.setUTCHours(sessionCloseHourUTC, 0, 0, 0);
-
-        return now >= closeTime.getTime() ? "SESSION_CLOSE" : null;
+        const policy = config?.config
+            ? config
+            : resolveOwnerRunExitPolicy(trade, config);
+        return resolveTimedExitReason({ trade, policy, now: Date.now() });
     }
 
     async applyBreakeven(trade, currentPrice, config = {}) {
@@ -1376,39 +1644,16 @@ class PaperTradingRuntime {
             return;
         }
 
-        let activationDistance = null;
-        const { initialStopDistance, atrDistance } =
-            this.getPaperRuntimeMetadata(trade);
-
-        if (
-            trade.strategy === "mean_reversion" &&
-            Number.isFinite(toOptionalFiniteNumber(trade.takeProfitPrice))
-        ) {
-            const tpDistance = Math.abs(
-                toFiniteNumber(trade.takeProfitPrice, trade.entryPrice) -
-                    toFiniteNumber(trade.entryPrice, 0)
-            );
-            activationDistance =
-                tpDistance * Math.max(0, toFiniteNumber(config.breakevenAtTpPercent, 0.5));
-        } else if (
-            trade.strategy === "stochastic_divergence" &&
-            Number.isFinite(initialStopDistance)
-        ) {
-            activationDistance =
-                initialStopDistance *
-                Math.max(0, toFiniteNumber(config.breakevenSlMultiplier, 1.0));
-        } else if (config.enableBreakeven !== false) {
-            activationDistance = resolveConfiguredDistance({
-                trade,
-                config,
-                pipValue: this.getPipValue(trade.instrument),
-                runtimeMetadata: { initialStopDistance, atrDistance },
-                pipsKey: "breakevenTriggerPips",
-                riskMultipleKey: "breakevenTriggerRiskMultiple",
-                atrMultipleKey: "breakevenTriggerAtrMultiplier",
-                defaultPips: 5,
-            });
-        }
+        const policy = config?.config
+            ? config
+            : resolveOwnerRunExitPolicy(trade, config);
+        const runtimeMetadata = this.getPaperRuntimeMetadata(trade);
+        const activationDistance = resolveBreakevenDistance({
+            trade,
+            policy,
+            pipValue: this.getPipValue(trade.instrument),
+            runtimeMetadata,
+        });
 
         if (!Number.isFinite(activationDistance) || activationDistance <= 0) {
             return;
@@ -1436,77 +1681,17 @@ class PaperTradingRuntime {
     }
 
     async applyTrailingStop(trade, currentPrice, config = {}) {
-        let activationDistance = null;
-        let trailDistance = null;
-        const { initialStopDistance, atrDistance } =
-            this.getPaperRuntimeMetadata(trade);
-
-        if (
-            trade.strategy === "range_breakout" &&
-            Number.isFinite(toOptionalFiniteNumber(trade.takeProfitPrice))
-        ) {
-            const tpMultiplier = Math.max(
-                0.1,
-                toFiniteNumber(config.tpRangeMultiplier, 1.5)
-            );
-            const rangeHeight =
-                Math.abs(
-                    toFiniteNumber(trade.takeProfitPrice, trade.entryPrice) -
-                        toFiniteNumber(trade.entryPrice, 0)
-                ) / tpMultiplier;
-
-            activationDistance =
-                rangeHeight *
-                Math.max(0, toFiniteNumber(config.trailActivationMultiplier, 1.0));
-            trailDistance =
-                rangeHeight *
-                Math.max(0, toFiniteNumber(config.trailDistanceMultiplier, 0.5));
-        } else if (
-            trade.strategy === "stochastic_divergence" &&
-            Number.isFinite(initialStopDistance) &&
-            Number.isFinite(atrDistance)
-        ) {
-            activationDistance =
-                initialStopDistance *
-                Math.max(
-                    0,
-                    toFiniteNumber(config.trailActivationSlMultiplier, 1.5)
-                );
-            trailDistance =
-                atrDistance *
-                Math.max(0, toFiniteNumber(config.trailDistanceAtr, 1.0));
-        } else if (
-            trade.strategy === "squeeze_play" &&
-            Number.isFinite(atrDistance)
-        ) {
-            activationDistance =
-                atrDistance *
-                Math.max(0, toFiniteNumber(config.trailActivationAtr, 2.0));
-            trailDistance =
-                atrDistance *
-                Math.max(0, toFiniteNumber(config.trailDistanceAtr, 1.0));
-        } else if (config.enableTrailingStops !== false) {
-            activationDistance = resolveConfiguredDistance({
+        const policy = config?.config
+            ? config
+            : resolveOwnerRunExitPolicy(trade, config);
+        const runtimeMetadata = this.getPaperRuntimeMetadata(trade);
+        const { activationDistance, trailDistance } =
+            resolveTrailingStopDistances({
                 trade,
-                config,
+                policy,
                 pipValue: this.getPipValue(trade.instrument),
-                runtimeMetadata: { initialStopDistance, atrDistance },
-                pipsKey: "trailingStopActivationPips",
-                riskMultipleKey: "trailingStopActivationRiskMultiple",
-                atrMultipleKey: "trailingStopActivationAtrMultiplier",
-                defaultPips: 20,
+                runtimeMetadata,
             });
-            trailDistance = resolveConfiguredDistance({
-                trade,
-                config,
-                pipValue: this.getPipValue(trade.instrument),
-                runtimeMetadata: { initialStopDistance, atrDistance },
-                pipsKey: "trailingStopPips",
-                riskMultipleKey: "trailingStopRiskMultiple",
-                atrMultipleKey: "trailingStopAtrMultiplier",
-                defaultPips: 25,
-            });
-        }
 
         if (
             !Number.isFinite(activationDistance) ||
@@ -1527,17 +1712,13 @@ class PaperTradingRuntime {
             return;
         }
 
-        const nextStop =
-            trade.side === "BUY"
-                ? currentPrice - trailDistance
-                : currentPrice + trailDistance;
-        const existingStop = toFiniteNumber(trade.stopLossPrice, nextStop);
-        const shouldUpdate =
-            trade.side === "BUY"
-                ? nextStop > existingStop
-                : nextStop < existingStop;
+        const nextStop = calculateMonotonicStop({
+            trade,
+            currentPrice,
+            trailDistance,
+        });
 
-        if (!shouldUpdate) {
+        if (!Number.isFinite(nextStop)) {
             return;
         }
 
@@ -1571,19 +1752,20 @@ class PaperTradingRuntime {
         const closePriceSource = closeContext.priceSource || "PAPER_MARK";
         const pipValue = this.getPipValue(trade.instrument);
         const entryPrice = toFiniteNumber(trade.entryPrice, exitPrice);
-        const pnlContext = this.calculatePnlInAccountCurrency(
+        const pnlContext = this.calculateNetPaperPnl(
             trade,
             exitPrice,
-            closeContext
+            closeContext,
+            closeTimestamp
         );
         const priceChange = pnlContext.priceChange;
         const pnlPips = pipValue > 0 ? priceChange / pipValue : 0;
         const pnlAud = pnlContext.pnlAud;
-        const baseToAccountRate = this.getFallbackConversionRate(
+        const baseToAccountRate = this.getBaseToAccountRate(
             trade.instrument,
             pnlContext.accountCurrency,
             exitPrice,
-            "base"
+            { purpose: "position" }
         );
         const exitValueAud = Math.abs(toFiniteNumber(trade.units, 0)) *
             baseToAccountRate;
@@ -1609,6 +1791,23 @@ class PaperTradingRuntime {
                 quoteToAccountRate: pnlContext.quoteToAccountRate,
                 baseToAccountRateAtExit: baseToAccountRate,
                 pnlQuote: pnlContext.pnlQuote,
+                grossPnlAud: pnlContext.grossPnlAud,
+                spreadCostAud: pnlContext.spreadCostAud,
+                slippageCostAud: pnlContext.slippageCostAud,
+                commissionAud: pnlContext.commissionAud,
+                commissionStatus: pnlContext.commissionStatus,
+                financingAud: pnlContext.financingAud,
+                financingRateAnnual: pnlContext.financingRateAnnual,
+                financingDayWeights: pnlContext.financingDayWeights,
+                financingMode: pnlContext.financingMode,
+                financingStatus: pnlContext.financingStatus,
+                financingSource: pnlContext.financingSource,
+                financingRateUpdatedAt:
+                    pnlContext.financingRateUpdatedAt,
+                spreadStatus: pnlContext.spreadStatus,
+                slippageStatus: pnlContext.slippageStatus,
+                totalCostAud: pnlContext.totalCostAud,
+                costModelVersion: pnlContext.costModelVersion,
             },
         };
 
@@ -1618,8 +1817,11 @@ class PaperTradingRuntime {
             exitTime: closeTimestamp,
             exitReason,
             pnlAud,
+            grossPnlAud: pnlContext.grossPnlAud,
             pnlPips,
             pnlPercent,
+            swapAud: pnlContext.financingAud,
+            commissionAud: pnlContext.commissionAud,
             holdingPeriodMs,
             closePriceSource,
             reconciliationStatus: "PAPER_SIMULATED",
@@ -1638,6 +1840,8 @@ class PaperTradingRuntime {
             pnlAud,
             pnlPips,
             pnlPercent,
+            swapAud: pnlContext.financingAud,
+            commissionAud: pnlContext.commissionAud,
             holdingPeriodMs,
             closePriceSource,
             reconciliationStatus: "PAPER_SIMULATED",
@@ -1754,10 +1958,11 @@ class PaperTradingRuntime {
             const currentPrice = Number.isFinite(exitExecution.price)
                 ? exitExecution.price
                 : toFiniteNumber(trade.entryPrice, 0);
-            const unrealizedPnlAud = this.calculatePnlInAccountCurrency(
+            const unrealizedPnlAud = this.calculateNetPaperPnl(
                 trade,
                 currentPrice,
-                config
+                exitExecution,
+                Date.now()
             ).pnlAud;
 
             return {
@@ -2017,6 +2222,24 @@ class PaperTradingRuntime {
                 summary: await this.buildRunSummary(run),
             }))
         );
+    }
+
+    emitPaperEntryDecision(decision) {
+        if (!this.io) return;
+        this.io.emit("paperEntryDecision", {
+            type: "paperEntryDecision",
+            ...decision,
+            timestamp: Date.now(),
+        });
+        if (decision.outcome === ENTRY_DECISION_OUTCOMES.REJECTED) {
+            this.io.emit("entryRejected", {
+                mode: decision.mode,
+                runId: decision.runId,
+                decisionId: decision.decisionId,
+                rejectionCode: decision.rejectionCode,
+                reason: decision.rejectionReason,
+            });
+        }
     }
 
     emitTradeOpened(trade) {

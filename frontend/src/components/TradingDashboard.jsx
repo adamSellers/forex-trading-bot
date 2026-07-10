@@ -5,9 +5,6 @@ import {
   Typography,
   Button,
   Chip,
-  FormControl,
-  Select,
-  MenuItem,
   Box,
   Stack,
   LinearProgress,
@@ -52,28 +49,6 @@ const getStrategyOptions = (catalog = []) => {
   return catalog.length > 0 ? catalog : FALLBACK_STRATEGY_OPTIONS;
 };
 
-const isStrategySelectable = (strategy = {}, liveStrategyKey = null) =>
-  strategy.runtimeStatus === 'baseline' ||
-  strategy.runtimeStatus === 'live_ready' ||
-  strategy.metadata?.supportsLive === true ||
-  strategy.key === liveStrategyKey;
-
-const getStrategyAvailabilitySuffix = (strategy = {}, liveStrategyKey = null) => {
-  if (strategy.key === liveStrategyKey) {
-    return ' (Active Live)';
-  }
-
-  if (strategy.runtimeStatus === 'candidate') {
-    return strategy.metadata?.supportsLive === true ? ' (Candidate Live)' : ' (Paper Only)';
-  }
-
-  if (strategy.runtimeStatus === 'planned') {
-    return ' (Planned)';
-  }
-
-  return '';
-};
-
 const normalizeStrategySelection = (strategyKey, catalog = []) => {
   const options = getStrategyOptions(catalog);
   if (options.some((option) => option.key === strategyKey)) {
@@ -105,7 +80,6 @@ const TradingDashboard = () => {
   const [strategyCatalog, setStrategyCatalog] = useState([]);
   const [liveSelection, setLiveSelection] = useState(null);
   const [selectedStrategy, setSelectedStrategy] = useState(DEFAULT_STRATEGY_KEY);
-  const [isApplyingStrategy, setIsApplyingStrategy] = useState(false);
 
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState(null);
@@ -377,33 +351,11 @@ const TradingDashboard = () => {
     try {
       tradingEnabled
         ? await tradingAPI.stopTrading()
-        : await tradingAPI.startTrading({
-            manualOverride: true,
-            source: 'dashboard',
-          });
+        : await tradingAPI.startTrading();
       setTradingEnabled(!tradingEnabled);
     } catch (err) {
       setError(err.message);
       fetchInitialData();
-    }
-  };
-
-  const handleStrategyChange = (e) => {
-    setSelectedStrategy(e.target.value);
-  };
-
-  const handleApplyStrategy = async () => {
-    try {
-      setIsApplyingStrategy(true);
-      setError(null);
-      await runtimeAPI.setLiveSelection({ strategyKey: selectedStrategy });
-      await fetchInitialData();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      if (isMountedRef.current) {
-        setIsApplyingStrategy(false);
-      }
     }
   };
 
@@ -434,17 +386,6 @@ const TradingDashboard = () => {
     () => getStrategyLabel(liveSelection?.strategy || selectedStrategy, strategyOptions),
     [liveSelection?.strategy, selectedStrategy, strategyOptions]
   );
-  const selectedStrategyOption = useMemo(
-    () => strategyOptions.find((option) => option.key === selectedStrategy) || null,
-    [selectedStrategy, strategyOptions]
-  );
-  const canApplyStrategy =
-    Boolean(selectedStrategyOption) &&
-    isStrategySelectable(selectedStrategyOption, liveSelection?.strategy) &&
-    !isApplyingStrategy;
-  const strategyActionLabel =
-    liveSelection?.strategy === selectedStrategy ? 'Restart Live Run' : 'Switch Live Strategy';
-
   const calculatedDailyPnL = useMemo(() => {
     if (!trades || trades.length === 0) return 0;
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
@@ -502,39 +443,14 @@ const TradingDashboard = () => {
         flexShrink={0}
       >
         <Stack direction="row" spacing={2} alignItems="center">
-          <FormControl size="small">
-            <Select
-              value={selectedStrategy}
-              onChange={handleStrategyChange}
-              disabled={isApplyingStrategy}
-              sx={{
-                height: 32,
-                fontSize: '0.8rem',
-                minWidth: 220,
-                bgcolor: alpha(theme.palette.background.paper, 0.1),
-              }}
-            >
-                {strategyOptions.map((option) => (
-                <MenuItem
-                  key={option.key}
-                  value={option.key}
-                  disabled={!isStrategySelectable(option, liveSelection?.strategy)}
-                >
-                  {option.label}
-                  {getStrategyAvailabilitySuffix(option, liveSelection?.strategy)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={handleApplyStrategy}
-            disabled={!canApplyStrategy}
-            sx={{ px: 2, fontWeight: 'bold' }}
-          >
-            {isApplyingStrategy ? 'Applying...' : strategyActionLabel}
-          </Button>
+          <Tooltip title="Live strategy changes are available only by promoting a gate-passing paper candidate">
+            <Chip
+              label={`LIVE STRATEGY: ${activeStrategyLabel}`}
+              size="small"
+              variant="outlined"
+              sx={{ height: 32, fontWeight: 'bold' }}
+            />
+          </Tooltip>
           <Button
             variant="contained"
             color={tradingEnabled ? 'error' : 'success'}

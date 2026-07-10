@@ -4,13 +4,13 @@
 # Restores application state from a backup archive
 # =====================================================
 
-set -e
+set -Eeuo pipefail
 
 # --- Configuration ---
 APP_NAME="forex-backend"
 PROJECT_DIR="/opt/forex-trading-bot"
 PROJECT_USER=$(whoami)
-BACKUP_DIR="$HOME/forex-trading-bot-backups"
+BACKUP_DIR="${FOREX_BACKUP_DIR:-$HOME/forex-trading-bot-backups}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
@@ -125,6 +125,13 @@ if [ "$restore_type" = "full" ]; then
     log_info "Securing backup file..."
     temp_backup="/tmp/restore_$(basename "$backup_file")"
     cp "$backup_file" "$temp_backup"
+    gzip -t "$temp_backup" || log_error "Backup archive checksum is invalid"
+    if tar -tzf "$temp_backup" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+        log_error "Backup archive contains an unsafe path"
+    fi
+    if ! tar -tzf "$temp_backup" | grep -q '^forex-trading-bot/'; then
+        log_error "Backup archive does not contain the expected project root"
+    fi
     
     log_info "Creating safety backup of current state..."
     if [ -d "$PROJECT_DIR" ]; then
@@ -133,6 +140,11 @@ if [ "$restore_type" = "full" ]; then
             --exclude='node_modules' \
             --exclude='backend/logs/*' \
             --exclude='backend/data/trading.db*' \
+            --exclude='.keys' \
+            --exclude='.secrets' \
+            --exclude='ssl' \
+            --exclude='.env' \
+            --exclude='*/.env' \
             -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null || true
         # Snapshot the database separately (service is stopped at this point);
         # keeps the safety tar small and the DB copy consistent.
@@ -154,11 +166,11 @@ if [ "$restore_type" = "full" ]; then
     
     log_info "Reinstalling dependencies..."
     cd "$PROJECT_DIR/backend"
-    npm install --omit=dev
+    npm ci --omit=dev
     
     if [ -d "$PROJECT_DIR/frontend" ]; then
         cd "$PROJECT_DIR/frontend"
-        npm install
+        npm ci
         npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
         
         log_info "Rebuilding frontend..."
@@ -207,6 +219,10 @@ else
     cp "$backup_file-wal" "$PROJECT_DIR/backend/data/trading.db-wal" 2>/dev/null || true
     cp "$backup_file-shm" "$PROJECT_DIR/backend/data/trading.db-shm" 2>/dev/null || true
     chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"* 2>/dev/null || true
+    if command -v sqlite3 >/dev/null 2>&1; then
+        integrity=$(sqlite3 "$PROJECT_DIR/backend/data/trading.db" "PRAGMA quick_check;")
+        [ "$integrity" = "ok" ] || log_error "Restored database failed integrity check"
+    fi
 fi
 
 # Restart service

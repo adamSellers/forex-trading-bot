@@ -118,10 +118,13 @@ const GeneralSettings = ({ config, updateConfig, onResetEngine }) => {
               </Box>
               <Switch 
                 checked={config.enableTrading} 
-                onChange={(e) => updateConfig('enableTrading', e.target.checked)} 
+                disabled
                 color="success" 
               />
             </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Activation is readiness-gated from the dashboard. Configuration saves cannot bypass promotion or risk limits.
+            </Typography>
           </Grid>
            
           <Grid item xs={12} md={6}>

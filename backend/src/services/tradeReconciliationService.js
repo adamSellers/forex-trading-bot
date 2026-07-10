@@ -20,10 +20,90 @@ class TradeReconciliationService {
             payload?.orderFillTransaction?.time ||
             null;
 
-        if (!closeTime) return Date.now();
+        return this.parseBrokerTimestamp(closeTime, Date.now());
+    }
 
-        const parsed = Date.parse(closeTime);
-        return Number.isFinite(parsed) ? parsed : Date.now();
+    parseBrokerTimestamp(value, fallback = null) {
+        if (value === null || value === undefined || value === "") {
+            return fallback;
+        }
+
+        // Accept-Datetime-Format: UNIX returns decimal seconds as a string.
+        // Date.parse("1710000000.123") is implementation-dependent, so parse
+        // numeric values explicitly and normalize seconds to milliseconds.
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+            return numeric < 100000000000 ? Math.round(numeric * 1000) : numeric;
+        }
+
+        const parsed = Date.parse(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    getFillEffects(fillTransaction = {}) {
+        return {
+            tradeOpened: fillTransaction?.tradeOpened || null,
+            tradeReduced: fillTransaction?.tradeReduced || null,
+            tradesClosed: Array.isArray(fillTransaction?.tradesClosed)
+                ? fillTransaction.tradesClosed
+                : [],
+        };
+    }
+
+    findEffectForTrade(effects, brokerTradeId) {
+        const targetId = String(brokerTradeId || "");
+        if (!targetId) return null;
+        return (
+            effects.tradesClosed.find(
+                (effect) => String(effect?.tradeID || "") === targetId
+            ) ||
+            (String(effects.tradeReduced?.tradeID || "") === targetId
+                ? effects.tradeReduced
+                : null)
+        );
+    }
+
+    getCostBreakdown({ fillTransaction = {}, effect = null, trade = null } = {}) {
+        const grossRealizedPL =
+            this.normalizeNumber(effect?.realizedPL) ??
+            this.normalizeNumber(fillTransaction?.pl) ??
+            this.normalizeNumber(trade?.realizedPL);
+        const financing =
+            this.normalizeNumber(effect?.financing) ??
+            this.normalizeNumber(fillTransaction?.financing) ??
+            this.normalizeNumber(trade?.financing) ??
+            0;
+        const commission =
+            this.normalizeNumber(effect?.commission) ??
+            this.normalizeNumber(fillTransaction?.commission) ??
+            this.normalizeNumber(trade?.commission) ??
+            0;
+        const guaranteedExecutionFee =
+            this.normalizeNumber(effect?.guaranteedExecutionFee) ??
+            this.normalizeNumber(fillTransaction?.guaranteedExecutionFee) ??
+            this.normalizeNumber(trade?.guaranteedExecutionFee) ??
+            0;
+        const dividendAdjustment =
+            this.normalizeNumber(effect?.dividendAdjustment) ??
+            this.normalizeNumber(fillTransaction?.dividendAdjustment) ??
+            this.normalizeNumber(trade?.dividendAdjustment) ??
+            0;
+
+        return {
+            grossRealizedPL,
+            financing,
+            commission,
+            guaranteedExecutionFee,
+            dividendAdjustment,
+            totalRealizedPL:
+                grossRealizedPL === null
+                    ? null
+                    : grossRealizedPL +
+                      financing +
+                      commission +
+                      guaranteedExecutionFee +
+                      dividendAdjustment,
+        };
     }
 
     isApproxBreakeven(localTrade, closePrice) {
@@ -83,22 +163,54 @@ class TradeReconciliationService {
         fallbackExitReason = "MANUAL",
     }) {
         const orderFill = closeResult?.orderFillTransaction || null;
+        const effects = this.getFillEffects(orderFill);
+        const targetEffect = this.findEffectForTrade(
+            effects,
+            localTrade?.oandaTradeId
+        );
+        const brokerConfirmedClosed = Boolean(
+            orderFill &&
+                targetEffect &&
+                effects.tradesClosed.includes(targetEffect)
+        );
+        const brokerConfirmedReduced = Boolean(
+            orderFill &&
+                targetEffect &&
+                targetEffect === effects.tradeReduced
+        );
         const exitPrice =
-            this.normalizeNumber(orderFill?.price) ?? fallbackExitPrice;
+            this.normalizeNumber(targetEffect?.price) ??
+            this.normalizeNumber(orderFill?.price) ??
+            fallbackExitPrice;
+        const costs = this.getCostBreakdown({
+            fillTransaction: orderFill,
+            effect: targetEffect,
+        });
 
         return {
             exitPrice,
             exitReason: fallbackExitReason,
-            closePriceSource: this.normalizeNumber(orderFill?.price)
+            closePriceSource: brokerConfirmedClosed
                 ? "BROKER_FILL"
                 : "LOCAL_MARKET_FALLBACK",
-            reconciliationStatus: orderFill ? "DIRECT_FILL" : "UNRESOLVED",
+            reconciliationStatus: brokerConfirmedClosed
+                ? "DIRECT_FILL"
+                : brokerConfirmedReduced
+                ? "PARTIAL_CLOSE"
+                : "UNRESOLVED",
+            brokerConfirmedClosed,
+            brokerConfirmedReduced,
+            fillEffects: effects,
             brokerExitReason: fallbackExitReason,
             brokerClosedAt: this.getBrokerClosedAt(closeResult),
             lastBrokerSyncAt: Date.now(),
             brokerReconciliationPayload: closeResult || null,
-            oandaRealizedPL: this.normalizeNumber(orderFill?.pl),
-            oandaFinancing: this.normalizeNumber(orderFill?.financing) ?? 0,
+            oandaRealizedPL: costs.totalRealizedPL,
+            oandaGrossRealizedPL: costs.grossRealizedPL,
+            oandaFinancing: costs.financing,
+            oandaCommission: costs.commission,
+            oandaGuaranteedExecutionFee: costs.guaranteedExecutionFee,
+            oandaDividendAdjustment: costs.dividendAdjustment,
             activeStopType: localTrade?.activeStopType || null,
         };
     }
@@ -119,6 +231,8 @@ class TradeReconciliationService {
             localTrade,
             fallbackExitReason
         );
+        const brokerConfirmedClosed = tradeDetails?.trade?.state === "CLOSED";
+        const costs = this.getCostBreakdown({ trade: tradeDetails?.trade });
 
         return {
             exitPrice,
@@ -127,10 +241,12 @@ class TradeReconciliationService {
                 ? "BROKER_CLOSE"
                 : fallbackPriceSource,
             reconciliationStatus: tradeDetails?.trade
-                ? brokerExitPrice
+                ? brokerConfirmedClosed && brokerExitPrice
                     ? "RECONCILED"
                     : "PARTIAL"
                 : "UNRESOLVED",
+            brokerConfirmedClosed,
+            brokerConfirmedReduced: false,
             brokerExitReason: resolvedReason.brokerExitReason,
             brokerClosedAt: this.getBrokerClosedAt(tradeDetails),
             lastBrokerSyncAt: Date.now(),
@@ -142,9 +258,12 @@ class TradeReconciliationService {
                       type: lookupError.name || "Error",
                   }
                 : null,
-            oandaRealizedPL: this.normalizeNumber(tradeDetails?.trade?.realizedPL),
-            oandaFinancing:
-                this.normalizeNumber(tradeDetails?.trade?.financing) ?? 0,
+            oandaRealizedPL: costs.totalRealizedPL,
+            oandaGrossRealizedPL: costs.grossRealizedPL,
+            oandaFinancing: costs.financing,
+            oandaCommission: costs.commission,
+            oandaGuaranteedExecutionFee: costs.guaranteedExecutionFee,
+            oandaDividendAdjustment: costs.dividendAdjustment,
             activeStopType: localTrade?.activeStopType || null,
         };
     }

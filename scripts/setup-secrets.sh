@@ -129,6 +129,25 @@ if [[ "$enable_timesfm" =~ ^[Yy]$ ]]; then
     fi
 fi
 
+# --- 5. CONTROL-PLANE TOKEN (Required in production) ---
+echo ""
+echo "═══════════════════════════════════════════════════════════"
+echo "                 Control API Authentication"
+echo "═══════════════════════════════════════════════════════════"
+CONTROL_TOKEN_FILE="$SECRETS_DIR/control_api_token.enc"
+if [ ! -f "$CONTROL_TOKEN_FILE" ]; then
+    CONTROL_API_TOKEN=$(openssl rand -hex 32)
+    echo -n "$CONTROL_API_TOKEN" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat "$KEYS_DIR/encryption.key")" > "$CONTROL_TOKEN_FILE"
+    echo "✅ A control token was generated and encrypted."
+    echo ""
+    echo "Copy this token into the dashboard's Control Access dialog now:"
+    echo "$CONTROL_API_TOKEN"
+    echo ""
+    echo "It will not be printed again. Store it in your password manager."
+else
+    echo "✅ Existing encrypted control token preserved."
+fi
+
 # Set secure permissions
 chmod 600 $SECRETS_DIR/* 2>/dev/null || true
 

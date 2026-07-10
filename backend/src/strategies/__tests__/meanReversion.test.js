@@ -35,6 +35,11 @@ function createMarketContext({ rsi, atr, h1Adx, spreadPips = 1.0, session = "Lon
                 indicators: {
                     adx: [
                         {
+                            adx: h1Adx + 1,
+                            pdi: 18,
+                            mdi: 20,
+                        },
+                        {
                             adx: h1Adx,
                             pdi: 18,
                             mdi: 20,
@@ -53,7 +58,7 @@ describe("meanReversionStrategy", () => {
             instrument: "AUD_USD",
             candles: buildCandles(1.0998),
             currentPrice: 1.0998,
-            config: {},
+            config: { minNetRewardRisk: 0 },
             marketContext: createMarketContext({
                 rsi: 24,
                 atr: 0.001,
@@ -105,7 +110,7 @@ describe("meanReversionStrategy", () => {
             instrument: "AUD_USD",
             candles: buildCandles(1.1003),
             currentPrice: 1.1003,
-            config: {},
+            config: { minNetRewardRisk: 0 },
             marketContext: createMarketContext({
                 rsi: 76,
                 atr: 0.001,
@@ -203,6 +208,27 @@ describe("meanReversionStrategy", () => {
                         maxH1Adx: 25,
                     }),
                 }),
+            })
+        );
+    });
+
+    test("filters a nominal band fade whose target does not clear net reward/risk", async () => {
+        const result = await meanReversionStrategy.evaluateEntry({
+            instrument: "AUD_USD",
+            candles: buildCandles(1.0998),
+            currentPrice: 1.0998,
+            config: {},
+            marketContext: createMarketContext({
+                rsi: 24,
+                atr: 0.001,
+                h1Adx: 18,
+            }),
+        });
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                signalType: "HOLD",
+                reasonCode: "MEAN_REVERSION_NET_RR_FILTERED",
             })
         );
     });

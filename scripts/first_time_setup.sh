@@ -98,18 +98,18 @@ git clone -b "$BRANCH" "$REPO_URL" "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 log_success "Repository cloned"
 
-# --- 3. Install Dependencies ---
-log_step "Installing backend dependencies..."
+# --- 3. Install Dependencies + Verify ---
+log_step "Installing backend dependencies from lockfile..."
 cd backend
-npm install --omit=dev
+npm ci
+log_step "Running backend test suite..."
+npm test -- --runInBand
 cd ..
 
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
-    log_step "Installing frontend dependencies..."
+    log_step "Installing frontend dependencies from lockfile..."
     cd frontend
-    npm install
-    # ARM64 Rollup fix for Raspberry Pi
-    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+    npm ci
     cd ..
 fi
 log_success "Dependencies installed"
@@ -135,6 +135,7 @@ cd backend
 mkdir -p data
 mkdir -p logs
 npm run db:migrate
+npm prune --omit=dev
 cd ..
 log_success "Database initialized"
 

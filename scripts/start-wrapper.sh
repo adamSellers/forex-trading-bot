@@ -33,6 +33,9 @@ S3_BUCKET_NAME_FILE="$SECRETS_DIR/s3_bucket_name.enc"
 TIMESFM_URL_FILE="$SECRETS_DIR/timesfm_url.enc"
 TIMESFM_KEY_FILE="$SECRETS_DIR/timesfm_key.enc"
 
+# Mutation API control token (required in production)
+CONTROL_API_TOKEN_FILE="$SECRETS_DIR/control_api_token.enc"
+
 # --- Node Runtime ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
@@ -81,6 +84,11 @@ if [ -f "$ENCRYPTION_KEY_FILE" ]; then
 
     if [ -f "$TIMESFM_KEY_FILE" ]; then
         export TIMESFM_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$TIMESFM_KEY_FILE" 2>/dev/null)
+    fi
+
+    # 5. Control-plane authentication (required for POST/PUT/PATCH/DELETE)
+    if [ -f "$CONTROL_API_TOKEN_FILE" ]; then
+        export CONTROL_API_TOKEN=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$CONTROL_API_TOKEN_FILE" 2>/dev/null)
     fi
 
     echo "✅ Secrets decrypted and loaded into environment." >&2

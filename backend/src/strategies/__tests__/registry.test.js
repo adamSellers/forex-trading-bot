@@ -94,7 +94,8 @@ describe("strategy registry", () => {
                 key: "counter_signal_reversion",
                 runtimeStatus: "candidate",
                 metadata: expect.objectContaining({
-                    supportsLive: true,
+                    supportsLive: false,
+                    supportsShadow: false,
                     supportsCandidate: true,
                     sourceSignalAggregation: true,
                     entryValidation: expect.objectContaining({

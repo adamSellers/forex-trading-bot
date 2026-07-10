@@ -120,17 +120,32 @@ const testConfig = {
     strategy: "correlation_divergence",
     timeframe: "15m",
     correlationDivergenceLookbackBars: 4,
+    correlationDivergenceReturnStrideBars: 1,
     correlationDivergenceZWindowBars: 80,
     correlationDivergenceMinObservations: 40,
     correlationDivergenceEntryZScore: 1.5,
     correlationDivergenceMinPeerMoveBps: 1,
     correlationDivergenceMinCorrelation: 0.1,
     correlationDivergenceMinPeerInstruments: 2,
+    correlationDivergenceRequireFreshCross: false,
     minStopLossPips: 10,
     stopLossPips: 10,
 };
 
 describe("correlationDivergenceStrategy", () => {
+    test("uses non-overlapping return blocks by default", () => {
+        const candles = buildCandlesFromAntiUsdReturns(
+            "AUD_USD",
+            new Array(64).fill(0.0001)
+        );
+        const returns = correlationDivergenceStrategy.buildLookbackReturnMap(
+            candles,
+            4,
+            1
+        );
+        expect(returns.size).toBeLessThanOrEqual(Math.ceil(64 / 4));
+    });
+
     test("buys a USD-quoted pair when it lags peer anti-USD strength", async () => {
         const scenario = buildDivergenceScenario("AUD_USD");
 

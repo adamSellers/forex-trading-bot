@@ -3,7 +3,7 @@ node_modules/
 backend/node_modules/
 timesfm-sidecar/.venv/
 npm-debug.log*
-package-lock.json
+# Dependency lockfiles are committed at every application level.
 yarn-debug.log*
 yarn-error.log*
 

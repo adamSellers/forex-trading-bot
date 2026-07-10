@@ -127,6 +127,9 @@ class ForecastResult:
     volatility_regime: str
     quantile_spread_bps: float
     quantiles_h1: list[float]
+    quantiles_terminal: list[float]
+    confidence_horizon: int
+    terminal_point_forecast: float
     model: str
     device: str
 
@@ -162,7 +165,10 @@ class TimesFmModelService:
             max_horizon=self.settings.max_horizon,
             normalize_inputs=True,
             force_flip_invariance=True,
-            infer_is_positive=True,
+            # This compiled model serves both raw prices and signed log returns.
+            # Positivity inference can clip negative return forecasts before they
+            # are transformed back into prices, so it must remain disabled.
+            infer_is_positive=False,
             use_continuous_quantile_head=True,
             fix_quantile_crossing=True,
         )
@@ -287,6 +293,9 @@ class TimesFmModelService:
         point_forecast, quantiles = self._run_model(model_input, horizon)
         inference_ms = round((time.perf_counter() - started_at) * 1000, 2)
 
+        if point_forecast.size == 0:
+            raise RuntimeError("model returned an empty point forecast")
+
         if used_log_returns:
             point_prices = invert_log_returns(last_price, point_forecast)
             quantile_prices = (
@@ -300,7 +309,8 @@ class TimesFmModelService:
             point_prices = np.asarray(point_forecast, dtype=np.float64)
             quantile_prices = np.asarray(quantiles, dtype=np.float64) if quantiles is not None else None
 
-        terminal_price = float(point_prices[min(len(point_prices) - 1, horizon - 1)])
+        terminal_index = min(len(point_prices) - 1, horizon - 1)
+        terminal_price = float(point_prices[terminal_index])
         return_bps = round(((terminal_price - last_price) / last_price) * 10000, 4)
         direction = classify_direction(
             return_bps,
@@ -308,18 +318,26 @@ class TimesFmModelService:
         )
 
         quantiles_h1: list[float] = []
+        quantiles_terminal: list[float] = []
         if quantile_prices is not None and quantile_prices.ndim >= 2:
             quantiles_h1 = [
                 round(float(value), 6) for value in np.asarray(quantile_prices[0]).tolist()
             ]
+            quantiles_terminal = [
+                round(float(value), 6)
+                for value in np.asarray(quantile_prices[terminal_index]).tolist()
+            ]
 
+        # Direction and return describe the terminal forecast, so confidence and
+        # dispersion must use that same horizon. Mixing an H1 fan with an H12
+        # point forecast produces a score with no coherent meaning.
         confidence = compute_direction_confidence(
             last_price,
             direction,
-            float(point_prices[0]),
-            quantiles_h1,
+            terminal_price,
+            quantiles_terminal,
         )
-        quantile_spread_bps = compute_spread_bps(last_price, quantiles_h1)
+        quantile_spread_bps = compute_spread_bps(last_price, quantiles_terminal)
         volatility_regime = classify_volatility_regime(quantile_spread_bps)
 
         return ForecastResult(
@@ -336,6 +354,9 @@ class TimesFmModelService:
             volatility_regime=volatility_regime,
             quantile_spread_bps=quantile_spread_bps,
             quantiles_h1=quantiles_h1,
+            quantiles_terminal=quantiles_terminal,
+            confidence_horizon=terminal_index + 1,
+            terminal_point_forecast=round(terminal_price, 6),
             model=self.settings.model_name,
             device=self.device,
         )

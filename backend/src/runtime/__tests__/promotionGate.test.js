@@ -1,177 +1,203 @@
 const {
+    DEFAULT_PROMOTION_GATE_OPTIONS,
     evaluatePromotionGate,
     resolveRequiredSides,
 } = require("../promotionGate");
 
-function buildAnalytics({ trades = 60, netExpectancyPips = 1.2, bySide = [] } = {}) {
-    return {
-        cohortExpectancy: {
-            summary: {
-                trades,
-                wins: Math.floor(trades / 2),
-                losses: trades - Math.floor(trades / 2),
-                winRatePct: 50,
-                totalPnLPips: trades * netExpectancyPips,
-                netExpectancyPips,
-                netExpectancyAud: 0.3,
-                profitFactorPips: netExpectancyPips > 0 ? 1.2 : 0.8,
+const DAY_MS = 86400000;
+const NOW = Date.UTC(2026, 6, 10, 12, 0, 0);
+
+function buildTrades(count = 120, overrides = {}) {
+    return Array.from({ length: count }, (_, index) => {
+        const winning = index % 4 !== 0;
+        const dayOffset = index % 40;
+        const london = index % 2 === 0;
+        const timestamp =
+            NOW - (40 - dayOffset) * DAY_MS + (london ? 8 : 13) * 3600000;
+        return {
+            id: `trade-${index}`,
+            instrument: london ? "EUR_USD" : "GBP_USD",
+            side: "BUY",
+            pnlAud: winning ? 2 : -1,
+            pnlPips: winning ? 10 : -5,
+            entryTime: timestamp,
+            exitTime: timestamp + 3600000,
+            isOpen: false,
+            configHash: "config-1",
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    volatilityRegime: index % 3 === 0 ? "high" : "normal",
+                    commissionStatus: "MODELED",
+                    spreadStatus: "MODELED",
+                    slippageStatus: "MODELED",
+                    financingMode: "NOT_APPLICABLE",
+                    financingStatus: "NO_ROLLOVER",
+                    costModelVersion: 1,
+                },
             },
-            bySide,
+            ...overrides,
+        };
+    });
+}
+
+function buildContext(overrides = {}) {
+    const trades = overrides.trades || buildTrades();
+    const run = {
+        runId: "candidate-1",
+        strategy: "timesfm_directional",
+        configHash: "config-1",
+        startedAt: NOW - 40 * DAY_MS,
+        configSnapshot: {
+            strategy: "timesfm_directional",
+            enableShorting: false,
+            paperStartingBalanceAud: 10000,
+            executionPolicyVersion: "unified-execution-v1",
         },
+        metadata: {},
+        ...(overrides.run || {}),
+    };
+    return {
+        analytics: {},
+        run,
+        trades,
+        matchedShadowEvidence: {
+            passed: true,
+            closedTrades: 80,
+            overlapDays: 30,
+            candidateNetExpectancyAud: 1.25,
+            shadowNetExpectancyAud: 0.2,
+            ...(overrides.matchedShadowEvidence || {}),
+        },
+        executionParity: {
+            passed: true,
+            configHash: "config-1",
+            executionPolicyVersion: "unified-execution-v1",
+            ...(overrides.executionParity || {}),
+        },
+        now: NOW,
+        options: overrides.options || {},
     };
 }
 
 describe("promotionGate", () => {
-    test("requires a minimum closed-trade sample before promotion", () => {
-        const gate = evaluatePromotionGate({
-            analytics: buildAnalytics({ trades: 49, netExpectancyPips: 1 }),
-            run: {
-                runId: "candidate-1",
-                strategy: "timesfm_directional",
-                configSnapshot: { enableShorting: false },
-            },
-            options: {
-                minClosedTrades: 50,
-                minSideTrades: 1,
-            },
-        });
+    test("defaults to a 100-trade, multi-regime evidence contract", () => {
+        expect(DEFAULT_PROMOTION_GATE_OPTIONS).toEqual(
+            expect.objectContaining({
+                minClosedTrades: 100,
+                minElapsedDays: 30,
+                minTradingDays: 20,
+                minRegimes: 2,
+                minProfitFactor: 1.2,
+                requireMatchedShadow: true,
+                requireExecutionParity: true,
+            })
+        );
+    });
 
-        expect(gate.passed).toBe(false);
+    test("passes a diversified candidate with positive AUD and pip lower bounds", () => {
+        const gate = evaluatePromotionGate(buildContext());
+
+        expect(gate.passed).toBe(true);
+        expect(gate.gateVersion).toBe(2);
+        expect(gate.referenceCurrency).toBe("AUD");
+        expect(gate.evidence.expectancyAud.lowerBound).toBeGreaterThan(0);
+        expect(gate.evidence.expectancyPips.lowerBound).toBeGreaterThan(0);
+        expect(gate.evidence.configCoverageRatio).toBe(1);
+    });
+
+    test("rejects a sample below 100 closed trades", () => {
+        const gate = evaluatePromotionGate(
+            buildContext({ trades: buildTrades(99) })
+        );
+
         expect(gate.reasons).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     code: "MIN_CLOSED_TRADES",
-                    actual: 49,
-                    required: 50,
+                    actual: 99,
+                    required: 100,
                 }),
             ])
         );
     });
 
-    test("rejects negative overall realistic-paper net expectancy", () => {
-        const gate = evaluatePromotionGate({
-            analytics: buildAnalytics({
-                trades: 60,
-                netExpectancyPips: -0.4,
-                bySide: [
-                    {
-                        side: "BUY",
-                        trades: 60,
-                        netExpectancyPips: -0.4,
-                    },
-                ],
-            }),
-            run: {
-                runId: "candidate-2",
-                strategy: "timesfm_directional",
-                configSnapshot: { enableShorting: false },
-            },
-            options: {
-                minClosedTrades: 50,
-                minSideTrades: 10,
-            },
-        });
+    test("rejects non-positive statistical lower bounds", () => {
+        const trades = buildTrades(120).map((trade, index) => ({
+            ...trade,
+            pnlAud: index % 2 === 0 ? 1 : -1,
+            pnlPips: index % 2 === 0 ? 5 : -5,
+        }));
+        const gate = evaluatePromotionGate(buildContext({ trades }));
 
-        expect(gate.passed).toBe(false);
+        expect(gate.reasons.map((reason) => reason.code)).toEqual(
+            expect.arrayContaining([
+                "EXPECTANCY_LOWER_BOUND_PIPS",
+                "EXPECTANCY_LOWER_BOUND_AUD",
+                "PROFIT_FACTOR",
+            ])
+        );
+    });
+
+    test("rejects mixed or missing configuration identity", () => {
+        const trades = buildTrades();
+        trades[0] = { ...trades[0], configHash: "different-config" };
+        const gate = evaluatePromotionGate(buildContext({ trades }));
+
         expect(gate.reasons).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({
-                    code: "OVERALL_NET_EXPECTANCY",
-                    actual: -0.4,
-                }),
-                expect.objectContaining({
-                    code: "SIDE_NET_EXPECTANCY",
-                    side: "BUY",
-                    actual: -0.4,
-                }),
+                expect.objectContaining({ code: "CONFIG_COVERAGE" }),
             ])
         );
     });
 
-    test("requires every traded side to clear sample and expectancy when shorts are enabled", () => {
-        const gate = evaluatePromotionGate({
-            analytics: buildAnalytics({
-                trades: 70,
-                netExpectancyPips: 0.6,
-                bySide: [
-                    {
-                        side: "BUY",
-                        trades: 55,
-                        netExpectancyPips: 1.2,
-                    },
-                    {
-                        side: "SELL",
-                        trades: 15,
-                        netExpectancyPips: -1.4,
-                    },
-                ],
-            }),
-            run: {
-                runId: "candidate-3",
-                strategy: "supertrend_momentum",
-                configSnapshot: { enableShorting: true },
+    test("rejects rollover trades whose AUD financing is unmodeled", () => {
+        const trades = buildTrades();
+        trades[0] = {
+            ...trades[0],
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    ...trades[0].brokerReconciliationPayload.paperRuntime,
+                    financingMode: "UNMODELED",
+                    financingStatus: "MISSING_RATE",
+                    financingDayWeights: [{ day: "2026-07-08", weight: 3 }],
+                },
             },
-            options: {
-                minClosedTrades: 50,
-                minSideTrades: 10,
-            },
-        });
+        };
+        const gate = evaluatePromotionGate(buildContext({ trades }));
 
-        expect(gate.passed).toBe(false);
-        expect(gate.requirements.requiredSides).toEqual(["BUY", "SELL"]);
         expect(gate.reasons).toEqual(
             expect.arrayContaining([
-                expect.objectContaining({
-                    code: "SIDE_NET_EXPECTANCY",
-                    side: "SELL",
-                    actual: -1.4,
-                }),
+                expect.objectContaining({ code: "UNMODELED_TRADING_COSTS" }),
+            ])
+        );
+        expect(gate.evidence.incompleteCostRows[0].failures).toContain(
+            "financing"
+        );
+    });
+
+    test("requires matched-shadow outperformance and explicit execution parity", () => {
+        const gate = evaluatePromotionGate(
+            buildContext({
+                matchedShadowEvidence: {
+                    passed: false,
+                    closedTrades: 10,
+                    overlapDays: 3,
+                    candidateNetExpectancyAud: 0.1,
+                    shadowNetExpectancyAud: 0.2,
+                },
+                executionParity: { passed: false },
+            })
+        );
+
+        expect(gate.reasons.map((reason) => reason.code)).toEqual(
+            expect.arrayContaining([
+                "MATCHED_SHADOW_EVIDENCE",
+                "EXECUTION_PARITY_EVIDENCE",
             ])
         );
     });
 
-    test("passes a long-only candidate with enough positive BUY expectancy", () => {
-        const gate = evaluatePromotionGate({
-            analytics: buildAnalytics({
-                trades: 65,
-                netExpectancyPips: 0.9,
-                bySide: [
-                    {
-                        side: "BUY",
-                        trades: 65,
-                        wins: 34,
-                        losses: 31,
-                        winRatePct: 52.3,
-                        totalPnLPips: 58.5,
-                        netExpectancyPips: 0.9,
-                        avgR: 0.12,
-                    },
-                ],
-            }),
-            run: {
-                runId: "candidate-4",
-                strategy: "timesfm_directional",
-                configSnapshot: { enableShorting: false },
-            },
-            options: {
-                minClosedTrades: 50,
-                minSideTrades: 10,
-            },
-        });
-
-        expect(gate.passed).toBe(true);
-        expect(gate.status).toBe("PASS");
-        expect(gate.requirements.requiredSides).toEqual(["BUY"]);
-        expect(gate.sideExpectancy).toEqual([
-            expect.objectContaining({
-                side: "BUY",
-                trades: 65,
-                netExpectancyPips: 0.9,
-            }),
-        ]);
-    });
-
-    test("infers required sides from the candidate config", () => {
+    test("infers required sides from the immutable candidate config", () => {
         expect(resolveRequiredSides({ enableShorting: false })).toEqual(["BUY"]);
         expect(resolveRequiredSides({ enableShorting: true })).toEqual([
             "BUY",

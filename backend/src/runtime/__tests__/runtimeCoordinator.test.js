@@ -9,7 +9,7 @@ function createMockDataService() {
                 price: 1.125,
                 bid: 1.1249,
                 ask: 1.1251,
-                spread: 2,
+                spread: 1,
                 tradeable: true,
                 timestamp: Date.now(),
             },
@@ -20,7 +20,7 @@ function createMockDataService() {
                 price: 1.0815,
                 bid: 1.0814,
                 ask: 1.0816,
-                spread: 2,
+                spread: 1,
                 tradeable: true,
                 timestamp: Date.now(),
             },
@@ -106,6 +106,8 @@ describe("RuntimeCoordinator", () => {
                 direction: "BULLISH",
                 confidence: 0.82,
                 returnBps: 14.4,
+                horizon: 12,
+                confidenceHorizon: 12,
                 volatilityRegime: "NORMAL",
                 neutral: false,
             })),
@@ -490,6 +492,7 @@ describe("RuntimeCoordinator", () => {
                 assets: ["AUD_USD"],
                 timeframe: "15m",
                 counterSignalSourceStrategies: ["timesfm_directional"],
+                counterSignalEnabled: true,
                 enableShorting: true,
                 activeSessions: ["sydney", "tokyo", "london"],
             },
@@ -531,6 +534,8 @@ describe("RuntimeCoordinator", () => {
                 assets: ["AUD_USD"],
                 timeframe: "15m",
                 counterSignalSourceStrategies: ["timesfm_directional"],
+                signalFollowingMinConfirmations: 1,
+                signalFollowingMinConsensusFraction: 1,
                 enableShorting: true,
                 activeSessions: ["sydney", "tokyo", "london"],
             },
@@ -711,7 +716,13 @@ describe("RuntimeCoordinator", () => {
                 enableHTFFilter: true,
                 htfTimeframe: '1h',
             },
-            initiatedBy: 'ui',
+            initiatedBy: 'paper-promotion',
+            metadata: {
+                promotionGate: {
+                    passed: true,
+                    gateVersion: 2,
+                },
+            },
         });
 
         const previousLiveRun = coordinator.getRunSession(initialSelection.liveRun.runId);
@@ -858,7 +869,7 @@ describe("RuntimeCoordinator", () => {
         );
     });
 
-    test("resetRun clears session state and persists the restarted timestamp", async () => {
+    test("resetRun starts an immutable successor and preserves the prior run", async () => {
         await coordinator.startRun({
             runId: "run-candidate-reset",
             mode: RUNTIME_MODES.PAPER_CANDIDATE,
@@ -884,17 +895,44 @@ describe("RuntimeCoordinator", () => {
         });
 
         expect(resetRun.startedAt).toBe(1710001234567);
-        expect(session.latestSignals).toEqual([]);
-        expect(session.managedInstruments.size).toBe(0);
+        expect(resetRun.runId).not.toBe("run-candidate-reset");
+        expect(resetRun.parentRunId).toBe("run-candidate-reset");
+        expect(resetRun.metadata).toEqual(
+            expect.objectContaining({
+                reason: "manual-reset",
+                restartedFromRunId: "run-candidate-reset",
+                evidencePreserved: true,
+            })
+        );
+        expect(coordinator.getRunSession("run-candidate-reset")).toBeNull();
+        expect(coordinator.getRunSession(resetRun.runId)).toBeTruthy();
         expect(strategyRunRepository.update).toHaveBeenCalledWith(
             "run-candidate-reset",
             expect.objectContaining({
-                startedAt: 1710001234567,
-                stoppedAt: null,
-                metadata: {
-                    reason: "manual-reset",
-                },
+                status: RUN_STATUSES.STOPPED,
+                stoppedAt: 1710001234567,
             })
         );
+        expect(strategyRunRepository.create).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+                parentRunId: "run-candidate-reset",
+                startedAt: 1710001234567,
+            })
+        );
+    });
+
+    test("rejects in-place configuration changes to an active run", async () => {
+        await coordinator.startRun({
+            runId: "run-immutable-config",
+            mode: RUNTIME_MODES.PAPER_CANDIDATE,
+            strategy: "supertrend_momentum",
+            configSnapshot: { strategy: "supertrend_momentum" },
+        });
+
+        await expect(
+            coordinator.updateRun("run-immutable-config", {
+                configSnapshot: { strategy: "mean_reversion" },
+            })
+        ).rejects.toMatchObject({ code: "IMMUTABLE_STRATEGY_RUN" });
     });
 });

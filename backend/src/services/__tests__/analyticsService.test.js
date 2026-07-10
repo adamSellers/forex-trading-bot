@@ -259,6 +259,9 @@ describe('AnalyticsService', () => {
             expect(summary.winningTrades).toBe(2);
             expect(summary.losingTrades).toBe(1);
             expect(summary.winRate).toBeCloseTo(66.67, 1);
+            expect(summary.winRate95.lower).toBeLessThan(summary.winRate);
+            expect(summary.expectancy95Aud.samples).toBe(500);
+            expect(summary.referenceCurrency).toBe('AUD');
         });
 
         test('should calculate profit factor', () => {
@@ -334,6 +337,35 @@ describe('AnalyticsService', () => {
             const summary = service.calculateSummary(trades);
 
             expect(summary.profitFactor).toBe(999); // No losses = infinite profit factor
+        });
+
+        test('reports explicit costs, drawdown, streak, and concentration', () => {
+            const summary = service.calculateSummary([
+                createClosedTrade({
+                    instrument: 'AUD_USD',
+                    pnlAud: 5,
+                    swapAud: -0.2,
+                    commissionAud: -0.1,
+                    exitTime: 1,
+                }),
+                createLosingTrade({
+                    instrument: 'AUD_USD',
+                    pnlAud: -3,
+                    swapAud: -0.1,
+                    exitTime: 2,
+                }),
+                createLosingTrade({
+                    instrument: 'EUR_AUD',
+                    pnlAud: -2,
+                    exitTime: 3,
+                }),
+            ]);
+
+            expect(summary.maxDrawdownAud).toBe(5);
+            expect(summary.longestLosingStreak).toBe(2);
+            expect(summary.costs.financingAud).toBeCloseTo(-0.3);
+            expect(summary.concentration.topInstrument).toBe('AUD_USD');
+            expect(summary.statisticalSampleAdequate).toBe(false);
         });
     });
 

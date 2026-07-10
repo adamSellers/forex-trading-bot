@@ -1,6 +1,6 @@
 # scripts/deploy-check.sh - Shared runtime rollout preflight
 #!/bin/bash
-set -e
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
@@ -33,8 +33,13 @@ check "On main branch" "[[ \$(git branch --show-current) == 'main' ]]"
 check "Frontend dist exists (run 'cd frontend && npm run build' manually first)" "[ -d frontend/dist ]"
 check "Backend dependencies OK" "(cd backend && npm ls --omit=dev > /dev/null 2>&1)"
 check "Frontend dependencies OK" "(cd frontend && npm ls > /dev/null 2>&1)"
+check "Backend dependency lock tracked" "[ -f backend/package-lock.json ] && ! git check-ignore -q backend/package-lock.json"
+check "Frontend dependency lock tracked" "[ -f frontend/package-lock.json ] && ! git check-ignore -q frontend/package-lock.json"
+check "Control API token configured" "[ -f .secrets/control_api_token.enc ]"
 check "Shared runtime migration present" "[ -f backend/migrations/005_add_strategy_runs_and_runtime_identity.js ]"
 check "Backtest retirement migration present" "[ -f backend/migrations/006_drop_backtest_results.js ]"
+check "Broker lifecycle migration present" "[ -f backend/migrations/010_add_broker_lifecycle_outbox.js ]"
+check "Replay validation CLI present" "[ -x backend/scripts/replayStrategy.js ]"
 check "Legacy backtest CLI removed from supported path" "[ ! -f scripts/backtest.js ] && [ ! -f scripts/backtestSweep.js ]"
 
 # Test local API endpoints (if backend is running)

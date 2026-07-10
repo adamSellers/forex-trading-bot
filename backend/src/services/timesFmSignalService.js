@@ -129,6 +129,8 @@ class TimesFmSignalService {
             returnBps: 0,
             volatilityRegime: null,
             quantileSpreadBps: null,
+            confidenceHorizon: null,
+            terminalPointForecast: null,
             inferenceMs: null,
             agrees: false,
             disagrees: false,
@@ -141,6 +143,7 @@ class TimesFmSignalService {
             forecast: {
                 pointForecast: [],
                 quantilesH1: [],
+                quantilesTerminal: [],
             },
         };
     }
@@ -174,6 +177,14 @@ class TimesFmSignalService {
             returnBps: toFiniteNumber(forecast.returnBps, 0) || 0,
             volatilityRegime: forecast.volatilityRegime || "NORMAL",
             quantileSpreadBps: toFiniteNumber(forecast.quantileSpreadBps, 0) || 0,
+            confidenceHorizon: toFiniteNumber(
+                forecast.confidenceHorizon,
+                null
+            ),
+            terminalPointForecast: toFiniteNumber(
+                forecast.terminalPointForecast,
+                null
+            ),
             inferenceMs: toFiniteNumber(forecast.inferenceMs, null),
             agrees,
             disagrees,
@@ -193,6 +204,9 @@ class TimesFmSignalService {
                     : [],
                 quantilesH1: Array.isArray(forecast.quantilesH1)
                     ? forecast.quantilesH1
+                    : [],
+                quantilesTerminal: Array.isArray(forecast.quantilesTerminal)
+                    ? forecast.quantilesTerminal
                     : [],
             },
         };

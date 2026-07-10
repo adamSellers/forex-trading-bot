@@ -244,6 +244,19 @@ class TimesFmClient {
                 : Array.isArray(data.quantilesH1)
                 ? data.quantilesH1
                 : [],
+            quantilesTerminal: Array.isArray(data.quantiles_terminal)
+                ? data.quantiles_terminal
+                : Array.isArray(data.quantilesTerminal)
+                ? data.quantilesTerminal
+                : [],
+            confidenceHorizon: toFiniteNumber(
+                data.confidence_horizon ?? data.confidenceHorizon,
+                null
+            ),
+            terminalPointForecast: toFiniteNumber(
+                data.terminal_point_forecast ?? data.terminalPointForecast,
+                null
+            ),
             model: data.model || null,
             device: data.device || null,
         };

@@ -119,6 +119,20 @@ describe('OandaClient', () => {
                 'Oanda API Error (525): Cloudflare 525: SSL handshake failed'
             );
         });
+
+        test('should reject a non-AUD live account', async () => {
+            global.fetch.mockResolvedValueOnce(createMockResponse({
+                account: {
+                    id: TEST_ACCOUNT_ID,
+                    balance: '136.00',
+                    currency: 'USD',
+                },
+            }));
+
+            await expect(client.initialize()).rejects.toThrow(
+                'account currency must be AUD'
+            );
+        });
     });
 
     describe('getAccountSummary', () => {
@@ -268,6 +282,94 @@ describe('OandaClient', () => {
             const result = await client.placeMarketOrder('AUD_USD', -795);
 
             expect(result.orderFillTransaction.units).toBe('-795');
+        });
+
+        test('uses metadata precision, priceBound, and deterministic client extensions', async () => {
+            client.instrumentMetadata.set('USD_JPY', {
+                name: 'USD_JPY',
+                displayPrecision: 3,
+                pipLocation: -2,
+                marginRate: '0.05',
+            });
+            global.fetch.mockResolvedValueOnce(createMockResponse({
+                orderFillTransaction: {
+                    instrument: 'USD_JPY',
+                    price: '150.123',
+                    tradeOpened: { tradeID: '491' },
+                },
+            }, 201));
+
+            await client.placeMarketOrder('USD_JPY', 100, {
+                orderIntentId: 'intent-123',
+                stopLossPrice: 149.8764,
+                takeProfitPrice: 150.9876,
+                priceBound: 150.2344,
+                instrumentMetadata: client.instrumentMetadata.get('USD_JPY'),
+            });
+
+            const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+            expect(body.order).toEqual(
+                expect.objectContaining({
+                    positionFill: 'OPEN_ONLY',
+                    priceBound: '150.234',
+                    clientExtensions: expect.objectContaining({
+                        id: 'oi-intent-123',
+                    }),
+                    tradeClientExtensions: expect.objectContaining({
+                        id: 'ti-intent-123',
+                    }),
+                    stopLossOnFill: expect.objectContaining({ price: '149.876' }),
+                    takeProfitOnFill: expect.objectContaining({ price: '150.988' }),
+                })
+            );
+            expect(client.getPipValue('USD_JPY')).toBe(0.01);
+        });
+    });
+
+    describe('instrument metadata and recovery', () => {
+        test('caches account-specific display precision and margin rate', async () => {
+            global.fetch.mockResolvedValueOnce(createMockResponse({
+                instruments: [
+                    {
+                        name: 'EUR_USD',
+                        displayPrecision: 5,
+                        pipLocation: -4,
+                        marginRate: '0.0333',
+                        financing: { longRate: '-0.01', shortRate: '0.005' },
+                    },
+                ],
+            }));
+
+            const metadata = await client.getInstrumentMetadata('EUR_USD');
+            expect(metadata).toEqual(
+                expect.objectContaining({
+                    displayPrecision: 5,
+                    pipLocation: -4,
+                    marginRate: '0.0333',
+                    financing: expect.any(Object),
+                })
+            );
+            await client.getInstrumentMetadata('EUR_USD');
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+        });
+
+        test('recovers an ambiguous intent from matching open-trade extensions', async () => {
+            global.fetch.mockResolvedValueOnce(createMockResponse({
+                trades: [
+                    {
+                        id: '492',
+                        instrument: 'AUD_USD',
+                        price: '0.66000',
+                        currentUnits: '100',
+                        openTime: '1710000000.5',
+                        clientExtensions: { id: 'ti-intent-abc' },
+                    },
+                ],
+            }));
+
+            const recovery = await client.findOrderIntent('intent-abc');
+            expect(recovery.status).toBe('OPEN_TRADE_FOUND');
+            expect(recovery.orderFillTransaction.tradeOpened.tradeID).toBe('492');
         });
     });
 
@@ -556,6 +658,25 @@ describe('OandaClient', () => {
             });
 
             await expect(client.getAccountSummary()).rejects.toThrow();
+        });
+
+        test('aborts timed-out requests and marks mutating outcomes ambiguous', async () => {
+            client.requestTimeoutMs = 5;
+            global.fetch.mockImplementation((url, options) =>
+                new Promise((resolve, reject) => {
+                    options.signal.addEventListener('abort', () => {
+                        const error = new Error('aborted');
+                        error.name = 'AbortError';
+                        reject(error);
+                    });
+                })
+            );
+
+            const request = client.placeMarketOrder('AUD_USD', 100);
+            await expect(request).rejects.toMatchObject({
+                code: 'OANDA_TIMEOUT',
+                ambiguous: true,
+            });
         });
     });
 

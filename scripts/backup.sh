@@ -4,12 +4,12 @@
 # Creates timestamped backup of database and config
 # =====================================================
 
-set -e
+set -Eeuo pipefail
 
 # --- Configuration ---
 APP_NAME="forex-backend"
 PROJECT_DIR="/opt/forex-trading-bot"
-BACKUP_DIR="$HOME/forex-trading-bot-backups"
+BACKUP_DIR="${FOREX_BACKUP_DIR:-$HOME/forex-trading-bot-backups}"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="forex_backup_${TIMESTAMP}.tar.gz"
 
@@ -55,7 +55,18 @@ tar -czf "$BACKUP_DIR/$BACKUP_FILE" \
     --exclude='backend/logs/*' \
     --exclude='frontend/dist' \
     --exclude='backend/data/trading.db*' \
+    --exclude='.git' \
+    --exclude='.env' \
+    --exclude='*/.env' \
+    --exclude='.keys' \
+    --exclude='.secrets' \
+    --exclude='ssl' \
+    --exclude='*.pem' \
+    --exclude='*.key' \
+    --exclude='*.crt' \
     -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")"
+
+gzip -t "$BACKUP_DIR/$BACKUP_FILE"
 
 log_success "Backup created: $BACKUP_DIR/$BACKUP_FILE"
 
@@ -73,12 +84,21 @@ if [ -f "$PROJECT_DIR/backend/data/trading.db" ]; then
         cp "$PROJECT_DIR/backend/data/trading.db-wal" "$DB_SNAPSHOT-wal" 2>/dev/null || true
         cp "$PROJECT_DIR/backend/data/trading.db-shm" "$DB_SNAPSHOT-shm" 2>/dev/null || true
     fi
+    if command -v sqlite3 >/dev/null 2>&1; then
+        integrity=$(sqlite3 "$DB_SNAPSHOT" "PRAGMA quick_check;")
+        [ "$integrity" = "ok" ] || {
+            rm -f "$DB_SNAPSHOT"
+            echo "Database snapshot integrity check failed" >&2
+            exit 1
+        }
+    fi
     log_success "Database backup: $DB_SNAPSHOT"
 fi
 
-# Clean old backups (keep the latest 2 of each — the Pi SD card is small)
+# Retention is configurable so storage constraints do not silently reduce the
+# only recovery history to two points.
 log_info "Cleaning old backups..."
-MAX_KEEP=2
+MAX_KEEP="${FOREX_BACKUP_RETENTION:-5}"
 ls -tp "$BACKUP_DIR"/forex_backup_*.tar.gz 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
 ls -tp "$BACKUP_DIR"/pre_restore_*.tar.gz 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
 ls -tp "$BACKUP_DIR"/pre_restore_*.db 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f

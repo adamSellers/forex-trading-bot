@@ -3,7 +3,10 @@ const { v4: uuidv4 } = require("uuid");
 const SignalGenerator = require("../services/signalGenerator");
 const MarketContextService = require("./marketContextService");
 const logger = require("../utils/logger");
-const { computeConfigHash } = require("../config/tradingConfig");
+const {
+    computeConfigHash,
+    materializeStrategyConfig,
+} = require("../config/tradingConfig");
 const { RUNTIME_MODES, RUN_STATUSES } = require("./runtimeConstants");
 const { getStrategyDefinition } = require("../strategies");
 const { applyCandidatePreset } = require("./candidatePresets");
@@ -32,7 +35,7 @@ function usesSourceSignalAggregation(strategyKey) {
 }
 
 function normalizeRunRecord(runRecord = {}) {
-    const configSnapshot = {
+    const rawConfigSnapshot = {
         ...(runRecord.configSnapshot || runRecord.config || {}),
         strategy:
             runRecord.strategy ||
@@ -40,6 +43,9 @@ function normalizeRunRecord(runRecord = {}) {
             runRecord.config?.strategy ||
             "supertrend_momentum",
     };
+    const configSnapshot = materializeStrategyConfig(rawConfigSnapshot, {
+        strategyKey: rawConfigSnapshot.strategy,
+    });
 
     return {
         runId: runRecord.runId || createRunId(runRecord.mode),
@@ -48,6 +54,7 @@ function normalizeRunRecord(runRecord = {}) {
         status: runRecord.status || RUN_STATUSES.ACTIVE,
         selectionId: runRecord.selectionId || null,
         shadowOfRunId: runRecord.shadowOfRunId || null,
+        parentRunId: runRecord.parentRunId || null,
         configHash:
             runRecord.configHash ||
             configSnapshot.configHash ||
@@ -251,32 +258,51 @@ class RuntimeCoordinator extends EventEmitter {
         const session = this.getRunSession(runId);
         if (!session) return null;
 
-        const nextRun = normalizeRunRecord({
+        const immutableKeys = [
+            "runId",
+            "mode",
+            "strategy",
+            "selectionId",
+            "shadowOfRunId",
+            "parentRunId",
+            "configHash",
+            "configSnapshot",
+            "startedAt",
+        ];
+        const changedImmutableKeys = immutableKeys.filter(
+            (key) =>
+                updates[key] !== undefined &&
+                JSON.stringify(updates[key]) !== JSON.stringify(session.run[key])
+        );
+        if (changedImmutableKeys.length > 0) {
+            const error = new Error(
+                `Strategy runs are immutable; create a new run to change: ${changedImmutableKeys.join(
+                    ", "
+                )}`
+            );
+            error.code = "IMMUTABLE_STRATEGY_RUN";
+            throw error;
+        }
+
+        const nextRun = {
             ...session.run,
-            ...updates,
+            status: updates.status || session.run.status,
+            stoppedAt:
+                updates.stoppedAt === undefined
+                    ? session.run.stoppedAt
+                    : updates.stoppedAt,
             metadata:
                 updates.metadata === undefined
                     ? session.run.metadata
                     : updates.metadata,
-            configSnapshot:
-                updates.configSnapshot === undefined
-                    ? session.run.configSnapshot
-                    : updates.configSnapshot,
-        });
+        };
 
         session.run = nextRun;
-        session.generator.updateConfig(nextRun.configSnapshot);
-        this.syncDataServiceTimeframes();
 
         if (this.strategyRunRepository?.update) {
             await this.strategyRunRepository.update(runId, {
                 status: nextRun.status,
-                selectionId: nextRun.selectionId,
-                shadowOfRunId: nextRun.shadowOfRunId,
-                configHash: nextRun.configHash,
-                configSnapshot: nextRun.configSnapshot,
                 metadata: nextRun.metadata,
-                startedAt: nextRun.startedAt,
                 stoppedAt: nextRun.stoppedAt,
             });
         }
@@ -289,23 +315,36 @@ class RuntimeCoordinator extends EventEmitter {
         const session = this.getRunSession(runId);
         if (!session) return null;
 
-        session.generator.reset();
-        session.latestSignals = [];
-        session.managedInstruments.clear();
-
-        const nextRun = await this.updateRun(runId, {
-            startedAt:
-                updates.startedAt === undefined
-                    ? Date.now()
-                    : updates.startedAt,
-            stoppedAt: null,
-            metadata:
-                updates.metadata === undefined
-                    ? session.run.metadata
-                    : updates.metadata,
-            status: updates.status || session.run.status,
+        const previousRun = session.run;
+        const restartedAt =
+            updates.startedAt === undefined ? Date.now() : updates.startedAt;
+        await this.stopRun(runId, {
+            status: RUN_STATUSES.STOPPED,
+            stoppedAt: restartedAt,
+            metadata: {
+                ...(previousRun.metadata || {}),
+                supersededAt: restartedAt,
+                supersededReason: updates.reason || "run-restarted",
+            },
         });
-        return nextRun;
+
+        return this.startRun({
+            mode: previousRun.mode,
+            strategy: previousRun.strategy,
+            status: updates.status || RUN_STATUSES.ACTIVE,
+            selectionId: previousRun.selectionId,
+            shadowOfRunId: previousRun.shadowOfRunId,
+            parentRunId: previousRun.runId,
+            configSnapshot: previousRun.configSnapshot,
+            configHash: previousRun.configHash,
+            startedAt: restartedAt,
+            metadata: {
+                ...(previousRun.metadata || {}),
+                ...(updates.metadata || {}),
+                restartedFromRunId: previousRun.runId,
+                evidencePreserved: true,
+            },
+        });
     }
 
     setManagedInstruments(runId, instruments = []) {
@@ -720,30 +759,10 @@ class RuntimeCoordinator extends EventEmitter {
     }
 
     updateConfig(newConfig = {}) {
-        for (const session of this.runSessions.values()) {
-            if (
-                session.run.mode === RUNTIME_MODES.LIVE &&
-                session.run.status === RUN_STATUSES.ACTIVE
-            ) {
-                session.generator.updateConfig(newConfig);
-                session.run.configSnapshot = {
-                    ...session.run.configSnapshot,
-                    ...newConfig,
-                };
-                session.run.configHash = computeConfigHash(session.run.configSnapshot);
-            }
-
-            if (session.run.mode === RUNTIME_MODES.PAPER_SHADOW) {
-                session.generator.updateConfig(newConfig);
-                session.run.configSnapshot = {
-                    ...session.run.configSnapshot,
-                    ...newConfig,
-                };
-                session.run.configHash = computeConfigHash(session.run.configSnapshot);
-            }
-        }
-
+        // Active experiment snapshots are immutable. Global configuration
+        // changes apply to future candidate/promotion runs only.
         this.syncDataServiceTimeframes();
+        return newConfig;
     }
 
     async selectLiveStrategy({
@@ -755,10 +774,26 @@ class RuntimeCoordinator extends EventEmitter {
         metadata = {},
     } = {}) {
         const activeLiveSession = this.getActiveLiveSession();
-        const nextConfig = {
+        const isBootstrap = initiatedBy === "runtime-bootstrap";
+        if (
+            !isBootstrap &&
+            (metadata?.promotionGate?.passed !== true ||
+                metadata?.promotionGate?.gateVersion !== 2)
+        ) {
+            const error = new Error(
+                "Live selections can only be created by a passing candidate promotion"
+            );
+            error.code = "CANDIDATE_PROMOTION_REQUIRED";
+            throw error;
+        }
+
+        const requestedConfig = {
             ...(configSnapshot || this.configService?.get?.() || {}),
             strategy: strategyKey || activeLiveSession?.run.strategy || "supertrend_momentum",
         };
+        const nextConfig = materializeStrategyConfig(requestedConfig, {
+            strategyKey: requestedConfig.strategy,
+        });
         const nextSelectionId = selectionId || `selection_${uuidv4()}`;
         const nextConfigHash = computeConfigHash(nextConfig);
 
@@ -923,17 +958,13 @@ class RuntimeCoordinator extends EventEmitter {
         const liveSelection = await this.ensureLiveSelectionInitialized();
         const activeLiveSession = this.getActiveLiveSession();
         const baseConfig =
-            configSnapshot ||
             activeLiveSession?.run.configSnapshot ||
             this.configService?.get?.() ||
             {};
-        const baseNextConfig = {
-            ...baseConfig,
-            ...(strategyDefinition.metadata?.sourceSignalAggregation === true
-                ? strategyDefinition.metadata?.defaultConfig || {}
-                : {}),
-            strategy: strategyKey,
-        };
+        const baseNextConfig = materializeStrategyConfig(configSnapshot || {}, {
+            baseConfig,
+            strategyKey,
+        });
         const { config: nextConfig, preset } = applyCandidatePreset(
             baseNextConfig,
             presetKey
@@ -941,6 +972,10 @@ class RuntimeCoordinator extends EventEmitter {
         if (presetKey && !preset) {
             throw new Error(`Unknown candidate preset: ${presetKey}`);
         }
+        const candidateConfig = materializeStrategyConfig(nextConfig, {
+            strategyKey,
+        });
+        const candidateConfigHash = computeConfigHash(candidateConfig);
 
         return this.startRun({
             mode: RUNTIME_MODES.PAPER_CANDIDATE,
@@ -948,8 +983,8 @@ class RuntimeCoordinator extends EventEmitter {
             status: RUN_STATUSES.ACTIVE,
             selectionId:
                 activeLiveSession?.run.selectionId || liveSelection?.selectionId || null,
-            configSnapshot: nextConfig,
-            configHash: computeConfigHash(nextConfig),
+            configSnapshot: candidateConfig,
+            configHash: candidateConfigHash,
             metadata: {
                 entryEnabled: false,
                 initiatedBy,
@@ -957,6 +992,15 @@ class RuntimeCoordinator extends EventEmitter {
                 candidatePreset: preset?.key || null,
                 candidatePresetLabel: preset?.label || null,
                 ...metadata,
+                executionParity: {
+                    passed: true,
+                    configHash: candidateConfigHash,
+                    executionPolicyVersion:
+                        candidateConfig.executionPolicyVersion,
+                    pricingModelVersion: candidateConfig.pricingModelVersion,
+                    verifiedBy: "shared-execution-policy-contract",
+                    verifiedAt: Date.now(),
+                },
             },
         });
     }
@@ -979,7 +1023,9 @@ class RuntimeCoordinator extends EventEmitter {
             status: run.status,
             selectionId: run.selectionId || null,
             shadowOfRunId: run.shadowOfRunId || null,
+            parentRunId: run.parentRunId || null,
             configHash: run.configHash || null,
+            configSnapshot: run.configSnapshot || null,
             startedAt: run.startedAt,
             stoppedAt: run.stoppedAt ?? null,
             metadata: run.metadata || {},

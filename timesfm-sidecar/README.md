@@ -84,9 +84,10 @@ The request must include `X-TimesFM-Key`.
 
 - Default preprocessing is raw prices with TimesFM's upstream normalization path
 - `log_returns` is supported as an experiment, but is not the production default
-- Upstream TimesFM 2.5 returns first-step quantiles as `[mean, q10, q20, ...,
-  q90]`; the sidecar keeps that raw array in `quantiles_h1`, but derives
-  volatility spread from q10/q90 and uses only the q10-q90 fan for confidence
+- Upstream TimesFM 2.5 returns each step's quantiles as `[mean, q10, q20, ...,
+  q90]`. The response exposes both `quantiles_h1` and `quantiles_terminal`;
+  direction, confidence, and volatility dispersion all use the declared
+  terminal `confidence_horizon` rather than mixing H1 uncertainty with H12 return.
 - The service first tries `torch_compile=true` and falls back to `false` if the
   Mac runtime rejects it
 - Upstream XReg covariates and LoRA fine-tuning examples are available, but are

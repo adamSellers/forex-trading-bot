@@ -33,6 +33,9 @@ class FakeService:
             volatility_regime = "NORMAL"
             quantile_spread_bps = 18.2
             quantiles_h1 = [1.0815, 1.0825]
+            quantiles_terminal = [1.081, 1.085]
+            confidence_horizon = 12
+            terminal_point_forecast = 1.083
             model = "google/timesfm-2.5-200m-pytorch"
             device = "mps"
 
@@ -62,3 +65,5 @@ def test_forecast_endpoint_requires_payload():
     body = response.json()
     assert body["forecast_direction"] == "BULLISH"
     assert body["quantile_spread_bps"] == 18.2
+    assert body["confidence_horizon"] == 12
+    assert body["quantiles_terminal"] == [1.081, 1.085]

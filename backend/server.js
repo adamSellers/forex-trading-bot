@@ -6,6 +6,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const { createCorsOptions } = require("./src/middleware/corsPolicy");
 const logger = require("./src/utils/logger");
 const { db } = require("./config/database");
 const tradingRoutes = require("./src/routes/tradingRoutes");
@@ -27,21 +28,14 @@ const TimesFmSignalService = require("./src/services/timesFmSignalService");
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3101;
+const corsOptions = createCorsOptions(process.env);
 
 // Increase max listeners to prevent warning during shutdown
 server.setMaxListeners(20);
 
 // Initialize Socket.IO with CORS for frontend
 const io = new Server(server, {
-    cors: {
-        origin: [
-            "http://localhost:3100",
-            "http://localhost:3101", // Same-origin in production
-            "http://localhost:5173", // Vite dev port
-        ],
-        methods: ["GET", "POST"],
-        credentials: true,
-    },
+    cors: corsOptions,
     transports: ["websocket", "polling"],
 });
 
@@ -158,7 +152,7 @@ app.locals.timesFmSignalService = timesFmSignalService;
 app.locals.io = io;
 
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Request logging (skip health checks)

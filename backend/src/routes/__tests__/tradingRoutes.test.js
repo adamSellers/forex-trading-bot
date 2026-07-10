@@ -1,4 +1,7 @@
 const tradingRoutes = require("../tradingRoutes");
+const express = require("express");
+const request = require("supertest");
+const { computeConfigHash } = require("../../config/tradingConfig");
 const {
     RUNTIME_MODES,
     RUN_STATUSES,
@@ -61,6 +64,8 @@ function createRouteContext(session) {
         })),
     };
     const paperTradingRuntime = {
+        closeOpenTradesForRun: jest.fn(async () => []),
+        ensureRunSnapshot: jest.fn(async () => null),
         resetRun: jest.fn(async (runId) => {
             session.run = {
                 ...session.run,
@@ -85,6 +90,22 @@ function createRouteContext(session) {
         })),
         enrichRuns: jest.fn(async (runs) => runs),
     };
+    runtimeCoordinator.resetRun = jest.fn(async (runId, updates = {}) => {
+        const previousRun = session.run;
+        session.run = {
+            ...previousRun,
+            runId: `${runId}-successor`,
+            parentRunId: runId,
+            startedAt: updates.startedAt || 1710001234567,
+            metadata: {
+                ...previousRun.metadata,
+                ...(updates.metadata || {}),
+                restartedFromRunId: runId,
+                evidencePreserved: true,
+            },
+        };
+        return session.run;
+    });
     const strategyRunRepository = {
         list: jest.fn(async () => []),
     };
@@ -133,6 +154,7 @@ function createClosedPaperTrade(overrides = {}) {
         strategy: "timesfm_directional",
         ownerRunId: "run-paper_candidate",
         isOpen: false,
+        configHash: "candidate-config",
         brokerReconciliationPayload: {
             paperRuntime: {
                 initialStopDistance: 0.002,
@@ -142,15 +164,83 @@ function createClosedPaperTrade(overrides = {}) {
     };
 }
 
-function createPromoteRouteContext({ trades }) {
+function createPromotionTrades(count = 120, options = {}) {
+    const now = Date.now();
+    const nowDate = new Date(now);
+    const todayUtc = Date.UTC(
+        nowDate.getUTCFullYear(),
+        nowDate.getUTCMonth(),
+        nowDate.getUTCDate()
+    );
+    return Array.from({ length: count }, (_, index) => {
+        const winning = index % 4 !== 0;
+        const london = index % 2 === 0;
+        const dayOffset = index % 40;
+        return createClosedPaperTrade({
+            id: `${options.prefix || "candidate"}-${index}`,
+            instrument: london ? "EUR_USD" : "GBP_USD",
+            pnlAud:
+                options.pnlAud === undefined
+                    ? winning
+                        ? 2
+                        : -1
+                    : options.pnlAud,
+            pnlPips:
+                options.pnlPips === undefined
+                    ? winning
+                        ? 10
+                        : -5
+                    : options.pnlPips,
+            entryTime:
+                todayUtc - (40 - dayOffset) * 86400000 +
+                (london ? 8 : 13) * 3600000,
+            exitTime:
+                todayUtc - (40 - dayOffset) * 86400000 +
+                (london ? 9 : 14) * 3600000,
+            configHash: options.configHash || "candidate-config",
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    volatilityRegime: index % 3 === 0 ? "high" : "normal",
+                    commissionStatus: "MODELED",
+                    spreadStatus: "MODELED",
+                    slippageStatus: "MODELED",
+                    financingMode: "NOT_APPLICABLE",
+                    financingStatus: "NO_ROLLOVER",
+                    costModelVersion: 1,
+                },
+            },
+        });
+    });
+}
+
+function createPromoteRouteContext({
+    trades,
+    shadowTrades = createPromotionTrades(80, {
+        prefix: "shadow",
+        pnlAud: 0.1,
+        pnlPips: 1,
+        configHash: "shadow-config",
+    }),
+}) {
     const session = createSession(RUNTIME_MODES.PAPER_CANDIDATE);
     session.run = {
         ...session.run,
         strategy: "timesfm_directional",
+        configHash: "candidate-config",
+        startedAt: Date.now() - 40 * 86400000,
         configSnapshot: {
             strategy: "timesfm_directional",
             enableShorting: false,
-            assets: ["EUR_USD"],
+            assets: ["EUR_USD", "GBP_USD"],
+            paperStartingBalanceAud: 10000,
+            executionPolicyVersion: "unified-execution-v1",
+        },
+        metadata: {
+            executionParity: {
+                passed: true,
+                configHash: "candidate-config",
+                executionPolicyVersion: "unified-execution-v1",
+            },
         },
     };
 
@@ -188,6 +278,16 @@ function createPromoteRouteContext({ trades }) {
         },
     }));
     runtimeCoordinator.updateRun = jest.fn(async (_runId, updates) => updates);
+    runtimeCoordinator.getLiveSelection = jest.fn(() => ({
+        selectionId: "selection-1",
+        liveRun: { runId: "run-live", strategy: "supertrend_momentum" },
+        shadowRun: {
+            runId: "run-shadow",
+            mode: RUNTIME_MODES.PAPER_SHADOW,
+            startedAt: Date.now() - 40 * 86400000,
+            configHash: "shadow-config",
+        },
+    }));
 
     req.body = {};
     req.app.locals = {
@@ -196,7 +296,11 @@ function createPromoteRouteContext({ trades }) {
         tradingEngine,
         dataService: {},
         tradeRepository: {
-            getTradesSince: jest.fn(async () => trades),
+            getTradesSince: jest.fn(async (_cutoff, filters = {}) =>
+                filters.mode === RUNTIME_MODES.PAPER_SHADOW
+                    ? shadowTrades
+                    : trades
+            ),
         },
         signalRepository: {
             getSignalsSince: jest.fn(async () => []),
@@ -219,27 +323,35 @@ function createPromoteRouteContext({ trades }) {
 describe("tradingRoutes runtime run reset", () => {
     test("allows the active shadow baseline to be reset manually", async () => {
         const session = createSession(RUNTIME_MODES.PAPER_SHADOW);
-        const { req, res, paperTradingRuntime } = createRouteContext(session);
+        const { req, res, paperTradingRuntime, runtimeCoordinator } =
+            createRouteContext(session);
 
         await resetHandler(req, res);
 
-        expect(paperTradingRuntime.resetRun).toHaveBeenCalledWith(
-            session.run.runId
+        expect(paperTradingRuntime.resetRun).not.toHaveBeenCalled();
+        expect(runtimeCoordinator.resetRun).toHaveBeenCalledWith(
+            "run-paper_shadow",
+            expect.objectContaining({ reason: "manual-paper-restart" })
         );
         expect(res.status).not.toHaveBeenCalled();
         expect(res.body).toEqual(
             expect.objectContaining({
                 success: true,
-                message: "Shadow baseline reset",
+                message:
+                    "Fresh shadow baseline run started; prior evidence was preserved",
+                previousRunId: "run-paper_shadow",
+                newRunId: "run-paper_shadow-successor",
+                evidencePreserved: true,
             })
         );
         expect(res.body.run).toEqual(
             expect.objectContaining({
-                runId: session.run.runId,
+                runId: "run-paper_shadow-successor",
                 mode: RUNTIME_MODES.PAPER_SHADOW,
-                startedAt: 1710001234567,
+                parentRunId: "run-paper_shadow",
                 metadata: expect.objectContaining({
-                    lastResetAt: 1710001234567,
+                    restartReason: "manual-paper-restart",
+                    evidencePreserved: true,
                 }),
             })
         );
@@ -247,23 +359,25 @@ describe("tradingRoutes runtime run reset", () => {
 
     test("keeps candidate paper run reset behavior", async () => {
         const session = createSession(RUNTIME_MODES.PAPER_CANDIDATE);
-        const { req, res, paperTradingRuntime } = createRouteContext(session);
+        const { req, res, paperTradingRuntime, runtimeCoordinator } =
+            createRouteContext(session);
 
         await resetHandler(req, res);
 
-        expect(paperTradingRuntime.resetRun).toHaveBeenCalledWith(
-            session.run.runId
-        );
+        expect(paperTradingRuntime.resetRun).not.toHaveBeenCalled();
+        expect(runtimeCoordinator.resetRun).toHaveBeenCalled();
         expect(res.status).not.toHaveBeenCalled();
         expect(res.body).toEqual(
             expect.objectContaining({
                 success: true,
-                message: "Candidate paper run reset",
+                message:
+                    "Fresh candidate paper run started; prior evidence was preserved",
+                evidencePreserved: true,
             })
         );
         expect(res.body.run).toEqual(
             expect.objectContaining({
-                runId: session.run.runId,
+                runId: "run-paper_candidate-successor",
                 mode: RUNTIME_MODES.PAPER_CANDIDATE,
             })
         );
@@ -271,11 +385,11 @@ describe("tradingRoutes runtime run reset", () => {
 
     test("rejects live run manual resets", async () => {
         const session = createSession(RUNTIME_MODES.LIVE);
-        const { req, res, paperTradingRuntime } = createRouteContext(session);
+        const { req, res, runtimeCoordinator } = createRouteContext(session);
 
         await resetHandler(req, res);
 
-        expect(paperTradingRuntime.resetRun).not.toHaveBeenCalled();
+        expect(runtimeCoordinator.resetRun).not.toHaveBeenCalled();
         expect(res.status).toHaveBeenCalledWith(400);
         expect(res.body).toEqual({
             error: "Only shadow baseline and candidate paper runs can be reset manually",
@@ -285,13 +399,7 @@ describe("tradingRoutes runtime run reset", () => {
 
 describe("tradingRoutes runtime run promotion gate", () => {
     test("blocks promotion before live side effects when the gate fails", async () => {
-        const trades = Array.from({ length: 49 }, (_, index) =>
-            createClosedPaperTrade({
-                id: `trade-${index}`,
-                pnlAud: 1,
-                pnlPips: 10,
-            })
-        );
+        const trades = createPromotionTrades(99);
         const { req, res, runtimeCoordinator, tradingEngine } =
             createPromoteRouteContext({ trades });
 
@@ -316,13 +424,7 @@ describe("tradingRoutes runtime run promotion gate", () => {
     });
 
     test("records the passing gate when a candidate is promoted", async () => {
-        const trades = Array.from({ length: 60 }, (_, index) =>
-            createClosedPaperTrade({
-                id: `trade-${index}`,
-                pnlAud: 1,
-                pnlPips: 10,
-            })
-        );
+        const trades = createPromotionTrades(120);
         const { req, res, runtimeCoordinator, tradingEngine, configService } =
             createPromoteRouteContext({ trades });
 
@@ -362,6 +464,10 @@ describe("tradingRoutes runtime run promotion gate", () => {
                             riskPerTrade: 0.005,
                             maxCapitalAtRisk: 50,
                             maxPortfolioExposure: 0.1,
+                            maxAggregateStopRiskPctNav: 0.01,
+                            maxDailyLossPctNav: 0.02,
+                            maxDrawdownPctNav: 0.08,
+                            maxConsecutiveLosses: 3,
                         }),
                     }),
                 }),
@@ -376,6 +482,9 @@ describe("tradingRoutes runtime run promotion gate", () => {
                 riskPerTrade: 0.005,
                 maxCapitalAtRisk: 50,
                 maxPortfolioExposure: 0.1,
+                portfolioRiskEnforcement: true,
+                referenceCurrency: "AUD",
+                accountCurrency: "AUD",
                 liveActivationPhase: "phase4_controlled",
             })
         );
@@ -383,8 +492,8 @@ describe("tradingRoutes runtime run promotion gate", () => {
             expect.objectContaining({
                 status: "PASS",
                 summary: expect.objectContaining({
-                    closedTrades: 60,
-                    netExpectancyPips: 10,
+                    closedTrades: 120,
+                    netExpectancyPips: 6.25,
                 }),
             })
         );
@@ -407,30 +516,34 @@ describe("tradingRoutes paper runtime reset", () => {
         expect(paperTradingRuntime.resetAllPaper).not.toHaveBeenCalled();
     });
 
-    test("resets all paper state and returns refreshed runtime runs", async () => {
+    test("starts fresh paper runs without deleting prior evidence", async () => {
         const session = createSession(RUNTIME_MODES.PAPER_SHADOW);
-        const { req, res, paperTradingRuntime } = createRouteContext(session);
+        const { req, res, paperTradingRuntime, runtimeCoordinator } =
+            createRouteContext(session);
         req.body = {
             confirm: "RESET_PAPER",
         };
 
         await paperResetHandler(req, res);
 
-        expect(paperTradingRuntime.resetAllPaper).toHaveBeenCalled();
+        expect(paperTradingRuntime.resetAllPaper).not.toHaveBeenCalled();
+        expect(runtimeCoordinator.resetRun).toHaveBeenCalled();
         expect(res.status).not.toHaveBeenCalled();
         expect(res.body).toEqual(
             expect.objectContaining({
                 success: true,
-                message: "All paper trading state reset",
+                message:
+                    "Fresh paper runs started; all prior evidence was preserved",
                 reset: expect.objectContaining({
-                    counts: expect.objectContaining({
-                        tradesDeleted: 4,
-                        signalsDeleted: 8,
+                    evidencePreserved: true,
+                    deletedCounts: expect.objectContaining({
+                        trades: 0,
+                        signals: 0,
                     }),
                 }),
                 runs: expect.arrayContaining([
                     expect.objectContaining({
-                        runId: session.run.runId,
+                        runId: "run-paper_shadow-successor",
                         mode: RUNTIME_MODES.PAPER_SHADOW,
                     }),
                 ]),
@@ -440,16 +553,27 @@ describe("tradingRoutes paper runtime reset", () => {
 });
 
 describe("tradingRoutes controlled live start", () => {
+    const controlledConfig = () => ({
+        referenceCurrency: "AUD",
+        accountCurrency: "AUD",
+        portfolioRiskEnforcement: true,
+        maxOpenPositions: 1,
+        riskPerTrade: 0.005,
+        maxCapitalAtRisk: 50,
+        maxPortfolioExposure: 0.1,
+        maxAggregateStopRiskPctNav: 0.01,
+        maxNetCurrencyExposurePctNav: 2,
+        maxCorrelatedExposurePctNav: 2,
+        maxDailyLossPctNav: 0.02,
+        maxDrawdownPctNav: 0.08,
+        maxConsecutiveLosses: 3,
+    });
+
     test("blocks live start without gate-passing promotion evidence", async () => {
         const session = createSession(RUNTIME_MODES.LIVE);
         const { req, res } = createRouteContext(session);
         const configService = {
-            get: jest.fn(() => ({
-                maxOpenPositions: 1,
-                riskPerTrade: 0.005,
-                maxCapitalAtRisk: 50,
-                maxPortfolioExposure: 0.1,
-            })),
+            get: jest.fn(controlledConfig),
             update: jest.fn(),
         };
         req.app.locals.configService = configService;
@@ -473,16 +597,11 @@ describe("tradingRoutes controlled live start", () => {
         expect(configService.update).not.toHaveBeenCalled();
     });
 
-    test("allows a dashboard manual override when live readiness fails", async () => {
+    test("ignores dashboard override fields and remains fail-closed", async () => {
         const session = createSession(RUNTIME_MODES.LIVE);
         const { req, res } = createRouteContext(session);
         const configService = {
-            get: jest.fn(() => ({
-                maxOpenPositions: 1,
-                riskPerTrade: 0.005,
-                maxCapitalAtRisk: 50,
-                maxPortfolioExposure: 0.1,
-            })),
+            get: jest.fn(controlledConfig),
             update: jest.fn(),
         };
         req.body = {
@@ -493,16 +612,11 @@ describe("tradingRoutes controlled live start", () => {
 
         await startHandler(req, res);
 
-        expect(res.status).not.toHaveBeenCalled();
-        expect(configService.update).toHaveBeenCalledWith({
-            enableTrading: true,
-        });
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(configService.update).not.toHaveBeenCalled();
         expect(res.body).toEqual(
             expect.objectContaining({
-                success: true,
-                manualOverride: true,
-                warning:
-                    "Live entries enabled by manual dashboard override despite readiness failure",
+                error: "Controlled live readiness failed",
                 liveReadiness: expect.objectContaining({
                     status: "FAIL",
                 }),
@@ -512,24 +626,29 @@ describe("tradingRoutes controlled live start", () => {
 
     test("allows live start only when promotion evidence and risk caps pass", async () => {
         const session = createSession(RUNTIME_MODES.LIVE);
+        const config = controlledConfig();
+        const liveConfigHash = computeConfigHash(config);
         session.run = {
             ...session.run,
             strategy: "timesfm_directional",
+            configHash: liveConfigHash,
             metadata: {
+                promotedFromRunId: "candidate-1",
                 promotionGate: {
                     passed: true,
                     status: "PASS",
+                    gateVersion: 2,
+                    configHash: "candidate-config",
+                },
+                phase4ControlledLive: {
+                    sourceConfigHash: "candidate-config",
+                    liveConfigHash,
                 },
             },
         };
         const { req, res } = createRouteContext(session);
         const configService = {
-            get: jest.fn(() => ({
-                maxOpenPositions: 1,
-                riskPerTrade: 0.005,
-                maxCapitalAtRisk: 50,
-                maxPortfolioExposure: 0.1,
-            })),
+            get: jest.fn(() => config),
             update: jest.fn(),
         };
         req.app.locals.configService = configService;
@@ -537,9 +656,10 @@ describe("tradingRoutes controlled live start", () => {
         await startHandler(req, res);
 
         expect(res.status).not.toHaveBeenCalled();
-        expect(configService.update).toHaveBeenCalledWith({
-            enableTrading: true,
-        });
+        expect(configService.update).toHaveBeenCalledWith(
+            { enableTrading: true },
+            { allowLiveActivation: true }
+        );
         expect(res.body).toEqual(
             expect.objectContaining({
                 success: true,
@@ -548,5 +668,42 @@ describe("tradingRoutes controlled live start", () => {
                 }),
             })
         );
+    });
+});
+
+describe("tradingRoutes control authentication", () => {
+    const originalToken = process.env.CONTROL_API_ADMIN_TOKEN;
+
+    afterEach(() => {
+        if (originalToken === undefined) {
+            delete process.env.CONTROL_API_ADMIN_TOKEN;
+        } else {
+            process.env.CONTROL_API_ADMIN_TOKEN = originalToken;
+        }
+    });
+
+    test("protects mutations while leaving health reads public", async () => {
+        const token = "route-test-admin-token-with-32-characters";
+        process.env.CONTROL_API_ADMIN_TOKEN = token;
+        const app = express();
+        app.use(express.json());
+        app.locals.configService = {
+            get: jest.fn(() => ({ enableTrading: false })),
+            update: jest.fn(() => ({ enableTrading: false })),
+        };
+        app.use("/api", tradingRoutes);
+
+        await request(app).get("/api/health").expect(200);
+        const unauthorized = await request(app).post("/api/trading/stop");
+        expect(unauthorized.status).toBe(401);
+        expect(unauthorized.body.code).toBe("CONTROL_AUTH_REQUIRED");
+
+        await request(app)
+            .post("/api/trading/stop")
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+        expect(app.locals.configService.update).toHaveBeenCalledWith({
+            enableTrading: false,
+        });
     });
 });

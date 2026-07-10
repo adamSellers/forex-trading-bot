@@ -39,7 +39,7 @@ Older bot instances, if still present on the same host, should stay on separate 
 
 | Script             | Purpose                                     |
 | ------------------ | ------------------------------------------- |
-| `setup-secrets.sh` | Encrypt Oanda credentials plus optional email, S3, and TimesFM settings |
+| `setup-secrets.sh` | Encrypt Oanda credentials, the control token, and optional email, S3, and TimesFM settings |
 | `start-wrapper.sh` | Decrypt and inject secrets (PM2 calls this) |
 
 ---
@@ -60,11 +60,11 @@ chmod +x first_time_setup.sh
 This will:
 
 1. Clone the repository to `/opt/forex-trading-bot`
-2. Install dependencies (backend + frontend)
+2. Install the pinned Node 22 dependencies from lockfiles and run the backend tests
 3. Build the frontend
 4. Run database migrations
-5. Prompt for encrypted secrets: Oanda is required; email, S3, and TimesFM are optional
-6. Start the service via PM2
+5. Prompt for encrypted secrets: Oanda and the generated control token are required; email, S3, and TimesFM are optional
+6. Start the service via PM2 with live trading paused
 
 ---
 
@@ -83,6 +83,17 @@ For quick updates (the script only rebuilds the frontend when frontend files or 
 cd /opt/forex-trading-bot
 ./scripts/update.sh
 ```
+
+Pause live trading before running either command. Both scripts refuse a live
+rollout, preserve tracked local work, create a verified backup, fast-forward the
+Git branch, install from lockfiles, run tests/builds before cutover, migrate, and
+require the comprehensive health check to pass. Every backend process start also
+forces live trading back to paused; enabling it is a separate authenticated
+operator action after post-deploy checks.
+
+The supported production runtime is pinned by `.nvmrc` to Node 22.16.0. Install
+that version under nvm before first setup; the scripts reject unsupported or
+wrong-architecture Node binaries.
 
 Both `deploy.sh` and `update.sh` run `npm run db:migrate` before restarting services.
 The current March 2026 migration set includes the shared-runtime identity columns
@@ -108,17 +119,19 @@ Follow the Phase 6 packet order exactly:
 5. Use `update.sh` only for follow-up pushes once the shared-runtime rollout is already established
 6. Run the runtime QA and monitoring checklist in [`PHASE6_ROLLOUT_CHECKLIST.md`](./PHASE6_ROLLOUT_CHECKLIST.md)
 
-### Runtime-Only Comparison Workflow
+### Replay and Runtime Comparison Workflow
 
-After Phase 5, the supported comparison path is:
+The production strategy stack now has two complementary validation paths:
 
-1. Open the `Paper` view to inspect the active shadow baseline and any candidate runs
-2. Open the `Analytics` view and filter by `mode`, `strategy`, `runId`, or `selectionId`
-3. Use the runtime endpoints under `/api/runtime/*` plus `/api/analytics`
-4. Promote a live-capable candidate only through `POST /api/runtime/runs/:runId/promote` after reviewing its paper run
+1. Run deterministic, chronology-safe historical replay with `cd backend && npm run replay -- --help`
+2. Use purged walk-forward validation and the append-only experiment registry for research decisions
+3. Open the `Paper` view to inspect the active shadow baseline and candidate runs under current market data
+4. Open `Analytics` and filter by `mode`, `strategy`, `runId`, or `selectionId`; all monetary results use AUD as the reporting currency
+5. Promote only through `POST /api/runtime/runs/:runId/promote` after the sample-size, confidence-bound, drawdown, cost, concentration, shadow-match, and parity gates pass
 
-Legacy `/api/backtest` routes and offline backtest CLI workflows are no longer part
-of the supported operator workflow.
+The legacy `/api/backtest` routes remain retired. The replay CLI uses the shared
+execution, sizing, exit, cost, and strict AUD-conversion policies instead of the
+old backtest implementation.
 
 ---
 
@@ -149,6 +162,10 @@ pm2 status
 ./scripts/backup.sh --cold # Cold backup (stops service)
 ```
 
+Backups default to `$HOME/forex-trading-bot-backups`, retain the newest five
+sets (override with `FOREX_BACKUP_DIR` and `FOREX_BACKUP_RETENTION`), exclude
+credentials and keys, and verify both the compressed archive and SQLite snapshot.
+
 ### Restore from Backup
 
 ```bash
@@ -178,6 +195,7 @@ Credentials are stored encrypted in:
 
 -   `/opt/forex-trading-bot/.secrets/oanda_api_key.enc`
 -   `/opt/forex-trading-bot/.secrets/oanda_account_id.enc`
+-   `/opt/forex-trading-bot/.secrets/control_api_token.enc`
 
 To update credentials:
 
@@ -185,6 +203,12 @@ To update credentials:
 ./scripts/setup-secrets.sh
 pm2 restart forex-backend
 ```
+
+`setup-secrets.sh` prints a newly generated 256-bit control token once. Store it
+in a password manager and enter it in the dashboard's Control Access dialog. The
+browser keeps it in session storage and sends it only on mutable control calls.
+Production fails closed if control authentication is not configured, while
+read-only health and analytics endpoints remain available to monitoring.
 
 ---
 

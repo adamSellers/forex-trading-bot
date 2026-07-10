@@ -394,7 +394,7 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
-### Update 2026-07-06 — Why live placed ZERO trades since 2026-06-09: HTF filter fails closed with a null dataService (LOCAL FIX DONE; user commit + deploy pending)
+### Update 2026-07-06 — Why live placed ZERO trades since 2026-06-09: HTF filter fails closed with a null dataService (DEPLOYED + VERIFIED)
 
 Diagnosis (read-only Pi SSH): engine running, `enableTrading:true`, Oanda + TimesFM healthy, live run
 `live_7b62da29…` (`supertrend_momentum`) active — but **0 trades since 2026-06-01** (last trade was the
@@ -429,16 +429,22 @@ Neither is promotable under the Phase 3 gate. The restricted supertrend_momentum
 forward evidence yet because of this bug; fixing it is how we finally collect it. Do NOT loosen
 filters (ADX 21, long-only, HTF confirm) in response to the silence — the silence was the bug.
 
-Pending user actions:
-1. Commit + push: `backend/src/runtime/runtimeCoordinator.js`,
-   `backend/src/runtime/__tests__/runtimeCoordinator.test.js`, `CLAUDE.md`.
-2. Deploy on Pi: `./scripts/update.sh` (restarts backend; live selection/config are untouched).
-3. Verify within ~1h via read-only SSH: new signals' `decision_context` should show
-   `"reason":"HTF 1h uptrend"` or `"HTF 1h downtrend"` instead of `"HTF 1h unavailable"`.
-4. Then forward-monitor: shadow + live both resume; review cohort expectancy after ~20–30 closed
-   trades via `/api/analytics?mode=live&runId=live_7b62da29-7325-4819-8df8-15466282a78d&strategy=supertrend_momentum&period=all`.
+DEPLOYED + VERIFIED 2026-07-05 ~22:32 UTC (read-only SSH): Pi is on `3fe4412` (both the dataService
+wiring fix `57979bb` and the granularity-union fix `3fe4412`), backend restarted cleanly, engine
+healthy with `enableTrading:true`. First post-restart signal cycle confirmed the HTF filter now
+reads real candles: EUR_USD + GBP_USD `"HTF 1h uptrend"` with `longAllowed:true` (first time in the
+entire run), USD_JPY `"HTF 1h downtrend"`, and ZERO `"HTF 1h unavailable"` since restart.
 
-Known latent gap — FIXED 2026-07-06 on branch `claude/elated-khorana-d72006` (commit/deploy pending):
+Remaining follow-up (forward monitoring only):
+- Shadow + live both resume entry evaluation; entries still require the full funnel (long-only,
+  London/NY session, ADX ≥ 21 rising, RSI floor, continuation setup + HTF uptrend), so expect
+  roughly ~1 qualifying setup/day reaching the HTF stage — first trades may take days.
+- Review cohort expectancy after ~20–30 closed trades via
+  `/api/analytics?mode=live&runId=live_7b62da29-7325-4819-8df8-15466282a78d&strategy=supertrend_momentum&period=all`.
+- Do NOT loosen filters in response to slow cadence; judge the posture on realized expectancy.
+
+Known latent gap — FIXED 2026-07-06 on branch `claude/elated-khorana-d72006`, now merged as
+`3fe4412` and DEPLOYED to the Pi (verified in Pi git log):
 `OandaDataService.getRequiredGranularities` only honored the GLOBAL config's
 `enableHTFFilter`/`htfTimeframe`, so a candidate run enabling HTF (or a different HTF timeframe)
 while the global config had it off would hit the same fail-closed block because its candles were

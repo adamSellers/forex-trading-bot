@@ -7,10 +7,13 @@ const DEFAULT_MEAN_REVERSION_CONFIG = Object.freeze({
     bbStdDev: 2.0,
     bbwMinRatio: 0.5,
     maxRegimeAdx: 25,
+    requireRegimeAdxNonRising: true,
+    regimeAdxRiseTolerance: 0.5,
     rsiOversoldEntry: 30,
     rsiOverboughtEntry: 70,
     requireFailedSweepReclaim: true,
     stopLossAtrMultiplier: 1.5,
+    minNetRewardRisk: 1.15,
     breakevenAtTpPercent: 0.5,
     timeStopHours: 8,
     activeSessions: ["london", "newyork"],
@@ -184,6 +187,16 @@ function buildFailedSweepContext({
         shortReclaimed,
         shortFailedSweep: shortSwept && shortReclaimed,
     };
+}
+
+function calculateNetRewardRisk(expectedEdge = {}) {
+    const rewardAfterCost = toFiniteNumber(expectedEdge.targetAfterCostPips, null);
+    const stopPips = toFiniteNumber(expectedEdge.grossStopPips, null);
+    const costs = Math.max(0, toFiniteNumber(expectedEdge.totalCostPips, 0));
+    if (!Number.isFinite(rewardAfterCost) || !Number.isFinite(stopPips)) {
+        return null;
+    }
+    return Math.max(0, rewardAfterCost) / Math.max(1e-9, stopPips + costs);
 }
 
 function deriveIndicatorsFromCandles(candles = []) {
@@ -373,6 +386,24 @@ async function evaluateMeanReversionEntry({
     }
 
     if (
+        resolvedConfig.requireRegimeAdxNonRising !== false &&
+        Number.isFinite(prevAdxVal) &&
+        regimeAdx >
+            prevAdxVal +
+                Math.max(
+                    0,
+                    toFiniteNumber(resolvedConfig.regimeAdxRiseTolerance, 0.5)
+                )
+    ) {
+        return buildHoldResult(evaluationContext, {
+            reason:
+                `HOLD: H1 ADX is rising ${prevAdxVal.toFixed(1)} -> ` +
+                `${regimeAdx.toFixed(1)}; range fade deferred`,
+            reasonCode: "MEAN_REVERSION_ADX_RISING_FILTERED",
+        });
+    }
+
+    if (
         bollingerContext.widthRatio <
         toFiniteNumber(resolvedConfig.bbwMinRatio, 0.5)
     ) {
@@ -443,6 +474,21 @@ async function evaluateMeanReversionEntry({
             slippagePips: resolvedConfig.expectedSlippagePips,
             minNetEdgePips: resolvedConfig.minNetEdgePips,
         });
+        const netRewardRisk = calculateNetRewardRisk(expectedEdge);
+        if (
+            !Number.isFinite(netRewardRisk) ||
+            netRewardRisk <
+                toFiniteNumber(resolvedConfig.minNetRewardRisk, 1.15)
+        ) {
+            return buildHoldResult(evaluationContext, {
+                reason: `HOLD: net reward/risk ${toFiniteNumber(
+                    netRewardRisk,
+                    0
+                ).toFixed(2)} is below the configured floor`,
+                reasonCode: "MEAN_REVERSION_NET_RR_FILTERED",
+                expectedEdge,
+            });
+        }
         return {
             signalType: "BUY",
             reason:
@@ -505,6 +551,21 @@ async function evaluateMeanReversionEntry({
             slippagePips: resolvedConfig.expectedSlippagePips,
             minNetEdgePips: resolvedConfig.minNetEdgePips,
         });
+        const netRewardRisk = calculateNetRewardRisk(expectedEdge);
+        if (
+            !Number.isFinite(netRewardRisk) ||
+            netRewardRisk <
+                toFiniteNumber(resolvedConfig.minNetRewardRisk, 1.15)
+        ) {
+            return buildHoldResult(evaluationContext, {
+                reason: `HOLD: net reward/risk ${toFiniteNumber(
+                    netRewardRisk,
+                    0
+                ).toFixed(2)} is below the configured floor`,
+                reasonCode: "MEAN_REVERSION_NET_RR_FILTERED",
+                expectedEdge,
+            });
+        }
         return {
             signalType: "SELL",
             reason:
@@ -603,5 +664,6 @@ const meanReversionStrategy = createStrategyDefinition({
 
 module.exports = Object.assign({}, meanReversionStrategy, {
     DEFAULT_MEAN_REVERSION_CONFIG,
+    calculateNetRewardRisk,
     evaluateMeanReversionEntry,
 });

@@ -3,6 +3,11 @@ const { calculateExpectedEdge } = require("./expectedEdge");
 const { createStrategyDefinition } = require("./strategyContract");
 
 const DEFAULT_RANGE_BREAKOUT_CONFIG = Object.freeze({
+    useTimezoneAwareSessions: true,
+    londonTimeZone: "Europe/London",
+    londonOpenLocalHour: 8,
+    newYorkTimeZone: "America/New_York",
+    newYorkOpenLocalHour: 8,
     londonOpenHourUTC: 7,
     nyOpenHourUTC: 12,
     rangeMinAtrRatio: 0.5,
@@ -32,6 +37,55 @@ function getTimestampMs(value) {
 
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getZonedHourMinute(timestampMs, timeZone) {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(new Date(timestampMs));
+    const read = (type) => Number(parts.find((part) => part.type === type)?.value);
+    return { hour: read("hour"), minute: read("minute") };
+}
+
+function resolveOpeningSession(timestampMs, config = {}) {
+    const timestamp = new Date(timestampMs);
+    if (config.useTimezoneAwareSessions === false) {
+        const hour = timestamp.getUTCHours();
+        const minute = timestamp.getUTCMinutes();
+        if (minute !== 0) return null;
+        if (hour === Math.max(0, toFiniteNumber(config.londonOpenHourUTC, 7))) {
+            return "London";
+        }
+        if (hour === Math.max(0, toFiniteNumber(config.nyOpenHourUTC, 12))) {
+            return "New York";
+        }
+        return null;
+    }
+
+    const london = getZonedHourMinute(
+        timestampMs,
+        config.londonTimeZone || "Europe/London"
+    );
+    if (
+        london.minute === 0 &&
+        london.hour === toFiniteNumber(config.londonOpenLocalHour, 8)
+    ) {
+        return "London";
+    }
+    const newYork = getZonedHourMinute(
+        timestampMs,
+        config.newYorkTimeZone || "America/New_York"
+    );
+    if (
+        newYork.minute === 0 &&
+        newYork.hour === toFiniteNumber(config.newYorkOpenLocalHour, 8)
+    ) {
+        return "New York";
+    }
+    return null;
 }
 
 function getPipValue(instrument, dataService = null) {
@@ -177,10 +231,6 @@ function createHoldResult(context = {}, overrides = {}) {
 
 function buildOpeningRange(candles = [], currentTimeMs, config = {}) {
     const timeframeMs = 5 * 60 * 1000;
-    const sessionStarts = new Set([
-        Math.max(0, toFiniteNumber(config.londonOpenHourUTC, 7)),
-        Math.max(0, toFiniteNumber(config.nyOpenHourUTC, 12)),
-    ]);
     const candleMap = new Map(
         candles.map((candle) => [getTimestampMs(candle.time), candle])
     );
@@ -192,11 +242,8 @@ function buildOpeningRange(candles = [], currentTimeMs, config = {}) {
                 return null;
             }
 
-            const timestamp = new Date(timestampMs);
-            if (
-                timestamp.getUTCMinutes() !== 0 ||
-                !sessionStarts.has(timestamp.getUTCHours())
-            ) {
+            const session = resolveOpeningSession(timestampMs, config);
+            if (!session) {
                 return null;
             }
 
@@ -230,11 +277,7 @@ function buildOpeningRange(candles = [], currentTimeMs, config = {}) {
             );
 
             return {
-                session:
-                    timestamp.getUTCHours() ===
-                    Math.max(0, toFiniteNumber(config.londonOpenHourUTC, 7))
-                        ? "London"
-                        : "New York",
+                session,
                 formedAt,
                 ageMs,
                 high: openingRangeHigh,
@@ -685,4 +728,6 @@ module.exports = Object.assign({}, rangeBreakoutStrategy, {
     evaluateRangeBreakoutEntry,
     buildOpeningRange,
     buildBreakoutQualityContext,
+    getZonedHourMinute,
+    resolveOpeningSession,
 });

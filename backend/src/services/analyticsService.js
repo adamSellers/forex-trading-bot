@@ -1,6 +1,10 @@
 // backend/src/services/analyticsService.js - Forex Analytics Service
 const logger = require("../utils/logger");
 const { calculateExpectedEdge } = require("../strategies/expectedEdge");
+const {
+    bootstrapMeanInterval,
+    wilsonInterval,
+} = require("../replay/replayStatistics");
 
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
@@ -72,6 +76,83 @@ function toFiniteNumber(value, fallback = 0) {
 
 function roundTo(value, decimals = 2) {
     return Number.parseFloat(toFiniteNumber(value).toFixed(decimals));
+}
+
+function calculateMaxDrawdownAud(trades = []) {
+    const ordered = [...trades].sort(
+        (left, right) =>
+            toFiniteNumber(left.exitTime || left.entryTime) -
+            toFiniteNumber(right.exitTime || right.entryTime)
+    );
+    let cumulative = 0;
+    let peak = 0;
+    let maximum = 0;
+    for (const trade of ordered) {
+        cumulative += toFiniteNumber(trade.pnlAud);
+        peak = Math.max(peak, cumulative);
+        maximum = Math.max(maximum, peak - cumulative);
+    }
+    return maximum;
+}
+
+function calculateLongestLosingStreak(trades = []) {
+    const ordered = [...trades].sort(
+        (left, right) =>
+            toFiniteNumber(left.exitTime || left.entryTime) -
+            toFiniteNumber(right.exitTime || right.entryTime)
+    );
+    let current = 0;
+    let longest = 0;
+    for (const trade of ordered) {
+        current = toFiniteNumber(trade.pnlAud) < 0 ? current + 1 : 0;
+        longest = Math.max(longest, current);
+    }
+    return longest;
+}
+
+function calculatePnlConcentration(trades = []) {
+    const byInstrument = new Map();
+    for (const trade of trades) {
+        const instrument = normalizeString(trade.instrument) || "UNKNOWN";
+        byInstrument.set(
+            instrument,
+            (byInstrument.get(instrument) || 0) + Math.abs(toFiniteNumber(trade.pnlAud))
+        );
+    }
+    const total = Array.from(byInstrument.values()).reduce(
+        (sum, value) => sum + value,
+        0
+    );
+    if (!total) return { topInstrument: null, topSharePct: 0, herfindahl: 0 };
+    const shares = Array.from(byInstrument.entries())
+        .map(([instrument, value]) => ({ instrument, share: value / total }))
+        .sort((left, right) => right.share - left.share);
+    return {
+        topInstrument: shares[0].instrument,
+        topSharePct: roundTo(shares[0].share * 100, 1),
+        herfindahl: roundTo(
+            shares.reduce((sum, row) => sum + row.share ** 2, 0),
+            4
+        ),
+    };
+}
+
+function pearsonCorrelation(left = [], right = []) {
+    if (left.length !== right.length || left.length < 3) return null;
+    const leftMean = left.reduce((sum, value) => sum + value, 0) / left.length;
+    const rightMean = right.reduce((sum, value) => sum + value, 0) / right.length;
+    let covariance = 0;
+    let leftVariance = 0;
+    let rightVariance = 0;
+    for (let index = 0; index < left.length; index += 1) {
+        const leftDelta = left[index] - leftMean;
+        const rightDelta = right[index] - rightMean;
+        covariance += leftDelta * rightDelta;
+        leftVariance += leftDelta ** 2;
+        rightVariance += rightDelta ** 2;
+    }
+    const denominator = Math.sqrt(leftVariance * rightVariance);
+    return denominator > 0 ? covariance / denominator : null;
 }
 
 function getPipValue(instrument) {
@@ -526,6 +607,22 @@ class AnalyticsService {
                 largestLossAud: 0,
                 avgHoldingTimeMs: 0,
                 sharpeRatio: 0,
+                winRate95: { lower: 0, upper: 100 },
+                expectancy95Aud: { lower: 0, upper: 0, samples: 0 },
+                maxDrawdownAud: 0,
+                longestLosingStreak: 0,
+                statisticalSampleAdequate: false,
+                referenceCurrency: "AUD",
+                costs: {
+                    financingAud: 0,
+                    commissionAud: 0,
+                    grossBeforeExplicitCostsAud: 0,
+                },
+                concentration: {
+                    topInstrument: null,
+                    topSharePct: 0,
+                    herfindahl: 0,
+                },
             };
         }
 
@@ -571,6 +668,19 @@ class AnalyticsService {
                       0
                   ) / tradesWithHoldingTime.length
                 : 0;
+        const winRateInterval = wilsonInterval(winners.length, trades.length);
+        const expectancyInterval = bootstrapMeanInterval(
+            trades.map((trade) => toFiniteNumber(trade.pnlAud)),
+            { samples: 500, seed: 0x41d5 }
+        );
+        const financingAud = trades.reduce(
+            (sum, trade) => sum + toFiniteNumber(trade.swapAud),
+            0
+        );
+        const commissionAud = trades.reduce(
+            (sum, trade) => sum + toFiniteNumber(trade.commissionAud),
+            0
+        );
 
         return {
             totalTrades: trades.length,
@@ -600,6 +710,28 @@ class AnalyticsService {
             ),
             avgHoldingTimeMs: Math.round(avgHoldingTimeMs),
             sharpeRatio: parseFloat(sharpeRatio.toFixed(2)),
+            winRate95: {
+                lower: roundTo(winRateInterval.lower * 100, 1),
+                upper: roundTo(winRateInterval.upper * 100, 1),
+            },
+            expectancy95Aud: {
+                lower: roundTo(expectancyInterval.lower, 4),
+                upper: roundTo(expectancyInterval.upper, 4),
+                samples: expectancyInterval.samples,
+            },
+            maxDrawdownAud: roundTo(calculateMaxDrawdownAud(trades), 2),
+            longestLosingStreak: calculateLongestLosingStreak(trades),
+            statisticalSampleAdequate: trades.length >= 100,
+            referenceCurrency: "AUD",
+            costs: {
+                financingAud: roundTo(financingAud, 4),
+                commissionAud: roundTo(commissionAud, 4),
+                grossBeforeExplicitCostsAud: roundTo(
+                    totalPnLAud - financingAud - commissionAud,
+                    4
+                ),
+            },
+            concentration: calculatePnlConcentration(trades),
         };
     }
 
@@ -1053,6 +1185,16 @@ class AnalyticsService {
             },
             byVolatilityRegime: {},
             unavailableReasons: {},
+            horizonAlignment: {
+                aligned: 0,
+                mismatched: 0,
+                unknown: 0,
+            },
+            calibration: {
+                matchedTrades: 0,
+                confidenceBuckets: {},
+                forecastReturnPnlCorrelation: null,
+            },
             outcomeCorrelation: {
                 totalClosedDecisions: 0,
                 profitable: 0,
@@ -1083,6 +1225,18 @@ class AnalyticsService {
                     normalizeUpper(context.volatilityRegime) || "UNKNOWN";
                 stats.byVolatilityRegime[regime] =
                     (stats.byVolatilityRegime[regime] || 0) + 1;
+                const horizon = toFiniteNumber(context.horizon, NaN);
+                const confidenceHorizon = toFiniteNumber(
+                    context.confidenceHorizon,
+                    NaN
+                );
+                if (!Number.isFinite(horizon) || !Number.isFinite(confidenceHorizon)) {
+                    stats.horizonAlignment.unknown++;
+                } else if (horizon === confidenceHorizon) {
+                    stats.horizonAlignment.aligned++;
+                } else {
+                    stats.horizonAlignment.mismatched++;
+                }
                 return;
             }
 
@@ -1110,6 +1264,8 @@ class AnalyticsService {
             }
         });
 
+        const forecastReturns = [];
+        const realizedPnl = [];
         (entryDecisions || []).forEach((decision) => {
             const context = decision?.timesFmContext || decision?.timesFm || null;
             if (context?.available !== true || !decision?.tradeId) {
@@ -1123,6 +1279,29 @@ class AnalyticsService {
             }
 
             const profitable = pnlAud > 0;
+            const confidence = Math.max(
+                0,
+                Math.min(1, toFiniteNumber(context.confidence, 0))
+            );
+            const bucketFloor = Math.min(0.8, Math.floor(confidence * 5) / 5);
+            const bucketKey = `${bucketFloor.toFixed(1)}-${(
+                bucketFloor + 0.2
+            ).toFixed(1)}`;
+            const bucket = stats.calibration.confidenceBuckets[bucketKey] || {
+                trades: 0,
+                wins: 0,
+                pnlAud: 0,
+            };
+            bucket.trades++;
+            bucket.wins += profitable ? 1 : 0;
+            bucket.pnlAud += pnlAud;
+            stats.calibration.confidenceBuckets[bucketKey] = bucket;
+            stats.calibration.matchedTrades++;
+            const forecastReturn = toFiniteNumber(context.returnBps, NaN);
+            if (Number.isFinite(forecastReturn)) {
+                forecastReturns.push(forecastReturn);
+                realizedPnl.push(pnlAud);
+            }
             stats.outcomeCorrelation.totalClosedDecisions++;
             if (profitable) {
                 stats.outcomeCorrelation.profitable++;
@@ -1148,6 +1327,21 @@ class AnalyticsService {
                 stats.outcomeCorrelation.neutralLosing++;
             }
         });
+
+        Object.values(stats.calibration.confidenceBuckets).forEach((bucket) => {
+            bucket.winRatePct = roundTo((bucket.wins / bucket.trades) * 100, 1);
+            bucket.avgPnlAud = roundTo(bucket.pnlAud / bucket.trades, 4);
+            bucket.pnlAud = roundTo(bucket.pnlAud, 4);
+        });
+        const forecastCorrelation = pearsonCorrelation(
+            forecastReturns,
+            realizedPnl
+        );
+        stats.calibration.forecastReturnPnlCorrelation = Number.isFinite(
+            forecastCorrelation
+        )
+            ? roundTo(forecastCorrelation, 4)
+            : null;
 
         return stats;
     }

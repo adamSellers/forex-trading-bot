@@ -58,6 +58,7 @@ describe("signalFollowingStrategy", () => {
             currentPrice: 1.1,
             config: {
                 counterSignalSourceStrategies: ["mean_reversion"],
+                signalFollowingMinConfirmations: 1,
             },
         });
 
@@ -116,6 +117,7 @@ describe("signalFollowingStrategy", () => {
                     "timesfm_directional",
                     "stochastic_divergence",
                 ],
+                signalFollowingMinConfirmations: 1,
             },
         });
 
@@ -152,6 +154,7 @@ describe("signalFollowingStrategy", () => {
                 counterSignalSourceStrategies: ["mean_reversion"],
                 counterSignalStopLossPips: 20,
                 counterSignalTakeProfitPips: 20,
+                signalFollowingMinConfirmations: 1,
             },
         });
 
@@ -186,6 +189,43 @@ describe("signalFollowingStrategy", () => {
                 signalType: "HOLD",
                 reasonCode: "SIGNAL_FOLLOWING_NO_SOURCE_ENTRY",
                 signalClass: "FILTERED",
+            })
+        );
+    });
+
+    test("requires consensus by default instead of taking the first signal", async () => {
+        mockStrategyEvaluations({
+            mean_reversion: {
+                signalType: "BUY",
+                signalClass: "ACTIONABLE",
+                intent: "ENTER_LONG",
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                tradePlan: { stopLossPrice: 1.098, takeProfitPrice: 1.104 },
+            },
+            stochastic_divergence: {
+                signalType: "HOLD",
+                signalClass: "FILTERED",
+                intent: "WAIT",
+            },
+        });
+
+        const result = await signalFollowingStrategy.evaluateSignalFollowingEntry({
+            instrument: "EUR_USD",
+            candles: buildCandles(),
+            currentPrice: 1.1,
+            config: {
+                counterSignalSourceStrategies: [
+                    "mean_reversion",
+                    "stochastic_divergence",
+                ],
+            },
+        });
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                signalType: "HOLD",
+                reasonCode: "SIGNAL_FOLLOWING_CONSENSUS_FILTERED",
+                signalClass: "PENDING",
             })
         );
     });

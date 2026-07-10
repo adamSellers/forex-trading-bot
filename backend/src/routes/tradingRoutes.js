@@ -10,6 +10,13 @@ const {
 } = require("../runtime/liveActivationReadiness");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
+const { createControlAuth } = require("../middleware/controlAuth");
+const { computeConfigHash } = require("../config/tradingConfig");
+
+// All state-changing control-plane requests are authenticated here so a newly
+// added POST/PUT/PATCH/DELETE route is protected by default. Read-only status
+// and health endpoints remain available to monitoring.
+router.use(createControlAuth());
 
 function isLiveSelectionReady(strategyDefinition = {}) {
     return (
@@ -28,8 +35,37 @@ const analyticsResponseCache = new Map();
 
 function getManualResetMessage(mode) {
     return mode === RUNTIME_MODES.PAPER_SHADOW
-        ? "Shadow baseline reset"
-        : "Candidate paper run reset";
+        ? "Fresh shadow baseline run started; prior evidence was preserved"
+        : "Fresh candidate paper run started; prior evidence was preserved";
+}
+
+async function restartPaperRunPreservingEvidence({
+    runtimeCoordinator,
+    paperTradingRuntime,
+    session,
+    restartedAt = Date.now(),
+    reason = "manual-restart",
+} = {}) {
+    const previousRun = session?.run;
+    if (!previousRun) return null;
+
+    await paperTradingRuntime.closeOpenTradesForRun?.(
+        previousRun.runId,
+        previousRun.mode,
+        "RUN_RESTARTED"
+    );
+    await paperTradingRuntime.ensureRunSnapshot?.(previousRun.runId);
+    const nextRun = await runtimeCoordinator.resetRun(previousRun.runId, {
+        startedAt: restartedAt,
+        reason,
+        metadata: {
+            ...(previousRun.metadata || {}),
+            restartedAt,
+            restartReason: reason,
+        },
+    });
+    await paperTradingRuntime.ensureRunSnapshot?.(nextRun?.runId);
+    return nextRun;
 }
 
 // Oanda configuration
@@ -158,6 +194,7 @@ function normalizeRuntimeQueryFilters(query = {}) {
     const runId = normalizeString(query.runId);
     const selectionId = normalizeString(query.selectionId);
     const shadowOfRunId = normalizeString(query.shadowOfRunId);
+    const parentRunId = normalizeString(query.parentRunId);
 
     if (mode && mode !== "all") {
         filters.mode = mode;
@@ -177,6 +214,9 @@ function normalizeRuntimeQueryFilters(query = {}) {
     if (shadowOfRunId) {
         filters.shadowOfRunId = shadowOfRunId;
     }
+    if (parentRunId) {
+        filters.parentRunId = parentRunId;
+    }
 
     return filters;
 }
@@ -189,6 +229,7 @@ function normalizeRunResponse(run = {}, latestSignalCount = 0) {
         status: run.status,
         selectionId: run.selectionId || null,
         shadowOfRunId: run.shadowOfRunId || null,
+        parentRunId: run.parentRunId || null,
         configHash: run.configHash || null,
         configSnapshot: run.configSnapshot || null,
         startedAt: run.startedAt,
@@ -199,7 +240,15 @@ function normalizeRunResponse(run = {}, latestSignalCount = 0) {
 }
 
 function filterRuntimeRuns(runs = [], filters = {}) {
-    const { mode, strategy, status, runId, selectionId, shadowOfRunId } = filters;
+    const {
+        mode,
+        strategy,
+        status,
+        runId,
+        selectionId,
+        shadowOfRunId,
+        parentRunId,
+    } = filters;
 
     return runs.filter((run) => {
         if (mode && run.mode !== mode) return false;
@@ -208,6 +257,7 @@ function filterRuntimeRuns(runs = [], filters = {}) {
         if (runId && run.runId !== runId) return false;
         if (selectionId && run.selectionId !== selectionId) return false;
         if (shadowOfRunId && run.shadowOfRunId !== shadowOfRunId) return false;
+        if (parentRunId && run.parentRunId !== parentRunId) return false;
         return true;
     });
 }
@@ -321,10 +371,80 @@ async function evaluateRunPromotionGate(req, run) {
         strategy: run.strategy,
     });
 
+    const candidateTrades = tradeRepo.getAllTrades
+        ? await tradeRepo.getAllTrades({
+              mode: RUNTIME_MODES.PAPER_CANDIDATE,
+              ownerRunId: run.runId,
+          })
+        : await tradeRepo.getTradesSince(0, {
+              mode: RUNTIME_MODES.PAPER_CANDIDATE,
+              ownerRunId: run.runId,
+          });
+
+    const runtimeCoordinator = getRuntimeCoordinator(req);
+    const strategyRunRepository = req.app.locals.strategyRunRepository;
+    const liveSelection = runtimeCoordinator?.getLiveSelection?.() || null;
+    let shadowRun = liveSelection?.shadowRun || null;
+    if (!shadowRun && strategyRunRepository?.list && run.selectionId) {
+        const shadowRuns = await strategyRunRepository.list({
+            mode: RUNTIME_MODES.PAPER_SHADOW,
+            selectionId: run.selectionId,
+        });
+        shadowRun = shadowRuns[0] || null;
+    }
+
+    let matchedShadowEvidence = null;
+    if (shadowRun?.runId) {
+        const shadowTrades = tradeRepo.getAllTrades
+            ? await tradeRepo.getAllTrades({
+                  mode: RUNTIME_MODES.PAPER_SHADOW,
+                  ownerRunId: shadowRun.runId,
+              })
+            : await tradeRepo.getTradesSince(0, {
+                  mode: RUNTIME_MODES.PAPER_SHADOW,
+                  ownerRunId: shadowRun.runId,
+              });
+        const overlapStart = Math.max(
+            Number(run.startedAt) || 0,
+            Number(shadowRun.startedAt) || 0
+        );
+        const candidateOverlap = candidateTrades.filter(
+            (trade) =>
+                trade.isOpen !== true &&
+                Number(trade.entryTime) >= overlapStart &&
+                Number.isFinite(Number(trade.pnlAud))
+        );
+        const shadowOverlap = shadowTrades.filter(
+            (trade) =>
+                trade.isOpen !== true &&
+                Number(trade.entryTime) >= overlapStart &&
+                Number.isFinite(Number(trade.pnlAud))
+        );
+        const mean = (trades) =>
+            trades.length > 0
+                ? trades.reduce((sum, trade) => sum + Number(trade.pnlAud), 0) /
+                  trades.length
+                : 0;
+        matchedShadowEvidence = {
+            passed: shadowOverlap.length > 0,
+            shadowRunId: shadowRun.runId,
+            candidateRunId: run.runId,
+            overlapDays: Math.max(0, (Date.now() - overlapStart) / 86400000),
+            closedTrades: shadowOverlap.length,
+            candidateClosedTrades: candidateOverlap.length,
+            candidateNetExpectancyAud: mean(candidateOverlap),
+            shadowNetExpectancyAud: mean(shadowOverlap),
+            shadowConfigHash: shadowRun.configHash || null,
+        };
+    }
+
     return evaluatePromotionGate({
         analytics,
         run,
         configSnapshot: run.configSnapshot,
+        trades: candidateTrades,
+        matchedShadowEvidence,
+        executionParity: run.metadata?.executionParity || null,
     });
 }
 
@@ -952,17 +1072,17 @@ router.post("/trading/start", (req, res) => {
             liveSelection: runtimeCoordinator.getLiveSelection?.() || null,
             config: configService.get?.() || {},
         });
-        const manualOverride =
-            req.body?.manualOverride === true ||
-            req.body?.overrideLiveReadiness === true;
-        if (!liveReadiness.passed && !manualOverride) {
+        if (!liveReadiness.passed) {
             return res.status(409).json({
                 error: "Controlled live readiness failed",
                 liveReadiness,
             });
         }
 
-        configService.update({ enableTrading: true });
+        configService.update(
+            { enableTrading: true },
+            { allowLiveActivation: true }
+        );
 
         const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
         if (broadcastEngineStatus) broadcastEngineStatus();
@@ -971,11 +1091,6 @@ router.post("/trading/start", (req, res) => {
             success: true,
             message: "Trading enabled",
             liveReadiness,
-            manualOverride,
-            warning:
-                manualOverride && !liveReadiness.passed
-                    ? "Live entries enabled by manual dashboard override despite readiness failure"
-                    : null,
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -1039,71 +1154,12 @@ router.get("/runtime/live-selection", async (req, res) => {
     }
 });
 
-router.post("/runtime/live-selection", async (req, res) => {
-    try {
-        const runtimeCoordinator = getRuntimeCoordinator(req);
-        const configService = req.app.locals.configService;
-
-        if (!runtimeCoordinator) {
-            return res
-                .status(503)
-                .json({ error: "Runtime coordinator not available" });
-        }
-        if (!configService) {
-            return res
-                .status(503)
-                .json({ error: "Config service not available" });
-        }
-
-        const strategyKey = req.body?.strategyKey || req.body?.strategy;
-        if (!strategyKey) {
-            return res.status(400).json({
-                error: "strategyKey is required",
-            });
-        }
-
-        const strategyDefinition = getStrategyDefinition(strategyKey);
-        const currentLiveStrategyKey =
-            runtimeCoordinator.getLiveSelection?.()?.strategy || null;
-        const isCurrentLiveStrategy =
-            currentLiveStrategyKey === strategyKey;
-
-        if (!isLiveSelectionReady(strategyDefinition) && !isCurrentLiveStrategy) {
-            return res.status(400).json({
-                error: `${strategyDefinition.label} is not available for live selection yet`,
-            });
-        }
-
-        const requestedConfig =
-            req.body?.configSnapshot || req.body?.config || null;
-        const nextConfig = {
-            ...configService.get(),
-            ...(requestedConfig || {}),
-            strategy: strategyKey,
-        };
-        const liveSelection = await runtimeCoordinator.selectLiveStrategy({
-            strategyKey,
-            configSnapshot: nextConfig,
-            initiatedBy: "ui",
-        });
-        configService.update(nextConfig);
-
-        const broadcastEngineStatus = req.app.locals.broadcastEngineStatus;
-        if (broadcastEngineStatus) {
-            broadcastEngineStatus();
-        }
-
-        const runtimePayload = await buildRuntimeRunsResponse(req);
-
-        res.json({
-            success: true,
-            liveSelection,
-            runs: runtimePayload.runs,
-            message: "Live strategy selection updated",
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+router.post("/runtime/live-selection", (_req, res) => {
+    return res.status(405).json({
+        error: "Direct live strategy selection is disabled",
+        code: "CANDIDATE_PROMOTION_REQUIRED",
+        message: "Create a paper candidate and use its promotion endpoint after the gate passes",
+    });
 });
 
 router.post("/runtime/runs/:runId/promote", async (req, res) => {
@@ -1204,15 +1260,27 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
                 ...(run.configSnapshot || {}),
                 strategy: run.strategy,
             });
+            const liveConfigHash = computeConfigHash(nextConfig);
             const phase4ControlledLive = {
                 appliedAt: Date.now(),
                 promotedFromRunId: run.runId,
                 promotionGate,
+                sourceConfigHash: run.configHash,
+                liveConfigHash,
                 riskLimits: {
                     maxOpenPositions: nextConfig.maxOpenPositions,
                     riskPerTrade: nextConfig.riskPerTrade,
                     maxCapitalAtRisk: nextConfig.maxCapitalAtRisk,
                     maxPortfolioExposure: nextConfig.maxPortfolioExposure,
+                    maxAggregateStopRiskPctNav:
+                        nextConfig.maxAggregateStopRiskPctNav,
+                    maxNetCurrencyExposurePctNav:
+                        nextConfig.maxNetCurrencyExposurePctNav,
+                    maxCorrelatedExposurePctNav:
+                        nextConfig.maxCorrelatedExposurePctNav,
+                    maxDailyLossPctNav: nextConfig.maxDailyLossPctNav,
+                    maxDrawdownPctNav: nextConfig.maxDrawdownPctNav,
+                    maxConsecutiveLosses: nextConfig.maxConsecutiveLosses,
                 },
             };
 
@@ -1585,12 +1653,45 @@ router.post("/runtime/paper/reset", async (req, res) => {
             });
         }
 
-        const reset = await paperTradingRuntime.resetAllPaper();
+        const runtimeCoordinator = getRuntimeCoordinator(req);
+        if (!runtimeCoordinator) {
+            return res
+                .status(503)
+                .json({ error: "Runtime coordinator not available" });
+        }
+
+        const restartedAt = Date.now();
+        const activePaperSessions = (runtimeCoordinator.listRuns?.() || [])
+            .filter((run) => MANUALLY_RESETTABLE_PAPER_MODES.has(run.mode))
+            .map((run) => runtimeCoordinator.getRunSession?.(run.runId))
+            .filter(Boolean);
+        const restartedRuns = [];
+        for (const session of activePaperSessions) {
+            const restarted = await restartPaperRunPreservingEvidence({
+                runtimeCoordinator,
+                paperTradingRuntime,
+                session,
+                restartedAt,
+                reason: "global-paper-restart",
+            });
+            if (restarted) restartedRuns.push(restarted);
+        }
+        const reset = {
+            resetAt: restartedAt,
+            evidencePreserved: true,
+            deletedCounts: {
+                trades: 0,
+                signals: 0,
+                entryDecisions: 0,
+                portfolioSnapshots: 0,
+            },
+            runs: restartedRuns,
+        };
         const runtimePayload = await buildRuntimeRunsResponse(req);
 
         res.json({
             success: true,
-            message: "All paper trading state reset",
+            message: "Fresh paper runs started; all prior evidence was preserved",
             reset,
             runs: runtimePayload.runs,
             liveSelection: runtimePayload.liveSelection,
@@ -1670,15 +1771,23 @@ router.post("/runtime/runs/:runId/reset", async (req, res) => {
             });
         }
 
-        const resetRun = await paperTradingRuntime.resetRun(runId);
+        const resetRun = await restartPaperRunPreservingEvidence({
+            runtimeCoordinator,
+            paperTradingRuntime,
+            session,
+            reason: "manual-paper-restart",
+        });
         const runtimePayload = await buildRuntimeRunsResponse(req);
         const currentRun = runtimePayload.runs.find(
-            (run) => run.runId === runId
+            (run) => run.runId === resetRun?.runId
         );
 
         res.json({
             success: true,
             run: currentRun || resetRun,
+            previousRunId: runId,
+            newRunId: resetRun?.runId || null,
+            evidencePreserved: true,
             runs: runtimePayload.runs,
             liveSelection: runtimePayload.liveSelection,
             message: getManualResetMessage(session.run.mode),

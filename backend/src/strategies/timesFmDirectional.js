@@ -9,6 +9,7 @@ const DEFAULT_TIMESFM_DIRECTIONAL_CONFIG = Object.freeze({
     timesFmStrategyStopLossAtrMultiplier: 1.5,
     timesFmStrategyRiskReward: 3.0,
     timesFmStrategyBlockExtremeVolatility: true,
+    timesFmRequireHorizonAlignment: true,
     minStopLossPips: 15,
     enableShorting: false,
     enableSessionFilter: true,
@@ -110,6 +111,14 @@ function resolveMinReturnBps(config = {}, confidence = 0) {
             confidence >= highConfidenceThreshold &&
             highConfidenceMinReturnBps < baseMinReturnBps,
     };
+}
+
+function timeframeToMinutes(timeframe = "15m") {
+    const match = /^(\d+)(m|h|d)$/i.exec(String(timeframe).trim());
+    if (!match) return 15;
+    const value = Math.max(1, Number(match[1]));
+    const unit = match[2].toLowerCase();
+    return value * (unit === "d" ? 1440 : unit === "h" ? 60 : 1);
 }
 
 function buildHoldResult(context = {}, overrides = {}) {
@@ -239,6 +248,26 @@ async function evaluateTimesFmDirectionalEntry({
         });
     }
 
+
+    const forecastHorizon = toFiniteNumber(forecast.horizon, null);
+    const confidenceHorizon = toFiniteNumber(
+        forecast.confidenceHorizon,
+        null
+    );
+    if (
+        resolvedConfig.timesFmRequireHorizonAlignment !== false &&
+        (!Number.isFinite(forecastHorizon) ||
+            !Number.isFinite(confidenceHorizon) ||
+            forecastHorizon !== confidenceHorizon)
+    ) {
+        return buildHoldResult(context, {
+            reason:
+                `HOLD: TimesFM confidence horizon ${confidenceHorizon || "unknown"} ` +
+                `does not match forecast horizon ${forecastHorizon || "unknown"}`,
+            reasonCode: "TIMESFM_DIRECTIONAL_HORIZON_MISMATCH",
+        });
+    }
+
     if (!Number.isFinite(entryPrice)) {
         return buildHoldResult(context, {
             reason: "HOLD: current price is unavailable",
@@ -346,11 +375,28 @@ async function evaluateTimesFmDirectionalEntry({
     const signalType = currentDir > 0 ? "BUY" : "SELL";
 
     if (signalType === "SELL" && resolvedConfig.enableShorting === false) {
-        return buildHoldResult(context, {
-            reason: "HOLD: TimesFM short forecast blocked by long-only Phase 2 config",
-            reasonCode: "TIMESFM_DIRECTIONAL_SHORTS_DISABLED",
-        });
+        return {
+            ...buildHoldResult(context, {
+                reason:
+                    "EXIT_ONLY: bearish TimesFM forecast closes longs; new shorts are disabled",
+                reasonCode: "TIMESFM_DIRECTIONAL_BEARISH_EXIT_ONLY",
+                signalClass: "EXIT_ONLY",
+                intent: "EXIT_LONG_ONLY",
+            }),
+            signalType: "SELL",
+            entryType: "EXIT_ONLY",
+        };
     }
+
+
+    const horizonBars = Math.max(
+        1,
+        Math.floor(confidenceHorizon || forecastHorizon || 1)
+    );
+    const configuredTimeStop = toFiniteNumber(resolvedConfig.timeStopHours, 0);
+    const timeStopHours = configuredTimeStop > 0
+        ? configuredTimeStop
+        : (horizonBars * timeframeToMinutes(timeframe)) / 60;
 
     return {
         signalType,
@@ -395,10 +441,16 @@ async function evaluateTimesFmDirectionalEntry({
                 ? {
                       stopLossPrice: entryPrice - stopDistance,
                       takeProfitPrice: entryPrice + rewardDistance,
+                      maxHoldingBars: horizonBars,
+                      timeStopHours,
+                      forecastHorizonBars: horizonBars,
                   }
                 : {
                       stopLossPrice: entryPrice + stopDistance,
                       takeProfitPrice: entryPrice - rewardDistance,
+                      maxHoldingBars: horizonBars,
+                      timeStopHours,
+                      forecastHorizonBars: horizonBars,
                   },
     };
 }
@@ -428,4 +480,5 @@ module.exports = Object.assign({}, timesFmDirectionalStrategy, {
     DEFAULT_TIMESFM_DIRECTIONAL_CONFIG,
     evaluateTimesFmDirectionalEntry,
     resolveMinReturnBps,
+    timeframeToMinutes,
 });

@@ -16,6 +16,8 @@ const {
 
 const DEFAULT_SIGNAL_FOLLOWING_CONFIG = Object.freeze({
     ...DEFAULT_COUNTER_SIGNAL_REVERSION_CONFIG,
+    signalFollowingMinConfirmations: 2,
+    signalFollowingMinConsensusFraction: 0.67,
 });
 
 function buildHoldResult(context = {}, overrides = {}) {
@@ -98,6 +100,15 @@ function buildFollowTradePlan({
     return followedPlan;
 }
 
+function scoreSourceEvaluation(evaluation = {}) {
+    const edge = evaluation.expectedEdge || {};
+    const netExpectancy = toFiniteNumber(edge.netExpectancyPips, null);
+    if (Number.isFinite(netExpectancy)) return 1000 + netExpectancy;
+    const rewardRisk = toFiniteNumber(edge.grossRewardRisk, null);
+    if (Number.isFinite(rewardRisk)) return 100 + rewardRisk;
+    return toFiniteNumber(evaluation.adxVal, 0);
+}
+
 async function evaluateSignalFollowingEntry({
     instrument,
     candles = [],
@@ -147,97 +158,144 @@ async function evaluateSignalFollowingEntry({
         });
     }
 
-    for (const sourceStrategy of sourceStrategies) {
-        const sourceEvaluation = await evaluateSourceStrategy({
+    const evaluatedSources = await Promise.all(
+        sourceStrategies.map(async (sourceStrategy) => ({
             sourceStrategy,
-            instrument,
-            candles,
-            currentPrice: entryPrice,
-            config: resolvedConfig,
-            dataService,
-            pendingEntry,
-            calculateSuperTrendFn,
-            getHtfTrendContextFn,
-            marketContext,
-        });
+            sourceEvaluation: await evaluateSourceStrategy({
+                sourceStrategy,
+                instrument,
+                candles,
+                currentPrice: entryPrice,
+                config: resolvedConfig,
+                dataService,
+                pendingEntry,
+                calculateSuperTrendFn,
+                getHtfTrendContextFn,
+                marketContext,
+            }),
+        }))
+    );
+    const actionable = evaluatedSources.filter(({ sourceEvaluation }) =>
+        isActionableEntry(sourceEvaluation)
+    );
+    if (!actionable.length) return buildHoldResult(holdContext);
 
-        if (!isActionableEntry(sourceEvaluation)) {
-            continue;
-        }
-
-        const signalType = sourceEvaluation.signalType;
-        const tradePlan = buildFollowTradePlan({
-            sourceEvaluation,
-            side: signalType,
-            entryPrice,
-            instrument,
-            config: resolvedConfig,
-            dataService,
-        });
-        const entryBias = signalType === "BUY" ? "long" : "short";
-
-        return {
-            signalType,
+    const buyVotes = actionable.filter(
+        ({ sourceEvaluation }) => sourceEvaluation.signalType === "BUY"
+    );
+    const sellVotes = actionable.filter(
+        ({ sourceEvaluation }) => sourceEvaluation.signalType === "SELL"
+    );
+    const winningVotes = buyVotes.length > sellVotes.length ? buyVotes : sellVotes;
+    const signalType = buyVotes.length > sellVotes.length ? "BUY" : "SELL";
+    const consensusFraction = winningVotes.length / actionable.length;
+    const minimumConfirmations = Math.max(
+        1,
+        Math.floor(toFiniteNumber(resolvedConfig.signalFollowingMinConfirmations, 2))
+    );
+    const minimumConsensus = Math.max(
+        0.5,
+        Math.min(
+            1,
+            toFiniteNumber(resolvedConfig.signalFollowingMinConsensusFraction, 0.67)
+        )
+    );
+    if (
+        buyVotes.length === sellVotes.length ||
+        winningVotes.length < minimumConfirmations ||
+        consensusFraction < minimumConsensus
+    ) {
+        return buildHoldResult(holdContext, {
             reason:
-                `${signalType}: signal following copied ${sourceStrategy} ` +
-                `${sourceEvaluation.signalType} ${sourceEvaluation.reasonCode || "signal"}`,
-            reasonCode:
-                signalType === "BUY"
-                    ? "SIGNAL_FOLLOWING_LONG_ACTIONABLE"
-                    : "SIGNAL_FOLLOWING_SHORT_ACTIONABLE",
-            signalClass: "ACTIONABLE",
-            intent: signalType === "BUY" ? "ENTER_LONG" : "ENTER_SHORT",
-            entryType: "SIGNAL_FOLLOWING",
-            signalCandleTime: sourceEvaluation.signalCandleTime || currentCandle.time,
-            atrVal: sourceEvaluation.atrVal || atrVal || 0,
-            atrPips: sourceEvaluation.atrPips || atrPips || 0,
-            currentPrice: entryPrice,
-            rsiVal: sourceEvaluation.rsiVal || 0,
-            adxVal: sourceEvaluation.adxVal || 0,
-            pdiVal: sourceEvaluation.pdiVal || 0,
-            mdiVal: sourceEvaluation.mdiVal || 0,
-            adxRising: Boolean(sourceEvaluation.adxRising),
-            prevAdxVal: sourceEvaluation.prevAdxVal || 0,
-            currentDir: signalType === "BUY" ? 1 : -1,
-            prevDir: sourceEvaluation.prevDir || 0,
-            htfContext: {
-                enabled: true,
-                timeframe: "signal_following",
-                direction: signalType === "BUY" ? 1 : -1,
-                longAllowed: signalType === "BUY",
-                shortAllowed: signalType === "SELL",
-                reason: `Followed ${sourceStrategy} ${sourceEvaluation.signalType}`,
-            },
-            pendingAction: "clear",
-            pending: null,
-            tradePlan,
-            strategyContext: {
-                family: "signal_following",
-                setup: "pure_follow",
-                entryBias,
-                sourceStrategies,
-                selectedSource: {
-                    strategy: sourceStrategy,
-                    signalType: sourceEvaluation.signalType,
-                    reasonCode: sourceEvaluation.reasonCode || null,
-                    entryType: sourceEvaluation.entryType || null,
-                    entryBias,
-                    tradePlan: sourceEvaluation.tradePlan || null,
-                    strategyContext: sourceEvaluation.strategyContext || null,
-                },
-                followedTradePlan: tradePlan,
-            },
-        };
+                `HOLD: source consensus insufficient (${buyVotes.length} BUY / ` +
+                `${sellVotes.length} SELL; need ${minimumConfirmations})`,
+            reasonCode: "SIGNAL_FOLLOWING_CONSENSUS_FILTERED",
+            signalClass: "PENDING",
+        });
     }
 
-    return buildHoldResult(holdContext);
+    const selected = [...winningVotes].sort(
+        (left, right) =>
+            scoreSourceEvaluation(right.sourceEvaluation) -
+            scoreSourceEvaluation(left.sourceEvaluation)
+    )[0];
+    const { sourceStrategy, sourceEvaluation } = selected;
+    const tradePlan = buildFollowTradePlan({
+        sourceEvaluation,
+        side: signalType,
+        entryPrice,
+        instrument,
+        config: resolvedConfig,
+        dataService,
+    });
+    const entryBias = signalType === "BUY" ? "long" : "short";
+
+    return {
+        signalType,
+        reason:
+            `${signalType}: ${winningVotes.length}/${actionable.length} source consensus; ` +
+            `risk plan selected from ${sourceStrategy}`,
+        reasonCode:
+            signalType === "BUY"
+                ? "SIGNAL_FOLLOWING_LONG_ACTIONABLE"
+                : "SIGNAL_FOLLOWING_SHORT_ACTIONABLE",
+        signalClass: "ACTIONABLE",
+        intent: signalType === "BUY" ? "ENTER_LONG" : "ENTER_SHORT",
+        entryType: "SIGNAL_FOLLOWING",
+        signalCandleTime: sourceEvaluation.signalCandleTime || currentCandle.time,
+        atrVal: sourceEvaluation.atrVal || atrVal || 0,
+        atrPips: sourceEvaluation.atrPips || atrPips || 0,
+        currentPrice: entryPrice,
+        rsiVal: sourceEvaluation.rsiVal || 0,
+        adxVal: sourceEvaluation.adxVal || 0,
+        pdiVal: sourceEvaluation.pdiVal || 0,
+        mdiVal: sourceEvaluation.mdiVal || 0,
+        adxRising: Boolean(sourceEvaluation.adxRising),
+        prevAdxVal: sourceEvaluation.prevAdxVal || 0,
+        currentDir: signalType === "BUY" ? 1 : -1,
+        prevDir: sourceEvaluation.prevDir || 0,
+        htfContext: {
+            enabled: true,
+            timeframe: "signal_consensus",
+            direction: signalType === "BUY" ? 1 : -1,
+            longAllowed: signalType === "BUY",
+            shortAllowed: signalType === "SELL",
+            reason: `${winningVotes.length}/${actionable.length} actionable sources agree`,
+        },
+        pendingAction: "clear",
+        pending: null,
+        tradePlan,
+        strategyContext: {
+            family: "signal_following",
+            setup: "consensus_follow",
+            entryBias,
+            sourceStrategies,
+            consensus: {
+                buyVotes: buyVotes.map((vote) => vote.sourceStrategy),
+                sellVotes: sellVotes.map((vote) => vote.sourceStrategy),
+                fraction: consensusFraction,
+                minimumConfirmations,
+                minimumConsensus,
+            },
+            selectedSource: {
+                strategy: sourceStrategy,
+                signalType: sourceEvaluation.signalType,
+                reasonCode: sourceEvaluation.reasonCode || null,
+                entryType: sourceEvaluation.entryType || null,
+                entryBias,
+                tradePlan: sourceEvaluation.tradePlan || null,
+                strategyContext: sourceEvaluation.strategyContext || null,
+            },
+            followedTradePlan: tradePlan,
+        },
+    };
 }
 
 const signalFollowingStrategy = createStrategyDefinition({
     key: SIGNAL_FOLLOWING_KEY,
     label: "Signal Following",
     description:
-        "Aggregate candidate that treats actionable source strategy entries as confirmation and follows the first available setup.",
+        "Aggregate candidate requiring directional source consensus before following the strongest validated setup.",
     phaseIntroduced: 5,
     runtimeStatus: "candidate",
     requiredData: {
@@ -263,4 +321,5 @@ module.exports = Object.assign({}, signalFollowingStrategy, {
     SIGNAL_FOLLOWING_KEY,
     buildFollowTradePlan,
     evaluateSignalFollowingEntry,
+    scoreSourceEvaluation,
 });

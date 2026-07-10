@@ -44,7 +44,7 @@ function createMockDataService() {
 
 function buildRangeBreakoutDataService() {
     const candles5m = [];
-    const start5m = Date.UTC(2026, 0, 1, 7, 0, 0, 0);
+    const start5m = Date.UTC(2026, 0, 1, 8, 0, 0, 0);
 
     for (let index = 0; index < 12; index += 1) {
         const time = new Date(start5m + index * 5 * 60 * 1000).toISOString();
@@ -73,7 +73,7 @@ function buildRangeBreakoutDataService() {
 
     const candles15m = [
         {
-            time: "2026-01-01T09:00:00.000Z",
+            time: "2026-01-01T10:00:00.000Z",
             open: 1.1001,
             high: 1.1003,
             low: 1.0999,
@@ -81,7 +81,7 @@ function buildRangeBreakoutDataService() {
             volume: 200,
         },
         {
-            time: "2026-01-01T09:15:00.000Z",
+            time: "2026-01-01T10:15:00.000Z",
             open: 1.1002,
             high: 1.1008,
             low: 1.1001,

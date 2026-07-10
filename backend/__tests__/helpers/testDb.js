@@ -151,6 +151,7 @@ const runMigrations = async (db) => {
         table.string('status').notNullable();
         table.string('selection_id');
         table.string('shadow_of_run_id');
+        table.string('parent_run_id');
         table.string('config_hash');
         table.json('config_snapshot');
         table.bigInteger('started_at').notNullable();

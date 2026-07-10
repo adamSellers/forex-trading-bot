@@ -4,6 +4,7 @@ const defaultConfig = require("../../../shared/tradingConfigDefaults.json");
 const CLONE = (value) => JSON.parse(JSON.stringify(value));
 
 const NUMERIC_KEYS = new Set([
+    "configSchemaVersion",
     "maxCapitalAtRisk",
     "maxOpenPositions",
     "signalCooldown",
@@ -51,6 +52,7 @@ const NUMERIC_KEYS = new Set([
     "maxSpreadPips",
     "expectedSlippagePips",
     "maxPriceAgeMs",
+    "maxEntryDeviationPips",
     "fixedPositionUnits",
     "stopLossPips",
     "stopLossAtrMultiplier",
@@ -60,6 +62,76 @@ const NUMERIC_KEYS = new Set([
     "takeProfitPercent",
     "breakevenTriggerPips",
     "maxLeverage",
+    "maxAggregateStopRiskPctNav",
+    "maxNetCurrencyExposurePctNav",
+    "maxCorrelatedExposurePctNav",
+    "maxDailyLossPctNav",
+    "maxDrawdownPctNav",
+    "maxConsecutiveLosses",
+    "correlationThreshold",
+    "minNavAud",
+    "breakevenTriggerRiskMultiple",
+    "trailingStopActivationRiskMultiple",
+    "trailingStopRiskMultiple",
+    "paperStartingBalanceAud",
+    "paperEntrySlippagePips",
+    "paperExitSlippagePips",
+    "paperStopSlippagePips",
+    "paperSlippagePips",
+    "paperCommissionPerTradeAud",
+    "paperCommissionPerUnitAud",
+    "paperCommissionPerMillionAud",
+    "expectedTargetPips",
+    "expectedRewardRisk",
+    "minNetEdgePips",
+    "marginBuffer",
+    "bbPeriod",
+    "bbStdDev",
+    "bbwMinRatio",
+    "rsiOversoldEntry",
+    "rsiOverboughtEntry",
+    "breakevenAtTpPercent",
+    "londonOpenHourUTC",
+    "nyOpenHourUTC",
+    "rangeMinAtrRatio",
+    "rangeMaxAtrRatio",
+    "tpRangeMultiplier",
+    "trailActivationMultiplier",
+    "trailDistanceMultiplier",
+    "maxBreakoutBodyRatio",
+    "breakoutCompressionLookbackCandles",
+    "maxBreakoutCompressionRatio",
+    "breakoutAcceptanceCloses",
+    "breakoutRetestToleranceRatio",
+    "entryWindowHours",
+    "sessionCloseHourUTC",
+    "stochPeriod",
+    "stochSignalPeriod",
+    "stochSmoothK",
+    "pivotWindow",
+    "maxPivotLookback",
+    "h1AtrPercentileMax",
+    "keltnerEmaPeriod",
+    "keltnerAtrPeriod",
+    "keltnerAtrMultiplier",
+    "minSqueezeBarCount",
+    "trailActivationAtr",
+    "trailDistanceAtr",
+    "counterSignalStopLossPips",
+    "counterSignalTakeProfitPips",
+    "continuationMaxChaseAtr",
+    "regimeAdxRiseTolerance",
+    "minNetRewardRisk",
+    "londonOpenLocalHour",
+    "newYorkOpenLocalHour",
+    "minPivotSeparationBars",
+    "minPriceDivergenceAtr",
+    "minOscillatorDivergencePoints",
+    "minNormalizedSlopeAtrPerBar",
+    "correlationDivergenceReturnStrideBars",
+    "correlationDivergenceExitZScore",
+    "signalFollowingMinConfirmations",
+    "signalFollowingMinConsensusFraction",
 ]);
 
 const BOOLEAN_KEYS = new Set([
@@ -82,9 +154,24 @@ const BOOLEAN_KEYS = new Set([
     "enableSessionFilter",
     "enableEmailAlerts",
     "enforceConfigFreeze",
+    "portfolioRiskEnforcement",
+    "enableLonging",
+    "requireFailedSweepReclaim",
+    "requireBreakoutQuality",
+    "requireRegimeAdxNonRising",
+    "useTimezoneAwareSessions",
+    "requireHtfSlopeConfirmation",
+    "requireCompressionBoundaryBreak",
+    "timesFmRequireHorizonAlignment",
+    "correlationDivergenceRequireFreshCross",
+    "counterSignalEnabled",
 ]);
 
-const ARRAY_KEYS = new Set(["assets", "activeSessions"]);
+const ARRAY_KEYS = new Set([
+    "assets",
+    "activeSessions",
+    "counterSignalSourceStrategies",
+]);
 
 const FREEZE_PROTECTED_KEYS = new Set([
     "assets",
@@ -166,9 +253,31 @@ const FREEZE_PROTECTED_KEYS = new Set([
     "breakevenTriggerPips",
     "enableSessionFilter",
     "activeSessions",
+    "referenceCurrency",
+    "accountCurrency",
+    "configSchemaVersion",
+    "executionPolicyVersion",
+    "pricingModelVersion",
+    "portfolioRiskEnforcement",
+    "maxAggregateStopRiskPctNav",
+    "maxNetCurrencyExposurePctNav",
+    "maxCorrelatedExposurePctNav",
+    "maxDailyLossPctNav",
+    "maxDrawdownPctNav",
+    "maxConsecutiveLosses",
+    "correlationThreshold",
+    "minNavAud",
 ]);
 
-const HASH_KEYS = new Set(FREEZE_PROTECTED_KEYS);
+const HASH_EXCLUDED_KEYS = new Set([
+    "configHash",
+    "enableTrading",
+    "logLevel",
+    "enableEmailAlerts",
+    "alertEmail",
+    "enforceConfigFreeze",
+    "liveActivationPhase",
+]);
 
 function cloneDefaultConfig() {
     return CLONE(defaultConfig);
@@ -263,7 +372,40 @@ function normalizeTradingConfig(config = {}, options = {}) {
         normalized.alertEmail = base.alertEmail;
     }
 
+    // The broker account, portfolio repositories, and performance analytics
+    // all use AUD. Keeping one canonical unit prevents silent mixed-currency
+    // risk calculations and incomparable promotion evidence.
+    normalized.referenceCurrency = "AUD";
+    normalized.accountCurrency = "AUD";
+
     return normalized;
+}
+
+function getStrategyDefaultConfig(strategyKey) {
+    if (!strategyKey) return {};
+
+    try {
+        // Lazy loading avoids module initialization cycles while ensuring run
+        // records persist every strategy-specific default they actually use.
+        const { getStrategyDefinition } = require("../strategies");
+        return CLONE(getStrategyDefinition(strategyKey).metadata?.defaultConfig || {});
+    } catch (_error) {
+        return {};
+    }
+}
+
+function materializeStrategyConfig(config = {}, options = {}) {
+    const provided = CLONE(config || {});
+    const baseConfig = normalizeTradingConfig(options.baseConfig || {});
+    const strategyKey =
+        options.strategyKey || provided.strategy || baseConfig.strategy;
+
+    return normalizeTradingConfig({
+        ...baseConfig,
+        ...getStrategyDefaultConfig(strategyKey),
+        ...provided,
+        strategy: strategyKey,
+    });
 }
 
 function stableSortObject(value) {
@@ -284,9 +426,10 @@ function stableSortObject(value) {
 }
 
 function buildHashableConfig(config = {}) {
-    const normalized = normalizeTradingConfig(config);
+    const normalized = materializeStrategyConfig(config);
 
-    return Array.from(HASH_KEYS)
+    return Object.keys(normalized)
+        .filter((key) => !HASH_EXCLUDED_KEYS.has(key))
         .sort()
         .reduce((acc, key) => {
             if (normalized[key] !== undefined) {
@@ -298,10 +441,10 @@ function buildHashableConfig(config = {}) {
 
 function computeConfigHash(config) {
     return crypto
-        .createHash("sha1")
+        .createHash("sha256")
         .update(JSON.stringify(stableSortObject(buildHashableConfig(config))))
         .digest("hex")
-        .slice(0, 12);
+        .slice(0, 20);
 }
 
 function getProtectedConfigChanges(currentConfig, incomingConfig) {
@@ -309,9 +452,7 @@ function getProtectedConfigChanges(currentConfig, incomingConfig) {
     const next = normalizeTradingConfig({ ...(currentConfig || {}), ...(incomingConfig || {}) });
 
     return Object.keys(next).filter((key) => {
-        if (!FREEZE_PROTECTED_KEYS.has(key)) {
-            return false;
-        }
+        if (HASH_EXCLUDED_KEYS.has(key)) return false;
 
         return JSON.stringify(current[key]) !== JSON.stringify(next[key]);
     });
@@ -322,6 +463,9 @@ module.exports = {
     FREEZE_PROTECTED_KEYS: Array.from(FREEZE_PROTECTED_KEYS),
     cloneDefaultConfig,
     normalizeTradingConfig,
+    materializeStrategyConfig,
+    getStrategyDefaultConfig,
+    buildHashableConfig,
     computeConfigHash,
     getProtectedConfigChanges,
 };

@@ -7,9 +7,13 @@ const DEFAULT_STOCHASTIC_DIVERGENCE_CONFIG = Object.freeze({
     stochSmoothK: 3,
     pivotWindow: 2,
     maxPivotLookback: 30,
+    minPivotSeparationBars: 5,
+    minPriceDivergenceAtr: 0.1,
+    minOscillatorDivergencePoints: 3,
     oversoldZone: 20,
     overboughtZone: 80,
     htfStochThreshold: 50,
+    requireHtfSlopeConfirmation: true,
     tpSlMultiplier: 2.0,
     breakevenSlMultiplier: 1.0,
     trailActivationSlMultiplier: 1.5,
@@ -493,18 +497,34 @@ async function evaluateStochasticDivergenceEntry({
     const shortHtfThreshold = 100 - htfThreshold;
     const bullishDivergence =
         bullishPivots &&
+        bullishPivots.second.index - bullishPivots.first.index >=
+            toFiniteNumber(resolvedConfig.minPivotSeparationBars, 5) &&
         bullishPivots.second.price < bullishPivots.first.price &&
+        bullishPivots.first.price - bullishPivots.second.price >=
+            atrVal * toFiniteNumber(resolvedConfig.minPriceDivergenceAtr, 0.1) &&
         bullishPivots.second.stochasticK > bullishPivots.first.stochasticK &&
+        bullishPivots.second.stochasticK - bullishPivots.first.stochasticK >=
+            toFiniteNumber(resolvedConfig.minOscillatorDivergencePoints, 3) &&
         bullishPivots.first.stochasticK < oversoldZone &&
         bullishPivots.second.stochasticK < oversoldZone;
     const bearishDivergence =
         bearishPivots &&
+        bearishPivots.second.index - bearishPivots.first.index >=
+            toFiniteNumber(resolvedConfig.minPivotSeparationBars, 5) &&
         bearishPivots.second.price > bearishPivots.first.price &&
+        bearishPivots.second.price - bearishPivots.first.price >=
+            atrVal * toFiniteNumber(resolvedConfig.minPriceDivergenceAtr, 0.1) &&
         bearishPivots.second.stochasticK < bearishPivots.first.stochasticK &&
+        bearishPivots.first.stochasticK - bearishPivots.second.stochasticK >=
+            toFiniteNumber(resolvedConfig.minOscillatorDivergencePoints, 3) &&
         bearishPivots.first.stochasticK > overboughtZone &&
         bearishPivots.second.stochasticK > overboughtZone;
-    const h1LongAllowed = h1K > htfThreshold || h1Rising;
-    const h1ShortAllowed = h1K < shortHtfThreshold || h1Falling;
+    const requireHtfSlope =
+        resolvedConfig.requireHtfSlopeConfirmation !== false;
+    const h1LongAllowed =
+        h1K > htfThreshold && (!requireHtfSlope || h1Rising);
+    const h1ShortAllowed =
+        h1K < shortHtfThreshold && (!requireHtfSlope || h1Falling);
     const longCrossConfirmed = isCrossAbove(stochasticSeries);
     const shortCrossConfirmed = isCrossBelow(stochasticSeries);
 

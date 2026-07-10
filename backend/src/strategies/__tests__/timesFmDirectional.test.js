@@ -30,6 +30,8 @@ function buildMarketContext(forecast = {}, overrides = {}) {
         },
         timesFmForecast: {
             available: true,
+            horizon: 12,
+            confidenceHorizon: 12,
             direction: "BULLISH",
             confidence: 0.82,
             returnBps: 14.4,
@@ -64,6 +66,8 @@ describe("timesFmDirectionalStrategy", () => {
                 },
                 timesFmForecast: {
                     available: true,
+                    horizon: 12,
+                    confidenceHorizon: 12,
                     direction: "BULLISH",
                     confidence: 0.82,
                     returnBps: 14.4,
@@ -205,6 +209,8 @@ describe("timesFmDirectionalStrategy", () => {
                 },
                 timesFmForecast: {
                     available: true,
+                    horizon: 12,
+                    confidenceHorizon: 12,
                     direction: "BEARISH",
                     confidence: 0.55,
                     returnBps: -16.5,
@@ -227,7 +233,7 @@ describe("timesFmDirectionalStrategy", () => {
         );
     });
 
-    test("blocks bearish forecasts by default for the long-only Phase 2 posture", async () => {
+    test("emits an exit-only bearish signal when new shorts are disabled", async () => {
         const candles = buildCandles();
         const result = await timesFmDirectionalStrategy.evaluateEntry({
             instrument: "EUR_USD",
@@ -249,8 +255,29 @@ describe("timesFmDirectionalStrategy", () => {
 
         expect(result).toEqual(
             expect.objectContaining({
+                signalType: "SELL",
+                entryType: "EXIT_ONLY",
+                signalClass: "EXIT_ONLY",
+                intent: "EXIT_LONG_ONLY",
+                reasonCode: "TIMESFM_DIRECTIONAL_BEARISH_EXIT_ONLY",
+            })
+        );
+    });
+
+    test("fails closed when confidence and direction refer to different horizons", async () => {
+        const candles = buildCandles();
+        const result = await timesFmDirectionalStrategy.evaluateEntry({
+            instrument: "AUD_USD",
+            candles,
+            currentPrice: candles[candles.length - 1].close,
+            marketContext: buildMarketContext({ confidenceHorizon: 1 }),
+            config: { timeframe: "15m" },
+        });
+
+        expect(result).toEqual(
+            expect.objectContaining({
                 signalType: "HOLD",
-                reasonCode: "TIMESFM_DIRECTIONAL_SHORTS_DISABLED",
+                reasonCode: "TIMESFM_DIRECTIONAL_HORIZON_MISMATCH",
             })
         );
     });

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
@@ -29,8 +30,18 @@ class ForecastRequest(BaseModel):
 
 
 def build_app(service: TimesFmModelService | None = None) -> FastAPI:
-    app = FastAPI(title="TimesFM Sidecar", version="0.1.0")
     model_service = service or TimesFmModelService(settings)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        model_service.startup()
+        yield
+
+    app = FastAPI(
+        title="TimesFM Sidecar",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
 
     def require_api_key(x_timesfm_key: str | None = Header(default=None)) -> None:
         if settings.api_key and x_timesfm_key != settings.api_key:
@@ -38,10 +49,6 @@ def build_app(service: TimesFmModelService | None = None) -> FastAPI:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="invalid TimesFM API key",
             )
-
-    @app.on_event("startup")
-    def startup() -> None:
-        model_service.startup()
 
     @app.get("/health")
     def health() -> dict:
@@ -88,6 +95,9 @@ def build_app(service: TimesFmModelService | None = None) -> FastAPI:
             "volatility_regime": result.volatility_regime,
             "quantile_spread_bps": result.quantile_spread_bps,
             "quantiles_h1": result.quantiles_h1,
+            "quantiles_terminal": result.quantiles_terminal,
+            "confidence_horizon": result.confidence_horizon,
+            "terminal_point_forecast": result.terminal_point_forecast,
             "model": result.model,
             "device": result.device,
         }

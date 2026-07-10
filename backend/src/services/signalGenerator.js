@@ -1238,6 +1238,9 @@ class SignalGenerator extends EventEmitter {
                     calculateSuperTrendFn: this.calculateSuperTrend.bind(this),
                     getHtfTrendContextFn: this.getHtfTrendContext.bind(this),
                     marketContext: options.marketContext || null,
+                    nowMs:
+                        options.nowMs ??
+                        this.getCandleTimestampMs(candles[candles.length - 1]?.time),
                 });
 
             if (evaluation.pendingAction === "clear") {

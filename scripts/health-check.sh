@@ -4,6 +4,8 @@
 # Used by monitoring systems and manual checks
 # =====================================================
 
+set -uo pipefail
+
 LOG_FILE="/opt/forex-trading-bot/backend/logs/health.log"
 APP_NAME="forex-backend"
 PORT=3101
@@ -26,18 +28,35 @@ else
 fi
 
 # Check API health endpoint
-if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
+health_data=$(curl -sf "http://localhost:$PORT/api/health" 2>/dev/null || true)
+if [ -n "$health_data" ]; then
     log_message "✅ API Health: HEALTHY"
-    
-    # Get additional info
-    health_data=$(curl -s "http://localhost:$PORT/api/health" 2>/dev/null)
+
     if [ -n "$health_data" ]; then
-        engine_status=$(echo "$health_data" | grep -o '"enableTrading":[^,}]*' | cut -d: -f2 || echo "unknown")
+        engine_status=$(printf '%s' "$health_data" | python3 -c \
+            'import json,sys; data=json.load(sys.stdin); print(str(bool((data.get("config") or {}).get("enableTrading"))).lower())' \
+            2>/dev/null || echo unknown)
         log_message "   Trading Enabled: $engine_status"
     fi
 else
     log_message "❌ API Health: FAILED"
     FAILED=1
+fi
+
+# A failed readiness gate is expected while paused, but is critical if entries
+# are enabled. This catches configuration drift that the basic process health
+# endpoint cannot see.
+if [ "${engine_status:-unknown}" = "true" ]; then
+    readiness_data=$(curl -sf "http://localhost:$PORT/api/trading/live-readiness" 2>/dev/null || true)
+    readiness_passed=$(printf '%s' "$readiness_data" | python3 -c \
+        'import json,sys; print(str(json.load(sys.stdin).get("passed") is True).lower())' \
+        2>/dev/null || echo false)
+    if [ "$readiness_passed" = "true" ]; then
+        log_message "✅ Live Readiness: PASSED"
+    else
+        log_message "❌ Live Readiness: FAILED WHILE TRADING ENABLED"
+        FAILED=1
+    fi
 fi
 
 engine_status=$(curl -sf "http://localhost:$PORT/api/engine/status" 2>/dev/null || true)
@@ -166,12 +185,28 @@ fi
 # Check database
 DB_PATH="/opt/forex-trading-bot/backend/data/trading.db"
 if [ -f "$DB_PATH" ]; then
-    if sqlite3 "$DB_PATH" "SELECT 1;" > /dev/null 2>&1; then
+    if [ "$(sqlite3 "$DB_PATH" "PRAGMA quick_check;" 2>/dev/null)" = "ok" ]; then
         log_message "✅ Database: HEALTHY"
         
         # Get trade counts
         trade_count=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM trades;" 2>/dev/null || echo "?")
         log_message "   Total Trades: $trade_count"
+
+        lifecycle_tables=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('broker_order_intents','broker_position_quarantines');" 2>/dev/null || echo 0)
+        if [ "$lifecycle_tables" = "2" ]; then
+            stale_cutoff=$(( $(date +%s) * 1000 - 10 * 60 * 1000 ))
+            stale_intents=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM broker_order_intents WHERE status IN ('PREPARED','SUBMITTING','AMBIGUOUS','RECOVERY_PENDING','FILLED_UNPERSISTED') AND created_at_ms < $stale_cutoff;" 2>/dev/null || echo 0)
+            quarantines=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM broker_position_quarantines WHERE status='OPEN';" 2>/dev/null || echo 0)
+            if [ "$stale_intents" -gt 0 ] || [ "$quarantines" -gt 0 ]; then
+                log_message "❌ Broker Lifecycle: ${stale_intents} stale intent(s), ${quarantines} quarantined position(s)"
+                FAILED=1
+            else
+                log_message "✅ Broker Lifecycle: RESOLVED"
+            fi
+        else
+            log_message "❌ Broker Lifecycle: SCHEMA MISSING"
+            FAILED=1
+        fi
     else
         log_message "❌ Database: CORRUPTED"
         FAILED=1
@@ -192,7 +227,7 @@ fi
 
 # Check Oanda connectivity (if API is up)
 if [ $FAILED -eq 0 ]; then
-    oanda_check=$(curl -sf "http://localhost:$PORT/api/account" 2>/dev/null)
+    oanda_check=$(curl -sf "http://localhost:$PORT/api/account" 2>/dev/null || true)
     if [ -n "$oanda_check" ]; then
         log_message "✅ Oanda API: CONNECTED"
     else

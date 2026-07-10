@@ -29,6 +29,7 @@ class StrategyRunRepository {
             runId,
             selectionId,
             shadowOfRunId,
+            parentRunId,
         } = filters || {};
 
         if (mode) {
@@ -52,6 +53,9 @@ class StrategyRunRepository {
         if (shadowOfRunId) {
             query.where("shadow_of_run_id", shadowOfRunId);
         }
+        if (parentRunId) {
+            query.where("parent_run_id", parentRunId);
+        }
 
         return query;
     }
@@ -67,6 +71,7 @@ class StrategyRunRepository {
             status: row.status,
             selectionId: row.selection_id,
             shadowOfRunId: row.shadow_of_run_id,
+            parentRunId: row.parent_run_id || null,
             configHash: row.config_hash,
             configSnapshot: this._parseJson(row.config_snapshot),
             startedAt: Number(row.started_at),
@@ -88,6 +93,7 @@ class StrategyRunRepository {
             status: run.status,
             selection_id: run.selectionId || null,
             shadow_of_run_id: run.shadowOfRunId || null,
+            parent_run_id: run.parentRunId || null,
             config_hash: run.configHash || null,
             config_snapshot: this._serializeJson(run.configSnapshot),
             started_at: run.startedAt || Date.now(),
@@ -106,26 +112,34 @@ class StrategyRunRepository {
     async update(runId, updates = {}) {
         if (!runId) return null;
 
+        const immutableKeys = [
+            "mode",
+            "strategy",
+            "selectionId",
+            "shadowOfRunId",
+            "parentRunId",
+            "configHash",
+            "configSnapshot",
+            "startedAt",
+        ];
+        const attemptedImmutableKeys = immutableKeys.filter(
+            (key) => updates[key] !== undefined
+        );
+        if (attemptedImmutableKeys.length > 0) {
+            const error = new Error(
+                `Strategy run identity is immutable: ${attemptedImmutableKeys.join(
+                    ", "
+                )}`
+            );
+            error.code = "IMMUTABLE_STRATEGY_RUN";
+            throw error;
+        }
+
         const dbUpdates = {
             updated_at: new Date(),
         };
 
-        if (updates.mode !== undefined) dbUpdates.mode = updates.mode;
-        if (updates.strategy !== undefined) dbUpdates.strategy = updates.strategy;
         if (updates.status !== undefined) dbUpdates.status = updates.status;
-        if (updates.selectionId !== undefined) {
-            dbUpdates.selection_id = updates.selectionId;
-        }
-        if (updates.shadowOfRunId !== undefined) {
-            dbUpdates.shadow_of_run_id = updates.shadowOfRunId;
-        }
-        if (updates.configHash !== undefined) {
-            dbUpdates.config_hash = updates.configHash;
-        }
-        if (updates.configSnapshot !== undefined) {
-            dbUpdates.config_snapshot = this._serializeJson(updates.configSnapshot);
-        }
-        if (updates.startedAt !== undefined) dbUpdates.started_at = updates.startedAt;
         if (updates.stoppedAt !== undefined) dbUpdates.stopped_at = updates.stoppedAt;
         if (updates.metadata !== undefined) {
             dbUpdates.metadata = this._serializeJson(updates.metadata);

@@ -9,6 +9,8 @@ const DEFAULT_SQUEEZE_PLAY_CONFIG = Object.freeze({
     keltnerAtrMultiplier: 1.5,
     minSqueezeBarCount: 6,
     linRegPeriod: 12,
+    minNormalizedSlopeAtrPerBar: 0.03,
+    requireCompressionBoundaryBreak: true,
     h1AtrPercentileMax: 60,
     h1AtrLookback: 50,
     stopLossAtrMultiplier: 2.0,
@@ -247,6 +249,21 @@ function buildSqueezePlayDerivedContext(
         toFiniteNumber(resolvedConfig.linRegPeriod, 12)
     );
     const slope = calculateLinearRegressionSlope(closes.slice(-linRegPeriod));
+    const compressionCandles = m15Candles.slice(
+        Math.max(0, currentIndex - priorSqueezeCount),
+        currentIndex
+    );
+    const compressionHigh = compressionCandles.length
+        ? Math.max(...compressionCandles.map((candle) => candle.high))
+        : null;
+    const compressionLow = compressionCandles.length
+        ? Math.min(...compressionCandles.map((candle) => candle.low))
+        : null;
+    const normalizedSlope =
+        Number.isFinite(slope) && Number.isFinite(currentChannel?.atr) &&
+        currentChannel.atr > 0
+            ? slope / currentChannel.atr
+            : null;
     const h1AtrSeries = calculateAlignedAtrSeries(
         h1Candles,
         Math.max(5, toFiniteNumber(resolvedConfig.keltnerAtrPeriod, 20))
@@ -281,6 +298,9 @@ function buildSqueezePlayDerivedContext(
                     )
         ),
         slope,
+        normalizedSlope,
+        compressionHigh,
+        compressionLow,
         direction:
             Number.isFinite(slope) && slope > 0
                 ? "LONG"
@@ -321,6 +341,18 @@ function buildStrategyContext(context = {}, overrides = {}) {
             triggered: squeezeContext?.releaseTriggered === true,
             direction,
             slope: toFiniteNumber(squeezeContext?.slope, null),
+            normalizedSlope: toFiniteNumber(
+                squeezeContext?.normalizedSlope,
+                null
+            ),
+            compressionHigh: toFiniteNumber(
+                squeezeContext?.compressionHigh,
+                null
+            ),
+            compressionLow: toFiniteNumber(
+                squeezeContext?.compressionLow,
+                null
+            ),
         },
         volatility: {
             h1AtrPercentile: toFiniteNumber(
@@ -418,9 +450,16 @@ async function evaluateSqueezePlayEntry({
     const atrPips =
         Number.isFinite(atrVal) && pipValue > 0 ? atrVal / pipValue : 0;
     const h1Candles = marketContext?.timeframes?.["1h"]?.candles || [];
-    const squeezeContext =
-        marketContext?.timeframes?.["15m"]?.derived?.squeezePlay ||
-        buildSqueezePlayDerivedContext(candles, h1Candles, resolvedConfig);
+    const calculatedSqueezeContext = buildSqueezePlayDerivedContext(
+        candles,
+        h1Candles,
+        resolvedConfig
+    );
+    const suppliedSqueezeContext =
+        marketContext?.timeframes?.["15m"]?.derived?.squeezePlay || null;
+    const squeezeContext = suppliedSqueezeContext
+        ? { ...calculatedSqueezeContext, ...suppliedSqueezeContext }
+        : calculatedSqueezeContext;
     const sessionName = marketContext?.session?.session || "Off-Hours";
     const sessionKey = normalizeSessionName(sessionName);
     const activeSessions = Array.isArray(resolvedConfig.activeSessions)
@@ -504,20 +543,65 @@ async function evaluateSqueezePlayEntry({
         });
     }
 
+    const normalizedSlope =
+        suppliedSqueezeContext &&
+        Number.isFinite(toFiniteNumber(suppliedSqueezeContext.slope, null)) &&
+        !Number.isFinite(
+            toFiniteNumber(suppliedSqueezeContext.normalizedSlope, null)
+        )
+            ? suppliedSqueezeContext.slope / atrVal
+            : toFiniteNumber(
+                  squeezeContext.normalizedSlope,
+                  squeezeContext.slope / atrVal
+              );
+    const minNormalizedSlope = Math.max(
+        0,
+        toFiniteNumber(resolvedConfig.minNormalizedSlopeAtrPerBar, 0.03)
+    );
+    if (
+        !Number.isFinite(normalizedSlope) ||
+        Math.abs(normalizedSlope) < minNormalizedSlope
+    ) {
+        return buildHoldResult(evaluationContext, {
+            reason:
+                `HOLD: normalized release slope ${toFiniteNumber(
+                    normalizedSlope,
+                    0
+                ).toFixed(3)} ATR/bar is too weak`,
+            reasonCode: "SQUEEZE_PLAY_SLOPE_FILTERED",
+        });
+    }
+
+    const compressionHigh = toFiniteNumber(
+        squeezeContext.compressionHigh,
+        null
+    );
+    const compressionLow = toFiniteNumber(
+        squeezeContext.compressionLow,
+        null
+    );
+    const requireBoundaryBreak =
+        resolvedConfig.requireCompressionBoundaryBreak !== false;
+
     const bullishRelease =
         squeezeContext.direction === "LONG" &&
         toFiniteNumber(currentCandle.close, entryPrice) >
-            toFiniteNumber(currentCandle.open, entryPrice);
+            toFiniteNumber(currentCandle.open, entryPrice) &&
+        (!requireBoundaryBreak ||
+            (Number.isFinite(compressionHigh) && entryPrice > compressionHigh));
     const bearishRelease =
         squeezeContext.direction === "SHORT" &&
         toFiniteNumber(currentCandle.close, entryPrice) <
-            toFiniteNumber(currentCandle.open, entryPrice);
+            toFiniteNumber(currentCandle.open, entryPrice) &&
+        (!requireBoundaryBreak ||
+            (Number.isFinite(compressionLow) && entryPrice < compressionLow));
 
     if (!bullishRelease && !bearishRelease) {
         return buildHoldResult(evaluationContext, {
             reason:
-                `HOLD: release candle did not close in the ${squeezeContext.direction.toLowerCase()} direction`,
-            reasonCode: "SQUEEZE_PLAY_DIRECTION_FILTERED",
+                `HOLD: release did not close beyond the ${squeezeContext.direction.toLowerCase()} ` +
+                "compression boundary",
+            reasonCode: "SQUEEZE_PLAY_BOUNDARY_FILTERED",
         });
     }
 

@@ -263,6 +263,16 @@ describe("PaperTradingRuntime", () => {
         portfolioRepository = createPortfolioRepository();
         signalRepository = createSignalRepository();
         entryDecisionRepository = {
+            decisions: [],
+            save: jest.fn(async (decision) => {
+                entryDecisionRepository.decisions.push({ ...decision });
+            }),
+            updateDecision: jest.fn(async (decisionId, updates) => {
+                const decision = entryDecisionRepository.decisions.find(
+                    (candidate) => candidate.decisionId === decisionId
+                );
+                if (decision) Object.assign(decision, updates);
+            }),
             deleteByRuntimeFilters: jest.fn(async () => 0),
         };
         runtimeCoordinator = createRuntimeCoordinator(session);
@@ -322,6 +332,41 @@ describe("PaperTradingRuntime", () => {
                 runId: "run-candidate-1",
                 mode: RUNTIME_MODES.PAPER_CANDIDATE,
                 positionCount: 1,
+            })
+        );
+    });
+
+    test("paper entries persist received-to-filled decisions with runtime identity", async () => {
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                strength: 28,
+                entryType: "MEAN_REVERSION_BAND_FADE",
+                atrPips: 12,
+                currentPrice: 1.1,
+                configHash: "cfg-1",
+                tradePlan: {
+                    stopLossPrice: 1.098,
+                    takeProfitPrice: 1.101,
+                },
+            },
+        ]);
+
+        expect(entryDecisionRepository.save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                runId: "run-candidate-1",
+                mode: RUNTIME_MODES.PAPER_CANDIDATE,
+                strategy: "mean_reversion",
+                stage: "RECEIVED",
+                outcome: "PENDING",
+            })
+        );
+        expect(entryDecisionRepository.decisions[0]).toEqual(
+            expect.objectContaining({
+                stage: "FILLED",
+                outcome: "FILLED",
+                tradeId: expect.any(String),
             })
         );
     });
@@ -526,14 +571,16 @@ describe("PaperTradingRuntime", () => {
                 stopSlippagePips: 0.5,
             })
         );
-        expect(buyResult.exitPrice).toBeCloseTo(1.09795, 5);
+        expect(buyResult.exitPrice).toBeCloseTo(1.09785, 5);
+        expect(buyResult.gapPips).toBeCloseTo(1, 5);
         expect(sellResult).toEqual(
             expect.objectContaining({
                 exitReason: "STOP_LOSS",
                 stopSlippagePips: 0.5,
             })
         );
-        expect(sellResult.exitPrice).toBeCloseTo(1.10205, 5);
+        expect(sellResult.exitPrice).toBeCloseTo(1.10215, 5);
+        expect(sellResult.gapPips).toBeCloseTo(1, 5);
     });
 
     test("getPaperStopSlippagePips uses default unless explicitly overridden", () => {
@@ -576,6 +623,81 @@ describe("PaperTradingRuntime", () => {
                 runId: "run-candidate-1",
                 mode: RUNTIME_MODES.PAPER_CANDIDATE,
                 positionCount: 0,
+            })
+        );
+        expect(entryDecisionRepository.decisions[0]).toEqual(
+            expect.objectContaining({
+                stage: "REJECTED",
+                outcome: "REJECTED",
+                rejectionCode: "SPREAD_TOO_WIDE",
+            })
+        );
+    });
+
+    test("paper entries fail closed when an AUD conversion path is unavailable", async () => {
+        setRunConfig(session, { assets: ["CHF_NZD"] });
+        dataService.getCurrentPrice.mockImplementation((instrument) =>
+            instrument === "CHF_NZD"
+                ? {
+                      price: 1.9,
+                      bid: 1.8999,
+                      ask: 1.9001,
+                      spread: 2,
+                      tradeable: true,
+                      timestamp: Date.now(),
+                  }
+                : null
+        );
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "CHF_NZD",
+                signal: "BUY",
+                strength: 30,
+                currentPrice: 1.9,
+                atrPips: 10,
+                tradePlan: { stopLossPrice: 1.898 },
+            },
+        ]);
+
+        expect(tradeRepository.save).not.toHaveBeenCalled();
+        expect(entryDecisionRepository.decisions[0]).toEqual(
+            expect.objectContaining({
+                outcome: "REJECTED",
+                rejectionCode: "CURRENCY_CONVERSION_UNAVAILABLE",
+            })
+        );
+    });
+
+    test("within-cycle exposure includes a trade opened earlier in the same signal batch", async () => {
+        setRunConfig(session, {
+            maxPortfolioExposure: 0.009,
+            fixedPositionUnits: 1000,
+            paperEntrySlippagePips: 0,
+        });
+
+        await runtime.processRunSession(session, [
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                currentPrice: 1.1,
+                atrPips: 12,
+                tradePlan: { stopLossPrice: 1.098 },
+            },
+            {
+                symbol: "EUR_USD",
+                signal: "BUY",
+                currentPrice: 1.1,
+                atrPips: 12,
+                tradePlan: { stopLossPrice: 1.098 },
+            },
+        ]);
+
+        expect(tradeRepository.save).toHaveBeenCalledTimes(1);
+        expect(entryDecisionRepository.decisions[1]).toEqual(
+            expect.objectContaining({
+                outcome: "REJECTED",
+                rejectionCode: "EXPOSURE_LIMIT",
             })
         );
     });
@@ -675,6 +797,61 @@ describe("PaperTradingRuntime", () => {
         );
 
         expect(units).toBe(549);
+    });
+
+    test("risk sizing applies fresh-flip and TimesFM multipliers", async () => {
+        setRunConfig(session, {
+            positionSizeMethod: "RISK",
+            maxCapitalAtRisk: 100,
+            riskPerTrade: 0.01,
+            freshFlipRiskMultiplier: 0.5,
+            timesFmEnabled: true,
+            timesFmMode: "size",
+        });
+
+        const baseline = await runtime.calculatePositionUnits(
+            session.run,
+            runtime.getResolvedRunConfig(session.run, session.generator.config),
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                currentPrice: 1.1,
+            },
+            1.098
+        );
+        const adjusted = await runtime.calculatePositionUnits(
+            session.run,
+            runtime.getResolvedRunConfig(session.run, session.generator.config),
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                entryType: "FRESH_FLIP",
+                currentPrice: 1.1,
+                timesFm: { positionSizeMultiplier: 0.5 },
+            },
+            1.098
+        );
+
+        expect(adjusted).toBe(Math.floor(baseline * 0.25));
+    });
+
+    test("strategy trade plans receive the same minimum stop floor as fallback stops", () => {
+        const plan = runtime.resolveTradePlan(
+            {
+                symbol: "AUD_USD",
+                signal: "BUY",
+                currentPrice: 1.1,
+                tradePlan: {
+                    stopLossPrice: 1.0995,
+                    takeProfitPrice: 1.103,
+                },
+            },
+            { minStopLossPips: 15 }
+        );
+
+        expect(plan.floored).toBe(true);
+        expect(plan.stopLossPips).toBe(15);
+        expect(plan.stopLossPrice).toBeCloseTo(1.0985, 8);
     });
 
     test("evaluateOpenTrade closes paper trades when take profit is reached", async () => {
@@ -885,6 +1062,113 @@ describe("PaperTradingRuntime", () => {
             tradeRepository.updateTrade.mock.calls[0][1]
                 .brokerReconciliationPayload.paperRuntime.quoteToAccountRate
         ).toBeCloseTo(expectedQuoteToAud, 8);
+    });
+
+    test("closeTrade records commission, financing, spread and slippage costs", async () => {
+        const entryTime = Date.UTC(2026, 6, 8, 20, 0, 0);
+        const trade = {
+            id: "paper-costs",
+            instrument: "AUD_USD",
+            side: "BUY",
+            units: 1000,
+            entryPrice: 0.65,
+            entryCostAud: 1000,
+            entryNotionalAud: 1000,
+            entryTime,
+            strategy: "mean_reversion",
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    accountCurrency: "AUD",
+                    quoteToAccountRate: 1 / 0.65,
+                    entrySpreadPips: 1,
+                    entrySlippagePips: 0.25,
+                    ownerExitPolicy: {
+                        version: 1,
+                        strategy: "mean_reversion",
+                        config: {
+                            paperCommissionPerTradeAud: 1,
+                            paperFinancingRates: {
+                                AUD_USD: { longRateAnnual: -0.365 },
+                            },
+                            paperFinancingCutoffHourUtc: 21,
+                            paperTripleRolloverWeekday: 3,
+                        },
+                    },
+                },
+            },
+        };
+        const nowSpy = jest
+            .spyOn(Date, "now")
+            .mockReturnValue(Date.UTC(2026, 6, 8, 22, 0, 0));
+
+        const closedTrade = await runtime.closeTrade(trade, 0.651, "MANUAL", {
+            spreadPips: 1,
+            slippagePips: 0.25,
+        });
+        nowSpy.mockRestore();
+
+        expect(closedTrade.commissionAud).toBe(1);
+        expect(closedTrade.swapAud).toBeCloseTo(-3, 8);
+        expect(closedTrade.pnlAud).toBeLessThan(
+            1000 * 0.001 * (1 / 0.651)
+        );
+        expect(
+            closedTrade.brokerReconciliationPayload.paperRuntime
+        ).toEqual(
+            expect.objectContaining({
+                spreadCostAud: expect.any(Number),
+                slippageCostAud: expect.any(Number),
+                totalCostAud: expect.any(Number),
+                costModelVersion: 1,
+                financingMode: "MODELED",
+                financingStatus: "MODELED",
+            })
+        );
+    });
+
+    test("paper costs consume fresh OANDA financing metadata when available", async () => {
+        dataService.getInstrumentFinancing = jest.fn(() => ({
+            status: "MODELED",
+            longRateAnnual: -0.365,
+            shortRateAnnual: 0.1,
+            financingDaysOfWeek: [
+                { dayOfWeek: "WEDNESDAY", daysCharged: 3 },
+            ],
+            updatedAt: Date.UTC(2026, 6, 8, 20),
+            source: "OANDA_ACCOUNT_INSTRUMENTS",
+        }));
+        const trade = {
+            id: "paper-oanda-financing",
+            instrument: "AUD_USD",
+            side: "BUY",
+            units: 1000,
+            entryPrice: 0.65,
+            entryCostAud: 1000,
+            entryTime: Date.UTC(2026, 6, 8, 20),
+            brokerReconciliationPayload: {
+                paperRuntime: {
+                    accountCurrency: "AUD",
+                    quoteToAccountRate: 1 / 0.65,
+                },
+            },
+        };
+        const nowSpy = jest
+            .spyOn(Date, "now")
+            .mockReturnValue(Date.UTC(2026, 6, 8, 22));
+
+        const closed = await runtime.closeTrade(trade, 0.651, "MANUAL");
+        nowSpy.mockRestore();
+
+        expect(closed.swapAud).toBeCloseTo(-3, 8);
+        expect(
+            closed.brokerReconciliationPayload.paperRuntime
+        ).toEqual(
+            expect.objectContaining({
+                financingMode: "MODELED",
+                financingStatus: "MODELED",
+                financingSource: "OANDA_ACCOUNT_INSTRUMENTS",
+            })
+        );
     });
 
     test("resetRun clears telemetry and re-seeds the candidate snapshot", async () => {

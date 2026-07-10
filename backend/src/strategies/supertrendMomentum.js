@@ -134,6 +134,26 @@ function estimateSupertrendTargetPips(config = {}, stopPips = 0) {
     return Math.max(0, toFiniteNumber(stopPips, 0)) * expectedRewardRisk;
 }
 
+function evaluateContinuationChase(config, pending, currentClose, atrVal) {
+    const direction = pending.direction === "SHORT" ? -1 : 1;
+    const favorableMove = Math.max(
+        0,
+        direction * (currentClose - pending.flipPrice)
+    );
+    const maxChaseAtr = Math.max(
+        0,
+        toFiniteNumber(config.continuationMaxChaseAtr, 0.75)
+    );
+    const deviationAtr = Number.isFinite(atrVal) && atrVal > 0
+        ? favorableMove / atrVal
+        : Infinity;
+    return {
+        deviationAtr,
+        maxChaseAtr,
+        isChaseable: deviationAtr <= maxChaseAtr,
+    };
+}
+
 function buildSupertrendStrategyContext({
     signalType,
     entryType,
@@ -309,9 +329,11 @@ function evaluateLongHtfConfirmationSetup(config, params) {
         htfContext,
         rsiVal,
         adxVal,
+        atrVal,
+        nowMs = Date.now(),
     } = params;
 
-    const ageMs = Date.now() - pending.flipTime;
+    const ageMs = nowMs - pending.flipTime;
     const maxAgeMs = config.continuationWindowMs || 4 * 60 * 60 * 1000;
     if (ageMs > maxAgeMs) {
         return {
@@ -374,12 +396,13 @@ function evaluateLongHtfConfirmationSetup(config, params) {
         };
     }
 
-    const maxDeviation = config.continuationMaxPriceDeviation || 0.005;
-    const priceDeviation =
-        pending.flipPrice > 0
-            ? Math.max(0, (currentClose - pending.flipPrice) / pending.flipPrice)
-            : 0;
-    const isChaseable = priceDeviation <= maxDeviation;
+    const chase = evaluateContinuationChase(
+        config,
+        pending,
+        currentClose,
+        atrVal
+    );
+    const isChaseable = chase.isChaseable;
 
     if (adxOk && passesLongOverboughtCeiling(config, rsiVal) && isChaseable) {
         return {
@@ -388,7 +411,7 @@ function evaluateLongHtfConfirmationSetup(config, params) {
             clearPending: true,
             reason:
                 `BUY: HTF confirmed after M15 flip | ` +
-                `deviation ${(priceDeviation * 100).toFixed(2)}% | ADX ${adxVal.toFixed(
+                `deviation ${chase.deviationAtr.toFixed(2)} ATR | ADX ${adxVal.toFixed(
                     1
                 )} | RSI ${rsiVal.toFixed(1)}`,
             reasonCode: "LONG_HTF_CONFIRMED_ENTRY",
@@ -414,7 +437,7 @@ function evaluateLongHtfConfirmationSetup(config, params) {
             },
             reason:
                 `HOLD: HTF confirmed but move extended | ` +
-                `deviation ${(priceDeviation * 100).toFixed(2)}% | waiting for pullback`,
+                `deviation ${chase.deviationAtr.toFixed(2)} ATR | waiting for pullback`,
             reasonCode: "LONG_HTF_CONFIRMED_PULLBACK",
             signalClass: "PENDING",
             intent: "WAIT",
@@ -424,9 +447,9 @@ function evaluateLongHtfConfirmationSetup(config, params) {
     return {
         clearPending: true,
         reason:
-            `HOLD: HTF confirmed but entry not chaseable (${(
-                priceDeviation * 100
-            ).toFixed(2)}%)`,
+            `HOLD: HTF confirmed but entry not chaseable (${chase.deviationAtr.toFixed(
+                2
+            )} ATR > ${chase.maxChaseAtr.toFixed(2)} ATR)`,
         reasonCode: "LONG_HTF_CONFIRMED_NOT_CHASEABLE",
         signalClass: "FILTERED",
         intent: "WAIT",
@@ -449,9 +472,11 @@ function evaluateShortHtfConfirmationSetup(config, params) {
         htfContext,
         rsiVal,
         adxVal,
+        atrVal,
+        nowMs = Date.now(),
     } = params;
 
-    const ageMs = Date.now() - pending.flipTime;
+    const ageMs = nowMs - pending.flipTime;
     const maxAgeMs = config.continuationWindowMs || 4 * 60 * 60 * 1000;
     if (ageMs > maxAgeMs) {
         return {
@@ -514,12 +539,13 @@ function evaluateShortHtfConfirmationSetup(config, params) {
         };
     }
 
-    const maxDeviation = config.continuationMaxPriceDeviation || 0.005;
-    const priceDeviation =
-        pending.flipPrice > 0
-            ? Math.max(0, (pending.flipPrice - currentClose) / pending.flipPrice)
-            : 0;
-    const isChaseable = priceDeviation <= maxDeviation;
+    const chase = evaluateContinuationChase(
+        config,
+        pending,
+        currentClose,
+        atrVal
+    );
+    const isChaseable = chase.isChaseable;
 
     if (adxOk && passesFreshShortRsiFloor(config, rsiVal) && isChaseable) {
         return {
@@ -528,7 +554,7 @@ function evaluateShortHtfConfirmationSetup(config, params) {
             clearPending: true,
             reason:
                 `SELL: HTF confirmed after M15 flip | ` +
-                `deviation ${(priceDeviation * 100).toFixed(2)}% | ADX ${adxVal.toFixed(
+                `deviation ${chase.deviationAtr.toFixed(2)} ATR | ADX ${adxVal.toFixed(
                     1
                 )} | RSI ${rsiVal.toFixed(1)}`,
             reasonCode: "SHORT_HTF_CONFIRMED_ENTRY",
@@ -554,7 +580,7 @@ function evaluateShortHtfConfirmationSetup(config, params) {
             },
             reason:
                 `HOLD: HTF confirmed but move extended | ` +
-                `deviation ${(priceDeviation * 100).toFixed(2)}% | waiting for pullback`,
+                `deviation ${chase.deviationAtr.toFixed(2)} ATR | waiting for pullback`,
             reasonCode: "SHORT_HTF_CONFIRMED_PULLBACK",
             signalClass: "PENDING",
             intent: "WAIT",
@@ -564,9 +590,9 @@ function evaluateShortHtfConfirmationSetup(config, params) {
     return {
         clearPending: true,
         reason:
-            `HOLD: HTF confirmed but entry not chaseable (${(
-                priceDeviation * 100
-            ).toFixed(2)}%)`,
+            `HOLD: HTF confirmed but entry not chaseable (${chase.deviationAtr.toFixed(
+                2
+            )} ATR > ${chase.maxChaseAtr.toFixed(2)} ATR)`,
         reasonCode: "SHORT_HTF_CONFIRMED_NOT_CHASEABLE",
         signalClass: "FILTERED",
         intent: "WAIT",
@@ -589,9 +615,10 @@ function evaluateLongPullbackSetup(config, params) {
         adxOk,
         longDiOk,
         htfContext,
+        nowMs = Date.now(),
     } = params;
 
-    const ageMs = Date.now() - pending.flipTime;
+    const ageMs = nowMs - pending.flipTime;
     const maxAgeMs = config.continuationWindowMs || 4 * 60 * 60 * 1000;
     if (ageMs > maxAgeMs) {
         logger.info(
@@ -777,9 +804,10 @@ function evaluateShortPullbackSetup(config, params) {
         adxOk,
         shortDiOk,
         htfContext,
+        nowMs = Date.now(),
     } = params;
 
-    const ageMs = Date.now() - pending.flipTime;
+    const ageMs = nowMs - pending.flipTime;
     const maxAgeMs = config.continuationWindowMs || 4 * 60 * 60 * 1000;
     if (ageMs > maxAgeMs) {
         logger.info(
@@ -961,6 +989,7 @@ async function evaluateSupertrendMomentumEntry(context) {
         calculateSuperTrendFn = calculateSuperTrend,
         getHtfTrendContextFn = null,
         marketContext = null,
+        nowMs: contextNowMs = null,
     } = context;
 
     const timeframe = config.timeframe || "15m";
@@ -987,6 +1016,10 @@ async function evaluateSupertrendMomentumEntry(context) {
     const currentDir = stData.direction[idx];
     const prevDir = stData.direction[idx - 1];
     const signalCandleTime = resolvedCandles[idx]?.time || null;
+    const nowMs = toFiniteNumber(
+        contextNowMs,
+        getCandleTimestampMs(signalCandleTime)
+    );
     const flipCandlePrice = closes[idx];
     const flipTimeMs = getCandleTimestampMs(signalCandleTime);
 
@@ -1262,6 +1295,8 @@ async function evaluateSupertrendMomentumEntry(context) {
                       htfContext,
                       rsiVal,
                       adxVal,
+                      atrVal,
+                      nowMs,
                   })
                 : evaluateLongPullbackSetup(config, {
                       instrument,
@@ -1278,6 +1313,7 @@ async function evaluateSupertrendMomentumEntry(context) {
                       adxOk,
                       longDiOk,
                       htfContext,
+                      nowMs,
                   });
 
         if (evaluation.clearPending) {
@@ -1445,6 +1481,8 @@ async function evaluateSupertrendMomentumEntry(context) {
                           htfContext,
                           rsiVal,
                           adxVal,
+                          atrVal,
+                          nowMs,
                       })
                     : evaluateShortPullbackSetup(config, {
                           instrument,
@@ -1461,6 +1499,7 @@ async function evaluateSupertrendMomentumEntry(context) {
                           adxOk,
                           shortDiOk,
                           htfContext,
+                          nowMs,
                       });
 
             if (evaluation.clearPending) {

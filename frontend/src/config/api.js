@@ -17,6 +17,25 @@ const config = API_CONFIG[environment];
 
 export const API_BASE_URL = config.baseURL;
 export const SOCKET_URL = config.socketURL;
+const CONTROL_TOKEN_STORAGE_KEY = "forex-control-token";
+
+export const getControlToken = () => {
+    if (typeof window === "undefined") return "";
+    return window.sessionStorage.getItem(CONTROL_TOKEN_STORAGE_KEY) || "";
+};
+
+export const setControlToken = (token) => {
+    if (typeof window === "undefined") return;
+    const normalized = String(token || "").trim();
+    if (normalized) {
+        window.sessionStorage.setItem(CONTROL_TOKEN_STORAGE_KEY, normalized);
+    } else {
+        window.sessionStorage.removeItem(CONTROL_TOKEN_STORAGE_KEY);
+    }
+};
+
+export const clearControlToken = () => setControlToken("");
+export const hasControlToken = () => Boolean(getControlToken());
 
 // Initialize Socket with reconnection settings
 export const socket = io(SOCKET_URL, {
@@ -93,13 +112,20 @@ export const API_ENDPOINTS = {
  */
 export const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
+    const method = String(options.method || "GET").toUpperCase();
+    const controlToken = getControlToken();
+    const controlHeaders =
+        !["GET", "HEAD", "OPTIONS"].includes(method) && controlToken
+            ? { Authorization: `Bearer ${controlToken}` }
+            : {};
 
     const defaultOptions = {
         headers: {
             "Content-Type": "application/json",
+            ...controlHeaders,
             ...(options.headers || {}),
         },
-        method: "GET",
+        method,
         ...options,
     };
 
@@ -270,11 +296,6 @@ export const runtimeAPI = {
             `${API_ENDPOINTS.runtimeLiveSelection}${query ? `?${query}` : ""}`
         );
     },
-    setLiveSelection: (payload) =>
-        apiCall(API_ENDPOINTS.runtimeLiveSelection, {
-            method: "POST",
-            body: JSON.stringify(payload),
-        }),
     getRuns: (params = {}) => {
         const query = new URLSearchParams(
             Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")

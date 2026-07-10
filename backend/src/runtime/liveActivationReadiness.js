@@ -1,8 +1,16 @@
+const { computeConfigHash } = require("../config/tradingConfig");
+
 const CONTROLLED_LIVE_RISK_LIMITS = Object.freeze({
     maxOpenPositions: 1,
     maxRiskPerTrade: 0.005,
     maxCapitalAtRisk: 50,
     maxPortfolioExposure: 0.1,
+    maxAggregateStopRiskPctNav: 0.01,
+    maxNetCurrencyExposurePctNav: 2,
+    maxCorrelatedExposurePctNav: 2,
+    maxDailyLossPctNav: 0.02,
+    maxDrawdownPctNav: 0.08,
+    maxConsecutiveLosses: 3,
 });
 
 function toFiniteNumber(value, fallback = null) {
@@ -45,8 +53,84 @@ function applyControlledLiveConfig(config = {}) {
             CONTROLLED_LIVE_RISK_LIMITS.maxPortfolioExposure,
             CONTROLLED_LIVE_RISK_LIMITS.maxPortfolioExposure
         ),
+        maxAggregateStopRiskPctNav: capPositiveNumber(
+            config.maxAggregateStopRiskPctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxAggregateStopRiskPctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxAggregateStopRiskPctNav
+        ),
+        maxNetCurrencyExposurePctNav: capPositiveNumber(
+            config.maxNetCurrencyExposurePctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxNetCurrencyExposurePctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxNetCurrencyExposurePctNav
+        ),
+        maxCorrelatedExposurePctNav: capPositiveNumber(
+            config.maxCorrelatedExposurePctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxCorrelatedExposurePctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxCorrelatedExposurePctNav
+        ),
+        maxDailyLossPctNav: capPositiveNumber(
+            config.maxDailyLossPctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxDailyLossPctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxDailyLossPctNav
+        ),
+        maxDrawdownPctNav: capPositiveNumber(
+            config.maxDrawdownPctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxDrawdownPctNav,
+            CONTROLLED_LIVE_RISK_LIMITS.maxDrawdownPctNav
+        ),
+        maxConsecutiveLosses: Math.max(
+            1,
+            Math.floor(
+                capPositiveNumber(
+                    config.maxConsecutiveLosses,
+                    CONTROLLED_LIVE_RISK_LIMITS.maxConsecutiveLosses,
+                    CONTROLLED_LIVE_RISK_LIMITS.maxConsecutiveLosses
+                )
+            )
+        ),
+        portfolioRiskEnforcement: true,
+        referenceCurrency: "AUD",
+        accountCurrency: "AUD",
         liveActivationPhase: "phase4_controlled",
     };
+}
+
+function getControlledRiskChecks(config = {}) {
+    return [
+        {
+            key: "maxOpenPositions",
+            actual: Math.floor(toFiniteNumber(config.maxOpenPositions, Infinity)),
+            max: CONTROLLED_LIVE_RISK_LIMITS.maxOpenPositions,
+        },
+        {
+            key: "riskPerTrade",
+            actual: toFiniteNumber(config.riskPerTrade, Infinity),
+            max: CONTROLLED_LIVE_RISK_LIMITS.maxRiskPerTrade,
+        },
+        ...[
+            "maxCapitalAtRisk",
+            "maxPortfolioExposure",
+            "maxAggregateStopRiskPctNav",
+            "maxNetCurrencyExposurePctNav",
+            "maxCorrelatedExposurePctNav",
+            "maxDailyLossPctNav",
+            "maxDrawdownPctNav",
+            "maxConsecutiveLosses",
+        ].map((key) => ({
+            key,
+            actual: toFiniteNumber(config[key], Infinity),
+            max: CONTROLLED_LIVE_RISK_LIMITS[key],
+        })),
+    ];
+}
+
+function getControlledRiskLimitViolations(config = {}) {
+    return getControlledRiskChecks(config).filter(
+        (check) =>
+            !Number.isFinite(check.actual) ||
+            check.actual <= 0 ||
+            check.actual > check.max
+    );
 }
 
 function getPromotionGate(liveSelection = {}) {
@@ -60,28 +144,10 @@ function getPromotionGate(liveSelection = {}) {
 function evaluateControlledLiveReadiness({ liveSelection = null, config = {} } = {}) {
     const reasons = [];
     const promotionGate = getPromotionGate(liveSelection);
-    const riskChecks = [
-        {
-            key: "maxOpenPositions",
-            actual: Math.floor(toFiniteNumber(config.maxOpenPositions, Infinity)),
-            max: CONTROLLED_LIVE_RISK_LIMITS.maxOpenPositions,
-        },
-        {
-            key: "riskPerTrade",
-            actual: toFiniteNumber(config.riskPerTrade, Infinity),
-            max: CONTROLLED_LIVE_RISK_LIMITS.maxRiskPerTrade,
-        },
-        {
-            key: "maxCapitalAtRisk",
-            actual: toFiniteNumber(config.maxCapitalAtRisk, Infinity),
-            max: CONTROLLED_LIVE_RISK_LIMITS.maxCapitalAtRisk,
-        },
-        {
-            key: "maxPortfolioExposure",
-            actual: toFiniteNumber(config.maxPortfolioExposure, Infinity),
-            max: CONTROLLED_LIVE_RISK_LIMITS.maxPortfolioExposure,
-        },
-    ];
+    const liveRun = liveSelection?.liveRun || null;
+    const controlledMetadata = liveRun?.metadata?.phase4ControlledLive || null;
+    const riskChecks = getControlledRiskChecks(config);
+    const currentConfigHash = computeConfigHash(config);
 
     if (!liveSelection?.liveRun) {
         reasons.push({
@@ -90,10 +156,63 @@ function evaluateControlledLiveReadiness({ liveSelection = null, config = {} } =
         });
     }
 
-    if (promotionGate?.passed !== true) {
+    if (promotionGate?.passed !== true || promotionGate?.gateVersion !== 2) {
         reasons.push({
             code: "PROMOTION_GATE_NOT_PASSED",
             message: "Live entries require a candidate promotion with a passing realistic-paper gate",
+        });
+    }
+
+    if (!liveRun?.metadata?.promotedFromRunId) {
+        reasons.push({
+            code: "PROMOTION_PATH_REQUIRED",
+            message: "The active live run was not created by the candidate promotion path",
+        });
+    }
+
+    if (
+        !controlledMetadata?.liveConfigHash ||
+        controlledMetadata.liveConfigHash !== liveRun?.configHash
+    ) {
+        reasons.push({
+            code: "LIVE_CONFIG_IDENTITY_MISMATCH",
+            message: "Controlled-live metadata does not match the immutable live run configuration",
+        });
+    }
+
+    if (liveRun?.configHash && currentConfigHash !== liveRun.configHash) {
+        reasons.push({
+            code: "ACTIVE_CONFIG_MISMATCH",
+            message: "The current canonical configuration differs from the promoted live run",
+            actualConfigHash: currentConfigHash,
+            requiredConfigHash: liveRun.configHash,
+        });
+    }
+
+    if (
+        promotionGate?.configHash &&
+        controlledMetadata?.sourceConfigHash !== promotionGate.configHash
+    ) {
+        reasons.push({
+            code: "PROMOTION_SOURCE_IDENTITY_MISMATCH",
+            message: "Promotion evidence does not match the candidate configuration",
+        });
+    }
+
+    if (
+        config.referenceCurrency !== "AUD" ||
+        (config.accountCurrency && config.accountCurrency !== "AUD")
+    ) {
+        reasons.push({
+            code: "REFERENCE_CURRENCY_MISMATCH",
+            message: "Live risk controls require AUD account and reference currency",
+        });
+    }
+
+    if (config.portfolioRiskEnforcement !== true) {
+        reasons.push({
+            code: "PORTFOLIO_RISK_ENFORCEMENT_DISABLED",
+            message: "NAV-aware portfolio risk enforcement must be enabled",
         });
     }
 
@@ -115,6 +234,7 @@ function evaluateControlledLiveReadiness({ liveSelection = null, config = {} } =
         selectionId: liveSelection?.selectionId || null,
         liveRunId: liveSelection?.liveRun?.runId || null,
         strategy: liveSelection?.strategy || liveSelection?.liveRun?.strategy || null,
+        currentConfigHash,
         requirements: {
             promotionGate: "PASS",
             riskLimits: CONTROLLED_LIVE_RISK_LIMITS,
@@ -125,6 +245,24 @@ function evaluateControlledLiveReadiness({ liveSelection = null, config = {} } =
             riskPerTrade: toFiniteNumber(config.riskPerTrade, null),
             maxCapitalAtRisk: toFiniteNumber(config.maxCapitalAtRisk, null),
             maxPortfolioExposure: toFiniteNumber(config.maxPortfolioExposure, null),
+            maxAggregateStopRiskPctNav: toFiniteNumber(
+                config.maxAggregateStopRiskPctNav,
+                null
+            ),
+            maxNetCurrencyExposurePctNav: toFiniteNumber(
+                config.maxNetCurrencyExposurePctNav,
+                null
+            ),
+            maxCorrelatedExposurePctNav: toFiniteNumber(
+                config.maxCorrelatedExposurePctNav,
+                null
+            ),
+            maxDailyLossPctNav: toFiniteNumber(config.maxDailyLossPctNav, null),
+            maxDrawdownPctNav: toFiniteNumber(config.maxDrawdownPctNav, null),
+            maxConsecutiveLosses: toFiniteNumber(
+                config.maxConsecutiveLosses,
+                null
+            ),
         },
         reasons,
     };
@@ -134,4 +272,6 @@ module.exports = {
     CONTROLLED_LIVE_RISK_LIMITS,
     applyControlledLiveConfig,
     evaluateControlledLiveReadiness,
+    getControlledRiskChecks,
+    getControlledRiskLimitViolations,
 };

@@ -435,8 +435,8 @@ describe('SignalGenerator', () => {
             const confirmedCurrent = confirmedCandles[confirmedCandles.length - 1];
             confirmedCurrent.open = 1.1654;
             confirmedCurrent.low = 1.1651;
-            confirmedCurrent.high = 1.1663;
-            confirmedCurrent.close = 1.1662;
+            confirmedCurrent.high = 1.1659;
+            confirmedCurrent.close = 1.1657;
 
             generator.dataService = createMockDataService();
             jest.spyOn(generator, 'calculateSuperTrend')

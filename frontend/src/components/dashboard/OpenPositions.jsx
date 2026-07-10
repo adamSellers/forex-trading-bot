@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { TrendingUp, TrendingDown, AccessTime } from '@mui/icons-material';
 import { EmptyState, formatCurrency, formatPrice } from './Shared';
+import { tradingAPI } from '../../config/api';
 
 export default function OpenPositions({ portfolio, prices = [] }) {
     const theme = useTheme();
@@ -61,7 +62,7 @@ function PositionCard({ position, prices, theme }) {
         if (!window.confirm(`Close ${displayName} position?`)) return;
         setClosing(true);
         try {
-            await fetch(`/api/trade/close/${position.id}`, { method: 'POST' });
+            await tradingAPI.closePosition(position.id);
             // Position will be removed on next refresh
         } catch (e) {
             alert(`Failed to close: ${e.message}`);

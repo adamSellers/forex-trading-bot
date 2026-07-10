@@ -4,11 +4,11 @@
 # Fixed for ARM64 Dependencies + Memory Constraints
 # =====================================================
 
-set -e
+set -Eeuo pipefail
 
 # --- Configuration ---
 PROJECT_DIR="/opt/forex-trading-bot"
-BACKUP_DIR="$HOME/forex-backups"
+BACKUP_DIR="${FOREX_BACKUP_DIR:-$HOME/forex-trading-bot-backups}"
 APP_NAME="forex-backend"
 CONFIG_PATH="backend/data/trading_config.json"
 CONFIG_BACKUP=""
@@ -49,6 +49,26 @@ fi
 if [ ! -f ".secrets/oanda_api_key.enc" ]; then
     log_warn "Oanda API key not configured. Run: ./scripts/setup-secrets.sh"
 fi
+if [ ! -f ".secrets/control_api_token.enc" ]; then
+    log_error "Control API token is missing. Run: ./scripts/setup-secrets.sh"
+    exit 1
+fi
+
+# Deploying while orders can be emitted turns a code rollout into a trading
+# event. Require an explicit override for emergency hot deploys.
+if [ "${ALLOW_LIVE_DEPLOY:-0}" != "1" ] && curl -sf http://localhost:3101/api/health >/tmp/forex-health.json 2>/dev/null; then
+    trading_enabled=$(python3 -c 'import json; data=json.load(open("/tmp/forex-health.json")); print(str(bool((data.get("config") or {}).get("enableTrading"))).lower())' 2>/dev/null || echo unknown)
+    rm -f /tmp/forex-health.json
+    if [ "$trading_enabled" = "true" ]; then
+        log_error "Live trading is enabled. Pause it before deployment."
+        exit 1
+    fi
+fi
+
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    log_error "Tracked working tree changes detected; refusing to overwrite them"
+    exit 1
+fi
 
 # 0. Backup database BEFORE any git operations (prevents data loss from git reset)
 log_info "Creating database backup..."
@@ -66,16 +86,20 @@ if [ -f "backend/data/trading.db" ]; then
         cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
         cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
     fi
-    # Keep only last 2 backups (including legacy WAL/SHM companions)
+    if command -v sqlite3 >/dev/null 2>&1; then
+        integrity=$(sqlite3 "$BACKUP_DIR/trading_$TIMESTAMP.db" "PRAGMA quick_check;")
+        [ "$integrity" = "ok" ] || log_error "Database backup integrity check failed"
+    fi
+    # Keep a configurable recovery window (including legacy WAL/SHM companions)
     while IFS= read -r old_db; do
         rm -f "$old_db" "$old_db-wal" "$old_db-shm"
-    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +3)
+    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +$((${FOREX_BACKUP_RETENTION:-5} + 1)))
     log_success "Database backed up to $BACKUP_DIR"
 else
     log_info "No existing database to backup"
 fi
 
-# 0a. Backup runtime config so local live settings survive git reset
+# 0a. Backup runtime config as an additional safety copy.
 if [ -f "$CONFIG_PATH" ]; then
     CONFIG_BACKUP=$(mktemp /tmp/forex_trading_config.XXXXXX.json)
     cp "$CONFIG_PATH" "$CONFIG_BACKUP"
@@ -85,7 +109,7 @@ fi
 # 1. Update code from git
 log_info "Fetching latest changes from git..."
 git fetch origin main
-git reset --hard origin/main
+git merge --ff-only origin/main
 chmod +x scripts/*.sh
 
 # 1a. Restore runtime config backup if available
@@ -101,26 +125,20 @@ elif [ ! -f "$CONFIG_PATH" ]; then
     fi
 fi
 
-# 2. Stop Service
-log_info "Stopping forex services..."
-pm2 stop forex-backend --silent 2>/dev/null || true
-sleep 2
-
-# 3. Install backend dependencies
-log_info "Installing backend dependencies..."
+# 2. Reproducible dependency install and preflight tests while the old service
+# remains online (trading is paused by the guard above).
+log_info "Installing backend dependencies from lockfile..."
 cd backend
-npm install --omit=dev
+npm ci
+log_info "Running backend test suite..."
+npm test -- --runInBand
 cd ..
 
 # 4. Build frontend (if exists)
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     log_info "Installing frontend dependencies..."
     cd frontend
-    npm install
-    
-    # ARM64 Rollup fix - CRITICAL for Raspberry Pi
-    log_info "Installing ARM64 Rollup binary..."
-    npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
+    npm ci
     cd ..
     
     log_info "Building frontend (memory constrained)..."
@@ -138,6 +156,16 @@ if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
 else
     log_info "No frontend to build"
 fi
+
+python3 -m compileall -q timesfm-sidecar/src timesfm-sidecar/tests
+
+# Remove backend dev dependencies only after the test gate has passed.
+(cd backend && npm prune --omit=dev)
+
+# 4. Stop only for the migration/restart cutover.
+log_info "Stopping forex services for migration cutover..."
+pm2 stop forex-backend --silent 2>/dev/null || true
+sleep 2
 
 # 5. Run database migrations
 log_info "Running database migrations..."
@@ -172,10 +200,17 @@ done
 echo ""
 
 if [ $attempt -lt $max_attempts ]; then
-    log_success "Health check passed!"
+    if "$SCRIPT_DIR/health-check.sh"; then
+        log_success "Comprehensive health check passed!"
+    else
+        log_error "Comprehensive health check failed"
+        pm2 logs forex-backend --lines 40 --nostream
+        exit 1
+    fi
 else
-    log_warn "Health check didn't respond, but service may still be starting"
+    log_error "Health check did not respond"
     pm2 logs forex-backend --lines 20 --nostream
+    exit 1
 fi
 
 echo ""

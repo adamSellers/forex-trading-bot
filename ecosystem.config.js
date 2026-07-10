@@ -49,7 +49,8 @@ module.exports = {
                 // TIMESFM_KEY: injected
 
                 // Security
-                CORS_ORIGIN: "http://localhost:3100,http://localhost:3101",
+                CORS_ORIGIN:
+                    "https://fx.oakroad,http://fx.oakroad,http://localhost:3100,http://localhost:3101",
 
                 // -------------------------------------------------------------
                 // Pi 5 8GB Optimizations

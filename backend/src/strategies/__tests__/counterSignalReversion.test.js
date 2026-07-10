@@ -59,6 +59,7 @@ describe("counterSignalReversionStrategy", () => {
                 currentPrice: 1.1,
                 config: {
                     counterSignalSourceStrategies: ["mean_reversion"],
+                    counterSignalEnabled: true,
                 },
             });
 
@@ -118,6 +119,7 @@ describe("counterSignalReversionStrategy", () => {
                         "timesfm_directional",
                         "stochastic_divergence",
                     ],
+                    counterSignalEnabled: true,
                 },
             });
 
@@ -157,6 +159,7 @@ describe("counterSignalReversionStrategy", () => {
                     counterSignalSourceStrategies: ["mean_reversion"],
                     counterSignalStopLossPips: 20,
                     counterSignalTakeProfitPips: 20,
+                    counterSignalEnabled: true,
                 },
             });
 
@@ -184,6 +187,7 @@ describe("counterSignalReversionStrategy", () => {
                 currentPrice: 1.1,
                 config: {
                     counterSignalSourceStrategies: ["mean_reversion"],
+                    counterSignalEnabled: true,
                 },
             });
 
@@ -192,6 +196,23 @@ describe("counterSignalReversionStrategy", () => {
                 signalType: "HOLD",
                 reasonCode: "COUNTER_SIGNAL_NO_SOURCE_ENTRY",
                 signalClass: "FILTERED",
+            })
+        );
+    });
+
+    test("is quarantined unless explicitly enabled for research", async () => {
+        const result =
+            await counterSignalReversionStrategy.evaluateCounterSignalReversionEntry({
+                instrument: "EUR_USD",
+                candles: buildCandles(),
+                currentPrice: 1.1,
+                config: { counterSignalSourceStrategies: ["mean_reversion"] },
+            });
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                signalType: "HOLD",
+                reasonCode: "COUNTER_SIGNAL_QUARANTINED",
             })
         );
     });
