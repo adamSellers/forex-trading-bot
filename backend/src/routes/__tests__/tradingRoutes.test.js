@@ -677,6 +677,119 @@ describe("tradingRoutes controlled live start", () => {
     });
 });
 
+// Regression cover for the 2026-07-23 outage: the engine failed to attach to
+// the signal stream at boot, but /trading/start only flipped the config flag,
+// so the dashboard reported "Trading enabled" and enableTrading stayed true
+// for five days while nothing was listening to signals.
+describe("tradingRoutes live activation requires an attached engine", () => {
+    function createReadyLiveContext() {
+        const session = createSession(RUNTIME_MODES.LIVE);
+        const config = {
+            referenceCurrency: "AUD",
+            accountCurrency: "AUD",
+            portfolioRiskEnforcement: true,
+            maxOpenPositions: 1,
+            riskPerTrade: 0.005,
+            maxCapitalAtRisk: 50,
+            maxPortfolioExposure: 0.1,
+            maxAggregateStopRiskPctNav: 0.01,
+            maxNetCurrencyExposurePctNav: 2,
+            maxCorrelatedExposurePctNav: 2,
+            maxDailyLossPctNav: 0.02,
+            maxDrawdownPctNav: 0.08,
+            maxConsecutiveLosses: 3,
+        };
+        const liveConfigHash = computeConfigHash(config);
+        session.run = {
+            ...session.run,
+            strategy: "timesfm_directional",
+            configHash: liveConfigHash,
+            metadata: {
+                promotedFromRunId: "candidate-1",
+                promotionGate: {
+                    passed: true,
+                    status: "PASS",
+                    gateVersion: 2,
+                    configHash: "candidate-config",
+                },
+                phase4ControlledLive: {
+                    sourceConfigHash: "candidate-config",
+                    liveConfigHash,
+                },
+            },
+        };
+        const { req, res } = createRouteContext(session);
+        const configService = {
+            get: jest.fn(() => config),
+            update: jest.fn(),
+        };
+        req.app.locals.configService = configService;
+        return { req, res, configService };
+    }
+
+    test("refuses activation and leaves entries paused when the engine cannot attach", async () => {
+        const { req, res, configService } = createReadyLiveContext();
+        req.app.locals.tradingEngine = { isRunning: false };
+        req.app.locals.ensureTradingEngineStarted = jest.fn(async () => ({
+            running: false,
+            error: "Oanda request failed: fetch failed",
+        }));
+
+        await startHandler(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(503);
+        expect(res.body).toEqual(
+            expect.objectContaining({
+                error: "Trading engine is not running",
+                detail: "Oanda request failed: fetch failed",
+                engineRunning: false,
+            })
+        );
+        // The actual regression: never claim success or mark live enabled
+        // while the engine is detached from the signal stream.
+        expect(configService.update).not.toHaveBeenCalled();
+    });
+
+    test("attaches a stopped engine before enabling entries", async () => {
+        const { req, res, configService } = createReadyLiveContext();
+        const tradingEngine = { isRunning: false };
+        req.app.locals.tradingEngine = tradingEngine;
+        req.app.locals.ensureTradingEngineStarted = jest.fn(async () => {
+            tradingEngine.isRunning = true;
+            return { running: true };
+        });
+
+        await startHandler(req, res);
+
+        expect(req.app.locals.ensureTradingEngineStarted).toHaveBeenCalled();
+        expect(res.status).not.toHaveBeenCalled();
+        expect(configService.update).toHaveBeenCalledWith(
+            { enableTrading: true },
+            { allowLiveActivation: true }
+        );
+        expect(res.body).toEqual(
+            expect.objectContaining({ success: true, engineRunning: true })
+        );
+    });
+
+    test("does not restart an already attached engine", async () => {
+        const { req, res, configService } = createReadyLiveContext();
+        req.app.locals.tradingEngine = { isRunning: true };
+        req.app.locals.ensureTradingEngineStarted = jest.fn();
+
+        await startHandler(req, res);
+
+        expect(req.app.locals.ensureTradingEngineStarted).not.toHaveBeenCalled();
+        expect(configService.update).toHaveBeenCalledWith(
+            { enableTrading: true },
+            { allowLiveActivation: true }
+        );
+        expect(res.body).toEqual(
+            expect.objectContaining({ success: true, engineRunning: true })
+        );
+    });
+});
+
 describe("tradingRoutes explicit controlled baseline resume", () => {
     const requiredConfirmation = "RESUME_CONTROLLED_BASELINE";
     const originalFetch = global.fetch;

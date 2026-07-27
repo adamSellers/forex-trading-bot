@@ -394,6 +394,103 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-07-27 — Live engine DETACHED since 2026-07-23 + structural entry drought (SILENT-FAILURE FIX DONE LOCALLY; user commit + deploy + Pi restart pending)
+
+**Silent-failure fix (local, tests green) — addresses finding #1 below:**
+- NEW `backend/src/runtime/engineSupervisor.js`: `createEngineSupervisor({tradingEngine, onStatusChange})`
+  retries engine attachment with exponential backoff (15s → 5min cap), collapses concurrent callers
+  (boot / retry / activation) onto one attempt, keeps a single pending retry, `unref()`s the timer,
+  and treats a `startMonitoring()` failure as non-fatal (the engine is already subscribed by then, and
+  a retry would short-circuit on `isRunning` and skip monitoring forever). Attaching the engine does
+  NOT enable entries — `enableTrading` still gates them independently in `validateEntry`.
+- `backend/server.js`: boot uses the supervisor instead of a one-shot try/catch; logs a loud warning
+  when the engine is not attached; `gracefulShutdown` cancels any pending retry; and
+  `paperTradingRuntime.start()` is now wrapped so a paper failure can no longer reject the boot
+  callback and prevent the live engine from starting at all (same bug class).
+- `POST /api/trading/start` (`tradingRoutes.js`): now ensures the engine is actually attached before
+  flipping `enableTrading`. Returns `503 Trading engine is not running` (and does NOT enable trading)
+  when it cannot attach, instead of reporting `{"success":true,"message":"Trading enabled"}` while
+  nothing listens. Response now carries `engineRunning`.
+- `GET /api/system/health`: engine attachment is part of `coreHealthy`, so a detached engine can no
+  longer report `"healthy"` (it reported healthy for the entire 5-day outage). Adds a
+  `degradedReasons[]` array and `services.tradingEngine.detachedWhileTradingEnabled`; the specific
+  contradiction surfaces as `TRADING_ENGINE_DETACHED_WHILE_TRADING_ENABLED`.
+- Tests: new `engineSupervisor.test.js` (9, incl. the exact outage scenario — fails at boot, recovers
+  on a later retry), +3 `tradingRoutes.test.js` (refuses activation and leaves entries paused when the
+  engine cannot attach / attaches a stopped engine / does not restart an attached one). Full suite
+  545 pass / 46 fail — failures are ONLY the 3 pre-existing better-sqlite3 binding repo suites
+  (tradeRepository, portfolioRepository, strategyRunRepository), unchanged by this work.
+
+Pending user actions: commit + push, deploy via `./scripts/update.sh` (this restarts the backend,
+which is also what re-attaches the engine), then re-authorize live entries and confirm
+`/api/engine/status` shows `isRunning:true` — not just `tradingEnabled:true`.
+
+Findings from the read-only review that produced this fix:
+
+Read-only Pi review. The 2026-07-06 HTF fix WORKED — live placed a real `HTF_CONFIRMATION` BUY on
+EUR_USD 2026-07-06 19:00 UTC (shadow mirrored it, both closed SIGNAL_REVERSAL, live −A$0.21). HTF is
+still healthy today (last 2d: 7,784 uptrend / 3,736 downtrend, ZERO "unavailable"). But the bot is
+flat again for three separate reasons:
+
+**1. CRITICAL — the live trading engine has been detached from the signal stream since 2026-07-23
+05:06 UTC.** The Pi restarted while Oanda was unreachable (network not up yet):
+`error-2026-07-23.log` → `Failed to start trading engine: Oanda request failed: fetch failed`.
+`LiveTradingEngine.start()` throws inside `oandaClient.initialize()` BEFORE `this.isRunning = true`
+and before it subscribes to `signalGenerated`, so the engine never attached. `backend/server.js:453`
+catches that error, logs it, and **never retries**. `tradingEngine.startMonitoring()` (line 441) is
+after the throw, so position monitoring/reconciliation is dead too (initial stops are still
+broker-side via `stopLossOnFill`, so this is not naked risk; account is flat, 0 open trades).
+Silent-failure amplifier: `POST /api/trading/start` (`tradingRoutes.js:1247`) only flips the
+`enableTrading` config flag — it NEVER calls `tradingEngine.start()`. So the dashboard ENABLE LIVE
+button returns `{"success":true,"message":"Trading enabled"}`, config file says `enableTrading:true`,
+`/api/engine/status` says `tradingEnabled:true` — while `isRunning:false` and nothing is listening.
+Immediate remedy is a backend restart (`pm2 restart forex-backend`) once Oanda is reachable, then
+re-authorize live entries. Real fix = retry/backoff around engine start + make the activation
+endpoint ensure the engine is actually running (and surface `isRunning` in the UI).
+
+Note: `configService.load()` (`configService.js:59-65`) intentionally force-sets `enableTrading:false`
+on EVERY startup ("Live entries were paused during startup"). That is by design, but it means every
+reboot needs manual re-authorization — and combined with #1 that re-authorization is a no-op.
+
+**2. Structural entry drought — ~1 entry per 3 weeks.** Since the HTF fix (2026-07-06 → 07-27) the
+live funnel produced exactly ONE entry. Distinct-setup attrition: 25 `LONG_FRESH_FLIP_BLOCKED_HTF`,
+25 `WAIT_HTF`, 21 `LONG_WAIT_HTF_MOMENTUM_FADED` (died waiting for HTF confirm), 17
+`BLOCKED_ADX`, 7 pullback-pending, 4 reaccel-wait, 2 `LONG_HTF_CONFIRMED_PULLBACK`, 1
+`LONG_HTF_CONFIRMED_ENTRY`. At ~17 trades/year you can never establish or refute an edge. The
+biggest single leak is momentum fading during the HTF confirmation wait.
+
+**3. Spread gate is mispriced for the traded pairs.** `maxSpreadPips:1.2` vs measured London/NY
+(07–20 UTC, 5d) spreads: GBP_USD avg 4.46 and passes only **233/4200 = 5.5%** of samples — the
+filter is silently acting as a pair exclusion; EUR_USD avg 1.34 (60% pass), USD_JPY 1.27 (59%),
+AUD_USD 2.46 (60%). Worth confirming these are true Oanda spreads before retuning.
+
+**Config drift back toward the condemned posture** (contradicts the 2026-06-10 evidence in the
+sections below): `activeSessions` is back to all four (Tokyo −A$36.32 / Sydney −A$33.65 were removed
+for cause) and `AUD_USD` is back in `assets` (worst pair, −A$35.80). Phase 4 caps are in force
+(`maxOpenPositions:1`, `riskPerTrade:0.005`, `maxCapitalAtRisk:50`).
+
+**Performance**: broker balance A$96.74, all-time realized −A$52.18. Live DB: 100 closed trades,
+−A$50.88; every strategy negative (unattributed legacy 77 = −A$30.56, mean_reversion −A$9.17,
+stochastic_divergence −A$7.43, timesfm_directional −A$3.51, supertrend_momentum −A$0.21/1 trade).
+Active paper candidates: `signal_following` +A$6.30 / 15 closed (only positive thing in the system,
+tiny sample), `counter_signal_reversion` −A$15.21 / 15 closed.
+
+**Paper is no longer a usable control group.** Since the 2026-07-10 refactor deploy (`b5583bd`,
+`e7a613a`, `00c4366` — 20k+ lines) no paper candidate has traded: `counter_signal_reversion` is
+DELIBERATELY quarantined in code (`counterSignalReversion.js:305`, "quarantined by default after
+negative live/paper evidence" — 17,280 HOLDs), `signal_following` emits
+`SIGNAL_FOLLOWING_NO_SOURCE_ENTRY` (17,279) because its source strategy produces no entries, so it
+inherits the drought, and the new `timesfm_directional` candidate is filtered mostly by spread
+(7,461) and session (7,200). The paper runtime itself is healthy (snapshots writing every cycle).
+
+Next steps (NOT yet actioned — awaiting user direction):
+1. Restart the backend so the engine attaches; re-authorize live entries; verify `isRunning:true`.
+2. Fix the silent failure in code (engine start retry + activation endpoint that truly starts the
+   engine + expose engine `isRunning` distinctly from `tradingEnabled` in the dashboard).
+3. Decide on entry-rate vs selectivity: the HTF-confirmation wait is where setups die.
+4. Re-tune or re-measure `maxSpreadPips`; decide deliberately on Tokyo/Sydney and AUD_USD rather
+   than inheriting them from config drift.
+
 ### Update 2026-07-06 — Why live placed ZERO trades since 2026-06-09: HTF filter fails closed with a null dataService (DEPLOYED + VERIFIED)
 
 Diagnosis (read-only Pi SSH): engine running, `enableTrading:true`, Oanda + TimesFM healthy, live run

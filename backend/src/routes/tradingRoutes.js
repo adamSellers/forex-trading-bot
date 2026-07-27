@@ -573,10 +573,20 @@ router.get("/system/health", async (req, res) => {
         const uptimeSeconds = process.uptime();
         const uptimeFormatted = formatUptime(uptimeSeconds);
 
+        // A detached engine handles neither entries nor exits, yet this check
+        // previously ignored it entirely: during the 2026-07-23 outage the Pi
+        // reported "healthy" for five days while the engine was unsubscribed
+        // from the signal stream and enableTrading was true. Engine state is
+        // now part of core health so that contradiction can never read as OK.
+        const engineAttached = engineStatus.isRunning === true;
+        const engineDetachedWhileTradingEnabled =
+            config.enableTrading === true && !engineAttached;
+
         const coreHealthy =
             oandaStatus.connected &&
             dataServiceStatus.isRunning &&
-            signalGenStatus.isActive;
+            signalGenStatus.isActive &&
+            engineAttached;
         const timesFmExpected =
             timesFmStatus.enabled === true &&
             timesFmStatus.mode !== "disabled" &&
@@ -584,8 +594,24 @@ router.get("/system/health", async (req, res) => {
         const isHealthy =
             coreHealthy && (!timesFmExpected || timesFmStatus.available === true);
 
+        const degradedReasons = [];
+        if (!oandaStatus.connected) degradedReasons.push("OANDA_DISCONNECTED");
+        if (!dataServiceStatus.isRunning) degradedReasons.push("DATA_SERVICE_STOPPED");
+        if (!signalGenStatus.isActive) degradedReasons.push("SIGNAL_GENERATOR_INACTIVE");
+        if (!engineAttached) {
+            degradedReasons.push(
+                engineDetachedWhileTradingEnabled
+                    ? "TRADING_ENGINE_DETACHED_WHILE_TRADING_ENABLED"
+                    : "TRADING_ENGINE_STOPPED"
+            );
+        }
+        if (timesFmExpected && timesFmStatus.available !== true) {
+            degradedReasons.push("TIMESFM_UNAVAILABLE");
+        }
+
         res.json({
             status: isHealthy ? "healthy" : "degraded",
+            degradedReasons,
             timestamp: new Date().toISOString(),
             uptime: uptimeSeconds,
             uptimeFormatted,
@@ -593,7 +619,10 @@ router.get("/system/health", async (req, res) => {
                 oanda: oandaStatus,
                 dataService: dataServiceStatus,
                 signalGenerator: signalGenStatus,
-                tradingEngine: engineStatus,
+                tradingEngine: {
+                    ...engineStatus,
+                    detachedWhileTradingEnabled: engineDetachedWhileTradingEnabled,
+                },
                 timesFm: timesFmStatus,
                 configService: {
                     loaded: !!configService,
@@ -1244,7 +1273,7 @@ router.post("/trading/resume-baseline", async (req, res) => {
     }
 });
 
-router.post("/trading/start", (req, res) => {
+router.post("/trading/start", async (req, res) => {
     try {
         const configService = req.app.locals.configService;
         const runtimeCoordinator = getRuntimeCoordinator(req);
@@ -1268,6 +1297,33 @@ router.post("/trading/start", (req, res) => {
             });
         }
 
+        // Flipping enableTrading is meaningless unless the engine is actually
+        // subscribed to the signal stream. Reporting "Trading enabled" while
+        // the engine sits detached is what hid the 2026-07-23 outage for five
+        // days, so refuse activation rather than claim a success we can't back.
+        const tradingEngine = req.app.locals.tradingEngine;
+        const ensureTradingEngineStarted =
+            req.app.locals.ensureTradingEngineStarted;
+        if (tradingEngine && !tradingEngine.isRunning) {
+            const startResult = ensureTradingEngineStarted
+                ? await ensureTradingEngineStarted({ reason: "live activation" })
+                : {
+                      running: false,
+                      error: "Trading engine supervisor is unavailable",
+                  };
+
+            if (!startResult.running) {
+                return res.status(503).json({
+                    error: "Trading engine is not running",
+                    detail:
+                        startResult.error ||
+                        "The engine could not attach to the signal stream",
+                    engineRunning: false,
+                    liveReadiness,
+                });
+            }
+        }
+
         configService.update(
             { enableTrading: true },
             { allowLiveActivation: true }
@@ -1279,6 +1335,7 @@ router.post("/trading/start", (req, res) => {
         res.json({
             success: true,
             message: "Trading enabled",
+            engineRunning: tradingEngine ? tradingEngine.isRunning : null,
             liveReadiness,
         });
     } catch (error) {

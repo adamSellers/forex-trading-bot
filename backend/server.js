@@ -21,6 +21,7 @@ const PortfolioRepository = require("./src/repositories/portfolioRepository");
 const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 const RuntimeCoordinator = require("./src/runtime/runtimeCoordinator");
+const { createEngineSupervisor } = require("./src/runtime/engineSupervisor");
 const PaperTradingRuntime = require("./src/services/PaperTradingRuntime");
 const TimesFmClient = require("./src/services/timesFmClient");
 const TimesFmSignalService = require("./src/services/timesFmSignalService");
@@ -318,6 +319,17 @@ tradingEngine.on("entryRejected", ({ signal, reason }) => {
     logger.debug(`Entry rejected: ${signal.symbol} - ${reason}`);
 });
 
+// Supervises engine attachment so a transient broker outage at boot can never
+// leave the engine permanently detached from the signal stream (see the
+// 2026-07-23 outage described in engineSupervisor.js).
+const engineSupervisor = createEngineSupervisor({
+    tradingEngine,
+    onStatusChange: () => broadcastEngineStatus(),
+});
+const ensureTradingEngineStarted = engineSupervisor.ensureStarted;
+
+app.locals.ensureTradingEngineStarted = ensureTradingEngineStarted;
+
 // ============================================
 // Data Retention Scheduler (daily at midnight)
 // ============================================
@@ -429,29 +441,39 @@ server.listen(PORT, async () => {
             runtimeCoordinator.on("runtimeRunsChanged", broadcastRuntimeRuns);
 
             await runtimeCoordinator.start(dataService, 60000);
-            await paperTradingRuntime.start();
+
+            // Paper simulation must never be able to take live trading down
+            // with it: an exception here previously rejected the whole boot
+            // callback, so the live engine below was never even attempted.
+            try {
+                await paperTradingRuntime.start();
+            } catch (error) {
+                logger.error(
+                    "Paper trading runtime failed to start; live trading continues:",
+                    error.message
+                );
+            }
 
             // Start trading engine (will subscribe to signals)
-            // Note: Trading is controlled by config.enableTrading flag
-            try {
-                await tradingEngine.start();
-                logger.success("Trading engine started and listening for signals");
+            // Note: Trading is controlled by config.enableTrading flag.
+            // A failure here retries in the background rather than leaving the
+            // engine detached from the signal stream for the process lifetime.
+            const engineStart = await ensureTradingEngineStarted({
+                reason: "boot",
+            });
+            const config = configService.get();
 
-                // Start position monitoring loop (reconciles with Oanda every 10s)
-                tradingEngine.startMonitoring();
+            // Broadcast updated engine status to all connected clients
+            broadcastEngineStatus();
 
-                const config = configService.get();
-
-                // Broadcast updated engine status to all connected clients
-                broadcastEngineStatus();
-
-                if (config.enableTrading) {
-                    logger.success("Live trading is ENABLED");
-                } else {
-                    logger.info("Trading is DISABLED - enable in settings to start trading");
-                }
-            } catch (error) {
-                logger.error("Failed to start trading engine:", error.message);
+            if (!engineStart.running) {
+                logger.warn(
+                    "Trading engine is NOT attached to the signal stream - no entries or exits will be managed until it attaches; retrying in the background"
+                );
+            } else if (config.enableTrading) {
+                logger.success("Live trading is ENABLED");
+            } else {
+                logger.info("Trading is DISABLED - enable in settings to start trading");
             }
             // Start S3 report scheduler (non-blocking, won't affect trading)
             s3ReportScheduler.start();
@@ -489,6 +511,7 @@ const gracefulShutdown = (signal) => {
 
     // Stop services
     try {
+        engineSupervisor.cancelPendingRetry();
         if (tradingEngine) tradingEngine.stop();
         if (dataService) dataService.stop();
         if (runtimeCoordinator) runtimeCoordinator.stop();
