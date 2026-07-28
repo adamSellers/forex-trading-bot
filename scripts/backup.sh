@@ -12,6 +12,10 @@ PROJECT_DIR="/opt/forex-trading-bot"
 BACKUP_DIR="${FOREX_BACKUP_DIR:-$HOME/forex-trading-bot-backups}"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 BACKUP_FILE="forex_backup_${TIMESTAMP}.tar.gz"
+# Must tolerate being called with no arguments: update.sh invokes this script
+# bare, and under `set -u` a raw "$1" aborts the backup (and therefore the
+# whole update) before anything is archived.
+BACKUP_MODE="${1:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
@@ -35,7 +39,7 @@ if pm2 list | grep -q "$APP_NAME.*online"; then
 fi
 
 # Stop for consistent backup (optional - can be removed for hot backups)
-if [ "$was_running" = true ] && [ "$1" = "--cold" ]; then
+if [ "$was_running" = true ] && [ "$BACKUP_MODE" = "--cold" ]; then
     log_info "Stopping service for consistent backup..."
     pm2 stop "$APP_NAME" --silent
     sleep 2
@@ -99,16 +103,33 @@ fi
 # only recovery history to two points.
 log_info "Cleaning old backups..."
 MAX_KEEP="${FOREX_BACKUP_RETENTION:-5}"
-ls -tp "$BACKUP_DIR"/forex_backup_*.tar.gz 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
-ls -tp "$BACKUP_DIR"/pre_restore_*.tar.gz 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
-ls -tp "$BACKUP_DIR"/pre_restore_*.db 2>/dev/null | tail -n +$((MAX_KEEP + 1)) | xargs -r rm -f
+
+# `ls` exits non-zero when a glob matches nothing — e.g. pre_restore_* files on
+# a host that has never been restored. Under `set -o pipefail` + `set -e` that
+# aborted backup.sh immediately after the archive was written, and took the
+# update.sh deploy that invoked it down with it. Housekeeping must never fail a
+# backup that already succeeded, so each listing tolerates "no matches".
+list_expired() {
+    # Unquoted on purpose: the caller passes a glob to expand here.
+    ls -tp $1 2>/dev/null | tail -n +$((MAX_KEEP + 1)) || true
+}
+
+list_expired "$BACKUP_DIR/forex_backup_*.tar.gz" | while IFS= read -r old_file; do
+    rm -f "$old_file"
+done
+list_expired "$BACKUP_DIR/pre_restore_*.tar.gz" | while IFS= read -r old_file; do
+    rm -f "$old_file"
+done
+list_expired "$BACKUP_DIR/pre_restore_*.db" | while IFS= read -r old_file; do
+    rm -f "$old_file"
+done
 # DB snapshots may have legacy -wal/-shm companions; remove them with their .db
-while IFS= read -r old_db; do
+list_expired "$BACKUP_DIR/trading_*.db" | while IFS= read -r old_db; do
     rm -f "$old_db" "$old_db-wal" "$old_db-shm"
-done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +$((MAX_KEEP + 1)))
+done
 
 # Restart if was running
-if [ "$was_running" = true ] && [ "$1" = "--cold" ]; then
+if [ "$was_running" = true ] && [ "$BACKUP_MODE" = "--cold" ]; then
     log_info "Restarting service..."
     pm2 start "$APP_NAME" --env production
 fi
