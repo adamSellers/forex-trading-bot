@@ -1,4 +1,4 @@
-# Forex Trading Bot
+# Forex Trading Bot!
 
 Forex trading platform built around a shared runtime that drives:
 

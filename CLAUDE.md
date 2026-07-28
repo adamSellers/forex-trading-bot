@@ -394,6 +394,38 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-07-28 — backup.sh broken by `set -u`/`pipefail`: blocked EVERY deploy + killed the nightly backup cron for 17 days (FIXED LOCALLY; user commit + deploy pending)
+
+Symptom the user hit: `./scripts/update.sh` → `backup.sh: line 38: $1: unbound variable`.
+
+Root cause: commit `b5583bd` (2026-07-10) added `set -Eeuo pipefail` to `scripts/backup.sh`, which
+was written assuming lax bash. Two latent constructs became fatal:
+1. `[ "$1" = "--cold" ]` at top level (lines 38 and 111). `update.sh:34` and the nightly cron both
+   invoke `backup.sh` with NO arguments, so under `set -u` `$1` is unbound → abort before anything
+   is archived. Fixed with `BACKUP_MODE="${1:-}"` resolved once at the top.
+2. The retention block ran `ls -tp <glob> | tail | xargs -r rm -f`. `ls` exits non-zero when a glob
+   matches nothing (e.g. `pre_restore_*.tar.gz` on a host that has never been restored), and under
+   `set -o pipefail` + `set -e` that aborted the script **after** the archive was already written.
+   This would have broken the deploy again at a different line even after fixing #1. Replaced with a
+   `list_expired()` helper that tolerates "no matches" (also drops the GNU-only `xargs -r`).
+
+Blast radius (verified on the Pi, read-only): `~/forex-trading-bot-backups/cron.log` contains **17
+consecutive nightly failures**, all `line 38: $1: unbound variable`; `backup.log`'s last successful
+entry is 2026-07-11 03:01 AEST. Because `update.sh` has `set -e` and calls `backup.sh` at line 34
+BEFORE `git fetch`/`merge`, **no deploy has been able to complete since 2026-07-10** — which is why
+the Pi is still on `00c4366` and why the 2026-07-27 engine fixes could not be shipped. So this one
+script bug simultaneously (a) removed all backups for 17 days and (b) silently froze deployment.
+
+Verified by running the patched script in a sandbox: bare invocation exits 0, archive + sqlite
+snapshot created, retention honored (5 runs at `FOREX_BACKUP_RETENTION=3` → exactly 3 archives and 3
+db snapshots kept), and genuinely-old `trading_*.db` snapshots are pruned together with their
+`-wal`/`-shm` companions. `bash -n` clean. Only `backup.sh` had top-level positional-parameter use;
+the `$1` in other scripts is inside functions, which is safe.
+
+Deploy note: `update.sh` refuses to run while live entries are enabled ("Pause live trading before
+update") — that is by design. Pause live, run `./scripts/update.sh`, then re-authorize live entries
+and confirm `/api/engine/status` reports `isRunning:true`, not just `tradingEnabled:true`.
+
 ### Update 2026-07-27 — Live engine DETACHED since 2026-07-23 + structural entry drought (SILENT-FAILURE FIX DONE LOCALLY; user commit + deploy + Pi restart pending)
 
 **Silent-failure fix (local, tests green) — addresses finding #1 below:**
