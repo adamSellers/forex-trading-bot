@@ -394,6 +394,62 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-07-30 — Entry drought diagnosed + 6-arm paper lab built (CODE DONE LOCALLY; user commit + deploy + run launch pending)
+
+**Infrastructure is healthy — this is NOT a repeat of the detachment bug.** Engine attached 2d 2h,
+60,820 signals consumed, 0 errors, `/api/system/health` = `healthy` with `degradedReasons: []`. The
+2026-07-28 supervisor fix is holding. Pi is on `499b520`.
+
+**Why nothing traded: live emitted ZERO BUY signals in 7 days** (39,742 HOLD, 26 SELL suppressed by
+long-only, 364 COOLDOWN, 0 BUY). `signalsRejected: 0` proves no entry candidate ever reached the
+engine's risk checks — the drought is entirely upstream in signal generation, not in execution.
+
+Funnel, 7 days to 2026-07-30 (distinct setups): 36 fresh flips → **26 discarded as SHORT** by
+long-only → 10 long candidates → 10 blocked at HTF, 7 `MOMENTUM_FADED` awaiting HTF confirm, 5
+blocked ADX, 4 `PULLBACK_TOO_DEEP`, 3 reached `LONG_HTF_CONFIRMED_PULLBACK` → **0 entries**.
+Market was near-perfectly two-sided (H1 53% up / 47% down; M15 supertrend 57%/43%), so long-only
+discarded 72% of raw signal supply for no regime reason. Measured gate pass rates: ADX ≥ 21 fails
+55.6% of cycles, RSI ≥ 52 fails 63.1%. These gates are conjunctive and their intersection is ~empty.
+
+CORRECTION to the 2026-07-27 note: `maxRegimeAdx:25` is consumed ONLY by `meanReversion.js`, never by
+`supertrendMomentum`. It is inert for the live strategy — high-ADX setups are NOT being blocked.
+
+Core problem framing: the live posture is **unfalsifiable**. At ~1 entry/3 weeks it can neither earn
+nor refute confidence, so the fix is to make PAPER generate evidence, not to loosen live.
+
+**Paper lab (new, `backend/src/runtime/candidatePresets.js`):** 6 arms, all `supertrend_momentum`.
+Every arm shares one `LAB_CAPACITY` profile (`maxOpenPositions:4`, `riskPerTrade:0.01`,
+`maxCapitalAtRisk:5000`, `maxPortfolioExposure:0.5`) because candidates inherit the live Phase 4 caps
+(1 slot, A$50) which would confound "found nothing" with "nowhere to put it". Arms differ from
+`lab_control` by exactly one variable each, enforced by tests:
+- `lab_control` — live entry logic verbatim (the 0-entry baseline; read all arms as diffs against it)
+- `lab_shorts` — `enableShorting`/`enableShortContinuationEntry` true (biggest leak: 26 setups)
+- `lab_no_htf` — `enableHTFFilter:false` (10 blocked + 7 faded)
+- `lab_fresh_flips` — `enableFreshFlipEntries:true` (removes the multi-stage wait where all 10 died)
+- `lab_tradeable_spread` — `maxSpreadPips` 1.2 → 3.0 (GBP_USD averaged 4.46 pips, passed 5.5%)
+- `lab_unconstrained` — all relaxations + wider continuation window; frequency CEILING, not a
+  promotion candidate
+
+Tests: new `candidatePresets.test.js` (12, incl. per-arm single-variable isolation and "no arm
+enables live trading"). Full suite 557 pass / 46 fail — failures are ONLY the 3 pre-existing
+better-sqlite3 binding repo suites.
+
+Pending user actions: commit + push + deploy, then launch the 6 arms (curl commands in the session
+summary; `POST /api/runtime/runs` with `presetKey`). Also recommended: stop the two inert candidates
+which generate zero information — `counter_signal_reversion`
+(`paper_candidate_9ea390cb-9151-4297-928c-65e69bef6423`, quarantined in code, 17,276 HOLDs) and
+`signal_following` (`paper_candidate_435745e2-63d0-4f39-a3ca-bf3deaea0009`, `NO_SOURCE_ENTRY` 17,151,
+inherits the drought) via `POST /api/runtime/runs/:runId/stop`.
+
+Signal-volume note: 6 new arms × 4 pairs × 1440 cycles ≈ +34.5k signal rows/day on top of the
+existing ~28.8k. Retention is 30 days, so watch DB size; stopping the 2 inert candidates offsets part
+of it. Live config is UNTOUCHED by all of this.
+
+Read the arms after ~2 weeks (or 50+ closed trades on any arm) via
+`/api/analytics?mode=paper_candidate&runId=<runId>&strategy=supertrend_momentum&period=all` and
+compare `cohortExpectancy`. Promotion still requires the Phase 3 gate (50 closed trades, positive
+overall expectancy, positive on every side the config can trade).
+
 ### Update 2026-07-28 — backup.sh broken by `set -u`/`pipefail`: blocked EVERY deploy + killed the nightly backup cron for 17 days (FIXED LOCALLY; user commit + deploy pending)
 
 Symptom the user hit: `./scripts/update.sh` → `backup.sh: line 38: $1: unbound variable`.
