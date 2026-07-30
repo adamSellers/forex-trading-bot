@@ -37,6 +37,13 @@ function labArm(overrides) {
     return Object.freeze({ ...LAB_CAPACITY, ...LAB_BASELINE_ENTRY, ...overrides });
 }
 
+// Arms belonging to one comparable experiment. The UI uses this to offer a
+// batch launch, so a six-arm study does not depend on hand-run CLI loops.
+const LAB_GROUP = Object.freeze({
+    key: "entry_drought_lab_2026_07_30",
+    label: "Entry Drought Lab (2026-07-30)",
+});
+
 const CANDIDATE_PRESETS = Object.freeze({
     phase2_room_to_run: Object.freeze({
         key: "phase2_room_to_run",
@@ -67,6 +74,7 @@ const CANDIDATE_PRESETS = Object.freeze({
     lab_control: Object.freeze({
         key: "lab_control",
         label: "Lab Control (live entry logic)",
+        group: LAB_GROUP,
         description:
             "Control arm: the exact live entry logic with lab capacity. Every other arm is read as a diff against this one, so a shared baseline is required to attribute any change in trade rate or expectancy.",
         config: labArm({}),
@@ -75,6 +83,7 @@ const CANDIDATE_PRESETS = Object.freeze({
     lab_shorts: Object.freeze({
         key: "lab_shorts",
         label: "Lab A: shorts enabled",
+        group: LAB_GROUP,
         description:
             "Largest measured leak: 26 of 36 fresh flips (72%) were SHORT and discarded untested while the market was near-perfectly two-sided (H1 53% up / 47% down). Tests whether the long-only rule is protecting the account or starving it.",
         config: labArm({
@@ -86,6 +95,7 @@ const CANDIDATE_PRESETS = Object.freeze({
     lab_no_htf: Object.freeze({
         key: "lab_no_htf",
         label: "Lab B: HTF veto removed",
+        group: LAB_GROUP,
         description:
             "Second largest leak: the H1 trend veto blocked 10 long setups outright and another 7 decayed to MOMENTUM_FADED while waiting for confirmation. Tests whether the HTF gate adds edge or merely adds latency.",
         config: labArm({ enableHTFFilter: false }),
@@ -94,6 +104,7 @@ const CANDIDATE_PRESETS = Object.freeze({
     lab_fresh_flips: Object.freeze({
         key: "lab_fresh_flips",
         label: "Lab C: fresh-flip entries enabled",
+        group: LAB_GROUP,
         description:
             "Structural leak: with fresh-flip entries disabled, every setup must survive a multi-stage HTF-confirmation or pullback sequence, and this week nothing did. Tests entering on the qualified flip itself.",
         config: labArm({ enableFreshFlipEntries: true }),
@@ -102,6 +113,7 @@ const CANDIDATE_PRESETS = Object.freeze({
     lab_tradeable_spread: Object.freeze({
         key: "lab_tradeable_spread",
         label: "Lab D: realistic spread ceiling",
+        group: LAB_GROUP,
         description:
             "maxSpreadPips 1.2 acts as an undeclared pair exclusion: GBP_USD averaged 4.46 pips in London/NY and passed only 5.5% of samples. Raised to 3.0 so spread-driven rejections stop masquerading as absent signals. Paper prices bid/ask, so the wider cost is still charged.",
         config: labArm({ maxSpreadPips: 3.0 }),
@@ -110,6 +122,7 @@ const CANDIDATE_PRESETS = Object.freeze({
     lab_unconstrained: Object.freeze({
         key: "lab_unconstrained",
         label: "Lab E: all relaxations combined",
+        group: LAB_GROUP,
         description:
             "Upper bound on trade frequency with every relaxation at once, plus a wider continuation window. Not a promotion candidate — it establishes how much opportunity exists at all, so the single-variable arms can be judged against a known ceiling.",
         config: labArm({
@@ -130,6 +143,7 @@ function listCandidatePresets() {
         key: preset.key,
         label: preset.label,
         description: preset.description,
+        group: preset.group || null,
         config: { ...preset.config },
     }));
 }
@@ -160,6 +174,7 @@ function applyCandidatePreset(config = {}, presetKey = null) {
 
 module.exports = {
     CANDIDATE_PRESETS,
+    LAB_GROUP,
     LAB_CAPACITY,
     LAB_BASELINE_ENTRY,
     listCandidatePresets,

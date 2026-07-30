@@ -10,6 +10,7 @@ import {
   Container,
   Divider,
   LinearProgress,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -17,6 +18,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
   alpha,
   useTheme,
@@ -157,6 +159,16 @@ const getCandidateRunBadges = (run, liveSelection = null) => {
     });
   }
 
+  // Surface which experiment arm this run is. The backend has always stored
+  // this in run metadata; it was simply never displayed, so arms of the same
+  // strategy looked identical on the board.
+  if (run?.metadata?.candidatePresetLabel) {
+    badges.push({
+      label: run.metadata.candidatePresetLabel,
+      color: 'info',
+    });
+  }
+
   return badges;
 };
 
@@ -207,7 +219,24 @@ const isRunPromotable = (run, catalog = [], liveSelection = null) => {
   return strategy?.metadata?.supportsLive !== false;
 };
 
-const buildCandidateLabel = (strategy, runs = []) => {
+// Marks the batch launch as in-flight in the shared submittingStrategy state
+// without colliding with any real strategy key.
+const LAB_GROUP_SENTINEL = '__lab_group__';
+
+const buildCandidateLabel = (strategy, runs = [], preset = null) => {
+  // A preset IS the identity of an experiment arm — six runs of the same
+  // strategy are indistinguishable without it, which is exactly the confusion
+  // that made the 2026-07-30 lab unreadable when launched by strategy alone.
+  if (preset?.key) {
+    const siblingCount = runs.filter(
+      (run) =>
+        run.mode === 'paper_candidate' && run.metadata?.candidatePreset === preset.key
+    ).length;
+    return siblingCount > 0
+      ? `${preset.label} #${siblingCount + 1}`
+      : preset.label;
+  }
+
   const siblingCount = runs.filter(
     (run) => run.strategy === strategy.key && run.mode === 'paper_candidate'
   ).length;
@@ -764,6 +793,8 @@ const BacktestLab = () => {
   const theme = useTheme();
   const [runtimeData, setRuntimeData] = useState({ runs: [], liveSelection: null });
   const [strategyCatalog, setStrategyCatalog] = useState([]);
+  const [candidatePresets, setCandidatePresets] = useState([]);
+  const [selectedPresetKey, setSelectedPresetKey] = useState('');
   const [selectedRunId, setSelectedRunId] = useState('');
   const [selectedRunDetail, setSelectedRunDetail] = useState({
     trades: [],
@@ -787,9 +818,12 @@ const BacktestLab = () => {
 
     try {
       setError(null);
-      const [runsResponse, catalog] = await Promise.all([
+      const [runsResponse, catalog, presets] = await Promise.all([
         runtimeAPI.getRuns(),
         strategiesAPI.getCatalog(),
+        // Presets are cosmetic-optional: a failure here must not blank the
+        // whole paper board, so fall back to launching without a preset.
+        runtimeAPI.getCandidatePresets().catch(() => []),
       ]);
 
       const nextRuns = Array.isArray(runsResponse?.runs) ? runsResponse.runs : [];
@@ -808,6 +842,7 @@ const BacktestLab = () => {
         liveSelection: nextLiveSelection,
       });
       setStrategyCatalog(Array.isArray(catalog) ? catalog : []);
+      setCandidatePresets(Array.isArray(presets) ? presets : []);
       setSelectedRunId((current) => {
         if (current && nextRuns.some((run) => run.runId === current)) {
           return current;
@@ -937,19 +972,105 @@ const BacktestLab = () => {
     [runs, selectedRunId, shadowRun]
   );
 
-  const handleLaunchCandidate = async (strategy) => {
+  const selectedPreset = useMemo(
+    () => candidatePresets.find((preset) => preset.key === selectedPresetKey) || null,
+    [candidatePresets, selectedPresetKey]
+  );
+
+  // Presets carrying a group form one comparable study and are launched together.
+  const labGroupPresets = useMemo(
+    () => candidatePresets.filter((preset) => preset.group?.key),
+    [candidatePresets]
+  );
+
+  // Every lab arm is a config variant of the live baseline strategy, so the
+  // batch launch targets the active live strategy rather than asking the user
+  // to pick one per arm.
+  const labBaseStrategy = useMemo(() => {
+    const liveStrategyKey = liveSelection?.strategy || shadowRun?.strategy;
+    return (
+      candidateStrategies.find((strategy) => strategy.key === liveStrategyKey) ||
+      candidateStrategies[0] ||
+      null
+    );
+  }, [candidateStrategies, liveSelection, shadowRun]);
+
+  const handleLaunchCandidate = async (strategy, presetKey = '') => {
+    const preset = presetKey
+      ? candidatePresets.find((entry) => entry.key === presetKey) || null
+      : null;
+
     try {
       setSubmittingStrategy(strategy.key);
       setError(null);
       setActionMessage(null);
       const response = await runtimeAPI.createRun({
         strategyKey: strategy.key,
-        label: buildCandidateLabel(strategy, candidateRuns),
+        presetKey: preset?.key || null,
+        label: buildCandidateLabel(strategy, candidateRuns, preset),
       });
       setSelectedRunId(response?.run?.runId || selectedRunId);
+      setActionMessage(
+        preset
+          ? `Launched ${preset.label} as a ${strategy.label} paper candidate.`
+          : `Launched ${strategy.label} paper candidate on the current live config.`
+      );
       await loadPaperComparison(false);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmittingStrategy(null);
+    }
+  };
+
+  const handleLaunchLabGroup = async () => {
+    if (!labBaseStrategy || labGroupPresets.length === 0) {
+      return;
+    }
+
+    const groupLabel = labGroupPresets[0]?.group?.label || 'lab arms';
+    const confirmed = window.confirm(
+      `Launch ${labGroupPresets.length} paper candidate runs for "${groupLabel}"?\n\n` +
+        `Each arm runs ${labBaseStrategy.label} with one config variable changed, as a separate paper run. ` +
+        'Live trading and the live config are not affected.'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSubmittingStrategy(LAB_GROUP_SENTINEL);
+      setError(null);
+      setActionMessage(null);
+
+      const launched = [];
+      const failed = [];
+      // Sequential on purpose: each createRun snapshots the live config and
+      // registers a run session, and the API is not built for parallel bursts.
+      for (const preset of labGroupPresets) {
+        try {
+          await runtimeAPI.createRun({
+            strategyKey: labBaseStrategy.key,
+            presetKey: preset.key,
+            label: preset.label,
+          });
+          launched.push(preset.label);
+        } catch (err) {
+          failed.push(`${preset.label} (${err.message})`);
+        }
+      }
+
+      // Report partial success honestly rather than implying all arms started.
+      if (failed.length === 0) {
+        setActionMessage(`Launched ${launched.length} lab arms for ${groupLabel}.`);
+      } else {
+        setActionMessage(
+          launched.length > 0 ? `Launched ${launched.length} of ${labGroupPresets.length} arms.` : null
+        );
+        setError(`Failed to launch: ${failed.join('; ')}`);
+      }
+
+      await loadPaperComparison(false);
     } finally {
       setSubmittingStrategy(null);
     }
@@ -1272,14 +1393,62 @@ const BacktestLab = () => {
               </Typography>
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              Re-launching the same strategy creates a separate candidate run with its own identity, telemetry, and config snapshot.
+              Re-launching the same strategy creates a separate candidate run with its own identity, telemetry, and config snapshot. Choose a preset to launch a specific experiment arm instead of inheriting the current live config.
             </Typography>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems={{ md: 'flex-start' }}>
+              <TextField
+                select
+                size="small"
+                label="Config preset"
+                value={selectedPresetKey}
+                onChange={(event) => setSelectedPresetKey(event.target.value)}
+                disabled={submittingStrategy !== null || candidatePresets.length === 0}
+                sx={{ minWidth: 300 }}
+              >
+                <MenuItem value="">No preset — inherit live config</MenuItem>
+                {candidatePresets.map((preset) => (
+                  <MenuItem key={preset.key} value={preset.key}>
+                    {preset.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              {labGroupPresets.length > 0 && (
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={handleLaunchLabGroup}
+                  disabled={submittingStrategy !== null || !labBaseStrategy}
+                  startIcon={<AutoGraph />}
+                  sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}
+                >
+                  {submittingStrategy === LAB_GROUP_SENTINEL
+                    ? 'Launching arms...'
+                    : `Launch all ${labGroupPresets.length} lab arms`}
+                </Button>
+              )}
+            </Stack>
+
+            {selectedPreset && (
+              <Alert
+                severity="info"
+                sx={{
+                  py: 0.5,
+                  bgcolor: alpha(theme.palette.info.main, 0.08),
+                  border: `1px solid ${alpha(theme.palette.info.main, 0.16)}`,
+                }}
+              >
+                {selectedPreset.description}
+              </Alert>
+            )}
+
             <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
               {candidateStrategies.map((strategy) => (
                 <Button
                   key={strategy.key}
                   variant="contained"
-                  onClick={() => handleLaunchCandidate(strategy)}
+                  onClick={() => handleLaunchCandidate(strategy, selectedPresetKey)}
                   disabled={submittingStrategy !== null}
                   startIcon={<PlayArrow />}
                   sx={{

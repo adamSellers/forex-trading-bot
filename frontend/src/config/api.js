@@ -77,6 +77,7 @@ export const API_ENDPOINTS = {
     strategiesCatalog: "/api/strategies/catalog",
     runtimeLiveSelection: "/api/runtime/live-selection",
     runtimeRuns: "/api/runtime/runs",
+    runtimeCandidatePresets: "/api/runtime/candidate-presets",
     runtimeRunStop: "/api/runtime/runs", // /:runId/stop
     runtimeRunReset: "/api/runtime/runs", // /:runId/reset
     runtimeRunPromote: "/api/runtime/runs", // /:runId/promote
@@ -318,6 +319,10 @@ export const runtimeAPI = {
             method: "POST",
             body: JSON.stringify(payload),
         }),
+    getCandidatePresets: () =>
+        apiCall(API_ENDPOINTS.runtimeCandidatePresets).then((data) =>
+            Array.isArray(data?.presets) ? data.presets : []
+        ),
     stopRun: (runId) =>
         apiCall(`${API_ENDPOINTS.runtimeRunStop}/${runId}/stop`, {
             method: "POST",

@@ -434,8 +434,24 @@ Tests: new `candidatePresets.test.js` (12, incl. per-arm single-variable isolati
 enables live trading"). Full suite 557 pass / 46 fail — failures are ONLY the 3 pre-existing
 better-sqlite3 binding repo suites.
 
-Pending user actions: commit + push + deploy, then launch the 6 arms (curl commands in the session
-summary; `POST /api/runtime/runs` with `presetKey`). Also recommended: stop the two inert candidates
+**UI management (new, 2026-07-30):** the Paper tab could previously only launch a bare strategy —
+`handleLaunchCandidate` never sent `presetKey`, so every UI-launched candidate silently inherited the
+live config and no preset was reachable without curl. Now:
+- `frontend/src/config/api.js`: added `runtimeCandidatePresets` endpoint + `runtimeAPI.getCandidatePresets()`
+  (the backend `GET /api/runtime/candidate-presets` route already existed and was simply never called).
+- `BacktestLab.jsx`: preset dropdown ("No preset — inherit live config" + every preset) on the Launch
+  Candidate Runs card, with the selected preset's description shown inline; `presetKey` is now passed
+  through `createRun`; run labels default to the preset label; and each run card shows its
+  `candidatePresetLabel` as an info badge so arms of the same strategy are distinguishable (the
+  backend already stored this metadata — it was never displayed).
+- Batch launch: presets carrying a `group` (new field, `LAB_GROUP` = `entry_drought_lab_2026_07_30`)
+  get a "Launch all 6 lab arms" button. It confirms first, launches sequentially against the ACTIVE
+  LIVE strategy, and reports partial failure honestly rather than implying all arms started.
+- Frontend `vite build` passes. `phase2_room_to_run` intentionally has no group so it is excluded
+  from the batch.
+
+Pending user actions: commit + push + deploy, then launch the 6 arms from the Paper tab
+("Launch all 6 lab arms"), or via `POST /api/runtime/runs` with `presetKey`. Also recommended: stop the two inert candidates
 which generate zero information — `counter_signal_reversion`
 (`paper_candidate_9ea390cb-9151-4297-928c-65e69bef6423`, quarantined in code, 17,276 HOLDs) and
 `signal_following` (`paper_candidate_435745e2-63d0-4f39-a3ca-bf3deaea0009`, `NO_SOURCE_ENTRY` 17,151,

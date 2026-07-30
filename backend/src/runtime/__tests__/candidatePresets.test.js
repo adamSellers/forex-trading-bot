@@ -106,6 +106,19 @@ describe("2026-07-30 entry-drought lab arms", () => {
         );
     });
 
+    // The UI's batch launch selects arms by group, so every arm must carry it
+    // and unrelated presets must not be swept into the experiment.
+    test("all six arms share one group and phase2 is excluded", () => {
+        const listed = listCandidatePresets();
+        const grouped = listed.filter((preset) => preset.group?.key);
+
+        expect(grouped).toHaveLength(6);
+        expect(new Set(grouped.map((preset) => preset.group.key)).size).toBe(1);
+        expect(
+            listed.find((preset) => preset.key === "phase2_room_to_run").group
+        ).toBeNull();
+    });
+
     test("no lab arm enables live trading", () => {
         Object.values(CANDIDATE_PRESETS).forEach((preset) => {
             expect(preset.config.enableTrading).toBeUndefined();
