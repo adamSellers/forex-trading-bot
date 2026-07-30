@@ -445,8 +445,25 @@ live config and no preset was reachable without curl. Now:
   `candidatePresetLabel` as an info badge so arms of the same strategy are distinguishable (the
   backend already stored this metadata — it was never displayed).
 - Batch launch: presets carrying a `group` (new field, `LAB_GROUP` = `entry_drought_lab_2026_07_30`)
-  get a "Launch all 6 lab arms" button. It confirms first, launches sequentially against the ACTIVE
-  LIVE strategy, and reports partial failure honestly rather than implying all arms started.
+  get a "Launch all 6 lab arms on <strategy>" button. It confirms first, launches sequentially against
+  the ACTIVE LIVE strategy, and reports partial failure honestly rather than implying all arms started.
+
+**BUG FOUND + FIXED on first launch (2026-07-30, deploy `8534e31`):** all six arms launched against
+`mean_reversion` instead of `supertrend_momentum`. Cause: `isCandidateStrategy` requires
+`runtimeStatus === 'candidate'`, but the live baseline carries `runtimeStatus: 'baseline'`, so
+`supertrend_momentum` is absent from `candidateStrategies`. `labBaseStrategy` looked the live strategy
+up in that filtered list, missed, and **fell through to `candidateStrategies[0]`** — the first catalog
+candidate, `mean_reversion`. The runs looked plausible but were degenerate: `meanReversion.js`
+consumes NONE of the varied keys (`enableShorting`, `enableHTFFilter`, `enableFreshFlipEntries`,
+`continuationPullback*`) and only `maxSpreadPips`, so 4 of 6 arms were functionally identical and the
+other 2 differed only by spread. Fixes:
+- `labBaseStrategy` now resolves against the FULL `strategyCatalog` and returns `null` on a miss
+  instead of substituting an arbitrary strategy; the batch button disables and shows a warning.
+- The button label now names the target strategy ("...on SuperTrend Momentum") so the target is
+  verifiable before clicking rather than buried in the confirm dialog.
+- New `launchableStrategies` adds the live baseline to the per-strategy launch buttons — the catalog
+  filter had made config variants of the actual live strategy unlaunchable from the UI at all.
+All six mis-launched runs were stopped; no evidence was kept from them.
 - Frontend `vite build` passes. `phase2_room_to_run` intentionally has no group so it is excluded
   from the batch.
 

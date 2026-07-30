@@ -984,16 +984,30 @@ const BacktestLab = () => {
   );
 
   // Every lab arm is a config variant of the live baseline strategy, so the
-  // batch launch targets the active live strategy rather than asking the user
-  // to pick one per arm.
+  // batch launch targets the active live strategy.
+  //
+  // Resolve against the FULL catalog, never the candidate-filtered subset: the
+  // live baseline carries runtimeStatus 'baseline', not 'candidate', so looking
+  // it up in candidateStrategies always misses. An earlier version fell back to
+  // candidateStrategies[0] on a miss and silently launched all six arms against
+  // mean_reversion — plausible-looking, completely invalid. Return null on a
+  // miss instead, so the button disables rather than running the wrong study.
   const labBaseStrategy = useMemo(() => {
     const liveStrategyKey = liveSelection?.strategy || shadowRun?.strategy;
-    return (
-      candidateStrategies.find((strategy) => strategy.key === liveStrategyKey) ||
-      candidateStrategies[0] ||
-      null
-    );
-  }, [candidateStrategies, liveSelection, shadowRun]);
+    if (!liveStrategyKey) return null;
+    return strategyCatalog.find((strategy) => strategy.key === liveStrategyKey) || null;
+  }, [strategyCatalog, liveSelection, shadowRun]);
+
+  // The live baseline is a legitimate paper candidate (the backend only refuses
+  // 'planned' strategies) but the catalog filter hid it, so config variants of
+  // the actual live strategy were unlaunchable from the UI.
+  const launchableStrategies = useMemo(() => {
+    if (!labBaseStrategy) return candidateStrategies;
+    if (candidateStrategies.some((strategy) => strategy.key === labBaseStrategy.key)) {
+      return candidateStrategies;
+    }
+    return [labBaseStrategy, ...candidateStrategies];
+  }, [candidateStrategies, labBaseStrategy]);
 
   const handleLaunchCandidate = async (strategy, presetKey = '') => {
     const preset = presetKey
@@ -1425,10 +1439,20 @@ const BacktestLab = () => {
                 >
                   {submittingStrategy === LAB_GROUP_SENTINEL
                     ? 'Launching arms...'
-                    : `Launch all ${labGroupPresets.length} lab arms`}
+                    : `Launch all ${labGroupPresets.length} lab arms on ${
+                        labBaseStrategy?.label || 'the live strategy'
+                      }`}
                 </Button>
               )}
             </Stack>
+
+            {labGroupPresets.length > 0 && !labBaseStrategy && (
+              <Alert severity="warning" sx={{ py: 0.5 }}>
+                Cannot resolve the active live strategy, so the lab arms would not
+                have a defined baseline to vary. Reload once the live selection is
+                available rather than launching against an arbitrary strategy.
+              </Alert>
+            )}
 
             {selectedPreset && (
               <Alert
@@ -1444,7 +1468,7 @@ const BacktestLab = () => {
             )}
 
             <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
-              {candidateStrategies.map((strategy) => (
+              {launchableStrategies.map((strategy) => (
                 <Button
                   key={strategy.key}
                   variant="contained"
