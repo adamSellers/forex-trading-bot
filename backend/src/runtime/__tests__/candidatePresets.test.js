@@ -68,6 +68,8 @@ describe("2026-07-30 entry-drought lab arms", () => {
             "lab_no_htf",
             "lab_fresh_flips",
             "lab_tradeable_spread",
+            "lab_early_momentum",
+            "lab_adx_off",
             "lab_unconstrained",
         ];
 
@@ -85,6 +87,9 @@ describe("2026-07-30 entry-drought lab arms", () => {
         ["lab_no_htf", ["enableHTFFilter"]],
         ["lab_fresh_flips", ["enableFreshFlipEntries"]],
         ["lab_tradeable_spread", ["maxSpreadPips"]],
+        // The ADX arms, added after ADX proved to be the upstream binding gate.
+        ["lab_early_momentum", ["minAdx"]],
+        ["lab_adx_off", ["enableAdxFilter"]],
     ])("%s isolates exactly one variable against the control", (key, expectedKeys) => {
         const armConfig = CANDIDATE_PRESETS[key].config;
         expect(diffKeys(control, armConfig)).toEqual([...expectedKeys].sort());
@@ -108,15 +113,37 @@ describe("2026-07-30 entry-drought lab arms", () => {
 
     // The UI's batch launch selects arms by group, so every arm must carry it
     // and unrelated presets must not be swept into the experiment.
-    test("all six arms share one group and phase2 is excluded", () => {
+    test("all lab arms share one group and phase2 is excluded", () => {
         const listed = listCandidatePresets();
         const grouped = listed.filter((preset) => preset.group?.key);
 
-        expect(grouped).toHaveLength(6);
+        expect(grouped).toHaveLength(8);
         expect(new Set(grouped.map((preset) => preset.group.key)).size).toBe(1);
         expect(
             listed.find((preset) => preset.key === "phase2_room_to_run").group
         ).toBeNull();
+    });
+
+    // The control must keep the live ADX posture, otherwise the ADX arms are
+    // measured against a baseline that already relaxed the gate under test.
+    test("control retains the live ADX stack", () => {
+        expect(control.enableAdxFilter).toBe(true);
+        expect(control.minAdx).toBe(21);
+        expect(control.adxSlopeFilter).toBe(true);
+        expect(control.requireDirectionalAdx).toBe(true);
+    });
+
+    // Early-momentum must still REQUIRE rising ADX: dropping the floor without
+    // it would test "take every flip", which is lab_adx_off's job, not this arm's.
+    test("early momentum keeps the rising-ADX requirement", () => {
+        const arm = CANDIDATE_PRESETS.lab_early_momentum.config;
+        expect(arm.adxSlopeFilter).toBe(true);
+        expect(arm.enableAdxFilter).toBe(true);
+        expect(arm.minAdx).toBeLessThan(control.minAdx);
+    });
+
+    test("the ceiling arm is not still ADX-bound", () => {
+        expect(CANDIDATE_PRESETS.lab_unconstrained.config.enableAdxFilter).toBe(false);
     });
 
     test("no lab arm enables live trading", () => {

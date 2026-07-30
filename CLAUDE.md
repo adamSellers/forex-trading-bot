@@ -394,6 +394,64 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-07-31 — ADX identified as the UPSTREAM binding gate; 2 ADX arms added (CODE DONE LOCALLY; user commit + deploy + launch pending)
+
+**Nothing is broken.** Health `healthy`, engine attached, signals current to the second, 17h uptime.
+The 6 lab arms launched correctly on `supertrend_momentum` (verified per-arm configSnapshots: each
+carries exactly its intended variable). Arms are provably differentiated — on the single short flip at
+2026-07-30 09:15 UTC, `lab_shorts` and `lab_unconstrained` logged `SHORT_FRESH_FLIP_BLOCKED_ADX`
+(the signal passed the shorting gate, then hit ADX) while the other four logged
+`SHORT_FRESH_FLIP_SHORTING_DISABLED`. The lab wiring is sound.
+
+**But the lab as originally designed could not discriminate.** After 17h every one of the six arms
+logged an IDENTICAL `LONG_FRESH_FLIP_BLOCKED_ADX | 30`. Setups die at the ADX gate, which sits
+UPSTREAM of every variable the original arms varied (HTF, fresh-flips, spread, shorting). Removing
+HTF cannot help a setup that never reaches the HTF check.
+
+**ADX evidence (207 fresh flips, 30 days, all runs) — the user's "we always enter late" hypothesis
+is supported:**
+
+| ADX at flip | setups | ADX rising |
+| ----------- | ------ | ---------- |
+| <15         | 36     | 23 (64%)   |
+| 15-21       | 72     | 35 (49%)   |
+| 21-25       | 40     | 6 (15%)    |
+| >=25        | 59     | 7 (12%)    |
+
+- 52% of flips occur below `minAdx:21` and are rejected outright.
+- The rising-ADX share COLLAPSES as ADX rises: low ADX at a flip usually means momentum is building;
+  high ADX at a flip usually means the prior trend is exhausting (you are flipping into a mature move).
+- The live gate (ADX >= 21 AND rising) admits **13/207 = 6.3%** of flips, and discards **58 of the 71
+  flips where momentum was genuinely building (82%)**.
+- Mechanism: ADX (Wilder 1978) is DOUBLE-smoothed (DI smoothed over 14, then DX smoothed over 14), so
+  it cannot confirm a trend until well after inception — on M15 that is hours. Wilder intended it as a
+  REGIME filter ("is this market trending enough to deploy a trend system"), not an entry trigger.
+  Requiring a SuperTrend flip (earliest possible regime-change signal) to also have ADX >= 21 and
+  rising (late confirmation) is close to self-contradictory.
+- Consistent with live results: 68 of 100 closed live trades exited at STOP_LOSS on an avg 2.8h hold —
+  the signature of entering an extended move. Consistent, NOT proof; the arms are what test it.
+
+**New arms (both single-key diffs against `lab_control`, enforced by tests):**
+- `lab_early_momentum` — `minAdx` 21 -> 12, **keeps `adxSlopeFilter:true`**. Targets the 58 discarded
+  building-momentum flips: momentum must be building, but need not already be mature.
+- `lab_adx_off` — `enableAdxFilter:false`. All four ADX gates (floor, rising-slope, and both
+  directional +DI/-DI checks) short-circuit on this one flag, verified in `supertrendMomentum.js:1136-1152`.
+  Separates "the floor is wrong" from "ADX should not gate entry timing at all".
+- `lab_unconstrained` also gained `enableAdxFilter:false` — without it the "ceiling" arm was still
+  ADX-bound and under-reported available opportunity.
+- `LAB_BASELINE_ENTRY` now states the ADX posture explicitly (`enableAdxFilter:true`, `minAdx:21`,
+  `adxSlopeFilter:true`, `requireDirectionalAdx:true`) so the ADX arms read as clean one-key diffs.
+
+Lab group is now **8 arms**. Tests: `candidatePresets.test.js` 18 pass (adds per-arm isolation for both
+ADX arms, "control retains the live ADX stack", "early momentum keeps the rising-ADX requirement",
+"the ceiling arm is not still ADX-bound"). Full backend suite 563 pass / 46 fail — failures are ONLY
+the 3 pre-existing better-sqlite3 binding repo suites. Frontend `vite build` passes.
+
+Pending user actions: commit + push + deploy, then launch the 2 new arms from the Paper tab (the
+dropdown lists them individually; "Launch all 8 lab arms" would duplicate the 6 already running, so
+launch `lab_early_momentum` and `lab_adx_off` individually). Leave the existing 6 running — they are
+young but valid, and the control is needed for comparison.
+
 ### Update 2026-07-30 — Entry drought diagnosed + 6-arm paper lab built (CODE DONE LOCALLY; user commit + deploy + run launch pending)
 
 **Infrastructure is healthy — this is NOT a repeat of the detachment bug.** Engine attached 2d 2h,

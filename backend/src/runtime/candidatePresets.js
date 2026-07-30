@@ -31,6 +31,12 @@ const LAB_BASELINE_ENTRY = Object.freeze({
     continuationPullbackMinAtr: 0.5,
     continuationPullbackMaxAtr: 1.5,
     continuationMaxChaseAtr: 0.75,
+    // Stated explicitly (they match live) so the ADX arms below read as a clean
+    // one-key diff rather than an invisible inherited default.
+    enableAdxFilter: true,
+    minAdx: 21,
+    adxSlopeFilter: true,
+    requireDirectionalAdx: true,
 });
 
 function labArm(overrides) {
@@ -119,6 +125,32 @@ const CANDIDATE_PRESETS = Object.freeze({
         config: labArm({ maxSpreadPips: 3.0 }),
     }),
 
+    // Added 2026-07-31 after the first 17h of lab data showed EVERY arm dying at
+    // the same upstream gate: all six logged an identical LONG_FRESH_FLIP_BLOCKED_ADX
+    // count, meaning the variables under test sit downstream of ADX and could
+    // never discriminate. Measured over 207 flips in 30 days: 52% of flips occur
+    // with ADX < 21, and the share with ADX RISING collapses from 64% (ADX<15) to
+    // 12% (ADX>=25) — high ADX at a flip mostly means the prior trend is exhausting.
+    // The live gate (ADX >= 21 AND rising) admits 6.3% of flips and discards 58 of
+    // the 71 flips where momentum was genuinely building.
+    lab_early_momentum: Object.freeze({
+        key: "lab_early_momentum",
+        label: "Lab F: early momentum (ADX floor 12, still rising)",
+        group: LAB_GROUP,
+        description:
+            "Keeps the requirement that ADX is RISING but drops the floor from 21 to 12, targeting the 82% of building-momentum flips the live gate rejects for being early. Tests the 'we always enter late' hypothesis directly: momentum must be building, but need not already be mature.",
+        config: labArm({ minAdx: 12 }),
+    }),
+
+    lab_adx_off: Object.freeze({
+        key: "lab_adx_off",
+        label: "Lab G: ADX stack disabled",
+        group: LAB_GROUP,
+        description:
+            "Disables the whole ADX stack (floor, rising-slope and directional +DI/-DI checks all short-circuit on this one flag). Separates 'the floor is set wrong' from 'a double-smoothed lagging strength index should not gate entry timing at all'.",
+        config: labArm({ enableAdxFilter: false }),
+    }),
+
     lab_unconstrained: Object.freeze({
         key: "lab_unconstrained",
         label: "Lab E: all relaxations combined",
@@ -134,6 +166,10 @@ const CANDIDATE_PRESETS = Object.freeze({
             continuationPullbackMinAtr: 0.3,
             continuationPullbackMaxAtr: 2.5,
             continuationMaxChaseAtr: 1.25,
+            // Without this the "ceiling" is still ADX-bound and under-reports
+            // available opportunity — the 17h sample showed ADX killing setups
+            // upstream of every other relaxation in this arm.
+            enableAdxFilter: false,
         }),
     }),
 });
