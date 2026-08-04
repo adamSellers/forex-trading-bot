@@ -113,12 +113,10 @@ if [ -n "$CONFIG_BACKUP" ] && [ -f "$CONFIG_BACKUP" ]; then
     cp "$CONFIG_BACKUP" "$CONFIG_PATH"
     rm -f "$CONFIG_BACKUP"
     log_info "Restored runtime trading config after update"
-# 1b. Create config from template if it doesn't exist (fresh install or after untracking)
+# 1b. On a fresh install ConfigService writes the fixed, paused live release
+# defaults before the API begins accepting traffic.
 elif [ ! -f "$CONFIG_PATH" ]; then
-    if [ -f "backend/data/trading_config_initial.json" ]; then
-        cp backend/data/trading_config_initial.json "$CONFIG_PATH"
-        log_info "Created trading_config.json from template"
-    fi
+    log_info "Runtime trading config will be created from live release defaults"
 fi
 
 # 2. Reproducible dependency install and preflight tests while the old service

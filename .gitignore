@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 backend/node_modules/
-timesfm-sidecar/.venv/
+timesfm-sidecar/
 npm-debug.log*
 # Dependency lockfiles are committed at every application level.
 yarn-debug.log*
@@ -114,9 +114,13 @@ build/
 
 # Trading bot specific
 config/production.json
-backtest_results/
-paper_trading_logs/
 live_trading_logs/
+backend/data/trading_config.json
+
+# Local datasets are never deployed or committed.
+backend/data/historical/
+backend/data/backtests/
+backend/data/correlation/
 
 # PM2 logs (for production deployment)
 pm2-logs/
@@ -124,15 +128,7 @@ pm2-logs/
 # Vibe coders
 .claude
 
-# don't ship the backtesting data
-backend/data/historical
-backend/data/backtests
-backend/data/correlation
 binance_orders/
-
-# --- Local Analysis & Shadow Lab (NEW) ---
-backend/backtest_lab/data
-backend/backtest_lab/downloads
 
 changes.md
 
@@ -146,5 +142,4 @@ timeSeriesUpgrade.md
 __pycache__/
 *.py[cod]
 .pytest_cache/
-timesfm-sidecar/src/timesfm_sidecar.egg-info/
 analysis/
