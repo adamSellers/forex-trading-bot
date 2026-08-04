@@ -31,7 +31,7 @@ function calculateFallbackStopPips(signal = {}, config = {}) {
     return Math.max(configuredPips, minimumPips);
 }
 
-/** Canonical strategy-plan/fallback stop resolution shared by paper and live. */
+/** Canonical strategy-plan/fallback stop resolution for live orders. */
 function resolveCanonicalTradePlan({
     signal = {},
     config = {},
@@ -95,32 +95,14 @@ function resolveCanonicalTradePlan({
     };
 }
 
-function getTimesFmPositionSizeMultiplier(signal = {}, config = {}) {
-    const mode = String(config.timesFmMode || "disabled").toLowerCase();
-    if (
-        config.timesFmEnabled !== true ||
-        (mode !== "size" && mode !== "veto")
-    ) {
-        return 1;
-    }
-
-    return clamp(
-        toFiniteNumber(signal?.timesFm?.positionSizeMultiplier, 1),
-        0,
-        1
-    );
-}
-
 function getEntryRiskMultipliers(signal = {}, config = {}) {
     const freshFlip =
         signal.entryType === "FRESH_FLIP"
             ? Math.max(0, toFiniteNumber(config.freshFlipRiskMultiplier, 1))
             : 1;
-    const timesFm = getTimesFmPositionSizeMultiplier(signal, config);
     return {
         freshFlip,
-        timesFm,
-        combined: freshFlip * timesFm,
+        combined: freshFlip,
     };
 }
 
@@ -202,11 +184,8 @@ function calculateCanonicalPositionSize({
     let effectiveRiskCapitalAud = null;
 
     if (String(config.positionSizeMethod || "RISK").toUpperCase() === "FIXED") {
-        // Preserve fixed-size semantics while applying TimesFM's explicit size
-        // control. The fresh-flip multiplier belongs to risk-budget sizing.
         requestedUnits = Math.floor(
-            Math.max(0, toFiniteNumber(config.fixedPositionUnits, 1000)) *
-                multipliers.timesFm
+            Math.max(0, toFiniteNumber(config.fixedPositionUnits, 1000))
         );
     } else {
         const maxCapitalAtRisk = Math.max(
@@ -280,7 +259,6 @@ module.exports = {
     calculateMarginAud,
     calculateProjectedExposure,
     getEntryRiskMultipliers,
-    getTimesFmPositionSizeMultiplier,
     resolveCanonicalTradePlan,
     resolveLeverage,
 };

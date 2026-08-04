@@ -151,46 +151,6 @@ describe('SignalRepository', () => {
         });
     });
 
-    describe('clearTimesFmContextOlderThan', () => {
-        test('should null context on rows older than the cutoff', async () => {
-            const builder = makeBatchBuilder([4]);
-            mockTestDbInstance = jest.fn().mockReturnValue(builder);
-
-            const now = Date.now();
-            const cleared = await repository.clearTimesFmContextOlderThan(7);
-
-            expect(cleared).toBe(4);
-            // Only rows that still have context are targeted
-            expect(builder.whereNotNullCalls).toContain('timesfm_context');
-            expect(builder.update).toHaveBeenCalledWith({ timesfm_context: null });
-            const expectedCutoff = now - 7 * 24 * 60 * 60 * 1000;
-            expect(
-                Math.abs(builder.capturedWhere.value - expectedCutoff)
-            ).toBeLessThan(1000);
-        });
-
-        test('should loop batches until a batch comes back short', async () => {
-            const builder = makeBatchBuilder([2, 2, 1]);
-            mockTestDbInstance = jest.fn().mockReturnValue(builder);
-
-            const cleared = await repository.clearTimesFmContextOlderThan(7, {
-                batchSize: 2,
-            });
-
-            expect(cleared).toBe(5);
-            expect(builder.update).toHaveBeenCalledTimes(3);
-        });
-
-        test('should handle database errors gracefully', async () => {
-            const builder = makeBatchBuilder([new Error('DB connection failed')]);
-            mockTestDbInstance = jest.fn().mockReturnValue(builder);
-
-            const cleared = await repository.clearTimesFmContextOlderThan(7);
-
-            expect(cleared).toBe(0);
-        });
-    });
-
     describe('save', () => {
         test('should save valid signal to database', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
@@ -251,12 +211,6 @@ describe('SignalRepository', () => {
                     htfAligned: true,
                     momentumSlope: 'rising',
                 },
-                timesFm: {
-                    available: true,
-                    direction: 'BULLISH',
-                    confidence: 0.82,
-                    volatilityRegime: 'NORMAL',
-                },
             });
 
             expect(mockInsert).toHaveBeenCalledWith(
@@ -280,14 +234,6 @@ describe('SignalRepository', () => {
                 JSON.stringify({
                     htfAligned: true,
                     momentumSlope: 'rising',
-                })
-            );
-            expect(mockInsert.mock.calls[0][0].timesfm_context).toBe(
-                JSON.stringify({
-                    available: true,
-                    direction: 'BULLISH',
-                    confidence: 0.82,
-                    volatilityRegime: 'NORMAL',
                 })
             );
         });
@@ -445,11 +391,6 @@ describe('SignalRepository', () => {
                     htfAligned: true,
                     momentumSlope: 'rising',
                 }),
-                timesfm_context: JSON.stringify({
-                    available: true,
-                    direction: 'BULLISH',
-                    confidence: 0.81,
-                }),
             };
             const mockOrderBy = jest.fn().mockResolvedValue([row]);
             const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
@@ -488,11 +429,6 @@ describe('SignalRepository', () => {
                     decisionContext: {
                         htfAligned: true,
                         momentumSlope: 'rising',
-                    },
-                    timesFm: {
-                        available: true,
-                        direction: 'BULLISH',
-                        confidence: 0.81,
                     },
                 }),
             ]);

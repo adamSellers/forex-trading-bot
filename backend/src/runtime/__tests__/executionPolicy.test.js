@@ -47,21 +47,18 @@ describe("canonical execution policy", () => {
         expect(plan.takeProfitPrice).toBeNull();
     });
 
-    test("applies fresh-flip and TimesFM sizing to the same AUD risk budget", () => {
+    test("applies the entry-type multiplier to the AUD risk budget", () => {
         const result = calculateCanonicalPositionSize({
             config: {
                 positionSizeMethod: "RISK",
                 riskPerTrade: 0.01,
                 freshFlipRiskMultiplier: 0.5,
-                timesFmEnabled: true,
-                timesFmMode: "size",
                 maxCapitalAtRisk: 1_000,
                 marginBuffer: 0,
                 leverage: 20,
             },
             signal: {
                 entryType: "FRESH_FLIP",
-                timesFm: { positionSizeMultiplier: 0.5 },
             },
             entryPrice: 1.1,
             stopLossPrice: 1.09,
@@ -72,13 +69,12 @@ describe("canonical execution policy", () => {
         });
 
         expect(result.valid).toBe(true);
-        expect(result.riskBudgetAud).toBe(2.5);
+        expect(result.riskBudgetAud).toBe(5);
         expect(result.riskPerUnitAud).toBeCloseTo(0.015, 8);
-        expect(result.units).toBe(166);
+        expect(result.units).toBe(333);
         expect(result.multipliers).toEqual({
             freshFlip: 0.5,
-            timesFm: 0.5,
-            combined: 0.25,
+            combined: 0.5,
         });
     });
 

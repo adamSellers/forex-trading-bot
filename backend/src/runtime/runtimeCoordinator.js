@@ -1,5 +1,6 @@
 const EventEmitter = require("events");
 const { v4: uuidv4 } = require("uuid");
+
 const SignalGenerator = require("../services/signalGenerator");
 const MarketContextService = require("./marketContextService");
 const logger = require("../utils/logger");
@@ -8,61 +9,37 @@ const {
     materializeStrategyConfig,
 } = require("../config/tradingConfig");
 const { RUNTIME_MODES, RUN_STATUSES } = require("./runtimeConstants");
-const { getStrategyDefinition } = require("../strategies");
-const { applyCandidatePreset } = require("./candidatePresets");
-const {
-    CONTROLLED_BASELINE_ACTIVATION_BASIS,
-    CONTROLLED_BASELINE_STRATEGY,
-    getControlledRiskLimitViolations,
-} = require("./liveActivationReadiness");
+const { isCanonicalStrategyKey } = require("../strategies");
 
-const CONTROLLED_BASELINE_RESUME_CAPABILITY = Symbol(
-    "controlled-baseline-resume"
-);
-
-function createRunId(mode = RUNTIME_MODES.LIVE) {
-    return `${mode}_${uuidv4()}`;
-}
-
-function getConfiguredSourceStrategies(session = {}) {
-    const configuredSources =
-        session?.run?.configSnapshot?.counterSignalSourceStrategies ||
-        session?.generator?.config?.counterSignalSourceStrategies;
-
-    return Array.isArray(configuredSources) ? configuredSources : [];
-}
-
-function usesSourceSignalAggregation(strategyKey) {
-    try {
-        return (
-            getStrategyDefinition(strategyKey).metadata?.sourceSignalAggregation ===
-            true
-        );
-    } catch (_error) {
-        return false;
-    }
+function createRunId() {
+    return `live_${uuidv4()}`;
 }
 
 function normalizeRunRecord(runRecord = {}) {
-    const rawConfigSnapshot = {
+    if (runRecord.mode && runRecord.mode !== RUNTIME_MODES.LIVE) {
+        const error = new Error("Only live strategy runs are supported");
+        error.code = "LIVE_ONLY_RUNTIME";
+        throw error;
+    }
+
+    const rawConfig = {
         ...(runRecord.configSnapshot || runRecord.config || {}),
         strategy:
             runRecord.strategy ||
             runRecord.configSnapshot?.strategy ||
             runRecord.config?.strategy ||
-            "supertrend_momentum",
+            "carry_trend",
     };
-    const configSnapshot = materializeStrategyConfig(rawConfigSnapshot, {
-        strategyKey: rawConfigSnapshot.strategy,
+    const configSnapshot = materializeStrategyConfig(rawConfig, {
+        strategyKey: rawConfig.strategy,
     });
 
     return {
-        runId: runRecord.runId || createRunId(runRecord.mode),
-        mode: runRecord.mode || RUNTIME_MODES.LIVE,
+        runId: runRecord.runId || createRunId(),
+        mode: RUNTIME_MODES.LIVE,
         strategy: configSnapshot.strategy,
         status: runRecord.status || RUN_STATUSES.ACTIVE,
-        selectionId: runRecord.selectionId || null,
-        shadowOfRunId: runRecord.shadowOfRunId || null,
+        selectionId: runRecord.selectionId || `selection_${uuidv4()}`,
         parentRunId: runRecord.parentRunId || null,
         configHash:
             runRecord.configHash ||
@@ -75,6 +52,17 @@ function normalizeRunRecord(runRecord = {}) {
     };
 }
 
+function signalPriority(signal = {}) {
+    if (
+        signal.signalClass === "EXIT_ONLY" ||
+        String(signal.intent || "").startsWith("EXIT_")
+    ) {
+        return 0;
+    }
+    if (signal.signalClass === "ACTIONABLE") return 1;
+    return 2;
+}
+
 class RuntimeCoordinator extends EventEmitter {
     constructor(options = {}) {
         super();
@@ -83,19 +71,17 @@ class RuntimeCoordinator extends EventEmitter {
         this.strategyRunRepository = options.strategyRunRepository || null;
         this.tradeRepository = options.tradeRepository || null;
         this.configService = options.configService || null;
-        this.timesFmSignalService = options.timesFmSignalService || null;
         this.marketContextService =
             options.marketContextService || new MarketContextService();
         this.pollIntervalMs = options.pollIntervalMs || 60000;
 
         this.isRunning = false;
+        this.isCycleRunning = false;
         this.runInterval = null;
         this.lastRunTime = null;
-        this.isCycleRunning = false;
         this.lastSkippedCycleAt = null;
         this.latestSignals = [];
         this.runSessions = new Map();
-        this.liveSelection = null;
     }
 
     init({
@@ -104,7 +90,6 @@ class RuntimeCoordinator extends EventEmitter {
         strategyRunRepository = null,
         tradeRepository = null,
         configService = null,
-        timesFmSignalService = null,
     } = {}) {
         this.dataService = dataService || this.dataService;
         this.signalRepository = signalRepository || this.signalRepository;
@@ -112,70 +97,33 @@ class RuntimeCoordinator extends EventEmitter {
             strategyRunRepository || this.strategyRunRepository;
         this.tradeRepository = tradeRepository || this.tradeRepository;
         this.configService = configService || this.configService;
-        this.timesFmSignalService =
-            timesFmSignalService || this.timesFmSignalService;
         return this;
     }
 
-    _createRunSession(runRecord = {}) {
-        const normalizedRun = normalizeRunRecord(runRecord);
-        const generator = new SignalGenerator(normalizedRun.configSnapshot, null);
-        // Per-run generators never run their own polling loop, so the legacy
-        // SignalGenerator.start(dataService) path that normally injects the
-        // data service is never called. The strategy HTF filter reads candles
-        // through generator.dataService and fails CLOSED ("HTF unavailable",
-        // blocking both directions) when it is null — leaving it unset means
-        // any run with enableHTFFilter:true can never emit an entry signal.
+    createSession(runRecord) {
+        const run = normalizeRunRecord(runRecord);
+        const generator = new SignalGenerator(run.configSnapshot, null);
         generator.dataService = this.dataService;
-
         return {
-            run: normalizedRun,
+            run,
             generator,
             latestSignals: [],
             managedInstruments: new Set(),
         };
     }
 
-    /**
-     * Push the union of timeframes required by every active run session onto
-     * the data service. Each run carries its own config snapshot, so a run can
-     * require candles the GLOBAL config never fetches (e.g. a paper candidate
-     * with enableHTFFilter:true, or a different htfTimeframe, while the global
-     * config has HTF off). Without this, such a run's HTF filter fails CLOSED
-     * ("HTF <tf> unavailable") and the run silently never trades. Must be
-     * called whenever run sessions change (register/stop/config update).
-     */
-    syncDataServiceTimeframes() {
-        if (typeof this.dataService?.updateRuntimeTimeframes !== "function") {
-            return;
-        }
-
-        const timeframes = new Set();
-        for (const session of this.runSessions.values()) {
-            const runTimeframes =
-                this.marketContextService?.getRequiredTimeframesForRun?.({
-                    ...session.run,
-                    config: session.generator?.config || session.run.configSnapshot,
-                }) || [];
-            runTimeframes.forEach((timeframe) => timeframes.add(timeframe));
-        }
-
-        this.dataService.updateRuntimeTimeframes(Array.from(timeframes));
-    }
-
-    registerRunSession(runRecord = {}) {
-        const normalizedRun = normalizeRunRecord(runRecord);
-        const existing = this.runSessions.get(normalizedRun.runId);
-
+    registerRunSession(runRecord) {
+        const normalized = normalizeRunRecord(runRecord);
+        const existing = this.runSessions.get(normalized.runId);
         if (existing) {
-            existing.run = normalizedRun;
-            existing.generator.updateConfig(normalizedRun.configSnapshot);
+            existing.run = normalized;
+            existing.generator.updateConfig(normalized.configSnapshot);
             this.syncDataServiceTimeframes();
             return existing;
         }
 
-        const session = this._createRunSession(normalizedRun);
-        this.runSessions.set(normalizedRun.runId, session);
+        const session = this.createSession(normalized);
+        this.runSessions.set(normalized.runId, session);
         this.syncDataServiceTimeframes();
         this.emit("runtimeRunsChanged", this.listRuns());
         return session;
@@ -188,42 +136,55 @@ class RuntimeCoordinator extends EventEmitter {
     getActiveLiveSession() {
         return (
             Array.from(this.runSessions.values()).find(
-                (session) =>
-                    session.run.mode === RUNTIME_MODES.LIVE &&
-                    session.run.status === RUN_STATUSES.ACTIVE
+                (session) => session.run.status === RUN_STATUSES.ACTIVE
             ) || null
         );
     }
 
-    getShadowSessionForSelection(selectionId) {
-        return (
-            Array.from(this.runSessions.values()).find(
-                (session) =>
-                    session.run.mode === RUNTIME_MODES.PAPER_SHADOW &&
-                    session.run.selectionId === selectionId &&
-                    session.run.status === RUN_STATUSES.ACTIVE
-            ) || null
-        );
+    syncDataServiceTimeframes() {
+        if (!this.dataService?.updateRuntimeTimeframes) return;
+        const timeframes = new Set();
+        this.runSessions.forEach((session) => {
+            const required =
+                this.marketContextService.getRequiredTimeframesForRun({
+                    ...session.run,
+                    config: session.generator.config,
+                }) || [];
+            required.forEach((timeframe) => timeframes.add(timeframe));
+        });
+        this.dataService.updateRuntimeTimeframes(Array.from(timeframes));
     }
 
     async loadPersistedRuns(filters = {}) {
-        if (!this.strategyRunRepository?.list) {
-            return [];
+        if (!this.strategyRunRepository?.list) return [];
+        await this.strategyRunRepository?.retireNonLiveRuns?.();
+        const runs = await this.strategyRunRepository.list({
+            ...filters,
+            mode: RUNTIME_MODES.LIVE,
+        });
+        const supported = [];
+        for (const run of runs) {
+            if (!isCanonicalStrategyKey(run.strategy)) {
+                await this.strategyRunRepository?.update?.(run.runId, {
+                    status: RUN_STATUSES.STOPPED,
+                    stoppedAt: Date.now(),
+                    metadata: {
+                        ...(run.metadata || {}),
+                        reason: "retired-by-live-only-release",
+                    },
+                });
+                continue;
+            }
+            this.registerRunSession(run);
+            supported.push(run);
         }
-
-        const runs = await this.strategyRunRepository.list(filters);
-        runs.forEach((runRecord) => this.registerRunSession(runRecord));
-        return runs;
+        return supported;
     }
 
     async startRun(runRecord = {}) {
-        const normalizedRun = normalizeRunRecord(runRecord);
-
-        if (this.strategyRunRepository?.create) {
-            await this.strategyRunRepository.create(normalizedRun);
-        }
-
-        const session = this.registerRunSession(normalizedRun);
+        const run = normalizeRunRecord(runRecord);
+        await this.strategyRunRepository?.create?.(run);
+        const session = this.registerRunSession(run);
         this.emit("runStarted", this.toPublicRun(session));
         return session.run;
     }
@@ -231,69 +192,28 @@ class RuntimeCoordinator extends EventEmitter {
     async stopRun(runId, updates = {}) {
         const session = this.getRunSession(runId);
         if (!session) return null;
-
-        const nextRun = {
+        const stopped = {
             ...session.run,
             status: updates.status || RUN_STATUSES.STOPPED,
-            stoppedAt:
-                updates.stoppedAt === undefined
-                    ? Date.now()
-                    : updates.stoppedAt,
-            metadata:
-                updates.metadata === undefined
-                    ? session.run.metadata
-                    : updates.metadata,
+            stoppedAt: updates.stoppedAt ?? Date.now(),
+            metadata: updates.metadata || session.run.metadata,
         };
-
-        if (this.strategyRunRepository?.update) {
-            await this.strategyRunRepository.update(runId, {
-                status: nextRun.status,
-                stoppedAt: nextRun.stoppedAt,
-                metadata: nextRun.metadata,
-            });
-        }
-
+        await this.strategyRunRepository?.update?.(runId, {
+            status: stopped.status,
+            stoppedAt: stopped.stoppedAt,
+            metadata: stopped.metadata,
+        });
         this.runSessions.delete(runId);
         this.syncDataServiceTimeframes();
-        this.emit(
-            "runStopped",
-            this.toPublicRun({ run: nextRun, latestSignals: [] })
-        );
+        this.emit("runStopped", this.toPublicRun(stopped));
         this.emit("runtimeRunsChanged", this.listRuns());
-        return nextRun;
+        return stopped;
     }
 
     async updateRun(runId, updates = {}) {
         const session = this.getRunSession(runId);
         if (!session) return null;
-
-        const immutableKeys = [
-            "runId",
-            "mode",
-            "strategy",
-            "selectionId",
-            "shadowOfRunId",
-            "parentRunId",
-            "configHash",
-            "configSnapshot",
-            "startedAt",
-        ];
-        const changedImmutableKeys = immutableKeys.filter(
-            (key) =>
-                updates[key] !== undefined &&
-                JSON.stringify(updates[key]) !== JSON.stringify(session.run[key])
-        );
-        if (changedImmutableKeys.length > 0) {
-            const error = new Error(
-                `Strategy runs are immutable; create a new run to change: ${changedImmutableKeys.join(
-                    ", "
-                )}`
-            );
-            error.code = "IMMUTABLE_STRATEGY_RUN";
-            throw error;
-        }
-
-        const nextRun = {
+        const run = {
             ...session.run,
             status: updates.status || session.run.status,
             stoppedAt:
@@ -305,829 +225,335 @@ class RuntimeCoordinator extends EventEmitter {
                     ? session.run.metadata
                     : updates.metadata,
         };
-
-        session.run = nextRun;
-
-        if (this.strategyRunRepository?.update) {
-            await this.strategyRunRepository.update(runId, {
-                status: nextRun.status,
-                metadata: nextRun.metadata,
-                stoppedAt: nextRun.stoppedAt,
-            });
-        }
-
+        session.run = run;
+        await this.strategyRunRepository?.update?.(runId, {
+            status: run.status,
+            stoppedAt: run.stoppedAt,
+            metadata: run.metadata,
+        });
         this.emit("runtimeRunsChanged", this.listRuns());
-        return nextRun;
-    }
-
-    async resetRun(runId, updates = {}) {
-        const session = this.getRunSession(runId);
-        if (!session) return null;
-
-        const previousRun = session.run;
-        const restartedAt =
-            updates.startedAt === undefined ? Date.now() : updates.startedAt;
-        await this.stopRun(runId, {
-            status: RUN_STATUSES.STOPPED,
-            stoppedAt: restartedAt,
-            metadata: {
-                ...(previousRun.metadata || {}),
-                supersededAt: restartedAt,
-                supersededReason: updates.reason || "run-restarted",
-            },
-        });
-
-        return this.startRun({
-            mode: previousRun.mode,
-            strategy: previousRun.strategy,
-            status: updates.status || RUN_STATUSES.ACTIVE,
-            selectionId: previousRun.selectionId,
-            shadowOfRunId: previousRun.shadowOfRunId,
-            parentRunId: previousRun.runId,
-            configSnapshot: previousRun.configSnapshot,
-            configHash: previousRun.configHash,
-            startedAt: restartedAt,
-            metadata: {
-                ...(previousRun.metadata || {}),
-                ...(updates.metadata || {}),
-                restartedFromRunId: previousRun.runId,
-                evidencePreserved: true,
-            },
-        });
+        return run;
     }
 
     setManagedInstruments(runId, instruments = []) {
         const session = this.getRunSession(runId);
-        if (!session) return;
-
-        session.managedInstruments = new Set(
-            Array.isArray(instruments) ? instruments.filter(Boolean) : []
-        );
+        if (session) session.managedInstruments = new Set(instruments.filter(Boolean));
     }
 
     async ensureSessionForOwnerRun(runId, trade = null) {
-        if (!runId || this.getRunSession(runId)) {
-            return this.getRunSession(runId);
+        if (!runId || this.getRunSession(runId)) return this.getRunSession(runId);
+        const persisted =
+            await this.strategyRunRepository?.getByRunId?.(runId);
+        if (persisted?.mode === RUNTIME_MODES.LIVE) {
+            return this.registerRunSession({
+                ...persisted,
+                status: RUN_STATUSES.MANAGING_ONLY,
+            });
         }
-
-        if (this.strategyRunRepository?.getByRunId) {
-            const persistedRun = await this.strategyRunRepository.getByRunId(runId);
-            if (persistedRun) {
-                return this.registerRunSession({
-                    ...persistedRun,
-                    status:
-                        persistedRun.status === RUN_STATUSES.STOPPED
-                            ? RUN_STATUSES.MANAGING_ONLY
-                            : persistedRun.status,
-                });
-            }
-        }
-
         if (!trade) return null;
 
+        const strategy = trade.strategy || this.configService?.get?.().strategy;
         return this.registerRunSession({
             runId,
-            mode: RUNTIME_MODES.LIVE,
-            strategy: trade.strategy || "supertrend_momentum",
+            strategy,
             status: RUN_STATUSES.MANAGING_ONLY,
             selectionId: trade.selectionId || null,
             configSnapshot: {
                 ...(this.configService?.get?.() || {}),
-                strategy: trade.strategy || "supertrend_momentum",
+                strategy,
             },
-            configHash:
-                trade.configHash ||
-                computeConfigHash({
-                    ...(this.configService?.get?.() || {}),
-                    strategy: trade.strategy || "supertrend_momentum",
-                }),
-            metadata: {
-                entryEnabled: false,
-                recoveredFromTrades: true,
-            },
+            configHash: trade.configHash || null,
+            metadata: { entryEnabled: false, recoveredFromLiveTrade: true },
         });
     }
 
     async syncLiveTradeOwnership() {
-        if (!this.tradeRepository?.getOpenTrades) {
-            return [];
-        }
-
-        const activeLiveSession = this.getActiveLiveSession();
-        const openLiveTrades = await this.tradeRepository.getOpenTrades({
+        if (!this.tradeRepository?.getOpenTrades) return [];
+        const active = this.getActiveLiveSession();
+        const openTrades = await this.tradeRepository.getOpenTrades({
             mode: RUNTIME_MODES.LIVE,
         });
 
-        for (const trade of openLiveTrades) {
-            if (!trade.ownerRunId && activeLiveSession) {
-                await this.tradeRepository.updateTrade(trade.id, {
-                    runId: trade.runId || activeLiveSession.run.runId,
-                    ownerRunId: activeLiveSession.run.runId,
-                    selectionId:
-                        trade.selectionId || activeLiveSession.run.selectionId,
-                    strategy: trade.strategy || activeLiveSession.run.strategy,
-                    configHash: trade.configHash || activeLiveSession.run.configHash,
-                });
-
-                trade.runId = trade.runId || activeLiveSession.run.runId;
-                trade.ownerRunId = activeLiveSession.run.runId;
-                trade.selectionId =
-                    trade.selectionId || activeLiveSession.run.selectionId;
-                trade.strategy = trade.strategy || activeLiveSession.run.strategy;
-                trade.configHash = trade.configHash || activeLiveSession.run.configHash;
+        for (const trade of openTrades) {
+            if (!trade.ownerRunId && active) {
+                const ownership = {
+                    runId: trade.runId || active.run.runId,
+                    ownerRunId: active.run.runId,
+                    selectionId: trade.selectionId || active.run.selectionId,
+                    strategy: trade.strategy || active.run.strategy,
+                    configHash: trade.configHash || active.run.configHash,
+                };
+                await this.tradeRepository.updateTrade(trade.id, ownership);
+                Object.assign(trade, ownership);
+            }
+            if (trade.ownerRunId) {
+                await this.ensureSessionForOwnerRun(trade.ownerRunId, trade);
             }
         }
 
-        const ownerInstrumentMap = new Map();
-        for (const trade of openLiveTrades) {
-            if (!trade.ownerRunId) continue;
-            if (!ownerInstrumentMap.has(trade.ownerRunId)) {
-                ownerInstrumentMap.set(trade.ownerRunId, new Set());
-            }
-            ownerInstrumentMap.get(trade.ownerRunId).add(trade.instrument);
-            await this.ensureSessionForOwnerRun(trade.ownerRunId, trade);
-        }
+        const instrumentsByOwner = new Map();
+        openTrades.forEach((trade) => {
+            if (!trade.ownerRunId) return;
+            if (!instrumentsByOwner.has(trade.ownerRunId))
+                instrumentsByOwner.set(trade.ownerRunId, new Set());
+            instrumentsByOwner.get(trade.ownerRunId).add(trade.instrument);
+        });
 
-        const activeLiveRunId = activeLiveSession?.run.runId || null;
+        const activeRunId = this.getActiveLiveSession()?.run.runId || null;
         for (const session of Array.from(this.runSessions.values())) {
-            if (session.run.mode !== RUNTIME_MODES.LIVE) {
-                continue;
-            }
-
-            if (session.run.runId === activeLiveRunId) {
-                continue;
-            }
-
-            const ownedInstruments = Array.from(
-                ownerInstrumentMap.get(session.run.runId) || []
+            if (session.run.runId === activeRunId) continue;
+            const instruments = Array.from(
+                instrumentsByOwner.get(session.run.runId) || []
             );
-
-            if (ownedInstruments.length === 0) {
+            if (!instruments.length) {
                 await this.stopRun(session.run.runId, {
                     metadata: {
-                        ...(session.run.metadata || {}),
-                        reason: "ownership-cleared",
+                        ...session.run.metadata,
+                        reason: "live-trade-ownership-cleared",
                     },
                 });
                 continue;
             }
-
-            this.setManagedInstruments(session.run.runId, ownedInstruments);
+            this.setManagedInstruments(session.run.runId, instruments);
             if (session.run.status !== RUN_STATUSES.MANAGING_ONLY) {
                 await this.updateRun(session.run.runId, {
                     status: RUN_STATUSES.MANAGING_ONLY,
-                    metadata: {
-                        ...(session.run.metadata || {}),
-                        entryEnabled: false,
-                    },
+                    metadata: { ...session.run.metadata, entryEnabled: false },
                 });
             }
         }
 
-        return openLiveTrades;
+        return openTrades;
     }
 
     getRunAssets(session) {
-        if (!session) return [];
-
-        if (
-            session.run.mode === RUNTIME_MODES.LIVE &&
-            session.run.status === RUN_STATUSES.MANAGING_ONLY
-        ) {
+        if (session.run.status === RUN_STATUSES.MANAGING_ONLY)
             return Array.from(session.managedInstruments);
-        }
-
         return Array.isArray(session.generator.config.assets)
             ? session.generator.config.assets
-            : session.run.configSnapshot.assets || [];
+            : [];
     }
 
     enrichSignal(session, signal) {
-        const entryEnabled =
-            session.run.mode === RUNTIME_MODES.LIVE &&
-            session.run.status === RUN_STATUSES.ACTIVE;
-
         return {
             ...signal,
             runId: session.run.runId,
-            selectionId: session.run.selectionId || null,
-            mode: session.run.mode,
+            selectionId: session.run.selectionId,
+            mode: RUNTIME_MODES.LIVE,
             strategy: session.run.strategy,
             configHash: session.run.configHash,
             runtimeStatus: session.run.status,
-            entryEnabled,
+            entryEnabled: session.run.status === RUN_STATUSES.ACTIVE,
         };
-    }
-
-    async enrichTimesFm(signal, options = {}) {
-        if (!this.timesFmSignalService?.enrichSignal) {
-            return signal;
-        }
-
-        return this.timesFmSignalService.enrichSignal(signal, options);
-    }
-
-    async prepareInstrumentContext(session, instrumentContext, options = {}) {
-        const sourceStrategies = getConfiguredSourceStrategies(session);
-        const needsTimesFmForecast =
-            session?.run?.strategy === "timesfm_directional" ||
-            (usesSourceSignalAggregation(session?.run?.strategy) &&
-                (sourceStrategies.length === 0 ||
-                    sourceStrategies.includes("timesfm_directional")));
-
-        if (
-            !instrumentContext ||
-            !needsTimesFmForecast ||
-            !this.timesFmSignalService?.getForecastContext
-        ) {
-            return instrumentContext;
-        }
-
-        try {
-            const forecastContext = await this.timesFmSignalService.getForecastContext({
-                instrument: options.instrument,
-                candles: options.candles,
-                timeframe: options.timeframe,
-                config: options.config || session.run.configSnapshot || session.generator?.config || {},
-            });
-
-            return {
-                ...instrumentContext,
-                timesFmForecast: forecastContext,
-            };
-        } catch (error) {
-            logger.warn(
-                `TimesFM prefetch failed for ${options.instrument || "unknown"}: ${error.message}`
-            );
-            return instrumentContext;
-        }
-    }
-
-    async refreshTimesFmHealth(force = false) {
-        if (!this.timesFmSignalService?.refreshHealth) {
-            return null;
-        }
-
-        return this.timesFmSignalService.refreshHealth(force);
-    }
-
-    getTimesFmStatus() {
-        const activeLiveSession = this.getActiveLiveSession();
-        const config =
-            activeLiveSession?.run?.configSnapshot || this.configService?.get?.() || {};
-
-        if (!this.timesFmSignalService?.getStatus) {
-            return {
-                enabled: false,
-                mode: "disabled",
-                configured: false,
-                connected: false,
-                available: false,
-                status: "disabled",
-                ready: false,
-            };
-        }
-
-        return this.timesFmSignalService.getStatus(config);
     }
 
     async evaluateRunSession(session, sharedContext) {
         const signals = [];
         const assets = this.getRunAssets(session);
-
         for (const instrument of assets) {
-            const instrumentContext = this.marketContextService.createInstrumentContext(
+            const context = this.marketContextService.createInstrumentContext(
                 sharedContext,
-                {
-                    ...session.run,
-                    config: session.generator.config,
-                    assets,
-                },
+                { ...session.run, config: session.generator.config, assets },
                 instrument
             );
-            const timeframe = session.generator.config.timeframe || "15m";
-            const candles = instrumentContext?.timeframes?.[timeframe]?.candles || [];
-            const currentPrice = instrumentContext?.price?.price ?? null;
-
-            if (!Number.isFinite(currentPrice) || candles.length === 0) {
-                continue;
-            }
-
-            const preparedContext = await this.prepareInstrumentContext(
-                session,
-                instrumentContext,
-                {
-                    instrument,
-                    candles,
-                    timeframe,
-                    config: session.run.configSnapshot || session.generator.config,
-                }
-            );
+            const timeframe = session.generator.config.timeframe || "4h";
+            const candles = context?.timeframes?.[timeframe]?.candles || [];
+            const currentPrice = Number(context?.price?.price);
+            if (!Number.isFinite(currentPrice) || !candles.length) continue;
 
             let signal = await session.generator.generateSignal(
                 instrument,
                 candles,
                 currentPrice,
-                {
-                    marketContext: preparedContext,
-                }
+                { marketContext: context }
             );
-            if (!signal) {
-                continue;
-            }
-
+            if (!signal) continue;
             signal.timeframe = timeframe;
             signal = session.generator.validateSignal(signal);
-
-            if (!signal) {
-                continue;
-            }
-
-            let enrichedSignal = this.enrichSignal(session, signal);
-            if (
-                session.run.strategy === "timesfm_directional" &&
-                preparedContext?.timesFmForecast
-            ) {
-                enrichedSignal = {
-                    ...enrichedSignal,
-                    timesFm: preparedContext.timesFmForecast,
-                };
-            } else {
-                enrichedSignal = await this.enrichTimesFm(enrichedSignal, {
-                    candles,
-                    timeframe,
-                    config: session.run.configSnapshot || session.generator.config,
-                });
-            }
-            signals.push(enrichedSignal);
-            this.emit("signalGenerated", enrichedSignal);
+            if (signal) signals.push(this.enrichSignal(session, signal));
         }
 
+        signals.sort((left, right) => {
+            const priority = signalPriority(left) - signalPriority(right);
+            return priority || Number(right.strength || 0) - Number(left.strength || 0);
+        });
         session.latestSignals = signals;
         return signals;
     }
 
     async runCycle() {
-        if (!this.dataService || this.runSessions.size === 0) {
+        if (!this.dataService || !this.runSessions.size) {
             this.latestSignals = [];
             return [];
         }
-
         if (this.isCycleRunning) {
             const now = Date.now();
             if (!this.lastSkippedCycleAt || now - this.lastSkippedCycleAt > 60000) {
-                logger.warn("Runtime coordinator cycle skipped: previous cycle still running");
+                logger.warn("Live strategy cycle skipped: prior cycle still running");
                 this.lastSkippedCycleAt = now;
             }
             return this.latestSignals;
         }
 
         this.isCycleRunning = true;
-
         try {
             await this.syncLiveTradeOwnership();
-
-            const descriptors = Array.from(this.runSessions.values()).map((session) => ({
-                ...session.run,
-                config: session.generator.config,
-                assets: this.getRunAssets(session),
-            }));
+            const descriptors = Array.from(this.runSessions.values()).map(
+                (session) => ({
+                    ...session.run,
+                    config: session.generator.config,
+                    assets: this.getRunAssets(session),
+                })
+            );
             const sharedContext = this.marketContextService.buildSharedContext(
                 descriptors,
                 this.dataService
             );
             const allSignals = [];
-
             for (const session of this.runSessions.values()) {
                 const signals = await this.evaluateRunSession(session, sharedContext);
                 allSignals.push(...signals);
-
-                if (signals.length > 0 && this.signalRepository?.saveBatch) {
-                    await this.signalRepository.saveBatch(signals);
-                }
-
+                if (signals.length) await this.signalRepository?.saveBatch?.(signals);
                 this.emit("runSignalsGenerated", {
                     runId: session.run.runId,
-                    mode: session.run.mode,
+                    mode: RUNTIME_MODES.LIVE,
                     strategy: session.run.strategy,
                     signals,
                 });
             }
 
-            const activeLiveSession = Array.from(this.runSessions.values()).find(
-                (session) =>
-                    session.run.mode === RUNTIME_MODES.LIVE &&
-                    session.run.status === RUN_STATUSES.ACTIVE
-            );
-
-            this.latestSignals = activeLiveSession?.latestSignals || [];
+            allSignals.sort((left, right) => {
+                const priority = signalPriority(left) - signalPriority(right);
+                return priority || Number(right.strength || 0) - Number(left.strength || 0);
+            });
+            allSignals.forEach((signal) => this.emit("signalGenerated", signal));
+            this.latestSignals = this.getActiveLiveSession()?.latestSignals || [];
             this.lastRunTime = Date.now();
             this.emit("allSignalsGenerated", this.latestSignals);
-
             return allSignals;
         } finally {
             this.isCycleRunning = false;
         }
     }
 
-    async start(dataService = this.dataService, intervalMs = this.pollIntervalMs) {
-        if (this.isRunning) return;
-
-        this.dataService = dataService || this.dataService;
-        // Sessions registered before start() (e.g. rehydrated persisted runs)
-        // may have been created while this.dataService was still null; without
-        // this re-sync their HTF filter permanently reports "HTF unavailable".
-        for (const session of this.runSessions.values()) {
-            session.generator.dataService = this.dataService;
-        }
-        // Same late-binding hazard for candle requirements: sessions registered
-        // while this.dataService was null never reached a data service, so the
-        // per-run timeframes (incl. per-run HTF) were never requested.
-        this.syncDataServiceTimeframes();
-        this.isRunning = true;
-        await this.refreshTimesFmHealth(true);
-        await this.ensureLiveSelectionInitialized();
-        await this.runCycle();
-
-        this.runInterval = setInterval(() => {
-            if (this.isRunning) {
-                this.runCycle().catch((error) => {
-                    logger.error("Runtime coordinator cycle failed:", error);
-                });
-            }
-        }, intervalMs);
-    }
-
-    stop() {
-        this.isRunning = false;
-        if (this.runInterval) {
-            clearInterval(this.runInterval);
-            this.runInterval = null;
-        }
-        this.emit("generatorStopped");
-    }
-
-    updateConfig(newConfig = {}) {
-        // Active experiment snapshots are immutable. Global configuration
-        // changes apply to future candidate/promotion runs only.
-        this.syncDataServiceTimeframes();
-        return newConfig;
-    }
-
-    async resumeControlledBaseline({
-        configSnapshot,
-        metadata = {},
-    } = {}) {
-        const activeLiveSession = this.getActiveLiveSession();
-        const activeShadowSession = activeLiveSession
-            ? this.getShadowSessionForSelection(
-                  activeLiveSession.run.selectionId
-              )
-            : null;
-        const liveRun = activeLiveSession?.run || null;
-        const evidence = metadata.controlledBaselineResume || null;
-        const controlledMetadata = metadata.phase4ControlledLive || null;
-        const requestedConfig = materializeStrategyConfig(
-            {
-                ...(configSnapshot || {}),
-                strategy:
-                    configSnapshot?.strategy || liveRun?.strategy || null,
-            },
-            { strategyKey: configSnapshot?.strategy || liveRun?.strategy }
-        );
-        const requestedStrategy = requestedConfig.strategy;
-        const requestedConfigHash = computeConfigHash(requestedConfig);
-        const riskViolations =
-            getControlledRiskLimitViolations(requestedConfig);
-        const canonicalConfig = this.configService?.get?.() || {};
-        const hasControlledConfig =
-            canonicalConfig.enableTrading !== true &&
-            requestedConfig.enableTrading !== true &&
-            requestedConfig.referenceCurrency === "AUD" &&
-            requestedConfig.accountCurrency === "AUD" &&
-            requestedConfig.portfolioRiskEnforcement === true &&
-            riskViolations.length === 0;
-        const isValidLegacyBaseline =
-            liveRun?.strategy === CONTROLLED_BASELINE_STRATEGY &&
-            requestedStrategy === CONTROLLED_BASELINE_STRATEGY &&
-            !liveRun?.metadata?.promotedFromRunId &&
-            !liveRun?.metadata?.promotionGate &&
-            !liveRun?.metadata?.activationBasis;
-        const hasValidEvidence =
-            metadata.activationBasis ===
-                CONTROLLED_BASELINE_ACTIVATION_BASIS &&
-            evidence?.confirmed === true &&
-            Number.isFinite(Number(evidence.confirmedAt)) &&
-            Number(evidence.confirmedAt) > 0 &&
-            evidence.predecessorLiveRunId === liveRun?.runId &&
-            evidence.predecessorShadowRunId ===
-                (activeShadowSession?.run.runId || null) &&
-            controlledMetadata?.activationBasis ===
-                CONTROLLED_BASELINE_ACTIVATION_BASIS &&
-            controlledMetadata?.predecessorLiveRunId === liveRun?.runId &&
-            controlledMetadata?.predecessorShadowRunId ===
-                (activeShadowSession?.run.runId || null) &&
-            controlledMetadata?.sourceConfigHash === liveRun?.configHash &&
-            controlledMetadata?.liveConfigHash === requestedConfigHash &&
-            !metadata.promotedFromRunId &&
-            !metadata.promotionGate;
-
-        if (
-            !isValidLegacyBaseline ||
-            !hasValidEvidence ||
-            !hasControlledConfig
-        ) {
-            const error = new Error(
-                "Explicit baseline resume requires an unmigrated canonical SuperTrend live predecessor and valid confirmation evidence"
-            );
-            error.code = "CONTROLLED_BASELINE_RESUME_INVALID";
-            throw error;
-        }
-
-        const openTrades = this.tradeRepository?.getOpenTrades
-            ? await this.tradeRepository.getOpenTrades({
-                  mode: RUNTIME_MODES.LIVE,
-              })
-            : [];
-        if (openTrades.length > 0) {
-            const error = new Error(
-                "Explicit baseline resume requires a flat live engine"
-            );
-            error.code = "CONTROLLED_BASELINE_ENGINE_NOT_FLAT";
-            error.openPositions = openTrades.length;
-            throw error;
-        }
-
-        return this.selectLiveStrategy({
-            strategyKey: CONTROLLED_BASELINE_STRATEGY,
-            configSnapshot: requestedConfig,
-            initiatedBy: "controlled-baseline-resume",
-            metadata: {
-                activationBasis: CONTROLLED_BASELINE_ACTIVATION_BASIS,
-                controlledBaselineResume: evidence,
-                phase4ControlledLive: controlledMetadata,
-            },
-            parentLiveRunId: liveRun.runId,
-            parentShadowRunId: activeShadowSession?.run.runId || null,
-            controlledBaselineResumeCapability:
-                CONTROLLED_BASELINE_RESUME_CAPABILITY,
-        });
-    }
-
     async selectLiveStrategy({
         strategyKey,
         configSnapshot = null,
-        selectionId = null,
-        initiatedBy = "runtime",
-        startShadow = true,
-        metadata = {},
+        initiatedBy = "live-release",
         parentLiveRunId = null,
-        parentShadowRunId = null,
-        controlledBaselineResumeCapability = null,
+        metadata = {},
     } = {}) {
-        const activeLiveSession = this.getActiveLiveSession();
-        const isBootstrap = initiatedBy === "runtime-bootstrap";
-        const isControlledBaselineResume =
-            controlledBaselineResumeCapability ===
-            CONTROLLED_BASELINE_RESUME_CAPABILITY;
-        if (
-            !isBootstrap &&
-            !isControlledBaselineResume &&
-            (metadata?.promotionGate?.passed !== true ||
-                metadata?.promotionGate?.gateVersion !== 2)
-        ) {
-            const error = new Error(
-                "Live selections can only be created by a passing candidate promotion"
-            );
-            error.code = "CANDIDATE_PROMOTION_REQUIRED";
-            throw error;
-        }
-
-        const requestedConfig = {
+        const active = this.getActiveLiveSession();
+        const requested = {
             ...(configSnapshot || this.configService?.get?.() || {}),
-            strategy: strategyKey || activeLiveSession?.run.strategy || "supertrend_momentum",
+            strategy: strategyKey || active?.run.strategy || "carry_trend",
         };
-        const nextConfig = materializeStrategyConfig(requestedConfig, {
-            strategyKey: requestedConfig.strategy,
+        const config = materializeStrategyConfig(requested, {
+            strategyKey: requested.strategy,
         });
-        const nextSelectionId = selectionId || `selection_${uuidv4()}`;
-        const nextConfigHash = computeConfigHash(nextConfig);
 
-        if (activeLiveSession) {
-            const activeLiveTrades = this.tradeRepository?.getOpenTrades
+        if (active) {
+            const openTrades = this.tradeRepository?.getOpenTrades
                 ? await this.tradeRepository.getOpenTrades({
                       mode: RUNTIME_MODES.LIVE,
-                      ownerRunId: activeLiveSession.run.runId,
+                      ownerRunId: active.run.runId,
                   })
                 : [];
-
-            if (activeLiveTrades.length > 0) {
-                await this.updateRun(activeLiveSession.run.runId, {
+            if (openTrades.length) {
+                await this.updateRun(active.run.runId, {
                     status: RUN_STATUSES.MANAGING_ONLY,
-                    metadata: {
-                        ...(activeLiveSession.run.metadata || {}),
-                        entryEnabled: false,
-                    },
+                    metadata: { ...active.run.metadata, entryEnabled: false },
                 });
+                this.setManagedInstruments(
+                    active.run.runId,
+                    openTrades.map((trade) => trade.instrument)
+                );
             } else {
-                await this.stopRun(activeLiveSession.run.runId, {
+                await this.stopRun(active.run.runId, {
                     metadata: {
-                        ...(activeLiveSession.run.metadata || {}),
-                        reason: "live-selection-rotated",
-                    },
-                });
-            }
-
-            const oldShadowSession = this.getShadowSessionForSelection(
-                activeLiveSession.run.selectionId
-            );
-            if (oldShadowSession) {
-                await this.stopRun(oldShadowSession.run.runId, {
-                    metadata: {
-                        ...(oldShadowSession.run.metadata || {}),
-                        reason: "shadow-replaced",
+                        ...active.run.metadata,
+                        reason: "live-release-replaced",
                     },
                 });
             }
         }
 
-        const liveRun = await this.startRun({
-            mode: RUNTIME_MODES.LIVE,
-            strategy: nextConfig.strategy,
-            status: RUN_STATUSES.ACTIVE,
-            selectionId: nextSelectionId,
+        const selectionId = `selection_${uuidv4()}`;
+        const run = await this.startRun({
+            strategy: config.strategy,
+            selectionId,
             parentRunId: parentLiveRunId,
-            configSnapshot: nextConfig,
-            configHash: nextConfigHash,
-            metadata: {
-                entryEnabled: true,
-                initiatedBy,
-                ...metadata,
-            },
+            configSnapshot: config,
+            configHash: computeConfigHash(config),
+            metadata: { entryEnabled: true, initiatedBy, ...metadata },
         });
-
-        let shadowRun = null;
-        if (startShadow) {
-            shadowRun = await this.startRun({
-                mode: RUNTIME_MODES.PAPER_SHADOW,
-                strategy: nextConfig.strategy,
-                status: RUN_STATUSES.ACTIVE,
-                selectionId: nextSelectionId,
-                shadowOfRunId: liveRun.runId,
-                parentRunId: parentShadowRunId,
-                configSnapshot: nextConfig,
-                configHash: nextConfigHash,
-                metadata: {
-                    entryEnabled: false,
-                    initiatedBy,
-                    pairedLiveRunId: liveRun.runId,
-                    ...(metadata.phase4ControlledLive
-                        ? { phase4ControlledLive: metadata.phase4ControlledLive }
-                        : {}),
-                    ...(isControlledBaselineResume
-                        ? {
-                              activationBasis: metadata.activationBasis,
-                              controlledBaselineResume:
-                                  metadata.controlledBaselineResume,
-                          }
-                        : {}),
-                },
-            });
-        }
-
-        this.liveSelection = {
-            selectionId: nextSelectionId,
-            liveRunId: liveRun.runId,
-            shadowRunId: shadowRun?.runId || null,
-            strategy: nextConfig.strategy,
-            configHash: nextConfigHash,
-            updatedAt: Date.now(),
-        };
-
         await this.syncLiveTradeOwnership();
-
         const selection = this.getLiveSelection();
         this.emit("liveSelectionChanged", selection);
         return selection;
     }
 
     async ensureLiveSelectionInitialized() {
-        if (this.runSessions.size === 0) {
+        if (!this.runSessions.size) {
             await this.loadPersistedRuns({
                 statuses: [RUN_STATUSES.ACTIVE, RUN_STATUSES.MANAGING_ONLY],
             });
         }
-
-        const activeLiveSession = this.getActiveLiveSession();
-        if (activeLiveSession) {
-            const shadowSession = this.getShadowSessionForSelection(
-                activeLiveSession.run.selectionId
-            );
-
-            this.liveSelection = {
-                selectionId: activeLiveSession.run.selectionId,
-                liveRunId: activeLiveSession.run.runId,
-                shadowRunId: shadowSession?.run.runId || null,
-                strategy: activeLiveSession.run.strategy,
-                configHash: activeLiveSession.run.configHash,
-                updatedAt: Date.now(),
-            };
-
-            if (!shadowSession) {
-                await this.startRun({
-                    mode: RUNTIME_MODES.PAPER_SHADOW,
-                    strategy: activeLiveSession.run.strategy,
-                    status: RUN_STATUSES.ACTIVE,
-                    selectionId: activeLiveSession.run.selectionId,
-                    shadowOfRunId: activeLiveSession.run.runId,
-                    configSnapshot: activeLiveSession.run.configSnapshot,
-                    configHash: activeLiveSession.run.configHash,
-                    metadata: {
-                        entryEnabled: false,
-                        initiatedBy: "runtime-bootstrap",
-                        pairedLiveRunId: activeLiveSession.run.runId,
-                    },
-                });
+        const active = this.getActiveLiveSession();
+        const deployed = materializeStrategyConfig(
+            this.configService?.get?.() || { strategy: "carry_trend" },
+            {
+                strategyKey:
+                    this.configService?.get?.().strategy || "carry_trend",
             }
-
+        );
+        const deployedHash = computeConfigHash(deployed);
+        if (
+            active &&
+            active.run.strategy === deployed.strategy &&
+            active.run.configHash === deployedHash
+        ) {
             await this.syncLiveTradeOwnership();
             return this.getLiveSelection();
         }
-
         return this.selectLiveStrategy({
-            strategyKey:
-                this.configService?.get?.().strategy || "supertrend_momentum",
-            configSnapshot: this.configService?.get?.() || null,
-            initiatedBy: "runtime-bootstrap",
+            strategyKey: deployed.strategy,
+            configSnapshot: deployed,
+            initiatedBy: active ? "live-release-sync" : "live-bootstrap",
+            parentLiveRunId: active?.run.runId || null,
+            metadata: { releaseVersion: deployed.liveReleaseVersion || null },
         });
     }
 
-    async createCandidateRun({
-        strategyKey,
-        configSnapshot = null,
-        initiatedBy = "ui",
-        metadata = {},
-        presetKey = null,
-    } = {}) {
-        if (!strategyKey) {
-            throw new Error("strategyKey is required");
-        }
-
-        const strategyDefinition = getStrategyDefinition(strategyKey);
-        if (strategyDefinition.runtimeStatus === "planned") {
-            throw new Error(
-                `${strategyDefinition.label} is not available for candidate paper runs yet`
-            );
-        }
-
-        const liveSelection = await this.ensureLiveSelectionInitialized();
-        const activeLiveSession = this.getActiveLiveSession();
-        const baseConfig =
-            activeLiveSession?.run.configSnapshot ||
-            this.configService?.get?.() ||
-            {};
-        const baseNextConfig = materializeStrategyConfig(configSnapshot || {}, {
-            baseConfig,
-            strategyKey,
+    async start(dataService = this.dataService, intervalMs = this.pollIntervalMs) {
+        if (this.isRunning) return;
+        this.dataService = dataService || this.dataService;
+        this.runSessions.forEach((session) => {
+            session.generator.dataService = this.dataService;
         });
-        const { config: nextConfig, preset } = applyCandidatePreset(
-            baseNextConfig,
-            presetKey
-        );
-        if (presetKey && !preset) {
-            throw new Error(`Unknown candidate preset: ${presetKey}`);
-        }
-        const candidateConfig = materializeStrategyConfig(nextConfig, {
-            strategyKey,
-        });
-        const candidateConfigHash = computeConfigHash(candidateConfig);
+        this.syncDataServiceTimeframes();
+        this.isRunning = true;
+        await this.ensureLiveSelectionInitialized();
+        await this.runCycle();
+        this.runInterval = setInterval(() => {
+            if (this.isRunning) {
+                this.runCycle().catch((error) =>
+                    logger.error("Live strategy cycle failed:", error)
+                );
+            }
+        }, intervalMs);
+    }
 
-        return this.startRun({
-            mode: RUNTIME_MODES.PAPER_CANDIDATE,
-            strategy: strategyKey,
-            status: RUN_STATUSES.ACTIVE,
-            selectionId:
-                activeLiveSession?.run.selectionId || liveSelection?.selectionId || null,
-            configSnapshot: candidateConfig,
-            configHash: candidateConfigHash,
-            metadata: {
-                entryEnabled: false,
-                initiatedBy,
-                pairedLiveRunId: activeLiveSession?.run.runId || null,
-                candidatePreset: preset?.key || null,
-                candidatePresetLabel: preset?.label || null,
-                ...metadata,
-                executionParity: {
-                    passed: true,
-                    configHash: candidateConfigHash,
-                    executionPolicyVersion:
-                        candidateConfig.executionPolicyVersion,
-                    pricingModelVersion: candidateConfig.pricingModelVersion,
-                    verifiedBy: "shared-execution-policy-contract",
-                    verifiedAt: Date.now(),
-                },
-            },
-        });
+    stop() {
+        this.isRunning = false;
+        if (this.runInterval) clearInterval(this.runInterval);
+        this.runInterval = null;
+        this.emit("generatorStopped");
+    }
+
+    updateConfig(config = {}) {
+        this.syncDataServiceTimeframes();
+        return config;
     }
 
     reset() {
@@ -1138,23 +564,21 @@ class RuntimeCoordinator extends EventEmitter {
         });
     }
 
-    toPublicRun(session) {
-        const run = session.run || session;
-
+    toPublicRun(sessionOrRun) {
+        const run = sessionOrRun.run || sessionOrRun;
         return {
             runId: run.runId,
-            mode: run.mode,
+            mode: RUNTIME_MODES.LIVE,
             strategy: run.strategy,
             status: run.status,
-            selectionId: run.selectionId || null,
-            shadowOfRunId: run.shadowOfRunId || null,
+            selectionId: run.selectionId,
             parentRunId: run.parentRunId || null,
-            configHash: run.configHash || null,
-            configSnapshot: run.configSnapshot || null,
+            configHash: run.configHash,
+            configSnapshot: run.configSnapshot,
             startedAt: run.startedAt,
             stoppedAt: run.stoppedAt ?? null,
             metadata: run.metadata || {},
-            latestSignalCount: session.latestSignals?.length || 0,
+            latestSignalCount: sessionOrRun.latestSignals?.length || 0,
         };
     }
 
@@ -1164,38 +588,27 @@ class RuntimeCoordinator extends EventEmitter {
         );
     }
 
-    getStatus() {
-        const activeLiveSession = this.getActiveLiveSession();
-
+    getLiveSelection() {
+        const active = this.getActiveLiveSession();
+        if (!active) return null;
         return {
-            isActive: this.isRunning,
-            config: activeLiveSession?.generator?.config || {},
-            activeSignals: this.latestSignals || [],
-            pendingEntries:
-                activeLiveSession?.generator?.getStatus?.().pendingEntries || [],
-            lastRun: this.lastRunTime,
-            runs: this.listRuns(),
-            liveSelection: this.getLiveSelection(),
-            timesFm: this.getTimesFmStatus(),
+            selectionId: active.run.selectionId,
+            strategy: active.run.strategy,
+            configHash: active.run.configHash,
+            liveRun: this.toPublicRun(active),
         };
     }
 
-    getLiveSelection() {
-        const activeLiveSession = this.getActiveLiveSession();
-        if (!activeLiveSession) {
-            return null;
-        }
-
-        const shadowSession = this.getShadowSessionForSelection(
-            activeLiveSession.run.selectionId
-        );
-
+    getStatus() {
+        const active = this.getActiveLiveSession();
         return {
-            selectionId: activeLiveSession.run.selectionId,
-            strategy: activeLiveSession.run.strategy,
-            configHash: activeLiveSession.run.configHash,
-            liveRun: this.toPublicRun(activeLiveSession),
-            shadowRun: shadowSession ? this.toPublicRun(shadowSession) : null,
+            isActive: this.isRunning,
+            config: active?.generator.config || {},
+            activeSignals: this.latestSignals,
+            pendingEntries: active?.generator.getStatus?.().pendingEntries || [],
+            lastRun: this.lastRunTime,
+            runs: this.listRuns(),
+            liveSelection: this.getLiveSelection(),
         };
     }
 }

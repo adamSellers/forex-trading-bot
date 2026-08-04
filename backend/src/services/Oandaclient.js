@@ -22,7 +22,7 @@ function sanitizeClientExtensionId(value, prefix = "intent") {
 class OandaClient {
     constructor() {
         this.apiKey = process.env.OANDA_API_KEY;
-        this.accountId = process.env.OANDA_ACCOUNT_ID || "001-011-20128302-001";
+        this.accountId = process.env.OANDA_ACCOUNT_ID;
 
         // Use live API (not practice)
         this.baseUrl =

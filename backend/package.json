@@ -6,8 +6,6 @@
     "scripts": {
         "start": "node server.js",
         "dev": "nodemon server.js",
-        "analysis:correlation": "node scripts/analyzeCorrelations.js",
-        "replay": "node scripts/replayStrategy.js",
         "db:migrate": "knex migrate:latest",
         "db:rollback": "knex migrate:rollback",
         "test": "jest",

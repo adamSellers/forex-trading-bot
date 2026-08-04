@@ -48,7 +48,6 @@ export const API_ENDPOINTS = {
     tradingStop: "/api/trading/stop",
     tradingReset: "/api/trading/reset",
     tradingLiveReadiness: "/api/trading/live-readiness",
-    tradingResumeBaseline: "/api/trading/resume-baseline",
 
     // configRoutes.js
     config: "/api/config",
@@ -77,14 +76,9 @@ export const API_ENDPOINTS = {
     strategiesCatalog: "/api/strategies/catalog",
     runtimeLiveSelection: "/api/runtime/live-selection",
     runtimeRuns: "/api/runtime/runs",
-    runtimeCandidatePresets: "/api/runtime/candidate-presets",
-    runtimeRunStop: "/api/runtime/runs", // /:runId/stop
-    runtimeRunReset: "/api/runtime/runs", // /:runId/reset
-    runtimeRunPromote: "/api/runtime/runs", // /:runId/promote
     runtimeRunTrades: "/api/runtime/runs", // /:runId/trades
     runtimeRunSignals: "/api/runtime/runs", // /:runId/signals
     runtimeRunEquity: "/api/runtime/runs", // /:runId/equity
-    runtimePaperReset: "/api/runtime/paper/reset",
 
     // S3 Reports
     reportsStatus: "/api/reports/status",
@@ -212,11 +206,6 @@ export const tradingAPI = {
 
     // Trading Control (enables/disables trading in config)
     getLiveReadiness: () => apiCall(API_ENDPOINTS.tradingLiveReadiness),
-    resumeControlledBaseline: () =>
-        apiCall(API_ENDPOINTS.tradingResumeBaseline, {
-            method: "POST",
-            body: JSON.stringify({ confirm: "RESUME_CONTROLLED_BASELINE" }),
-        }),
     startTrading: (payload = {}) =>
         apiCall(API_ENDPOINTS.tradingStart, {
             method: "POST",
@@ -314,32 +303,6 @@ export const runtimeAPI = {
             `${API_ENDPOINTS.runtimeRuns}${query ? `?${query}` : ""}`
         );
     },
-    createRun: (payload) =>
-        apiCall(API_ENDPOINTS.runtimeRuns, {
-            method: "POST",
-            body: JSON.stringify(payload),
-        }),
-    getCandidatePresets: () =>
-        apiCall(API_ENDPOINTS.runtimeCandidatePresets).then((data) =>
-            Array.isArray(data?.presets) ? data.presets : []
-        ),
-    stopRun: (runId) =>
-        apiCall(`${API_ENDPOINTS.runtimeRunStop}/${runId}/stop`, {
-            method: "POST",
-        }),
-    resetRun: (runId) =>
-        apiCall(`${API_ENDPOINTS.runtimeRunReset}/${runId}/reset`, {
-            method: "POST",
-        }),
-    resetAllPaper: () =>
-        apiCall(API_ENDPOINTS.runtimePaperReset, {
-            method: "POST",
-            body: JSON.stringify({ confirm: "RESET_PAPER" }),
-        }),
-    promoteRun: (runId) =>
-        apiCall(`${API_ENDPOINTS.runtimeRunPromote}/${runId}/promote`, {
-            method: "POST",
-        }),
     getRunTrades: (runId, params = {}) => {
         const query = new URLSearchParams(
             Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")

@@ -1,14 +1,4 @@
-const CANONICAL_STRATEGY_KEYS = Object.freeze([
-    "supertrend_momentum",
-    "mean_reversion",
-    "range_breakout",
-    "stochastic_divergence",
-    "squeeze_play",
-    "timesfm_directional",
-    "correlation_divergence",
-    "counter_signal_reversion",
-    "signal_following",
-]);
+const CANONICAL_STRATEGY_KEYS = Object.freeze(["carry_trend"]);
 
 const CANONICAL_STRATEGY_KEY_SET = new Set(CANONICAL_STRATEGY_KEYS);
 

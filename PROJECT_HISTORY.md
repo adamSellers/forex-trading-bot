@@ -25,29 +25,21 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The repository now contains the shared runtime architecture in code:
-
-- One active `live` run, one paired `paper_shadow` run, and any number of `paper_candidate` runs
-- Unified runtime identity across trades, signals, entry decisions, strategy runs, and portfolio snapshots
-- Runtime-backed Paper comparison and Analytics filters by `mode`, `strategy`, `runId`, and `selectionId`
-- Retired legacy offline backtest/lab production path and retired `backtest_results` migration
-- Seven canonical strategies:
-  - `supertrend_momentum`
-  - `mean_reversion`
-  - `range_breakout`
-  - `stochastic_divergence`
-  - `squeeze_play`
-  - `timesfm_directional`
-  - `correlation_divergence`
-- Live-capable candidate strategies can be promoted from reviewed `paper_candidate` runs; the candidate source run stays paper history and a new live selection is created
-- `correlation_divergence` is a candidate-only paper research strategy and is not live-promotable in current metadata
-- TimesFM overlay enrichment and the native TimesFM Directional strategy use the Mac-hosted sidecar and fail safely when forecasts are unavailable
-
-Deployment status is still recorded separately from code status. Only move these items into the deployed history below after the production rollout has actually run.
+The current product has one live OANDA runtime and one strategy: `carry_trend` `1.0.0`. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
 
 ---
 
 ## Completed Features
+
+### 2026-08-04 - Live-Only Carry Trend Rebuild (Code Complete)
+
+**Summary**: Rebuilt the runnable product around direct live OANDA execution and the `carry-trend-v1` release. The strategy uses completed H4/daily candles, 50/200-day trend, 60-day momentum, a fresh 20-day breakout and live broker financing alignment.
+
+**Risk**: 0.5% NAV per trade, A$100 capital cap, one position, 2.5 daily ATR/20-pip minimum broker stop, portfolio enforcement and fail-closed readiness checks.
+
+**Removal**: Deleted the simulated engine, simulated runtime APIs/UI, alternate strategy implementations, strategy-change workflow, forecasting sidecar and replay/research CLIs.
+
+**Deployment Note**: Mark deployed only after the production rollout and post-deploy broker reconciliation complete.
 
 ### 2026-05-26 - Correlation Divergence Candidate (Code Complete)
 

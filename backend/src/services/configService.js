@@ -11,9 +11,9 @@ const {
     getProtectedConfigChanges,
 } = require("../config/tradingConfig");
 const {
-    CONTROLLED_LIVE_RISK_LIMITS,
-    getControlledRiskLimitViolations,
-} = require("../runtime/liveActivationReadiness");
+    LIVE_RISK_LIMITS,
+    getLiveRiskLimitViolations,
+} = require("../runtime/liveReadiness");
 
 const DEFAULT_CONFIG = cloneDefaultConfig();
 
@@ -56,11 +56,24 @@ class ConfigService extends EventEmitter {
                 const fileConfig = JSON.parse(fileContent);
                 this.config = normalizeTradingConfig(fileConfig);
                 delete this.config.tradingMode;
-                if (this.config.enableTrading) {
-                    this.config.enableTrading = false;
+                if (
+                    fileConfig.liveReleaseVersion !==
+                    DEFAULT_CONFIG.liveReleaseVersion
+                ) {
+                    this.config = normalizeTradingConfig({
+                        ...DEFAULT_CONFIG,
+                        enableTrading: fileConfig.enableTrading === true,
+                        logLevel: fileConfig.logLevel || DEFAULT_CONFIG.logLevel,
+                        enableEmailAlerts:
+                            fileConfig.enableEmailAlerts === true,
+                        alertEmail:
+                            typeof fileConfig.alertEmail === "string"
+                                ? fileConfig.alertEmail
+                                : DEFAULT_CONFIG.alertEmail,
+                    });
                     this.save();
-                    logger.warn(
-                        "Live entries were paused during startup; controlled readiness must be re-authorized"
+                    logger.info(
+                        `Applied live strategy release ${DEFAULT_CONFIG.liveReleaseVersion}; prior live enabled state was preserved`
                     );
                 }
                 logger.info(`📋 Config loaded from ${this.configPath}`);
@@ -144,15 +157,15 @@ class ConfigService extends EventEmitter {
         });
 
         if (nextConfig.enableTrading) {
-            const violations = getControlledRiskLimitViolations(nextConfig);
+            const violations = getLiveRiskLimitViolations(nextConfig);
             if (violations.length > 0) {
                 const error = new Error(
-                    `Live risk limits cannot exceed controlled caps: ${violations
+                    `Live risk limits cannot exceed release caps: ${violations
                         .map((violation) => violation.key)
                         .join(", ")}`
                 );
-                error.code = "CONTROLLED_RISK_LIMIT";
-                error.limits = CONTROLLED_LIVE_RISK_LIMITS;
+                error.code = "LIVE_RISK_LIMIT";
+                error.limits = LIVE_RISK_LIMITS;
                 error.violations = violations;
                 throw error;
             }
@@ -186,65 +199,11 @@ class ConfigService extends EventEmitter {
      * Apply config to running services
      */
     applyToServices() {
-        // Update SignalGenerator
+        // The live runtime owns an immutable release snapshot. Operational
+        // updates are still passed through so assets/timeframes stay in sync.
         if (this.signalGenerator) {
-            this.signalGenerator.updateConfig({
-                assets: this.config.assets,
-                timeframe: this.config.timeframe,
-                enableAdxFilter: this.config.enableAdxFilter,
-                minAdx: this.config.minAdx,
-                maxRegimeAdx: this.config.maxRegimeAdx,
-                adxSlopeFilter: this.config.adxSlopeFilter,
-                adxSlopeLookback: this.config.adxSlopeLookback,
-                requireDirectionalAdx: this.config.requireDirectionalAdx,
-                enableRsiFilter: this.config.enableRsiFilter,
-                longRsiMomentumFloor: this.config.longRsiMomentumFloor,
-                shortRsiMomentumCeiling:
-                    this.config.shortRsiMomentumCeiling,
-                freshLongRsiCeiling: this.config.freshLongRsiCeiling,
-                rsiOverbought: this.config.rsiOverbought,
-                rsiOversold: this.config.rsiOversold,
-                enableContinuationEntry: this.config.enableContinuationEntry,
-                enableLongContinuationEntry:
-                    this.config.enableLongContinuationEntry,
-                enableShortContinuationEntry:
-                    this.config.enableShortContinuationEntry,
-                continuationWindowMs: this.config.continuationWindowMs,
-                continuationRsiThreshold: this.config.continuationRsiThreshold,
-                continuationMaxPriceDeviation:
-                    this.config.continuationMaxPriceDeviation,
-                continuationPullbackMinAtr:
-                    this.config.continuationPullbackMinAtr,
-                continuationPullbackMaxAtr:
-                    this.config.continuationPullbackMaxAtr,
-                enableHTFFilter: this.config.enableHTFFilter,
-                htfTimeframe: this.config.htfTimeframe,
-                timesFmEnabled: this.config.timesFmEnabled,
-                timesFmMode: this.config.timesFmMode,
-                timesFmHorizonBars: this.config.timesFmHorizonBars,
-                timesFmTimeoutMs: this.config.timesFmTimeoutMs,
-                timesFmVetoConfidence: this.config.timesFmVetoConfidence,
-                timesFmDeadZoneBps: this.config.timesFmDeadZoneBps,
-                timesFmStrategyMinConfidence:
-                    this.config.timesFmStrategyMinConfidence,
-                timesFmStrategyMinReturnBps:
-                    this.config.timesFmStrategyMinReturnBps,
-                timesFmStrategyHighConfidenceThreshold:
-                    this.config.timesFmStrategyHighConfidenceThreshold,
-                timesFmStrategyHighConfidenceMinReturnBps:
-                    this.config.timesFmStrategyHighConfidenceMinReturnBps,
-                timesFmStrategyStopLossAtrMultiplier:
-                    this.config.timesFmStrategyStopLossAtrMultiplier,
-                timesFmStrategyRiskReward: this.config.timesFmStrategyRiskReward,
-                timesFmStrategyBlockExtremeVolatility:
-                    this.config.timesFmStrategyBlockExtremeVolatility,
-                timeStopHours: this.config.timeStopHours,
-                maxSpreadPips: this.config.maxSpreadPips,
-                signalCooldown: this.config.signalCooldown,
-                atrPeriod: this.config.supertrendPeriod,
-                factor: this.config.supertrendMultiplier,
-            });
-            logger.debug("📡 SignalGenerator config updated");
+            this.signalGenerator.updateConfig(this.config);
+            logger.debug("Live runtime configuration synchronized");
         }
 
         // Update DataService instruments

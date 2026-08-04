@@ -1,1 +1,0 @@
-"""TimesFM sidecar package."""

@@ -10,30 +10,23 @@ describe("OandaDataService required granularities", () => {
     });
 
     test("defaults to the primary timeframe only", () => {
-        expect(service.getRequiredGranularities()).toEqual(["M15"]);
+        expect(service.getRequiredGranularities()).toEqual(["H4"]);
     });
 
     test("global HTF config adds the HTF granularity", () => {
         service.updateCandleConfig({
-            timeframe: "15m",
+            timeframe: "4h",
             enableHTFFilter: true,
             htfTimeframe: "1h",
         });
 
-        expect(service.getRequiredGranularities().sort()).toEqual(["H1", "M15"]);
+        expect(service.getRequiredGranularities().sort()).toEqual(["H1", "H4"]);
     });
 
     test("runtime timeframes are unioned with the global-config granularities", () => {
-        // Global config: HTF off. A runtime run (e.g. paper candidate) still
-        // needs 1h + 4h candles; before this existed, those were never fetched
-        // and the run's HTF filter failed closed ("HTF unavailable").
-        service.updateRuntimeTimeframes(["15m", "1h", "4h"]);
+        service.updateRuntimeTimeframes(["4h", "1d"]);
 
-        expect(service.getRequiredGranularities().sort()).toEqual([
-            "H1",
-            "H4",
-            "M15",
-        ]);
+        expect(service.getRequiredGranularities().sort()).toEqual(["D", "H4"]);
     });
 
     test("runtime timeframes are replaced wholesale on each sync", () => {
@@ -42,7 +35,7 @@ describe("OandaDataService required granularities", () => {
 
         // Run stopped: the coordinator syncs the remaining (empty) union.
         service.updateRuntimeTimeframes([]);
-        expect(service.getRequiredGranularities()).toEqual(["M15"]);
+        expect(service.getRequiredGranularities()).toEqual(["H4"]);
     });
 
     test("triggers an immediate candle fetch when a new granularity is required while running", () => {
@@ -56,7 +49,7 @@ describe("OandaDataService required granularities", () => {
         expect(service.fetchAllCandles).toHaveBeenCalledTimes(1);
 
         // A timeframe already covered by the global config adds nothing new.
-        service.updateRuntimeTimeframes(["1h", "15m"]);
+        service.updateRuntimeTimeframes(["1h", "4h"]);
         expect(service.fetchAllCandles).toHaveBeenCalledTimes(1);
     });
 
@@ -67,17 +60,17 @@ describe("OandaDataService required granularities", () => {
 
     test("ignores falsy entries and tolerates non-array input", () => {
         service.updateRuntimeTimeframes([null, undefined, "", "1h"]);
-        expect(service.getRequiredGranularities().sort()).toEqual(["H1", "M15"]);
+        expect(service.getRequiredGranularities().sort()).toEqual(["H1", "H4"]);
 
         service.updateRuntimeTimeframes(null);
-        expect(service.getRequiredGranularities()).toEqual(["M15"]);
+        expect(service.getRequiredGranularities()).toEqual(["H4"]);
     });
 
     test("reports price and candle refresh freshness without using candle market time", () => {
         service.isRunning = true;
         service.priceCache.AUD_USD = { timestamp: 99_000 };
-        service.candleCache.AUD_USD_M15 = [{ time: "2026-01-01T00:00:00Z" }];
-        service.candleCacheUpdatedAt.AUD_USD_M15 = 98_000;
+        service.candleCache.AUD_USD_H4 = [{ time: "2026-01-01T00:00:00Z" }];
+        service.candleCacheUpdatedAt.AUD_USD_H4 = 98_000;
 
         expect(service.getFreshnessStatus({ nowMs: 100_000 })).toEqual(
             expect.objectContaining({
@@ -94,7 +87,7 @@ describe("OandaDataService required granularities", () => {
     test("identifies the exact stale or missing price and candle caches", () => {
         service.updateRuntimeTimeframes(["1h"]);
         service.priceCache.AUD_USD = { timestamp: 1_000 };
-        service.candleCacheUpdatedAt.AUD_USD_M15 = 1_000;
+        service.candleCacheUpdatedAt.AUD_USD_H4 = 1_000;
 
         expect(
             service.getFreshnessStatus({
@@ -107,7 +100,7 @@ describe("OandaDataService required granularities", () => {
                 pricesFresh: false,
                 candlesFresh: false,
                 stalePrices: ["AUD_USD"],
-                staleCandles: ["AUD_USD_M15", "AUD_USD_H1"],
+                staleCandles: ["AUD_USD_H4", "AUD_USD_H1"],
             })
         );
     });

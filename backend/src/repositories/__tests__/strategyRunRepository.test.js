@@ -49,12 +49,12 @@ describe("StrategyRunRepository", () => {
         await repository.create({
             runId: "run-live-1",
             mode: "live",
-            strategy: "supertrend_momentum",
+            strategy: "carry_trend",
             status: "active",
             selectionId: "selection-1",
             configHash: "cfg-1",
             configSnapshot: {
-                strategy: "supertrend_momentum",
+                strategy: "carry_trend",
                 assets: ["AUD_USD"],
             },
             metadata: {
@@ -69,12 +69,12 @@ describe("StrategyRunRepository", () => {
             expect.objectContaining({
                 runId: "run-live-1",
                 mode: "live",
-                strategy: "supertrend_momentum",
+                strategy: "carry_trend",
                 status: "active",
                 selectionId: "selection-1",
                 configHash: "cfg-1",
                 configSnapshot: {
-                    strategy: "supertrend_momentum",
+                    strategy: "carry_trend",
                     assets: ["AUD_USD"],
                 },
                 metadata: {
@@ -88,7 +88,7 @@ describe("StrategyRunRepository", () => {
         await repository.create({
             runId: "run-live-2",
             mode: "live",
-            strategy: "supertrend_momentum",
+            strategy: "carry_trend",
             status: "active",
             startedAt: 1710000000000,
         });
@@ -113,21 +113,21 @@ describe("StrategyRunRepository", () => {
         );
     });
 
-    test("rejects changes to immutable experiment identity", async () => {
+    test("rejects changes to immutable live release identity", async () => {
         await repository.create({
             runId: "run-immutable",
-            mode: "paper_candidate",
-            strategy: "supertrend_momentum",
+            mode: "live",
+            strategy: "carry_trend",
             status: "active",
             configHash: "config-a",
-            configSnapshot: { strategy: "supertrend_momentum" },
+            configSnapshot: { strategy: "carry_trend" },
             startedAt: 1710000000000,
         });
 
         await expect(
             repository.update("run-immutable", {
                 configHash: "config-b",
-                configSnapshot: { strategy: "mean_reversion" },
+                configSnapshot: { strategy: "retired_strategy" },
             })
         ).rejects.toMatchObject({ code: "IMMUTABLE_STRATEGY_RUN" });
     });
@@ -136,8 +136,8 @@ describe("StrategyRunRepository", () => {
         await repository.create({
             runId: "run-fresh-window",
             parentRunId: "run-original-window",
-            mode: "paper_candidate",
-            strategy: "supertrend_momentum",
+            mode: "live",
+            strategy: "carry_trend",
             status: "active",
             startedAt: 1710000000000,
         });
@@ -149,28 +149,46 @@ describe("StrategyRunRepository", () => {
         );
     });
 
+    test("retires active non-live rows left by the removed runtime", async () => {
+        await testDb("strategy_runs").insert({
+            run_id: "retired-run",
+            mode: "retired_mode",
+            strategy: "retired_strategy",
+            status: "active",
+            started_at: 1710000000000,
+        });
+
+        await expect(repository.retireNonLiveRuns(1710000005000)).resolves.toBe(1);
+        await expect(testDb("strategy_runs").where("run_id", "retired-run").first())
+            .resolves.toEqual(
+                expect.objectContaining({
+                    status: "stopped",
+                    stopped_at: 1710000005000,
+                })
+            );
+    });
+
     test("lists runs filtered by mode, status, and selection", async () => {
         await repository.create({
             runId: "run-live-3",
             mode: "live",
-            strategy: "supertrend_momentum",
+            strategy: "carry_trend",
             status: "active",
             selectionId: "selection-3",
             startedAt: 1710000000000,
         });
         await repository.create({
-            runId: "run-shadow-3",
-            mode: "paper_shadow",
-            strategy: "supertrend_momentum",
-            status: "active",
+            runId: "run-managing-3",
+            mode: "live",
+            strategy: "carry_trend",
+            status: "managing_only",
             selectionId: "selection-3",
-            shadowOfRunId: "run-live-3",
             startedAt: 1710000001000,
         });
         await repository.create({
             runId: "run-live-4",
             mode: "live",
-            strategy: "supertrend_momentum",
+            strategy: "carry_trend",
             status: "stopped",
             selectionId: "selection-4",
             startedAt: 1710000002000,
@@ -178,12 +196,12 @@ describe("StrategyRunRepository", () => {
 
         const activeSelectionRuns = await repository.list({
             selectionId: "selection-3",
-            statuses: ["active"],
+            statuses: ["active", "managing_only"],
         });
 
         expect(activeSelectionRuns).toHaveLength(2);
         expect(activeSelectionRuns.map((run) => run.runId)).toEqual([
-            "run-shadow-3",
+            "run-managing-3",
             "run-live-3",
         ]);
     });

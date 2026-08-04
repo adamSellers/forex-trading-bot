@@ -5,12 +5,7 @@
 
 const logger = require("../utils/logger");
 
-const LEGACY_STRATEGY_ALIASES = new Set([
-    "conservative",
-    "balanced",
-    "responsive",
-]);
-const PHASE_ONE_LIVE_STRATEGIES = new Set(["supertrend_momentum"]);
+const LIVE_STRATEGIES = new Set(["carry_trend"]);
 
 class ValidationMiddleware {
     static validateTradingConfig(req, res, next) {
@@ -19,16 +14,8 @@ class ValidationMiddleware {
 
         try {
             // Validate strategy
-            if (body.strategy && !PHASE_ONE_LIVE_STRATEGIES.has(body.strategy)) {
-                if (LEGACY_STRATEGY_ALIASES.has(body.strategy)) {
-                    errors.push(
-                        "Legacy strategy aliases are no longer supported. Use supertrend_momentum."
-                    );
-                } else {
-                    errors.push(
-                        "Invalid strategy. Phase 1 live runtime currently supports supertrend_momentum only."
-                    );
-                }
+            if (body.strategy && !LIVE_STRATEGIES.has(body.strategy)) {
+                errors.push("Invalid strategy. This release supports carry_trend only.");
             }
 
             // Validate risk parameters

@@ -46,10 +46,8 @@ fi
 changed_files=$(git diff --name-only "$before_hash" "$after_hash")
 backend_changed=false
 frontend_changed=false
-sidecar_changed=false
 printf '%s\n' "$changed_files" | grep -qE '^(backend/|shared/|package)' && backend_changed=true || true
 printf '%s\n' "$changed_files" | grep -qE '^(frontend/|shared/|package)' && frontend_changed=true || true
-printf '%s\n' "$changed_files" | grep -qE '^timesfm-sidecar/' && sidecar_changed=true || true
 
 if [ "$backend_changed" = true ]; then
     log "Installing backend lockfile and running tests"
@@ -61,11 +59,6 @@ if [ "$frontend_changed" = true ]; then
     (cd frontend && npm ci && \
         NODE_OPTIONS="--max-old-space-size=2048" \
         NODE_ENV=production GENERATE_SOURCEMAP=false npm run build)
-fi
-
-if [ "$sidecar_changed" = true ]; then
-    log "Compiling TimesFM sidecar sources"
-    python3 -m compileall -q timesfm-sidecar/src timesfm-sidecar/tests
 fi
 
 if [ "$backend_changed" = true ]; then

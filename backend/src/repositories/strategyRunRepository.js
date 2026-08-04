@@ -28,7 +28,6 @@ class StrategyRunRepository {
             statuses,
             runId,
             selectionId,
-            shadowOfRunId,
             parentRunId,
         } = filters || {};
 
@@ -50,9 +49,6 @@ class StrategyRunRepository {
         if (selectionId) {
             query.where("selection_id", selectionId);
         }
-        if (shadowOfRunId) {
-            query.where("shadow_of_run_id", shadowOfRunId);
-        }
         if (parentRunId) {
             query.where("parent_run_id", parentRunId);
         }
@@ -70,7 +66,6 @@ class StrategyRunRepository {
             strategy: row.strategy,
             status: row.status,
             selectionId: row.selection_id,
-            shadowOfRunId: row.shadow_of_run_id,
             parentRunId: row.parent_run_id || null,
             configHash: row.config_hash,
             configSnapshot: this._parseJson(row.config_snapshot),
@@ -92,7 +87,6 @@ class StrategyRunRepository {
             strategy: run.strategy,
             status: run.status,
             selection_id: run.selectionId || null,
-            shadow_of_run_id: run.shadowOfRunId || null,
             parent_run_id: run.parentRunId || null,
             config_hash: run.configHash || null,
             config_snapshot: this._serializeJson(run.configSnapshot),
@@ -116,7 +110,6 @@ class StrategyRunRepository {
             "mode",
             "strategy",
             "selectionId",
-            "shadowOfRunId",
             "parentRunId",
             "configHash",
             "configSnapshot",
@@ -152,6 +145,17 @@ class StrategyRunRepository {
     async getByRunId(runId) {
         const row = await db("strategy_runs").where("run_id", runId).first();
         return this._mapRow(row);
+    }
+
+    async retireNonLiveRuns(stoppedAt = Date.now()) {
+        return db("strategy_runs")
+            .whereNot("mode", "live")
+            .whereIn("status", ["active", "managing_only"])
+            .update({
+                status: "stopped",
+                stopped_at: stoppedAt,
+                updated_at: new Date(),
+            });
     }
 
     async list(filters = {}) {

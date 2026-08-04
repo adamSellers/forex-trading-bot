@@ -17,18 +17,18 @@ describe("tradingConfig", () => {
     });
 
     test("materializes strategy defaults into a self-contained snapshot", () => {
-        const config = materializeStrategyConfig(
-            { strategy: "range_breakout", assets: ["EUR_USD"] },
-            { strategyKey: "range_breakout" }
-        );
+        const config = materializeStrategyConfig({
+            strategy: "carry_trend",
+            assets: ["EUR_USD"],
+        });
 
         expect(config).toEqual(
             expect.objectContaining({
-                strategy: "range_breakout",
+                strategy: "carry_trend",
                 assets: ["EUR_USD"],
-                londonOpenHourUTC: 7,
-                rangeMinAtrRatio: 0.5,
-                breakoutAcceptanceCloses: 2,
+                carryTrendFastDays: 50,
+                carryTrendSlowDays: 200,
+                carryTrendBreakoutDays: 20,
                 referenceCurrency: "AUD",
             })
         );
@@ -36,14 +36,14 @@ describe("tradingConfig", () => {
 
     test("hashes strategy, model, exit, and future canonical fields", () => {
         const base = materializeStrategyConfig({
-            strategy: "timesfm_directional",
-            timesFmModelRevision: "v1",
+            strategy: "carry_trend",
+            carryTrendMinimumMomentum: 0.01,
             trailingStopRiskMultiple: 1,
-            customResearchField: "a",
+            futureLiveField: "a",
         });
-        const modelChanged = { ...base, timesFmModelRevision: "v2" };
+        const modelChanged = { ...base, carryTrendMinimumMomentum: 0.02 };
         const exitChanged = { ...base, trailingStopRiskMultiple: 1.5 };
-        const futureFieldChanged = { ...base, customResearchField: "b" };
+        const futureFieldChanged = { ...base, futureLiveField: "b" };
 
         expect(computeConfigHash(modelChanged)).not.toBe(computeConfigHash(base));
         expect(computeConfigHash(exitChanged)).not.toBe(computeConfigHash(base));
@@ -52,15 +52,15 @@ describe("tradingConfig", () => {
         );
         expect(buildHashableConfig(base)).toEqual(
             expect.objectContaining({
-                timesFmModelRevision: "v1",
+                carryTrendMinimumMomentum: 0.01,
                 trailingStopRiskMultiple: 1,
-                customResearchField: "a",
+                futureLiveField: "a",
             })
         );
     });
 
     test("does not change experiment identity for operational pause state", () => {
-        const config = materializeStrategyConfig({ strategy: "supertrend_momentum" });
+        const config = materializeStrategyConfig({ strategy: "carry_trend" });
         expect(computeConfigHash({ ...config, enableTrading: true })).toBe(
             computeConfigHash({ ...config, enableTrading: false })
         );

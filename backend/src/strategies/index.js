@@ -1,28 +1,11 @@
-const supertrendMomentumStrategy = require("./supertrendMomentum");
-const meanReversionStrategy = require("./meanReversion");
-const rangeBreakoutStrategy = require("./rangeBreakout");
-const stochasticDivergenceStrategy = require("./stochasticDivergence");
-const squeezePlayStrategy = require("./squeezePlay");
-const timesFmDirectionalStrategy = require("./timesFmDirectional");
-const correlationDivergenceStrategy = require("./correlationDivergence");
-const counterSignalReversionStrategy = require("./counterSignalReversion");
-const signalFollowingStrategy = require("./signalFollowing");
-const { getStrategyLiveQualification } = require("./liveQualification");
+const carryTrendStrategy = require("./carryTrend");
 const {
     CANONICAL_STRATEGY_KEYS,
     assertCanonicalStrategyKey,
 } = require("./strategyContract");
 
 const strategyRegistry = Object.freeze({
-    supertrend_momentum: supertrendMomentumStrategy,
-    mean_reversion: meanReversionStrategy,
-    range_breakout: rangeBreakoutStrategy,
-    stochastic_divergence: stochasticDivergenceStrategy,
-    squeeze_play: squeezePlayStrategy,
-    timesfm_directional: timesFmDirectionalStrategy,
-    correlation_divergence: correlationDivergenceStrategy,
-    counter_signal_reversion: counterSignalReversionStrategy,
-    signal_following: signalFollowingStrategy,
+    carry_trend: carryTrendStrategy,
 });
 
 function isCanonicalStrategyKey(strategyKey) {
@@ -46,7 +29,6 @@ function listStrategyCatalog() {
             runtimeStatus: definition.runtimeStatus,
             requiredData: definition.requiredData,
             metadata: definition.metadata,
-            liveQualification: getStrategyLiveQualification(definition.key),
         };
     });
 }
@@ -57,5 +39,4 @@ module.exports = {
     isCanonicalStrategyKey,
     getStrategyDefinition,
     listStrategyCatalog,
-    getStrategyLiveQualification,
 };

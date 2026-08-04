@@ -246,21 +246,15 @@ const SystemHealth = () => {
   const services = health.services || {};
   const isOandaReady = services.oanda?.connected === true;
   const isDataServiceReady = services.dataService?.isRunning === true;
-  const isSignalGenReady = services.signalGenerator?.isActive === true;
+  const isSignalGenReady = services.liveStrategy?.isRunning === true;
   const isEngineReady = services.tradingEngine?.isRunning === true || engineStatus?.isRunning === true;
-  const timesFmStatus = services.timesFm || engineStatus?.timesFm || null;
-  const isTimesFmExpected =
-    timesFmStatus?.enabled === true &&
-    timesFmStatus?.mode !== 'disabled' &&
-    timesFmStatus?.configured === true;
-  const isTimesFmReady = !isTimesFmExpected || timesFmStatus?.connected === true;
-  const overallStatus = isOandaReady && isDataServiceReady && isSignalGenReady && isTimesFmReady;
+  const overallStatus = isOandaReady && isDataServiceReady && isSignalGenReady && isEngineReady;
 
   const memoryUsage = systemInfo.memory?.formatted || {};
   const memPercent = systemInfo.memory
     ? (systemInfo.memory.heapUsed / systemInfo.memory.heapTotal) * 100
     : 0;
-  const keysLoaded = systemInfo.environment?.hasApiKeys === true;
+  const keysLoaded = systemInfo.environment?.credentialsConfigured === true;
 
   // Engine stats
   const engineStats = engineStatus?.stats || {};
@@ -334,9 +328,9 @@ const SystemHealth = () => {
                   icon={<TrendingUp fontSize="small" color="action" />}
                 />
                 <ServiceRow
-                  name="Signal Generator"
-                  status={services.signalGenerator}
-                  details={`${services.signalGenerator?.activeSignals || 0} active signals`}
+                  name="Live Strategy"
+                  status={services.liveStrategy}
+                  details={`${services.liveStrategy?.activeSignals || 0} active signals`}
                   icon={<Sensors fontSize="small" color="action" />}
                 />
                 <ServiceRow
@@ -348,21 +342,6 @@ const SystemHealth = () => {
                       : 'Engine not running'
                   }
                   icon={<Engineering fontSize="small" color="action" />}
-                />
-                <ServiceRow
-                  name="TimesFM Sidecar"
-                  status={timesFmStatus}
-                  latency={timesFmStatus?.latencyMs}
-                  details={
-                    timesFmStatus
-                      ? `${String(timesFmStatus.mode || 'disabled').toUpperCase()} | ${
-                          timesFmStatus.connected
-                            ? timesFmStatus.device || 'device unknown'
-                            : timesFmStatus.lastFailureReason || (timesFmStatus.configured ? 'awaiting sidecar' : 'not configured')
-                        }`
-                      : 'No TimesFM telemetry yet'
-                  }
-                  icon={<Timeline fontSize="small" color="action" />}
                 />
                 <ServiceRow
                   name="Config Service"

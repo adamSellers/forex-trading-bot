@@ -465,54 +465,16 @@ describe('LiveTradingEngine', () => {
             expect(result.reason).toBe('Already in position for this instrument');
         });
 
-        test('should reject when ADX is below threshold', async () => {
-            const signal = createMockSignal({ strength: 18 }); // Below 22
-            const config = mockConfigService.get();
-
-            const result = await engine.validateEntry(signal, config);
-
-            expect(result.valid).toBe(false);
-            expect(result.code).toBe(ENTRY_REJECTION_CODES.ADX_TOO_LOW);
-            expect(result.reason).toContain('ADX too low');
-        });
-
-        test('should not apply the generic ADX floor to non-ADX strategies', async () => {
+        test('does not add a second ADX gate to the carry-trend strategy', async () => {
             const signal = createMockSignal({
-                signal: 'SELL',
                 strength: 0,
-                strategy: 'stochastic_divergence',
-                entryType: 'STOCHASTIC_DIVERGENCE_REVERSAL',
+                strategy: 'carry_trend',
+                entryType: 'CARRY_TREND_BREAKOUT',
             });
             const config = {
                 ...mockConfigService.get(),
-                strategy: 'stochastic_divergence',
-                enableSessionFilter: false,
-                enableShorting: true,
-            };
-
-            jest.spyOn(engine, 'estimateEntryMargin').mockResolvedValue(10);
-            oandaClient.getAccountSummary.mockResolvedValue({
-                account: {
-                    balance: '100.00',
-                    marginUsed: '20.00',
-                    marginAvailable: '80.00',
-                },
-            });
-
-            const result = await engine.validateEntry(signal, config);
-
-            expect(result.valid).toBe(true);
-        });
-
-        test('should not apply the generic ADX floor to mean reversion range entries', async () => {
-            const signal = createMockSignal({
-                strength: 18,
-                strategy: 'mean_reversion',
-                entryType: 'MEAN_REVERSION_BAND_FADE',
-            });
-            const config = {
-                ...mockConfigService.get(),
-                strategy: 'mean_reversion',
+                strategy: 'carry_trend',
+                enableAdxFilter: false,
                 enableSessionFilter: false,
             };
 
@@ -770,33 +732,6 @@ describe('LiveTradingEngine', () => {
             expect(units).toBe(500);
         });
 
-        test('should apply TimesFM volatility multiplier when sizing mode is enabled', async () => {
-            const config = {
-                ...mockConfigService.get(),
-                positionSizeMethod: 'FIXED',
-                fixedPositionUnits: 500,
-                timesFmEnabled: true,
-                timesFmMode: 'size',
-            };
-            const signal = createMockSignal({
-                timesFm: {
-                    available: true,
-                    positionSizeMultiplier: 0.5,
-                },
-            });
-
-            const units = await engine.calculatePositionSize(
-                'AUD_USD',
-                12,
-                1.16571,
-                config,
-                signal.entryType,
-                signal
-            );
-
-            expect(units).toBe(250);
-        });
-
         test.each([
             ['AUD_USD', 0.66, 1600],
             ['EUR_USD', 1.08, 977],
@@ -915,30 +850,6 @@ describe('LiveTradingEngine', () => {
             const result = engine.calculateStopLoss(signal, config);
 
             expect(result.stopLossPips).toBe(25);
-        });
-    });
-
-    describe('TimesFM validation', () => {
-        test('should reject entries vetoed by TimesFM in veto mode', async () => {
-            const signal = createMockSignal({
-                timesFm: {
-                    available: true,
-                    vetoCandidate: true,
-                    direction: 'BEARISH',
-                    confidence: 0.88,
-                },
-            });
-            const config = {
-                ...mockConfigService.get(),
-                timesFmEnabled: true,
-                timesFmMode: 'veto',
-            };
-
-            const result = await engine.validateEntry(signal, config);
-
-            expect(result.valid).toBe(false);
-            expect(result.code).toBe(ENTRY_REJECTION_CODES.TIMESFM_VETO);
-            expect(result.reason).toContain('TimesFM vetoed');
         });
     });
 
@@ -1167,6 +1078,48 @@ describe('LiveTradingEngine', () => {
                     exitReason: 'SIGNAL_REVERSAL',
                 })
             );
+        });
+
+        test('should close a SHORT on BUY exit-only without opening a LONG', async () => {
+            const existingTrade = createMockTrade({
+                id: 'trade-short-exit-only',
+                instrument: 'AUD_USD',
+                side: 'SELL',
+            });
+            engine.openTrades.set(existingTrade.id, existingTrade);
+            oandaClient.closeTrade.mockResolvedValue({
+                orderFillTransaction: {
+                    price: '1.16500',
+                    pl: '0.25',
+                    tradesClosed: [
+                        {
+                            tradeID: existingTrade.oandaTradeId,
+                            price: '1.16500',
+                            realizedPL: '0.25',
+                            financing: '0.00',
+                        },
+                    ],
+                },
+            });
+
+            await engine.processSignal(
+                createMockSignal({
+                    symbol: 'AUD_USD',
+                    signal: 'BUY',
+                    entryType: 'EXIT_ONLY',
+                    intent: 'EXIT_SHORT_ONLY',
+                    currentPrice: 1.165,
+                })
+            );
+
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
+                'trade-short-exit-only',
+                expect.objectContaining({
+                    isOpen: false,
+                    exitReason: 'SIGNAL_REVERSAL',
+                })
+            );
+            expect(mockTradeRepository.save).not.toHaveBeenCalled();
         });
 
         test('should process HOLD signals without action', async () => {
@@ -2375,7 +2328,7 @@ describe('LiveTradingEngine', () => {
     });
 
     describe('Status and Helpers', () => {
-        test('should liquidate all open trades for a strategy promotion cutover', async () => {
+        test('should liquidate all open live trades on an operator exit', async () => {
             const tradeOne = createMockTrade({
                 id: 'trade-promote-1',
                 oandaTradeId: '489',

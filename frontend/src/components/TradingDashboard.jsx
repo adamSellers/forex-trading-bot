@@ -79,10 +79,6 @@ const getReadinessReasons = (readiness) => (
   Array.isArray(readiness?.reasons) ? readiness.reasons : []
 );
 
-const getControlledBaselineResume = (readiness) => (
-  readiness?.activationOptions?.controlledBaselineResume || null
-);
-
 const formatApiErrorMessage = (error, fallback) => {
   const message = error?.payload?.error || error?.message || fallback;
   const code = error?.payload?.code;
@@ -102,13 +98,10 @@ const formatReadinessValue = (key, value) => {
 
 const getReadinessReasonDetail = (reason) => {
   if (reason?.key) {
-    return `Current ${formatReadinessValue(reason.key, reason.actual)}; controlled maximum ${formatReadinessValue(reason.key, reason.max)}.`;
+    return `Current ${formatReadinessValue(reason.key, reason.actual)}; live maximum ${formatReadinessValue(reason.key, reason.max)}.`;
   }
   if (reason?.actualConfigHash || reason?.requiredConfigHash) {
     return `Current ${reason.actualConfigHash || 'unavailable'}; required ${reason.requiredConfigHash || 'unavailable'}.`;
-  }
-  if (reason?.code === 'PROMOTION_GATE_NOT_PASSED' || reason?.code === 'PROMOTION_PATH_REQUIRED') {
-    return 'Promote a gate-passing paper candidate to create an eligible live run.';
   }
   return null;
 };
@@ -130,7 +123,6 @@ const TradingDashboard = () => {
   const [selectedStrategy, setSelectedStrategy] = useState(DEFAULT_STRATEGY_KEY);
   const [liveReadiness, setLiveReadiness] = useState(null);
   const [readinessDialogOpen, setReadinessDialogOpen] = useState(false);
-  const [baselineConfirmationOpen, setBaselineConfirmationOpen] = useState(false);
   const [activationFailure, setActivationFailure] = useState(null);
   const [tradingAction, setTradingAction] = useState(null);
 
@@ -452,33 +444,6 @@ const TradingDashboard = () => {
     }
   };
 
-  const handleResumeControlledBaseline = async () => {
-    if (tradingAction) return;
-    setBaselineConfirmationOpen(false);
-    setTradingAction('baseline');
-    setError(null);
-    setNotice(null);
-    setActivationFailure(null);
-
-    try {
-      const response = await tradingAPI.resumeControlledBaseline();
-      if (response?.liveReadiness) setLiveReadiness(response.liveReadiness);
-      if (response?.liveSelection) setLiveSelection(response.liveSelection);
-      await fetchInitialData();
-      setNotice(response?.message || 'Controlled baseline resumed');
-    } catch (err) {
-      if (err?.payload?.liveReadiness) {
-        setLiveReadiness(err.payload.liveReadiness);
-      }
-      await fetchInitialData();
-      setActivationFailure(err?.payload || null);
-      setError(formatApiErrorMessage(err, 'Controlled baseline resume failed'));
-      setReadinessDialogOpen(true);
-    } finally {
-      setTradingAction(null);
-    }
-  };
-
   const handleSyncEngine = async () => {
     try {
       await engineAPI.sync();
@@ -512,9 +477,8 @@ const TradingDashboard = () => {
     ) || null,
     [liveSelection?.strategy, selectedStrategy, strategyOptions]
   );
-  const activeStrategyVersion = activeStrategyDefinition?.version || 'unknown';
-  const activeLiveQualification = activeStrategyDefinition?.liveQualification ||
-    systemStatus?.config?.liveQualification || null;
+  const activeStrategyVersion = systemStatus?.config?.strategyVersion ||
+    activeStrategyDefinition?.version || 'unknown';
   const calculatedDailyPnL = useMemo(() => {
     if (!trades || trades.length === 0) return 0;
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
@@ -543,10 +507,6 @@ const TradingDashboard = () => {
   const engineOpenPositions = engineStatus?.openPositions || 0;
   const engineIsRunning = engineStatus?.isRunning || false;
   const readinessReasons = getReadinessReasons(liveReadiness);
-  const controlledBaselineResume = getControlledBaselineResume(liveReadiness);
-  const controlledBaselineResumeEligible =
-    controlledBaselineResume?.eligible === true &&
-    controlledBaselineResume?.code === 'CONTROLLED_BASELINE_RESUME_AVAILABLE';
   const liveActivationBlocked = !tradingEnabled && liveReadiness?.passed === false;
   const tradingActionPending = Boolean(tradingAction);
   const activationFailureReasons = Array.isArray(activationFailure?.baselineResume?.reasons)
@@ -586,7 +546,7 @@ const TradingDashboard = () => {
         flexShrink={0}
       >
         <Stack direction="row" spacing={2} alignItems="center">
-          <Tooltip title="Live strategy changes are available only by promoting a gate-passing paper candidate">
+          <Tooltip title="The active strategy is defined by the deployed release">
             <Chip
               label={`LIVE STRATEGY: ${activeStrategyLabel} v${activeStrategyVersion}`}
               size="small"
@@ -613,8 +573,6 @@ const TradingDashboard = () => {
               ? 'PAUSING LIVE'
               : tradingAction === 'enable'
                 ? 'CHECKING LIVE'
-                : tradingAction === 'baseline'
-                  ? 'RESUMING BASELINE'
                 : tradingEnabled
                   ? 'PAUSE LIVE'
                   : liveActivationBlocked
@@ -622,7 +580,7 @@ const TradingDashboard = () => {
                     : 'ENABLE LIVE'}
           </Button>
           {!tradingEnabled && liveReadiness && (
-            <Tooltip title={liveReadiness.passed ? 'Controlled-live readiness passed' : 'View live activation blockers'}>
+            <Tooltip title={liveReadiness.passed ? 'Live readiness passed' : 'View live activation blockers'}>
               <Chip
                 label={liveReadiness.passed ? 'READY' : `${readinessReasons.length} BLOCKER${readinessReasons.length === 1 ? '' : 'S'}`}
                 size="small"
@@ -655,13 +613,9 @@ const TradingDashboard = () => {
             sx={{ height: 22, fontSize: '0.72rem' }}
           />
           <Chip
-            label={
-              liveSelection?.shadowRun
-                ? `Shadow: ${liveSelection.shadowRun.status}`
-                : 'Shadow: Starting'
-            }
+            label="LIVE ONLY"
             size="small"
-            color={liveSelection?.shadowRun ? 'success' : 'default'}
+            color="success"
             variant="outlined"
             sx={{ height: 22, fontSize: '0.72rem' }}
           />
@@ -717,14 +671,6 @@ const TradingDashboard = () => {
           {error}
         </Alert>
       )}
-      {activeLiveQualification?.liveEligible === false && (
-        <Alert severity="warning" sx={{ mb: 2, flexShrink: 0 }}>
-          {activeStrategyLabel} v{activeStrategyVersion} is selected for observation and exit
-          management, but new live entries are blocked: {String(
-            activeLiveQualification.reasonCode || 'STRATEGY_NOT_LIVE_QUALIFIED'
-          ).replace(/_/g, ' ')}.
-        </Alert>
-      )}
       {notice && (
         <Alert severity="success" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setNotice(null)}>
           {notice}
@@ -738,7 +684,7 @@ const TradingDashboard = () => {
         fullWidth
       >
         <DialogTitle>
-          {liveReadiness?.passed ? 'Controlled live is ready' : 'Live activation is blocked'}
+          {liveReadiness?.passed ? 'Live strategy is ready' : 'Live activation is blocked'}
         </DialogTitle>
         <DialogContent dividers>
           {activationFailure && (
@@ -771,18 +717,16 @@ const TradingDashboard = () => {
           )}
           {liveReadiness?.passed ? (
             <Alert severity="success">
-              Every controlled-live readiness check currently passes. Close this dialog and choose Enable Live to activate entries.
+              Every live readiness check currently passes. Close this dialog and choose Enable Live to activate entries.
             </Alert>
           ) : (
             <Stack spacing={1.25}>
               <Alert severity="warning">
                 Live entries remain paused. Resolve every item below; this safety gate cannot be bypassed from the dashboard.
               </Alert>
-              {controlledBaselineResumeEligible && (
-                <Alert severity="info">
-                  This pre-promotion baseline can be migrated once, with controlled risk caps. The server will require both the broker and engine to be flat before creating a successor live run.
-                </Alert>
-              )}
+              <Alert severity="info">
+                This installation runs one deployed strategy directly against the live OANDA account.
+              </Alert>
               {readinessReasons.length > 0 ? readinessReasons.map((reason, index) => {
                 const detail = getReadinessReasonDetail(reason);
                 return (
@@ -822,52 +766,6 @@ const TradingDashboard = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setReadinessDialogOpen(false)}>Close</Button>
-          {controlledBaselineResumeEligible && (
-            <Button
-              variant="contained"
-              color="warning"
-              onClick={() => {
-                setReadinessDialogOpen(false);
-                setBaselineConfirmationOpen(true);
-              }}
-              disabled={tradingActionPending}
-            >
-              Review controlled resume
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={baselineConfirmationOpen}
-        onClose={() => setBaselineConfirmationOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Resume as a controlled baseline?</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={1.5}>
-            <Alert severity="warning">
-              This is an explicit one-time migration path for the existing baseline, not a promotion bypass for future strategies.
-            </Alert>
-            <Typography variant="body2">
-              Confirming will ask the server to verify that both Oanda and the local engine are flat, apply the controlled risk limits, retire the predecessor run, and create a successor live/shadow selection.
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Live entries remain paused if any preflight or readiness check fails. The exact backend failure will be shown on the dashboard.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setBaselineConfirmationOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={handleResumeControlledBaseline}
-            disabled={tradingActionPending}
-          >
-            Confirm controlled baseline resume
-          </Button>
         </DialogActions>
       </Dialog>
 

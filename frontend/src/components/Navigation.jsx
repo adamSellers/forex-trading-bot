@@ -15,7 +15,6 @@ import {
   alpha,
 } from '@mui/material';
 import {
-  CompareArrows,
   Dashboard,
   Insights,
   Settings,
@@ -35,17 +34,15 @@ const Navigation = ({ currentView, onViewChange, views }) => {
   const viewToIndex = {
     [views.DASHBOARD]: 0,
     [views.ANALYTICS]: 1,
-    [views.PAPER]: 2,
-    [views.SYSTEM]: 3,
-    [views.SETTINGS]: 4,
+    [views.SYSTEM]: 2,
+    [views.SETTINGS]: 3,
   };
 
   const indexToView = {
     0: views.DASHBOARD,
     1: views.ANALYTICS,
-    2: views.PAPER,
-    3: views.SYSTEM,
-    4: views.SETTINGS,
+    2: views.SYSTEM,
+    3: views.SETTINGS,
   };
 
   useEffect(() => {
@@ -203,11 +200,6 @@ const Navigation = ({ currentView, onViewChange, views }) => {
               icon={<Insights fontSize="small" />}
               iconPosition="start"
               label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Analytics</Box>}
-            />
-            <Tab
-              icon={<CompareArrows fontSize="small" />}
-              iconPosition="start"
-              label={<Box sx={{ display: { xs: 'none', sm: 'block' } }}>Paper</Box>}
             />
             <Tab
               icon={<MonitorHeart fontSize="small" />}

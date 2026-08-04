@@ -1,237 +1,133 @@
-// frontend/src/components/TradingConfig.jsx - Refactored Config Shell
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Typography, Button, Container, Stack, Tabs, Tab, Alert, useTheme
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Container,
+  Divider,
+  Grid,
+  Paper,
+  Stack,
+  Typography,
 } from '@mui/material';
-import {
-  Save, Refresh, Security, AccountBalance, Science, 
-  CurrencyExchange, Email
-} from '@mui/icons-material';
+import { Refresh, ShowChart, Shield, SwapVert } from '@mui/icons-material';
 import { configAPI } from '../config/api';
-import { createDefaultConfig } from './config/ConfigShared';
 
-// Import settings panels
-import GeneralSettings from './config/GeneralSettings';
-import StrategySettings from './config/StrategySettings';
-import RiskSettings from './config/RiskSettings';
-import InstrumentSettings from './config/InstrumentSettings';
-import NotificationSettings from './config/NotificationSettings';
+const pct = (value) => `${(Number(value || 0) * 100).toFixed(2)}%`;
+
+const Value = ({ label, children }) => (
+  <Box>
+    <Typography variant="caption" color="text.secondary" textTransform="uppercase">
+      {label}
+    </Typography>
+    <Typography variant="h6" fontWeight={800}>{children}</Typography>
+  </Box>
+);
 
 const TradingConfig = () => {
-  const theme = useTheme();
-  const [activeTab, setActiveTab] = useState(0);
-  const [config, setConfig] = useState(createDefaultConfig);
-  const [originalConfig, setOriginalConfig] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [config, setConfig] = useState(null);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
-  // ============================================
-  // DATA FETCHING
-  // ============================================
-  const fetchCurrentConfig = useCallback(async () => {
+  const load = useCallback(async () => {
+    setError(null);
     try {
-      setLoading(true);
-      const data = await configAPI.get();
-      const defaultConfig = createDefaultConfig();
-      const rawSignalCooldown = Number(data?.signalCooldown);
-      const fetchedConfig = {
-        ...defaultConfig,
-        ...data,
-        signalCooldown: Number.isFinite(rawSignalCooldown)
-          ? rawSignalCooldown / 1000
-          : defaultConfig.signalCooldown,
-      };
-      setConfig(fetchedConfig);
-      setOriginalConfig(fetchedConfig);
+      setConfig(await configAPI.get());
     } catch (err) {
-      setError(`Failed to load configuration: ${err.message}`);
-    } finally {
-      setLoading(false);
+      setError(err.message);
     }
   }, []);
 
-  useEffect(() => { 
-    fetchCurrentConfig(); 
-  }, [fetchCurrentConfig]);
+  useEffect(() => { load(); }, [load]);
 
-  useEffect(() => { 
-    setHasChanges(JSON.stringify(config) !== JSON.stringify(originalConfig)); 
-  }, [config, originalConfig]);
-
-  // ============================================
-  // HANDLERS
-  // ============================================
-  const handleSaveConfig = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      const signalCooldownSeconds = Number(config.signalCooldown);
-      const configToSave = {
-        ...config,
-        signalCooldown: Number.isFinite(signalCooldownSeconds)
-          ? signalCooldownSeconds * 1000
-          : createDefaultConfig().signalCooldown * 1000,
-      };
-      await configAPI.update(configToSave);
-      setOriginalConfig(config);
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      setError(`Failed to save: ${err.message}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleResetEngine = async () => {
-    if (!window.confirm("âš ï¸ RESET ENGINE STATE?\nThis clears pending entries and signal history.")) return;
-    try { 
-      // TODO: Implement reset endpoint
-      alert("âœ… Engine Reset"); 
-      fetchCurrentConfig(); 
-    } catch (e) { 
-      alert(e.message); 
-    }
-  };
-
-  const updateConfig = (key, value) => { 
-    setConfig((prev) => ({ ...prev, [key]: value })); 
-  };
-
-  // ============================================
-  // RENDER
-  // ============================================
-  if (loading) {
-    return (
-      <Box minHeight="60vh" display="flex" alignItems="center" justifyContent="center">
-        <Typography>Loading Config...</Typography>
-      </Box>
-    );
+  if (!config && !error) {
+    return <Box minHeight="60vh" display="grid" sx={{ placeItems: 'center' }}><CircularProgress /></Box>;
   }
 
   return (
-    <Container maxWidth={false} sx={{ py: 2 }}>
-      {/* Header */}
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} mb={3}>
         <Box>
-          <Typography variant="h4" fontWeight="900" sx={{ letterSpacing: -1 }}>
-            SYSTEM <span style={{ color: theme.palette.primary.main }}>CONFIG</span>
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ letterSpacing: 1 }}>
-            FOREX TRADING PARAMETERS
+          <Typography variant="h4" fontWeight={900}>LIVE STRATEGY</Typography>
+          <Typography color="text.secondary">
+            The exact release currently driving the OANDA account.
           </Typography>
         </Box>
-        <Stack direction="row" spacing={2}>
-          <Button 
-            startIcon={<Refresh />} 
-            onClick={fetchCurrentConfig} 
-            color="inherit"
-          >
-            Revert
-          </Button>
-          <Button 
-            variant="contained" 
-            startIcon={<Save />} 
-            onClick={handleSaveConfig} 
-            disabled={!hasChanges || saving} 
-            size="large" 
-            sx={{ px: 4 }}
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+        <Button startIcon={<Refresh />} onClick={load}>Refresh</Button>
+      </Stack>
+
+      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {config && (
+        <Stack spacing={3}>
+          <Alert severity="info">
+            Strategy and risk parameters are code-owned and immutable at runtime. The dashboard reports the live release; it does not provide strategy-selection or tuning controls.
+          </Alert>
+
+          <Paper variant="outlined" sx={{ p: 3 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2}>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <ShowChart color="primary" fontSize="large" />
+                <Box>
+                  <Typography variant="h5" fontWeight={900}>Carry Trend</Typography>
+                  <Typography color="text.secondary">
+                    Daily trend breakout aligned with OANDA financing rates
+                  </Typography>
+                </Box>
+              </Stack>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip label="LIVE ONLY" color="error" />
+                <Chip label={config.liveReleaseVersion} variant="outlined" />
+              </Stack>
+            </Stack>
+            <Divider sx={{ my: 3 }} />
+            <Grid container spacing={3}>
+              <Grid item xs={6} md={3}><Value label="Scan timeframe">{config.timeframe}</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Trend EMAs">{config.carryTrendFastDays}/{config.carryTrendSlowDays} days</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Momentum">{config.carryTrendMomentumDays} days</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Breakout">{config.carryTrendBreakoutDays} days</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Initial stop">{config.carryTrendStopAtr} daily ATR</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Min momentum">{pct(config.carryTrendMinimumMomentum)}</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Min carry edge">{pct(config.carryTrendMinimumAdvantageAnnual)} annual</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Direction">Long + short</Value></Grid>
+            </Grid>
+          </Paper>
+
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Paper variant="outlined" sx={{ p: 3, height: '100%' }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+                  <Shield color="primary" />
+                  <Typography variant="h6" fontWeight={800}>Live risk envelope</Typography>
+                </Stack>
+                <Stack spacing={1.5}>
+                  <Value label="Risk per trade">{pct(config.riskPerTrade)}</Value>
+                  <Value label="Capital ceiling">A${Number(config.maxCapitalAtRisk).toFixed(2)}</Value>
+                  <Value label="Open positions">{config.maxOpenPositions}</Value>
+                  <Value label="Daily loss stop">{pct(config.maxDailyLossPctNav)}</Value>
+                  <Value label="Drawdown stop">{pct(config.maxDrawdownPctNav)}</Value>
+                </Stack>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Paper variant="outlined" sx={{ p: 3, height: '100%' }}>
+                <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+                  <SwapVert color="primary" />
+                  <Typography variant="h6" fontWeight={800}>Live instruments</Typography>
+                </Stack>
+                <Stack direction="row" gap={1} flexWrap="wrap">
+                  {(config.assets || []).map((instrument) => (
+                    <Chip key={instrument} label={instrument.replace('_', '/')} variant="outlined" />
+                  ))}
+                </Stack>
+                <Typography variant="body2" color="text.secondary" mt={3}>
+                  Entries require a fresh completed-daily breakout, matching 50/200-day trend and 60-day momentum, and a favorable broker financing differential. Orders use broker-native protective stops and risk-based unit sizing.
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
         </Stack>
-      </Box>
-      
-      {/* Alerts */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
       )}
-      {success && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          Configuration saved successfully!
-        </Alert>
-      )}
-      
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs 
-          value={activeTab} 
-          onChange={(_, v) => setActiveTab(v)} 
-          textColor="primary" 
-          indicatorColor="primary"
-        >
-          <Tab 
-            icon={<AccountBalance fontSize="small" />} 
-            iconPosition="start" 
-            label="General" 
-            sx={{ minHeight: 60 }} 
-          />
-          <Tab 
-            icon={<Science fontSize="small" />} 
-            iconPosition="start" 
-            label="Strategy" 
-            sx={{ minHeight: 60 }} 
-          />
-          <Tab 
-            icon={<Security fontSize="small" />} 
-            iconPosition="start" 
-            label="Risk" 
-            sx={{ minHeight: 60 }} 
-          />
-          <Tab 
-            icon={<CurrencyExchange fontSize="small" />} 
-            iconPosition="start" 
-            label="Instruments" 
-            sx={{ minHeight: 60 }} 
-          />
-          <Tab 
-            icon={<Email fontSize="small" />} 
-            iconPosition="start" 
-            label="Notifications" 
-            sx={{ minHeight: 60 }} 
-          />
-        </Tabs>
-      </Box>
-      
-      {/* Tab Content */}
-      <Box sx={{ minHeight: 400 }}>
-        {activeTab === 0 && (
-          <GeneralSettings 
-            config={config} 
-            updateConfig={updateConfig} 
-            onResetEngine={handleResetEngine}
-          />
-        )}
-        {activeTab === 1 && (
-          <StrategySettings 
-            config={config} 
-            updateConfig={updateConfig} 
-          />
-        )}
-        {activeTab === 2 && (
-          <RiskSettings 
-            config={config} 
-            updateConfig={updateConfig} 
-          />
-        )}
-        {activeTab === 3 && (
-          <InstrumentSettings 
-            config={config} 
-            updateConfig={updateConfig} 
-          />
-        )}
-        {activeTab === 4 && (
-          <NotificationSettings 
-            config={config} 
-            updateConfig={updateConfig} 
-          />
-        )}
-      </Box>
     </Container>
   );
 };

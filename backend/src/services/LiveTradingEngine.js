@@ -428,49 +428,7 @@ class LiveTradingEngine extends EventEmitter {
                 config?.configHash ||
                 computeConfigHash(config || {}),
             currentPrice: signal?.currentPrice ?? null,
-            timesFmAvailable: signal?.timesFm?.available === true,
-            timesFmDirection: signal?.timesFm?.direction || null,
-            timesFmConfidence: signal?.timesFm?.confidence ?? null,
-            timesFmVolatilityRegime: signal?.timesFm?.volatilityRegime || null,
         };
-    }
-
-    getTimesFmMode(config = {}) {
-        const normalized = String(config?.timesFmMode || "disabled")
-            .trim()
-            .toLowerCase();
-        return ["disabled", "observe", "size", "veto"].includes(normalized)
-            ? normalized
-            : "disabled";
-    }
-
-    getTimesFmPositionSizeMultiplier(signal, config = {}) {
-        const mode = this.getTimesFmMode(config);
-        if (config?.timesFmEnabled !== true) return 1.0;
-        if (mode !== "size" && mode !== "veto") return 1.0;
-
-        const multiplier = Number(signal?.timesFm?.positionSizeMultiplier);
-        if (!Number.isFinite(multiplier)) return 1.0;
-        return Math.min(1.0, Math.max(0, multiplier));
-    }
-
-    shouldTimesFmVeto(signal, config = {}) {
-        const mode = this.getTimesFmMode(config);
-        if (config?.timesFmEnabled !== true || mode !== "veto") return false;
-        if (signal?.signal !== "BUY" && signal?.signal !== "SELL") return false;
-        return (
-            signal?.timesFm?.available === true &&
-            signal?.timesFm?.vetoCandidate === true
-        );
-    }
-
-    getTimesFmVetoReason(signal) {
-        const direction = signal?.timesFm?.direction || "UNKNOWN";
-        const confidence = Number(signal?.timesFm?.confidence);
-        const confidenceText = Number.isFinite(confidence)
-            ? confidence.toFixed(2)
-            : "0.00";
-        return `TimesFM vetoed ${signal?.signal || "entry"}: ${direction} forecast at confidence ${confidenceText}`;
     }
 
     shouldTrackEntryDecision(signal) {
@@ -553,7 +511,6 @@ class LiveTradingEngine extends EventEmitter {
             selectionId: signal?.selectionId || extras.selectionId || null,
             mode: signal?.mode || extras.mode || "live",
             strategy: signal?.strategy || extras.strategy || config?.strategy || null,
-            timesFmContext: extras.timesFmContext || signal?.timesFm || null,
         };
     }
 
@@ -696,6 +653,16 @@ class LiveTradingEngine extends EventEmitter {
                     currentPrice,
                     "SIGNAL_REVERSAL"
                 );
+            }
+
+            // Strategies can invalidate an existing short before a fresh long
+            // entry exists. Treat that signal symmetrically with SELL
+            // EXIT_ONLY: close the short, but never open a new long.
+            if (
+                entryType === "EXIT_ONLY" ||
+                signal.intent === "EXIT_SHORT_ONLY"
+            ) {
+                return;
             }
 
             const remainingTrade = this.getOpenTradeByInstrument(symbol);
@@ -1061,15 +1028,6 @@ class LiveTradingEngine extends EventEmitter {
                 valid: false,
                 code: ENTRY_REJECTION_CODES.SHORT_DISABLED,
                 reason: "Short selling is disabled",
-                context: baseContext,
-            };
-        }
-
-        if (this.shouldTimesFmVeto(signal, config)) {
-            return {
-                valid: false,
-                code: ENTRY_REJECTION_CODES.TIMESFM_VETO,
-                reason: this.getTimesFmVetoReason(signal),
                 context: baseContext,
             };
         }
@@ -3550,7 +3508,7 @@ class LiveTradingEngine extends EventEmitter {
     /**
      * Close every currently open live trade using the latest available market price.
      */
-    async liquidateOpenTrades(exitReason = "STRATEGY_PROMOTION") {
+    async liquidateOpenTrades(exitReason = "LIVE_OPERATOR_EXIT") {
         const openTrades = Array.from(this.openTrades.values());
         const closedTrades = [];
 
@@ -3591,7 +3549,6 @@ class LiveTradingEngine extends EventEmitter {
             quarantinedBrokerPositions: this.quarantinedBrokerTrades.size,
             maxPositions: config.maxOpenPositions,
             stats: this.stats,
-            timesFm: this.signalGenerator?.getTimesFmStatus?.() || null,
             openTrades: Array.from(this.openTrades.values()).map((t) => ({
                 id: t.id,
                 instrument: t.instrument,

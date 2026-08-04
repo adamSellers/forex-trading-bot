@@ -54,15 +54,10 @@ describe("EntryDecisionRepository", () => {
             adx: 28.5,
             rsi: 64.2,
             atrPips: 13.4,
-            timesFmContext: {
-                available: true,
-                direction: "BULLISH",
-                confidence: 0.79,
-            },
             runId: "run-live-1",
             selectionId: "selection-1",
             mode: "live",
-            strategy: "supertrend_momentum",
+            strategy: "carry_trend",
         });
 
         expect(mockInsert).toHaveBeenCalledWith(
@@ -89,14 +84,7 @@ describe("EntryDecisionRepository", () => {
                 run_id: "run-live-1",
                 selection_id: "selection-1",
                 mode: "live",
-                strategy: "supertrend_momentum",
-            })
-        );
-        expect(mockInsert.mock.calls[0][0].timesfm_context).toBe(
-            JSON.stringify({
-                available: true,
-                direction: "BULLISH",
-                confidence: 0.79,
+                strategy: "carry_trend",
             })
         );
         expect(mockInsert.mock.calls[0][0].config_snapshot).toBe(
@@ -118,11 +106,7 @@ describe("EntryDecisionRepository", () => {
             tradeId: "trade-2",
             runId: "run-live-2",
             selectionId: "selection-2",
-            strategy: "supertrend_momentum",
-            timesFmContext: {
-                available: false,
-                reason: "sidecar_unavailable",
-            },
+            strategy: "carry_trend",
             rejectionCode: null,
             rejectionReason: null,
         });
@@ -135,15 +119,9 @@ describe("EntryDecisionRepository", () => {
                 trade_id: "trade-2",
                 run_id: "run-live-2",
                 selection_id: "selection-2",
-                strategy: "supertrend_momentum",
+                strategy: "carry_trend",
                 rejection_code: null,
                 rejection_reason: null,
-            })
-        );
-        expect(mockUpdate.mock.calls[0][0].timesfm_context).toBe(
-            JSON.stringify({
-                available: false,
-                reason: "sidecar_unavailable",
             })
         );
     });
@@ -177,10 +155,6 @@ describe("EntryDecisionRepository", () => {
                 selection_id: null,
                 mode: "live",
                 strategy: null,
-                timesfm_context: JSON.stringify({
-                    available: true,
-                    direction: "BULLISH",
-                }),
                 created_at: new Date(),
                 updated_at: new Date(),
             },
@@ -205,10 +179,6 @@ describe("EntryDecisionRepository", () => {
                 decisionId: "decision-new",
                 decisionTime: 1710000100000,
                 instrument: "AUD_USD",
-                timesFmContext: {
-                    available: true,
-                    direction: "BULLISH",
-                },
             })
         );
     });

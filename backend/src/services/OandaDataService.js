@@ -5,7 +5,7 @@ const { buildOandaApiError } = require("../utils/oandaErrors");
 const { ACCOUNT_CURRENCY } = require("../runtime/currencyConversion");
 
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
-const OANDA_ACCOUNT_ID = process.env.OANDA_ACCOUNT_ID || "001-011-20128302-001";
+const OANDA_ACCOUNT_ID = process.env.OANDA_ACCOUNT_ID;
 const OANDA_BASE_URL =
     process.env.OANDA_ENVIRONMENT === "practice"
         ? "https://api-fxpractice.oanda.com"
@@ -34,15 +34,11 @@ class OandaDataService extends EventEmitter {
             options.instrumentMetadataProvider || null;
         this.candleCache = {};
         this.candleCacheUpdatedAt = {};
-        this.primaryTimeframe = "15m";
+        this.primaryTimeframe = "4h";
         this.enableHTFFilter = false;
         this.htfTimeframe = "1h";
-        // Granularities required by active runtime runs (live/shadow/candidate).
-        // Each run carries its own config snapshot, so a run can need timeframes
-        // the GLOBAL config doesn't (e.g. a candidate with enableHTFFilter:true
-        // while the global config has it off). Kept in sync by the runtime
-        // coordinator via updateRuntimeTimeframes(); if a required granularity
-        // is never fetched, HTF-filtered strategies fail CLOSED and never trade.
+        // Granularities required by the active live strategy and any older
+        // broker-owned position that is still being managed to exit.
         this.runtimeGranularities = new Set();
         this.isRunning = false;
         this.priceInterval = null;
@@ -84,8 +80,8 @@ class OandaDataService extends EventEmitter {
     }
 
     async start() {
-        if (!OANDA_API_KEY) {
-            logger.warn("⚠️ OANDA_API_KEY not set - data service disabled");
+        if (!OANDA_API_KEY || !OANDA_ACCOUNT_ID) {
+            logger.warn("OANDA credentials not set - data service disabled");
             return;
         }
 
@@ -369,7 +365,7 @@ class OandaDataService extends EventEmitter {
 
     getRequiredGranularities() {
         const granularities = new Set([
-            this.convertTimeframe(this.primaryTimeframe || "15m"),
+            this.convertTimeframe(this.primaryTimeframe || "4h"),
         ]);
 
         if (this.enableHTFFilter) {
@@ -387,7 +383,7 @@ class OandaDataService extends EventEmitter {
      * Replace the set of timeframes required by active runtime runs.
      * Called by the runtime coordinator whenever run sessions change
      * (register/stop/config update). Accepts config-style timeframes
-     * ("15m", "1h", "4h"); the union with the global-config granularities
+     * ("4h", "1d"); the union with the configured primary granularity
      * is what fetchAllCandles polls.
      */
     updateRuntimeTimeframes(timeframes = []) {
@@ -410,7 +406,7 @@ class OandaDataService extends EventEmitter {
         }
     }
 
-    async fetchCandles(instrument, granularity = "M15", count = 500) {
+    async fetchCandles(instrument, granularity = "H4", count = 500) {
         try {
             const data = await this.oandaRequest(
                 `/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=M`
@@ -472,7 +468,7 @@ class OandaDataService extends EventEmitter {
             "4h": "H4",
             "1d": "D",
         };
-        return map[tf] || "M15";
+        return map[tf] || "H4";
     }
 
     getStatus() {

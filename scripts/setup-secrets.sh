@@ -107,28 +107,6 @@ if [[ "$enable_s3" =~ ^[Yy]$ ]]; then
     fi
 fi
 
-# --- 4. TIMESFM SIDECAR (Optional) ---
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-echo "              TimesFM Sidecar Configuration (Optional)"
-echo "═══════════════════════════════════════════════════════════"
-read -p "Enable TimesFM sidecar credentials? (y/N): " enable_timesfm
-if [[ "$enable_timesfm" =~ ^[Yy]$ ]]; then
-    read -p "🌐 TimesFM URL (e.g. http://192.168.1.50:5050): " TIMESFM_URL
-    echo ""
-    read -s -p "🔐 TimesFM Shared Key: " TIMESFM_KEY
-    echo ""
-
-    if [ -n "$TIMESFM_URL" ] && [ -n "$TIMESFM_KEY" ]; then
-        echo "🔒 Encrypting TimesFM sidecar settings..."
-        echo -n "$TIMESFM_URL" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/timesfm_url.enc
-        echo -n "$TIMESFM_KEY" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$(cat $KEYS_DIR/encryption.key)" > $SECRETS_DIR/timesfm_key.enc
-        echo "✅ TimesFM sidecar settings encrypted"
-    else
-        echo "❌ TimesFM URL or key missing, skipping."
-    fi
-fi
-
 # Set secure permissions
 chmod 600 $SECRETS_DIR/* 2>/dev/null || true
 

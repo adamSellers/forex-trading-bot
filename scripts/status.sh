@@ -130,11 +130,6 @@ try:
     live = data.get('liveSelection') or {}
     runs = data.get('runs') or []
     live_run = live.get('liveRun') or {}
-    shadow_run = live.get('shadowRun') or {}
-    candidates = [
-        run for run in runs
-        if run.get('mode') == 'paper_candidate' and run.get('status') == 'active'
-    ]
     managing = [
         run for run in runs
         if run.get('mode') == 'live' and run.get('status') == 'managing_only'
@@ -146,15 +141,6 @@ try:
         f\"  Live Run:       {short(live_run.get('runId'))} \"
         f\"({live_run.get('status') or 'unknown'})\"
     )
-    if shadow_run:
-        print(
-            f\"  Shadow Run:     {short(shadow_run.get('runId'))} \"
-            f\"({shadow_run.get('status') or 'unknown'})\"
-        )
-        print(f\"  Shadows Live:   {short(shadow_run.get('shadowOfRunId'))}\")
-    else:
-        print('  Shadow Run:     MISSING')
-    print(f\"  Candidates:     {len(candidates)} active\")
     print(f\"  Managing Only:  {len(managing)} live run(s)\")
 except Exception:
     pass

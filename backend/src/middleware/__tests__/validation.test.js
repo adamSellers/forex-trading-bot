@@ -8,10 +8,10 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
         };
     }
 
-    test("accepts the extracted Phase 1 baseline strategy", () => {
+    test("accepts the deployed live strategy", () => {
         const req = {
             body: {
-                strategy: "supertrend_momentum",
+                strategy: "carry_trend",
             },
         };
         const res = createResponse();
@@ -23,7 +23,7 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
         expect(res.status).not.toHaveBeenCalled();
     });
 
-    test("rejects legacy strategy aliases", () => {
+    test("rejects every retired strategy alias", () => {
         const req = {
             body: {
                 strategy: "balanced",
@@ -39,14 +39,12 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 error: "Validation failed",
-                details: [
-                    "Legacy strategy aliases are no longer supported. Use supertrend_momentum.",
-                ],
+                details: ["Invalid strategy. This release supports carry_trend only."],
             })
         );
     });
 
-    test("rejects unimplemented strategy keys in the live config path", () => {
+    test("rejects retired strategy keys in the live config path", () => {
         const req = {
             body: {
                 strategy: "mean_reversion",
@@ -62,9 +60,7 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 error: "Validation failed",
-                details: [
-                    "Invalid strategy. Phase 1 live runtime currently supports supertrend_momentum only.",
-                ],
+                details: ["Invalid strategy. This release supports carry_trend only."],
             })
         );
     });

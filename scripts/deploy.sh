@@ -153,8 +153,6 @@ else
     log_info "No frontend to build"
 fi
 
-python3 -m compileall -q timesfm-sidecar/src timesfm-sidecar/tests
-
 # Remove backend dev dependencies only after the test gate has passed.
 (cd backend && npm prune --omit=dev)
 

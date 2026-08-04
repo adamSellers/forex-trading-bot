@@ -101,25 +101,14 @@ const OWNER_EXIT_CONFIG_KEYS = [
     "trailActivationSlMultiplier",
     "trailDistanceAtr",
     "trailActivationAtr",
-    "paperCommissionPerTradeAud",
     "commissionPerTradeAud",
-    "paperCommissionPerUnitAud",
     "commissionPerUnitAud",
-    "paperCommissionPerMillionAud",
     "commissionPerMillionAud",
-    "paperCommissionSides",
-    "paperFinancingRates",
     "financingRates",
-    "paperFinancingRateAnnual",
     "financingRateAnnual",
-    "paperFinancingRateMaxAgeMs",
-    "paperFinancingCutoffHourUtc",
     "financingCutoffHourUtc",
-    "paperFinancingCutoffTimeZone",
     "financingCutoffTimeZone",
-    "paperFinancingCutoffLocalHour",
     "financingCutoffLocalHour",
-    "paperTripleRolloverWeekday",
     "tripleRolloverWeekday",
 ];
 
@@ -167,7 +156,6 @@ function resolveOwnerRunExitPolicy(trade = {}, fallbackConfig = {}) {
     const persisted =
         trade.ownerExitPolicy ||
         trade?.brokerReconciliationPayload?.ownerExitPolicy ||
-        trade?.brokerReconciliationPayload?.paperRuntime?.ownerExitPolicy ||
         trade?.brokerReconciliationPayload?.liveRuntime?.ownerExitPolicy;
 
     if (persisted?.config && persisted.version) return persisted;
@@ -190,34 +178,6 @@ function resolveBreakevenDistance({
     runtimeMetadata = {},
 } = {}) {
     const config = policy.config || policy || {};
-    const strategy = policy.strategy || trade.strategy;
-    const { initialStopDistance } = getTradeExitMetadata({
-        trade,
-        runtimeMetadata,
-        pipValue,
-    });
-    const takeProfitPrice = toFiniteNumber(trade.takeProfitPrice, null);
-    const entryPrice = toFiniteNumber(trade.entryPrice, null);
-
-    if (
-        strategy === "mean_reversion" &&
-        Number.isFinite(takeProfitPrice) &&
-        Number.isFinite(entryPrice)
-    ) {
-        return (
-            Math.abs(takeProfitPrice - entryPrice) *
-            Math.max(0, toFiniteNumber(config.breakevenAtTpPercent, 0.5))
-        );
-    }
-    if (
-        strategy === "stochastic_divergence" &&
-        Number.isFinite(initialStopDistance)
-    ) {
-        return (
-            initialStopDistance *
-            Math.max(0, toFiniteNumber(config.breakevenSlMultiplier, 1))
-        );
-    }
     if (config.enableBreakeven === false) return null;
 
     return resolveConfiguredDistance({
@@ -239,61 +199,6 @@ function resolveTrailingStopDistances({
     runtimeMetadata = {},
 } = {}) {
     const config = policy.config || policy || {};
-    const strategy = policy.strategy || trade.strategy;
-    const { initialStopDistance, atrDistance } = getTradeExitMetadata({
-        trade,
-        runtimeMetadata,
-        pipValue,
-    });
-    const takeProfitPrice = toFiniteNumber(trade.takeProfitPrice, null);
-    const entryPrice = toFiniteNumber(trade.entryPrice, null);
-
-    if (
-        strategy === "range_breakout" &&
-        Number.isFinite(takeProfitPrice) &&
-        Number.isFinite(entryPrice)
-    ) {
-        const tpMultiplier = Math.max(
-            0.1,
-            toFiniteNumber(config.tpRangeMultiplier, 1.5)
-        );
-        const rangeHeight = Math.abs(takeProfitPrice - entryPrice) / tpMultiplier;
-        return {
-            activationDistance:
-                rangeHeight *
-                Math.max(0, toFiniteNumber(config.trailActivationMultiplier, 1)),
-            trailDistance:
-                rangeHeight *
-                Math.max(0, toFiniteNumber(config.trailDistanceMultiplier, 0.5)),
-        };
-    }
-    if (
-        strategy === "stochastic_divergence" &&
-        Number.isFinite(initialStopDistance) &&
-        Number.isFinite(atrDistance)
-    ) {
-        return {
-            activationDistance:
-                initialStopDistance *
-                Math.max(
-                    0,
-                    toFiniteNumber(config.trailActivationSlMultiplier, 1.5)
-                ),
-            trailDistance:
-                atrDistance *
-                Math.max(0, toFiniteNumber(config.trailDistanceAtr, 1)),
-        };
-    }
-    if (strategy === "squeeze_play" && Number.isFinite(atrDistance)) {
-        return {
-            activationDistance:
-                atrDistance *
-                Math.max(0, toFiniteNumber(config.trailActivationAtr, 2)),
-            trailDistance:
-                atrDistance *
-                Math.max(0, toFiniteNumber(config.trailDistanceAtr, 1)),
-        };
-    }
     if (config.enableTrailingStops === false) {
         return { activationDistance: null, trailDistance: null };
     }
@@ -324,7 +229,6 @@ function resolveTrailingStopDistances({
 
 function resolveTimedExitReason({ trade = {}, policy = {}, now = Date.now() }) {
     const config = policy.config || policy || {};
-    const strategy = policy.strategy || trade.strategy;
     const entryTime = toFiniteNumber(trade.entryTime, now);
     const timeStopHours = toFiniteNumber(config.timeStopHours, null);
     if (
@@ -335,16 +239,7 @@ function resolveTimedExitReason({ trade = {}, policy = {}, now = Date.now() }) {
         return "TIME_STOP";
     }
 
-    if (strategy !== "range_breakout") return null;
-    const closeHour = toFiniteNumber(config.sessionCloseHourUTC, null);
-    if (!Number.isFinite(closeHour)) return null;
-
-    const firstClose = new Date(entryTime);
-    firstClose.setUTCHours(Math.max(0, Math.min(23, closeHour)), 0, 0, 0);
-    if (firstClose.getTime() <= entryTime) {
-        firstClose.setUTCDate(firstClose.getUTCDate() + 1);
-    }
-    return now >= firstClose.getTime() ? "SESSION_CLOSE" : null;
+    return null;
 }
 
 function calculateMonotonicStop({ trade = {}, currentPrice, trailDistance }) {

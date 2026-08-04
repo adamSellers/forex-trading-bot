@@ -47,7 +47,7 @@ class SignalRepository {
             instrument: signal.symbol,
             signal: signal.signal,
             strength: signal.strength || 0,
-            strategy: signal.strategy || "supertrend_momentum",
+            strategy: signal.strategy || "carry_trend",
             timeframe: signal.timeframe || "15m",
             price: signal.currentPrice || null,
             message: signal.message || "",
@@ -76,7 +76,7 @@ class SignalRepository {
             instrument: signal.symbol,
             signal: signal.signal,
             strength: signal.strength || 0,
-            strategy: signal.strategy || "supertrend_momentum",
+            strategy: signal.strategy || "carry_trend",
             timeframe: signal.timeframe || "15m",
             price: signal.currentPrice || null,
             message: signal.message || "",
@@ -120,7 +120,6 @@ class SignalRepository {
             decision_context: decisionContext
                 ? this._serializeJson(decisionContext)
                 : null,
-            timesfm_context: this._serializeJson(signal.timesFm),
         };
     }
 
@@ -160,7 +159,6 @@ class SignalRepository {
             decisionContext: row.decision_context
                 ? this._parseJson(row.decision_context)
                 : null,
-            timesFm: this._parseJson(row.timesfm_context),
         };
     }
 
@@ -351,46 +349,6 @@ class SignalRepository {
         }
     }
 
-    /**
-     * Null out the TimesFM context JSON on signals older than the given age.
-     * timesfm_context averages ~600 bytes per row (it was ~347MB of the
-     * production signals table) and is only useful for recent diagnostics,
-     * so retention trims it earlier than the signal rows themselves.
-     * Batched for the same live-write-lock reason as deleteOlderThan.
-     * @param {number} days - Clear context on signals older than this many days
-     * @param {object} [options]
-     * @param {number} [options.batchSize=5000] - Max rows updated per transaction
-     * @returns {number} - Number of updated records
-     */
-    async clearTimesFmContextOlderThan(days, { batchSize = 5000 } = {}) {
-        try {
-            const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-            let totalCleared = 0;
-            let clearedInBatch = 0;
-            do {
-                clearedInBatch = await db("signals")
-                    .whereIn(
-                        "id",
-                        db("signals")
-                            .select("id")
-                            .where("timestamp", "<", cutoff)
-                            .whereNotNull("timesfm_context")
-                            .limit(batchSize)
-                    )
-                    .update({ timesfm_context: null });
-                totalCleared += clearedInBatch;
-            } while (clearedInBatch >= batchSize);
-            if (totalCleared > 0) {
-                logger.info(
-                    `Cleared TimesFM context on ${totalCleared} signals older than ${days} days`
-                );
-            }
-            return totalCleared;
-        } catch (error) {
-            logger.error("Error clearing old TimesFM signal context:", error);
-            return 0;
-        }
-    }
 
     async deleteByRunId(runId, filters = {}) {
         try {

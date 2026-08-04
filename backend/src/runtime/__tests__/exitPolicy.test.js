@@ -7,88 +7,89 @@ const {
     resolveTrailingStopDistances,
 } = require("../exitPolicy");
 
-describe("owner-run exit policy", () => {
-    test("persists and resolves the owning run instead of the current config", () => {
+describe("carry-trend owner exit policy", () => {
+    test("persists the opening live run's exit rules", () => {
         const persisted = buildOwnerRunExitPolicy({
-            strategy: "mean_reversion",
-            ownerRunId: "owner-1",
+            strategy: "carry_trend",
+            ownerRunId: "live-owner-1",
             config: {
-                timeStopHours: 8,
-                breakevenAtTpPercent: 0.5,
+                breakevenTriggerRiskMultiple: 1,
+                trailingStopActivationRiskMultiple: 2,
+                trailingStopRiskMultiple: 1.5,
             },
         });
         const trade = {
-            strategy: "mean_reversion",
+            strategy: "carry_trend",
             brokerReconciliationPayload: { ownerExitPolicy: persisted },
         };
 
-        expect(
-            resolveOwnerRunExitPolicy(trade, { timeStopHours: 1 })
-        ).toEqual(persisted);
+        expect(resolveOwnerRunExitPolicy(trade, {})).toEqual(persisted);
     });
 
-    test("uses strategy-specific mean-reversion breakeven distance", () => {
-        const trade = {
-            strategy: "mean_reversion",
-            entryPrice: 1.1,
-            takeProfitPrice: 1.104,
-        };
+    test("moves to breakeven after one initial risk distance", () => {
+        const trade = { strategy: "carry_trend", entryPrice: 1.1 };
         const policy = buildOwnerRunExitPolicy({
-            strategy: trade.strategy,
-            config: { breakevenAtTpPercent: 0.5 },
+            strategy: "carry_trend",
+            config: { breakevenTriggerRiskMultiple: 1 },
         });
         expect(
-            resolveBreakevenDistance({ trade, policy, pipValue: 0.0001 })
+            resolveBreakevenDistance({
+                trade,
+                policy,
+                pipValue: 0.0001,
+                runtimeMetadata: { initialStopDistance: 0.002 },
+            })
         ).toBeCloseTo(0.002, 8);
     });
 
-    test("uses range-specific trailing activation and distance", () => {
-        const trade = {
-            strategy: "range_breakout",
-            entryPrice: 1.1,
-            takeProfitPrice: 1.103,
-        };
+    test("activates the monotonic trail at two risk with 1.5 risk distance", () => {
+        const trade = { strategy: "carry_trend", entryPrice: 1.1 };
         const policy = buildOwnerRunExitPolicy({
-            strategy: trade.strategy,
+            strategy: "carry_trend",
             config: {
-                tpRangeMultiplier: 1.5,
-                trailActivationMultiplier: 1,
-                trailDistanceMultiplier: 0.5,
+                trailingStopActivationRiskMultiple: 2,
+                trailingStopRiskMultiple: 1.5,
             },
         });
         expect(
-            resolveTrailingStopDistances({ trade, policy, pipValue: 0.0001 })
+            resolveTrailingStopDistances({
+                trade,
+                policy,
+                pipValue: 0.0001,
+                runtimeMetadata: { initialStopDistance: 0.002 },
+            })
         ).toEqual({
-            activationDistance: expect.closeTo(0.002, 8),
-            trailDistance: expect.closeTo(0.001, 8),
+            activationDistance: expect.closeTo(0.004, 8),
+            trailDistance: expect.closeTo(0.003, 8),
         });
     });
 
-    test("session close is calculated from entry, not today's global clock", () => {
-        const entryTime = Date.UTC(2026, 6, 10, 17, 0, 0);
-        const policy = buildOwnerRunExitPolicy({
-            strategy: "range_breakout",
-            config: { sessionCloseHourUTC: 16 },
-        });
-        const trade = { strategy: "range_breakout", entryTime };
-
+    test("supports a code-owned time stop but keeps this release disabled", () => {
+        const entryTime = Date.UTC(2026, 6, 10, 0, 0, 0);
+        const trade = { strategy: "carry_trend", entryTime };
         expect(
             resolveTimedExitReason({
                 trade,
-                policy,
-                now: Date.UTC(2026, 6, 11, 15, 59, 0),
+                policy: buildOwnerRunExitPolicy({
+                    strategy: "carry_trend",
+                    config: { timeStopHours: 0 },
+                }),
+                now: entryTime + 48 * 60 * 60 * 1000,
             })
         ).toBeNull();
         expect(
             resolveTimedExitReason({
                 trade,
-                policy,
-                now: Date.UTC(2026, 6, 11, 16, 0, 0),
+                policy: buildOwnerRunExitPolicy({
+                    strategy: "carry_trend",
+                    config: { timeStopHours: 24 },
+                }),
+                now: entryTime + 24 * 60 * 60 * 1000,
             })
-        ).toBe("SESSION_CLOSE");
+        ).toBe("TIME_STOP");
     });
 
-    test("never weakens an already active breakeven or trailing stop", () => {
+    test("never weakens an active long or short stop", () => {
         expect(
             calculateMonotonicStop({
                 trade: { side: "BUY", stopLossPrice: 1.1 },

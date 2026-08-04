@@ -4,7 +4,7 @@ const { calculateExpectedEdge } = require("../strategies/expectedEdge");
 const {
     bootstrapMeanInterval,
     wilsonInterval,
-} = require("../replay/replayStatistics");
+} = require("./analyticsStatistics");
 
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
@@ -466,15 +466,11 @@ function normalizeRuntimeFilters(runtimeFilters = {}) {
         typeof runtimeFilters === "string"
             ? { mode: runtimeFilters }
             : { ...(runtimeFilters || {}) };
-    const normalized = {};
-    const mode = normalizeString(baseFilters.mode);
+    const normalized = { mode: "live" };
     const strategy = normalizeString(baseFilters.strategy);
     const runId = normalizeString(baseFilters.runId);
     const selectionId = normalizeString(baseFilters.selectionId);
 
-    if (mode && mode !== "all") {
-        normalized.mode = mode;
-    }
     if (strategy) {
         normalized.strategy = strategy;
     }
@@ -513,15 +509,6 @@ class AnalyticsService {
                 "dashboard"
                     ? "dashboard"
                     : "full";
-            const requestedAllModes = normalizeString(runtimeFilters?.mode) === "all";
-            if (
-                !requestedAllModes &&
-                !filters.mode &&
-                !filters.runId &&
-                !filters.strategy
-            ) {
-                filters.mode = "live";
-            }
             const tradeFilters = { ...filters };
             if (tradeFilters.runId) {
                 tradeFilters.ownerRunId = tradeFilters.runId;
@@ -569,12 +556,6 @@ class AnalyticsService {
                     ? {
                           cohortExpectancy:
                               this.calculateCohortExpectancy(closedTrades),
-                          timesFmAnalysis: this.calculateTimesFmAnalysis(
-                              signals,
-                              entryDecisions,
-                              closedTrades,
-                              signalEventSummary
-                          ),
                           expectationVsActual: this.calculateExpectationVsActual(
                               signalEventSummary.uniqueActionableSignals,
                               closedTrades
@@ -600,9 +581,9 @@ class AnalyticsService {
             return {
                 period,
                 profile,
-                mode: requestedAllModes ? "all" : filters.mode || "all",
+                mode: "live",
                 filters: {
-                    mode: requestedAllModes ? "all" : filters.mode || "all",
+                    mode: "live",
                     strategy: filters.strategy || null,
                     runId: filters.runId || null,
                     selectionId: filters.selectionId || null,
@@ -1271,188 +1252,6 @@ class AnalyticsService {
         return stats;
     }
 
-    calculateTimesFmAnalysis(
-        signals,
-        entryDecisions = [],
-        closedTrades = [],
-        eventSummary = null
-    ) {
-        const summary = eventSummary || this.extractSignalEventSummary(signals);
-        const actionableSignals = summary.uniqueActionableSignals || [];
-        const stats = {
-            totalSignals: signals.length,
-            actionableSignals: actionableSignals.length,
-            availableSignals: 0,
-            unavailableSignals: 0,
-            coveragePct: 0,
-            agreement: {
-                agree: 0,
-                disagree: 0,
-                neutral: 0,
-            },
-            byVolatilityRegime: {},
-            unavailableReasons: {},
-            horizonAlignment: {
-                aligned: 0,
-                mismatched: 0,
-                unknown: 0,
-            },
-            calibration: {
-                matchedTrades: 0,
-                confidenceBuckets: {},
-                forecastReturnPnlCorrelation: null,
-            },
-            outcomeCorrelation: {
-                totalClosedDecisions: 0,
-                profitable: 0,
-                losing: 0,
-                agreeProfitable: 0,
-                agreeLosing: 0,
-                disagreeProfitable: 0,
-                disagreeLosing: 0,
-                neutralProfitable: 0,
-                neutralLosing: 0,
-            },
-        };
-
-        actionableSignals.forEach((signal) => {
-            const context = signal?.timesFm || signal?.timesFmContext || null;
-            if (context?.available === true) {
-                stats.availableSignals++;
-
-                if (context.agrees === true) {
-                    stats.agreement.agree++;
-                } else if (context.disagrees === true) {
-                    stats.agreement.disagree++;
-                } else {
-                    stats.agreement.neutral++;
-                }
-
-                const regime =
-                    normalizeUpper(context.volatilityRegime) || "UNKNOWN";
-                stats.byVolatilityRegime[regime] =
-                    (stats.byVolatilityRegime[regime] || 0) + 1;
-                const horizon = toFiniteNumber(context.horizon, NaN);
-                const confidenceHorizon = toFiniteNumber(
-                    context.confidenceHorizon,
-                    NaN
-                );
-                if (!Number.isFinite(horizon) || !Number.isFinite(confidenceHorizon)) {
-                    stats.horizonAlignment.unknown++;
-                } else if (horizon === confidenceHorizon) {
-                    stats.horizonAlignment.aligned++;
-                } else {
-                    stats.horizonAlignment.mismatched++;
-                }
-                return;
-            }
-
-            stats.unavailableSignals++;
-            const reason = normalizeUpper(context?.reason) || "UNAVAILABLE";
-            stats.unavailableReasons[reason] =
-                (stats.unavailableReasons[reason] || 0) + 1;
-        });
-
-        stats.coveragePct =
-            actionableSignals.length > 0
-                ? roundTo(
-                      (stats.availableSignals / actionableSignals.length) * 100,
-                      1
-                  )
-                : 0;
-
-        const closedTradeById = new Map();
-        closedTrades.forEach((trade) => {
-            if (trade?.id !== undefined && trade?.id !== null) {
-                closedTradeById.set(String(trade.id), trade);
-            }
-            if (trade?.tradeId) {
-                closedTradeById.set(String(trade.tradeId), trade);
-            }
-        });
-
-        const forecastReturns = [];
-        const realizedPnl = [];
-        (entryDecisions || []).forEach((decision) => {
-            const context = decision?.timesFmContext || decision?.timesFm || null;
-            if (context?.available !== true || !decision?.tradeId) {
-                return;
-            }
-
-            const trade = closedTradeById.get(String(decision.tradeId));
-            const pnlAud = toFiniteNumber(trade?.pnlAud, NaN);
-            if (!trade || !Number.isFinite(pnlAud)) {
-                return;
-            }
-
-            const profitable = pnlAud > 0;
-            const confidence = Math.max(
-                0,
-                Math.min(1, toFiniteNumber(context.confidence, 0))
-            );
-            const bucketFloor = Math.min(0.8, Math.floor(confidence * 5) / 5);
-            const bucketKey = `${bucketFloor.toFixed(1)}-${(
-                bucketFloor + 0.2
-            ).toFixed(1)}`;
-            const bucket = stats.calibration.confidenceBuckets[bucketKey] || {
-                trades: 0,
-                wins: 0,
-                pnlAud: 0,
-            };
-            bucket.trades++;
-            bucket.wins += profitable ? 1 : 0;
-            bucket.pnlAud += pnlAud;
-            stats.calibration.confidenceBuckets[bucketKey] = bucket;
-            stats.calibration.matchedTrades++;
-            const forecastReturn = toFiniteNumber(context.returnBps, NaN);
-            if (Number.isFinite(forecastReturn)) {
-                forecastReturns.push(forecastReturn);
-                realizedPnl.push(pnlAud);
-            }
-            stats.outcomeCorrelation.totalClosedDecisions++;
-            if (profitable) {
-                stats.outcomeCorrelation.profitable++;
-            } else {
-                stats.outcomeCorrelation.losing++;
-            }
-
-            if (context.agrees === true) {
-                if (profitable) {
-                    stats.outcomeCorrelation.agreeProfitable++;
-                } else {
-                    stats.outcomeCorrelation.agreeLosing++;
-                }
-            } else if (context.disagrees === true) {
-                if (profitable) {
-                    stats.outcomeCorrelation.disagreeProfitable++;
-                } else {
-                    stats.outcomeCorrelation.disagreeLosing++;
-                }
-            } else if (profitable) {
-                stats.outcomeCorrelation.neutralProfitable++;
-            } else {
-                stats.outcomeCorrelation.neutralLosing++;
-            }
-        });
-
-        Object.values(stats.calibration.confidenceBuckets).forEach((bucket) => {
-            bucket.winRatePct = roundTo((bucket.wins / bucket.trades) * 100, 1);
-            bucket.avgPnlAud = roundTo(bucket.pnlAud / bucket.trades, 4);
-            bucket.pnlAud = roundTo(bucket.pnlAud, 4);
-        });
-        const forecastCorrelation = pearsonCorrelation(
-            forecastReturns,
-            realizedPnl
-        );
-        stats.calibration.forecastReturnPnlCorrelation = Number.isFinite(
-            forecastCorrelation
-        )
-            ? roundTo(forecastCorrelation, 4)
-            : null;
-
-        return stats;
-    }
-
     calculateEntryFunnel(
         uniqueActionableSignals,
         entryDecisions,
@@ -2050,8 +1849,7 @@ class AnalyticsService {
     getInitialRiskPips(trade = {}) {
         const pipValue = getPipValue(trade.instrument);
         const payload = normalizePayloadObject(trade.brokerReconciliationPayload);
-        const runtimeMetadata =
-            payload.paperRuntime || payload.liveRuntime || payload.runtime || {};
+        const runtimeMetadata = payload.liveRuntime || payload.runtime || {};
         const initialStopDistance = toFiniteNumber(
             runtimeMetadata.initialStopDistance,
             NaN

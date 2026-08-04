@@ -46,9 +46,6 @@ import {
 
 const MODE_OPTIONS = [
   { value: 'live', label: 'Live' },
-  { value: 'paper_shadow', label: 'Shadow Paper' },
-  { value: 'paper_candidate', label: 'Candidate Paper' },
-  { value: 'all', label: 'All Modes' },
 ];
 
 const PERIOD_OPTIONS = ['24h', '7d', '30d', '90d'];
@@ -106,7 +103,7 @@ const formatGeneratedAt = (value) => {
 const AnalyticsDashboard = () => {
   const theme = useTheme();
   const [period, setPeriod] = useState(DEFAULT_PERIOD);
-  const [mode, setMode] = useState(DEFAULT_MODE);
+  const mode = DEFAULT_MODE;
   const [strategy, setStrategy] = useState('');
   const [runId, setRunId] = useState('');
   const [analytics, setAnalytics] = useState(null);
@@ -144,7 +141,7 @@ const AnalyticsDashboard = () => {
       setContextLoading(true);
       try {
         const runsResponse = await runtimeAPI.getRuns({
-          mode: mode === 'all' ? undefined : mode,
+          mode,
           strategy: strategy || undefined,
           includeSummary: false,
           limit: 150,
@@ -225,11 +222,6 @@ const AnalyticsDashboard = () => {
     if (selectedRun) return formatRunLabel(selectedRun, strategyCatalog);
     return `${formatModeLabel(mode)} | ${selectedStrategyLabel}`;
   }, [mode, selectedRun, selectedStrategyLabel, strategyCatalog]);
-
-  const handleModeChange = useCallback((event) => {
-    setMode(event.target.value);
-    setRunId('');
-  }, []);
 
   const handleStrategyChange = useCallback((event) => {
     setStrategy(event.target.value);
@@ -373,16 +365,6 @@ const AnalyticsDashboard = () => {
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
-
-        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }}>
-          <Select value={mode} onChange={handleModeChange}>
-            {MODE_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
 
         <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
           <Select value={strategy} onChange={handleStrategyChange}>

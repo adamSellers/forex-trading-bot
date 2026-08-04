@@ -1,7 +1,5 @@
 const RUNTIME_MODES = Object.freeze({
     LIVE: "live",
-    PAPER_SHADOW: "paper_shadow",
-    PAPER_CANDIDATE: "paper_candidate",
 });
 
 const RUN_STATUSES = Object.freeze({

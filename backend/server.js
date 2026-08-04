@@ -22,9 +22,6 @@ const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 const RuntimeCoordinator = require("./src/runtime/runtimeCoordinator");
 const { createEngineSupervisor } = require("./src/runtime/engineSupervisor");
-const PaperTradingRuntime = require("./src/services/PaperTradingRuntime");
-const TimesFmClient = require("./src/services/timesFmClient");
-const TimesFmSignalService = require("./src/services/timesFmSignalService");
 
 const app = express();
 const server = http.createServer(app);
@@ -64,29 +61,13 @@ const strategyRunRepository = new StrategyRunRepository();
 const portfolioRepository = new PortfolioRepository();
 
 // Initialize shared runtime coordinator
-const timesFmClient = new TimesFmClient();
-const timesFmSignalService = new TimesFmSignalService({
-    client: timesFmClient,
-    dataService,
-});
-
 const runtimeCoordinator = new RuntimeCoordinator({
     dataService,
     signalRepository,
     strategyRunRepository,
     tradeRepository,
     configService,
-    timesFmSignalService,
     pollIntervalMs: 60000,
-});
-const paperTradingRuntime = new PaperTradingRuntime({
-    runtimeCoordinator,
-    tradeRepository,
-    signalRepository,
-    entryDecisionRepository,
-    portfolioRepository,
-    dataService,
-    io,
 });
 
 // Initialize S3 report scheduler
@@ -109,18 +90,7 @@ runtimeCoordinator.init({
     strategyRunRepository,
     tradeRepository,
     configService,
-    timesFmSignalService,
 });
-paperTradingRuntime.init({
-    runtimeCoordinator,
-    tradeRepository,
-    signalRepository,
-    entryDecisionRepository,
-    portfolioRepository,
-    dataService,
-    io,
-});
-
 // Initialize trading engine with all dependencies
 tradingEngine.init(
     configService,
@@ -145,11 +115,9 @@ app.locals.signalRepository = signalRepository;
 app.locals.entryDecisionRepository = entryDecisionRepository;
 app.locals.strategyRunRepository = strategyRunRepository;
 app.locals.portfolioRepository = portfolioRepository;
-app.locals.paperTradingRuntime = paperTradingRuntime;
+app.locals.liveOnlyRuntime = true;
 app.locals.emailService = emailService;
 app.locals.s3ReportScheduler = s3ReportScheduler;
-app.locals.timesFmClient = timesFmClient;
-app.locals.timesFmSignalService = timesFmSignalService;
 app.locals.io = io;
 
 // Middleware
@@ -335,12 +303,8 @@ app.locals.ensureTradingEngineStarted = ensureTradingEngineStarted;
 // ============================================
 // Storage policy only — never touches trades (the permanent record) or any
 // trading logic. Sizing context from the 2026-06-10 production audit:
-// signals dominate growth (~13k rows/day across live + shadow + candidate
-// runs, amplified by 13 indexes), timesfm_context JSON averages ~600B/row,
-// and portfolio_snapshots previously had no retention at all.
+// Signals dominate database growth, so retain only the recent live record.
 const SIGNAL_RETENTION_DAYS = Number(process.env.SIGNAL_RETENTION_DAYS) || 30;
-const TIMESFM_CONTEXT_RETENTION_DAYS =
-    Number(process.env.TIMESFM_CONTEXT_RETENTION_DAYS) || 7;
 const ENTRY_DECISION_RETENTION_DAYS =
     Number(process.env.ENTRY_DECISION_RETENTION_DAYS) || 90;
 const PORTFOLIO_SNAPSHOT_RETENTION_DAYS =
@@ -350,9 +314,6 @@ const runDataRetention = async () => {
     // Each repository method catches its own errors and returns 0, so one
     // failed step never aborts the rest of the sweep.
     await signalRepository.deleteOlderThan(SIGNAL_RETENTION_DAYS);
-    await signalRepository.clearTimesFmContextOlderThan(
-        TIMESFM_CONTEXT_RETENTION_DAYS
-    );
     await entryDecisionRepository.deleteOlderThan(ENTRY_DECISION_RETENTION_DAYS);
     await portfolioRepository.deleteOlderThan(PORTFOLIO_SNAPSHOT_RETENTION_DAYS);
 
@@ -405,7 +366,7 @@ const scheduleDataRetention = () => {
 
     logger.info(
         `🗓️ Data retention scheduled (midnight daily): signals ${SIGNAL_RETENTION_DAYS}d, ` +
-            `TimesFM context ${TIMESFM_CONTEXT_RETENTION_DAYS}d, entry decisions ${ENTRY_DECISION_RETENTION_DAYS}d, ` +
+        `entry decisions ${ENTRY_DECISION_RETENTION_DAYS}d, ` +
             `portfolio snapshots ${PORTFOLIO_SNAPSHOT_RETENTION_DAYS}d, WAL checkpoint after each sweep`
     );
 };
@@ -420,17 +381,12 @@ server.listen(PORT, async () => {
 
     if (!process.env.OANDA_API_KEY) {
         logger.warn("OANDA_API_KEY not set - trading features disabled");
-        timesFmSignalService.refreshHealth(true).catch((error) => {
-            logger.warn(`TimesFM health bootstrap failed: ${error.message}`);
-        });
     } else {
-        const keyPreview = process.env.OANDA_API_KEY.substring(0, 4) + "...";
-        logger.info(`   Oanda API Key: ${keyPreview}`);
+        logger.info("   Oanda API credentials configured");
 
         // Wire up price updates from data service to socket broadcast
         dataService.on("priceUpdate", broadcastPrices);
         await dataService.start();
-        await timesFmSignalService.refreshHealth(true);
 
         // Start signal generator after data service has initial data
         setTimeout(async () => {
@@ -441,18 +397,6 @@ server.listen(PORT, async () => {
             runtimeCoordinator.on("runtimeRunsChanged", broadcastRuntimeRuns);
 
             await runtimeCoordinator.start(dataService, 60000);
-
-            // Paper simulation must never be able to take live trading down
-            // with it: an exception here previously rejected the whole boot
-            // callback, so the live engine below was never even attempted.
-            try {
-                await paperTradingRuntime.start();
-            } catch (error) {
-                logger.error(
-                    "Paper trading runtime failed to start; live trading continues:",
-                    error.message
-                );
-            }
 
             // Start trading engine (will subscribe to signals)
             // Note: Trading is controlled by config.enableTrading flag.
@@ -515,7 +459,6 @@ const gracefulShutdown = (signal) => {
         if (tradingEngine) tradingEngine.stop();
         if (dataService) dataService.stop();
         if (runtimeCoordinator) runtimeCoordinator.stop();
-        if (paperTradingRuntime) paperTradingRuntime.stop();
         if (s3ReportScheduler) s3ReportScheduler.stop();
     } catch (err) {
         logger.error("Error stopping services:", err.message);

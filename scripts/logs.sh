@@ -44,11 +44,11 @@ case "$1" in
         fi
         ;;
     "runtime")
-        echo "📋 Shared Runtime Activity:"
+        echo "📋 Live Runtime Activity:"
         if [ -f "$LOG_DIR/combined.log" ]; then
-            grep -iE "(runtime|shadow|candidate|selection|ownerRunId|runId|managing_only)" "$LOG_DIR/combined.log" | tail -80
+            grep -iE "(runtime|selection|ownerRunId|runId|managing_only|carry_trend)" "$LOG_DIR/combined.log" | tail -80
         else
-            pm2 logs "$APP_NAME" --lines 300 --nostream | grep -iE "(runtime|shadow|candidate|selection|ownerRunId|runId|managing_only)" | tail -80
+            pm2 logs "$APP_NAME" --lines 300 --nostream | grep -iE "(runtime|selection|ownerRunId|runId|managing_only|carry_trend)" | tail -80
         fi
         ;;
     "errors")
@@ -69,7 +69,7 @@ case "$1" in
         echo "  app     - Show application combined.log"
         echo "  error   - Show error.log"
         echo "  trades  - Filter for trade-related entries"
-        echo "  runtime - Filter for runtime/shadow/candidate activity"
+        echo "  runtime - Filter for live runtime activity"
         echo "  errors  - Filter for error entries"
         echo "  clear   - Clear PM2 logs"
         ;;

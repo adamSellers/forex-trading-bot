@@ -16,16 +16,26 @@ describe("ConfigService governance", () => {
         fs.rmSync(directory, { recursive: true, force: true });
     });
 
-    test("pauses persisted live trading on every startup", () => {
+    test("migrates the deployed strategy release without disabling live trading", () => {
         fs.writeFileSync(
             configPath,
             JSON.stringify({ enableTrading: true, referenceCurrency: "AUD" })
         );
         const service = new ConfigService(configPath).init();
 
-        expect(service.get().enableTrading).toBe(false);
-        expect(JSON.parse(fs.readFileSync(configPath, "utf8")).enableTrading).toBe(
-            false
+        expect(service.get()).toEqual(
+            expect.objectContaining({
+                enableTrading: true,
+                liveReleaseVersion: "carry-trend-v1",
+                strategy: "carry_trend",
+                timeframe: "4h",
+            })
+        );
+        expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(
+            expect.objectContaining({
+                enableTrading: true,
+                strategy: "carry_trend",
+            })
         );
     });
 
@@ -37,8 +47,9 @@ describe("ConfigService governance", () => {
         );
     });
 
-    test("allows internal activation only within controlled risk caps", () => {
+    test("allows internal activation only within live release risk caps", () => {
         const service = new ConfigService(configPath).init();
+        service.update({ enforceConfigFreeze: false });
 
         expect(() =>
             service.update(
@@ -48,7 +59,7 @@ describe("ConfigService governance", () => {
                 },
                 { allowLiveActivation: true }
             )
-        ).toThrow("controlled caps");
+        ).toThrow("release caps");
 
         const activated = service.update(
             {

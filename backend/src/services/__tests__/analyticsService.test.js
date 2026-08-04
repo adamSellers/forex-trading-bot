@@ -43,7 +43,6 @@ describe('AnalyticsService', () => {
             expect(result).toHaveProperty('adxAnalysis');
             expect(result).toHaveProperty('sidePerformance');
             expect(result).toHaveProperty('cohortExpectancy');
-            expect(result).toHaveProperty('timesFmAnalysis');
             expect(result).toHaveProperty('entryFunnel');
             expect(result).toHaveProperty('strategyFunnel');
             expect(result).toHaveProperty('rejectionBreakdown');
@@ -86,7 +85,6 @@ describe('AnalyticsService', () => {
             );
             expect(mockSignalRepo.getSignalsSince).not.toHaveBeenCalled();
             expect(mockEntryDecisionRepo.getDecisionsSince).not.toHaveBeenCalled();
-            expect(result).not.toHaveProperty('timesFmAnalysis');
             expect(result).not.toHaveProperty('executionGapByCohort');
         });
 
@@ -115,19 +113,19 @@ describe('AnalyticsService', () => {
             );
         });
 
-        test('should filter trade analytics by ownerRunId when a runtime runId is supplied', async () => {
+        test('keeps run-scoped analytics on live mode', async () => {
             await service.getAnalytics('30d', {
-                mode: 'paper_candidate',
-                runId: 'run-candidate-7',
-                strategy: 'squeeze_play',
+                mode: 'retired_mode',
+                runId: 'live-run-7',
+                strategy: 'carry_trend',
             });
 
             expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(
                 expect.any(Number),
                 expect.objectContaining({
-                    mode: 'paper_candidate',
-                    ownerRunId: 'run-candidate-7',
-                    strategy: 'squeeze_play',
+                    mode: 'live',
+                    ownerRunId: 'live-run-7',
+                    strategy: 'carry_trend',
                 })
             );
             expect(mockTradeRepo.getTradesSince.mock.calls[0][1]).not.toHaveProperty(
@@ -136,113 +134,50 @@ describe('AnalyticsService', () => {
             expect(mockSignalRepo.getSignalsSince).toHaveBeenCalledWith(
                 expect.any(Date),
                 expect.objectContaining({
-                    mode: 'paper_candidate',
-                    runId: 'run-candidate-7',
-                    strategy: 'squeeze_play',
+                    mode: 'live',
+                    runId: 'live-run-7',
+                    strategy: 'carry_trend',
                 })
             );
         });
 
-        test('should allow all-mode analytics when mode is explicitly set to all', async () => {
+        test('forces explicitly requested all-mode analytics back to live', async () => {
             const result = await service.getAnalytics('7d', {
                 mode: 'all',
-                strategy: 'mean_reversion',
+                strategy: 'carry_trend',
             });
 
             expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(
                 expect.any(Number),
                 expect.objectContaining({
-                    strategy: 'mean_reversion',
+                    mode: 'live',
+                    strategy: 'carry_trend',
                 })
             );
-            expect(mockTradeRepo.getTradesSince.mock.calls[0][1]).not.toHaveProperty(
-                'mode'
-            );
-            expect(result.mode).toBe('all');
+            expect(result.mode).toBe('live');
             expect(result.filters).toEqual(
                 expect.objectContaining({
-                    mode: 'all',
-                    strategy: 'mean_reversion',
+                    mode: 'live',
+                    strategy: 'carry_trend',
                 })
             );
         });
 
-        test('should not default explicit all-mode analytics back to live', async () => {
+        test('forces unscoped all-mode analytics to live', async () => {
             const result = await service.getAnalytics('7d', {
                 mode: 'all',
             });
 
             expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(
                 expect.any(Number),
-                expect.not.objectContaining({
-                    mode: 'live',
-                })
+                expect.objectContaining({ mode: 'live' })
             );
             expect(mockSignalRepo.getSignalsSince).toHaveBeenCalledWith(
                 expect.any(Date),
-                expect.not.objectContaining({
-                    mode: 'live',
-                })
+                expect.objectContaining({ mode: 'live' })
             );
-            expect(result.mode).toBe('all');
-            expect(result.filters.mode).toBe('all');
-        });
-
-        test('should report TimesFM coverage and outcome correlation', async () => {
-            mockSignalRepo.getSignalsSince.mockResolvedValue([
-                createMockSignal({
-                    setupId: 'setup-1',
-                    signalClass: 'ACTIONABLE',
-                    intent: 'ENTER_LONG',
-                    uniqueEvent: true,
-                    timesFm: {
-                        available: true,
-                        agrees: true,
-                        direction: 'BULLISH',
-                        volatilityRegime: 'HIGH',
-                    },
-                }),
-            ]);
-            mockEntryDecisionRepo.getDecisionsSince.mockResolvedValue([
-                {
-                    decisionId: 'decision-1',
-                    decisionTime: Date.now(),
-                    tradeId: 'trade-1',
-                    timesFmContext: {
-                        available: true,
-                        agrees: true,
-                        direction: 'BULLISH',
-                    },
-                },
-            ]);
-            mockTradeRepo.getTradesSince.mockResolvedValue([
-                createClosedTrade({
-                    id: 'trade-1',
-                    tradeId: 'trade-1',
-                    pnlAud: 5,
-                    isOpen: false,
-                }),
-            ]);
-
-            const result = await service.getAnalytics('7d', 'live');
-
-            expect(result.timesFmAnalysis).toEqual(
-                expect.objectContaining({
-                    actionableSignals: 1,
-                    availableSignals: 1,
-                    coveragePct: 100,
-                    agreement: expect.objectContaining({
-                        agree: 1,
-                    }),
-                    byVolatilityRegime: expect.objectContaining({
-                        HIGH: 1,
-                    }),
-                    outcomeCorrelation: expect.objectContaining({
-                        totalClosedDecisions: 1,
-                        agreeProfitable: 1,
-                    }),
-                })
-            );
+            expect(result.mode).toBe('live');
+            expect(result.filters.mode).toBe('live');
         });
     });
 
@@ -1073,7 +1008,7 @@ describe('AnalyticsService', () => {
         test('groups net expectancy by side, instrument, session, entry type, and combined cohort', () => {
             const entryTime = Date.UTC(2026, 0, 1, 13, 0, 0);
             const stopMetadata = {
-                paperRuntime: {
+                liveRuntime: {
                     initialStopDistance: 0.002,
                 },
             };
