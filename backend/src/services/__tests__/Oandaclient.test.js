@@ -100,6 +100,26 @@ describe('OandaClient', () => {
             expect(client.isInitialized).toBe(true);
         });
 
+        test('never writes API key fragments to logs', async () => {
+            const logger = require('../../utils/logger');
+            const infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => {});
+            global.fetch.mockResolvedValueOnce(createMockResponse({
+                account: {
+                    id: TEST_ACCOUNT_ID,
+                    balance: '136.00',
+                    currency: 'AUD',
+                },
+            }));
+
+            await client.initialize();
+
+            const messages = infoSpy.mock.calls.flat().join(' ');
+            expect(messages).toContain('Oanda API credentials configured');
+            expect(messages).not.toContain(TEST_API_KEY);
+            expect(messages).not.toContain(TEST_API_KEY.slice(0, 4));
+            expect(messages).not.toContain(TEST_API_KEY.slice(-4));
+        });
+
         test('should throw error on API failure', async () => {
             global.fetch.mockResolvedValueOnce(createErrorResponse(401, 'Unauthorized'));
 

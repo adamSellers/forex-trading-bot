@@ -1,7 +1,11 @@
 // backend/src/routes/tradingRoutes.js - Trading API Routes with Engine Support
 const express = require("express");
 const router = express.Router();
-const { listStrategyCatalog, getStrategyDefinition } = require("../strategies");
+const {
+    listStrategyCatalog,
+    getStrategyDefinition,
+    getStrategyLiveQualification,
+} = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
 const { listCandidatePresets } = require("../runtime/candidatePresets");
 const {
@@ -18,6 +22,9 @@ const { buildOandaApiError } = require("../utils/oandaErrors");
 const { computeConfigHash } = require("../config/tradingConfig");
 
 function isLiveSelectionReady(strategyDefinition = {}) {
+    const qualification = getStrategyLiveQualification(strategyDefinition.key);
+    if (qualification.liveEligible === false) return false;
+
     return (
         ["baseline", "live_ready"].includes(strategyDefinition.runtimeStatus) ||
         strategyDefinition.metadata?.supportsLive === true
@@ -468,6 +475,11 @@ router.get("/health", (req, res) => {
     const tradingEngine = req.app.locals.tradingEngine;
 
     const config = configService ? configService.get() : {};
+    const strategyKey = config.strategy || "supertrend_momentum";
+    const strategyDefinition = getStrategyDefinition(strategyKey);
+    const dataStatus = dataService?.getStatus?.() || {
+        isRunning: dataService?.isRunning || false,
+    };
 
     res.json({
         status: "ok",
@@ -476,14 +488,18 @@ router.get("/health", (req, res) => {
         services: {
             api: true,
             oanda: !!OANDA_API_KEY,
-            dataService: dataService?.isRunning || false,
+            dataService: dataStatus.isRunning || false,
+            dataFreshness: dataStatus.freshness || null,
             signalGenerator: signalGenerator?.isRunning || false,
             tradingEngine: tradingEngine?.isRunning || false,
         },
         config: {
             enableTrading: config.enableTrading || false,
             assets: config.assets || [],
-            strategy: config.strategy || "supertrend_momentum",
+            strategy: strategyKey,
+            strategyLabel: strategyDefinition.label,
+            strategyVersion: strategyDefinition.version,
+            liveQualification: getStrategyLiveQualification(strategyKey),
             timeframe: config.timeframe || "15m",
             minAdx: config.minAdx || 22,
             rsiOverbought: config.rsiOverbought || 75,
@@ -504,6 +520,8 @@ router.get("/system/health", async (req, res) => {
         const tradingEngine = req.app.locals.tradingEngine;
 
         const config = configService ? configService.get() : {};
+        const strategyKey = config.strategy || "supertrend_momentum";
+        const strategyDefinition = getStrategyDefinition(strategyKey);
         await signalGenerator?.refreshTimesFmHealth?.();
         const timesFmStatus = signalGenerator?.getTimesFmStatus?.() || {
             enabled: false,
@@ -543,13 +561,13 @@ router.get("/system/health", async (req, res) => {
         );
         const dataServiceStatus = dataService
             ? {
+                  ...(dataService.getStatus?.() || {}),
                   isRunning: dataService.isRunning || false,
                   instruments: dataService.instruments || [],
                   priceCount: Object.keys(dataService.getAllPrices?.() || {})
                       .length,
                   candlesCached: Object.keys(candleCache).length,
                   candleCount,
-                  lastUpdate: dataService.lastUpdate || null,
               }
             : { isRunning: false };
 
@@ -585,6 +603,8 @@ router.get("/system/health", async (req, res) => {
         const coreHealthy =
             oandaStatus.connected &&
             dataServiceStatus.isRunning &&
+            dataServiceStatus.freshness?.pricesFresh !== false &&
+            dataServiceStatus.freshness?.candlesFresh !== false &&
             signalGenStatus.isActive &&
             engineAttached;
         const timesFmExpected =
@@ -597,6 +617,12 @@ router.get("/system/health", async (req, res) => {
         const degradedReasons = [];
         if (!oandaStatus.connected) degradedReasons.push("OANDA_DISCONNECTED");
         if (!dataServiceStatus.isRunning) degradedReasons.push("DATA_SERVICE_STOPPED");
+        if (dataServiceStatus.freshness?.pricesFresh === false) {
+            degradedReasons.push("STALE_PRICE_DATA");
+        }
+        if (dataServiceStatus.freshness?.candlesFresh === false) {
+            degradedReasons.push("STALE_CANDLE_DATA");
+        }
         if (!signalGenStatus.isActive) degradedReasons.push("SIGNAL_GENERATOR_INACTIVE");
         if (!engineAttached) {
             degradedReasons.push(
@@ -632,7 +658,10 @@ router.get("/system/health", async (req, res) => {
             config: {
                 enableTrading: config.enableTrading || false,
                 assets: config.assets || [],
-                strategy: config.strategy || "supertrend_momentum",
+                strategy: strategyKey,
+                strategyLabel: strategyDefinition.label,
+                strategyVersion: strategyDefinition.version,
+                liveQualification: getStrategyLiveQualification(strategyKey),
                 timeframe: config.timeframe || "15m",
                 maxOpenPositions: config.maxOpenPositions || 2,
                 timesFmEnabled: config.timesFmEnabled === true,
@@ -1442,6 +1471,14 @@ router.post("/runtime/runs/:runId/promote", async (req, res) => {
     }
 
     const strategyDefinition = getStrategyDefinition(run.strategy);
+    const strategyQualification = getStrategyLiveQualification(run.strategy);
+    if (strategyQualification.liveEligible === false) {
+        return res.status(409).json({
+            error: `${strategyDefinition.label} is not qualified for live promotion`,
+            code: "STRATEGY_NOT_LIVE_QUALIFIED",
+            liveQualification: strategyQualification,
+        });
+    }
     if (
         strategyDefinition.metadata?.supportsLive !== true &&
         !isLiveSelectionReady(strategyDefinition)

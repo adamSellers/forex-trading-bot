@@ -7,6 +7,7 @@ const timesFmDirectionalStrategy = require("./timesFmDirectional");
 const correlationDivergenceStrategy = require("./correlationDivergence");
 const counterSignalReversionStrategy = require("./counterSignalReversion");
 const signalFollowingStrategy = require("./signalFollowing");
+const { getStrategyLiveQualification } = require("./liveQualification");
 const {
     CANONICAL_STRATEGY_KEYS,
     assertCanonicalStrategyKey,
@@ -40,10 +41,12 @@ function listStrategyCatalog() {
             key: definition.key,
             label: definition.label,
             description: definition.description,
+            version: definition.version,
             phaseIntroduced: definition.phaseIntroduced,
             runtimeStatus: definition.runtimeStatus,
             requiredData: definition.requiredData,
             metadata: definition.metadata,
+            liveQualification: getStrategyLiveQualification(definition.key),
         };
     });
 }
@@ -54,4 +57,5 @@ module.exports = {
     isCanonicalStrategyKey,
     getStrategyDefinition,
     listStrategyCatalog,
+    getStrategyLiveQualification,
 };

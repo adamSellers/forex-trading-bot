@@ -47,7 +47,12 @@ const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
 const SIDEBAR_WIDTH = 340;
 const DEFAULT_STRATEGY_KEY = 'supertrend_momentum';
 const FALLBACK_STRATEGY_OPTIONS = [
-  { key: 'supertrend_momentum', label: 'SuperTrend Momentum', runtimeStatus: 'baseline' },
+  {
+    key: 'supertrend_momentum',
+    label: 'SuperTrend Momentum',
+    version: '2.0.0',
+    runtimeStatus: 'baseline',
+  },
 ];
 
 const getStrategyOptions = (catalog = []) => {
@@ -501,6 +506,15 @@ const TradingDashboard = () => {
     () => getStrategyLabel(liveSelection?.strategy || selectedStrategy, strategyOptions),
     [liveSelection?.strategy, selectedStrategy, strategyOptions]
   );
+  const activeStrategyDefinition = useMemo(
+    () => strategyOptions.find(
+      (option) => option.key === (liveSelection?.strategy || selectedStrategy)
+    ) || null,
+    [liveSelection?.strategy, selectedStrategy, strategyOptions]
+  );
+  const activeStrategyVersion = activeStrategyDefinition?.version || 'unknown';
+  const activeLiveQualification = activeStrategyDefinition?.liveQualification ||
+    systemStatus?.config?.liveQualification || null;
   const calculatedDailyPnL = useMemo(() => {
     if (!trades || trades.length === 0) return 0;
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
@@ -517,7 +531,11 @@ const TradingDashboard = () => {
 
   const actionableSignalCount = useMemo(() => {
     return signalsToRender.filter(
-      (s) => s.signal === 'BUY' || s.signal === 'SELL'
+      (s) =>
+        (s.signal === 'BUY' || s.signal === 'SELL') &&
+        s.signalClass !== 'EXIT_ONLY' &&
+        s.entryType !== 'EXIT_ONLY' &&
+        !String(s.intent || '').startsWith('EXIT_')
     ).length;
   }, [signalsToRender]);
 
@@ -570,7 +588,7 @@ const TradingDashboard = () => {
         <Stack direction="row" spacing={2} alignItems="center">
           <Tooltip title="Live strategy changes are available only by promoting a gate-passing paper candidate">
             <Chip
-              label={`LIVE STRATEGY: ${activeStrategyLabel}`}
+              label={`LIVE STRATEGY: ${activeStrategyLabel} v${activeStrategyVersion}`}
               size="small"
               variant="outlined"
               sx={{ height: 32, fontWeight: 'bold' }}
@@ -697,6 +715,14 @@ const TradingDashboard = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+      {activeLiveQualification?.liveEligible === false && (
+        <Alert severity="warning" sx={{ mb: 2, flexShrink: 0 }}>
+          {activeStrategyLabel} v{activeStrategyVersion} is selected for observation and exit
+          management, but new live entries are blocked: {String(
+            activeLiveQualification.reasonCode || 'STRATEGY_NOT_LIVE_QUALIFIED'
+          ).replace(/_/g, ' ')}.
         </Alert>
       )}
       {notice && (

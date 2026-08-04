@@ -234,6 +234,7 @@ class SignalGenerator extends EventEmitter {
         tradePlan = null,
         expectedEdge = null,
         strategyContext = null,
+        strategyVersion = null,
     }) {
         const safeHtfContext = htfContext || {
             enabled: false,
@@ -298,6 +299,7 @@ class SignalGenerator extends EventEmitter {
             currentPrice: currentPrice,
             entryType,
             strategy: this.config.strategy || "supertrend_momentum",
+            strategyVersion,
             timeframe: this.config.timeframe || "15m",
             configHash,
             decisionContext,
@@ -1277,6 +1279,7 @@ class SignalGenerator extends EventEmitter {
                 tradePlan: evaluation.tradePlan || null,
                 expectedEdge: evaluation.expectedEdge || null,
                 strategyContext: evaluation.strategyContext || null,
+                strategyVersion: strategyDefinition.version,
             });
         } catch (error) {
             logger.error(

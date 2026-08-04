@@ -487,7 +487,8 @@ const AnalyticsDashboard = () => {
         <Box flex={{ xs: 1, lg: '0 0 35%' }} minWidth={{ lg: 350 }}>
           <SignalQualityWidget
             filterBreakdown={signalAnalysis?.filterBreakdown || []}
-            totalSignals={signalAnalysis?.total || 0}
+            totalSignals={signalAnalysis?.rawTotal || signalAnalysis?.total || 0}
+            uniqueDecisions={signalAnalysis?.decisionTotal || 0}
             avgStrength={signalAnalysis?.avgStrength || 0}
           />
         </Box>

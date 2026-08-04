@@ -80,4 +80,33 @@ describe("MarketReplayEngine", () => {
             )
         ).toBe(1);
     });
+
+    test("can aggregate the decision funnel without retaining every decision row", async () => {
+        const engine = new MarketReplayEngine({
+            strategy: () => ({
+                signal: "HOLD",
+                reasonCode: "RESEARCH_FILTER",
+            }),
+        });
+        const start = Date.parse("2026-07-01T00:00:00Z");
+        const result = await engine.run(
+            {
+                AUD_USD: [
+                    candle(start, 0.65, 0.651, 0.649, 0.65),
+                    candle(start + 900000, 0.65, 0.651, 0.649, 0.65),
+                ],
+            },
+            { captureDecisions: false }
+        );
+
+        expect(result.decisions).toEqual([]);
+        expect(result.decisionFunnel).toEqual([
+            expect.objectContaining({
+                instrument: "AUD_USD",
+                signal: "HOLD",
+                reasonCode: "RESEARCH_FILTER",
+                count: 2,
+            }),
+        ]);
+    });
 });

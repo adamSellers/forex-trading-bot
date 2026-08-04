@@ -90,7 +90,12 @@ export const KPICard = ({ title, value, subtitle, color = 'text.primary', icon }
 };
 
 // --- SIGNAL QUALITY PIE ---
-export const SignalQualityWidget = ({ filterBreakdown, totalSignals, avgStrength }) => {
+export const SignalQualityWidget = ({
+  filterBreakdown,
+  totalSignals,
+  uniqueDecisions,
+  avgStrength,
+}) => {
   const theme = useTheme();
 
   // Map color names to theme colors
@@ -119,11 +124,11 @@ export const SignalQualityWidget = ({ filterBreakdown, totalSignals, avgStrength
         <Box display="flex" alignItems="center" gap={1}>
           <FilterAlt color="secondary" fontSize="small" />
           <Typography variant="subtitle2" fontWeight="bold" color="text.secondary">
-            SIGNAL FILTERING
+            STRATEGY DECISIONS
           </Typography>
         </Box>
         <Chip
-          label={`${totalSignals} signals`}
+          label={`${uniqueDecisions} decisions / ${totalSignals} polls`}
           size="small"
           sx={{ height: 20, fontSize: '0.65rem' }}
         />

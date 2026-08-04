@@ -168,9 +168,27 @@ const dedupeBadges = (badges = []) =>
       collection.findIndex((candidate) => candidate.label === badge.label) === index
   );
 
+const isExitOnlySignal = (signal = {}) => (
+  signal.signalClass === 'EXIT_ONLY' ||
+  signal.entryType === 'EXIT_ONLY' ||
+  String(signal.intent || '').startsWith('EXIT_')
+);
+
+const getEntryBadge = (signal = {}) => ({
+  label:
+    signal.signal === 'SELL' || String(signal.intent || '').startsWith('ENTER_SHORT')
+      ? 'SHORT ENTRY'
+      : 'LONG ENTRY',
+  color: signal.signal === 'SELL' ? 'error' : 'success',
+});
+
 const getBaseStatusBadges = (signal = {}) => {
+  if (isExitOnlySignal(signal)) {
+    return [{ label: 'EXIT ONLY', color: 'info' }];
+  }
+
   if (signal.signal === 'BUY' || signal.signal === 'SELL' || signal.signalClass === 'ACTIONABLE') {
-    return [{ label: 'ENTRY', color: signal.signal === 'SELL' ? 'error' : 'success' }];
+    return [getEntryBadge(signal)];
   }
 
   if (signal.signalClass === 'PENDING') {
@@ -397,6 +415,12 @@ const getGenericSignalStatus = (signal, config) => {
   const waitingFor = signal.pendingEntry?.waitingFor;
   const signalType = signal.signal;
 
+  if (isExitOnlySignal(signal)) {
+    return {
+      badges: [{ label: 'EXIT ONLY', color: 'info' }],
+    };
+  }
+
   if (signal.signalClass === 'COOLDOWN') {
     return {
       badges: [{ label: 'COOLDOWN', color: 'default' }],
@@ -405,7 +429,7 @@ const getGenericSignalStatus = (signal, config) => {
 
   if (signalType === 'BUY' || signalType === 'SELL') {
     return {
-      badges: [{ label: 'NEW', color: 'success' }],
+      badges: [getEntryBadge(signal)],
     };
   }
 
@@ -563,11 +587,10 @@ const getStochasticReasonLabel = (reasonCode) => {
 const getStochasticStatusBadges = (signal, context) => {
   const badges = [];
 
-  if (signal.signalClass === 'ACTIONABLE' || signal.signal === 'BUY' || signal.signal === 'SELL') {
-    badges.push({
-      label: 'ENTRY',
-      color: signal.signal === 'SELL' ? 'error' : 'success',
-    });
+  if (isExitOnlySignal(signal)) {
+    badges.push({ label: 'EXIT ONLY', color: 'info' });
+  } else if (signal.signalClass === 'ACTIONABLE' || signal.signal === 'BUY' || signal.signal === 'SELL') {
+    badges.push(getEntryBadge(signal));
   } else if (signal.signalClass === 'PENDING') {
     badges.push({ label: 'PENDING', color: 'warning' });
   } else if (signal.signalClass === 'FILTERED') {
@@ -678,11 +701,10 @@ const getTimesFmReasonLabel = (signal = {}, timesFm = null) => {
 const getTimesFmStatusBadges = (signal = {}, timesFm = null) => {
   const badges = [];
 
-  if (signal.signal === 'BUY' || signal.signal === 'SELL') {
-    badges.push({
-      label: 'ENTRY',
-      color: signal.signal === 'SELL' ? 'error' : 'success',
-    });
+  if (isExitOnlySignal(signal)) {
+    badges.push({ label: 'EXIT ONLY', color: 'info' });
+  } else if (signal.signal === 'BUY' || signal.signal === 'SELL') {
+    badges.push(getEntryBadge(signal));
   } else if (timesFm?.available === false) {
     badges.push({ label: 'NO FORECAST', color: 'warning' });
   } else if (getTimesFmDirection(signal, timesFm) === 'NEUTRAL') {

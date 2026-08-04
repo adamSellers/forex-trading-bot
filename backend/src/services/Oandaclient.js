@@ -51,13 +51,7 @@ class OandaClient {
                 "⚠️ No Oanda API key found in environment variables. Trading features will be disabled."
             );
         } else {
-            const visibleKey =
-                this.apiKey.length > 8
-                    ? `${this.apiKey.substring(0, 4)}...${this.apiKey.slice(
-                          -4
-                      )}`
-                    : "INVALID/SHORT";
-            logger.info(`🔑 Oanda API Key detected: ${visibleKey}`);
+            logger.info("🔑 Oanda API credentials configured");
             logger.info(
                 `🌐 Using Oanda ${
                     process.env.OANDA_ENVIRONMENT === "practice"

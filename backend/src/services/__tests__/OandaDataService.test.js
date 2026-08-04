@@ -72,6 +72,45 @@ describe("OandaDataService required granularities", () => {
         service.updateRuntimeTimeframes(null);
         expect(service.getRequiredGranularities()).toEqual(["M15"]);
     });
+
+    test("reports price and candle refresh freshness without using candle market time", () => {
+        service.isRunning = true;
+        service.priceCache.AUD_USD = { timestamp: 99_000 };
+        service.candleCache.AUD_USD_M15 = [{ time: "2026-01-01T00:00:00Z" }];
+        service.candleCacheUpdatedAt.AUD_USD_M15 = 98_000;
+
+        expect(service.getFreshnessStatus({ nowMs: 100_000 })).toEqual(
+            expect.objectContaining({
+                pricesFresh: true,
+                candlesFresh: true,
+                oldestPriceAgeMs: 1_000,
+                oldestCandleRefreshAgeMs: 2_000,
+                stalePrices: [],
+                staleCandles: [],
+            })
+        );
+    });
+
+    test("identifies the exact stale or missing price and candle caches", () => {
+        service.updateRuntimeTimeframes(["1h"]);
+        service.priceCache.AUD_USD = { timestamp: 1_000 };
+        service.candleCacheUpdatedAt.AUD_USD_M15 = 1_000;
+
+        expect(
+            service.getFreshnessStatus({
+                nowMs: 200_000,
+                maxPriceAgeMs: 20_000,
+                maxCandleRefreshAgeMs: 180_000,
+            })
+        ).toEqual(
+            expect.objectContaining({
+                pricesFresh: false,
+                candlesFresh: false,
+                stalePrices: ["AUD_USD"],
+                staleCandles: ["AUD_USD_M15", "AUD_USD_H1"],
+            })
+        );
+    });
 });
 
 describe("OandaDataService AUD home conversions", () => {

@@ -279,15 +279,15 @@ function isUniqueSignalEvent(signal, seenSignalKeys) {
         return true;
     }
 
-    if (signal?.uniqueEvent !== null && signal?.uniqueEvent !== undefined) {
-        return Boolean(signal.uniqueEvent);
+    if (signal?.uniqueEvent === false) {
+        return false;
     }
 
     if (
         signal?.cooldownSuppressed !== null &&
         signal?.cooldownSuppressed !== undefined
     ) {
-        return !Boolean(signal.cooldownSuppressed);
+        if (signal.cooldownSuppressed === true) return false;
     }
 
     const dedupeKey = getSignalEventKey(signal);
@@ -297,6 +297,58 @@ function isUniqueSignalEvent(signal, seenSignalKeys) {
 
     seenSignalKeys.add(dedupeKey);
     return true;
+}
+
+function dedupeStrategyDecisions(signals = []) {
+    const seen = new Set();
+    const decisions = [];
+
+    signals.forEach((signal, index) => {
+        const instrument =
+            normalizeString(signal?.symbol) ||
+            normalizeString(signal?.instrument) ||
+            "UNKNOWN";
+        const signalCandleTime = toFiniteNumber(signal?.signalCandleTime, NaN);
+        const reasonCode = normalizeUpper(signal?.reasonCode) || "UNKNOWN";
+        const signalClass = normalizeUpper(signal?.signalClass) || "UNCLASSIFIED";
+        const intent = normalizeUpper(signal?.intent) || "UNSPECIFIED";
+        const identity = [
+            normalizeString(signal?.mode) || "live",
+            normalizeString(signal?.strategy) || "unknown",
+            normalizeString(signal?.runId) ||
+                normalizeString(signal?.run_id) ||
+                "unassigned",
+            instrument,
+        ];
+        let key;
+
+        if (Number.isFinite(signalCandleTime) && signalCandleTime > 0) {
+            key = [...identity, signalCandleTime, reasonCode, signalClass, intent].join(
+                "|"
+            );
+        } else if (normalizeString(signal?.setupId)) {
+            key = [
+                ...identity,
+                normalizeString(signal.setupId),
+                reasonCode,
+                signalClass,
+                intent,
+            ].join("|");
+        } else {
+            // Legacy rows do not carry enough identity to deduplicate safely.
+            key = `legacy|${normalizeString(signal?.id) || index}|${toFiniteNumber(
+                signal?.timestamp,
+                index
+            )}`;
+        }
+
+        if (!seen.has(key)) {
+            seen.add(key);
+            decisions.push(signal);
+        }
+    });
+
+    return decisions;
 }
 
 function createSignalCohort(signal) {
@@ -530,8 +582,10 @@ class AnalyticsService {
                           entryFunnel: this.calculateEntryFunnel(
                               signalEventSummary.uniqueActionableSignals,
                               entryDecisions,
-                              closedTrades
+                              closedTrades,
+                              signalAnalysis
                           ),
+                          strategyFunnel: signalAnalysis.decisionFunnel,
                           rejectionBreakdown:
                               this.calculateRejectionBreakdown(entryDecisions),
                           executionGapByCohort:
@@ -1031,8 +1085,11 @@ class AnalyticsService {
      */
     calculateSignalAnalysis(signals, eventSummary = null) {
         const summary = eventSummary || this.extractSignalEventSummary(signals);
+        const decisions = dedupeStrategyDecisions(signals);
         const stats = {
             total: signals.length,
+            rawTotal: signals.length,
+            decisionTotal: decisions.length,
             triggered: summary.uniqueActionableSignals.length,
             actionableTotal: summary.actionableTotal,
             actionableUnique: summary.uniqueActionableSignals.length,
@@ -1044,6 +1101,9 @@ class AnalyticsService {
             filteredAdxSlope: 0,
             filteredOverbought: 0,
             filteredOversold: 0,
+            filtered: 0,
+            marketState: 0,
+            setupForming: 0,
             pending: 0,
             hold: 0,
             byType: {},
@@ -1051,61 +1111,74 @@ class AnalyticsService {
             bySignalClass: {},
             byIntent: {},
             byReasonCode: {},
+            rawByReasonCode: {},
             avgStrength: 0,
             telemetryCoverage: summary.telemetryCoverage,
         };
 
         let totalStrength = 0;
-        const uniqueActionableSet = new Set(summary.uniqueActionableSignals);
-        const uniqueExitOnlySet = new Set(summary.uniqueExitOnlySignals);
 
         signals.forEach((signal) => {
+            const reasonCode = normalizeUpper(signal.reasonCode) || "UNKNOWN";
+            stats.rawByReasonCode[reasonCode] =
+                (stats.rawByReasonCode[reasonCode] || 0) + 1;
+        });
+
+        decisions.forEach((signal) => {
             const type = signal.signal || "UNKNOWN";
             const signalClass = normalizeUpper(signal.signalClass) || "UNCLASSIFIED";
             const intent = normalizeUpper(signal.intent) || "UNSPECIFIED";
             const reasonCode = normalizeUpper(signal.reasonCode) || "UNKNOWN";
             const message = (signal.message || "").toLowerCase();
-            const uniqueActionable = uniqueActionableSet.has(signal);
-            const uniqueExitOnly = uniqueExitOnlySet.has(signal);
             const actionable = isActionableSignal(signal);
             const cooldownDuplicate = isCooldownDuplicate(signal);
             const exitOnly = isExitOnlySignal(signal) && !cooldownDuplicate;
 
-            if (uniqueActionable || uniqueExitOnly) {
+            if (actionable || exitOnly || cooldownDuplicate) {
                 // Counted separately in top-level buckets.
-            } else if (
-                cooldownDuplicate ||
-                (actionable && signal.uniqueEvent === false) ||
-                (exitOnly && signal.uniqueEvent === false)
-            ) {
-                // Accounted for separately; don't blend suppressed duplicates into hold/filter buckets.
-            } else if (signalClass === "PENDING" || intent === "WAIT") {
+            } else if (signalClass === "PENDING") {
+                stats.setupForming++;
                 stats.pending++;
+                stats.hold++;
+            } else if (
+                signalClass === "INFO" ||
+                reasonCode === "BASE_TREND_STATE" ||
+                reasonCode.endsWith("_MARKET_STATE")
+            ) {
+                stats.marketState++;
                 stats.hold++;
             } else if (
                 message.includes("falling adx") ||
                 message.includes("adx_slope") ||
                 reasonCode.includes("ADX_SLOPE")
             ) {
+                stats.filtered++;
                 stats.filteredAdxSlope++;
             } else if (
                 message.includes("choppy") ||
-                message.includes("adx") ||
                 message.includes("weak") ||
-                reasonCode.includes("BLOCKED_ADX")
+                reasonCode.includes("BLOCKED_ADX") ||
+                reasonCode.includes("ADX_TOO_LOW")
             ) {
+                stats.filtered++;
                 stats.filteredChoppy++;
             } else if (
                 message.includes("overbought") ||
                 reasonCode.includes("OVERBOUGHT")
             ) {
+                stats.filtered++;
                 stats.filteredOverbought++;
             } else if (message.includes("oversold")) {
+                stats.filtered++;
                 stats.filteredOversold++;
             } else if (message.includes("momentum") && deriveSignalSide(signal) !== "SELL") {
+                stats.filtered++;
                 stats.filteredOverbought++;
             } else if (message.includes("momentum") && deriveSignalSide(signal) === "SELL") {
+                stats.filtered++;
                 stats.filteredOversold++;
+            } else if (signalClass === "FILTERED") {
+                stats.filtered++;
             } else {
                 stats.hold++;
             }
@@ -1127,7 +1200,7 @@ class AnalyticsService {
         });
 
         stats.avgStrength =
-            signals.length > 0 ? totalStrength / signals.length : 0;
+            decisions.length > 0 ? totalStrength / decisions.length : 0;
 
         // Convert to pie chart format
         stats.filterBreakdown = [
@@ -1139,7 +1212,7 @@ class AnalyticsService {
                 color: "secondary",
             },
             {
-                label: "Filtered (Choppy)",
+                label: "Filtered (Trend/ADX)",
                 value: stats.filteredChoppy,
                 color: "warning",
             },
@@ -1158,8 +1231,42 @@ class AnalyticsService {
                 value: stats.filteredOversold,
                 color: "info",
             },
-            { label: "Hold/Wait", value: stats.hold, color: "default" },
+            { label: "Setup Forming", value: stats.setupForming, color: "warning" },
+            { label: "Market State", value: stats.marketState, color: "default" },
+            {
+                label: "Other Filtered",
+                value: Math.max(
+                    0,
+                    stats.filtered -
+                        stats.filteredChoppy -
+                        stats.filteredAdxSlope -
+                        stats.filteredOverbought -
+                        stats.filteredOversold
+                ),
+                color: "default",
+            },
+            {
+                label: "Other Hold/Wait",
+                value: Math.max(0, stats.hold - stats.setupForming - stats.marketState),
+                color: "default",
+            },
         ].filter((d) => d.value > 0);
+
+        stats.decisionFunnel = {
+            summary: {
+                rawObservations: stats.rawTotal,
+                uniqueStrategyDecisions: stats.decisionTotal,
+                marketState: stats.marketState,
+                setupForming: stats.setupForming,
+                filtered: stats.filtered,
+                actionable: stats.actionableUnique,
+                exitOnly: stats.exitOnlyUnique,
+                cooldownDuplicates: stats.cooldownDuplicates,
+            },
+            reasons: Object.entries(stats.byReasonCode)
+                .map(([reasonCode, count]) => ({ reasonCode, count }))
+                .sort((left, right) => right.count - left.count),
+        };
 
         return stats;
     }
@@ -1346,7 +1453,12 @@ class AnalyticsService {
         return stats;
     }
 
-    calculateEntryFunnel(uniqueActionableSignals, entryDecisions, closedTrades) {
+    calculateEntryFunnel(
+        uniqueActionableSignals,
+        entryDecisions,
+        closedTrades,
+        signalAnalysis = null
+    ) {
         const decisions = Array.isArray(entryDecisions) ? entryDecisions : [];
         const validated = decisions.filter((decision) =>
             ["VALIDATED", "SIZED", "ORDER_SUBMITTED", "FILLED"].includes(
@@ -1380,6 +1492,11 @@ class AnalyticsService {
 
         return {
             summary: {
+                rawStrategyObservations: signalAnalysis?.rawTotal ?? generated,
+                uniqueStrategyDecisions:
+                    signalAnalysis?.decisionTotal ?? generated,
+                setupCandidates: signalAnalysis?.setupForming ?? 0,
+                strategyFiltered: signalAnalysis?.filtered ?? 0,
                 generatedSignals: generated,
                 trackedDecisions: tracked,
                 telemetryCoveragePct: toRate(tracked, generated),

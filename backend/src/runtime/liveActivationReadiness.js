@@ -154,6 +154,21 @@ function evaluateControlledBaselineResumeEligibility({
     const liveRun = liveSelection?.liveRun || null;
     const promotionGate = getPromotionGate(liveSelection);
 
+    if (
+        String(config.controlledBaselineQualificationStatus || "").toLowerCase() ===
+        "rejected"
+    ) {
+        reasons.push({
+            code: "BASELINE_STRATEGY_NOT_QUALIFIED",
+            message:
+                "The SuperTrend baseline failed the current out-of-sample strategy audit and cannot be resumed",
+            reasonCode:
+                config.controlledBaselineQualificationReasonCode ||
+                "FAILED_OUT_OF_SAMPLE_STRATEGY_AUDIT",
+            auditVersion: config.strategyAuditVersion || null,
+        });
+    }
+
     if (!liveRun) {
         reasons.push({
             code: "NO_ACTIVE_LIVE_SELECTION",
@@ -257,6 +272,22 @@ function evaluateControlledLiveReadiness({ liveSelection = null, config = {} } =
         : promotionEvidenceValid
           ? "candidate_promotion"
           : requestedActivationBasis;
+
+    if (
+        baselineResumeEvidenceValid &&
+        String(config.controlledBaselineQualificationStatus || "").toLowerCase() ===
+            "rejected"
+    ) {
+        reasons.push({
+            code: "BASELINE_STRATEGY_NOT_QUALIFIED",
+            message:
+                "The controlled SuperTrend baseline failed the current out-of-sample strategy audit",
+            reasonCode:
+                config.controlledBaselineQualificationReasonCode ||
+                "FAILED_OUT_OF_SAMPLE_STRATEGY_AUDIT",
+            auditVersion: config.strategyAuditVersion || null,
+        });
+    }
 
     if (!liveSelection?.liveRun) {
         reasons.push({

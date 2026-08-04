@@ -119,6 +119,41 @@ describe("liveActivationReadiness", () => {
         );
     });
 
+    test("blocks the audited SuperTrend baseline when production marks it rejected", () => {
+        const config = {
+            ...applyControlledLiveConfig({}),
+            controlledBaselineQualificationStatus: "rejected",
+            controlledBaselineQualificationReasonCode:
+                "FAILED_OUT_OF_SAMPLE_STRATEGY_AUDIT",
+            strategyAuditVersion: "2026-08-04",
+        };
+        const readiness = evaluateControlledLiveReadiness({
+            liveSelection: buildBaselineResumeSelection({
+                configHash: computeConfigHash(config),
+            }),
+            config,
+        });
+
+        expect(readiness.passed).toBe(false);
+        expect(readiness.reasons).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    code: "BASELINE_STRATEGY_NOT_QUALIFIED",
+                    auditVersion: "2026-08-04",
+                }),
+            ])
+        );
+        expect(
+            readiness.activationOptions.controlledBaselineResume.reasons
+        ).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    code: "BASELINE_STRATEGY_NOT_QUALIFIED",
+                }),
+            ])
+        );
+    });
+
     test("fails when any controlled portfolio risk cap is exceeded", () => {
         const config = {
             ...applyControlledLiveConfig({}),

@@ -45,6 +45,7 @@ describe('AnalyticsService', () => {
             expect(result).toHaveProperty('cohortExpectancy');
             expect(result).toHaveProperty('timesFmAnalysis');
             expect(result).toHaveProperty('entryFunnel');
+            expect(result).toHaveProperty('strategyFunnel');
             expect(result).toHaveProperty('rejectionBreakdown');
             expect(result).toHaveProperty('executionGapByCohort');
             expect(result).toHaveProperty('rawCounts');
@@ -427,6 +428,55 @@ describe('AnalyticsService', () => {
                     }),
                 ])
             );
+        });
+
+        test('deduplicates repeated closed-candle decisions and does not label market state as an ADX rejection', () => {
+            const signalCandleTime = Date.parse('2026-08-03T10:15:00Z');
+            const baseState = createHoldSignal({
+                symbol: 'EUR_USD',
+                signalClass: 'INFO',
+                intent: 'WAIT',
+                reasonCode: 'BASE_TREND_STATE',
+                signalCandleTime,
+                uniqueEvent: true,
+                message: 'Base trend state | ADX 24.2 | RSI 55.0',
+            });
+            const analysis = service.calculateSignalAnalysis([
+                baseState,
+                { ...baseState, timestamp: baseState.timestamp + 60_000 },
+            ]);
+
+            expect(analysis.rawTotal).toBe(2);
+            expect(analysis.decisionTotal).toBe(1);
+            expect(analysis.marketState).toBe(1);
+            expect(analysis.filteredChoppy).toBe(0);
+            expect(analysis.pending).toBe(0);
+            expect(analysis.decisionFunnel.summary).toEqual(
+                expect.objectContaining({
+                    rawObservations: 2,
+                    uniqueStrategyDecisions: 1,
+                    marketState: 1,
+                })
+            );
+        });
+
+        test('deduplicates actionable events even when every persisted poll row says uniqueEvent', () => {
+            const signalCandleTime = Date.parse('2026-08-03T10:15:00Z');
+            const actionable = createMockSignal({
+                signalClass: 'ACTIONABLE',
+                intent: 'ENTER_LONG',
+                reasonCode: 'LONG_ENTRY_ACTIONABLE',
+                signalCandleTime,
+                uniqueEvent: true,
+            });
+            const analysis = service.calculateSignalAnalysis([
+                actionable,
+                { ...actionable, timestamp: actionable.timestamp + 60_000 },
+            ]);
+
+            expect(analysis.actionableTotal).toBe(2);
+            expect(analysis.actionableUnique).toBe(1);
+            expect(analysis.triggered).toBe(1);
         });
     });
 

@@ -1596,6 +1596,7 @@ const supertrendMomentumStrategy = createStrategyDefinition({
     label: "SuperTrend Momentum",
     description:
         "Canonical live baseline using SuperTrend, ADX, RSI, ATR, and optional HTF confirmation.",
+    version: "2.0.0",
     phaseIntroduced: 1,
     runtimeStatus: "baseline",
     requiredData: {

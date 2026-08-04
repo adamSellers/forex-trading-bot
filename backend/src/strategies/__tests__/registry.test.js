@@ -37,7 +37,13 @@ describe("strategy registry", () => {
         expect(catalog[0]).toEqual(
             expect.objectContaining({
                 key: "supertrend_momentum",
+                version: "2.0.0",
                 runtimeStatus: "baseline",
+                liveQualification: expect.objectContaining({
+                    status: "REJECTED",
+                    liveEligible: false,
+                    reasonCode: "FAILED_OUT_OF_SAMPLE_STRATEGY_AUDIT",
+                }),
             })
         );
     });

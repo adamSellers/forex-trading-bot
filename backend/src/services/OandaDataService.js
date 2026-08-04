@@ -14,6 +14,8 @@ const HOME_CONVERSION_MAX_AGE_MS = 30_000;
 const AUD_CONVERSION_BRIDGES = ["AUD_USD"];
 const INSTRUMENT_METADATA_REFRESH_MS = 6 * 60 * 60 * 1000;
 const INSTRUMENT_METADATA_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const PRICE_FRESHNESS_MAX_AGE_MS = 20_000;
+const CANDLE_REFRESH_FRESHNESS_MAX_AGE_MS = 180_000;
 
 class OandaDataService extends EventEmitter {
     constructor(
@@ -491,6 +493,75 @@ class OandaDataService extends EventEmitter {
             candlesCached: Object.keys(this.candleCache).length,
             candleCount,
             candleGranularities: this.getRequiredGranularities(),
+            freshness: this.getFreshnessStatus(),
+        };
+    }
+
+    getFreshnessStatus(options = {}) {
+        const nowMs = Number(options.nowMs) || Date.now();
+        const maxPriceAgeMs =
+            Number(options.maxPriceAgeMs) || PRICE_FRESHNESS_MAX_AGE_MS;
+        const maxCandleRefreshAgeMs =
+            Number(options.maxCandleRefreshAgeMs) ||
+            CANDLE_REFRESH_FRESHNESS_MAX_AGE_MS;
+        const priceRows = this.instruments.map((instrument) => {
+            const updatedAt = Number(this.priceCache[instrument]?.timestamp) || null;
+            return {
+                instrument,
+                updatedAt,
+                ageMs: updatedAt === null ? null : Math.max(0, nowMs - updatedAt),
+            };
+        });
+        const candleRows = this.instruments.flatMap((instrument) =>
+            this.getRequiredGranularities().map((granularity) => {
+                const key = `${instrument}_${granularity}`;
+                const updatedAt = Number(this.candleCacheUpdatedAt[key]) || null;
+                return {
+                    key,
+                    instrument,
+                    granularity,
+                    updatedAt,
+                    ageMs:
+                        updatedAt === null ? null : Math.max(0, nowMs - updatedAt),
+                };
+            })
+        );
+        const stalePrices = priceRows.filter(
+            (row) => row.ageMs === null || row.ageMs > maxPriceAgeMs
+        );
+        const staleCandles = candleRows.filter(
+            (row) =>
+                row.ageMs === null || row.ageMs > maxCandleRefreshAgeMs
+        );
+        const finitePriceAges = priceRows
+            .map((row) => row.ageMs)
+            .filter(Number.isFinite);
+        const finiteCandleAges = candleRows
+            .map((row) => row.ageMs)
+            .filter(Number.isFinite);
+
+        return {
+            checkedAt: nowMs,
+            pricesFresh: stalePrices.length === 0,
+            candlesFresh: staleCandles.length === 0,
+            oldestPriceAgeMs:
+                finitePriceAges.length > 0 ? Math.max(...finitePriceAges) : null,
+            oldestCandleRefreshAgeMs:
+                finiteCandleAges.length > 0
+                    ? Math.max(...finiteCandleAges)
+                    : null,
+            lastPriceUpdateAt:
+                priceRows.length > 0 && priceRows.every((row) => row.updatedAt !== null)
+                    ? Math.max(...priceRows.map((row) => row.updatedAt))
+                    : null,
+            lastCandleRefreshAt:
+                candleRows.length > 0 && candleRows.every((row) => row.updatedAt !== null)
+                    ? Math.max(...candleRows.map((row) => row.updatedAt))
+                    : null,
+            maxPriceAgeMs,
+            maxCandleRefreshAgeMs,
+            stalePrices: stalePrices.map((row) => row.instrument),
+            staleCandles: staleCandles.map((row) => row.key),
         };
     }
 

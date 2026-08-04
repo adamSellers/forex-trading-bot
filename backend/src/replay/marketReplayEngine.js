@@ -396,6 +396,7 @@ class MarketReplayEngine {
         const prices = new Map();
         const trades = [];
         const decisions = [];
+        const decisionFunnel = new Map();
         const rejections = [];
         const equityCurve = [];
         let balanceAud = this.config.startingBalanceAud;
@@ -470,13 +471,26 @@ class MarketReplayEngine {
                 const tradingActive =
                     group.time >= toFiniteNumber(runOptions.tradeFrom, -Infinity) &&
                     group.time <= toFiniteNumber(runOptions.tradeTo, Infinity);
-                decisions.push({
+                const decision = {
                     instrument: candle.instrument,
                     time: group.time,
                     signal: signal.signal || signal.action || "HOLD",
                     reasonCode: signal.reasonCode || null,
                     warmup: !tradingActive,
+                };
+                const funnelKey = JSON.stringify({
+                    instrument: decision.instrument,
+                    signal: decision.signal,
+                    reasonCode: decision.reasonCode,
+                    warmup: decision.warmup,
                 });
+                decisionFunnel.set(
+                    funnelKey,
+                    (decisionFunnel.get(funnelKey) || 0) + 1
+                );
+                if (runOptions.captureDecisions !== false) {
+                    decisions.push(decision);
+                }
 
                 if (!tradingActive) continue;
 
@@ -559,6 +573,9 @@ class MarketReplayEngine {
             netPnlAud: balanceAud - this.config.startingBalanceAud,
             trades,
             decisions,
+            decisionFunnel: Array.from(decisionFunnel.entries()).map(
+                ([key, count]) => ({ ...JSON.parse(key), count })
+            ),
             rejections,
             equityCurve,
             openPositions: Array.from(positions.values()),

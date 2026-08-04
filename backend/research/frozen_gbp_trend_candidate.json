@@ -1,0 +1,17 @@
+[
+    {
+        "id": "gbp_trend_20d_60d_v1",
+        "family": "medium_term_trend",
+        "strategyVersion": "gbp-trend-20d-60d-v1",
+        "config": {
+            "instruments": ["GBP_USD"],
+            "fastBars": 1920,
+            "slowBars": 5760,
+            "breakoutBars": 1920,
+            "exitBars": 480,
+            "stopAtr": 4,
+            "riskReward": 10,
+            "maxHoldingBars": 11520
+        }
+    }
+]
