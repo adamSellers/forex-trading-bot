@@ -465,15 +465,15 @@ describe('LiveTradingEngine', () => {
             expect(result.reason).toBe('Already in position for this instrument');
         });
 
-        test('does not add a second ADX gate to the carry-trend strategy', async () => {
+        test('does not add a second ADX gate to the intraday strategy', async () => {
             const signal = createMockSignal({
                 strength: 0,
-                strategy: 'carry_trend',
-                entryType: 'CARRY_TREND_BREAKOUT',
+                strategy: 'intraday_momentum',
+                entryType: 'M15_RANGE_BREAKOUT',
             });
             const config = {
                 ...mockConfigService.get(),
-                strategy: 'carry_trend',
+                strategy: 'intraday_momentum',
                 enableAdxFilter: false,
                 enableSessionFilter: false,
             };
@@ -616,6 +616,42 @@ describe('LiveTradingEngine', () => {
                 })
             );
             expect(result.context.portfolioRisk.referenceCurrency).toBe('AUD');
+        });
+
+        test('does not carry a retired run loss streak into a new live release', async () => {
+            [1, 2, 3].forEach((index) =>
+                mockTradeRepository.trades.push({
+                    id: `old-loss-${index}`,
+                    isOpen: false,
+                    pnlAud: -0.1,
+                    exitTime: index,
+                    ownerRunId: 'retired-live-run',
+                })
+            );
+            const config = {
+                ...mockConfigService.get(),
+                maxPortfolioExposure: null,
+                maxConsecutiveLosses: 3,
+            };
+
+            const newRunResult = await engine.validateEntry(
+                createMockSignal({ runId: 'new-live-run' }),
+                config
+            );
+            const retiredRunResult = await engine.validateEntry(
+                createMockSignal({ runId: 'retired-live-run' }),
+                config
+            );
+
+            expect(newRunResult.valid).toBe(true);
+            expect(retiredRunResult).toEqual(
+                expect.objectContaining({
+                    valid: false,
+                    code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
+                    reason:
+                        'Portfolio risk rejected entry: CONSECUTIVE_LOSS_LIMIT',
+                })
+            );
         });
     });
 
@@ -1545,11 +1581,10 @@ describe('LiveTradingEngine', () => {
             expect(takeProfitSpy).not.toHaveBeenCalled();
             expect(oandaClient.modifyTrade).toHaveBeenCalledWith(
                 '489',
-                expect.objectContaining({ stopLossPrice: 1.16371 })
-            );
-            expect(oandaClient.modifyTrade).not.toHaveBeenCalledWith(
-                '489',
-                expect.objectContaining({ takeProfitPrice: expect.any(Number) })
+                expect.objectContaining({
+                    stopLossPrice: 1.16371,
+                    takeProfitPrice: 1.16888,
+                })
             );
             expect(trade).toEqual(
                 expect.objectContaining({
@@ -1557,6 +1592,43 @@ describe('LiveTradingEngine', () => {
                     takeProfitPrice: 1.16888,
                 })
             );
+        });
+
+        test('re-centers an intraday risk plan on the final quote and actual fill', async () => {
+            const signal = createMockSignal({
+                currentPrice: 1.16571,
+                tradePlan: {
+                    stopLossPrice: 1.16511,
+                    stopPips: 6,
+                    takeProfitPrice: 1.16661,
+                    targetRiskMultiple: 1.5,
+                },
+            });
+            const config = {
+                ...mockConfigService.get(),
+                minStopLossPips: 6,
+            };
+            jest.spyOn(engine, 'calculatePositionSize').mockResolvedValue(795);
+
+            const trade = await engine.executeEntry(signal, config);
+
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(
+                'AUD_USD',
+                795,
+                expect.objectContaining({
+                    stopLossPrice: 1.16516,
+                    takeProfitPrice: 1.16666,
+                })
+            );
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith(
+                '489',
+                expect.objectContaining({
+                    stopLossPrice: expect.closeTo(1.16511, 5),
+                    takeProfitPrice: expect.closeTo(1.16661, 5),
+                })
+            );
+            expect(trade.stopLossPrice).toBeCloseTo(1.16511, 5);
+            expect(trade.takeProfitPrice).toBeCloseTo(1.16661, 5);
         });
 
         test('should widen sub-floor tradePlan stops to the minStopLossPips floor', async () => {
@@ -1581,13 +1653,13 @@ describe('LiveTradingEngine', () => {
                 'AUD_USD',
                 795,
                 expect.objectContaining({
-                    stopLossPrice: 1.16451,
+                    stopLossPrice: 1.16456,
                     takeProfitPrice: 1.16888,
                     positionFill: 'OPEN_ONLY',
                 })
             );
-            // Floored plan stops keep SIGNAL_TRADE_PLAN source; the same price
-            // is sent again to obtain explicit broker confirmation.
+            // The order is protected around the final executable quote, then
+            // re-centered on the confirmed fill during broker confirmation.
             expect(oandaClient.modifyTrade).toHaveBeenCalledWith(
                 '489',
                 expect.objectContaining({ stopLossPrice: 1.16451 })
@@ -1617,7 +1689,7 @@ describe('LiveTradingEngine', () => {
                 'AUD_USD',
                 795,
                 expect.objectContaining({
-                    stopLossPrice: 1.16321,
+                    stopLossPrice: 1.16326,
                     takeProfitPrice: null,
                     positionFill: 'OPEN_ONLY',
                 })

@@ -4,16 +4,18 @@ This repository runs one automated strategy against one live OANDA account. It h
 
 ## Live strategy
 
-The only strategy is `carry_trend` version `1.0.0` on completed H4 and daily candles. It trades a fresh 20-day price breakout only when all of these agree:
+The only strategy is `intraday_momentum` version `1.0.0`. It evaluates completed M15 candles and trades only when all of these agree:
 
-- the completed daily close and 50/200-day EMAs define the same trend;
-- 60-day momentum is at least 1% in magnitude;
-- OANDA's current instrument financing makes the breakout direction materially better than the opposite direction;
-- the live spread, account, portfolio and price-freshness checks pass.
+- the completed H1 close, 20/50 EMAs and ADX define a directional regime;
+- M15 trend and RSI confirm that direction;
+- a fresh eight-bar breakout or four-bar pullback resumption occurs;
+- the pair is in a liquid, daylight-saving-aware Sydney, Tokyo, London or New York session;
+- spread plus expected slippage is no more than 15% of the planned stop;
+- the live account, portfolio, price-freshness and execution checks pass.
 
-Every entry receives a broker-side protective stop at the greater of 2.5 daily ATR or 20 pips. Position size risks 0.5% of NAV, is capped to A$100 capital, and only one position may be open. There is no fixed take-profit or time stop; trend invalidation, breakeven and monotonic trailing-stop logic manage exits.
+Every entry receives broker-side stop-loss and take-profit protection. The initial stop is the greater of 1.25 M15 ATR or six pips, the target is 1.5R, breakeven activates at 1R, and a six-hour time stop plus a narrow pre-rollover exit window keep positions intraday. Position size risks 0.25% of NAV, is capped to A$100 capital, and only one position may be open.
 
-This is an unproven trading hypothesis being tested with real money. Positive returns are not guaranteed. The intended cadence is low: roughly zero to a few entries per month across the seven configured major pairs, depending on whether fresh breakouts and financing alignment occur together.
+This is an unproven trading hypothesis being tested with real money. Positive returns are not guaranteed. The design target is approximately 5–15 trades per week across four liquid major pairs, but observed live cadence—not a forced quota—is the source of truth.
 
 ## Runtime
 
@@ -31,7 +33,6 @@ The engine reconciles its database with OANDA after restart, persists determinis
 cd backend
 npm test -- --runInBand
 cd ../frontend
-npm run lint
 npm run build
 ```
 
@@ -48,4 +49,4 @@ cd /opt/forex-trading-bot
 ./scripts/update.sh
 ```
 
-See [USER_GUIDE.md](USER_GUIDE.md) for the operator surface and [LIVE_ONLY_REBUILD_2026-08-04.md](LIVE_ONLY_REBUILD_2026-08-04.md) for the design and live improvement loop.
+See [USER_GUIDE.md](USER_GUIDE.md) for the operator surface and [M15_INTRADAY_RELEASE_2026-08-10.md](M15_INTRADAY_RELEASE_2026-08-10.md) for the current design and live improvement loop.

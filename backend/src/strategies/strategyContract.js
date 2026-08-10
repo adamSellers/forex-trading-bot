@@ -1,4 +1,4 @@
-const CANONICAL_STRATEGY_KEYS = Object.freeze(["carry_trend"]);
+const CANONICAL_STRATEGY_KEYS = Object.freeze(["intraday_momentum"]);
 
 const CANONICAL_STRATEGY_KEY_SET = new Set(CANONICAL_STRATEGY_KEYS);
 

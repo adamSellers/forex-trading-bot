@@ -82,6 +82,10 @@ const OWNER_EXIT_POLICY_VERSION = 1;
 const OWNER_EXIT_CONFIG_KEYS = [
     "timeStopHours",
     "sessionCloseHourUTC",
+    "sessionCloseTimeZone",
+    "sessionCloseLocalHour",
+    "sessionCloseLocalMinute",
+    "sessionCloseWindowMinutes",
     "enableBreakeven",
     "breakevenTriggerPips",
     "breakevenTriggerRiskMultiple",
@@ -230,6 +234,65 @@ function resolveTrailingStopDistances({
 function resolveTimedExitReason({ trade = {}, policy = {}, now = Date.now() }) {
     const config = policy.config || policy || {};
     const entryTime = toFiniteNumber(trade.entryTime, now);
+    const sessionCloseTimeZone = String(
+        config.sessionCloseTimeZone || ""
+    ).trim();
+    const sessionCloseLocalHour = toFiniteNumber(
+        config.sessionCloseLocalHour,
+        null
+    );
+    const sessionCloseLocalMinute = Math.max(
+        0,
+        Math.min(59, toFiniteNumber(config.sessionCloseLocalMinute, 0))
+    );
+    const sessionCloseWindowMinutes = Math.max(
+        1,
+        toFiniteNumber(config.sessionCloseWindowMinutes, 30)
+    );
+    if (
+        sessionCloseTimeZone &&
+        Number.isFinite(sessionCloseLocalHour) &&
+        sessionCloseLocalHour >= 0 &&
+        sessionCloseLocalHour <= 23
+    ) {
+        try {
+            const parts = new Intl.DateTimeFormat("en-US", {
+                timeZone: sessionCloseTimeZone,
+                hour: "2-digit",
+                minute: "2-digit",
+                hourCycle: "h23",
+            }).formatToParts(new Date(now));
+            const values = Object.fromEntries(
+                parts
+                    .filter((part) => part.type !== "literal")
+                    .map((part) => [part.type, Number(part.value)])
+            );
+            const currentMinuteOfDay = values.hour * 60 + values.minute;
+            const closeMinuteOfDay =
+                sessionCloseLocalHour * 60 + sessionCloseLocalMinute;
+            if (
+                currentMinuteOfDay >= closeMinuteOfDay &&
+                currentMinuteOfDay <
+                    closeMinuteOfDay + sessionCloseWindowMinutes
+            ) {
+                return "SESSION_CLOSE";
+            }
+        } catch (_error) {
+            // An invalid timezone fails over to the legacy UTC close below.
+        }
+    }
+
+    const sessionCloseHourUtc = toFiniteNumber(
+        config.sessionCloseHourUTC,
+        null
+    );
+    if (
+        Number.isFinite(sessionCloseHourUtc) &&
+        new Date(now).getUTCHours() >= sessionCloseHourUtc
+    ) {
+        return "SESSION_CLOSE";
+    }
+
     const timeStopHours = toFiniteNumber(config.timeStopHours, null);
     if (
         Number.isFinite(timeStopHours) &&

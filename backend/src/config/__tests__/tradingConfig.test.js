@@ -18,17 +18,17 @@ describe("tradingConfig", () => {
 
     test("materializes strategy defaults into a self-contained snapshot", () => {
         const config = materializeStrategyConfig({
-            strategy: "carry_trend",
+            strategy: "intraday_momentum",
             assets: ["EUR_USD"],
         });
 
         expect(config).toEqual(
             expect.objectContaining({
-                strategy: "carry_trend",
+                strategy: "intraday_momentum",
                 assets: ["EUR_USD"],
-                carryTrendFastDays: 50,
-                carryTrendSlowDays: 200,
-                carryTrendBreakoutDays: 20,
+                intradayFastEmaPeriod: 20,
+                intradaySlowEmaPeriod: 50,
+                intradayBreakoutBars: 8,
                 referenceCurrency: "AUD",
             })
         );
@@ -36,12 +36,12 @@ describe("tradingConfig", () => {
 
     test("hashes strategy, model, exit, and future canonical fields", () => {
         const base = materializeStrategyConfig({
-            strategy: "carry_trend",
-            carryTrendMinimumMomentum: 0.01,
+            strategy: "intraday_momentum",
+            intradayMinAdx: 20,
             trailingStopRiskMultiple: 1,
             futureLiveField: "a",
         });
-        const modelChanged = { ...base, carryTrendMinimumMomentum: 0.02 };
+        const modelChanged = { ...base, intradayMinAdx: 22 };
         const exitChanged = { ...base, trailingStopRiskMultiple: 1.5 };
         const futureFieldChanged = { ...base, futureLiveField: "b" };
 
@@ -52,7 +52,7 @@ describe("tradingConfig", () => {
         );
         expect(buildHashableConfig(base)).toEqual(
             expect.objectContaining({
-                carryTrendMinimumMomentum: 0.01,
+                intradayMinAdx: 20,
                 trailingStopRiskMultiple: 1,
                 futureLiveField: "a",
             })
@@ -60,7 +60,9 @@ describe("tradingConfig", () => {
     });
 
     test("does not change experiment identity for operational pause state", () => {
-        const config = materializeStrategyConfig({ strategy: "carry_trend" });
+        const config = materializeStrategyConfig({
+            strategy: "intraday_momentum",
+        });
         expect(computeConfigHash({ ...config, enableTrading: true })).toBe(
             computeConfigHash({ ...config, enableTrading: false })
         );

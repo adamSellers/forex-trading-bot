@@ -1,4 +1,5 @@
 const { evaluatePortfolioRisk } = require("../portfolioRiskPolicy");
+const { cloneDefaultConfig } = require("../../config/tradingConfig");
 
 const permissiveConfig = {
     minNavAud: 50,
@@ -27,6 +28,22 @@ describe("portfolioRiskPolicy", () => {
         expect(result.passed).toBe(true);
         expect(result.referenceCurrency).toBe("AUD");
         expect(result.metrics.aggregateStopRiskPctNav).toBe(0.005);
+    });
+
+    test("allows the release-sized one-position notional inside the margin envelope", () => {
+        const result = evaluatePortfolioRisk({
+            navAud: 96.74,
+            proposedTrade: {
+                instrument: "USD_JPY",
+                side: "BUY",
+                notionalAud: 508.5,
+                stopRiskAud: 0.19323,
+            },
+            config: cloneDefaultConfig(),
+        });
+
+        expect(result.passed).toBe(true);
+        expect(result.metrics.largestNetCurrencyExposurePctNav).toBeLessThan(6);
     });
 
     test("fails closed when NAV, stop risk, or AUD notional is unavailable", () => {

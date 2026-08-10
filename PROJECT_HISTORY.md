@@ -25,11 +25,21 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The current product has one live OANDA runtime and one strategy: `carry_trend` `1.0.0`. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
+The current product has one live OANDA runtime and one strategy: `intraday_momentum` `1.0.0`. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
 
 ---
 
 ## Completed Features
+
+### 2026-08-10 - M15 Intraday Momentum Live Release (Code Complete)
+
+**Summary**: Replaced the low-frequency daily carry breakout with the `m15-intraday-v1` release. The sole strategy uses completed M15 triggers, completed H1 EMA/ADX direction, M15 RSI confirmation, pair-specific daylight-saving-aware liquid sessions, and a spread-plus-slippage cost gate.
+
+**Risk and exits**: 0.25% NAV risk, A$100 capital cap, one position, 1.25 M15 ATR/six-pip minimum broker stop, 1.5R broker take profit, breakeven at 1R, six-hour time stop, narrow pre-rollover closure, 1% daily loss halt, three-loss halt and 5% high-watermark drawdown halt.
+
+**Removal**: Deleted the runnable `carry_trend` strategy and its configuration surface. Historical trade records and the dated August 4 design document remain as audit history.
+
+**Deployment Note**: Mark deployed only after the production rollout, live-readiness check and broker reconciliation complete.
 
 ### 2026-08-04 - Live-Only Carry Trend Rebuild (Code Complete)
 

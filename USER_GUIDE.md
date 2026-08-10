@@ -1,10 +1,10 @@
 # Live Trading Operator Guide
 
-The application now has one job: run `carry_trend` against the configured live OANDA account.
+The application now has one job: run `intraday_momentum` against the configured live OANDA account.
 
 ## What the dashboard means
 
-- **Setup forming**: daily trend, momentum or financing is valid, but there is no fresh completed-candle breakout.
+- **Setup forming**: the H1 regime is valid, but M15 confirmation or a fresh completed-candle trigger is absent.
 - **Actionable**: a new live BUY or SELL passed the strategy and is ready for execution checks.
 - **Exit only**: close the corresponding existing position; never open the opposite side from that event.
 - **Rejected**: an actionable event failed an explicit live check such as spread, stale price, position limit, risk, margin or account state.
@@ -16,16 +16,17 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 | Setting | Value |
 | --- | --- |
-| Release | `carry-trend-v1` |
-| Strategy | `carry_trend` `1.0.0` |
-| Decision candles | completed H4 and daily |
-| Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY, NZD/USD, USD/CAD, USD/CHF |
-| Entry | fresh 20-day breakout with 50/200 EMA, 60-day momentum and financing alignment |
-| Entry risk | 0.5% of NAV |
+| Release | `m15-intraday-v1` |
+| Strategy | `intraday_momentum` `1.0.0` |
+| Decision candles | completed M15 with completed H1 regime context |
+| Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
+| Entry | eight-bar breakout or four-bar pullback resumption with H1 EMA/ADX and M15 RSI alignment |
+| Entry risk | 0.25% of NAV |
 | Capital cap | A$100 |
 | Concurrent positions | 1 |
-| Initial stop | max(2.5 daily ATR, 20 pips) |
-| Take profit | none |
+| Initial stop | max(1.25 M15 ATR, 6 pips) |
+| Take profit | 1.5R broker order; breakeven at 1R |
+| Time controls | six-hour time stop and pre-rollover close window |
 | New-install trading state | disabled; an existing production enable state is preserved across this release |
 
 ## Live controls
@@ -49,12 +50,12 @@ The old strategy-selection endpoint returns HTTP 405. The active strategy can ch
 
 Changes go directly to a versioned live release. Use actual OANDA outcomes as the evidence:
 
-1. Record the completed-candle setup, financing snapshot, spread, requested units, actual fill, initial stop and rejection reason.
-2. For every closed trade, review realized P&L, financing, slippage, maximum favorable/adverse movement, holding time and exit reason.
+1. Record the completed M15 trigger, H1 regime, pair session, spread/cost ratio, requested units, actual fill, initial stop and rejection reason.
+2. For every closed trade, review realized P&L, spread, slippage, maximum favorable/adverse movement, holding time and exit reason.
 3. Review the entry funnel weekly, including all no-trade reason codes. Do not judge only the trades that filled.
 4. Change one coherent hypothesis at a time, bump the strategy/release version, test execution and risk regressions, deploy, and compare the new live cohort with prior real trades.
 
-Do not weaken filters merely to create activity. The model is deliberately selective, and several weeks without an entry can be valid when there is no fresh breakout aligned with financing.
+The design target is roughly 5–15 trades per week, not a quota. A quiet day is possible, but repeated weeks with materially lower cadence should trigger a review of the decision funnel rather than arbitrary filter removal.
 
 ## Incident rule
 

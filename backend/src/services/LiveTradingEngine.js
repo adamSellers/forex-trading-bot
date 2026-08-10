@@ -435,7 +435,7 @@ class LiveTradingEngine extends EventEmitter {
         if (!signal || !signal.symbol) return false;
         if (signal.signal !== "BUY" && signal.signal !== "SELL") return false;
         if (signal.entryEnabled === false) return false;
-        if (signal.signal === "SELL" && signal.entryType === "EXIT_ONLY") {
+        if (signal.entryType === "EXIT_ONLY") {
             return false;
         }
         return true;
@@ -1229,6 +1229,13 @@ class LiveTradingEngine extends EventEmitter {
                     (left, right) =>
                         Number(left.exitTime || 0) - Number(right.exitTime || 0)
                 );
+            const activeRunClosedTrades = signal.runId
+                ? allClosedTrades.filter(
+                      (trade) =>
+                          (trade.ownerRunId || trade.runId || null) ===
+                          signal.runId
+                  )
+                : allClosedTrades;
             const dailyRealizedPnlAud = allClosedTrades
                 .filter(
                     (trade) =>
@@ -1240,11 +1247,13 @@ class LiveTradingEngine extends EventEmitter {
             );
             let consecutiveLosses = 0;
             for (
-                let index = allClosedTrades.length - 1;
+                let index = activeRunClosedTrades.length - 1;
                 index >= 0;
                 index -= 1
             ) {
-                if (toFiniteNumber(allClosedTrades[index].pnlAud, 0) < 0) {
+                if (
+                    toFiniteNumber(activeRunClosedTrades[index].pnlAud, 0) < 0
+                ) {
                     consecutiveLosses += 1;
                 } else {
                     break;
@@ -2044,24 +2053,40 @@ class LiveTradingEngine extends EventEmitter {
 
         let stopLossPrice = toFiniteNumber(context.initialStopLossPrice, null);
         let pendingStopUpdate = null;
-        const desiredStop =
-            context.stopLossSource === "SIGNAL_TRADE_PLAN"
-                ? stopLossPrice
-                : this.resolveStopLoss(signal, config, fillPrice).stopLossPrice;
+        const fillAlignedPlan = resolveCanonicalTradePlan({
+            signal,
+            config,
+            entryPrice: fillPrice,
+            pipValue: oandaClient.getPipValue(signal.symbol),
+        });
+        const desiredStop = toFiniteNumber(
+            fillAlignedPlan?.stopLossPrice,
+            stopLossPrice
+        );
+        const desiredTakeProfit = toFiniteNumber(
+            fillAlignedPlan?.takeProfitPrice,
+            toFiniteNumber(context.plannedTakeProfitPrice, null)
+        );
+        let fillAlignmentConfirmed = false;
         if (Number.isFinite(desiredStop)) {
             try {
                 // Confirm protection through a broker response even when the
                 // same stop was requested as stopLossOnFill.
                 await oandaClient.modifyTrade(oandaTradeId, {
                     stopLossPrice: desiredStop,
+                    ...(Number.isFinite(desiredTakeProfit)
+                        ? { takeProfitPrice: desiredTakeProfit }
+                        : {}),
                     instrument: signal.symbol,
                     instrumentMetadata: context.instrumentMetadata,
                 });
                 stopLossPrice = desiredStop;
+                fillAlignmentConfirmed = true;
             } catch (error) {
                 pendingStopUpdate = {
                     status: "RETRY_PENDING",
                     desiredPrice: desiredStop,
+                    desiredTakeProfitPrice: desiredTakeProfit,
                     stopType: "INITIAL_STOP_ALIGNMENT",
                     attempts: 1,
                     lastError: error.message,
@@ -2106,7 +2131,9 @@ class LiveTradingEngine extends EventEmitter {
         );
         const marginUsed = toFiniteNumber(opened?.initialMarginRequired, 0);
         let takeProfit = null;
-        let takeProfitPrice = toFiniteNumber(context.plannedTakeProfitPrice, null);
+        let takeProfitPrice = fillAlignmentConfirmed
+            ? desiredTakeProfit
+            : toFiniteNumber(context.plannedTakeProfitPrice, null);
         if (
             !Number.isFinite(takeProfitPrice) &&
             marginUsed > 0 &&
@@ -2404,15 +2431,14 @@ class LiveTradingEngine extends EventEmitter {
 
         logger.info(`🎯 Executing entry for ${symbol} at ${currentPrice}`);
 
+        const initialPlan = this.resolveStopLoss(signal, config);
         const {
             stopLossPips,
             stopLossPrice: initialStopLossPrice,
             source: stopLossSource,
-        } = this.resolveStopLoss(
-            signal,
-            config
-        );
-        const plannedTakeProfitPrice = this.getPlannedTakeProfitPrice(signal);
+        } = initialPlan;
+        let plannedStopLossPrice = initialStopLossPrice;
+        let plannedTakeProfitPrice = this.getPlannedTakeProfitPrice(signal);
         const configHash =
             signal.configHash ||
             config.configHash ||
@@ -2464,6 +2490,36 @@ class LiveTradingEngine extends EventEmitter {
                 config,
                 instrumentMetadata
             );
+            const executablePlan = resolveCanonicalTradePlan({
+                signal,
+                config,
+                entryPrice: finalQuote.finalQuote,
+                pipValue: oandaClient.getPipValue(symbol),
+            });
+            if (executablePlan) {
+                plannedStopLossPrice = Number(
+                    oandaClient.formatPrice
+                        ? oandaClient.formatPrice(
+                              symbol,
+                              executablePlan.stopLossPrice,
+                              instrumentMetadata
+                          )
+                        : executablePlan.stopLossPrice.toFixed(5)
+                );
+                plannedTakeProfitPrice = Number.isFinite(
+                    executablePlan.takeProfitPrice
+                )
+                    ? Number(
+                          oandaClient.formatPrice
+                              ? oandaClient.formatPrice(
+                                    symbol,
+                                    executablePlan.takeProfitPrice,
+                                    instrumentMetadata
+                                )
+                              : executablePlan.takeProfitPrice.toFixed(5)
+                      )
+                    : null;
+            }
             const { baseToAudRate, quoteToAudRate } =
                 this.resolveAudConversionSnapshot(
                     symbol,
@@ -2520,7 +2576,7 @@ class LiveTradingEngine extends EventEmitter {
                 requestPayload: {
                     instrument: symbol,
                     units: orderUnits,
-                    stopLossPrice: initialStopLossPrice,
+                    stopLossPrice: plannedStopLossPrice,
                     takeProfitPrice: plannedTakeProfitPrice,
                     priceBound: finalQuote.priceBound,
                     positionFill: "OPEN_ONLY",
@@ -2531,7 +2587,7 @@ class LiveTradingEngine extends EventEmitter {
                     config: JSON.parse(JSON.stringify(config)),
                     configHash,
                     stopLossPips,
-                    initialStopLossPrice,
+                    initialStopLossPrice: plannedStopLossPrice,
                     stopLossSource,
                     plannedTakeProfitPrice,
                     spreadPips,
@@ -2561,7 +2617,7 @@ class LiveTradingEngine extends EventEmitter {
                 intentId,
                 finalQuote: finalQuote.finalQuote,
                 priceBound: finalQuote.priceBound,
-                stopLossPrice: initialStopLossPrice,
+                stopLossPrice: plannedStopLossPrice,
                 takeProfitPrice: plannedTakeProfitPrice,
             });
 
@@ -2577,7 +2633,7 @@ class LiveTradingEngine extends EventEmitter {
                     symbol,
                     orderUnits,
                     {
-                        stopLossPrice: initialStopLossPrice,
+                        stopLossPrice: plannedStopLossPrice,
                         takeProfitPrice: plannedTakeProfitPrice,
                         priceBound: finalQuote.priceBound,
                         orderIntentId: intentId,

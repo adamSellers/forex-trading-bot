@@ -28,7 +28,7 @@ function normalizeRunRecord(runRecord = {}) {
             runRecord.strategy ||
             runRecord.configSnapshot?.strategy ||
             runRecord.config?.strategy ||
-            "carry_trend",
+            "intraday_momentum",
     };
     const configSnapshot = materializeStrategyConfig(rawConfig, {
         strategyKey: rawConfig.strategy,
@@ -446,7 +446,8 @@ class RuntimeCoordinator extends EventEmitter {
         const active = this.getActiveLiveSession();
         const requested = {
             ...(configSnapshot || this.configService?.get?.() || {}),
-            strategy: strategyKey || active?.run.strategy || "carry_trend",
+            strategy:
+                strategyKey || active?.run.strategy || "intraday_momentum",
         };
         const config = materializeStrategyConfig(requested, {
             strategyKey: requested.strategy,
@@ -501,10 +502,11 @@ class RuntimeCoordinator extends EventEmitter {
         }
         const active = this.getActiveLiveSession();
         const deployed = materializeStrategyConfig(
-            this.configService?.get?.() || { strategy: "carry_trend" },
+            this.configService?.get?.() || { strategy: "intraday_momentum" },
             {
                 strategyKey:
-                    this.configService?.get?.().strategy || "carry_trend",
+                    this.configService?.get?.().strategy ||
+                    "intraday_momentum",
             }
         );
         const deployedHash = computeConfigHash(deployed);

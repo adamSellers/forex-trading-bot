@@ -20,11 +20,6 @@ const number = (value, digits = 2) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed.toFixed(digits) : '--';
 };
-const percent = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? `${(parsed * 100).toFixed(2)}%` : '--';
-};
-
 const signalColor = (signal) => {
   if (signal === 'BUY') return 'success';
   if (signal === 'SELL') return 'error';
@@ -49,7 +44,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
           <Radar sx={{ fontSize: 48, opacity: 0.25 }} />
           <Typography variant="body2" fontWeight={800}>WAITING FOR LIVE MARKET SNAPSHOT</Typography>
           <Typography variant="caption" color="text.secondary" textAlign="center">
-            Carry Trend is loading complete H4 and daily candles plus current OANDA financing metadata.
+            M15 Intraday Momentum is loading complete M15 and H1 candles plus the current OANDA spread.
           </Typography>
           {candles < target && (
             <Box width="100%" mt={1}>
@@ -76,7 +71,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                 </Box>
                 <Stack alignItems="flex-end" spacing={0.5}>
                   <Chip size="small" label={signal.signal} color={signalColor(signal.signal)} />
-                  <Typography variant="caption">Carry {percent(context.financing?.carryAdvantageAnnual)}</Typography>
+                  <Typography variant="caption">H1 ADX {number(context.h1?.adx, 1)}</Typography>
                 </Stack>
               </Stack>
             </Box>
@@ -93,18 +88,19 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
           <TableRow>
             <TableCell>Pair</TableCell>
             <TableCell>Live action</TableCell>
-            <TableCell>Daily trend</TableCell>
-            <TableCell align="right">60d momentum</TableCell>
-            <TableCell align="right">Carry edge</TableCell>
+            <TableCell>H1 regime</TableCell>
+            <TableCell align="right">H1 ADX</TableCell>
+            <TableCell align="right">M15 / cost</TableCell>
             <TableCell>Decision</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {filtered.map((signal) => {
             const context = signal.strategyContext || signal.decisionContext?.strategyContext || {};
-            const daily = context.daily || {};
-            const financing = context.financing || {};
-            const trend = daily.longTrend ? 'LONG' : daily.shortTrend ? 'SHORT' : 'FLAT';
+            const h1 = context.h1 || {};
+            const m15 = context.m15 || {};
+            const costs = context.costs || {};
+            const trend = h1.longRegime ? 'LONG' : h1.shortRegime ? 'SHORT' : 'FLAT';
             return (
               <TableRow key={`${signal.symbol}-${signal.signalCandleTime}-${signal.reasonCode}`} hover>
                 <TableCell>
@@ -120,13 +116,13 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                   </Stack>
                 </TableCell>
                 <TableCell>{trend}</TableCell>
-                <TableCell align="right">{percent(daily.momentum)}</TableCell>
+                <TableCell align="right">{number(h1.adx, 1)}</TableCell>
                 <TableCell align="right">
                   <Typography variant="body2" fontFamily="monospace">
-                    {percent(financing.carryAdvantageAnnual)}
+                    RSI {number(m15.rsi, 1)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    L {percent(financing.longRateAnnual)} / S {percent(financing.shortRateAnnual)}
+                    spread {number(costs.spreadPips, 1)}p / stop {number(costs.stopPips, 1)}p
                   </Typography>
                 </TableCell>
                 <TableCell sx={{ maxWidth: 360 }}>

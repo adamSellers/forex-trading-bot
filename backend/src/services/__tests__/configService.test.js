@@ -26,15 +26,15 @@ describe("ConfigService governance", () => {
         expect(service.get()).toEqual(
             expect.objectContaining({
                 enableTrading: true,
-                liveReleaseVersion: "carry-trend-v1",
-                strategy: "carry_trend",
-                timeframe: "4h",
+                liveReleaseVersion: "m15-intraday-v1",
+                strategy: "intraday_momentum",
+                timeframe: "15m",
             })
         );
         expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(
             expect.objectContaining({
                 enableTrading: true,
-                strategy: "carry_trend",
+                strategy: "intraday_momentum",
             })
         );
     });
@@ -65,12 +65,12 @@ describe("ConfigService governance", () => {
             {
                 enableTrading: true,
                 maxOpenPositions: 1,
-                riskPerTrade: 0.005,
+                riskPerTrade: 0.0025,
                 maxCapitalAtRisk: 50,
                 maxPortfolioExposure: 0.1,
-                maxAggregateStopRiskPctNav: 0.01,
-                maxDailyLossPctNav: 0.02,
-                maxDrawdownPctNav: 0.08,
+                maxAggregateStopRiskPctNav: 0.005,
+                maxDailyLossPctNav: 0.01,
+                maxDrawdownPctNav: 0.05,
                 maxConsecutiveLosses: 3,
             },
             { allowLiveActivation: true }

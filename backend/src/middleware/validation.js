@@ -5,7 +5,7 @@
 
 const logger = require("../utils/logger");
 
-const LIVE_STRATEGIES = new Set(["carry_trend"]);
+const LIVE_STRATEGIES = new Set(["intraday_momentum"]);
 
 class ValidationMiddleware {
     static validateTradingConfig(req, res, next) {
@@ -15,7 +15,9 @@ class ValidationMiddleware {
         try {
             // Validate strategy
             if (body.strategy && !LIVE_STRATEGIES.has(body.strategy)) {
-                errors.push("Invalid strategy. This release supports carry_trend only.");
+                errors.push(
+                    "Invalid strategy. This release supports intraday_momentum only."
+                );
             }
 
             // Validate risk parameters

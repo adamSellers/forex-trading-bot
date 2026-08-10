@@ -8,12 +8,12 @@ const {
 const { createStrategyDefinition, createNoopResult } = require("../strategyContract");
 
 describe("live strategy registry", () => {
-    test("exposes carry_trend as the only runnable strategy", () => {
-        expect(CANONICAL_STRATEGY_KEYS).toEqual(["carry_trend"]);
-        expect(Object.keys(strategyRegistry)).toEqual(["carry_trend"]);
+    test("exposes intraday_momentum as the only runnable strategy", () => {
+        expect(CANONICAL_STRATEGY_KEYS).toEqual(["intraday_momentum"]);
+        expect(Object.keys(strategyRegistry)).toEqual(["intraday_momentum"]);
         expect(listStrategyCatalog()).toEqual([
             expect.objectContaining({
-                key: "carry_trend",
+                key: "intraday_momentum",
                 version: "1.0.0",
                 runtimeStatus: "live_ready",
                 metadata: expect.objectContaining({ supportsLive: true }),
@@ -22,7 +22,8 @@ describe("live strategy registry", () => {
     });
 
     test("rejects every retired strategy key", () => {
-        expect(isCanonicalStrategyKey("carry_trend")).toBe(true);
+        expect(isCanonicalStrategyKey("intraday_momentum")).toBe(true);
+        expect(isCanonicalStrategyKey("carry_trend")).toBe(false);
         expect(isCanonicalStrategyKey("supertrend_momentum")).toBe(false);
         expect(() => getStrategyDefinition("supertrend_momentum")).toThrow(
             "Unknown canonical strategy key"
@@ -31,8 +32,8 @@ describe("live strategy registry", () => {
 
     test("the contract accepts only the live strategy", () => {
         const definition = createStrategyDefinition({
-            key: "carry_trend",
-            label: "Carry Trend",
+            key: "intraday_momentum",
+            label: "M15 Intraday Momentum",
         });
         expect(definition.evaluateEntry()).toEqual(
             expect.objectContaining({ reasonCode: "STRATEGY_NOT_READY" })
@@ -40,8 +41,8 @@ describe("live strategy registry", () => {
         expect(() =>
             createStrategyDefinition({ key: "squeeze_play", label: "Retired" })
         ).toThrow("Unknown canonical strategy key");
-        expect(createNoopResult({ strategy: "carry_trend" }).metadata).toEqual({
-            strategy: "carry_trend",
+        expect(createNoopResult({ strategy: "intraday_momentum" }).metadata).toEqual({
+            strategy: "intraday_momentum",
         });
     });
 });

@@ -145,7 +145,7 @@ function requireService(res, service, label) {
 
 router.get("/strategies/catalog", (_req, res) => {
     const strategies = listStrategyCatalog().filter(
-        (strategy) => strategy.key === "carry_trend"
+        (strategy) => strategy.key === "intraday_momentum"
     );
     res.json({ strategies, liveOnly: true, timestamp: Date.now() });
 });
@@ -153,7 +153,9 @@ router.get("/strategies/catalog", (_req, res) => {
 router.get("/health", (req, res) => {
     const config = req.app.locals.configService?.get?.() || {};
     const coordinator = getRuntimeCoordinator(req);
-    const strategy = getStrategyDefinition(config.strategy || "carry_trend");
+    const strategy = getStrategyDefinition(
+        config.strategy || "intraday_momentum"
+    );
     res.json({
         status: "ok",
         runtime: "live_only",
@@ -172,7 +174,7 @@ router.get("/health", (req, res) => {
             strategy: strategy.key,
             strategyLabel: strategy.label,
             strategyVersion: strategy.version,
-            timeframe: config.timeframe || "4h",
+            timeframe: config.timeframe || "15m",
             maxOpenPositions: config.maxOpenPositions || 1,
             riskPerTrade: config.riskPerTrade || 0,
         },
@@ -830,7 +832,7 @@ router.get("/analytics", async (req, res) => {
         );
         const analytics = await service.getAnalytics(req.query.period || "30d", {
             mode: RUNTIME_MODES.LIVE,
-            strategy: "carry_trend",
+            strategy: "intraday_momentum",
             runId: req.query.runId || undefined,
             selectionId: req.query.selectionId || undefined,
             profile: req.query.profile === "dashboard" ? "dashboard" : "full",

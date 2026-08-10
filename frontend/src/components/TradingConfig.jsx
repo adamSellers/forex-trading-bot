@@ -69,9 +69,9 @@ const TradingConfig = () => {
               <Stack direction="row" spacing={2} alignItems="center">
                 <ShowChart color="primary" fontSize="large" />
                 <Box>
-                  <Typography variant="h5" fontWeight={900}>Carry Trend</Typography>
+                  <Typography variant="h5" fontWeight={900}>M15 Intraday Momentum</Typography>
                   <Typography color="text.secondary">
-                    Daily trend breakout aligned with OANDA financing rates
+                    Completed-M15 entries aligned with liquid-session H1 trends
                   </Typography>
                 </Box>
               </Stack>
@@ -83,12 +83,12 @@ const TradingConfig = () => {
             <Divider sx={{ my: 3 }} />
             <Grid container spacing={3}>
               <Grid item xs={6} md={3}><Value label="Scan timeframe">{config.timeframe}</Value></Grid>
-              <Grid item xs={6} md={3}><Value label="Trend EMAs">{config.carryTrendFastDays}/{config.carryTrendSlowDays} days</Value></Grid>
-              <Grid item xs={6} md={3}><Value label="Momentum">{config.carryTrendMomentumDays} days</Value></Grid>
-              <Grid item xs={6} md={3}><Value label="Breakout">{config.carryTrendBreakoutDays} days</Value></Grid>
-              <Grid item xs={6} md={3}><Value label="Initial stop">{config.carryTrendStopAtr} daily ATR</Value></Grid>
-              <Grid item xs={6} md={3}><Value label="Min momentum">{pct(config.carryTrendMinimumMomentum)}</Value></Grid>
-              <Grid item xs={6} md={3}><Value label="Min carry edge">{pct(config.carryTrendMinimumAdvantageAnnual)} annual</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="H1 trend EMAs">{config.intradayFastEmaPeriod}/{config.intradaySlowEmaPeriod}</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="H1 minimum ADX">{config.intradayMinAdx}</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="M15 breakout">{config.intradayBreakoutBars} bars</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Initial stop">{config.intradayStopAtr} M15 ATR</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Profit target">{config.intradayTargetRiskMultiple}R</Value></Grid>
+              <Grid item xs={6} md={3}><Value label="Time stop">{config.timeStopHours} hours</Value></Grid>
               <Grid item xs={6} md={3}><Value label="Direction">Long + short</Value></Grid>
             </Grid>
           </Paper>
@@ -121,7 +121,7 @@ const TradingConfig = () => {
                   ))}
                 </Stack>
                 <Typography variant="body2" color="text.secondary" mt={3}>
-                  Entries require a fresh completed-daily breakout, matching 50/200-day trend and 60-day momentum, and a favorable broker financing differential. Orders use broker-native protective stops and risk-based unit sizing.
+                  Entries require a completed M15 pullback resumption or range breakout, a matching H1 EMA/ADX regime, a liquid pair-specific session and acceptable spread cost. Orders use broker-native stop-loss and take-profit protection with risk-based unit sizing.
                 </Typography>
               </Paper>
             </Grid>

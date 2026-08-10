@@ -38,7 +38,7 @@ describe("RuntimeCoordinator live-only release", () => {
 
         expect(selection).toEqual(
             expect.objectContaining({
-                strategy: "carry_trend",
+                strategy: "intraday_momentum",
                 liveRun: expect.objectContaining({
                     mode: "live",
                     status: "active",
@@ -57,7 +57,10 @@ describe("RuntimeCoordinator live-only release", () => {
     test("rejects every non-live run", async () => {
         const coordinator = new RuntimeCoordinator(dependencies());
         await expect(
-            coordinator.startRun({ mode: "simulated", strategy: "carry_trend" })
+            coordinator.startRun({
+                mode: "simulated",
+                strategy: "intraday_momentum",
+            })
         ).rejects.toMatchObject({ code: "LIVE_ONLY_RUNTIME" });
     });
 
@@ -65,7 +68,7 @@ describe("RuntimeCoordinator live-only release", () => {
         const deps = dependencies();
         const coordinator = new RuntimeCoordinator(deps);
         const first = await coordinator.selectLiveStrategy({
-            strategyKey: "carry_trend",
+            strategyKey: "intraday_momentum",
             configSnapshot: deps.configService.get(),
         });
         deps.tradeRepository.getOpenTrades.mockImplementation(async (filters) => {
@@ -73,7 +76,7 @@ describe("RuntimeCoordinator live-only release", () => {
                 id: "trade-1",
                 instrument: "EUR_USD",
                 ownerRunId: first.liveRun.runId,
-                strategy: "carry_trend",
+                strategy: "intraday_momentum",
             };
             return !filters.ownerRunId || filters.ownerRunId === first.liveRun.runId
                 ? [trade]
@@ -82,10 +85,10 @@ describe("RuntimeCoordinator live-only release", () => {
 
         const nextConfig = {
             ...deps.configService.get(),
-            liveReleaseVersion: "carry-trend-v2",
+            liveReleaseVersion: "m15-intraday-v2",
         };
         await coordinator.selectLiveStrategy({
-            strategyKey: "carry_trend",
+            strategyKey: "intraday_momentum",
             configSnapshot: nextConfig,
             parentLiveRunId: first.liveRun.runId,
         });

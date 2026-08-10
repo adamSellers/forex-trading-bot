@@ -28,9 +28,9 @@ function response() {
 function liveContext(overrides = {}) {
     const config = { ...cloneDefaultConfig(), enableTrading: false };
     const liveRun = {
-        runId: "live-carry-1",
+        runId: "live-intraday-1",
         mode: "live",
-        strategy: "carry_trend",
+        strategy: "intraday_momentum",
         status: "active",
         selectionId: "selection-1",
         configHash: computeConfigHash(config),
@@ -39,7 +39,7 @@ function liveContext(overrides = {}) {
     };
     const liveSelection = {
         selectionId: "selection-1",
-        strategy: "carry_trend",
+        strategy: "intraday_momentum",
         configHash: liveRun.configHash,
         liveRun,
     };
@@ -76,12 +76,12 @@ function liveContext(overrides = {}) {
 }
 
 describe("live-only trading routes", () => {
-    test("catalog exposes only the deployed carry-trend strategy", () => {
+    test("catalog exposes only the deployed M15 intraday strategy", () => {
         const res = response();
         handler("get", "/strategies/catalog")({}, res);
         expect(res.body.liveOnly).toBe(true);
         expect(res.body.strategies.map((strategy) => strategy.key)).toEqual([
-            "carry_trend",
+            "intraday_momentum",
         ]);
     });
 
@@ -90,7 +90,10 @@ describe("live-only trading routes", () => {
         const res = response();
         handler("get", "/trading/live-readiness")(req, res);
         expect(res.body).toEqual(
-            expect.objectContaining({ passed: true, strategy: "carry_trend" })
+            expect.objectContaining({
+                passed: true,
+                strategy: "intraday_momentum",
+            })
         );
     });
 

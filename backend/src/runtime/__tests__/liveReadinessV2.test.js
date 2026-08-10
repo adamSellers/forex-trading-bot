@@ -6,20 +6,20 @@ const { computeConfigHash } = require("../../config/tradingConfig");
 
 function readyConfig(overrides = {}) {
     return {
-        strategy: "carry_trend",
+        strategy: "intraday_momentum",
         referenceCurrency: "AUD",
         accountCurrency: "AUD",
         portfolioRiskEnforcement: true,
         maxOpenPositions: 1,
-        riskPerTrade: 0.005,
+        riskPerTrade: 0.0025,
         maxCapitalAtRisk: 100,
         maxPortfolioExposure: 0.3,
-        maxAggregateStopRiskPctNav: 0.01,
+        maxAggregateStopRiskPctNav: 0.005,
         maxNetCurrencyExposurePctNav: 1,
         maxCorrelatedExposurePctNav: 1,
-        maxDailyLossPctNav: 0.02,
-        maxDrawdownPctNav: 0.1,
-        maxConsecutiveLosses: 5,
+        maxDailyLossPctNav: 0.01,
+        maxDrawdownPctNav: 0.05,
+        maxConsecutiveLosses: 3,
         ...overrides,
     };
 }
@@ -36,7 +36,7 @@ function readySelection(config) {
 }
 
 describe("liveReadiness", () => {
-    test("passes a matching carry-trend live release", () => {
+    test("passes a matching M15 intraday live release", () => {
         const config = readyConfig();
         const readiness = evaluateLiveReadiness({
             config,
@@ -47,7 +47,7 @@ describe("liveReadiness", () => {
             expect.objectContaining({
                 passed: true,
                 status: "PASS",
-                strategy: "carry_trend",
+                strategy: "intraday_momentum",
                 strategyVersion: "1.0.0",
             })
         );

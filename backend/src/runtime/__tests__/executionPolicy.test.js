@@ -26,6 +26,28 @@ describe("canonical execution policy", () => {
         expect(plan.stopLossPrice).toBeCloseTo(1.0985, 8);
     });
 
+    test("re-centers a relative strategy plan on the executable quote", () => {
+        const plan = resolveCanonicalTradePlan({
+            signal: {
+                signal: "BUY",
+                tradePlan: {
+                    stopLossPrice: 1.0994,
+                    stopPips: 6,
+                    takeProfitPrice: 1.1009,
+                    targetRiskMultiple: 1.5,
+                },
+            },
+            config: { minStopLossPips: 6 },
+            entryPrice: 1.1002,
+            pipValue: 0.0001,
+        });
+
+        expect(plan.source).toBe("SIGNAL_TRADE_PLAN_DISTANCE");
+        expect(plan.stopLossPrice).toBeCloseTo(1.0996, 8);
+        expect(plan.takeProfitPrice).toBeCloseTo(1.1011, 8);
+        expect(plan.stopLossPips).toBe(6);
+    });
+
     test("floors a valid strategy stop without accepting an invalid TP", () => {
         const plan = resolveCanonicalTradePlan({
             signal: {

@@ -1,11 +1,11 @@
-const carryTrendStrategy = require("./carryTrend");
+const intradayMomentumStrategy = require("./intradayMomentum");
 const {
     CANONICAL_STRATEGY_KEYS,
     assertCanonicalStrategyKey,
 } = require("./strategyContract");
 
 const strategyRegistry = Object.freeze({
-    carry_trend: carryTrendStrategy,
+    intraday_momentum: intradayMomentumStrategy,
 });
 
 function isCanonicalStrategyKey(strategyKey) {

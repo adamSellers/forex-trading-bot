@@ -4,7 +4,7 @@ function createRunDescriptor(run = {}) {
     const config = run.config || run.configSnapshot || {};
     return {
         runId: run.runId || null,
-        strategy: run.strategy || config.strategy || "carry_trend",
+        strategy: run.strategy || config.strategy || "intraday_momentum",
         config,
         assets: Array.isArray(run.assets) ? run.assets : config.assets || [],
     };

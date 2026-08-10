@@ -49,13 +49,24 @@ function resolveCanonicalTradePlan({
         0,
         toFiniteNumber(config.minStopLossPips, 15)
     );
+    const plannedStopPips = toFiniteNumber(
+        signal?.tradePlan?.stopPips,
+        null
+    );
     const plannedStop = toFiniteNumber(signal?.tradePlan?.stopLossPrice, null);
     const planIsValid = isDirectionValid(side, entry, plannedStop, "stop");
     let stopLossPips;
     let source;
     let floored = false;
 
-    if (Number.isFinite(plannedStop) && planIsValid) {
+    if (Number.isFinite(plannedStopPips) && plannedStopPips > 0) {
+        stopLossPips = plannedStopPips;
+        source = "SIGNAL_TRADE_PLAN_DISTANCE";
+        if (stopLossPips < minimumPips) {
+            stopLossPips = minimumPips;
+            floored = true;
+        }
+    } else if (Number.isFinite(plannedStop) && planIsValid) {
         stopLossPips = Math.abs(entry - plannedStop) / pip;
         source = "SIGNAL_TRADE_PLAN";
         if (stopLossPips < minimumPips) {
@@ -75,14 +86,23 @@ function resolveCanonicalTradePlan({
         signal?.tradePlan?.takeProfitPrice,
         null
     );
-    const takeProfitPrice = isDirectionValid(
-        side,
-        entry,
-        plannedTakeProfit,
-        "takeProfit"
-    )
-        ? plannedTakeProfit
-        : null;
+    const targetRiskMultiple = toFiniteNumber(
+        signal?.tradePlan?.targetRiskMultiple,
+        null
+    );
+    const takeProfitPrice =
+        Number.isFinite(targetRiskMultiple) && targetRiskMultiple > 0
+            ? side === "SELL"
+                ? entry - stopDistance * targetRiskMultiple
+                : entry + stopDistance * targetRiskMultiple
+            : isDirectionValid(
+                    side,
+                    entry,
+                    plannedTakeProfit,
+                    "takeProfit"
+                )
+              ? plannedTakeProfit
+              : null;
 
     return {
         ...(signal.tradePlan || {}),

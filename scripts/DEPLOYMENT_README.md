@@ -20,7 +20,7 @@ Use `deploy.sh` only for a new installation or major dependency/runtime repair.
 2. Record whether live entries are enabled.
 3. Pause new entries for the update. Do not close a broker position for deployment.
 4. Run `update.sh` and require every test/build/migration/health gate to pass.
-5. Confirm the deployed commit, `carry_trend` `1.0.0`, fresh H4/daily data, live broker environment, database integrity and zero quarantined positions.
+5. Confirm the deployed commit, `intraday_momentum` `1.0.0`, fresh M15/H1 data, live broker environment, database integrity and zero quarantined positions.
 6. If live entries were enabled before the update, restore them through `POST /api/trading/start` only after readiness passes.
 
 If any broker position exists, stop and establish how its protective order and owner-run state will survive the release before deploying.
@@ -35,4 +35,4 @@ If any broker position exists, stop and establish how its protective order and o
 ./scripts/backup.sh
 ```
 
-The product contains one live runtime. The health check requires an active `carry_trend` run and, when trading is enabled, a passing live-readiness response.
+The product contains one live runtime. The health check requires an active `intraday_momentum` run and, when trading is enabled, a passing live-readiness response.

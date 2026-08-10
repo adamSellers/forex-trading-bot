@@ -14,25 +14,25 @@ function candles(count, start = 0.65) {
 describe("live MarketContextService", () => {
     const run = {
         runId: "live-1",
-        strategy: "carry_trend",
+        strategy: "intraday_momentum",
         config: {
-            strategy: "carry_trend",
+            strategy: "intraday_momentum",
             assets: ["AUD_USD", "EUR_USD"],
-            timeframe: "4h",
+            timeframe: "15m",
         },
     };
 
     test("requests only the live strategy timeframes", () => {
         const service = new MarketContextService();
         expect(service.getRequiredTimeframesForRun(run).sort()).toEqual([
-            "1d",
-            "4h",
+            "15m",
+            "1h",
         ]);
     });
 
     test("builds one shared broker-data snapshot for the active live run", () => {
-        const h4 = candles(100);
-        const daily = candles(250);
+        const m15 = candles(100);
+        const h1 = candles(250);
         const dataService = {
             getCurrentPrice: jest.fn((instrument) => ({
                 instrument,
@@ -41,7 +41,7 @@ describe("live MarketContextService", () => {
                 tradeable: true,
             })),
             getCandles: jest.fn((_instrument, timeframe) =>
-                timeframe === "1d" ? daily : h4
+                timeframe === "1h" ? h1 : m15
             ),
         };
         const service = new MarketContextService();
@@ -58,8 +58,8 @@ describe("live MarketContextService", () => {
                 }),
             })
         );
-        expect(context.timeframes["4h"].candles).toHaveLength(100);
-        expect(context.timeframes["1d"].candles).toHaveLength(250);
+        expect(context.timeframes["15m"].candles).toHaveLength(100);
+        expect(context.timeframes["1h"].candles).toHaveLength(250);
         expect(context.peers.EUR_USD).toEqual(
             expect.objectContaining({ instrument: "EUR_USD" })
         );

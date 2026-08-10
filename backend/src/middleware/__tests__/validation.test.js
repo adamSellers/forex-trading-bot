@@ -11,7 +11,7 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
     test("accepts the deployed live strategy", () => {
         const req = {
             body: {
-                strategy: "carry_trend",
+                strategy: "intraday_momentum",
             },
         };
         const res = createResponse();
@@ -39,7 +39,9 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 error: "Validation failed",
-                details: ["Invalid strategy. This release supports carry_trend only."],
+                details: [
+                    "Invalid strategy. This release supports intraday_momentum only.",
+                ],
             })
         );
     });
@@ -60,7 +62,9 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 error: "Validation failed",
-                details: ["Invalid strategy. This release supports carry_trend only."],
+                details: [
+                    "Invalid strategy. This release supports intraday_momentum only.",
+                ],
             })
         );
     });

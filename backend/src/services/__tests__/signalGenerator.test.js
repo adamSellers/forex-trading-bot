@@ -5,8 +5,8 @@ describe("live SignalGenerator", () => {
 
     beforeEach(() => {
         generator = new SignalGenerator({
-            strategy: "carry_trend",
-            timeframe: "4h",
+            strategy: "intraday_momentum",
+            timeframe: "15m",
             assets: ["AUD_USD"],
             signalCooldown: 60_000,
         });
@@ -18,8 +18,8 @@ describe("live SignalGenerator", () => {
         const defaultGenerator = new SignalGenerator();
         expect(defaultGenerator.config).toEqual(
             expect.objectContaining({
-                strategy: "carry_trend",
-                timeframe: "4h",
+                strategy: "intraday_momentum",
+                timeframe: "15m",
             })
         );
     });
@@ -29,37 +29,37 @@ describe("live SignalGenerator", () => {
             "AUD_USD",
             [{ time: "2026-08-04T00:00:00Z", close: 0.65 }],
             0.65,
-            { marketContext: { timeframes: { "4h": { candles: [] }, "1d": { candles: [] } } } }
+            { marketContext: { timeframes: { "15m": { candles: [] }, "1h": { candles: [] } } } }
         );
 
         expect(signal).toEqual(
             expect.objectContaining({
                 symbol: "AUD_USD",
                 signal: "HOLD",
-                strategy: "carry_trend",
+                strategy: "intraday_momentum",
                 strategyVersion: "1.0.0",
-                timeframe: "4h",
+                timeframe: "15m",
             })
         );
-        expect(signal.reasonCode).toMatch(/INSUFFICIENT_DATA|CARRY_TREND_WARMUP/);
+        expect(signal.reasonCode).toMatch(/INSUFFICIENT_DATA|INTRADAY_MOMENTUM_WARMUP/);
     });
 
     test("preserves live strategy context and an explicit trade plan", () => {
         const strategyContext = {
-            family: "carry_trend",
-            daily: { momentum: 0.04 },
-            financing: { longRateAnnual: 0.012, shortRateAnnual: -0.02 },
+            family: "intraday_momentum",
+            h1: { adx: 28, longRegime: true },
+            m15: { rsi: 58 },
         };
         const tradePlan = { stopLossPrice: 0.635, takeProfitPrice: null };
         const signal = generator.buildSignal(
             "AUD_USD",
             {
                 signalType: "BUY",
-                reason: "Fresh breakout",
-                reasonCode: "CARRY_TREND_LONG_ENTRY",
+                reason: "Fresh M15 breakout",
+                reasonCode: "INTRADAY_MOMENTUM_LONG_ENTRY",
                 signalClass: "ACTIONABLE",
                 intent: "ENTER_LONG",
-                entryType: "CARRY_TREND_BREAKOUT",
+                entryType: "M15_RANGE_BREAKOUT",
                 signalCandleTime: "2026-08-04T00:00:00Z",
                 atrVal: 0.006,
                 atrPips: 60,
@@ -88,7 +88,7 @@ describe("live SignalGenerator", () => {
             symbol: "AUD_USD",
             signal: "BUY",
             intent: "ENTER_LONG",
-            entryType: "CARRY_TREND_BREAKOUT",
+            entryType: "M15_RANGE_BREAKOUT",
             signalCandleTime: 1_775_260_800_000,
         };
 

@@ -3,15 +3,15 @@ const { getStrategyDefinition } = require("../strategies");
 
 const LIVE_RISK_LIMITS = Object.freeze({
     maxOpenPositions: 1,
-    maxRiskPerTrade: 0.01,
+    maxRiskPerTrade: 0.0025,
     maxCapitalAtRisk: 100,
     maxPortfolioExposure: 0.3,
-    maxAggregateStopRiskPctNav: 0.01,
-    maxNetCurrencyExposurePctNav: 1,
-    maxCorrelatedExposurePctNav: 1,
-    maxDailyLossPctNav: 0.02,
-    maxDrawdownPctNav: 0.1,
-    maxConsecutiveLosses: 5,
+    maxAggregateStopRiskPctNav: 0.005,
+    maxNetCurrencyExposurePctNav: 6,
+    maxCorrelatedExposurePctNav: 6,
+    maxDailyLossPctNav: 0.01,
+    maxDrawdownPctNav: 0.05,
+    maxConsecutiveLosses: 3,
 });
 
 function finite(value, fallback = Infinity) {

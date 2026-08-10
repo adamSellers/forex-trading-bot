@@ -19,8 +19,8 @@ class SignalGenerator extends EventEmitter {
         this.signalRepo = signalRepository;
         this.latestSignals = [];
         this.config = {
-            strategy: "carry_trend",
-            timeframe: "4h",
+            strategy: "intraday_momentum",
+            timeframe: "15m",
             signalCooldown: 60000,
             assets: [],
             ...config,

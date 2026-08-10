@@ -84,7 +84,7 @@ try:
     errors = []
     if not live_run.get('runId'):
         errors.append('live selection missing')
-    if live.get('strategy') != 'carry_trend':
+    if live.get('strategy') != 'intraday_momentum':
         errors.append('unexpected live strategy')
     if live_run.get('mode') != 'live' or live_run.get('status') != 'active':
         errors.append('live run is not active')
