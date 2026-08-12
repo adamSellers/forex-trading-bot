@@ -394,6 +394,59 @@ For full project history and detailed feature implementations, see **[PROJECT_HI
 
 ## IN PROGRESS
 
+### Update 2026-07-31 (later) — Forward-return study REFUTES the "ADX enters late" hypothesis; long-only rule rests on evidence from a DIFFERENT strategy
+
+Read-only study. Method: 205 distinct fresh flips (30d of `signals`, deduped by `setup_id`), each
+joined to the per-minute price series at +1h/+4h/+12h/+24h; forward move signed to the trade direction
+and normalised by the flip-moment ATR. Scripts were scratch-only; nothing deployed.
+
+**1. The ADX floor is NOT filtering out good early movers — the opposite.** Forward move (ATR units):
+
+| Group | 1h | 4h | 12h | 24h |
+| ----- | -- | -- | --- | --- |
+| ADX >= 21 (gate accepts) | +0.03 | +0.41 | +0.69 | +2.26 |
+| ADX < 21 (gate rejects)  | -0.02 | -0.34 | -0.56 | -1.25 |
+| ADX < 21 AND rising ("early movers") | -0.24 | -0.96 | -1.52 | -1.56 |
+
+Monotone at every horizon; the early-mover cohort win rate DECAYS 43% (4h) -> 34% (24h). The setups
+`minAdx` discards are the worst cohort in the sample. The double-smoothing lag is real as mechanism,
+but empirically it is acting as useful confirmation, not as a tax.
+
+**2. The proposed "faster maths" replacements test WORSE than ADX** (4h): `DX>=21` -0.25 / 43% win,
+`DI spread>0` -0.03 / 49%, `DI spread>10` -0.39 / 42%, vs `ADX>=21` +0.41 / 56%. Dropping the second
+smoothing INVERTS the signal (`DX<21` outperforms `DX>=21`). Do not "simplify" ADX to DX or DI-spread
+on lag reasoning alone — that stage is doing the discriminating.
+
+**3. The real finding — the edge is almost entirely in SHORTS** (4h): shorts with ADX>=21 are
+n=51, mean +0.60 ATR, median +0.73, **69% win** — the best cohort in the dataset. Longs with ADX>=21
+are n=45, mean +0.19 but median **-0.37** and only **42% win** (mean is outlier-driven). The bot is
+long-only, so in this sample it excludes its best cohort and trades its worst.
+
+**4. The apparent contradiction with the live -A$35 short loss RESOLVES: `supertrend_momentum` has
+NEVER taken a live short.** Live closed trades by side x strategy:
+- `(legacy)` SELL: 37 trades, **-A$32.17, 14% win** <- 92% of the entire short loss
+- `mean_reversion` SELL: 5 trades, -A$1.02 | `stochastic_divergence` SELL: 1 trade, -A$1.84
+- `supertrend_momentum` SELL: **0 trades**
+
+So the long-only rule now applied to `supertrend_momentum` was inferred from a DIFFERENT strategy's
+shorts. Treat "shorts lose" as an untested assumption for this strategy, not an established finding.
+(Legacy longs were mildly positive over the same period: 40 trades, +A$1.61, 33% win.)
+
+**5. It was entry quality, not stop placement.** Live R:R was acceptable — BUY avg win A$3.19 vs avg
+loss -A$1.41 (2.26R, breakeven needs 30.7% win, got 25.0%); SELL A$2.46 vs -A$1.45 (1.70R, breakeven
+needs 37%, got **16.0%**). 68 of 100 trades exited STOP_LOSS on 2.4-3.2h holds. Widening stops would
+not rescue a 16% win rate. NOTE: MAE/MFE analysis on those trades is impossible — signal/price history
+is only retained 30 days and the shorts ended 2026-05-24.
+
+**Consequences for the lab:** `lab_early_momentum` now has a PRE-REGISTERED prediction that it will be
+the WORST arm — keep it running as a falsification test but do not promote on it. `lab_shorts` is now
+the highest-value arm. `lab_adx_off` should dilute (it re-admits the negative ADX<21 cohort).
+
+**Caveats (do not over-read):** forward price movement is NOT trade P&L (no stops/spread/exits
+modelled); single 30-day window, so the short edge may simply be a downtrending July; subgroup n is
+13-108; many groupings were tested, so some separation is expected by chance. Nothing here justifies
+a live config change on its own — it justifies watching `lab_shorts`.
+
 ### Update 2026-07-31 — ADX identified as the UPSTREAM binding gate; 2 ADX arms added (CODE DONE LOCALLY; user commit + deploy + launch pending)
 
 **Nothing is broken.** Health `healthy`, engine attached, signals current to the second, 17h uptime.
