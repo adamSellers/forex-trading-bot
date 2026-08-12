@@ -66,34 +66,12 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     exit 1
 fi
 
-# 0. Backup database BEFORE any git operations (prevents data loss from git reset)
-log_info "Creating database backup..."
-mkdir -p $BACKUP_DIR
-if [ -f "backend/data/trading.db" ]; then
-    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-    # sqlite3 .backup folds the WAL into a single consistent snapshot — safe
-    # while the bot is still running, and avoids storing a multi-GB -wal copy.
-    if command -v sqlite3 >/dev/null 2>&1; then
-        sqlite3 -cmd ".timeout 5000" backend/data/trading.db \
-            ".backup '$BACKUP_DIR/trading_$TIMESTAMP.db'"
-    else
-        cp backend/data/trading.db "$BACKUP_DIR/trading_$TIMESTAMP.db"
-        # Also backup WAL files if they exist (critical for SQLite integrity)
-        cp backend/data/trading.db-wal "$BACKUP_DIR/trading_$TIMESTAMP.db-wal" 2>/dev/null || true
-        cp backend/data/trading.db-shm "$BACKUP_DIR/trading_$TIMESTAMP.db-shm" 2>/dev/null || true
-    fi
-    if command -v sqlite3 >/dev/null 2>&1; then
-        integrity=$(sqlite3 "$BACKUP_DIR/trading_$TIMESTAMP.db" "PRAGMA quick_check;")
-        [ "$integrity" = "ok" ] || log_error "Database backup integrity check failed"
-    fi
-    # Keep a configurable recovery window (including legacy WAL/SHM companions)
-    while IFS= read -r old_db; do
-        rm -f "$old_db" "$old_db-wal" "$old_db-shm"
-    done < <(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | tail -n +$((${FOREX_BACKUP_RETENTION:-5} + 1)))
-    log_success "Database backed up to $BACKUP_DIR"
-else
-    log_info "No existing database to backup"
-fi
+# 0. Use the same locked, bounded and integrity-checked backup path as cron and
+# update.sh. Maintaining a second hot-backup implementation here previously
+# allowed deploys to recreate the same runaway SQLite copy failure.
+log_info "Creating verified pre-deploy backup..."
+FOREX_BACKUP_DIR="$BACKUP_DIR" FOREX_BACKUP_REQUIRE_RUN=1 \
+    "$SCRIPT_DIR/backup.sh"
 
 # 0a. Backup runtime config as an additional safety copy.
 if [ -f "$CONFIG_PATH" ]; then

@@ -36,3 +36,19 @@ If any broker position exists, stop and establish how its protective order and o
 ```
 
 The product contains one live runtime. The health check requires an active `intraday_momentum` run and, when trading is enabled, a passing live-readiness response.
+
+### Backup safety
+
+The daily backup is single-instance and keeps three verified source archives and SQLite snapshots by default. It writes `.partial` files, applies retention before and after copying, bounds SQLite copy and integrity-check runtime to 30 minutes, and publishes a snapshot only after `PRAGMA quick_check` returns `ok`.
+
+For a database snapshot, the script pauses new entries and checks OANDA through the local account endpoint. It proceeds only with zero broker trades, briefly stops PM2 so the 2.8 GB database is quiet, then restarts the service and restores trading through the readiness-gated start endpoint before checking the immutable copy. An open broker trade or unavailable account state fails closed without stopping position monitoring. `--archive-only` creates only the source archive.
+
+Useful overrides:
+
+```bash
+FOREX_BACKUP_RETENTION=3 ./scripts/backup.sh
+FOREX_BACKUP_TIMEOUT_SECONDS=1800 ./scripts/backup.sh
+./scripts/backup.sh --archive-only
+```
+
+An overlapping cron invocation exits without starting another copy. Deploy and update paths set `FOREX_BACKUP_REQUIRE_RUN=1`, so they fail instead of proceeding without a fresh backup.

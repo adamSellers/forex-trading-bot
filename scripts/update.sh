@@ -31,6 +31,7 @@ fi
 
 log "Creating verified pre-update backup"
 FOREX_BACKUP_DIR="${FOREX_BACKUP_DIR:-$HOME/forex-trading-bot-backups}" \
+    FOREX_BACKUP_REQUIRE_RUN=1 \
     "$SCRIPT_DIR/backup.sh"
 
 before_hash=$(git rev-parse HEAD)

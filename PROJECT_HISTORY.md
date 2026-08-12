@@ -31,6 +31,16 @@ The current product has one live OANDA runtime and one strategy: `intraday_momen
 
 ## Completed Features
 
+### 2026-08-13 - Bounded, Single-Instance Production Backups (Code Complete)
+
+**Containment**: Stopped three overlapping SQLite backup jobs that had run for up to 53 hours and generated roughly 10 TB of SD-card writes. Removed only their incomplete snapshots, recovering 8.3 GB while retaining four completed database backups.
+
+**Implementation**: Replaced live, unbounded `.backup` copies with a locked, timed and atomic workflow. Database snapshots pause entries, require a flat OANDA account, stop PM2 only while flat, verify with `PRAGMA quick_check`, restart the runtime and restore trading through live readiness. Retention runs before and after backup and defaults to three verified copies.
+
+**Coverage**: `deploy.sh` and `update.sh` now use the canonical implementation and require a fresh backup. Shell regression tests cover success, overlap, snapshot failure recovery, and open-position refusal.
+
+**Deployment Note**: Production containment is complete. Mark the script changes deployed after the guarded rollout and a verified snapshot complete.
+
 ### 2026-08-10 - M15 Intraday Momentum Live Release (Code Complete)
 
 **Summary**: Replaced the low-frequency daily carry breakout with the `m15-intraday-v1` release. The sole strategy uses completed M15 triggers, completed H1 EMA/ADX direction, M15 RSI confirmation, pair-specific daylight-saving-aware liquid sessions, and a spread-plus-slippage cost gate.

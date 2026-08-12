@@ -37,8 +37,9 @@ if [ ! -f "$BACKUP_SCRIPT" ]; then
     exit 1
 fi
 
-# Define the cron job (daily at 3:00 AM server time)
-# Uses hot backup (no --cold flag) to avoid stopping the service
+# Define the cron job (daily at 3:00 AM server time). backup.sh takes a
+# single-instance lock, pauses entries, requires a flat broker account, and
+# briefly stops/restarts the service around the bounded SQLite snapshot.
 CRON_JOB="0 3 * * * $BACKUP_SCRIPT >> $CRON_LOG 2>&1"
 CRON_MARKER="# forex-trading-bot-backup"
 
