@@ -31,6 +31,18 @@ The current product has one live OANDA runtime and one strategy: `intraday_momen
 
 ## Completed Features
 
+### 2026-09-02 - Bounded Consecutive-Loss Cooldown (Code Complete)
+
+**Root cause**: The live risk policy counted losses across the entire active run and permanently rejected every later entry after three consecutive losses. A restart correctly reconstructed the same streak, but there was no cooldown expiry and no possible winning trade to clear it.
+
+**Implementation**: The `m15-intraday-v2` / `intraday-risk-v2` release starts a 24-hour entry cooldown at the third broker-confirmed losing exit. The state is reconstructed deterministically from retained live trades, expires into a fresh streak without deleting history, and treats the first later loss as one rather than four.
+
+**Observability**: Live readiness now reports `COOLDOWN` with the exact expiry, system health distinguishes the expected safety state from infrastructure degradation, and both dashboard views show the active cooldown and remaining time.
+
+**Coverage**: Risk, engine, route and configuration tests cover activation, expiry, restart reconstruction, new-run isolation, post-expiry counting and readiness-gated activation.
+
+**Deployment Note**: Not yet deployed. Roll out only while the broker is flat and new entries are paused, then restore the prior enabled state after live readiness and reconciliation pass.
+
 ### 2026-08-13 - Bounded, Single-Instance Production Backups (Code Complete)
 
 **Containment**: Stopped three overlapping SQLite backup jobs that had run for up to 53 hours and generated roughly 10 TB of SD-card writes. Removed only their incomplete snapshots, recovering 8.3 GB while retaining four completed database backups.

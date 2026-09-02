@@ -57,7 +57,11 @@ function getLiveRiskLimitViolations(config = {}) {
     );
 }
 
-function evaluateLiveReadiness({ liveSelection = null, config = {} } = {}) {
+function evaluateLiveReadiness({
+    liveSelection = null,
+    config = {},
+    entryRisk = null,
+} = {}) {
     const reasons = [];
     const liveRun = liveSelection?.liveRun || null;
     let strategy = null;
@@ -125,9 +129,30 @@ function evaluateLiveReadiness({ liveSelection = null, config = {} } = {}) {
         });
     });
 
+    if (entryRisk?.status === "UNAVAILABLE") {
+        reasons.push({
+            code: "ENTRY_RISK_UNAVAILABLE",
+            message: entryRisk.error || "The live entry risk state is unavailable",
+        });
+    } else if (entryRisk?.cooldownActive === true) {
+        reasons.push({
+            code: "CONSECUTIVE_LOSS_COOLDOWN",
+            message: "Live entries are paused during the consecutive-loss cooldown",
+            actual: entryRisk.consecutiveLosses,
+            max: entryRisk.maxConsecutiveLosses,
+            cooldownStartedAt: entryRisk.cooldownStartedAt,
+            cooldownUntil: entryRisk.cooldownUntil,
+            remainingMs: entryRisk.remainingMs,
+        });
+    }
+
+    const cooldownOnly =
+        reasons.length > 0 &&
+        reasons.every((reason) => reason.code === "CONSECUTIVE_LOSS_COOLDOWN");
+
     return {
         passed: reasons.length === 0,
-        status: reasons.length === 0 ? "PASS" : "FAIL",
+        status: reasons.length === 0 ? "PASS" : cooldownOnly ? "COOLDOWN" : "FAIL",
         strategy: config.strategy || null,
         strategyVersion: strategy?.version || null,
         liveRunId: liveRun?.runId || null,
@@ -135,6 +160,7 @@ function evaluateLiveReadiness({ liveSelection = null, config = {} } = {}) {
         currentConfigHash,
         riskLimits: LIVE_RISK_LIMITS,
         riskChecks: getLiveRiskChecks(config),
+        entryRisk,
         reasons,
     };
 }

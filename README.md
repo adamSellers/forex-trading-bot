@@ -13,7 +13,7 @@ The only strategy is `intraday_momentum` version `1.0.0`. It evaluates completed
 - spread plus expected slippage is no more than 15% of the planned stop;
 - the live account, portfolio, price-freshness and execution checks pass.
 
-Every entry receives broker-side stop-loss and take-profit protection. The initial stop is the greater of 1.25 M15 ATR or six pips, the target is 1.5R, breakeven activates at 1R, and a six-hour time stop plus a narrow pre-rollover exit window keep positions intraday. Position size risks 0.25% of NAV, is capped to A$100 capital, and only one position may be open.
+Every entry receives broker-side stop-loss and take-profit protection. The initial stop is the greater of 1.25 M15 ATR or six pips, the target is 1.5R, breakeven activates at 1R, and a six-hour time stop plus a narrow pre-rollover exit window keep positions intraday. Position size risks 0.25% of NAV, is capped to A$100 capital, and only one position may be open. Three consecutive losses pause entries for 24 hours; expiry begins a fresh streak without deleting trade history.
 
 This is an unproven trading hypothesis being tested with real money. Positive returns are not guaranteed. The design target is approximately 5–15 trades per week across four liquid major pairs, but observed live cadence—not a forced quota—is the source of truth.
 

@@ -2,7 +2,7 @@
 
 ## Outcome
 
-The single live strategy is `intraday_momentum` version `1.0.0`, released as `m15-intraday-v1`. It replaces the low-frequency daily carry breakout with a completed-M15 intraday decision loop. There is still one live runtime, no simulated execution path, no strategy selector and no promotion workflow.
+The single live strategy is `intraday_momentum` version `1.0.0`, currently released as `m15-intraday-v2`. It replaces the low-frequency daily carry breakout with a completed-M15 intraday decision loop. There is still one live runtime, no simulated execution path, no strategy selector and no promotion workflow.
 
 ## Entry hypothesis
 
@@ -18,7 +18,7 @@ All decisions use OANDA candles marked complete. The runtime polls each minute, 
 
 ## Universe and risk
 
-The release trades AUD/USD, EUR/USD, GBP/USD and USD/JPY. It risks 0.25% of AUD NAV per entry, limits sizing capital to A$100, permits one open position and caps projected margin at 30% of account balance. Currency-notional limits allow up to six times NAV only inside that stricter one-position margin and stop-risk envelope. Portfolio entry checks halt at 1% daily realized loss, three consecutive losses or 5% drawdown from the persisted NAV high watermark.
+The release trades AUD/USD, EUR/USD, GBP/USD and USD/JPY. It risks 0.25% of AUD NAV per entry, limits sizing capital to A$100, permits one open position and caps projected margin at 30% of account balance. Currency-notional limits allow up to six times NAV only inside that stricter one-position margin and stop-risk envelope. Portfolio entry checks halt at 1% daily realized loss or 5% drawdown from the persisted NAV high watermark. Three consecutive losses start a 24-hour entry cooldown; expiry begins a fresh streak without deleting or rewriting the closed trades.
 
 Every order carries a broker-side stop and take profit. The stop is the greater of 1.25 M15 ATR or six pips; the target is 1.5 times initial risk. Breakeven activates at 1R. A six-hour time stop prevents stagnant positions, and a 30-minute closure window beginning 16:45 New York time exits before the broker's daily liquidity break without suppressing the reopened Asian session.
 

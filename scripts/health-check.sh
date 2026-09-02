@@ -44,15 +44,20 @@ else
 fi
 
 # A failed readiness gate is expected while paused, but is critical if entries
-# are enabled. This catches configuration drift that the basic process health
-# endpoint cannot see.
+# are enabled. A bounded consecutive-loss cooldown is a healthy safety state,
+# not an infrastructure failure.
 if [ "${engine_status:-unknown}" = "true" ]; then
     readiness_data=$(curl -sf "http://localhost:$PORT/api/trading/live-readiness" 2>/dev/null || true)
     readiness_passed=$(printf '%s' "$readiness_data" | python3 -c \
         'import json,sys; print(str(json.load(sys.stdin).get("passed") is True).lower())' \
         2>/dev/null || echo false)
+    readiness_status=$(printf '%s' "$readiness_data" | python3 -c \
+        'import json,sys; print(str(json.load(sys.stdin).get("status") or "UNKNOWN"))' \
+        2>/dev/null || echo UNKNOWN)
     if [ "$readiness_passed" = "true" ]; then
         log_message "✅ Live Readiness: PASSED"
+    elif [ "$readiness_status" = "COOLDOWN" ]; then
+        log_message "⚠️ Live Entry State: CONSECUTIVE-LOSS COOLDOWN"
     else
         log_message "❌ Live Readiness: FAILED WHILE TRADING ENABLED"
         FAILED=1

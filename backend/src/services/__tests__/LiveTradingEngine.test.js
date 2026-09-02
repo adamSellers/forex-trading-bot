@@ -9,6 +9,9 @@ const {
 const { createMockSignal, createSellSignal } = require('../../../__tests__/fixtures/mockSignals');
 const { createMockTrade } = require('../../../__tests__/fixtures/mockTrades');
 const { ENTRY_REJECTION_CODES } = require('../../constants/entryDecisionCodes');
+const {
+    CONSECUTIVE_LOSS_COOLDOWN_MS,
+} = require('../../runtime/portfolioRiskPolicy');
 
 // Mock the oandaClient module - must use inline factory due to jest hoisting
 jest.mock('../Oandaclient', () => ({
@@ -619,12 +622,13 @@ describe('LiveTradingEngine', () => {
         });
 
         test('does not carry a retired run loss streak into a new live release', async () => {
+            const finalExit = Date.now() - 1_000;
             [1, 2, 3].forEach((index) =>
                 mockTradeRepository.trades.push({
                     id: `old-loss-${index}`,
                     isOpen: false,
                     pnlAud: -0.1,
-                    exitTime: index,
+                    exitTime: finalExit - (3 - index) * 1_000,
                     ownerRunId: 'retired-live-run',
                 })
             );
@@ -649,7 +653,69 @@ describe('LiveTradingEngine', () => {
                     valid: false,
                     code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                     reason:
-                        'Portfolio risk rejected entry: CONSECUTIVE_LOSS_LIMIT',
+                        'Portfolio risk rejected entry: CONSECUTIVE_LOSS_COOLDOWN',
+                })
+            );
+        });
+
+        test('allows an entry after a persisted loss cooldown expires', async () => {
+            const finalExit =
+                Date.now() - CONSECUTIVE_LOSS_COOLDOWN_MS - 1_000;
+            [1, 2, 3].forEach((index) =>
+                mockTradeRepository.trades.push({
+                    id: `expired-loss-${index}`,
+                    isOpen: false,
+                    pnlAud: -0.1,
+                    exitTime: finalExit - (3 - index) * 1_000,
+                    ownerRunId: 'active-live-run',
+                })
+            );
+            const config = {
+                ...mockConfigService.get(),
+                maxPortfolioExposure: null,
+                maxConsecutiveLosses: 3,
+            };
+
+            const result = await engine.validateEntry(
+                createMockSignal({ runId: 'active-live-run' }),
+                config
+            );
+
+            expect(result.valid).toBe(true);
+            expect(engine.entryRiskState).toEqual(
+                expect.objectContaining({
+                    status: 'READY',
+                    cooldownActive: false,
+                    consecutiveLosses: 0,
+                })
+            );
+        });
+
+        test('fails closed when persisted loss history is incomplete', async () => {
+            mockTradeRepository.trades.push({
+                id: 'incomplete-closed-trade',
+                isOpen: false,
+                pnlAud: null,
+                exitTime: Date.now() - 1_000,
+                ownerRunId: 'active-live-run',
+            });
+            const config = {
+                ...mockConfigService.get(),
+                maxPortfolioExposure: null,
+                maxConsecutiveLosses: 3,
+            };
+
+            const result = await engine.validateEntry(
+                createMockSignal({ runId: 'active-live-run' }),
+                config
+            );
+
+            expect(result).toEqual(
+                expect.objectContaining({
+                    valid: false,
+                    code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
+                    reason:
+                        'Portfolio risk rejected entry: PORTFOLIO_RISK_UNAVAILABLE',
                 })
             );
         });

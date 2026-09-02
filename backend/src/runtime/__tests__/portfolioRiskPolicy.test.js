@@ -1,4 +1,8 @@
-const { evaluatePortfolioRisk } = require("../portfolioRiskPolicy");
+const {
+    CONSECUTIVE_LOSS_COOLDOWN_MS,
+    evaluateConsecutiveLossCooldown,
+    evaluatePortfolioRisk,
+} = require("../portfolioRiskPolicy");
 const { cloneDefaultConfig } = require("../../config/tradingConfig");
 
 const permissiveConfig = {
@@ -13,6 +17,83 @@ const permissiveConfig = {
 };
 
 describe("portfolioRiskPolicy", () => {
+    test("starts a bounded cooldown at the third consecutive loss", () => {
+        const finalExit = Date.UTC(2026, 7, 21, 12, 30);
+        const state = evaluateConsecutiveLossCooldown({
+            closedTrades: [
+                { pnlAud: -0.1, exitTime: finalExit - 2_000 },
+                { pnlAud: -0.1, exitTime: finalExit - 1_000 },
+                { pnlAud: -0.1, exitTime: finalExit },
+            ],
+            maxConsecutiveLosses: 3,
+            evaluatedAt: finalExit + 1_000,
+        });
+
+        expect(state).toEqual(
+            expect.objectContaining({
+                status: "COOLDOWN",
+                entryAllowed: false,
+                cooldownActive: true,
+                consecutiveLosses: 3,
+                cooldownStartedAt: finalExit,
+                cooldownUntil: finalExit + CONSECUTIVE_LOSS_COOLDOWN_MS,
+            })
+        );
+    });
+
+    test("expires the cooldown and reconstructs the same reset after restart", () => {
+        const finalExit = Date.UTC(2026, 7, 21, 12, 30);
+        const closedTrades = [
+            { pnlAud: -0.1, exitTime: finalExit - 2_000 },
+            { pnlAud: -0.1, exitTime: finalExit - 1_000 },
+            { pnlAud: -0.1, exitTime: finalExit },
+        ];
+        const evaluatedAt = finalExit + CONSECUTIVE_LOSS_COOLDOWN_MS;
+        const firstEvaluation = evaluateConsecutiveLossCooldown({
+            closedTrades,
+            evaluatedAt,
+        });
+        const restartEvaluation = evaluateConsecutiveLossCooldown({
+            closedTrades,
+            evaluatedAt,
+        });
+
+        expect(firstEvaluation).toEqual(restartEvaluation);
+        expect(firstEvaluation).toEqual(
+            expect.objectContaining({
+                status: "READY",
+                entryAllowed: true,
+                cooldownActive: false,
+                consecutiveLosses: 0,
+                streakResetAt: evaluatedAt,
+            })
+        );
+    });
+
+    test("counts a post-cooldown loss as the first loss of a new streak", () => {
+        const finalExit = Date.UTC(2026, 7, 21, 12, 30);
+        const resetAt = finalExit + CONSECUTIVE_LOSS_COOLDOWN_MS;
+        const state = evaluateConsecutiveLossCooldown({
+            closedTrades: [
+                { pnlAud: -0.1, exitTime: finalExit - 2_000 },
+                { pnlAud: -0.1, exitTime: finalExit - 1_000 },
+                { pnlAud: -0.1, exitTime: finalExit },
+                { pnlAud: -0.1, exitTime: resetAt + 1_000 },
+            ],
+            evaluatedAt: resetAt + 2_000,
+        });
+
+        expect(state).toEqual(
+            expect.objectContaining({
+                status: "READY",
+                entryAllowed: true,
+                cooldownActive: false,
+                consecutiveLosses: 1,
+                streakResetAt: resetAt,
+            })
+        );
+    });
+
     test("passes a fully valued AUD pre-trade portfolio inside every limit", () => {
         const result = evaluatePortfolioRisk({
             navAud: 1000,
@@ -65,7 +146,13 @@ describe("portfolioRiskPolicy", () => {
             navAud: 1000,
             highWatermarkNavAud: 1100,
             dailyRealizedPnlAud: -25,
-            consecutiveLosses: 3,
+            lossStreakState: {
+                cooldownActive: true,
+                consecutiveLosses: 3,
+                cooldownStartedAt: Date.now(),
+                cooldownUntil: Date.now() + CONSECUTIVE_LOSS_COOLDOWN_MS,
+                remainingMs: CONSECUTIVE_LOSS_COOLDOWN_MS,
+            },
             openPositions: [
                 {
                     instrument: "GBP_USD",
@@ -96,7 +183,7 @@ describe("portfolioRiskPolicy", () => {
                 "CORRELATED_EXPOSURE",
                 "DAILY_LOSS_LIMIT",
                 "DRAWDOWN_LIMIT",
-                "CONSECUTIVE_LOSS_LIMIT",
+                "CONSECUTIVE_LOSS_COOLDOWN",
             ])
         );
     });

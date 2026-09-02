@@ -9,6 +9,8 @@ const DEFAULT_PORTFOLIO_RISK_LIMITS = Object.freeze({
     minNavAud: 50,
 });
 
+const CONSECUTIVE_LOSS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 function toFiniteNumber(value, fallback = null) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -74,6 +76,104 @@ function correlationFor(left, right, correlations = {}) {
     );
 }
 
+function evaluateConsecutiveLossCooldown({
+    closedTrades = [],
+    maxConsecutiveLosses = DEFAULT_PORTFOLIO_RISK_LIMITS.maxConsecutiveLosses,
+    cooldownMs = CONSECUTIVE_LOSS_COOLDOWN_MS,
+    evaluatedAt = Date.now(),
+} = {}) {
+    const threshold = Math.max(
+        1,
+        Math.floor(
+            toFiniteNumber(
+                maxConsecutiveLosses,
+                DEFAULT_PORTFOLIO_RISK_LIMITS.maxConsecutiveLosses
+            )
+        )
+    );
+    const durationMs = Math.max(
+        1,
+        Math.floor(toFiniteNumber(cooldownMs, CONSECUTIVE_LOSS_COOLDOWN_MS))
+    );
+    const now = toFiniteNumber(evaluatedAt, Date.now());
+    const orderedTrades = (Array.isArray(closedTrades) ? closedTrades : [])
+        .filter(
+            (trade) =>
+                trade?.exitTime !== null &&
+                trade?.exitTime !== undefined &&
+                trade?.exitTime !== "" &&
+                trade?.pnlAud !== null &&
+                trade?.pnlAud !== undefined &&
+                trade?.pnlAud !== "" &&
+                Number.isFinite(Number(trade.exitTime)) &&
+                Number.isFinite(Number(trade.pnlAud))
+        )
+        .sort(
+            (left, right) =>
+                toFiniteNumber(left.exitTime, 0) -
+                toFiniteNumber(right.exitTime, 0)
+        );
+
+    let consecutiveLosses = 0;
+    let cooldownStartedAt = null;
+    let cooldownUntil = null;
+    let lastCooldownUntil = null;
+    let lastLossAt = null;
+    let streakResetAt = null;
+
+    orderedTrades.forEach((trade) => {
+        const exitTime = toFiniteNumber(trade.exitTime, null);
+        if (cooldownUntil !== null && exitTime >= cooldownUntil) {
+            consecutiveLosses = 0;
+            streakResetAt = cooldownUntil;
+            lastCooldownUntil = cooldownUntil;
+            cooldownStartedAt = null;
+            cooldownUntil = null;
+        }
+
+        if (toFiniteNumber(trade.pnlAud, 0) >= 0) {
+            consecutiveLosses = 0;
+            streakResetAt = exitTime;
+            cooldownStartedAt = null;
+            cooldownUntil = null;
+            return;
+        }
+
+        consecutiveLosses += 1;
+        lastLossAt = exitTime;
+        if (consecutiveLosses >= threshold) {
+            cooldownStartedAt = exitTime;
+            cooldownUntil = exitTime + durationMs;
+            lastCooldownUntil = cooldownUntil;
+        }
+    });
+
+    if (cooldownUntil !== null && now >= cooldownUntil) {
+        consecutiveLosses = 0;
+        streakResetAt = cooldownUntil;
+        lastCooldownUntil = cooldownUntil;
+        cooldownStartedAt = null;
+        cooldownUntil = null;
+    }
+
+    const cooldownActive = cooldownUntil !== null && now < cooldownUntil;
+    return {
+        status: cooldownActive ? "COOLDOWN" : "READY",
+        entryAllowed: !cooldownActive,
+        cooldownActive,
+        consecutiveLosses,
+        maxConsecutiveLosses: threshold,
+        cooldownDurationMs: durationMs,
+        cooldownStartedAt,
+        cooldownUntil,
+        remainingMs: cooldownActive ? Math.max(0, cooldownUntil - now) : 0,
+        lastLossAt,
+        lastCooldownUntil,
+        streakResetAt,
+        evaluatedAt: now,
+    };
+}
+
 function evaluatePortfolioRisk({
     navAud,
     openPositions = [],
@@ -81,6 +181,7 @@ function evaluatePortfolioRisk({
     dailyRealizedPnlAud = 0,
     highWatermarkNavAud = null,
     consecutiveLosses = 0,
+    lossStreakState = null,
     correlations = {},
     config = {},
 } = {}) {
@@ -221,8 +322,25 @@ function evaluatePortfolioRisk({
         });
     }
 
-    const lossStreak = Math.max(0, Math.floor(toFiniteNumber(consecutiveLosses, 0)));
-    if (lossStreak >= limits.maxConsecutiveLosses) {
+    const lossStreak = Math.max(
+        0,
+        Math.floor(
+            toFiniteNumber(
+                lossStreakState?.consecutiveLosses,
+                consecutiveLosses
+            )
+        )
+    );
+    if (lossStreakState?.cooldownActive === true) {
+        reasons.push({
+            code: "CONSECUTIVE_LOSS_COOLDOWN",
+            actual: lossStreak,
+            max: limits.maxConsecutiveLosses,
+            cooldownStartedAt: lossStreakState.cooldownStartedAt,
+            cooldownUntil: lossStreakState.cooldownUntil,
+            remainingMs: lossStreakState.remainingMs,
+        });
+    } else if (!lossStreakState && lossStreak >= limits.maxConsecutiveLosses) {
         reasons.push({
             code: "CONSECUTIVE_LOSS_LIMIT",
             actual: lossStreak,
@@ -247,13 +365,16 @@ function evaluatePortfolioRisk({
             dailyLossPctNav,
             drawdownPctNav,
             consecutiveLosses: lossStreak,
+            consecutiveLossCooldown: lossStreakState,
         },
         reasons,
     };
 }
 
 module.exports = {
+    CONSECUTIVE_LOSS_COOLDOWN_MS,
     DEFAULT_PORTFOLIO_RISK_LIMITS,
+    evaluateConsecutiveLossCooldown,
     evaluatePortfolioRisk,
     normalizeInstrument,
     positionNotionalAud,

@@ -79,6 +79,13 @@ const StatusDot = styled(Box)(({ theme, status }) => ({
   }`,
 }));
 
+const formatCooldownRemaining = (remainingMs) => {
+  const totalMinutes = Math.max(0, Math.ceil(Number(remainingMs || 0) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
+
 // --- HELPER COMPONENTS ---
 
 const ServiceRow = ({ name, status, latency, details, icon }) => {
@@ -259,6 +266,8 @@ const SystemHealth = () => {
   // Engine stats
   const engineStats = engineStatus?.stats || {};
   const engineOpenTrades = engineStatus?.openPositions || 0;
+  const entryRisk = health.entryRisk || engineStatus?.entryRisk || null;
+  const lossCooldownActive = entryRisk?.cooldownActive === true;
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -294,6 +303,18 @@ const SystemHealth = () => {
           </Button>
         </Stack>
       </Box>
+
+      {lossCooldownActive && (
+        <Alert severity="warning" sx={{ mb: 3 }} icon={<Timeline />}>
+          <Typography variant="body2" fontWeight="bold">
+            Live entries are in a 24-hour consecutive-loss cooldown
+          </Typography>
+          <Typography variant="caption">
+            {entryRisk.consecutiveLosses} losses reached the limit of {entryRisk.maxConsecutiveLosses}. Entries resume automatically at{' '}
+            {new Date(entryRisk.cooldownUntil).toLocaleString()} ({formatCooldownRemaining(entryRisk.remainingMs)} remaining). Infrastructure and position monitoring are healthy.
+          </Typography>
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* LEFT COLUMN: SERVICES & SPECS */}
@@ -337,7 +358,9 @@ const SystemHealth = () => {
                   name="Trading Engine"
                   status={isEngineReady}
                   details={
-                    isEngineReady
+                    lossCooldownActive
+                      ? `Entry cooldown | ${formatCooldownRemaining(entryRisk.remainingMs)} remaining`
+                      : isEngineReady
                       ? `${engineOpenTrades} open positions | ${engineStats.tradesExecuted || 0} trades executed`
                       : 'Engine not running'
                   }

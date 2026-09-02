@@ -26,7 +26,8 @@ describe("ConfigService governance", () => {
         expect(service.get()).toEqual(
             expect.objectContaining({
                 enableTrading: true,
-                liveReleaseVersion: "m15-intraday-v1",
+                liveReleaseVersion: "m15-intraday-v2",
+                executionPolicyVersion: "intraday-risk-v2",
                 strategy: "intraday_momentum",
                 timeframe: "15m",
             })

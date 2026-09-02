@@ -53,7 +53,15 @@ function liveContext(overrides = {}) {
         get: jest.fn(() => config),
         update: jest.fn((updates) => Object.assign(config, updates)),
     };
-    const tradingEngine = { isRunning: true };
+    const tradingEngine = {
+        isRunning: true,
+        getEntryRiskState: jest.fn(async () => ({
+            status: "READY",
+            entryAllowed: true,
+            cooldownActive: false,
+            consecutiveLosses: 0,
+        })),
+    };
     return {
         config,
         liveSelection,
@@ -85,10 +93,10 @@ describe("live-only trading routes", () => {
         ]);
     });
 
-    test("live readiness passes for the matching release", () => {
+    test("live readiness passes for the matching release", async () => {
         const { req } = liveContext();
         const res = response();
-        handler("get", "/trading/live-readiness")(req, res);
+        await handler("get", "/trading/live-readiness")(req, res);
         expect(res.body).toEqual(
             expect.objectContaining({
                 passed: true,
@@ -107,6 +115,30 @@ describe("live-only trading routes", () => {
             { allowLiveActivation: true }
         );
         expect(res.body.message).toBe("Live trading enabled");
+    });
+
+    test("live start remains blocked during the loss cooldown", async () => {
+        const tradingEngine = {
+            isRunning: true,
+            getEntryRiskState: jest.fn(async () => ({
+                status: "COOLDOWN",
+                entryAllowed: false,
+                cooldownActive: true,
+                consecutiveLosses: 3,
+                maxConsecutiveLosses: 3,
+                cooldownStartedAt: Date.now(),
+                cooldownUntil: Date.now() + 60_000,
+                remainingMs: 60_000,
+            })),
+        };
+        const { req, configService } = liveContext({ tradingEngine });
+        const res = response();
+
+        await handler("post", "/trading/start")(req, res);
+
+        expect(res.statusCode).toBe(409);
+        expect(res.body.liveReadiness.status).toBe("COOLDOWN");
+        expect(configService.update).not.toHaveBeenCalled();
     });
 
     test("runtime strategy cannot be changed through the API", () => {

@@ -96,7 +96,17 @@ const formatReadinessValue = (key, value) => {
   return String(numericValue);
 };
 
+const formatCooldownRemaining = (remainingMs) => {
+  const totalMinutes = Math.max(0, Math.ceil(Number(remainingMs || 0) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
+
 const getReadinessReasonDetail = (reason) => {
+  if (reason?.cooldownUntil) {
+    return `Entries automatically resume at ${new Date(reason.cooldownUntil).toLocaleString()} (${formatCooldownRemaining(reason.remainingMs)} remaining).`;
+  }
   if (reason?.key) {
     return `Current ${formatReadinessValue(reason.key, reason.actual)}; live maximum ${formatReadinessValue(reason.key, reason.max)}.`;
   }
@@ -403,6 +413,17 @@ const TradingDashboard = () => {
     };
   }, [fetchInitialData, updateSignalState]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      tradingAPI.getLiveReadiness()
+        .then((readiness) => {
+          if (isMountedRef.current) setLiveReadiness(readiness);
+        })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // --- HANDLERS ---
   const handleToggleTrading = async () => {
     if (tradingAction) return;
@@ -507,6 +528,8 @@ const TradingDashboard = () => {
   const engineOpenPositions = engineStatus?.openPositions || 0;
   const engineIsRunning = engineStatus?.isRunning || false;
   const readinessReasons = getReadinessReasons(liveReadiness);
+  const entryRisk = liveReadiness?.entryRisk || engineStatus?.entryRisk || null;
+  const lossCooldownActive = entryRisk?.cooldownActive === true;
   const liveActivationBlocked = !tradingEnabled && liveReadiness?.passed === false;
   const tradingActionPending = Boolean(tradingAction);
   const activationFailureReasons = Array.isArray(activationFailure?.baselineResume?.reasons)
@@ -579,12 +602,12 @@ const TradingDashboard = () => {
                     ? 'LIVE BLOCKED'
                     : 'ENABLE LIVE'}
           </Button>
-          {!tradingEnabled && liveReadiness && (
-            <Tooltip title={liveReadiness.passed ? 'Live readiness passed' : 'View live activation blockers'}>
+          {liveReadiness && (lossCooldownActive || !tradingEnabled) && (
+            <Tooltip title={lossCooldownActive ? 'View consecutive-loss cooldown' : liveReadiness.passed ? 'Live readiness passed' : 'View live activation blockers'}>
               <Chip
-                label={liveReadiness.passed ? 'READY' : `${readinessReasons.length} BLOCKER${readinessReasons.length === 1 ? '' : 'S'}`}
+                label={lossCooldownActive ? `LOSS COOLDOWN · ${formatCooldownRemaining(entryRisk.remainingMs)}` : liveReadiness.passed ? 'READY' : `${readinessReasons.length} BLOCKER${readinessReasons.length === 1 ? '' : 'S'}`}
                 size="small"
-                color={liveReadiness.passed ? 'success' : 'warning'}
+                color={lossCooldownActive ? 'warning' : liveReadiness.passed ? 'success' : 'warning'}
                 variant="outlined"
                 onClick={() => setReadinessDialogOpen(true)}
                 sx={{ height: 26, fontSize: '0.65rem', fontWeight: 'bold' }}
@@ -666,6 +689,13 @@ const TradingDashboard = () => {
         </Stack>
       </Box>
 
+      {lossCooldownActive && (
+        <Alert severity="warning" sx={{ mb: 2, flexShrink: 0 }}>
+          Three consecutive losses triggered the 24-hour safety cooldown. New entries resume automatically at{' '}
+          <strong>{new Date(entryRisk.cooldownUntil).toLocaleString()}</strong>; market data and position monitoring remain active.
+        </Alert>
+      )}
+
       {error && (
         <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>
           {error}
@@ -722,7 +752,9 @@ const TradingDashboard = () => {
           ) : (
             <Stack spacing={1.25}>
               <Alert severity="warning">
-                Live entries remain paused. Resolve every item below; this safety gate cannot be bypassed from the dashboard.
+                {lossCooldownActive
+                  ? `Live entries are cooling down and resume automatically in ${formatCooldownRemaining(entryRisk.remainingMs)}.`
+                  : 'Live entries remain paused. Resolve every item below; this safety gate cannot be bypassed from the dashboard.'}
               </Alert>
               <Alert severity="info">
                 This installation runs one deployed strategy directly against the live OANDA account.

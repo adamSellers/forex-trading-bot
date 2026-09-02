@@ -32,7 +32,11 @@ const {
     calculateCanonicalPositionSize,
     resolveCanonicalTradePlan,
 } = require("../runtime/executionPolicy");
-const { evaluatePortfolioRisk } = require("../runtime/portfolioRiskPolicy");
+const {
+    CONSECUTIVE_LOSS_COOLDOWN_MS,
+    evaluateConsecutiveLossCooldown,
+    evaluatePortfolioRisk,
+} = require("../runtime/portfolioRiskPolicy");
 
 function toFiniteNumber(value, fallback = null) {
     if (value === null || value === undefined || value === "") {
@@ -83,6 +87,7 @@ class LiveTradingEngine extends EventEmitter {
         this.monitorIntervalMs = options.monitorIntervalMs || 10000; // 10s default
         this.isMonitoringPositions = false;
         this.highWatermarkNavAud = null;
+        this.entryRiskState = null;
 
         // Stats
         this.stats = {
@@ -1153,6 +1158,47 @@ class LiveTradingEngine extends EventEmitter {
         };
     }
 
+    async getEntryRiskState({
+        runId = null,
+        config = this.configService?.get?.() || {},
+        evaluatedAt = Date.now(),
+        trades = null,
+    } = {}) {
+        const riskHistory = Array.isArray(trades)
+            ? trades
+            : this.tradeRepository?.getAllTrades
+              ? await this.tradeRepository.getAllTrades()
+              : null;
+        if (!Array.isArray(riskHistory)) {
+            throw new Error("Closed trade history is unavailable");
+        }
+
+        const closedTrades = riskHistory.filter((trade) => {
+            if (trade.isOpen) return false;
+            if (!runId) return true;
+            return (trade.ownerRunId || trade.runId || null) === runId;
+        });
+        const incompleteTrade = closedTrades.find(
+            (trade) =>
+                !Number.isFinite(toFiniteNumber(trade.exitTime, null)) ||
+                !Number.isFinite(toFiniteNumber(trade.pnlAud, null))
+        );
+        if (incompleteTrade) {
+            throw new Error("Closed trade risk history is incomplete");
+        }
+        const state = {
+            ...evaluateConsecutiveLossCooldown({
+                closedTrades,
+                maxConsecutiveLosses: config.maxConsecutiveLosses,
+                cooldownMs: CONSECUTIVE_LOSS_COOLDOWN_MS,
+                evaluatedAt,
+            }),
+            runId,
+        };
+        this.entryRiskState = state;
+        return state;
+    }
+
     async evaluateEntryPortfolioRisk(signal, config = {}) {
         try {
             const account = await oandaClient.getAccountSummary();
@@ -1229,13 +1275,6 @@ class LiveTradingEngine extends EventEmitter {
                     (left, right) =>
                         Number(left.exitTime || 0) - Number(right.exitTime || 0)
                 );
-            const activeRunClosedTrades = signal.runId
-                ? allClosedTrades.filter(
-                      (trade) =>
-                          (trade.ownerRunId || trade.runId || null) ===
-                          signal.runId
-                  )
-                : allClosedTrades;
             const dailyRealizedPnlAud = allClosedTrades
                 .filter(
                     (trade) =>
@@ -1245,20 +1284,12 @@ class LiveTradingEngine extends EventEmitter {
                 (sum, trade) => sum + toFiniteNumber(trade.pnlAud, 0),
                 0
             );
-            let consecutiveLosses = 0;
-            for (
-                let index = activeRunClosedTrades.length - 1;
-                index >= 0;
-                index -= 1
-            ) {
-                if (
-                    toFiniteNumber(activeRunClosedTrades[index].pnlAud, 0) < 0
-                ) {
-                    consecutiveLosses += 1;
-                } else {
-                    break;
-                }
-            }
+            const lossStreakState = await this.getEntryRiskState({
+                runId: signal.runId || null,
+                config,
+                evaluatedAt: Date.now(),
+                trades: riskHistory,
+            });
 
             return evaluatePortfolioRisk({
                 navAud,
@@ -1266,7 +1297,7 @@ class LiveTradingEngine extends EventEmitter {
                 proposedTrade,
                 dailyRealizedPnlAud,
                 highWatermarkNavAud: this.highWatermarkNavAud,
-                consecutiveLosses,
+                lossStreakState,
                 correlations: config.instrumentCorrelations || {},
                 config,
             });
@@ -3604,6 +3635,7 @@ class LiveTradingEngine extends EventEmitter {
             openPositions: this.openTrades.size,
             quarantinedBrokerPositions: this.quarantinedBrokerTrades.size,
             maxPositions: config.maxOpenPositions,
+            entryRisk: this.entryRiskState,
             stats: this.stats,
             openTrades: Array.from(this.openTrades.values()).map((t) => ({
                 id: t.id,

@@ -16,7 +16,7 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 | Setting | Value |
 | --- | --- |
-| Release | `m15-intraday-v1` |
+| Release | `m15-intraday-v2` |
 | Strategy | `intraday_momentum` `1.0.0` |
 | Decision candles | completed M15 with completed H1 regime context |
 | Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
@@ -24,6 +24,7 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 | Entry risk | 0.25% of NAV |
 | Capital cap | A$100 |
 | Concurrent positions | 1 |
+| Consecutive-loss control | 24-hour entry cooldown after three losses; the next streak starts at zero after expiry |
 | Initial stop | max(1.25 M15 ATR, 6 pips) |
 | Take profit | 1.5R broker order; breakeven at 1R |
 | Time controls | six-hour time stop and pre-rollover close window |

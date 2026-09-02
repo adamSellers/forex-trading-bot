@@ -21,6 +21,40 @@ function getRuntimeCoordinator(req) {
     return req.app.locals.runtimeCoordinator || req.app.locals.signalGenerator;
 }
 
+async function getEntryRiskState(req, config = {}) {
+    const engine = req.app.locals.tradingEngine;
+    const coordinator = getRuntimeCoordinator(req);
+    if (!engine?.getEntryRiskState) return null;
+
+    try {
+        return await engine.getEntryRiskState({
+            runId: coordinator?.getLiveSelection?.()?.liveRun?.runId || null,
+            config,
+        });
+    } catch (error) {
+        const unavailableState = {
+            status: "UNAVAILABLE",
+            entryAllowed: false,
+            cooldownActive: false,
+            error: error.message,
+            evaluatedAt: Date.now(),
+        };
+        engine.entryRiskState = unavailableState;
+        return unavailableState;
+    }
+}
+
+async function buildLiveReadiness(req) {
+    const config = req.app.locals.configService?.get?.() || {};
+    const coordinator = getRuntimeCoordinator(req);
+    const entryRisk = await getEntryRiskState(req, config);
+    return evaluateLiveReadiness({
+        liveSelection: coordinator?.getLiveSelection?.() || null,
+        config,
+        entryRisk,
+    });
+}
+
 function parseLimit(value, fallback, maximum = null) {
     const parsed = Number.parseInt(value, 10);
     const limit = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -201,6 +235,7 @@ router.get("/system/health", async (req, res) => {
         }
 
         const dataStatus = dataService?.getStatus?.() || {};
+        const liveReadiness = await buildLiveReadiness(req);
         const reasons = [];
         if (!oanda.connected) reasons.push("OANDA_DISCONNECTED");
         if (dataService?.isRunning !== true) reasons.push("DATA_SERVICE_STOPPED");
@@ -210,6 +245,8 @@ router.get("/system/health", async (req, res) => {
             reasons.push("STALE_CANDLE_DATA");
         if (coordinator?.isRunning !== true)
             reasons.push("LIVE_STRATEGY_RUNTIME_STOPPED");
+        if (liveReadiness.entryRisk?.status === "UNAVAILABLE")
+            reasons.push("ENTRY_RISK_UNAVAILABLE");
         if (tradingEngine?.isRunning !== true)
             reasons.push(
                 config.enableTrading
@@ -257,6 +294,8 @@ router.get("/system/health", async (req, res) => {
                 timeframe: config.timeframe,
                 assets: config.assets || [],
             },
+            liveReadiness,
+            entryRisk: liveReadiness.entryRisk,
             liveSelection: coordinator?.getLiveSelection?.() || null,
         });
     } catch (error) {
@@ -507,17 +546,12 @@ router.post("/trade/close/:id", async (req, res) => {
     }
 });
 
-router.get("/trading/live-readiness", (req, res) => {
+router.get("/trading/live-readiness", async (req, res) => {
     const configService = req.app.locals.configService;
     const coordinator = getRuntimeCoordinator(req);
     if (!requireService(res, configService, "Config service")) return;
     if (!requireService(res, coordinator, "Runtime coordinator")) return;
-    res.json(
-        evaluateLiveReadiness({
-            liveSelection: coordinator.getLiveSelection?.() || null,
-            config: configService.get(),
-        })
-    );
+    res.json(await buildLiveReadiness(req));
 });
 
 router.post("/trading/start", async (req, res) => {
@@ -530,10 +564,7 @@ router.post("/trading/start", async (req, res) => {
         if (!requireService(res, engine, "Trading engine")) return;
 
         await coordinator.ensureLiveSelectionInitialized?.();
-        const readiness = evaluateLiveReadiness({
-            liveSelection: coordinator.getLiveSelection?.() || null,
-            config: configService.get(),
-        });
+        const readiness = await buildLiveReadiness(req);
         if (!readiness.passed) {
             return res.status(409).json({
                 error: "Live strategy readiness failed",
@@ -736,9 +767,13 @@ router.post("/config/reset", (req, res) => {
     }
 });
 
-router.get("/engine/status", (req, res) => {
+router.get("/engine/status", async (req, res) => {
     const engine = req.app.locals.tradingEngine;
     if (!requireService(res, engine, "Trading engine")) return;
+    await getEntryRiskState(
+        req,
+        req.app.locals.configService?.get?.() || {}
+    );
     res.json(engine.getStatus());
 });
 

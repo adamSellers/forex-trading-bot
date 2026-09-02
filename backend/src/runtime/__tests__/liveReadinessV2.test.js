@@ -87,4 +87,39 @@ describe("liveReadiness", () => {
             ])
         );
     });
+
+    test("reports an active loss cooldown as a bounded entry block", () => {
+        const config = readyConfig();
+        const cooldownUntil = Date.now() + 60_000;
+        const readiness = evaluateLiveReadiness({
+            config,
+            liveSelection: readySelection(config),
+            entryRisk: {
+                status: "COOLDOWN",
+                entryAllowed: false,
+                cooldownActive: true,
+                consecutiveLosses: 3,
+                maxConsecutiveLosses: 3,
+                cooldownStartedAt: Date.now(),
+                cooldownUntil,
+                remainingMs: 60_000,
+            },
+        });
+
+        expect(readiness).toEqual(
+            expect.objectContaining({
+                passed: false,
+                status: "COOLDOWN",
+                entryRisk: expect.objectContaining({
+                    cooldownUntil,
+                }),
+            })
+        );
+        expect(readiness.reasons).toEqual([
+            expect.objectContaining({
+                code: "CONSECUTIVE_LOSS_COOLDOWN",
+                cooldownUntil,
+            }),
+        ]);
+    });
 });
