@@ -69,7 +69,7 @@ def stage_restore(project, backup, staging):
     if not database.is_file() or Path(str(database) + "-wal").exists():
         raise ValueError("A complete standalone SQLite snapshot is required")
     verify_database(database)
-    for required in ["backend/package.json", "backend/server.js", "ecosystem.config.js", "scripts/start-wrapper.sh", "scripts/load-operator-auth.sh"]:
+    for required in ["backend/package.json", "backend/server.js", "ecosystem.config.js", "scripts/start-wrapper.sh", "scripts/load-maintenance-api.sh"]:
         if not (target / required).is_file():
             raise ValueError(f"Restore candidate is missing {required}; use database-only restore for older source archives")
     data_dir = target / "backend/data"

@@ -7,7 +7,6 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const { createCorsOptions } = require("./src/middleware/corsPolicy");
-const { createOperatorAuth } = require("./src/middleware/operatorAuth");
 const logger = require("./src/utils/logger");
 const { db } = require("./config/database");
 const tradingRoutes = require("./src/routes/tradingRoutes");
@@ -32,7 +31,6 @@ app.set("trust proxy", "loopback");
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3101;
 const corsOptions = createCorsOptions(process.env);
-const operatorAuth = createOperatorAuth();
 
 // Increase max listeners to prevent warning during shutdown
 server.setMaxListeners(20);
@@ -42,7 +40,6 @@ const io = new Server(server, {
     cors: corsOptions,
     transports: ["websocket", "polling"],
 });
-operatorAuth.attachSocketServer(io);
 
 // Initialize ConfigService first (loads from file or creates defaults)
 const configService = new ConfigService();
@@ -164,8 +161,7 @@ app.use((req, res, next) => {
 
 // Mount API routes
 app.get("/api/liveness", (_req, res) => res.json({ status: "ok" }));
-app.use("/api/auth", operatorAuth.router);
-app.use("/api", operatorAuth.middleware, tradingRoutes);
+app.use("/api", tradingRoutes);
 
 // ============================================
 // Production: Serve Frontend Static Files

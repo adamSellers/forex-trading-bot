@@ -36,7 +36,17 @@ mkdir -p "$STUB_BIN"
 
 cat > "$STUB_BIN/flock" <<'EOF'
 #!/bin/bash
-[ "${STUB_FLOCK_FAIL:-0}" != 1 ]
+[ "${STUB_FLOCK_FAIL:-0}" != 1 ] || exit 1
+# Exercise real descriptor inheritance and contention even on development
+# machines without the Linux flock executable.
+python3 - "$@" <<'PY'
+import fcntl
+import sys
+try:
+    fcntl.flock(int(sys.argv[-1]), fcntl.LOCK_EX | fcntl.LOCK_NB)
+except (OSError, ValueError):
+    sys.exit(1)
+PY
 EOF
 
 cat > "$STUB_BIN/timeout" <<'EOF'
@@ -62,9 +72,19 @@ EOF
 cat > "$STUB_BIN/curl" <<'EOF'
 #!/bin/bash
 echo "curl $*" >> "$CALL_LOG"
-cat >/dev/null
+case "$*" in
+    *'/summary'*)
+        header=$(cat)
+        [[ "$header" == *'Authorization: Bearer '* ]] || exit 99
+        ;;
+    *) [[ "$*" != *'--config -'* && "$*" != *'Authorization:'* ]] || exit 99 ;;
+esac
 case "$*" in
     *'/summary'*) echo '{"account":{"openTradeCount":"0","pendingOrderCount":"0"}}' ;;
+    *'/engine/stats'*)
+        [ "${STUB_ENGINE_STATS_FAIL:-0}" != 1 ] || exit 22
+        if [ -n "${STUB_ENGINE_STATS:-}" ]; then printf '%s' "$STUB_ENGINE_STATS"; else echo '{"isProcessingQueue":false,"queueLength":0}'; fi
+        ;;
     *'/trading/stop'*) printf '{"enableTrading":false}' > "$FOREX_PROJECT_DIR/backend/data/trading_config.json"; echo '{"success":true}' ;;
     *'/trading/start'*) echo '{"success":true}' ;;
     *'/account'*) echo "{\"openTrades\":${STUB_OPEN_TRADES:-0}}" ;;
@@ -122,7 +142,7 @@ chmod +x "$STUB_BIN"/*
 export PATH="$STUB_BIN:$PATH"
 export CALL_LOG STUB_PM2_PID=1234
 export FOREX_NODE_RUNTIME_LOADED=1
-export FOREX_OPERATOR_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+unset FOREX_OPERATOR_TOKEN
 export OANDA_API_KEY=test-broker-token OANDA_ACCOUNT_ID=001-002-003 OANDA_ENVIRONMENT=practice
 export FOREX_PROJECT_DIR="$PROJECT_DIR"
 export FOREX_BACKUP_DIR="$BACKUP_DIR"
@@ -142,6 +162,7 @@ PY
     printf '{"enableTrading":true}' > "$PROJECT_DIR/backend/data/trading_config.json"
     : > "$CALL_LOG"
     unset STUB_FLOCK_FAIL STUB_OPEN_TRADES STUB_SQLITE_BACKUP_FAIL STUB_SQLITE_INTEGRITY_FAIL
+    unset STUB_ENGINE_STATS STUB_ENGINE_STATS_FAIL
 }
 
 test_successful_safe_backup() {
@@ -240,6 +261,87 @@ PY
     fi
 }
 
+test_deploy_lock_is_inherited_without_releasing_parent_lock() {
+    reset_case
+    (
+        source "$REPO_ROOT/scripts/deployment-lock.sh"
+        forex_acquire_deployment_lock "$BACKUP_DIR/.backup.lock"
+        bash "$BACKUP_SCRIPT" >/dev/null
+        assert_file "$BACKUP_DIR/trading_20990101_000000.db"
+        # An unrelated invocation must remain blocked after backup exits. It
+        # cannot borrow the descriptor just by being another child process.
+        if (unset FOREX_DEPLOY_LOCK_FD; FOREX_BACKUP_REQUIRE_RUN=1 bash "$BACKUP_SCRIPT" >/dev/null 2>&1); then
+            fail "backup released the deployment parent's maintenance lock"
+        fi
+    )
+}
+
+test_environment_marker_without_descriptor_is_rejected() {
+    reset_case
+    if (exec 9>&-; FOREX_DEPLOY_LOCK_FD=9 bash "$BACKUP_SCRIPT" >/dev/null 2>&1); then
+        fail "an environment marker bypassed the maintenance lock"
+    fi
+    assert_no_file "$BACKUP_DIR/forex_backup_20990101_000000.tar.gz"
+    [ ! -s "$CALL_LOG" ] || fail "maintenance began with an invalid inherited lock"
+}
+
+test_descriptor_for_another_file_is_rejected() {
+    reset_case
+    : > "$BACKUP_DIR/.backup.lock"
+    if (exec 9>"$BACKUP_DIR/wrong.lock"; FOREX_DEPLOY_LOCK_FD=9 bash "$BACKUP_SCRIPT" >/dev/null 2>&1); then
+        fail "an unrelated descriptor bypassed the maintenance lock"
+    fi
+    assert_no_file "$BACKUP_DIR/forex_backup_20990101_000000.tar.gz"
+    [ ! -s "$CALL_LOG" ] || fail "maintenance began with a mismatched inherited lock"
+}
+
+test_inherited_descriptor_must_itself_obtain_the_lock() {
+    reset_case
+    (
+        source "$REPO_ROOT/scripts/deployment-lock.sh"
+        forex_acquire_deployment_lock "$BACKUP_DIR/.backup.lock"
+        # Reopening the same inode creates another open file description. A
+        # matching inode alone is insufficient while the parent owns the lock.
+        if (exec 9>"$BACKUP_DIR/.backup.lock"; FOREX_BACKUP_REQUIRE_RUN=1 bash "$BACKUP_SCRIPT" >/dev/null 2>&1); then
+            fail "matching inode was accepted without holding the lock"
+        fi
+    )
+    assert_no_file "$BACKUP_DIR/forex_backup_20990101_000000.tar.gz"
+    [ ! -s "$CALL_LOG" ] || fail "maintenance began while another descriptor held the lock"
+}
+
+test_busy_or_unverified_entry_queue_keeps_management_running() {
+    local payload
+    for payload in \
+        '{"isProcessingQueue":true,"queueLength":0}' \
+        '{"isProcessingQueue":false,"queueLength":1}' \
+        '{"isProcessingQueue":"false","queueLength":0}' \
+        '{"isProcessingQueue":false,"queueLength":false}' \
+        '{}' 'invalid-json'; do
+        reset_case
+        export STUB_ENGINE_STATS="$payload"
+        if bash "$BACKUP_SCRIPT" >/dev/null 2>&1; then
+            fail "backup accepted busy or unverified queue: $payload"
+        fi
+        assert_no_file "$BACKUP_DIR/trading_20990101_000000.db"
+        if grep -Fq 'pm2 stop' "$CALL_LOG" || grep -Fq '/summary' "$CALL_LOG"; then
+            fail "backup proceeded beyond the entry-queue guard"
+        fi
+    done
+}
+
+test_unavailable_entry_queue_keeps_management_running() {
+    reset_case
+    export STUB_ENGINE_STATS_FAIL=1
+    if bash "$BACKUP_SCRIPT" >/dev/null 2>&1; then
+        fail "backup accepted an unavailable entry queue"
+    fi
+    assert_no_file "$BACKUP_DIR/trading_20990101_000000.db"
+    if grep -Fq 'pm2 stop' "$CALL_LOG" || grep -Fq '/summary' "$CALL_LOG"; then
+        fail "backup proceeded beyond the unavailable entry queue"
+    fi
+}
+
 test_successful_safe_backup
 test_lock_collision_skips_without_output
 test_required_lock_collision_fails_deploy_gate
@@ -247,5 +349,11 @@ test_failed_snapshot_cleans_partial_and_restores_runtime
 test_failed_integrity_check_does_not_publish_snapshot
 test_open_trade_fails_closed_without_stopping_service
 test_ambiguous_intent_with_flat_broker_keeps_management_running
+test_deploy_lock_is_inherited_without_releasing_parent_lock
+test_environment_marker_without_descriptor_is_rejected
+test_descriptor_for_another_file_is_rejected
+test_inherited_descriptor_must_itself_obtain_the_lock
+test_busy_or_unverified_entry_queue_keeps_management_running
+test_unavailable_entry_queue_keeps_management_running
 
 echo "backup_test.sh: all tests passed"

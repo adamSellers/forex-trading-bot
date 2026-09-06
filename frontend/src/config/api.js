@@ -25,15 +25,6 @@ export const socket = io(SOCKET_URL, {
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    withCredentials: true,
-});
-
-const requireOperatorLogin = () => window.dispatchEvent(new Event('forex-operator-auth-required'));
-socket.on('connect_error', (error) => {
-    if (['AUTH_REQUIRED', 'OPERATOR_SETUP_REQUIRED'].includes(error.data?.code)) requireOperatorLogin();
-});
-socket.on('disconnect', (reason) => {
-    if (reason === 'io server disconnect') requireOperatorLogin();
 });
 
 // API Endpoints - organized by route file
@@ -115,7 +106,6 @@ export const apiCall = async (endpoint, options = {}) => {
     const { headers: requestHeaders = {}, ...requestOptions } = options;
 
     const defaultOptions = {
-        credentials: 'include',
         ...requestOptions,
         method,
         headers: {
@@ -133,7 +123,6 @@ export const apiCall = async (endpoint, options = {}) => {
             try {
                 const errorData = await response.json();
                 errorPayload = errorData;
-                if (['AUTH_REQUIRED', 'OPERATOR_SETUP_REQUIRED'].includes(errorData?.code)) requireOperatorLogin();
                 if (errorData && typeof errorData === "object") {
                     errorMessage =
                         errorData.message || errorData.error || errorMessage;

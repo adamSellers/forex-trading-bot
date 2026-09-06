@@ -8,7 +8,7 @@ Status: **implemented and verified locally; not deployed**. Authorized by the us
 - Retain 0.25% risk ceiling, A$100 sizing-capital cap and one position. Do not fund the account, raise limits, tune ADX/RSI/trigger thresholds or choose only historically winning groups.
 - Corrected local cohort: `m15-intraday-v3`, `intraday-risk-v3`, strategy `1.1.0`. This version change identifies corrected execution/exits, not a claimed profitable strategy.
 - No production mutation, test orders, Git publication, build or deployment in this implementation pass. User-managed rollout remains a separate step after validation and review.
-- New operator authentication uses credentials separate from OANDA and must be provisioned before rollout. Missing credentials fail closed; deployment instructions must cover browser access and unattended maintenance without exposing secrets.
+- **September 7 user correction:** this is a private personal tool on the user's internal network. Remove the operator login/token requirement throughout the app and maintenance. This supersedes the original authentication implementation; retain broker credentials and trading risk/readiness checks.
 
 ## Funding decision and justification
 
@@ -22,7 +22,7 @@ More balance scales dollar outcomes only if sizing increases; it does not improv
 | F2 | Use normal liquidity-sized entry bids/asks; closeout prices caused false movement comparisons and distorted initial protection | Divergent closeout/ordinary quotes, liquidity, price bounds, fill alignment, explicit pre-submit rejection | Implemented; locally verified |
 | F3 | Reconcile while locally flat and block account-wide uncertain/pending/quarantined exposure | Lost fill response then next queued pair, restart, unknown broker trades | Implemented; locally verified |
 | F4 | Confirm broker protection/units; retry initial SL and TP independently of monotonic tightening | Equal/favorable fill, failed alignment, missing/changed broker stops, partial units | Implemented; locally verified |
-| F5 | Authenticate API/socket access and authorize controls; LAN proxy exposed account/control routes | Missing/invalid credential, browser session, CSRF/origin, bearer scripts, socket handshake | Implemented; locally verified |
+| F5 | Original operator authentication proposal superseded by the user: private-network tool with direct dashboard/API/socket access | No-login server/socket and startup/maintenance regressions; preserve trading checks | Login removed locally on September 7 |
 | F6 | Durable atomic pause and cancellation of in-flight/queued entry work | Filesystem failure, restart state, pause during async validation | Implemented; locally verified |
 | F7 | Restore safely with preserved/separately recovered credentials and validated data, paused | Isolated restore, invalid archives/snapshots, credentials, no live orders, failure recovery | Implemented; locally verified |
 | M1 | Separate broker/candle event time from fetch time and enforce actual completed-bar freshness | Weekend/reopen, daily break, stale H1/M15, malformed times | Implemented; locally verified |
@@ -71,7 +71,7 @@ node scripts/tests/frontend_refresh_contract.test.cjs
 1. Preserve audit and decisions; correct current instructions and register all work.
 2. Implement execution/data/auth foundations with lifecycle regression tests.
 3. Integrate operator health, analytics, reports, recovery and telemetry; update release/user/deployment docs.
-4. Run full isolated regression and relevant checks; document exact user-managed build/deployment commands, authentication provisioning and rollback prerequisites. Mark production unchanged until independently verified after a later rollout.
+4. Run full isolated regression and relevant checks; document the one-command user-managed deployment and rollback prerequisites. Mark production unchanged until independently verified after a later rollout.
 
 ## Implementation detail and deliberate behavior
 
@@ -92,11 +92,11 @@ Telemetry schema for new trades uses `brokerReconciliationPayload.liveRuntime.in
 
 ### Access, health and recovery (F5, F7, M4–M5, O1)
 
-`operatorAuthService`/`operatorAuth` protect API and Socket.IO access using a separate 32-byte operator token, expiring HttpOnly browser sessions, origin checks for session mutations and bearer authentication for maintenance. Tokens are not browser localStorage values or shell command-line arguments. Missing configuration fails closed. Release freeze cannot be disabled through the API. Configuration saves flush a same-directory temporary file, rename it, and flush the directory before updating memory or emitting success. Any persistence failure forces an in-memory pause, invalidates pending entries and exposes a critical persistence fault. It does not acknowledge a durable pause: restart may reload the prior on-disk state. Activation is blocked until a paused configuration is saved successfully.
+The initial authentication service, middleware and browser token gate were removed at the user's explicit request on September 7. The app is a private internal-network tool; dashboard, API and live updates open directly. Release freeze cannot be disabled through the API. Configuration saves flush a same-directory temporary file, rename it, and flush the directory before updating memory or emitting success. Any persistence failure forces an in-memory pause, invalidates pending entries and exposes a critical persistence fault. It does not acknowledge a durable pause: restart may reload the prior on-disk state. Activation is blocked until a paused configuration is saved successfully.
 
 Operational health checks service/event freshness, broker uncertainty, unresolved intents, protection, monitoring and overdue closes. The dashboard uses this backend market/session calendar instead of a second hardcoded UTC schedule. Email incidents are deduplicated in SQLite and recovery messages follow actual recovery; configured SMTP calls have bounded timeouts. Email delivery requires existing credentials and enabled alerts; this work did not provision or send messages. External `health-check.sh` remains necessary to detect a dead process/host.
 
-Restore stages and validates the archive and exact matching SQLite snapshot before any service stop. It requires a persisted pause, verified flat broker account with no pending orders, and no unresolved durable lifecycle state. It preserves credentials and the original installation in a rollback directory, validates integrity/schema, and restores paused. Invalid input or a preparation failure does not remove the installation. A failure after cutover leaves the process stopped with the original retained for explicit recovery. See [the deployment and recovery runbook](../../scripts/DEPLOYMENT_README.md) for token provisioning, HTTPS, verification and independent backup/compaction procedures. No compaction or off-host backup was performed in this pass.
+Restore stages and validates the archive and exact matching SQLite snapshot before any service stop. It requires a persisted pause, verified flat broker account with no pending orders, and no unresolved durable lifecycle state. It preserves credentials and the original installation in a rollback directory, validates integrity/schema, and restores paused. Invalid input or a preparation failure does not remove the installation. A failure after cutover leaves the process stopped with the original retained for explicit recovery. See [the one-command deployment guide](../../scripts/DEPLOYMENT_README.md) and [the recovery/access reference](../operations/recovery-and-access.md) for HTTPS, verification and independent backup/compaction procedures. No compaction or off-host backup was performed in this pass.
 
 ### Measurement and reports (M7–M10)
 
@@ -116,6 +116,40 @@ The original `CLAUDE.md` is preserved under `docs/archive/`; current instruction
 
 No source, configuration, broker state, service process, credentials, capital or deployment on `img.oakroad` was changed during implementation. No order, email or S3 upload was sent. Builds, Git publication and deployment remain user-managed under the repository instructions.
 
-Before activating v3: provision operator access, use the documented paused/flat deployment path, complete the frontend/production build, verify authenticated health and broker reconciliation, confirm the v3 run identity and preserved history, and then explicitly enable entries. Observe the first actual broker fill/protection and timed exit; do not manufacture a test order. Begin the next profitability assessment with the corrected cohort and recorded costs, rather than combining it with v1/v2 and attributing any change to increased funding.
+Deploy v3 with `./scripts/deploy.sh` after publishing the reviewed release. The command prepares/tests/builds the release, verifies pause and broker flatness, backs up, migrates, restarts and checks operational health. It restores previously enabled entries through readiness and preserves a pre-existing pause. Afterward, verify direct dashboard access, v3 run identity and preserved history. Observe the first actual broker fill/protection and timed exit; do not manufacture a test order. Begin the next profitability assessment with the corrected cohort and recorded costs, rather than combining it with v1/v2 and attributing any change to increased funding.
 
 Independent integration review additionally corrected close/retry queue boundaries, risk/cooldown checks after reconciliation, sizing against the worst permitted fill, manual closes without a price cache, a Linux-sensitive import name, durable-intent checks in maintenance, a failed-save in-memory pause, run-aware signal deduplication, unmatched closure rates, empty-sample confidence intervals and stale overlapping dashboard refreshes. These are correctness fixes, not parameter tuning.
+
+
+## One-command deployment follow-up
+
+The user requested that deployment remain a single command. The operator-token setup described in the original September 6 follow-up was subsequently removed at the user's request on September 7. The previous runbook exposed first-upgrade bootstrap, pause and activation as manual chores; these now belong to the scripts. The additional authentication setup was removed entirely. `./scripts/deploy.sh` from the local checkout deploys published `main` over SSH; `./scripts/update.sh` remains the Pi equivalent. Recovery/access detail moved into a separate reference.
+
+| Change | Justification | Verification |
+| --- | --- | --- |
+| SSH bootstrap fetches and pins a release archive before using its helpers | The old unauthenticated installation cannot supply newly introduced scripts; tracked source stays untouched during preparation | Isolated bootstrap and first-upgrade fixtures |
+| Stage dependencies, backend tests and frontend build; repeat gates on same-revision runs | A failed install/build must not damage running dependencies, and HEAD alone is not a success receipt | Preparation failures, sequencing and same-revision tests |
+| Original operator provisioning removed on September 7 | User requires a private tool with no application login; only deployment compatibility may read an existing token to replace the old process | No-token startup/API and migration compatibility fixtures |
+| Read exact trading state, durably pause, require an idle entry queue and broker flatness; recheck before cutover | Legacy in-flight signals can outlive a pause; open positions need management to keep running | Queue/broker and pre-cutover failure tests |
+| Hold the shared maintenance lock throughout deployment and reuse its verified descriptor for backup | Prevents a cron backup or restore colliding with preparation/cutover without deadlocking the nested backup | Descriptor inheritance and contention tests |
+| Build/test against staging with explicit test DB/environment; migrate the intended production DB | An inherited operator environment must not redirect tests into production or omit Jest | Environment and path assertions in isolated deployment tests |
+| Restore the prior enabled state through readiness and verify it even after a lost HTTP response | Preserves the ordinary operator workflow without bypassing cooldowns or confusing an uncertain reply with a pause | Enabled/paused, readiness and lost-response fixtures |
+| Retain recovery artifacts after cutover failure; report failure rather than silently resuming | Migration or startup failures need concrete evidence and deliberate recovery | Cutover failure fixtures |
+
+Validation: **24 deployment tests**, **13 backup tests** (including lock inheritance and malformed/busy queue payloads), **17 restore tests** (including a queue becoming busy during preparation), and **8 operational-health scenarios** pass. Shell syntax and `git diff --check` pass. These fixtures stub SSH, Git release operations, npm, PM2 and external APIs; encryption tests use temporary test-only credentials. The earlier 500 backend tests were not repeated because this follow-up changes deployment/maintenance scripts and documentation, not backend trading code. No production deployment or real build was performed; the deployment script runs those steps only when invoked by the user.
+
+## September 7 — Remove the operator login requirement
+
+**User decision:** the app is a private personal tool available on their internal network. They explicitly requested removal of the new login requirement. General remediation approval had been interpreted too broadly when the access gate was introduced; improving the bot does not authorize adding a product account/login model.
+
+| Change | Justification | Verification |
+| --- | --- | --- |
+| Remove browser gate, login/logout component, auth client and auth-triggered socket redirects | Dashboard should open directly with no token entry or session expiry | Frontend parsing and refresh regression checks |
+| Remove server auth routes, API middleware, session service and Socket.IO credential checks | UI-only removal would leave API and live updates unusable | Actual server integration: no-token reads, controls, readiness rejection and socket events |
+| Remove operator provisioning and startup/restore credential prerequisites; rename helper to `load-maintenance-api.sh` | First install and ongoing maintenance must work without operator secret files | Startup and maintenance fixtures with no operator token/files |
+| Permit an opt-in, single 401 retry during deployment using only the old saved encrypted credential | The currently running gated release must still be paused/backed up before replacement; no new login/setup is introduced | Legacy 401, success and ambiguous-response tests; compatibility absent from new PM2 environment |
+| Update product instructions, deployment, user guide and recovery reference | Future work must honor the private-use boundary and keep deployment one command | Current-document reference review |
+
+Broker credentials, source/DB recovery, queue/flatness checks, risk limits and live-readiness checks remain in place. Historical review evidence and earlier validation counts remain above for traceability. Existing legacy operator files are not deleted; normal startup and API access no longer read them. This is an access/usability change, so the trading strategy/cohort identity is unchanged.
+
+Validation: **494/494 backend tests pass in 32 suites** on Node 20.20.2, including five new tests through actual server/API/Socket.IO wiring. Eleven obsolete login/session tests were removed, explaining the change from the earlier 500-test total. **26 deployment/startup/maintenance tests, 15 restore tests, 13 backup tests and 8 health scenarios pass** (62 operational cases). All **27 frontend JavaScript/JSX files parse**, and **4 frontend refresh scenarios pass**. Shell syntax and whitespace checks pass. Test integrations use mocks/disposable fixtures and loopback sockets; no real broker orders, email or S3 requests were made. This pass makes local code/documentation changes only; no Git publication, frontend build or production restart/deployment has been performed.

@@ -4,7 +4,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
-source "$SCRIPT_DIR/load-operator-auth.sh"
+source "$SCRIPT_DIR/load-maintenance-api.sh"
 
 echo "🩺 Running live-only deployment checks..."
 
@@ -41,7 +41,7 @@ check "Retired-results migration present" "[ -f backend/migrations/006_drop_back
 check "Broker lifecycle migration present" "[ -f backend/migrations/010_add_broker_lifecycle_outbox.js ]"
 check "Retired simulation CLIs absent" "[ ! -f backend/scripts/replayStrategy.js ] && [ ! -f scripts/backtest.js ] && [ ! -f scripts/backtestSweep.js ]"
 
-# Authenticated API checks are required; missing access is a failed preflight.
+# A running API is required for these diagnostic checks.
 if forex_api_curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
     endpoints=(
         "http://localhost:3101/api/health"
@@ -54,7 +54,7 @@ if forex_api_curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
         check "Local API: $endpoint" "forex_api_curl -f -s '$endpoint' > /dev/null 2>&1"
     done
 else
-    check "Authenticated local API is reachable (configure access and start the backend)" "false"
+    check "Local API is reachable (start the backend)" "false"
 fi
 
 # Test root package orchestration. This repo does not use npm workspaces; the

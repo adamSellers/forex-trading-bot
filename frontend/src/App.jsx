@@ -8,7 +8,6 @@ import TradingConfig from './components/TradingConfig';
 import SystemHealth from './components/SystemHealth';
 import Navigation from './components/Navigation';
 import ErrorBoundary from './components/ErrorBoundary';
-import OperatorAuthGate from './components/OperatorAuthGate';
 
 // Navigation views
 const VIEWS = {
@@ -39,7 +38,6 @@ function App() {
     <ThemeProvider theme={tradingTheme}>
       <CssBaseline />
       <ErrorBoundary>
-        <OperatorAuthGate>
         <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
           <Navigation 
             currentView={currentView} 
@@ -50,7 +48,6 @@ function App() {
             {renderView()}
           </Box>
         </Box>
-        </OperatorAuthGate>
       </ErrorBoundary>
     </ThemeProvider>
   );

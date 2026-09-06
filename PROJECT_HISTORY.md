@@ -31,6 +31,14 @@ The current product has one live OANDA runtime and one strategy: `intraday_momen
 
 ## Completed Features
 
+### 2026-09-07 — Remove operator login for private use (local)
+
+The user clarified that the bot is a private personal tool on their internal network and explicitly requested removal of the login requirement. Removed the dashboard gate, login/logout, API/socket authentication and startup/provisioning requirements. Maintenance uses direct local API calls; the deployment command can reuse a previously saved credential only when replacing the old login-gated process. Trading controls still enforce readiness/risk checks, and broker credentials remain server-side. Current instructions record this product boundary to avoid reintroducing a SaaS-style access model. Local verification is recorded in the remediation register; no deployment was performed in this pass.
+
+### 2026-09-06 — One-command deployment follow-up (local)
+
+At the user's request, `./scripts/deploy.sh` was extended to own SSH, first-upgrade operator setup (subsequently removed on September 7), staged preparation/test/build, pause/flat/queue checks, verified backup, migration, restart, health and readiness-gated restoration of the previous trading state. `update.sh` uses the same workflow on the Pi. The ordinary guide is short; recovery and access administration have a separate reference. [The remediation register](docs/reviews/2026-09-06-remediation.md#one-command-deployment-follow-up) records rationale and verification. **Not deployed in this pass.**
+
 ### 2026-09-06 — End-to-end production review and remediation authorization
 
 Read-only review verified production commit `bee8527`, `m15-intraday-v2`, a flat A$96.7558 account, and all 17 M15 close prices/net outcomes against OANDA. Combined net profit was A$0.0162; this is not evidence of reliable profitability. Found disconnected timed exits, incorrect closeout entry quotes, lifecycle/recovery gaps and misleading operator analytics. The full [review](docs/reviews/2026-09-06-production-review.md) preserves evidence and limitations.

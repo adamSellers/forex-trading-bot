@@ -42,13 +42,14 @@ The repository requires Node `>=20 <23`; native SQLite tests will not load under
 
 ## Deployment
 
-Production changes flow through Git and the repository scripts. Do not edit source directly on the Pi. This release requires operator-token provisioning before restart: follow [the deployment runbook](scripts/DEPLOYMENT_README.md) before using the commands below. Builds and deployment remain user-managed.
+This is a private internal-network tool. Open the dashboard directly; there is no app login or operator token.
+
+After publishing the reviewed changes to `main`, deploy from your local checkout:
 
 ```bash
-./scripts/deploy-check.sh
-ssh adam@img.oakroad
-cd /opt/forex-trading-bot
-./scripts/update.sh
+./scripts/deploy.sh
 ```
+
+The command handles SSH, pause and broker checks, tests, build, backup, migration, restart, health and restoration of the previous trading state through readiness. See [the short deployment guide](scripts/DEPLOYMENT_README.md). Builds and deployment remain user-managed.
 
 See [USER_GUIDE.md](USER_GUIDE.md) for the operator surface and [M15_INTRADAY_RELEASE_2026-08-10.md](M15_INTRADAY_RELEASE_2026-08-10.md) for the current design and live improvement loop.

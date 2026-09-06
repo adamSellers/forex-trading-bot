@@ -1,32 +1,36 @@
 #!/bin/bash
-# Source this helper; it does not print credentials or contact the broker.
-
-load_forex_operator_token() {
-    # Do not expose decrypted credentials through shell tracing.
-    case $- in *x*) set +x ;; esac
-    local project="${FOREX_PROJECT_DIR:-/opt/forex-trading-bot}"
-    if [ -z "${FOREX_OPERATOR_TOKEN:-}" ]; then
-        [ -f "$project/.keys/encryption.key" ] && [ -f "$project/.secrets/operator_token.enc" ] || {
-            echo "Operator access is not configured. Run setup-operator-access.sh before maintenance." >&2
-            return 1
-        }
-        FOREX_OPERATOR_TOKEN=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
-            -pass "file:$project/.keys/encryption.key" \
-            -in "$project/.secrets/operator_token.enc" 2>/dev/null) || return 1
-    fi
-    if [[ ! "$FOREX_OPERATOR_TOKEN" =~ ^[a-fA-F0-9]{64}$ ]]; then
-        echo "Invalid operator credential; expected a 32-byte hexadecimal token." >&2
-        return 1
-    fi
-    export FOREX_OPERATOR_TOKEN
-}
+# Local maintenance API calls need no login on this private-network tool.
 
 forex_api_curl() (
     set +x
-    load_forex_operator_token || exit 1
-    # curl reads the authorization header from stdin, never from argv or a
-    # world-readable file. -q ignores per-user curl config/trace/redirect flags.
-    printf 'header = "Authorization: Bearer %s"\n' "$FOREX_OPERATOR_TOKEN" |
+    if [ "${FOREX_DEPLOY_LEGACY_ACCESS:-0}" != 1 ]; then
+        curl -q --fail --silent --show-error --connect-timeout 5 --max-time 20 "$@"
+        exit $?
+    fi
+
+    # Upgrade compatibility only: an already-running September 6 release may
+    # still require its saved token before we can pause it. A completed 401 is
+    # the only response retried; ambiguous mutations must never be replayed.
+    umask 077
+    response=$(mktemp)
+    trap 'rm -f "$response" "$response.error"' EXIT
+    status=0
+    code=$(curl -q --fail --silent --show-error --connect-timeout 5 --max-time 20 \
+        "$@" --output "$response" --write-out '%{http_code}' 2>"$response.error") || status=$?
+    if [ "$code" != 401 ] || [ "$status" -ne 22 ]; then
+        cat "$response"
+        cat "$response.error" >&2
+        exit "$status"
+    fi
+    project="${FOREX_PROJECT_DIR:-/opt/forex-trading-bot}"
+    token=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+        -pass "file:$project/.keys/encryption.key" \
+        -in "$project/.secrets/operator_token.enc" 2>/dev/null) || {
+        echo "The running legacy release requires its existing saved credential before replacement." >&2
+        exit 1
+    }
+    [[ "$token" =~ ^[a-fA-F0-9]{64}$ ]] || { echo "The saved legacy credential is invalid." >&2; exit 1; }
+    printf 'header = "Authorization: Bearer %s"\n' "$token" |
         curl -q --config - --fail --silent --show-error \
             --connect-timeout 5 --max-time 20 "$@"
 )
@@ -57,6 +61,33 @@ forex_broker_account_summary() (
             "$host/v3/accounts/$account_id/summary"
 )
 
+# The first upgraded release still runs the old entry code until cutover. That
+# code can retain enabled=true while waiting for network work, before recording
+# an order intent. Confirm that this work has drained after the durable pause;
+# flat broker/local ledgers alone cannot exclude it.
+forex_require_entry_queue_idle() (
+    set +x
+    local api_url="${FOREX_API_URL:-http://localhost:3101/api}"
+    local queue
+    queue=$(forex_api_curl "$api_url/engine/stats") || {
+        echo "Cannot verify that in-flight entry processing has drained" >&2
+        exit 1
+    }
+    printf '%s' "$queue" | python3 -c '
+import json,sys
+try:
+    queue=json.load(sys.stdin)
+    valid=isinstance(queue,dict) and queue.get("isProcessingQueue") is False
+    valid=valid and type(queue.get("queueLength")) is int and queue["queueLength"] == 0
+except (ValueError,TypeError):
+    valid=False
+sys.exit(0 if valid else 1)
+' || {
+        echo "Entry processing is busy or unverified; management remains running" >&2
+        exit 1
+    }
+)
+
 # A successful earlier preflight cannot authorize a later cutover: entries may
 # have been enabled during dependency/build preparation. Call again just before
 # stopping the process. This helper performs only local reads and broker GETs.
@@ -73,6 +104,7 @@ forex_require_paused_flat_running() (
     printf '%s' "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("config") or {}).get("enableTrading") is False else 1)' || {
         echo "Running API does not confirm paused entries" >&2; exit 1;
     }
+    forex_require_entry_queue_idle || exit 1
     broker=$(forex_broker_account_summary) || {
         echo "Cannot verify broker state before cutover" >&2; exit 1;
     }

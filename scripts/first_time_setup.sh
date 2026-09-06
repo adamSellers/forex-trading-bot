@@ -28,7 +28,7 @@ log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
-source "$SCRIPT_DIR/load-operator-auth.sh"
+source "$SCRIPT_DIR/load-maintenance-api.sh"
 
 # --- Pi-Specific: Swap Management ---
 setup_swap() {
@@ -144,7 +144,6 @@ log_success "Database initialized"
 log_step "Setting up encrypted secrets..."
 chmod +x scripts/*.sh
 ./scripts/setup-secrets.sh < /dev/tty
-./scripts/setup-operator-access.sh
 
 # --- 7. Register with PM2 ---
 log_step "Registering with PM2..."

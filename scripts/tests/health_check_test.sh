@@ -21,9 +21,7 @@ esac
 MOCK
 cat > "$workspace/bin/curl" <<'MOCK'
 #!/bin/bash
-input=$(cat)
-[[ "$input" == *'Authorization: Bearer '* ]] || exit 1
-[[ "$*" != *'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'* ]] || exit 1
+[[ "$*" != *'--config -'* && "$*" != *'Authorization:'* ]] || exit 1
 [ "${HEALTH_TEST_CASE:-healthy}" != "unavailable" ] || exit 1
 python3 - <<'PY'
 import json,os,time
@@ -48,7 +46,7 @@ MOCK
 chmod +x "$workspace/bin/pm2" "$workspace/bin/sqlite3" "$workspace/bin/curl"
 export PATH="$workspace/bin:$PATH"
 export FOREX_PROJECT_DIR="$workspace/app" FOREX_NODE_RUNTIME_LOADED=1
-export FOREX_OPERATOR_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+unset FOREX_OPERATOR_TOKEN
 
 for scenario in healthy weekend cooldown; do
     HEALTH_TEST_CASE="$scenario" bash "$CHECK" > "$workspace/output" || {

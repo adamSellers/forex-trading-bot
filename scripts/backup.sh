@@ -15,7 +15,8 @@ BACKUP_MODE="${1:---safe}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
-source "$SCRIPT_DIR/load-operator-auth.sh"
+source "$SCRIPT_DIR/load-maintenance-api.sh"
+source "$SCRIPT_DIR/deployment-lock.sh"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -49,13 +50,16 @@ command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 is required for consistent b
 # The lock is held by this shell for its full lifetime. A cron invocation that
 # overlaps an existing backup exits successfully without creating any files.
 LOCK_FILE="${FOREX_BACKUP_LOCK_FILE:-$BACKUP_DIR/.backup.lock}"
-exec 9>"$LOCK_FILE"
-if ! flock -n 9; then
+lock_status=0
+forex_acquire_deployment_lock "$LOCK_FILE" || lock_status=$?
+if [ "$lock_status" -eq 75 ]; then
     log_warn "Another forex backup is already running; skipping this invocation"
     if [ "${FOREX_BACKUP_REQUIRE_RUN:-0}" = 1 ]; then
         exit 75
     fi
     exit 0
+elif [ "$lock_status" -ne 0 ]; then
+    fail "Cannot establish the shared maintenance lock"
 fi
 
 ARCHIVE_FINAL="$BACKUP_DIR/$BACKUP_FILE"
@@ -213,6 +217,8 @@ quiesce_database() {
     # the local lifecycle ledger still records uncertainty.
     python3 "$SCRIPT_DIR/restore-safety.py" "$PROJECT_DIR" || \
         fail "database snapshot deferred because pause or durable broker state is unresolved"
+    forex_require_entry_queue_idle || \
+        fail "database snapshot deferred because entry processing has not been verified idle"
 
     # Broker truth is checked after pausing entries and inspecting the ledger.
     account=$(forex_api_curl -sf --max-time 20 "$API_URL/account") || \
@@ -222,7 +228,7 @@ quiesce_database() {
     [ "$open_trades" -eq 0 ] || \
         fail "database snapshot deferred because broker reports $open_trades open trade(s)"
     # Check pending broker orders directly as well. This also works during the
-    # first auth rollout when the old /account API has no pendingOrders field.
+    # first upgrade when the old /account API has no pendingOrders field.
     broker=$(forex_broker_account_summary) || fail "cannot verify pending broker orders before snapshot"
     printf '%s' "$broker" | python3 -c \
         'import json,sys; a=json.load(sys.stdin).get("account",{}); sys.exit(0 if str(a.get("openTradeCount")) == "0" and str(a.get("pendingOrderCount")) == "0" else 1)' || \

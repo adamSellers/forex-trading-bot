@@ -5,7 +5,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh" || exit 1
-source "$SCRIPT_DIR/load-operator-auth.sh" || exit 1
+source "$SCRIPT_DIR/load-maintenance-api.sh" || exit 1
 FOREX_PROJECT_DIR="${FOREX_PROJECT_DIR:-/opt/forex-trading-bot}"
 LOG_FILE="$FOREX_PROJECT_DIR/backend/logs/health.log"
 PORT="${PORT:-3101}"
@@ -32,7 +32,7 @@ fi
 
 system_data=$(forex_api_curl "http://localhost:$PORT/api/system/health" 2>/dev/null || true)
 if [ -z "$system_data" ]; then
-    log_message "Operational health: authenticated API unavailable"
+    log_message "Operational health: API unavailable"
     FAILED=1
 else
     if ! details=$(printf '%s' "$system_data" | python3 -c '

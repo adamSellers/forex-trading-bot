@@ -8,7 +8,7 @@ set -e
 # =====================================================
 
 # --- Configuration ---
-BASE_DIR="/opt/forex-trading-bot"
+BASE_DIR="${FOREX_PROJECT_DIR:-/opt/forex-trading-bot}"
 SECRETS_DIR="$BASE_DIR/.secrets"
 KEYS_DIR="$BASE_DIR/.keys"
 ENCRYPTION_KEY_FILE="$KEYS_DIR/encryption.key"
@@ -32,12 +32,6 @@ S3_BUCKET_NAME_FILE="$SECRETS_DIR/s3_bucket_name.enc"
 # --- Node Runtime ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
-source "$SCRIPT_DIR/load-operator-auth.sh"
-# PM2 may retain an old exported token across restarts. The encrypted local
-# credential is authoritative when present, including after deliberate rotation.
-if [ -f "$SECRETS_DIR/operator_token.enc" ]; then unset FOREX_OPERATOR_TOKEN; fi
-load_forex_operator_token || exit 1
-
 # --- Decrypt and Export ---
 if [ -f "$ENCRYPTION_KEY_FILE" ]; then
 

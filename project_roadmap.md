@@ -4,7 +4,7 @@ There is one production path and one active strategy. Planned work must improve 
 
 ## Authorized September 6 remediation
 
-Local implementation and 500 backend regression tests are complete; production rollout, authenticated browser/build checks and an independent recovery drill remain operator steps. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md). Correct execution/exits, broker uncertainty, authentication, freshness, analytics and recovery before strategy tuning. Record every justification, regression check and deployment state. Funding and risk limits remain unchanged.
+Local implementation and 500 backend regression tests are complete; production rollout via the single `./scripts/deploy.sh` command, direct dashboard acceptance and an independent recovery drill remain operator steps. The deployment command performs its own tests, build, backup and health checks. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md). Correct execution/exits, broker uncertainty, private-network usability, freshness, analytics and recovery before strategy tuning. Record every justification, regression check and deployment state. Funding and risk limits remain unchanged.
 
 ## Immediate live review
 
@@ -24,6 +24,7 @@ Local implementation and 500 backend regression tests are complete; production r
 ## Permanent constraints
 
 - One live strategy and one active entry runtime.
+- Private internal-network personal tool with direct dashboard/API access; no operator login or account system.
 - No simulated execution subsystem or strategy switching UI.
 - No manual test orders.
 - Risk per trade at or below 0.25% for the current intraday release.

@@ -28,9 +28,8 @@ function createCorsOptions(env = process.env) {
     return {
         origin(origin, callback) {
             // Requests without Origin include same-origin navigation, health
-            // probes, and CLI clients. Authentication is enforced separately.
-            // Cross-origin browsers
-            // must be explicitly allowlisted.
+            // probes, and CLI clients on the trusted internal network.
+            // Cross-origin browsers must be explicitly allowlisted.
             if (!origin || allowedOrigins.has(String(origin).replace(/\/$/, ""))) {
                 return callback(null, true);
             }

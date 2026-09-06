@@ -32,11 +32,11 @@ The September 6 production review verified v2 / strategy 1.0.0. This table descr
 | Time controls | six-hour time stop and pre-rollover close window |
 | New-install trading state | disabled; deployment requires paused/flat, restore always starts paused |
 
-## Operator access
+## Opening the app
 
-Sign in with the separate operator access token provisioned using `scripts/setup-operator-access.sh`; never use the OANDA key. Sessions expire after eight hours and on restart, use an HttpOnly cookie, and are not stored in browser localStorage. API and socket access require authentication. The only anonymous health endpoint is `GET /api/liveness`, which says nothing about trading safety. Unattended scripts use the encrypted operator credential through `scripts/load-operator-auth.sh`.
+Open [the dashboard](http://fx.oakroad) directly on your internal network. This is a private personal tool with no login, operator token or session expiry. The API and live updates use the same network access. Broker credentials remain server-side, and trading readiness/risk checks still govern entries.
 
-Provisioning, HTTPS/proxy settings and recovery are documented in [the deployment runbook](scripts/DEPLOYMENT_README.md). Missing credentials fail closed.
+Deploy with `./scripts/deploy.sh` from your local checkout after publishing the reviewed release. See [the deployment guide](scripts/DEPLOYMENT_README.md), or [maintenance and recovery](docs/operations/recovery-and-access.md) for operational details.
 
 ## Reading results
 

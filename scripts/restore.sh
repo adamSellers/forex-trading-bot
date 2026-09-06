@@ -8,7 +8,7 @@ APP_NAME="${FOREX_APP_NAME:-forex-backend}"
 API_URL="${FOREX_API_URL:-http://localhost:3101/api}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
-source "$SCRIPT_DIR/load-operator-auth.sh"
+source "$SCRIPT_DIR/load-maintenance-api.sh"
 fail() { echo "ERROR: $*" >&2; exit 1; }
 [ "$#" -ge 1 ] || fail "Usage: restore.sh BACKUP [--verify-only | --confirm RESTORE]"
 backup="$1"
@@ -50,12 +50,12 @@ if [ "$verify_only" = true ]; then
     echo "Restore candidate passed archive, schema, snapshot broker-state and SQLite integrity validation. No service was stopped."
     exit 0
 fi
-load_forex_operator_token || fail "Operator access must be configured before restore"
 require_paused_flat() {
     local health broker pid
     python3 "$SCRIPT_DIR/restore-safety.py" "$PROJECT_DIR"
     if health=$(forex_api_curl "$API_URL/health" 2>/dev/null); then
         printf '%s' "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("config") or {}).get("enableTrading") is False else 1)' || fail "Running API does not confirm paused entries"
+        forex_require_entry_queue_idle || fail "Entry processing has not been verified idle"
     else
         pid=$(pm2 pid "$APP_NAME" 2>/dev/null | tail -n 1 | tr -d '[:space:]')
         [ "$pid" = 0 ] || fail "API unavailable while PM2 may still be running; establish paused state first"

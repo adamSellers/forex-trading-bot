@@ -17,7 +17,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
-source "$SCRIPT_DIR/load-operator-auth.sh"
+source "$SCRIPT_DIR/load-maintenance-api.sh"
 
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated restore/credential tests: npm, PM2, curl and locks are stubs."""
+"""Isolated restore tests: npm, PM2, curl and locks are stubs."""
 import io
 import json
 import os
@@ -26,13 +26,12 @@ class RestoreTests(unittest.TestCase):
             directory.mkdir(parents=True)
         self.config = self.project / "backend/data/trading_config.json"
         self.config.write_text(json.dumps({"enableTrading": False, "enforceConfigFreeze": True}))
-        for relative in ["backend/package.json", "backend/server.js", "ecosystem.config.js", "scripts/start-wrapper.sh", "scripts/load-operator-auth.sh"]:
+        for relative in ["backend/package.json", "backend/server.js", "ecosystem.config.js", "scripts/start-wrapper.sh", "scripts/load-maintenance-api.sh"]:
             (self.project / relative).write_text("{}\n")
         health = self.project / "scripts/health-check.sh"
         health.write_text("#!/bin/bash\nexit 0\n")
         health.chmod(0o700)
         (self.project / ".keys/encryption.key").write_text("original-key")
-        (self.project / ".secrets/operator_token.enc").write_text("original-operator-secret")
         (self.project / ".secrets/oanda_api_key.enc").write_text("original-broker-secret")
         self.database = self.project / "backend/data/trading.db"
         db = sqlite3.connect(self.database)
@@ -44,21 +43,31 @@ class RestoreTests(unittest.TestCase):
         self.make_archive()
         self.stub("flock", "exit 0")
         self.stub("sleep", "exit 0")
-        self.stub("npm", 'echo "npm $*" >> "$CALL_LOG"; [ "${FAIL_NPM:-0}" != 1 ]')
+        self.stub("npm", '''echo "npm $*" >> "$CALL_LOG"
+if [ "${QUEUE_BUSY_AFTER_NPM:-0}" = 1 ]; then touch "$CALL_LOG.queue-busy"; fi
+[ "${FAIL_NPM:-0}" != 1 ]''')
         self.stub("pm2", '''echo "pm2 $*" >> "$CALL_LOG"
 case "$1" in pid) echo "${PM2_PID:-1234}";; start) [ "${FAIL_START:-0}" != 1 ] || exit 1;; esac''')
         self.stub("curl", '''echo "curl $*" >> "$CALL_LOG"
-header=$(cat)
-case "$header" in *'Authorization: Bearer '*) ;; *) exit 99;; esac
+case "$*" in
+ *'/summary'*) header=$(cat); case "$header" in *'Authorization: Bearer '*) ;; *) exit 99;; esac;;
+ *) case "$*" in *'--config -'*|*'Authorization:'*) exit 99;; esac;;
+esac
 case "$*" in
  *'/summary'*) printf '{"account":{"openTradeCount":"%s","pendingOrderCount":"%s"}}' "${OPEN_TRADES:-0}" "${PENDING_ORDERS:-0}";;
+ *'/engine/stats'*)
+   [ "${ENGINE_STATS_DOWN:-0}" != 1 ] || exit 22
+   if [ -f "$CALL_LOG.queue-busy" ]; then printf '{"isProcessingQueue":true,"queueLength":0}';
+   elif [ -n "${ENGINE_STATS:-}" ]; then printf '%s' "$ENGINE_STATS";
+   else printf '{"isProcessingQueue":false,"queueLength":0}'; fi;;
  *'/health'*) [ "${API_DOWN:-0}" != 1 ] || exit 22; printf '{"config":{"enableTrading":%s}}' "${API_ENABLED:-false}";;
  *) exit 98;;
 esac''')
-        self.env = {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}",
+        self.env = {**{key: value for key, value in os.environ.items()
+                       if not key.startswith(("FOREX_", "OANDA_", "AWS_"))}, "PATH": f"{self.bin}:{os.environ['PATH']}",
                     "FOREX_NODE_RUNTIME_LOADED": "1", "FOREX_PROJECT_DIR": str(self.project),
                     "FOREX_BACKUP_DIR": str(self.backups), "CALL_LOG": str(self.log),
-                    "FOREX_OPERATOR_TOKEN": "a3" * 32, "OANDA_API_KEY": "test-broker-token",
+                    "OANDA_API_KEY": "test-broker-token",
                     "OANDA_ACCOUNT_ID": "001-002-003", "OANDA_ENVIRONMENT": "practice"}
 
     def tearDown(self):
@@ -88,11 +97,10 @@ esac''')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         rollback, = self.project.parent.glob("forex-trading-bot.rollback.*")
         for location in [self.project, rollback]:
-            self.assertEqual((location / ".secrets/operator_token.enc").read_text(), "original-operator-secret")
+            self.assertEqual((location / ".secrets/oanda_api_key.enc").read_text(), "original-broker-secret")
             self.assertEqual((location / ".keys/encryption.key").read_text(), "original-key")
         self.assertIs(json.loads(self.config.read_text())["enableTrading"], False)
         self.assertNotIn("/trading/start", self.log.read_text())
-        self.assertNotIn(self.env["FOREX_OPERATOR_TOKEN"], result.stdout + result.stderr + self.log.read_text())
         self.assertNotIn("test-broker-token", self.log.read_text())
 
     def test_database_only_restore_uses_current_source(self):
@@ -155,6 +163,26 @@ esac''')
         self.assertNotEqual(self.restore(FAIL_NPM="1").returncode, 0)
         self.assert_not_stopped()
 
+    def test_busy_malformed_or_unavailable_queue_blocks_restore_before_broker(self):
+        for environment in [
+            {"ENGINE_STATS": '{"isProcessingQueue":true,"queueLength":0}'},
+            {"ENGINE_STATS": '{"isProcessingQueue":false,"queueLength":1}'},
+            {"ENGINE_STATS": '{"isProcessingQueue":"false","queueLength":0}'},
+            {"ENGINE_STATS": '{"isProcessingQueue":false,"queueLength":false}'},
+            {"ENGINE_STATS": '{}'}, {"ENGINE_STATS": 'invalid-json'},
+            {"ENGINE_STATS_DOWN": "1"},
+        ]:
+            with self.subTest(environment=environment):
+                self.assertNotEqual(self.restore(**environment).returncode, 0)
+                self.assert_not_stopped()
+                self.assertNotIn("/summary", self.log.read_text())
+
+    def test_entry_queue_is_rechecked_after_preparation(self):
+        result = self.restore(QUEUE_BUSY_AFTER_NPM="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assert_not_stopped()
+        self.assertEqual(self.log.read_text().count("/engine/stats"), 2)
+
     def test_cutover_failure_preserves_original_and_never_enables(self):
         result = self.restore(FAIL_START="1")
         self.assertNotEqual(result.returncode, 0)
@@ -170,35 +198,17 @@ esac''')
         self.assertNotEqual(result.returncode, 0)
         self.assert_not_stopped()
 
-    def test_operator_setup_does_not_print_token_or_replace_existing_without_rotation(self):
-        (self.project / ".secrets/operator_token.enc").unlink()
-        command = ["bash", str(SCRIPTS / "setup-operator-access.sh")]
-        result = subprocess.run(command, env=self.env, text=True, capture_output=True, timeout=10)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        token = (self.project / ".keys/operator-access-token.txt").read_text().strip()
-        self.assertEqual(len(token), 64)
-        self.assertNotIn(token, result.stdout + result.stderr)
-        again = subprocess.run(command, env=self.env, text=True, capture_output=True, timeout=10)
-        self.assertNotEqual(again.returncode, 0)
-
-    def test_operator_setup_cannot_replace_a_lost_key_for_existing_credentials(self):
-        key = self.project / ".keys/encryption.key"
-        key.unlink()
-        result = subprocess.run(["bash", str(SCRIPTS / "setup-operator-access.sh"), "--rotate"],
-                                env=self.env, text=True, capture_output=True, timeout=10)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(key.exists())
-        self.assertEqual((self.project / ".secrets/oanda_api_key.enc").read_text(), "original-broker-secret")
-
     def test_cutover_guard_rechecks_broker_and_api_after_preparation(self):
         command = ["bash", "-c", 'source "$1"; forex_require_paused_flat_running',
-                   "guard-test", str(SCRIPTS / "load-operator-auth.sh")]
+                   "guard-test", str(SCRIPTS / "load-maintenance-api.sh")]
         def check(**environment):
             return subprocess.run(command, env={**self.env, **environment}, text=True,
                                   capture_output=True, timeout=10)
         self.assertEqual(check().returncode, 0)
         for environment in [{"OPEN_TRADES": "1"}, {"PENDING_ORDERS": "1"},
-                            {"API_DOWN": "1"}, {"API_ENABLED": "true"}]:
+                            {"API_DOWN": "1"}, {"API_ENABLED": "true"},
+                            {"ENGINE_STATS": '{"isProcessingQueue":true,"queueLength":0}'},
+                            {"ENGINE_STATS": '{}'}, {"ENGINE_STATS_DOWN": "1"}]:
             self.assertNotEqual(check(**environment).returncode, 0)
         self.config.write_text('{"enableTrading":true}')
         self.assertNotEqual(check().returncode, 0)
