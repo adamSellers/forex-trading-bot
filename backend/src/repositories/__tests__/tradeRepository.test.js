@@ -230,7 +230,13 @@ describe('TradeRepository', () => {
 
             await repository.save(trade1);
 
-            await expect(repository.save(trade2)).rejects.toThrow();
+            // The native addon may retain SqliteError from an earlier Jest
+            // realm. Assert the actual constraint failure, not instanceof Error.
+            await expect(repository.save(trade2)).rejects.toMatchObject({
+                code: 'SQLITE_CONSTRAINT_UNIQUE',
+                message: expect.stringContaining('UNIQUE constraint failed: trades.trade_id'),
+            });
+            expect(await testDb('trades').where('trade_id', 'trade-dup')).toHaveLength(1);
         });
     });
 

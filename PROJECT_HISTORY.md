@@ -31,6 +31,10 @@ The current product has one live OANDA runtime and one strategy: `intraday_momen
 
 ## Completed Features
 
+### 2026-09-07 — v3 deployment verified; startup checkpoint collision corrected locally
+
+Read-only SSH verified user-deployed `8d45be3`, `m15-intraday-v3`, strategy `1.1.0`, healthy operation, direct API access, fresh quotes/candles and resolved broker state. Repeated startup candle aborts coincided with an exact 30-second synchronous WAL checkpoint stall while the deployment health scan held a database reader. The local patch moves TRUNCATE into a bounded child process, defers database health scans until the runtime is ready, identifies timeout timeframes and selects the installed UTF-8 locale. [The incident report](docs/reviews/2026-09-07-startup-checkpoint.md) records evidence, justification and tests. **This follow-up patch is not deployed; the preceding v3/login-removal work is deployed.**
+
 ### 2026-09-07 — Remove operator login for private use (local)
 
 The user clarified that the bot is a private personal tool on their internal network and explicitly requested removal of the login requirement. Removed the dashboard gate, login/logout, API/socket authentication and startup/provisioning requirements. Maintenance uses direct local API calls; the deployment command can reuse a previously saved credential only when replacing the old login-gated process. Trading controls still enforce readiness/risk checks, and broker credentials remain server-side. Current instructions record this product boundary to avoid reintroducing a SaaS-style access model. Local verification is recorded in the remediation register; no deployment was performed in this pass.

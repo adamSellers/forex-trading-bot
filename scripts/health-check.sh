@@ -36,14 +36,14 @@ if [ -z "$system_data" ]; then
     FAILED=1
 else
     if ! details=$(printf '%s' "$system_data" | python3 -c '
-import json,sys,time
+import json,math,sys,time
 data=json.load(sys.stdin)
 health=data.get("operationalHealth") or {}
 errors=[]
 if (data.get("services") or {}).get("oanda",{}).get("connected") is not True:
     errors.append("Broker connectivity is not verified")
 checked=health.get("checkedAt")
-if not isinstance(checked,(int,float)) or checked > time.time()*1000+10000 or time.time()*1000-checked > 180000:
+if type(checked) not in (int,float) or not math.isfinite(checked) or checked > time.time()*1000+10000 or time.time()*1000-checked > 180000:
     errors.append("Operational snapshot is missing or stale")
 if health.get("status") != "healthy":
     errors.append("Operational state is not healthy")
@@ -71,27 +71,64 @@ print("Broker: connected and recently reconciled")
     fi
 fi
 
+# An unavailable or degraded runtime already fails this check. Avoid taking a
+# long SQLite read lock while it is still starting or trying to recover.
+if [ "$FAILED" -ne 0 ]; then
+    log_message "Database: verification deferred until the runtime is operationally healthy"
+    exit 1
+fi
+
 DB_PATH="$FOREX_PROJECT_DIR/backend/data/trading.db"
 if [ ! -f "$DB_PATH" ]; then
     log_message "Database: missing"
-    FAILED=1
-elif [ "$(sqlite3 -readonly "$DB_PATH" 'PRAGMA quick_check;' 2>/dev/null)" != "ok" ]; then
-    log_message "Database: integrity could not be verified"
-    FAILED=1
-else
-    log_message "Database: integrity verified"
-    cutoff=$(( $(date +%s) * 1000 - 10 * 60 * 1000 ))
-    if ! pending=$(sqlite3 -readonly "$DB_PATH" "SELECT COUNT(*) FROM broker_order_intents WHERE status IN ('PREPARED','SUBMITTING','AMBIGUOUS','RECOVERY_PENDING','FILLED_UNPERSISTED') AND created_at_ms < $cutoff;" 2>/dev/null) ||
-       ! quarantined=$(sqlite3 -readonly "$DB_PATH" "SELECT COUNT(*) FROM broker_position_quarantines WHERE status='OPEN';" 2>/dev/null) ||
-       [[ ! "$pending" =~ ^[0-9]+$ ]] || [[ ! "$quarantined" =~ ^[0-9]+$ ]]; then
-        log_message "Broker lifecycle: database state could not be verified"
-        FAILED=1
-    elif [ "$pending" -gt 0 ] || [ "$quarantined" -gt 0 ]; then
-        log_message "Broker lifecycle: $pending unresolved stale intent(s), $quarantined quarantined position(s)"
-        FAILED=1
-    else
-        log_message "Broker lifecycle: resolved"
-    fi
+    exit 1
 fi
+
+# Bound the entire read-only database phase, including all lifecycle queries.
+# Python is already required above; no additional timeout utility is needed.
+database_details=$(python3 - "$DB_PATH" <<'PY'
+import math,os,re,subprocess,sys,time
+
+try:
+    # An override may shorten the check, but cannot make deployment wait longer.
+    budget=float(os.environ.get("FOREX_HEALTH_DB_TIMEOUT_SECONDS", "60"))
+    if not math.isfinite(budget) or budget <= 0 or budget > 60:
+        raise ValueError()
+except ValueError:
+    print("Database: check timeout must be greater than zero and at most 60 seconds")
+    sys.exit(1)
+
+cutoff=int(time.time()*1000)-10*60*1000
+sql=("PRAGMA quick_check; "
+     "SELECT COUNT(*) FROM broker_order_intents WHERE status IN "
+     "('PREPARED','SUBMITTING','AMBIGUOUS','RECOVERY_PENDING','FILLED_UNPERSISTED') "
+     f"AND created_at_ms < {cutoff}; "
+     "SELECT COUNT(*) FROM broker_position_quarantines WHERE status='OPEN';")
+try:
+    result=subprocess.run(["sqlite3", "-readonly", "-batch", "-noheader", sys.argv[1], sql],
+                          capture_output=True, text=True, timeout=budget)
+except subprocess.TimeoutExpired:
+    print(f"Database: verification timed out after {budget:g} seconds")
+    sys.exit(1)
+except OSError:
+    print("Database: integrity could not be verified")
+    sys.exit(1)
+
+lines=result.stdout.splitlines()
+if not lines or lines[0] != "ok":
+    print("Database: integrity could not be verified")
+    sys.exit(1)
+print("Database: integrity verified")
+if result.returncode or len(lines) != 3 or not all(re.fullmatch(r"[0-9]+", n) for n in lines[1:]):
+    print("Broker lifecycle: database state could not be verified")
+    sys.exit(1)
+pending,quarantined=map(int, lines[1:])
+if pending or quarantined:
+    print(f"Broker lifecycle: {pending} unresolved stale intent(s), {quarantined} quarantined position(s)")
+    sys.exit(1)
+print("Broker lifecycle: resolved")
+PY
+) || FAILED=1
+log_message "$database_details"
 
 exit "$FAILED"

@@ -74,3 +74,7 @@ node scripts/tests/frontend_refresh_contract.test.cjs
 ```
 
 Deployment and restore tests use isolated fixtures and stub external operations; they perform no real deployments, broker requests or builds. A successful test is not a production restore drill. Build and deploy remain user-managed steps.
+
+## Startup checkpoint and health diagnostics
+
+As of the September 7 local correction, an unready runtime fails deployment health immediately and defers SQLite verification. Once ready, read-only integrity/lifecycle verification has a 60-second total deadline. Daily/startup retention checkpoints run in a separate Node process with immediate contention deferral and a five-second total deadline, preserving TRUNCATE without a 30-second native wait on the trading event loop. A busy checkpoint is retried on the next retention sweep. See [the startup incident](../reviews/2026-09-07-startup-checkpoint.md) for production evidence and rollout status.

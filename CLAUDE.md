@@ -2,7 +2,7 @@
 
 ## Authoritative current state
 
-This is one live OANDA AUD account and one `intraday_momentum` runtime. Current production baseline verified on 2026-09-06 is commit `bee8527`, release `m15-intraday-v2`, strategy `1.0.0`. The September 6 remediation is implemented and locally verified (500 backend tests) as `m15-intraday-v3` / strategy `1.1.0`, and is **not deployed** until separately recorded with production evidence.
+This is one live OANDA AUD account and one `intraday_momentum` runtime. The user deployed commit `8d45be3`, release `m15-intraday-v3`, strategy `1.1.0`; read-only production inspection on 2026-09-07 verified a clean checkout, healthy operational state, direct access without login, fresh market data and resolved broker state. The [September 7 startup correction](docs/reviews/2026-09-07-startup-checkpoint.md) is implemented locally and is **not deployed** until separately verified.
 
 Read these documents before changing trading behavior:
 

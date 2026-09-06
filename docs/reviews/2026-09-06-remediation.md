@@ -1,6 +1,6 @@
 # September 6 remediation register
 
-Status: **implemented and verified locally; not deployed**. Authorized by the user after the [production review](2026-09-06-production-review.md). Baseline commit `bee8527`; baseline deployed release `m15-intraday-v2` / strategy `intraday_momentum` `1.0.0`.
+Status: **v3 and login removal deployed by the user at `8d45be3`, verified healthy by read-only SSH on September 7**. The [startup checkpoint correction](2026-09-07-startup-checkpoint.md) is implemented locally and pending deployment. Earlier implementation/deployment statements below describe their recorded point in time. Authorized by the user after the [production review](2026-09-06-production-review.md). Baseline commit `bee8527`; baseline deployed release `m15-intraday-v2` / strategy `intraday_momentum` `1.0.0`.
 
 ## Decisions and boundaries
 
@@ -153,3 +153,9 @@ Validation: **24 deployment tests**, **13 backup tests** (including lock inherit
 Broker credentials, source/DB recovery, queue/flatness checks, risk limits and live-readiness checks remain in place. Historical review evidence and earlier validation counts remain above for traceability. Existing legacy operator files are not deleted; normal startup and API access no longer read them. This is an access/usability change, so the trading strategy/cohort identity is unchanged.
 
 Validation: **494/494 backend tests pass in 32 suites** on Node 20.20.2, including five new tests through actual server/API/Socket.IO wiring. Eleven obsolete login/session tests were removed, explaining the change from the earlier 500-test total. **26 deployment/startup/maintenance tests, 15 restore tests, 13 backup tests and 8 health scenarios pass** (62 operational cases). All **27 frontend JavaScript/JSX files parse**, and **4 frontend refresh scenarios pass**. Shell syntax and whitespace checks pass. Test integrations use mocks/disposable fixtures and loopback sockets; no real broker orders, email or S3 requests were made. This pass makes local code/documentation changes only; no Git publication, frontend build or production restart/deployment has been performed.
+
+## September 7 — Deployment verified and startup follow-up
+
+Production `8d45be3` was verified healthy with direct access, fresh data and resolved broker state. The user's new timeout logs exposed a 30-second event-loop stall from synchronous SQLite WAL truncation during the deployment health scan. [The incident report](2026-09-07-startup-checkpoint.md) records exact timestamps, the background checkpoint and health-sequencing correction, clearer request diagnostics, installed-locale fix and verification. The current patch is local; the preceding v3/login-removal implementation is deployed. Strategy and risk limits remain unchanged.
+
+Follow-up verification: **510 backend tests in 33 suites**, **17 health-check scenarios** and **26 deployment/startup/maintenance scenarios** pass. Real WAL contention preserves timer/API responsiveness and history; the incident report records deadline, cancellation, truncation and validation details. Production was not mutated during diagnosis or implementation.

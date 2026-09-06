@@ -5,7 +5,11 @@ const WebSocket = require("ws");
 // effects replaced before import. Never read .env, open a database, or contact
 // the broker, email provider or report storage from this regression.
 jest.mock("dotenv", () => ({ config: jest.fn() }));
-jest.mock("../config/database", () => ({ db: {} }));
+jest.mock("../config/database", () => ({
+    db: { raw: jest.fn(() => { throw new Error("Shared database must not run the checkpoint"); }) },
+    dbPath: "/isolated/retention-fixture.sqlite",
+}));
+jest.mock("../src/maintenance/checkpointWal", () => ({ checkpointWal: jest.fn(), cancelWalCheckpoints: jest.fn() }));
 jest.mock("../src/services/configService", () => {
     const { EventEmitter } = require("events");
     const { cloneDefaultConfig } = require("../src/config/tradingConfig");
@@ -44,10 +48,10 @@ jest.mock("../src/runtime/runtimeCoordinator", () => {
     };
 });
 jest.mock("../src/repositories/tradeRepository", () => jest.fn(() => ({})));
-jest.mock("../src/repositories/signalRepository", () => jest.fn(() => ({})));
-jest.mock("../src/repositories/entryDecisionRepository", () => jest.fn(() => ({})));
+jest.mock("../src/repositories/signalRepository", () => jest.fn(() => ({ deleteOlderThan: jest.fn(async () => 0) })));
+jest.mock("../src/repositories/entryDecisionRepository", () => jest.fn(() => ({ deleteOlderThan: jest.fn(async () => 0) })));
 jest.mock("../src/repositories/strategyRunRepository", () => jest.fn(() => ({})));
-jest.mock("../src/repositories/portfolioRepository", () => jest.fn(() => ({})));
+jest.mock("../src/repositories/portfolioRepository", () => jest.fn(() => ({ deleteOlderThan: jest.fn(async () => 0) })));
 jest.mock("../src/repositories/brokerLifecycleRepository", () => jest.fn(() => ({})));
 jest.mock("../src/services/emailService", () => ({ initialize: jest.fn() }));
 jest.mock("../src/services/s3ReportScheduler", () => jest.fn(() => ({})));
@@ -67,6 +71,9 @@ describe("private internal-network app access", () => {
         previousEnv = { ...process.env };
         process.env.PORT = "0";
         process.env.CORS_ALLOWED_ORIGINS = "http://fx.oakroad";
+        process.env.SIGNAL_RETENTION_DAYS = "14";
+        process.env.ENTRY_DECISION_RETENTION_DAYS = "45";
+        process.env.PORTFOLIO_SNAPSHOT_RETENTION_DAYS = "60";
         delete process.env.FOREX_OPERATOR_TOKEN;
         delete process.env.OANDA_API_KEY;
         delete process.env.OANDA_ACCOUNT_ID;
@@ -157,5 +164,61 @@ describe("private internal-network app access", () => {
         } finally {
             socket.terminate();
         }
+    });
+
+    describe("live server retention checkpoint", () => {
+        const { checkpointWal } = require("../src/maintenance/checkpointWal");
+        const { db, dbPath } = require("../config/database");
+        const logger = require("../src/utils/logger");
+        const completedMessage = "WAL checkpoint (TRUNCATE) completed after retention sweep";
+
+        beforeEach(() => {
+            checkpointWal.mockReset();
+            db.raw.mockClear();
+            logger.info.mockClear();
+            logger.warn.mockClear();
+            logger.error.mockClear();
+        });
+
+        test("runs configured retention and delegates the configured database while the API remains available", async () => {
+            let completeCheckpoint;
+            checkpointWal.mockImplementationOnce(() => new Promise((resolve) => { completeCheckpoint = resolve; }));
+            const retention = instance.runDataRetention();
+            try {
+                await request(instance.server).get("/api/config").expect(200);
+                expect(instance.app.locals.signalRepository.deleteOlderThan).toHaveBeenCalledWith(14);
+                expect(instance.app.locals.entryDecisionRepository.deleteOlderThan).toHaveBeenCalledWith(45);
+                expect(instance.app.locals.portfolioRepository.deleteOlderThan).toHaveBeenCalledWith(60);
+                expect(checkpointWal).toHaveBeenCalledWith(dbPath);
+                expect(db.raw).not.toHaveBeenCalled();
+                expect(logger.info).not.toHaveBeenCalledWith(completedMessage);
+            } finally {
+                completeCheckpoint?.({ busy: 0, log: 0, checkpointed: 0 });
+                await retention;
+            }
+            expect(logger.info).toHaveBeenCalledWith(completedMessage);
+        });
+
+        test("a busy checkpoint is deferred without reporting completion or blocking the API", async () => {
+            checkpointWal.mockResolvedValueOnce({ busy: 1, log: 12, checkpointed: 2 });
+            await instance.runDataRetention();
+            expect(logger.warn).toHaveBeenCalledWith(
+                "Background WAL checkpoint deferred (readers/writers busy); will retry on next sweep"
+            );
+            expect(logger.info).not.toHaveBeenCalledWith(completedMessage);
+            expect(db.raw).not.toHaveBeenCalled();
+            await request(instance.server).get("/api/config").expect(200);
+        });
+
+        test("checkpoint failure is reported without false completion or escaping the retention task", async () => {
+            checkpointWal.mockRejectedValueOnce(new Error("WAL checkpoint exceeded 5000ms deadline"));
+            await expect(instance.runDataRetention()).resolves.toBeUndefined();
+            expect(logger.error).toHaveBeenCalledWith(
+                "Background WAL checkpoint after retention sweep failed:",
+                "WAL checkpoint exceeded 5000ms deadline"
+            );
+            expect(logger.info).not.toHaveBeenCalledWith(completedMessage);
+            expect(db.raw).not.toHaveBeenCalled();
+        });
     });
 });

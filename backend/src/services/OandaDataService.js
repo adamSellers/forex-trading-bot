@@ -82,6 +82,19 @@ class OandaDataService extends EventEmitter {
             });
             if (!response.ok) throw await buildOandaApiError(response);
             return await response.json();
+        } catch (error) {
+            if (controller.signal.aborted) {
+                // A busy event loop can delay the abort callback beyond the
+                // configured deadline, so do not claim an exact elapsed time.
+                const timeoutError = new Error(
+                    `Oanda request exceeded ${this.requestTimeoutMs}ms deadline`
+                );
+                timeoutError.name = "OandaTimeoutError";
+                timeoutError.code = "OANDA_TIMEOUT";
+                timeoutError.cause = error;
+                throw timeoutError;
+            }
+            throw error;
         } finally {
             clearTimeout(timeout);
         }
@@ -461,7 +474,7 @@ class OandaDataService extends EventEmitter {
         } catch (error) {
             this.logFailureThrottled(
                 `candles:${instrument}:${granularity}`,
-                `❌ Candle fetch error for ${instrument}:`,
+                `❌ Candle fetch error for ${instrument} (${granularity}):`,
                 error.message
             );
             return [];

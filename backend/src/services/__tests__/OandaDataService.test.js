@@ -189,6 +189,82 @@ describe("OandaDataService broker event integrity", () => {
         expect(service.isFetchingPrices).toBe(false);
     });
 
+    test("labels a deadline abort without reporting an exact elapsed time", async () => {
+        jest.useFakeTimers();
+        const abortError = new DOMException("This operation was aborted", "AbortError");
+        jest.spyOn(global, "fetch").mockImplementation((_url, { signal }) => new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(abortError), { once: true });
+        }));
+        const pending = service.oandaRequest("/isolated-test");
+        const rejection = expect(pending).rejects.toMatchObject({
+            name: "OandaTimeoutError",
+            code: "OANDA_TIMEOUT",
+            message: "Oanda request exceeded 25ms deadline",
+            cause: abortError,
+        });
+        await jest.advanceTimersByTimeAsync(25);
+        await rejection;
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test("preserves broker maintenance errors instead of labelling them as local timeouts", async () => {
+        jest.useFakeTimers();
+        jest.spyOn(global, "fetch").mockResolvedValue({
+            ok: false,
+            status: 503,
+            headers: { get: () => "application/json" },
+            text: async () => JSON.stringify({ errorMessage: "Service maintenance" }),
+        });
+        await expect(service.oandaRequest("/isolated-test")).rejects.toThrow(
+            "Oanda API Error (503): Service maintenance"
+        );
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test("a timed-out candle read preserves its cache and recovers on the next poll with independent deadlines", async () => {
+        jest.useFakeTimers({ now: nowMs });
+        service.updateCandleConfig({ timeframe: "15m" });
+        service.updateRuntimeTimeframes(["1h"]);
+        const prior = [{ time: "2026-08-10T09:30:00Z", open: 0.66, high: 0.661, low: 0.659, close: 0.66 }];
+        service.candleCache.AUD_USD_M15 = prior;
+        service.candleCacheUpdatedAt.AUD_USD_M15 = nowMs - 60_000;
+        const freshResponse = () => ({
+            ok: true,
+            json: async () => ({ candles: [{
+                time: "2026-08-10T09:45:00Z", complete: true,
+                mid: { o: "0.66", h: "0.661", l: "0.659", c: "0.6605" }, volume: 10,
+            }] }),
+        });
+        const fetch = jest.spyOn(global, "fetch")
+            .mockImplementationOnce((_url, { signal }) => new Promise((_resolve, reject) => {
+                signal.addEventListener("abort", () => reject(new DOMException("This operation was aborted", "AbortError")), { once: true });
+            }))
+            .mockImplementation(async () => freshResponse());
+        const log = jest.spyOn(service, "logFailureThrottled").mockImplementation(() => {});
+        const firstPoll = service.fetchAllCandles();
+        await jest.advanceTimersByTimeAsync(25);
+        await firstPoll;
+        expect(log).toHaveBeenCalledWith(
+            "candles:AUD_USD:M15", "❌ Candle fetch error for AUD_USD (M15):",
+            "Oanda request exceeded 25ms deadline"
+        );
+        expect(service.candleCache.AUD_USD_M15).toBe(prior);
+        expect(service.candleCacheUpdatedAt.AUD_USD_M15).toBe(nowMs - 60_000);
+        expect(service.candleCacheUpdatedAt.AUD_USD_H1).toBe(nowMs + 25);
+        expect(service.isFetchingCandles).toBe(false);
+        const [firstSignal, secondSignal] = fetch.mock.calls.map(([, options]) => options.signal);
+        expect(firstSignal).not.toBe(secondSignal);
+        expect(firstSignal.aborted).toBe(true);
+        expect(secondSignal.aborted).toBe(false);
+
+        await service.fetchAllCandles();
+        expect(fetch).toHaveBeenCalledTimes(4);
+        expect(service.candleCache.AUD_USD_M15).not.toBe(prior);
+        expect(service.candleCacheUpdatedAt.AUD_USD_M15).toBe(nowMs + 25);
+        expect(service.isFetchingCandles).toBe(false);
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
     test("invalid candle payloads do not replace valid cached history or freshen its receipt time", async () => {
         const prior = [{ time: "2026-08-10T09:30:00Z", open: 0.66, close: 0.66, high: 0.661, low: 0.659 }];
         service.candleCache.AUD_USD_M15 = prior;

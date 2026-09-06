@@ -8,7 +8,8 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const { createCorsOptions } = require("./src/middleware/corsPolicy");
 const logger = require("./src/utils/logger");
-const { db } = require("./config/database");
+const { db, dbPath } = require("./config/database");
+const { checkpointWal, cancelWalCheckpoints } = require("./src/maintenance/checkpointWal");
 const tradingRoutes = require("./src/routes/tradingRoutes");
 const OandaDataService = require("./src/services/OandaDataService");
 const ConfigService = require("./src/services/configService");
@@ -345,23 +346,24 @@ const runDataRetention = async () => {
     await entryDecisionRepository.deleteOlderThan(ENTRY_DECISION_RETENTION_DAYS);
     await portfolioRepository.deleteOlderThan(PORTFOLIO_SNAPSHOT_RETENTION_DAYS);
 
-    // Passive autocheckpoints (wal_autocheckpoint=1000) copy WAL pages into
-    // the main db but can only RESET the WAL file when no reader is active —
-    // and this process reads constantly, so the production WAL grew to 1.6GB
-    // unchecked. TRUNCATE forces a full checkpoint + WAL reset; busy_timeout
-    // (30s) bounds how long it waits for in-flight readers.
+    // Retain explicit WAL truncation without blocking price feeds, timers or
+    // position management. The old shared-connection checkpoint waited 30 s
+    // behind a deployment integrity reader and froze this entire event loop.
     try {
-        const rows = await db.raw("PRAGMA wal_checkpoint(TRUNCATE)");
-        const result = Array.isArray(rows) ? rows[0] : rows;
-        if (result && result.busy) {
+        const result = await checkpointWal(dbPath);
+        if (result.busy) {
             logger.warn(
-                "WAL checkpoint (TRUNCATE) could not complete (readers/writers busy); will retry on next sweep"
+                "Background WAL checkpoint deferred (readers/writers busy); will retry on next sweep"
             );
         } else {
             logger.info("WAL checkpoint (TRUNCATE) completed after retention sweep");
         }
     } catch (error) {
-        logger.error("WAL checkpoint after retention sweep failed:", error);
+        if (error.code === "WAL_CHECKPOINT_CANCELLED") {
+            logger.info("Background WAL checkpoint cancelled for shutdown");
+            return;
+        }
+        logger.error("Background WAL checkpoint after retention sweep failed:", error.message);
     }
 };
 
@@ -477,6 +479,7 @@ const gracefulShutdown = (signal) => {
     }
 
     isShuttingDown = true;
+    cancelWalCheckpoints();
     logger.info(`${signal} received - shutting down gracefully`);
 
     // Remove event listeners to prevent memory leaks
@@ -530,4 +533,4 @@ process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // Export for testing
-module.exports = { app, server, io };
+module.exports = { app, server, io, runDataRetention };

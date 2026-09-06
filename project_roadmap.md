@@ -4,7 +4,7 @@ There is one production path and one active strategy. Planned work must improve 
 
 ## Authorized September 6 remediation
 
-Local implementation and 500 backend regression tests are complete; production rollout via the single `./scripts/deploy.sh` command, direct dashboard acceptance and an independent recovery drill remain operator steps. The deployment command performs its own tests, build, backup and health checks. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md). Correct execution/exits, broker uncertainty, private-network usability, freshness, analytics and recovery before strategy tuning. Record every justification, regression check and deployment state. Funding and risk limits remain unchanged.
+The user deployed v3 at `8d45be3`; healthy runtime and direct API access were verified on September 7. The [startup checkpoint/locale correction](docs/reviews/2026-09-07-startup-checkpoint.md) is local and pending the single `./scripts/deploy.sh` deployment. An independent recovery drill remains outstanding. The deployment command performs its own tests, build, backup and health checks. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md). Correct execution/exits, broker uncertainty, private-network usability, freshness, analytics and recovery before strategy tuning. Record every justification, regression check and deployment state. Funding and risk limits remain unchanged.
 
 ## Immediate live review
 

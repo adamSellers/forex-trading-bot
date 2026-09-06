@@ -12,9 +12,9 @@ The application now has one job: run `intraday_momentum` against the configured 
 
 The configuration page is intentionally read-only. Strategy parameters and risk limits belong to the deployed release so production cannot drift through dashboard edits.
 
-## Corrected release (local; not yet deployed)
+## Current deployed release
 
-The September 6 production review verified v2 / strategy 1.0.0. This table describes the authorized v3 implementation. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md) for validation and rollout state.
+The September 7 production check verified v3 / strategy 1.1.0 at commit `8d45be3`. This table describes that deployed release. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md) for validation and later fixes.
 
 | Setting | Value |
 | --- | --- |

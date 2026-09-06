@@ -6,7 +6,7 @@ See the [September 6 production review](docs/reviews/2026-09-06-production-revie
 
 ## Live strategy
 
-The only strategy is `intraday_momentum` version `1.1.0` in the local `m15-intraday-v3` remediation release (not yet deployed; production was verified on v2). It evaluates completed M15 candles and trades only when all of these agree:
+The only strategy is `intraday_momentum` version `1.1.0` in the deployed `m15-intraday-v3` release (verified on September 7 at `8d45be3`). It evaluates completed M15 candles and trades only when all of these agree:
 
 - the completed H1 close, 20/50 EMAs and ADX define a directional regime;
 - M15 trend and RSI confirm that direction;

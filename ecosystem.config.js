@@ -56,8 +56,10 @@ module.exports = {
                 // -------------------------------------------------------------
                 UV_THREADPOOL_SIZE: "4", // Use all 4 cores
                 NODE_OPTIONS: "--max-old-space-size=1024", // 1GB heap
-                LANG: "en_AU.UTF-8",
-                LC_ALL: "en_AU.UTF-8",
+                // Use the Pi's built-in UTF-8 locale; en_AU is not generated.
+                // Trading-session clocks specify their own IANA time zones.
+                LANG: "C.UTF-8",
+                LC_ALL: "C.UTF-8",
             },
 
             // =================================================================
