@@ -1,228 +1,140 @@
-// backend/src/services/s3ReportScheduler.js
-// Scheduled upload of analytics reports to S3
-
-const { uploadJsonToS3 } = require("../utils/awsS3Utils");
+// Reports use completed UTC intervals and immutable object keys. Upload success is
+// checkpointed only after S3 acknowledgement; restart/retry never advances on failure.
+const { uploadJsonToS3, isS3Configured } = require("../utils/awsS3Utils");
 const AnalyticsService = require("./analyticsService");
 const logger = require("../utils/logger");
+const DAY = 86400000;
+const STATE_KEY = "analytics-report-checkpoints-v2";
+
+function completedInterval(kind, nowMs = Date.now()) {
+    const day = Math.floor(nowMs / DAY) * DAY;
+    const end = kind === "weekly" ? day - new Date(day).getUTCDay() * DAY : day;
+    return { start: end - (kind === "weekly" ? 7 : 1) * DAY, end };
+}
 
 class S3ReportScheduler {
-    constructor(tradeRepository, signalRepository, entryDecisionRepository = null) {
-        this.tradeRepo = tradeRepository;
-        this.signalRepo = signalRepository;
-        this.entryDecisionRepo = entryDecisionRepository;
-        this.analyticsService = new AnalyticsService(
-            tradeRepository,
-            signalRepository,
-            entryDecisionRepository
-        );
-        this.schedulerInterval = null;
-        this.isRunning = false;
-
-        // Buckets from environment
+    constructor(tradeRepository, signalRepository, entryDecisionRepository = null, stateRepository = null, options = {}) {
+        this.analyticsService = new AnalyticsService(tradeRepository, signalRepository, entryDecisionRepository);
+        this.stateRepository = stateRepository;
+        this.reconcileForReport = options.reconcileForReport;
         this.performanceBucket = process.env.S3_BUCKET_NAME;
         this.signalBucket = process.env.S3_BUCKET_FOR_SIGNALS;
-
-        // Track last upload times
+        this.isRunning = false;
+        this.schedulerInterval = null;
+        this.inFlight = false;
+        this.checkpoints = {};
+        this.checkpointsLoaded = false;
+        this.lastError = null;
         this.lastDailyUpload = null;
         this.lastWeeklyUpload = null;
     }
 
-    /**
-     * Start the scheduler - checks every hour if reports need uploading
-     */
     start() {
-        if (process.env.ENABLE_S3_ANALYTICS !== "true") {
-            logger.info("☁️  S3 report scheduler disabled (ENABLE_S3_ANALYTICS !== true)");
-            return;
-        }
-
-        if (!this.performanceBucket) {
-            logger.warn("⚠️  S3_BUCKET_NAME not set - report uploads disabled");
-            return;
-        }
-
+        if (this.isRunning) return;
+        const status = this.getStatus();
+        if (!status.configured) { logger.warn(`S3 reports disabled: ${status.disabledReason}`); return; }
         this.isRunning = true;
-
-        // Check every hour if we need to upload
-        this.schedulerInterval = setInterval(() => {
-            this.checkAndUpload();
-        }, 60 * 60 * 1000); // 1 hour
-
-        // Also run immediately on start
-        this.checkAndUpload();
-
-        logger.info(`☁️  S3 report scheduler started (bucket: ${this.performanceBucket})`);
+        this.schedulerInterval = setInterval(() => this.checkAndUpload(), 5 * 60 * 1000);
+        this.schedulerInterval.unref?.();
+        void this.checkAndUpload();
     }
 
-    /**
-     * Stop the scheduler
-     */
     stop() {
-        if (this.schedulerInterval) {
-            clearInterval(this.schedulerInterval);
-            this.schedulerInterval = null;
-        }
+        if (this.schedulerInterval) clearInterval(this.schedulerInterval);
+        this.schedulerInterval = null;
         this.isRunning = false;
-        logger.info("☁️  S3 report scheduler stopped");
     }
 
-    /**
-     * Check if reports need uploading and do so
-     */
-    async checkAndUpload() {
-        const now = new Date();
-        const hour = now.getUTCHours();
-        const dayOfWeek = now.getUTCDay(); // 0 = Sunday
-
-        // Daily report at 00:00 UTC (or first check after midnight)
-        if (this.shouldUploadDaily(now)) {
-            await this.uploadDailyReport();
-            this.lastDailyUpload = now;
-        }
-
-        // Weekly report on Sunday at 00:00 UTC
-        if (dayOfWeek === 0 && this.shouldUploadWeekly(now)) {
-            await this.uploadWeeklyReport();
-            this.lastWeeklyUpload = now;
-        }
-    }
-
-    /**
-     * Check if we should upload daily report
-     */
-    shouldUploadDaily(now) {
-        if (!this.lastDailyUpload) return true;
-
-        const lastDate = this.lastDailyUpload.toISOString().split("T")[0];
-        const nowDate = now.toISOString().split("T")[0];
-
-        return lastDate !== nowDate;
-    }
-
-    /**
-     * Check if we should upload weekly report
-     */
-    shouldUploadWeekly(now) {
-        if (!this.lastWeeklyUpload) return true;
-
-        // Check if it's been at least 6 days since last weekly
-        const daysSinceLastWeekly = (now - this.lastWeeklyUpload) / (1000 * 60 * 60 * 24);
-        return daysSinceLastWeekly >= 6;
-    }
-
-    /**
-     * Upload daily analytics report
-     */
-    async uploadDailyReport() {
+    async checkAndUpload(nowMs = Date.now()) {
+        if (this.inFlight) return false;
+        this.inFlight = true;
         try {
-            const analytics = await this.analyticsService.getAnalytics("24h", "live");
-            const dateStr = new Date().toISOString().split("T")[0];
-            const key = `daily/${dateStr}/analytics.json`;
-
-            const report = {
-                reportType: "daily",
-                date: dateStr,
-                generatedAt: new Date().toISOString(),
-                analytics,
-            };
-
-            const success = await uploadJsonToS3(this.performanceBucket, key, report);
-
-            if (success) {
-                logger.info(`☁️  Daily report uploaded to S3: ${key}`);
+            if (!this.checkpointsLoaded) {
+                this.checkpoints = await this.stateRepository?.getState(STATE_KEY) || {};
+                this.checkpointsLoaded = true;
             }
+            for (const kind of ["daily", "weekly"]) {
+                const latest = completedInterval(kind, nowMs);
+                const width = kind === "weekly" ? 7 * DAY : DAY;
+                let end = this.checkpoints[kind]?.end ? this.checkpoints[kind].end + width : latest.end;
+                // Bound each pass on the Pi; persistent checkpoints drain an outage
+                // backlog over later checks without skipping completed intervals.
+                for (let attempt = 0; attempt < 14 && end <= latest.end; attempt++, end += width) {
+                    if (!await this.uploadInterval(kind, { start: end - width, end })) break;
+                    const checkpoint = { end, uploadedAt: nowMs };
+                    const next = { ...this.checkpoints, [kind]: checkpoint };
+                    if (this.stateRepository) await this.stateRepository.setState(STATE_KEY, next);
+                    this.checkpoints = next;
+                    this[kind === "daily" ? "lastDailyUpload" : "lastWeeklyUpload"] = new Date(nowMs);
+                }
+            }
+            return true;
+        } catch (error) {
+            this.lastError = error.message;
+            logger.error("Report checkpoint/upload failed", { message: error.message });
+            return false;
+        } finally { this.inFlight = false; }
+    }
 
+    async uploadInterval(kind, interval) {
+        try {
+            if (!this.reconcileForReport) throw new Error("Report finalization requires broker reconciliation");
+            const broker = await this.reconcileForReport();
+            if (!broker || broker.brokerStateUncertain !== false ||
+                !(broker.lastBrokerReconciledAt >= interval.end) ||
+                Number(broker.pendingOrderIntentCount) > 0 || broker.pendingOrderIntents?.length ||
+                Number(broker.quarantinedBrokerPositions) > 0 ||
+                broker.openTrades?.some((trade) => /PENDING|UNRESOLVED|UNPERSISTED|PARTIAL/.test(trade.reconciliationStatus || ""))) {
+                throw new Error("Report finalization deferred: broker accounting is unresolved after the interval boundary");
+            }
+            const start = new Date(interval.start).toISOString();
+            const endExclusive = new Date(interval.end).toISOString();
+            const analytics = await this.analyticsService.getAnalytics("all", {
+                mode: "live", startTime: interval.start, endTime: interval.end, timeBasis: "realized",
+            });
+            const key = `v2/${kind}/${start.slice(0, 10)}_to_${endExclusive.slice(0, 10)}/analytics.json`;
+            const success = await uploadJsonToS3(this.performanceBucket, key, {
+                schemaVersion: 2, reportType: kind, scope: "all-live", start, endExclusive,
+                generatedAt: new Date().toISOString(), analytics,
+            }, { immutable: true });
+            this.lastError = success ? null : `Upload failed: ${key}`;
             return success;
         } catch (error) {
-            logger.error("Failed to upload daily report:", error);
+            this.lastError = error.message;
+            logger.error("Analytics report failed", { message: error.message });
             return false;
         }
     }
 
-    /**
-     * Upload weekly analytics report
-     */
-    async uploadWeeklyReport() {
-        try {
-            const analytics = await this.analyticsService.getAnalytics("7d", "live");
-            const dateStr = new Date().toISOString().split("T")[0];
-            const weekNum = this.getWeekNumber(new Date());
-            const key = `weekly/${new Date().getFullYear()}/week-${weekNum}/analytics.json`;
+    uploadDailyReport() { return this.uploadInterval("daily", completedInterval("daily")); }
+    uploadWeeklyReport() { return this.uploadInterval("weekly", completedInterval("weekly")); }
 
-            const report = {
-                reportType: "weekly",
-                weekNumber: weekNum,
-                endDate: dateStr,
-                generatedAt: new Date().toISOString(),
-                analytics,
-            };
-
-            const success = await uploadJsonToS3(this.performanceBucket, key, report);
-
-            if (success) {
-                logger.info(`☁️  Weekly report uploaded to S3: ${key}`);
-            }
-
-            return success;
-        } catch (error) {
-            logger.error("Failed to upload weekly report:", error);
-            return false;
-        }
-    }
-
-    /**
-     * Force upload current analytics (for manual trigger)
-     */
     async forceUpload(period = "24h") {
         try {
-            const analytics = await this.analyticsService.getAnalytics(period, "live");
-            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-            const key = `manual/${timestamp}/analytics-${period}.json`;
-
-            const report = {
-                reportType: "manual",
-                period,
-                generatedAt: new Date().toISOString(),
-                analytics,
-            };
-
-            const success = await uploadJsonToS3(this.performanceBucket, key, report);
-
-            if (success) {
-                logger.info(`☁️  Manual report uploaded to S3: ${key}`);
-            }
-
+            if (!["24h", "7d", "30d", "90d", "all"].includes(period)) throw new Error("Invalid report period");
+            const analytics = await this.analyticsService.getAnalytics(period, { mode: "live", timeBasis: "realized" });
+            const key = `manual/${new Date().toISOString().replace(/[:.]/g, "-")}/analytics-${period}.json`;
+            const success = await uploadJsonToS3(this.performanceBucket, key, {
+                schemaVersion: 2, reportType: "manual", scope: "all-live", period, analytics,
+            }, { immutable: true });
             return { success, key };
-        } catch (error) {
-            logger.error("Failed to upload manual report:", error);
-            return { success: false, error: error.message };
-        }
+        } catch (error) { return { success: false, error: error.message }; }
     }
 
-    /**
-     * Get ISO week number
-     */
-    getWeekNumber(date) {
-        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-        const dayNum = d.getUTCDay() || 7;
-        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    }
-
-    /**
-     * Get scheduler status
-     */
     getStatus() {
+        const enabled = process.env.ENABLE_S3_ANALYTICS === "true";
+        const configured = enabled && Boolean(this.performanceBucket) && isS3Configured();
         return {
-            isRunning: this.isRunning,
-            enabled: process.env.ENABLE_S3_ANALYTICS === "true",
-            performanceBucket: this.performanceBucket || "not configured",
-            signalBucket: this.signalBucket || "not configured",
+            isRunning: this.isRunning, enabled, configured, inFlight: this.inFlight,
+            disabledReason: !enabled ? "Configuration disabled" : !this.performanceBucket ? "Bucket missing" : !isS3Configured() ? "Credentials/region incomplete" : null,
+            performanceBucket: this.performanceBucket || null,
+            signalBucket: this.signalBucket || null,
             lastDailyUpload: this.lastDailyUpload?.toISOString() || null,
             lastWeeklyUpload: this.lastWeeklyUpload?.toISOString() || null,
+            checkpoints: this.checkpoints, lastError: this.lastError,
+            schedule: "Completed UTC days and Sunday-to-Sunday weeks; retries every 5 minutes; immutable v2 keys",
         };
     }
 }
-
 module.exports = S3ReportScheduler;
+module.exports.completedInterval = completedInterval;

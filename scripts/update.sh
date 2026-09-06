@@ -9,6 +9,7 @@ PROJECT_DIR="${FOREX_PROJECT_DIR:-/opt/forex-trading-bot}"
 BRANCH="${FOREX_BRANCH:-main}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
+source "$SCRIPT_DIR/load-operator-auth.sh"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 fail() { log "ERROR: $*" >&2; exit 1; }
@@ -19,15 +20,8 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     fail "Tracked working tree changes detected; refusing to overwrite them"
 fi
 
-if [ "${ALLOW_LIVE_DEPLOY:-0}" != "1" ]; then
-    health=$(curl -sf http://localhost:3101/api/health 2>/dev/null || true)
-    if [ -n "$health" ]; then
-        trading_enabled=$(printf '%s' "$health" | python3 -c \
-            'import json,sys; data=json.load(sys.stdin); print(str(bool((data.get("config") or {}).get("enableTrading"))).lower())' \
-            2>/dev/null || echo unknown)
-        [ "$trading_enabled" != "true" ] || fail "Pause live trading before update"
-    fi
-fi
+load_forex_operator_token || fail "Provision operator access before update"
+forex_require_paused_flat_running || fail "Update requires paused entries and verified flat broker state"
 
 log "Creating verified pre-update backup"
 FOREX_BACKUP_DIR="${FOREX_BACKUP_DIR:-$HOME/forex-trading-bot-backups}" \
@@ -67,7 +61,8 @@ if [ "$backend_changed" = true ]; then
 fi
 
 log "Stopping service for migration cutover"
-pm2 stop "$APP_NAME" --silent 2>/dev/null || true
+forex_require_paused_flat_running || fail "State changed during preparation; refusing cutover"
+pm2 stop "$APP_NAME" --silent || fail "Could not stop the existing process; refusing migration"
 (cd backend && NODE_ENV=production npm run db:migrate)
 
 log "Reloading application"
@@ -76,10 +71,10 @@ pm2 reload ecosystem.config.js --env production 2>/dev/null || \
 pm2 save
 
 for _attempt in $(seq 1 12); do
-    curl -sf http://localhost:3101/api/health >/dev/null 2>&1 && break
+    forex_api_curl -sf http://localhost:3101/api/health >/dev/null 2>&1 && break
     sleep 5
 done
-curl -sf http://localhost:3101/api/health >/dev/null 2>&1 || \
+forex_api_curl -sf http://localhost:3101/api/health >/dev/null 2>&1 || \
     fail "API did not become healthy after update"
 "$SCRIPT_DIR/health-check.sh" || fail "Comprehensive health check failed"
 

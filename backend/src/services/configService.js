@@ -1,6 +1,7 @@
 // backend/src/services/configService.js - Trading Configuration Manager
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const {
@@ -26,6 +27,7 @@ class ConfigService extends EventEmitter {
         this.config = normalizeTradingConfig(DEFAULT_CONFIG);
         this.dataService = null;
         this.signalGenerator = null;
+        this.persistenceFault = null;
     }
 
     /**
@@ -50,17 +52,19 @@ class ConfigService extends EventEmitter {
                 logger.info(`📁 Created data directory: ${dataDir}`);
             }
 
-            // Load or create config file
+            let nextConfig = normalizeTradingConfig(DEFAULT_CONFIG);
+            let needsSave = !fs.existsSync(this.configPath);
+            // Resolve the full next state before committing it in memory.
             if (fs.existsSync(this.configPath)) {
                 const fileContent = fs.readFileSync(this.configPath, "utf8");
                 const fileConfig = JSON.parse(fileContent);
-                this.config = normalizeTradingConfig(fileConfig);
-                delete this.config.tradingMode;
+                nextConfig = normalizeTradingConfig(fileConfig);
+                delete nextConfig.tradingMode;
                 if (
                     fileConfig.liveReleaseVersion !==
                     DEFAULT_CONFIG.liveReleaseVersion
                 ) {
-                    this.config = normalizeTradingConfig({
+                    nextConfig = normalizeTradingConfig({
                         ...DEFAULT_CONFIG,
                         enableTrading: fileConfig.enableTrading === true,
                         logLevel: fileConfig.logLevel || DEFAULT_CONFIG.logLevel,
@@ -71,45 +75,112 @@ class ConfigService extends EventEmitter {
                                 ? fileConfig.alertEmail
                                 : DEFAULT_CONFIG.alertEmail,
                     });
-                    this.save();
+                    needsSave = true;
                     logger.info(
                         `Applied live strategy release ${DEFAULT_CONFIG.liveReleaseVersion}; prior live enabled state was preserved`
                     );
                 }
+                if (fileConfig.enforceConfigFreeze !== true) needsSave = true;
                 logger.info(`📋 Config loaded from ${this.configPath}`);
-            } else {
-                // Create default config file
-                this.save();
-                logger.info(`📋 Created default config at ${this.configPath}`);
             }
+
+            if (this.persistenceFault) {
+                // Reloading the old file in this process is not a repair: it
+                // may still contain enableTrading=true from before the fault.
+                nextConfig.enableTrading = false;
+                needsSave = true;
+            }
+            nextConfig.enforceConfigFreeze = true;
+            if (needsSave) this.save(nextConfig);
+            this.config = nextConfig;
 
             // Apply config to services
             this.applyToServices();
         } catch (error) {
             logger.error(`❌ Config load error: ${error.message}`);
-            this.config = normalizeTradingConfig(DEFAULT_CONFIG);
+            throw error;
         }
     }
 
     /**
      * Save current config to file
      */
-    save() {
+    save(config = this.config) {
+        if (this.persistenceFault && config.enableTrading === true) {
+            const error = new Error("Durably save paused entries before enabling after a configuration persistence failure");
+            error.code = "CONFIG_PERSISTENCE_FAULT_ACTIVE";
+            throw error;
+        }
+        let temporaryPath;
+        let descriptor;
         try {
             const dataDir = path.dirname(this.configPath);
             if (!fs.existsSync(dataDir)) {
                 fs.mkdirSync(dataDir, { recursive: true });
             }
-            fs.writeFileSync(
-                this.configPath,
-                JSON.stringify(this.config, null, 4)
-            );
+            // Same-directory rename is atomic. Flush both the new contents and
+            // directory entry before acknowledging a durable operator change.
+            temporaryPath = `${this.configPath}.${process.pid}.${crypto.randomBytes(8).toString("hex")}.tmp`;
+            descriptor = fs.openSync(temporaryPath, "wx", 0o600);
+            fs.writeFileSync(descriptor, JSON.stringify(config, null, 4));
+            fs.fsyncSync(descriptor);
+            fs.closeSync(descriptor);
+            descriptor = undefined;
+            fs.renameSync(temporaryPath, this.configPath);
+            temporaryPath = undefined;
+            const directoryDescriptor = fs.openSync(dataDir, "r");
+            try {
+                fs.fsyncSync(directoryDescriptor);
+            } finally {
+                fs.closeSync(directoryDescriptor);
+            }
             logger.info("💾 Config saved");
+            this.persistenceFault = null;
             return true;
         } catch (error) {
+            if (descriptor !== undefined) {
+                try { fs.closeSync(descriptor); } catch (_closeError) { /* preserve write error */ }
+            }
+            if (temporaryPath) {
+                try { fs.unlinkSync(temporaryPath); } catch (_cleanupError) { /* preserve write error */ }
+            }
             logger.error(`❌ Config save error: ${error.message}`);
-            return false;
+            const persistenceError = new Error(`Configuration could not be durably saved: ${error.message}`, { cause: error });
+            persistenceError.code = "CONFIG_PERSISTENCE_FAILED";
+            this.pauseAfterPersistenceFailure(persistenceError);
+            throw persistenceError;
         }
+    }
+
+    pauseAfterPersistenceFailure(error) {
+        this.persistenceFault = {
+            code: error.code,
+            message: error.message,
+            failedAt: Date.now(),
+        };
+        // A failed write must never leave the running process free to enter.
+        // Preserve all other accepted values; this emergency pause is explicitly
+        // not durable, because the old file may still enable entries on reboot.
+        this.config = { ...this.config, enableTrading: false };
+        try {
+            this.emit("configChanged", this.config);
+        } catch (subscriberError) {
+            logger.error(`Emergency pause subscriber failed: ${subscriberError.message}`);
+        }
+        try {
+            this.applyToServices();
+        } catch (serviceError) {
+            logger.error(`Emergency pause service synchronization failed: ${serviceError.message}`);
+        }
+    }
+
+    getPersistenceStatus() {
+        return {
+            durable: this.persistenceFault === null,
+            forcedPause: this.persistenceFault !== null,
+            restartMayResumeTrading: this.persistenceFault !== null,
+            fault: this.persistenceFault ? { ...this.persistenceFault } : null,
+        };
     }
 
     /**
@@ -138,17 +209,19 @@ class ConfigService extends EventEmitter {
             error.code = "LIVE_ACTIVATION_PATH_REQUIRED";
             throw error;
         }
-        const protectedChanges =
-            this.config.enforceConfigFreeze === true
-                ? getProtectedConfigChanges(this.config, sanitizedConfig)
-                : [];
+        const protectedChanges = getProtectedConfigChanges(
+            this.config,
+            sanitizedConfig
+        );
 
         if (protectedChanges.length > 0) {
-            throw new Error(
+            const error = new Error(
                 `Configuration freeze active. Protected keys cannot change: ${protectedChanges.join(
                     ", "
                 )}`
             );
+            error.code = "CONFIG_FREEZE_VIOLATION";
+            throw error;
         }
 
         const nextConfig = normalizeTradingConfig({
@@ -171,11 +244,9 @@ class ConfigService extends EventEmitter {
             }
         }
 
-        // Merge only after every fail-closed invariant has passed.
+        // Persist before changing runtime state or acknowledging the request.
+        this.save(nextConfig);
         this.config = nextConfig;
-
-        // Save to file
-        this.save();
 
         // Apply to running services
         this.applyToServices();
@@ -240,8 +311,10 @@ class ConfigService extends EventEmitter {
      * Reset to defaults
      */
     reset() {
-        this.config = normalizeTradingConfig(DEFAULT_CONFIG);
-        this.save();
+        const nextConfig = normalizeTradingConfig(DEFAULT_CONFIG);
+        nextConfig.enforceConfigFreeze = true;
+        this.save(nextConfig);
+        this.config = nextConfig;
         this.applyToServices();
         this.emit("configReset", this.config);
         logger.info("🔄 Config reset to defaults");

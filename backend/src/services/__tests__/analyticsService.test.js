@@ -72,7 +72,7 @@ describe('AnalyticsService', () => {
             expect(result.summary.totalPnLAud).toBe(0);
         });
 
-        test('dashboard profile uses compact signal reads and skips deep analytics', async () => {
+        test('dashboard uses compact signals while retaining entry decisions and execution evidence', async () => {
             const result = await service.getAnalytics('7d', {
                 mode: 'live',
                 profile: 'dashboard',
@@ -84,8 +84,9 @@ describe('AnalyticsService', () => {
                 expect.objectContaining({ mode: 'live' })
             );
             expect(mockSignalRepo.getSignalsSince).not.toHaveBeenCalled();
-            expect(mockEntryDecisionRepo.getDecisionsSince).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepo.getDecisionsSince).toHaveBeenCalled();
             expect(result).not.toHaveProperty('executionGapByCohort');
+            expect(result).toHaveProperty('entryFunnel');
         });
 
         test('should pass a matched cutoff to repositories using their expected argument types', async () => {
@@ -1004,12 +1005,67 @@ describe('AnalyticsService', () => {
         });
     });
 
+    describe('review regressions', () => {
+        test('same setup in distinct releases remains two distinct actionable events', () => {
+            const setup = createMockSignal({ signalClass: 'ACTIONABLE', intent: 'ENTER_LONG', setupId: 'same-setup', uniqueEvent: true });
+            const result = service.calculateSignalAnalysis([{ ...setup, runId: 'v2-run' }, { ...setup, runId: 'v3-run' }]);
+            expect(result.actionableUnique).toBe(2);
+        });
+        test('unmatched period totals never become a closure conversion rate', () => {
+            const result = service.calculateEntryFunnel([], [{ outcome: 'FILLED', tradeId: 'one' }], [createClosedTrade(), createClosedTrade()]);
+            expect(result.rates.closeRatePct).toBeNull();
+        });
+        test('empty sample has no zero-width confidence interval', () => {
+            expect(service.calculateSummary([]).expectancy95Aud).toEqual({ lower: null, upper: null, samples: 0 });
+        });
+        test('net financing loss counts as a loss even with zero price pips', () => {
+            const trade = createClosedTrade({ pnlAud: -0.05, pnlPips: 0,
+                brokerReconciliationPayload: { liveRuntime: { initialRiskAud: 0.2 } } });
+            expect(service.calculateCohortExpectancy([trade]).summary).toMatchObject({ wins: 0, losses: 1, flat: 0, avgR: -0.25 });
+        });
+        test('moving stops do not invent original risk', () => {
+            const trade = createClosedTrade({ stopLossPrice: 1.1, entryPrice: 1.11, brokerReconciliationPayload: {} });
+            expect(service.getInitialRiskAud(trade)).toBeNull();
+            expect(service.getInitialRiskPips(trade)).toBeNull();
+        });
+        test('raw overlap and pure triggers survive the display entry label', () => {
+            const trade = (flags) => createClosedTrade({ entryType: 'INTRADAY_PULLBACK',
+                brokerReconciliationPayload: { liveRuntime: { entryTelemetry: { strategyContext: { m15: { trigger: flags } } } } } });
+            const groups = service.calculateTriggerPerformance([
+                trade({ longPullback: true, longBreakout: true }), trade({ longPullback: true, longBreakout: false }),
+            ]);
+            expect(groups.map((row) => row.trigger)).toEqual(['BOTH', 'PULLBACK_ONLY']);
+        });
+        test('positive commissions and fees are added back to derive gross P/L', () => {
+            const result = service.calculateSummary([createClosedTrade({ pnlAud: 0.55, swapAud: -0.1, commissionAud: 0.3,
+                brokerReconciliationPayload: { closeCosts: { guaranteedExecutionFee: 0.05 } } })]);
+            expect(result.costs.grossBeforeExplicitCostsAud).toBe(1);
+        });
+        test('realized interval is explicit, end exclusive, and all is unbounded history', async () => {
+            const endTime = Date.UTC(2026, 8, 6);
+            await service.getAnalytics('all', { timeBasis: 'realized', endTime });
+            expect(mockTradeRepo.getTradesSince).toHaveBeenCalledWith(0, { mode: 'live', timeBasis: 'realized', endTime });
+        });
+        test('ADX comparison never claims filter effectiveness', () => {
+            const result = service.calculateAdxAnalysis([createClosedTrade({ signalStrength: 40 }), createLosingTrade({ signalStrength: 20 })]);
+            expect(result.recommendation).toContain('do not establish');
+        });
+        test('sampled price excursions do not invent missing risk multiples', () => {
+            const trade = (value) => createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: { observations: 3, maxFavorableR: value, maxAdverseR: value } } });
+            expect(service.calculateExcursionCoverage([trade(null), trade(2)])).toMatchObject({ measuredTrades: 2, favorableRMeasuredTrades: 1, avgFavorableR: 2 });
+        });
+        test('missing sampled excursions are explicitly uncovered', () => {
+            expect(service.calculateExcursionCoverage([createClosedTrade()])).toMatchObject({ measuredTrades: 0, totalTrades: 1, avgFavorableR: null });
+        });
+    });
+
     describe('calculateCohortExpectancy', () => {
         test('groups net expectancy by side, instrument, session, entry type, and combined cohort', () => {
             const entryTime = Date.UTC(2026, 0, 1, 13, 0, 0);
             const stopMetadata = {
                 liveRuntime: {
                     initialStopDistance: 0.002,
+                    initialRiskAud: 2,
                 },
             };
             const trades = [
@@ -1076,7 +1132,7 @@ describe('AnalyticsService', () => {
             );
             expect(expectancy.bySession).toEqual([
                 expect.objectContaining({
-                    session: 'New York',
+                    session: 'London + New York',
                     trades: 3,
                 }),
             ]);
@@ -1100,9 +1156,9 @@ describe('AnalyticsService', () => {
             expect(expectancy.byCohort).toEqual(
                 expect.arrayContaining([
                     expect.objectContaining({
-                        cohort: 'BUY|New York|FRESH_FLIP|EUR_USD',
+                        cohort: 'BUY|London + New York|FRESH_FLIP|EUR_USD',
                         side: 'BUY',
-                        session: 'New York',
+                        session: 'London + New York',
                         entryType: 'FRESH_FLIP',
                         instrument: 'EUR_USD',
                         trades: 2,

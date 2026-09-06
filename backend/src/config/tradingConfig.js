@@ -88,7 +88,11 @@ const HASH_EXCLUDED_KEYS = new Set([
     "enforceConfigFreeze",
 ]);
 
-const OPERATIONAL_KEYS = new Set(HASH_EXCLUDED_KEYS);
+// The freeze is server policy, not an operational setting a caller can disable.
+// Keep it outside the strategy hash so it cannot split otherwise identical runs.
+const OPERATIONAL_KEYS = new Set(
+    [...HASH_EXCLUDED_KEYS].filter((key) => key !== "enforceConfigFreeze")
+);
 const FREEZE_PROTECTED_KEYS = Object.keys(defaults).filter(
     (key) => !OPERATIONAL_KEYS.has(key)
 );

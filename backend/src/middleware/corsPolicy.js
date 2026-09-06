@@ -28,7 +28,8 @@ function createCorsOptions(env = process.env) {
     return {
         origin(origin, callback) {
             // Requests without Origin include same-origin navigation, health
-            // probes, and authenticated CLI clients. Cross-origin browsers
+            // probes, and CLI clients. Authentication is enforced separately.
+            // Cross-origin browsers
             // must be explicitly allowlisted.
             if (!origin || allowedOrigins.has(String(origin).replace(/\/$/, ""))) {
                 return callback(null, true);
@@ -37,7 +38,7 @@ function createCorsOptions(env = process.env) {
         },
         methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization", "X-Control-Token"],
-        credentials: false,
+        credentials: true,
         maxAge: 600,
     };
 }

@@ -80,4 +80,12 @@ describe("live MarketContextService", () => {
                 .sort()
         ).toEqual(["1d", "4h"]);
     });
+
+    test.each([null, undefined, "", -1, NaN])("does not turn invalid spread %s into a free quote", (spread) => {
+        const service = new MarketContextService();
+        const shared = service.buildSharedContext([run], {
+            getCurrentPrice: () => ({ price: 0.66, spread, tradeable: true }),
+        });
+        expect(service.createInstrumentContext(shared, run, "AUD_USD").session.spreadPips).toBeNull();
+    });
 });

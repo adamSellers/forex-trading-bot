@@ -73,16 +73,16 @@ class TradeReconciliationService {
             this.normalizeNumber(fillTransaction?.financing) ??
             this.normalizeNumber(trade?.financing) ??
             0;
-        const commission =
+        const commission = Math.abs(
             this.normalizeNumber(effect?.commission) ??
             this.normalizeNumber(fillTransaction?.commission) ??
             this.normalizeNumber(trade?.commission) ??
-            0;
-        const guaranteedExecutionFee =
+            0);
+        const guaranteedExecutionFee = Math.abs(
             this.normalizeNumber(effect?.guaranteedExecutionFee) ??
             this.normalizeNumber(fillTransaction?.guaranteedExecutionFee) ??
             this.normalizeNumber(trade?.guaranteedExecutionFee) ??
-            0;
+            0);
         const dividendAdjustment =
             this.normalizeNumber(effect?.dividendAdjustment) ??
             this.normalizeNumber(fillTransaction?.dividendAdjustment) ??
@@ -99,8 +99,8 @@ class TradeReconciliationService {
                 grossRealizedPL === null
                     ? null
                     : grossRealizedPL +
-                      financing +
-                      commission +
+                      financing -
+                      commission -
                       guaranteedExecutionFee +
                       dividendAdjustment,
         };
@@ -247,6 +247,7 @@ class TradeReconciliationService {
                 : "UNRESOLVED",
             brokerConfirmedClosed,
             brokerConfirmedReduced: false,
+            brokerAccountingComplete: brokerConfirmedClosed && brokerExitPrice !== null && costs.grossRealizedPL !== null,
             brokerExitReason: resolvedReason.brokerExitReason,
             brokerClosedAt: this.getBrokerClosedAt(tradeDetails),
             lastBrokerSyncAt: Date.now(),

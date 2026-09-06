@@ -4,6 +4,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
+source "$SCRIPT_DIR/load-operator-auth.sh"
 
 echo "🩺 Running live-only deployment checks..."
 
@@ -40,8 +41,8 @@ check "Retired-results migration present" "[ -f backend/migrations/006_drop_back
 check "Broker lifecycle migration present" "[ -f backend/migrations/010_add_broker_lifecycle_outbox.js ]"
 check "Retired simulation CLIs absent" "[ ! -f backend/scripts/replayStrategy.js ] && [ ! -f scripts/backtest.js ] && [ ! -f scripts/backtestSweep.js ]"
 
-# Test local API endpoints (if backend is running)
-if curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
+# Authenticated API checks are required; missing access is a failed preflight.
+if forex_api_curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
     endpoints=(
         "http://localhost:3101/api/health"
         "http://localhost:3101/api/runtime/live-selection"
@@ -50,10 +51,10 @@ if curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
     )
 
     for endpoint in "${endpoints[@]}"; do
-        check "Local API: $endpoint" "curl -f -s '$endpoint' > /dev/null 2>&1"
+        check "Local API: $endpoint" "forex_api_curl -f -s '$endpoint' > /dev/null 2>&1"
     done
 else
-    echo "⚠️ Local backend not running - skipping API tests"
+    check "Authenticated local API is reachable (configure access and start the backend)" "false"
 fi
 
 # Test root package orchestration. This repo does not use npm workspaces; the

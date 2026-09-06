@@ -1,246 +1,97 @@
 #!/bin/bash
-# =====================================================
-# Forex Trading Bot - Restore from Backup
-# Restores application state from a backup archive
-# =====================================================
-
+# Stage and verify a paused restore before stopping the current app.
 set -Eeuo pipefail
-
-# --- Configuration ---
-APP_NAME="forex-backend"
-PROJECT_DIR="/opt/forex-trading-bot"
-PROJECT_USER=$(whoami)
+umask 077
+PROJECT_DIR="${FOREX_PROJECT_DIR:-/opt/forex-trading-bot}"
 BACKUP_DIR="${FOREX_BACKUP_DIR:-$HOME/forex-trading-bot-backups}"
-
+APP_NAME="${FOREX_APP_NAME:-forex-backend}"
+API_URL="${FOREX_API_URL:-http://localhost:3101/api}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
-
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
-log_success() { echo -e "${GREEN}✅ $1${NC}"; }
-log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
-
-echo ""
-echo "═══════════════════════════════════════════════════════════"
-echo "         🔄 FOREX TRADING BOT - RESTORE FROM BACKUP"
-echo "═══════════════════════════════════════════════════════════"
-echo ""
-
-# Validate user
-if [ "$(whoami)" != "$PROJECT_USER" ]; then
-    log_error "Run as user '$PROJECT_USER'"
-fi
-
-# Find backups
-log_info "Finding available backups in $BACKUP_DIR..."
-
-# Check for full backups
-full_backups=($(ls -t "$BACKUP_DIR"/forex_backup_*.tar.gz 2>/dev/null || true))
-db_backups=($(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null || true))
-
-if [ ${#full_backups[@]} -eq 0 ] && [ ${#db_backups[@]} -eq 0 ]; then
-    log_error "No backups found in $BACKUP_DIR"
-fi
-
-echo ""
-echo "Available backups:"
-echo ""
-echo "Full Backups (code + data):"
-if [ ${#full_backups[@]} -gt 0 ]; then
-    for i in "${!full_backups[@]}"; do
-        size=$(du -h "${full_backups[$i]}" | cut -f1)
-        name=$(basename "${full_backups[$i]}")
-        echo "  [$((i+1))] $name ($size)"
-    done
-else
-    echo "  None"
-fi
-
-echo ""
-echo "Database-only Backups:"
-if [ ${#db_backups[@]} -gt 0 ]; then
-    offset=${#full_backups[@]}
-    for i in "${!db_backups[@]}"; do
-        size=$(du -h "${db_backups[$i]}" | cut -f1)
-        name=$(basename "${db_backups[$i]}")
-        echo "  [$((offset+i+1))] $name ($size) [DB ONLY]"
-    done
-else
-    echo "  None"
-fi
-
-echo ""
-read -p "Select backup number (or 'q' to quit): " selection
-
-if [ "$selection" = "q" ]; then
-    log_info "Restore cancelled."
+source "$SCRIPT_DIR/load-operator-auth.sh"
+fail() { echo "ERROR: $*" >&2; exit 1; }
+[ "$#" -ge 1 ] || fail "Usage: restore.sh BACKUP [--verify-only | --confirm RESTORE]"
+backup="$1"
+shift
+verify_only=false
+confirmed=false
+case "${1:-}" in
+    --verify-only) verify_only=true; shift ;;
+    --confirm) [ "${2:-}" = RESTORE ] || fail "Confirmation must be RESTORE"; confirmed=true; shift 2 ;;
+    '') ;;
+    *) fail "Unknown restore option" ;;
+esac
+[ "$#" -eq 0 ] || fail "Unexpected restore argument"
+[ -f "$backup" ] && [ -d "$PROJECT_DIR" ] || fail "Backup and current installation must exist"
+mkdir -p "$BACKUP_DIR"
+command -v flock >/dev/null || fail "flock is required"
+exec 9>"$BACKUP_DIR/.backup.lock"
+flock -n 9 || fail "Backup/restore already running"
+stage=$(mktemp -d "$BACKUP_DIR/.restore-stage.XXXXXX")
+rollback="${PROJECT_DIR}.rollback.$(date +%Y%m%d_%H%M%S)"
+cutover=false
+move_installation() {
+    if [ -w "$(dirname "$PROJECT_DIR")" ]; then mv "$1" "$2"; else sudo mv "$1" "$2"; fi
+}
+cleanup() {
+    status=$?
+    trap - EXIT
+    if [ "$status" -ne 0 ] && [ "$cutover" = true ]; then
+        pm2 stop "$APP_NAME" --silent >/dev/null 2>&1 || true
+        echo "Restore failed after cutover. Runtime remains stopped; original installation/secrets are at $rollback" >&2
+    fi
+    rm -rf "$stage"
+    exit "$status"
+}
+trap cleanup EXIT
+echo "Validating source archive and exact matching SQLite snapshot before changing the installation..."
+candidate=$(python3 "$SCRIPT_DIR/restore-stage.py" "$PROJECT_DIR" "$backup" "$stage")
+if [ "$verify_only" = true ]; then
+    echo "Restore candidate passed archive, schema, snapshot broker-state and SQLite integrity validation. No service was stopped."
     exit 0
 fi
-
-# Determine which backup was selected
-total_full=${#full_backups[@]}
-if [ "$selection" -le "$total_full" ] 2>/dev/null; then
-    backup_file="${full_backups[$((selection-1))]}"
-    restore_type="full"
-else
-    db_index=$((selection - total_full - 1))
-    if [ "$db_index" -ge 0 ] && [ "$db_index" -lt "${#db_backups[@]}" ]; then
-        backup_file="${db_backups[$db_index]}"
-        restore_type="db"
+load_forex_operator_token || fail "Operator access must be configured before restore"
+require_paused_flat() {
+    local health broker pid
+    python3 "$SCRIPT_DIR/restore-safety.py" "$PROJECT_DIR"
+    if health=$(forex_api_curl "$API_URL/health" 2>/dev/null); then
+        printf '%s' "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("config") or {}).get("enableTrading") is False else 1)' || fail "Running API does not confirm paused entries"
     else
-        log_error "Invalid selection"
+        pid=$(pm2 pid "$APP_NAME" 2>/dev/null | tail -n 1 | tr -d '[:space:]')
+        [ "$pid" = 0 ] || fail "API unavailable while PM2 may still be running; establish paused state first"
     fi
+    broker=$(forex_broker_account_summary) || fail "Cannot verify broker state directly"
+    printf '%s' "$broker" | python3 -c 'import json,sys; a=json.load(sys.stdin).get("account",{}); sys.exit(0 if str(a.get("openTradeCount")) == "0" and str(a.get("pendingOrderCount")) == "0" else 1)' || fail "Broker has open trades, pending orders, or unknown state"
+}
+require_paused_flat
+if [ "$confirmed" != true ]; then
+    read -r -p "Type RESTORE to install this validated, paused candidate: " answer
+    [ "$answer" = RESTORE ] || fail "Restore cancelled"
 fi
-
-echo ""
-log_info "Selected: $(basename "$backup_file")"
-log_info "Restore type: $restore_type"
-echo ""
-log_warn "This will overwrite current data!"
-read -p "Are you sure? (yes/N): " confirm
-
-if [ "$confirm" != "yes" ]; then
-    log_info "Restore cancelled."
-    exit 0
+# Prepare only the staged candidate while the existing service remains paused.
+(cd "$candidate/backend" && npm ci --omit=dev)
+if [ -f "$candidate/frontend/package.json" ]; then
+    (cd "$candidate/frontend" && npm ci && NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build)
 fi
-
-# Stop the service
-log_info "Stopping service..."
-pm2 stop "$APP_NAME" --silent 2>/dev/null || true
-pm2 delete "$APP_NAME" --silent 2>/dev/null || true
-pm2 save --force 2>/dev/null || true
-sleep 2
-
-if [ "$restore_type" = "full" ]; then
-    # Full restore
-    
-    # Safety: Copy backup to /tmp in case it's inside the project directory
-    log_info "Securing backup file..."
-    temp_backup="/tmp/restore_$(basename "$backup_file")"
-    cp "$backup_file" "$temp_backup"
-    gzip -t "$temp_backup" || log_error "Backup archive checksum is invalid"
-    if tar -tzf "$temp_backup" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
-        log_error "Backup archive contains an unsafe path"
-    fi
-    if ! tar -tzf "$temp_backup" | grep -q '^forex-trading-bot/'; then
-        log_error "Backup archive does not contain the expected project root"
-    fi
-    
-    log_info "Creating safety backup of current state..."
-    if [ -d "$PROJECT_DIR" ]; then
-        pre_ts=$(date +%Y%m%d_%H%M%S)
-        tar -czf "$BACKUP_DIR/pre_restore_${pre_ts}.tar.gz" \
-            --exclude='node_modules' \
-            --exclude='backend/logs/*' \
-            --exclude='backend/data/trading.db*' \
-            --exclude='.keys' \
-            --exclude='.secrets' \
-            --exclude='ssl' \
-            --exclude='.env' \
-            --exclude='*/.env' \
-            -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null || true
-        # Snapshot the database separately (service is stopped at this point);
-        # keeps the safety tar small and the DB copy consistent.
-        if [ -f "$PROJECT_DIR/backend/data/trading.db" ] && command -v sqlite3 >/dev/null 2>&1; then
-            sqlite3 "$PROJECT_DIR/backend/data/trading.db" \
-                ".backup '$BACKUP_DIR/pre_restore_${pre_ts}.db'" 2>/dev/null || true
-        fi
-    fi
-    
-    log_info "Removing current installation..."
-    sudo rm -rf "$PROJECT_DIR"
-    
-    log_info "Extracting backup..."
-    sudo tar -xzf "$temp_backup" -C /opt
-    
-    # Cleanup temp file
-    rm -f "$temp_backup"
-    sudo chown -R "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR"
-    
-    log_info "Reinstalling dependencies..."
-    cd "$PROJECT_DIR/backend"
-    npm ci --omit=dev
-    
-    if [ -d "$PROJECT_DIR/frontend" ]; then
-        cd "$PROJECT_DIR/frontend"
-        npm ci
-        npm install @rollup/rollup-linux-arm64-gnu --no-save 2>/dev/null || true
-        
-        log_info "Rebuilding frontend..."
-        NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production GENERATE_SOURCEMAP=false npm run build
-    fi
-    
-    chmod +x "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
-
-    # Newer archives exclude the live SQLite files (backup.sh snapshots the DB
-    # separately). If the tar didn't contain a database, restore the snapshot
-    # with the matching timestamp, falling back to the newest one available.
-    if [ ! -f "$PROJECT_DIR/backend/data/trading.db" ]; then
-        archive_ts=$(basename "$backup_file" | sed -n 's/^forex_backup_\(.*\)\.tar\.gz$/\1/p')
-        db_snapshot=""
-        if [ -n "$archive_ts" ] && [ -f "$BACKUP_DIR/trading_${archive_ts}.db" ]; then
-            db_snapshot="$BACKUP_DIR/trading_${archive_ts}.db"
-        else
-            db_snapshot=$(ls -t "$BACKUP_DIR"/trading_*.db 2>/dev/null | head -1 || true)
-            if [ -n "$db_snapshot" ]; then
-                log_warn "No snapshot matches the archive timestamp; using newest: $(basename "$db_snapshot")"
-            fi
-        fi
-        if [ -n "$db_snapshot" ]; then
-            log_info "Restoring database from $(basename "$db_snapshot")..."
-            mkdir -p "$PROJECT_DIR/backend/data"
-            cp "$db_snapshot" "$PROJECT_DIR/backend/data/trading.db"
-            # Legacy snapshots may carry -wal/-shm companions (set -e: keep
-            # the missing-file case non-fatal)
-            cp "$db_snapshot-wal" "$PROJECT_DIR/backend/data/trading.db-wal" 2>/dev/null || true
-            cp "$db_snapshot-shm" "$PROJECT_DIR/backend/data/trading.db-shm" 2>/dev/null || true
-            chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"* 2>/dev/null || true
-        else
-            log_warn "No database snapshot found in $BACKUP_DIR — restored code only"
-        fi
-    fi
-
-else
-    # Database-only restore.
-    # Remove the previous database's -wal/-shm first: SQLite would otherwise
-    # replay the old WAL against the restored file and corrupt it.
-    log_info "Restoring database..."
-    rm -f "$PROJECT_DIR/backend/data/trading.db" \
-          "$PROJECT_DIR/backend/data/trading.db-wal" \
-          "$PROJECT_DIR/backend/data/trading.db-shm"
-    cp "$backup_file" "$PROJECT_DIR/backend/data/trading.db"
-    cp "$backup_file-wal" "$PROJECT_DIR/backend/data/trading.db-wal" 2>/dev/null || true
-    cp "$backup_file-shm" "$PROJECT_DIR/backend/data/trading.db-shm" 2>/dev/null || true
-    chown "$PROJECT_USER:$PROJECT_USER" "$PROJECT_DIR/backend/data/trading.db"* 2>/dev/null || true
-    if command -v sqlite3 >/dev/null 2>&1; then
-        integrity=$(sqlite3 "$PROJECT_DIR/backend/data/trading.db" "PRAGMA quick_check;")
-        [ "$integrity" = "ok" ] || log_error "Restored database failed integrity check"
-    fi
-fi
-
-# Restart service
-log_info "Starting service..."
-cd "$PROJECT_DIR"
-pm2 start ecosystem.config.js --env production
+(cd "$candidate/backend" && DB_PATH="$candidate/backend/data/trading.db" NODE_ENV=production npm run db:migrate)
+python3 "$SCRIPT_DIR/restore-stage.py" --verify-db "$candidate/backend/data/trading.db"
+python3 -c 'import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_dev == os.stat(sys.argv[2]).st_dev else "Staging and installation must share a filesystem for atomic moves")' "$candidate" "$(dirname "$PROJECT_DIR")"
+require_paused_flat
+[ ! -e "$rollback" ] || fail "Rollback directory already exists"
+echo "Cutover: preserving the entire original installation at $rollback"
+pm2 stop "$APP_NAME" --silent >/dev/null
+cutover=true
+move_installation "$PROJECT_DIR" "$rollback"
+move_installation "$candidate" "$PROJECT_DIR"
+(cd "$PROJECT_DIR" && pm2 start ecosystem.config.js --env production)
 pm2 save
-
-# Health check
-log_info "Running health check..."
-sleep 5
-if curl -sf http://localhost:3101/api/health > /dev/null 2>&1; then
-    log_success "Health check passed!"
-else
-    log_warn "Health check pending - check logs with: pm2 logs forex-backend"
-fi
-
-echo ""
-log_success "🎉 Restore complete!"
-echo ""
-pm2 status
+for _attempt in $(seq 1 12); do
+    forex_api_curl "$API_URL/health" >/dev/null 2>&1 && break
+    sleep 5
+done
+health=$(forex_api_curl "$API_URL/health") || fail "Restored API failed to start"
+printf '%s' "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("config") or {}).get("enableTrading") is False else 1)' || fail "Restored API did not remain paused"
+"$PROJECT_DIR/scripts/health-check.sh" || fail "Restored operational health failed"
+cutover=false
+echo "Restore completed and remains paused. Original installation/secrets preserved at $rollback"
+echo "Review RESTORE_MANIFEST.json, broker reconciliation, operational health and Git source state before separate live activation."

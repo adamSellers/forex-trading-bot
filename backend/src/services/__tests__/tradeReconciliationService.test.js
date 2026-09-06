@@ -26,8 +26,8 @@ describe("TradeReconciliationService", () => {
                     price: "1.10200",
                     pl: "2.50",
                     financing: "-0.02",
-                    commission: "-0.10",
-                    guaranteedExecutionFee: "-0.03",
+                    commission: "0.10",
+                    guaranteedExecutionFee: "0.03",
                     dividendAdjustment: "0.01",
                     tradesClosed: [
                         {
@@ -51,8 +51,8 @@ describe("TradeReconciliationService", () => {
                 brokerClosedAt: 1710000000125,
                 oandaGrossRealizedPL: 2.5,
                 oandaFinancing: -0.02,
-                oandaCommission: -0.1,
-                oandaGuaranteedExecutionFee: -0.03,
+                oandaCommission: 0.1,
+                oandaGuaranteedExecutionFee: 0.03,
                 oandaDividendAdjustment: 0.01,
                 oandaRealizedPL: 2.36,
             })

@@ -240,10 +240,12 @@ class TradeRepository {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
 
-            const records = await this._applyRuntimeFilters(
-                db("trades").where("entry_time", ">=", timestamp),
-                filters
-            ).orderBy("entry_time", "desc");
+            const timeColumn = filters.timeBasis === "realized" ? "exit_time" : "entry_time";
+            const query = db("trades").where(timeColumn, ">=", timestamp);
+            if (filters.timeBasis === "realized") query.where("is_open", false);
+            if (Number.isFinite(filters.endTime)) query.where(timeColumn, "<", filters.endTime);
+            const records = await this._applyRuntimeFilters(query, filters)
+                .orderBy(timeColumn, "desc");
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
             logger.error("Error getting trades since cutoff:", error);
@@ -254,6 +256,24 @@ class TradeRepository {
     /**
      * Get all trades
      */
+    // Intent evidence preserves raw setup flags for historical trades without rewriting them.
+    async getEntryEvidenceForTrades(tradeIds = []) {
+        if (!tradeIds.length || !await db.schema.hasTable("broker_order_intents")) return {};
+        const evidence = {};
+        for (let offset = 0; offset < tradeIds.length; offset += 200) {
+            const rows = await db("broker_order_intents")
+                .whereIn("trade_id", tradeIds.slice(offset, offset + 200))
+                .select("trade_id", "context_payload");
+            for (const row of rows) {
+                try {
+                    evidence[row.trade_id] = typeof row.context_payload === "string"
+                        ? JSON.parse(row.context_payload) : row.context_payload;
+                } catch { /* malformed historical evidence stays unknown */ }
+            }
+        }
+        return evidence;
+    }
+
     async getAllTrades(filters = {}) {
         try {
             const records = await this._applyRuntimeFilters(db("trades"), filters)

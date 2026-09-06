@@ -84,6 +84,44 @@ function liveContext(overrides = {}) {
 }
 
 describe("live-only trading routes", () => {
+    test("analytics distinguishes current run from genuinely all-live history", async () => {
+        const AnalyticsService = require("../../services/analyticsService");
+        const get = jest.spyOn(AnalyticsService.prototype, "getAnalytics").mockResolvedValue({});
+        try {
+            const { req } = liveContext();
+            await handler("get", "/analytics")(req, response());
+            expect(get).toHaveBeenLastCalledWith("30d", expect.objectContaining({ runId: "live-intraday-1", timeBasis: "realized" }));
+            req.query = { scope: "all-live", period: "all" };
+            await handler("get", "/analytics")(req, response());
+            expect(get).toHaveBeenLastCalledWith("all", expect.objectContaining({ strategy: undefined, runId: undefined }));
+            req.query = { scope: "run", runId: "missing" };
+            req.app.locals.runtimeCoordinator.getRunSession.mockReturnValue(null);
+            const res = response();
+            await handler("get", "/analytics")(req, res);
+            expect(res.statusCode).toBe(404);
+        } finally { get.mockRestore(); }
+    });
+
+    test("live readiness blocks unresolved account-wide broker intents", async () => {
+        const { req, tradingEngine } = liveContext();
+        tradingEngine.getStatus = () => ({ isRunning: true });
+        tradingEngine.getBrokerEntryBlockReason = async () => "An order outcome is unresolved";
+        const res = response();
+        await handler("get", "/trading/live-readiness")(req, res);
+        expect(res.body.passed).toBe(false);
+        expect(res.body.reasons).toContainEqual(expect.objectContaining({ code: "BROKER_LIFECYCLE_UNRESOLVED" }));
+    });
+
+    test("manual broker closes use the serialized engine lifecycle", async () => {
+        const { req, tradingEngine } = liveContext();
+        req.params = { id: "123" };
+        tradingEngine.closeBrokerTrade = jest.fn(async () => ({ orderFillTransaction: { id: "fill" } }));
+        const res = response();
+        await handler("post", "/trade/close/:id")(req, res);
+        expect(tradingEngine.closeBrokerTrade).toHaveBeenCalledWith("123");
+        expect(res.body.success).toBe(true);
+    });
+
     test("catalog exposes only the deployed M15 intraday strategy", () => {
         const res = response();
         handler("get", "/strategies/catalog")({}, res);

@@ -48,6 +48,16 @@ describe('TradeRepository', () => {
         await cleanupTestDb(testDb);
     });
 
+    test('realized periods include old entries closed inside the interval and exclude the end boundary', async () => {
+        await repository.save(createClosedTrade({ id: 'old-entry', entryTime: 1000, exitTime: 5000 }));
+        await repository.save(createClosedTrade({ id: 'end-boundary', entryTime: 2000, exitTime: 6000 }));
+        await repository.save(createMockTrade({ id: 'still-open', entryTime: 4500, isOpen: true }));
+        const trades = await repository.getTradesSince(4000, { timeBasis: 'realized', endTime: 6000 });
+        expect(trades.map((trade) => trade.id)).toEqual(['old-entry']);
+        const entries = await repository.getTradesSince(4000, { timeBasis: 'entry', endTime: 6000 });
+        expect(entries.map((trade) => trade.id)).toEqual(['still-open']);
+    });
+
     describe('_mapToTradeObject', () => {
         test('should map database record to trade object', () => {
             const dbRecord = {

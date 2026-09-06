@@ -7,6 +7,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 const { createCorsOptions } = require("./src/middleware/corsPolicy");
+const { createOperatorAuth } = require("./src/middleware/operatorAuth");
 const logger = require("./src/utils/logger");
 const { db } = require("./config/database");
 const tradingRoutes = require("./src/routes/tradingRoutes");
@@ -18,15 +19,20 @@ const SignalRepository = require("./src/repositories/signalRepository");
 const EntryDecisionRepository = require("./src/repositories/entryDecisionRepository");
 const StrategyRunRepository = require("./src/repositories/strategyRunRepository");
 const PortfolioRepository = require("./src/repositories/portfolioRepository");
+const BrokerLifecycleRepository = require("./src/repositories/brokerLifecycleRepository");
 const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 const RuntimeCoordinator = require("./src/runtime/runtimeCoordinator");
 const { createEngineSupervisor } = require("./src/runtime/engineSupervisor");
+const { OperationalHealthService } = require("./src/services/operationalHealthService");
 
 const app = express();
+// Only the same-host reverse proxy may assert HTTPS/client IP headers.
+app.set("trust proxy", "loopback");
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3101;
 const corsOptions = createCorsOptions(process.env);
+const operatorAuth = createOperatorAuth();
 
 // Increase max listeners to prevent warning during shutdown
 server.setMaxListeners(20);
@@ -36,6 +42,7 @@ const io = new Server(server, {
     cors: corsOptions,
     transports: ["websocket", "polling"],
 });
+operatorAuth.attachSocketServer(io);
 
 // Initialize ConfigService first (loads from file or creates defaults)
 const configService = new ConfigService();
@@ -59,6 +66,7 @@ const signalRepository = new SignalRepository();
 const entryDecisionRepository = new EntryDecisionRepository();
 const strategyRunRepository = new StrategyRunRepository();
 const portfolioRepository = new PortfolioRepository();
+const brokerLifecycleRepository = new BrokerLifecycleRepository();
 
 // Initialize shared runtime coordinator
 const runtimeCoordinator = new RuntimeCoordinator({
@@ -74,12 +82,20 @@ const runtimeCoordinator = new RuntimeCoordinator({
 const s3ReportScheduler = new S3ReportScheduler(
     tradeRepository,
     signalRepository,
-    entryDecisionRepository
+    entryDecisionRepository,
+    brokerLifecycleRepository,
+    {
+        reconcileForReport: async () => {
+            await tradingEngine.syncWithOanda({ throwOnError: true });
+            return tradingEngine.getStatus();
+        },
+    }
 );
 
 // Initialize LiveTradingEngine
 const tradingEngine = new LiveTradingEngine({
     monitorIntervalMs: 10000, // Check positions every 10 seconds
+    brokerLifecycleRepository,
 });
 
 // Wire up ConfigService to services
@@ -98,11 +114,23 @@ tradingEngine.init(
     tradeRepository,
     runtimeCoordinator,
     io,
-    entryDecisionRepository
+    entryDecisionRepository,
+    brokerLifecycleRepository
 );
 
 // Initialize email service (will log status)
 emailService.initialize();
+const operationalHealthService = new OperationalHealthService({
+    getInputs: () => ({
+        config: configService.get(),
+        configPersistence: configService.getPersistenceStatus(),
+        engineStatus: tradingEngine.getStatus(),
+        dataStatus: dataService.getStatus(),
+        runtimeStatus: runtimeCoordinator.getStatus(),
+    }),
+    emailService,
+    stateStore: brokerLifecycleRepository,
+});
 
 // Make services available to routes
 app.locals.dataService = dataService;
@@ -115,8 +143,10 @@ app.locals.signalRepository = signalRepository;
 app.locals.entryDecisionRepository = entryDecisionRepository;
 app.locals.strategyRunRepository = strategyRunRepository;
 app.locals.portfolioRepository = portfolioRepository;
+app.locals.brokerLifecycleRepository = brokerLifecycleRepository;
 app.locals.liveOnlyRuntime = true;
 app.locals.emailService = emailService;
+app.locals.operationalHealthService = operationalHealthService;
 app.locals.s3ReportScheduler = s3ReportScheduler;
 app.locals.io = io;
 
@@ -133,7 +163,9 @@ app.use((req, res, next) => {
 });
 
 // Mount API routes
-app.use("/api", tradingRoutes);
+app.get("/api/liveness", (_req, res) => res.json({ status: "ok" }));
+app.use("/api/auth", operatorAuth.router);
+app.use("/api", operatorAuth.middleware, tradingRoutes);
 
 // ============================================
 // Production: Serve Frontend Static Files
@@ -378,6 +410,8 @@ server.listen(PORT, async () => {
     logger.success(`Forex Trading Bot API running on port ${PORT}`);
     logger.info(`   Health: http://localhost:${PORT}/api/health`);
     logger.info(`   Socket.IO: ws://localhost:${PORT}`);
+    // Health monitoring must survive partial startup and missing credentials.
+    operationalHealthService.start();
 
     if (!process.env.OANDA_API_KEY) {
         logger.warn("OANDA_API_KEY not set - trading features disabled");
@@ -386,44 +420,53 @@ server.listen(PORT, async () => {
 
         // Wire up price updates from data service to socket broadcast
         dataService.on("priceUpdate", broadcastPrices);
-        await dataService.start();
+        try {
+            await dataService.start();
+        } catch (error) {
+            logger.error("Market data startup failed; operational health remains active:", error);
+            return;
+        }
 
         // Start signal generator after data service has initial data
         setTimeout(async () => {
-            // Wire up signal updates from generator to socket broadcast
-            runtimeCoordinator.on("allSignalsGenerated", broadcastSignals);
-            runtimeCoordinator.on("signalGenerated", broadcastSignal);
-            runtimeCoordinator.on("liveSelectionChanged", broadcastLiveSelection);
-            runtimeCoordinator.on("runtimeRunsChanged", broadcastRuntimeRuns);
+            try {
+                // Wire up signal updates from generator to socket broadcast
+                runtimeCoordinator.on("allSignalsGenerated", broadcastSignals);
+                runtimeCoordinator.on("signalGenerated", broadcastSignal);
+                runtimeCoordinator.on("liveSelectionChanged", broadcastLiveSelection);
+                runtimeCoordinator.on("runtimeRunsChanged", broadcastRuntimeRuns);
 
-            await runtimeCoordinator.start(dataService, 60000);
+                await runtimeCoordinator.start(dataService, 60000);
 
-            // Start trading engine (will subscribe to signals)
-            // Note: Trading is controlled by config.enableTrading flag.
-            // A failure here retries in the background rather than leaving the
-            // engine detached from the signal stream for the process lifetime.
-            const engineStart = await ensureTradingEngineStarted({
-                reason: "boot",
-            });
-            const config = configService.get();
+                // Start trading engine (will subscribe to signals)
+                // Note: Trading is controlled by config.enableTrading flag.
+                // A failure here retries in the background rather than leaving the
+                // engine detached from the signal stream for the process lifetime.
+                const engineStart = await ensureTradingEngineStarted({
+                    reason: "boot",
+                });
+                const config = configService.get();
 
-            // Broadcast updated engine status to all connected clients
-            broadcastEngineStatus();
+                // Broadcast updated engine status to all connected clients
+                broadcastEngineStatus();
 
-            if (!engineStart.running) {
-                logger.warn(
-                    "Trading engine is NOT attached to the signal stream - no entries or exits will be managed until it attaches; retrying in the background"
-                );
-            } else if (config.enableTrading) {
-                logger.success("Live trading is ENABLED");
-            } else {
-                logger.info("Trading is DISABLED - enable in settings to start trading");
+                if (!engineStart.running) {
+                    logger.warn(
+                        "Trading engine is NOT attached to the signal stream - no entries or exits will be managed until it attaches; retrying in the background"
+                    );
+                } else if (config.enableTrading) {
+                    logger.success("Live trading is ENABLED");
+                } else {
+                    logger.info("Trading is DISABLED - enable in settings to start trading");
+                }
+                // Start S3 report scheduler (non-blocking, won't affect trading)
+                s3ReportScheduler.start();
+
+                // Schedule daily signal cleanup (90-day retention)
+                scheduleDataRetention();
+            } catch (error) {
+                logger.error("Trading runtime startup failed; operational health remains active:", error);
             }
-            // Start S3 report scheduler (non-blocking, won't affect trading)
-            s3ReportScheduler.start();
-
-            // Schedule daily signal cleanup (90-day retention)
-            scheduleDataRetention();
         }, 5000); // Wait 5s for initial candle data
     }
 });
@@ -460,6 +503,7 @@ const gracefulShutdown = (signal) => {
         if (dataService) dataService.stop();
         if (runtimeCoordinator) runtimeCoordinator.stop();
         if (s3ReportScheduler) s3ReportScheduler.stop();
+        operationalHealthService.stop();
     } catch (err) {
         logger.error("Error stopping services:", err.message);
     }

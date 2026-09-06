@@ -2,9 +2,11 @@
 
 This repository runs one automated strategy against one live OANDA account. It has no simulated execution mode, strategy selector, or alternate runtime.
 
+See the [September 6 production review](docs/reviews/2026-09-06-production-review.md) and [remediation register](docs/reviews/2026-09-06-remediation.md) for the current audit, approved corrections and validation status.
+
 ## Live strategy
 
-The only strategy is `intraday_momentum` version `1.0.0`. It evaluates completed M15 candles and trades only when all of these agree:
+The only strategy is `intraday_momentum` version `1.1.0` in the local `m15-intraday-v3` remediation release (not yet deployed; production was verified on v2). It evaluates completed M15 candles and trades only when all of these agree:
 
 - the completed H1 close, 20/50 EMAs and ADX define a directional regime;
 - M15 trend and RSI confirm that direction;
@@ -13,7 +15,7 @@ The only strategy is `intraday_momentum` version `1.0.0`. It evaluates completed
 - spread plus expected slippage is no more than 15% of the planned stop;
 - the live account, portfolio, price-freshness and execution checks pass.
 
-Every entry receives broker-side stop-loss and take-profit protection. The initial stop is the greater of 1.25 M15 ATR or six pips, the target is 1.5R, breakeven activates at 1R, and a six-hour time stop plus a narrow pre-rollover exit window keep positions intraday. Position size risks 0.25% of NAV, is capped to A$100 capital, and only one position may be open. Three consecutive losses pause entries for 24 hours; expiry begins a fresh streak without deleting trade history.
+Every entry requests broker-side stop-loss and take-profit protection; the engine verifies it and attempts an emergency close when required protection cannot be confirmed. The initial stop is the greater of 1.25 M15 ATR or six pips, the target is 1.5R, breakeven activates at 1R, and a six-hour time stop plus a narrow pre-rollover exit window keep positions intraday. Position size uses 0.25% of the smaller of 80% of available margin and A$100, and only one position may be open. Three consecutive losses pause entries for 24 hours; expiry begins a fresh streak without deleting trade history.
 
 This is an unproven trading hypothesis being tested with real money. Positive returns are not guaranteed. The design target is approximately 5–15 trades per week across four liquid major pairs, but observed live cadence—not a forced quota—is the source of truth.
 
@@ -40,7 +42,7 @@ The repository requires Node `>=20 <23`; native SQLite tests will not load under
 
 ## Deployment
 
-Production changes flow through Git and the repository scripts. Do not edit source directly on the Pi.
+Production changes flow through Git and the repository scripts. Do not edit source directly on the Pi. This release requires operator-token provisioning before restart: follow [the deployment runbook](scripts/DEPLOYMENT_README.md) before using the commands below. Builds and deployment remain user-managed.
 
 ```bash
 ./scripts/deploy-check.sh

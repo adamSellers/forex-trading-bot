@@ -20,6 +20,9 @@ class EmailService {
 
         this.transporter = nodemailer.createTransport({
             service: "gmail",
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 20000,
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASS,
@@ -163,12 +166,29 @@ class EmailService {
         return true;
     }
 
+    async sendOperationalHealthAlert({ snapshot, newIssues = [], recoveredIssues = [] }, config) {
+        if (!this.isEnabled(config)) return false;
+        const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g,
+            (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
+        const rows = (issues) => issues.map((issue) => `<li>${escapeHtml(issue.message)}</li>`).join("");
+        const subject = newIssues.length ? "Forex bot: operational attention required" : "Forex bot: operational recovery";
+        const html = `<div style="font-family:Arial,sans-serif;max-width:600px">
+            <h2>${subject}</h2>
+            ${newIssues.length ? `<p>New issues:</p><ul>${rows(newIssues)}</ul>` : ""}
+            ${recoveredIssues.length ? `<p>Recovered:</p><ul>${rows(recoveredIssues)}</ul>` : ""}
+            <p>Current operational state: ${escapeHtml(snapshot.status)}.</p>
+            <p>Check the dashboard before resuming entries after an incident.</p>
+            <p>${escapeHtml(new Date(snapshot.checkedAt).toISOString())}</p>
+        </div>`;
+        return this._send(config.alertEmail?.trim() || this.defaultTo, subject, html);
+    }
+
     /**
      * Internal send method
      */
     async _send(to, subject, html) {
         if (!this.transporter || !to) {
-            return;
+            return false;
         }
 
         try {
@@ -179,8 +199,10 @@ class EmailService {
                 html,
             });
             logger.info(`📧 Email sent to ${to}: ${subject}`);
+            return true;
         } catch (error) {
             logger.error(`❌ Failed to send email: ${error.message}`);
+            return false;
         }
     }
 }

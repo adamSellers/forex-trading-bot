@@ -225,6 +225,46 @@ class OandaClient {
         );
     }
 
+    // Market orders consume the normal price buckets. closeoutBid/Ask are
+    // reserved for closing positions and must never price a new entry.
+    getExecutableQuote(price, side, units = 1) {
+        const requested = Math.abs(Number(units));
+        if (!Number.isFinite(requested) || requested <= 0) {
+            throw new Error("Executable quote requires positive order units");
+        }
+        const consume = (buckets, descending) => {
+            const levels = (Array.isArray(buckets) ? buckets : [])
+                .map((bucket) => ({ price: Number(bucket.price), liquidity: Number(bucket.liquidity) }))
+                .filter((bucket) => Number.isFinite(bucket.price) && bucket.price > 0 &&
+                    Number.isFinite(bucket.liquidity) && bucket.liquidity > 0)
+                .sort((a, b) => descending ? b.price - a.price : a.price - b.price);
+            let remaining = requested;
+            let value = 0;
+            let worstPrice = null;
+            for (const level of levels) {
+                const consumed = Math.min(remaining, level.liquidity);
+                value += consumed * level.price;
+                remaining -= consumed;
+                worstPrice = level.price;
+                if (remaining <= 0) break;
+            }
+            if (remaining > 0) throw new Error("Insufficient executable pricing liquidity");
+            return { price: value / requested, worstPrice };
+        };
+        const bid = consume(price?.bids, true);
+        const ask = consume(price?.asks, false);
+        if (ask.price < bid.price) throw new Error("Crossed executable pricing book");
+        const selected = side === "SELL" ? bid : ask;
+        return {
+            executablePrice: selected.price,
+            worstPrice: selected.worstPrice,
+            bid: bid.price,
+            ask: ask.price,
+            spread: ask.price - bid.price,
+            units: requested,
+        };
+    }
+
     /**
      * Get candlestick data
      * @param {string} instrument - Instrument name (e.g., "AUD_USD")

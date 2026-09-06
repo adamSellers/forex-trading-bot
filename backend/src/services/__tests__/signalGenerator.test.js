@@ -37,7 +37,7 @@ describe("live SignalGenerator", () => {
                 symbol: "AUD_USD",
                 signal: "HOLD",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.0.0",
+                strategyVersion: "1.1.0",
                 timeframe: "15m",
             })
         );

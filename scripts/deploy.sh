@@ -27,6 +27,7 @@ log_error() { echo -e "${RED}❌ $1${NC}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
+source "$SCRIPT_DIR/load-operator-auth.sh"
 
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -50,16 +51,10 @@ if [ ! -f ".secrets/oanda_api_key.enc" ]; then
     log_warn "Oanda API key not configured. Run: ./scripts/setup-secrets.sh"
 fi
 
-# Deploying while orders can be emitted turns a code rollout into a trading
-# event. Require an explicit override for emergency hot deploys.
-if [ "${ALLOW_LIVE_DEPLOY:-0}" != "1" ] && curl -sf http://localhost:3101/api/health >/tmp/forex-health.json 2>/dev/null; then
-    trading_enabled=$(python3 -c 'import json; data=json.load(open("/tmp/forex-health.json")); print(str(bool((data.get("config") or {}).get("enableTrading"))).lower())' 2>/dev/null || echo unknown)
-    rm -f /tmp/forex-health.json
-    if [ "$trading_enabled" = "true" ]; then
-        log_error "Live trading is enabled. Pause it before deployment."
-        exit 1
-    fi
-fi
+# Existing installations require a verified durable pause; there is no live
+# deployment override. Fresh machines use first_time_setup.sh instead.
+load_forex_operator_token || exit 1
+forex_require_paused_flat_running || { log_error "Deployment requires paused entries and verified flat broker state"; exit 1; }
 
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     log_error "Tracked working tree changes detected; refusing to overwrite them"
@@ -134,7 +129,8 @@ fi
 
 # 4. Stop only for the migration/restart cutover.
 log_info "Stopping forex services for migration cutover..."
-pm2 stop forex-backend --silent 2>/dev/null || true
+forex_require_paused_flat_running || { log_error "State changed during preparation; refusing cutover"; exit 1; }
+pm2 stop forex-backend --silent || { log_error "Could not stop the existing process; refusing migration"; exit 1; }
 sleep 2
 
 # 5. Run database migrations
@@ -160,7 +156,7 @@ attempt=0
 sleep 5
 
 while [ $attempt -lt $max_attempts ]; do
-    if curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
+    if forex_api_curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
         break
     fi
     attempt=$((attempt + 1))

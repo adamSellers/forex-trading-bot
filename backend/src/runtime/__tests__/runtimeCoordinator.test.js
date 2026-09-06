@@ -31,6 +31,17 @@ function dependencies(config = cloneDefaultConfig()) {
 }
 
 describe("RuntimeCoordinator live-only release", () => {
+    test("records a no-data decision for each configured pair instead of silently skipping the cycle", async () => {
+        const deps = dependencies();
+        deps.dataService.getCurrentPrice.mockReturnValue(null);
+        deps.dataService.getCandles.mockReturnValue([]);
+        const coordinator = new RuntimeCoordinator(deps);
+        await coordinator.ensureLiveSelectionInitialized();
+        const signals = await coordinator.runCycle();
+        expect(signals).toHaveLength(deps.configService.get().assets.length);
+        expect(signals.every((signal) => signal.reasonCode === "INSUFFICIENT_DATA")).toBe(true);
+    });
+
     test("bootstraps exactly one active live release", async () => {
         const deps = dependencies();
         const coordinator = new RuntimeCoordinator(deps);

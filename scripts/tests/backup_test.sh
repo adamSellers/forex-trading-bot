@@ -29,7 +29,7 @@ assert_no_file() {
 }
 
 assert_contains() {
-    grep -Fq "$2" "$1" || fail "expected '$2' in $1"
+    grep -Fq -- "$2" "$1" || fail "expected '$2' in $1"
 }
 
 mkdir -p "$STUB_BIN"
@@ -62,8 +62,10 @@ EOF
 cat > "$STUB_BIN/curl" <<'EOF'
 #!/bin/bash
 echo "curl $*" >> "$CALL_LOG"
+cat >/dev/null
 case "$*" in
-    *'/trading/stop'*) echo '{"success":true}' ;;
+    *'/summary'*) echo '{"account":{"openTradeCount":"0","pendingOrderCount":"0"}}' ;;
+    *'/trading/stop'*) printf '{"enableTrading":false}' > "$FOREX_PROJECT_DIR/backend/data/trading_config.json"; echo '{"success":true}' ;;
     *'/trading/start'*) echo '{"success":true}' ;;
     *'/account'*) echo "{\"openTrades\":${STUB_OPEN_TRADES:-0}}" ;;
     *'/health'*) echo '{"status":"ok","config":{"enableTrading":true}}' ;;
@@ -120,6 +122,8 @@ chmod +x "$STUB_BIN"/*
 export PATH="$STUB_BIN:$PATH"
 export CALL_LOG STUB_PM2_PID=1234
 export FOREX_NODE_RUNTIME_LOADED=1
+export FOREX_OPERATOR_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+export OANDA_API_KEY=test-broker-token OANDA_ACCOUNT_ID=001-002-003 OANDA_ENVIRONMENT=practice
 export FOREX_PROJECT_DIR="$PROJECT_DIR"
 export FOREX_BACKUP_DIR="$BACKUP_DIR"
 export FOREX_BACKUP_RETENTION=3
@@ -129,7 +133,13 @@ export FOREX_BACKUP_TIMESTAMP=20990101_000000
 reset_case() {
     rm -rf "$PROJECT_DIR" "$BACKUP_DIR"
     mkdir -p "$PROJECT_DIR/backend/data" "$BACKUP_DIR"
-    printf 'database\n' > "$PROJECT_DIR/backend/data/trading.db"
+    python3 - "$PROJECT_DIR/backend/data/trading.db" <<'PY'
+import sqlite3, sys
+connection = sqlite3.connect(sys.argv[1])
+connection.executescript("CREATE TABLE broker_order_intents(status TEXT); CREATE TABLE broker_position_quarantines(status TEXT);")
+connection.close()
+PY
+    printf '{"enableTrading":true}' > "$PROJECT_DIR/backend/data/trading_config.json"
     : > "$CALL_LOG"
     unset STUB_FLOCK_FAIL STUB_OPEN_TRADES STUB_SQLITE_BACKUP_FAIL STUB_SQLITE_INTEGRITY_FAIL
 }
@@ -151,10 +161,10 @@ test_successful_safe_backup() {
         fail "database retention did not keep exactly three snapshots"
     [ "$(find "$BACKUP_DIR" -maxdepth 1 -name 'forex_backup_*.tar.gz' | wc -l | tr -d ' ')" -eq 3 ] || \
         fail "archive retention did not keep exactly three files"
-    assert_contains "$CALL_LOG" "curl -sf --max-time 20 -X POST http://localhost:3101/api/trading/stop"
+    assert_contains "$CALL_LOG" "-X POST http://localhost:3101/api/trading/stop"
     assert_contains "$CALL_LOG" "pm2 stop forex-backend --silent"
     assert_contains "$CALL_LOG" "pm2 start forex-backend --env production"
-    assert_contains "$CALL_LOG" "curl -sf --max-time 20 -X POST http://localhost:3101/api/trading/start"
+    assert_contains "$CALL_LOG" "-X POST http://localhost:3101/api/trading/start"
 }
 
 test_lock_collision_skips_without_output() {
@@ -184,7 +194,7 @@ test_failed_snapshot_cleans_partial_and_restores_runtime() {
     assert_no_file "$BACKUP_DIR/trading_20990101_000000.db"
     assert_no_file "$BACKUP_DIR/trading_20990101_000000.db.partial"
     assert_contains "$CALL_LOG" "pm2 start forex-backend --env production"
-    assert_contains "$CALL_LOG" "curl -sf --max-time 20 -X POST http://localhost:3101/api/trading/start"
+    assert_contains "$CALL_LOG" "-X POST http://localhost:3101/api/trading/start"
 }
 
 test_failed_integrity_check_does_not_publish_snapshot() {
@@ -196,7 +206,7 @@ test_failed_integrity_check_does_not_publish_snapshot() {
     assert_no_file "$BACKUP_DIR/trading_20990101_000000.db"
     assert_no_file "$BACKUP_DIR/trading_20990101_000000.db.partial"
     assert_contains "$CALL_LOG" "pm2 start forex-backend --env production"
-    assert_contains "$CALL_LOG" "curl -sf --max-time 20 -X POST http://localhost:3101/api/trading/start"
+    assert_contains "$CALL_LOG" "-X POST http://localhost:3101/api/trading/start"
 }
 
 test_open_trade_fails_closed_without_stopping_service() {
@@ -209,7 +219,25 @@ test_open_trade_fails_closed_without_stopping_service() {
     if grep -Fq "pm2 stop forex-backend" "$CALL_LOG"; then
         fail "service was stopped while a broker trade was open"
     fi
-    assert_contains "$CALL_LOG" "curl -sf --max-time 20 -X POST http://localhost:3101/api/trading/start"
+    assert_contains "$CALL_LOG" "-X POST http://localhost:3101/api/trading/start"
+}
+
+test_ambiguous_intent_with_flat_broker_keeps_management_running() {
+    reset_case
+    python3 - "$PROJECT_DIR/backend/data/trading.db" <<'PY'
+import sqlite3, sys
+connection = sqlite3.connect(sys.argv[1])
+connection.execute("INSERT INTO broker_order_intents VALUES('AMBIGUOUS')")
+connection.commit()
+connection.close()
+PY
+    if bash "$BACKUP_SCRIPT" >/dev/null 2>&1; then
+        fail "backup ignored an unresolved local intent while broker appeared flat"
+    fi
+    assert_no_file "$BACKUP_DIR/trading_20990101_000000.db"
+    if grep -Fq "pm2 stop forex-backend" "$CALL_LOG"; then
+        fail "service was stopped with an unresolved local broker intent"
+    fi
 }
 
 test_successful_safe_backup
@@ -218,5 +246,6 @@ test_required_lock_collision_fails_deploy_gate
 test_failed_snapshot_cleans_partial_and_restores_runtime
 test_failed_integrity_check_does_not_publish_snapshot
 test_open_trade_fails_closed_without_stopping_service
+test_ambiguous_intent_with_flat_broker_keeps_management_running
 
 echo "backup_test.sh: all tests passed"

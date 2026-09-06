@@ -1,416 +1,142 @@
-// frontend/src/components/dashboard/MarketStatusBanner.jsx
-// Shows forex market status with countdown to open/close
+// Market and session clocks come from the same backend policy used for entries.
+import React, { useEffect, useState } from 'react';
+import { Alert, Box, Chip, Collapse, IconButton, Stack, Typography, alpha, useTheme } from '@mui/material';
+import { ExpandLess, ExpandMore, NightsStay, TrendingUp, WarningAmber } from '@mui/icons-material';
+import { apiCall, API_ENDPOINTS } from '../../config/api';
 
-import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Chip,
-  Stack,
-  LinearProgress,
-  alpha,
-  useTheme,
-  Collapse,
-  IconButton,
-  Tooltip,
-  Grid,
-  Paper,
-} from '@mui/material';
-import {
-  TrendingUp,
-  NightsStay,
-  ExpandMore,
-  ExpandLess,
-} from '@mui/icons-material';
-
-// Forex market sessions (in UTC hours)
-const SESSIONS = {
-  sydney: { name: 'Sydney', code: 'AU', start: 21, end: 6, color: '#4caf50' },
-  tokyo: { name: 'Tokyo', code: 'JP', start: 0, end: 9, color: '#f44336' },
-  london: { name: 'London', code: 'GB', start: 7, end: 16, color: '#2196f3' },
-  newYork: { name: 'New York', code: 'US', start: 12, end: 21, color: '#ff9800' },
-};
-
-// Market opens Sunday 21:00 UTC, closes Friday 21:00 UTC
-const isMarketOpen = (date = new Date()) => {
-  const utcDay = date.getUTCDay();
-  const utcHour = date.getUTCHours();
-  
-  // Saturday - always closed
-  if (utcDay === 6) return false;
-  
-  // Sunday - closed until 21:00 UTC
-  if (utcDay === 0 && utcHour < 21) return false;
-  
-  // Friday - closed after 21:00 UTC
-  if (utcDay === 5 && utcHour >= 21) return false;
-  
-  return true;
-};
-
-const getNextMarketOpen = (date = new Date()) => {
-  const result = new Date(date);
-  const utcDay = result.getUTCDay();
-  const utcHour = result.getUTCHours();
-  
-  // Calculate days until Sunday
-  let daysToAdd = 0;
-  
-  if (utcDay === 6) {
-    // Saturday -> Sunday
-    daysToAdd = 1;
-  } else if (utcDay === 0 && utcHour < 21) {
-    // Sunday before open -> later today
-    daysToAdd = 0;
-  } else if (utcDay === 5 && utcHour >= 21) {
-    // Friday after close -> next Sunday
-    daysToAdd = 2;
-  } else {
-    // Shouldn't get here if market is open, but handle edge case
-    return result;
-  }
-  
-  result.setUTCDate(result.getUTCDate() + daysToAdd);
-  result.setUTCHours(21, 0, 0, 0);
-  
-  // If we're on Sunday, ensure we're set correctly
-  while (result.getUTCDay() !== 0) {
-    result.setUTCDate(result.getUTCDate() + 1);
-  }
-  result.setUTCHours(21, 0, 0, 0);
-  
-  return result;
-};
-
-const getNextMarketClose = (date = new Date()) => {
-  const result = new Date(date);
-  const utcDay = result.getUTCDay();
-  
-  // Find next Friday 21:00 UTC
-  let daysToFriday = (5 - utcDay + 7) % 7;
-  if (daysToFriday === 0 && result.getUTCHours() >= 21) {
-    daysToFriday = 7; // Next Friday
-  }
-  
-  result.setUTCDate(result.getUTCDate() + daysToFriday);
-  result.setUTCHours(21, 0, 0, 0);
-  
-  return result;
-};
-
-const formatCountdown = (ms) => {
-  if (ms <= 0) return { text: 'Now!', parts: null };
-  
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  
-  const h = hours % 24;
-  const m = minutes % 60;
-  const s = seconds % 60;
-  
-  if (days > 0) {
-    return {
-      text: `${days}d ${h}h ${m}m`,
-      parts: { days, hours: h, minutes: m, seconds: s },
-    };
-  } else if (hours > 0) {
-    return {
-      text: `${h}h ${m}m ${s}s`,
-      parts: { days: 0, hours: h, minutes: m, seconds: s },
-    };
-  } else {
-    return {
-      text: `${m}m ${s}s`,
-      parts: { days: 0, hours: 0, minutes: m, seconds: s },
-    };
-  }
-};
-
-const getActiveSessions = (date = new Date()) => {
-  const utcHour = date.getUTCHours();
-  const active = [];
-  
-  Object.entries(SESSIONS).forEach(([key, session]) => {
-    let isActive = false;
-    
-    if (session.start < session.end) {
-      // Normal hours (e.g., 9-17)
-      isActive = utcHour >= session.start && utcHour < session.end;
-    } else {
-      // Overnight session (e.g., 21-6)
-      isActive = utcHour >= session.start || utcHour < session.end;
-    }
-    
-    if (isActive) {
-      active.push({ key, ...session });
-    }
-  });
-  
-  return active;
+const ENTRY_LABELS = {
+  WATCHING: 'Watching for a completed M15 setup',
+  PAUSED: 'New entries are paused',
+  COOLDOWN: 'Consecutive-loss cooldown',
+  MARKET_CLOSED: 'Waiting for the market to reopen',
+  BLOCKED: 'Operational attention required',
 };
 
 const MarketStatusBanner = ({ compact = false }) => {
   const theme = useTheme();
-  const [now, setNow] = useState(new Date());
+  const [health, setHealth] = useState(null);
+  const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  
+
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
+    let active = true;
+    let pending = false;
+    let controller = null;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const result = await apiCall(API_ENDPOINTS.systemHealth, { signal: controller.signal });
+        const snapshot = result.operationalHealth;
+        if (!snapshot?.market || !Number.isFinite(snapshot.checkedAt) ||
+            Date.now() - snapshot.checkedAt > 180000) {
+          throw new Error('Operational status is unavailable or stale');
+        }
+        const brokerUnavailable = result.services?.oanda?.connected !== true;
+        const verified = brokerUnavailable ? { ...snapshot, status: 'degraded', entryState: 'BLOCKED',
+          issues: [{ key: 'BROKER_UNAVAILABLE', code: 'BROKER_UNAVAILABLE', severity: 'critical',
+            message: 'The latest broker connection check failed' }, ...(snapshot.issues || [])] } : snapshot;
+        if (active) { setHealth(verified); setError(false); }
+      } catch (_error) {
+        if (active) setError(true);
+      } finally {
+        clearTimeout(timeout);
+        pending = false;
+      }
+    };
+    void refresh();
+    const timer = setInterval(refresh, 60000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      controller?.abort();
+    };
   }, []);
-  
-  const marketOpen = isMarketOpen(now);
-  const activeSessions = marketOpen ? getActiveSessions(now) : [];
-  const targetTime = marketOpen ? getNextMarketClose(now) : getNextMarketOpen(now);
-  const countdown = formatCountdown(targetTime - now);
-  
-  // Calculate progress through the week (Sunday 21:00 to Friday 21:00)
-  const getWeekProgress = () => {
-    if (!marketOpen) return 0;
-    
-    const weekStart = new Date(now);
-    // Go back to last Sunday 21:00 UTC
-    while (weekStart.getUTCDay() !== 0) {
-      weekStart.setUTCDate(weekStart.getUTCDate() - 1);
-    }
-    weekStart.setUTCHours(21, 0, 0, 0);
-    
-    const weekEnd = getNextMarketClose(weekStart);
-    const totalMs = weekEnd - weekStart;
-    const elapsedMs = now - weekStart;
-    
-    return Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
-  };
-  
+
+  const unavailable = error || !health;
+  const marketOpen = !unavailable && health.market.open === true;
+  const degraded = !unavailable && health.status === 'degraded';
+  const tone = unavailable || degraded ? 'warning' : marketOpen ? 'success' : 'info';
+  const title = unavailable ? (error ? 'Market and bot status unavailable' : 'Checking market and bot status…')
+    : degraded ? 'Bot needs attention'
+    : marketOpen ? 'Markets open'
+    : health.market.reason === 'DAILY_BREAK' ? 'Daily market break' : 'Markets closed for the weekend';
+  const Icon = unavailable || degraded ? WarningAmber : marketOpen ? TrendingUp : NightsStay;
+  const sessions = health?.market?.sessions || [];
+  const issues = health?.issues || [];
+
   if (compact) {
-    return (
-      <Chip
-        icon={marketOpen ? <TrendingUp /> : <NightsStay />}
-        label={marketOpen ? 'Markets Open' : `Opens in ${countdown.text}`}
-        size="small"
-        sx={{
-          bgcolor: marketOpen 
-            ? alpha(theme.palette.success.main, 0.15)
-            : alpha(theme.palette.warning.main, 0.15),
-          color: marketOpen ? 'success.main' : 'warning.main',
-          fontWeight: 'bold',
-          '& .MuiChip-icon': {
-            color: 'inherit',
-          },
-        }}
-      />
-    );
+    return <Chip icon={<Icon />} label={title} size="small" color={tone} variant="outlined" />;
   }
-  
+
   return (
-    <Box
-      sx={{
-        bgcolor: marketOpen
-          ? alpha(theme.palette.success.main, 0.08)
-          : alpha(theme.palette.warning.main, 0.08),
-        borderRadius: 2,
-        border: 1,
-        borderColor: marketOpen
-          ? alpha(theme.palette.success.main, 0.3)
-          : alpha(theme.palette.warning.main, 0.3),
-        mb: 2,
-      }}
-    >
-      {/* Main Banner */}
-      <Box
-        sx={{
-          p: 1.5,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-        }}
-        onClick={() => setExpanded(!expanded)}
-      >
-        <Stack direction="row" spacing={2} alignItems="center">
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: marketOpen
-                ? alpha(theme.palette.success.main, 0.2)
-                : alpha(theme.palette.warning.main, 0.2),
-            }}
-          >
-            {marketOpen ? (
-              <TrendingUp sx={{ color: 'success.main' }} />
-            ) : (
-              <NightsStay sx={{ color: 'warning.main' }} />
-            )}
-          </Box>
-          
+    <Box sx={{ mb: 2, border: 1, borderRadius: 2,
+      borderColor: alpha(theme.palette[tone].main, 0.3),
+      bgcolor: alpha(theme.palette[tone].main, 0.07) }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ p: 1.5 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <Icon color={tone} />
           <Box>
-            <Typography
-              variant="subtitle2"
-              fontWeight="bold"
-              color={marketOpen ? 'success.main' : 'warning.main'}
-            >
-              {marketOpen ? '🟢 MARKETS OPEN' : '🔴 MARKETS CLOSED'}
-            </Typography>
+            <Typography variant="subtitle2" fontWeight="bold" color={tone + '.main'}>{title}</Typography>
             <Typography variant="caption" color="text.secondary">
-              {marketOpen
-                ? `Closes Friday ${targetTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} local`
-                : 'Forex markets closed for the weekend'}
+              {unavailable ? 'Reconnect to verify live market data and position management.'
+                : ENTRY_LABELS[health.entryState] || 'Review the live entry state'}
             </Typography>
           </Box>
         </Stack>
-        
-        <Stack direction="row" spacing={2} alignItems="center">
-          {/* Countdown */}
-          <Box textAlign="right">
-            <Typography variant="caption" color="text.secondary">
-              {marketOpen ? 'Closes in' : 'Opens in'}
-            </Typography>
-            <Typography
-              variant="h6"
-              fontWeight="bold"
-              fontFamily="monospace"
-              color={marketOpen ? 'success.main' : 'warning.main'}
-            >
-              {countdown.text}
-            </Typography>
-          </Box>
-          
-          {/* Active Sessions Chips */}
-          {marketOpen && activeSessions.length > 0 && (
-            <Stack direction="row" spacing={0.5}>
-              {activeSessions.map((session) => (
-                <Tooltip key={session.key} title={`${session.name} Session`}>
-                  <Chip
-                    label={session.code}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(session.color, 0.2),
-                      borderColor: session.color,
-                      border: 1,
-                      minWidth: 36,
-                      fontWeight: 'bold',
-                      fontSize: '0.7rem',
-                      '& .MuiChip-label': { px: 1 },
-                    }}
-                  />
-                </Tooltip>
-              ))}
-            </Stack>
-          )}
-          
-          <IconButton size="small">
+        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+          {!unavailable && sessions.filter((session) => session.active).map((session) => (
+            <Chip key={session.key} label={session.label} size="small" variant="outlined" />
+          ))}
+          <IconButton size="small" aria-label={expanded ? 'Hide operational details' : 'Show operational details'}
+            aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
             {expanded ? <ExpandLess /> : <ExpandMore />}
           </IconButton>
         </Stack>
-      </Box>
-      
-      {/* Progress Bar */}
-      {marketOpen && (
-        <LinearProgress
-          variant="determinate"
-          value={getWeekProgress()}
-          sx={{
-            height: 3,
-            bgcolor: alpha(theme.palette.success.main, 0.1),
-            '& .MuiLinearProgress-bar': {
-              bgcolor: 'success.main',
-            },
-          }}
-        />
+      </Stack>
+      {!unavailable && issues.length > 0 && (
+        <Alert severity={issues.some((issue) => issue.severity === 'critical') ? 'error' : 'warning'}
+          sx={{ mx: 1.5, mb: 1.5 }}>
+          {issues[0].message}
+          {issues.length > 1 ? ' (' + (issues.length - 1) + ' more in details)' : ''}
+        </Alert>
       )}
-      
-      {/* Expanded Details */}
-      <Collapse in={expanded} timeout="auto">
-        <Box
-          sx={{
-            px: 2,
-            py: 1.5,
-            borderTop: 1,
-            borderColor: 'divider',
-            bgcolor: alpha(theme.palette.background.default, 0.95),
-          }}
-        >
-          <Typography variant="caption" color="text.secondary" fontWeight="bold" display="block" mb={1}>
-            TRADING SESSIONS (UTC)
-          </Typography>
-          
-          {/* Single Row Grid Layout */}
-          <Grid container spacing={1.5}>
-            {Object.entries(SESSIONS).map(([key, session]) => {
-              const isActive = activeSessions.some((s) => s.key === key);
-              return (
-                <Grid item xs={6} sm={3} key={key}>
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      py: 1.5,
-                      px: 1.5,
-                      textAlign: 'center',
-                      borderColor: isActive ? session.color : alpha(theme.palette.divider, 0.3),
-                      bgcolor: isActive ? alpha(session.color, 0.15) : alpha(theme.palette.background.paper, 0.5),
-                      borderWidth: isActive ? 2 : 1,
-                      position: 'relative',
-                    }}
-                  >
-                    {isActive && (
-                      <Chip
-                        label="LIVE"
-                        size="small"
-                        sx={{
-                          position: 'absolute',
-                          top: 4,
-                          right: 4,
-                          height: 16,
-                          fontSize: '0.55rem',
-                          fontWeight: 'bold',
-                          bgcolor: session.color,
-                          color: 'white',
-                        }}
-                      />
-                    )}
-                    <Typography 
-                      variant="caption" 
-                      fontWeight="bold"
-                      component="div"
-                      sx={{ 
-                        color: isActive ? session.color : 'text.secondary',
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {session.code}
-                    </Typography>
-                    <Typography 
-                      variant="body2"
-                      fontWeight="bold"
-                      component="div"
-                      sx={{ color: isActive ? session.color : 'text.primary' }}
-                    >
-                      {session.name}
-                    </Typography>
-                    <Typography 
-                      variant="caption"
-                      component="div"
-                      sx={{ 
-                        color: 'text.primary',
-                        fontFamily: 'monospace',
-                        lineHeight: 1.4,
-                        opacity: 0.7,
-                      }}
-                    >
-                      {String(session.start).padStart(2, '0')}:00–{String(session.end).padStart(2, '0')}:00
-                    </Typography>
-                  </Paper>
-                </Grid>
-              );
-            })}
-          </Grid>
+      <Collapse in={expanded}>
+        <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          {!unavailable && <>
+            <Typography variant="caption" color="text.secondary">
+              OANDA New York hours: Sunday 17:05 to Friday 16:59; daily break 16:59–17:05.
+              Session clocks follow local daylight saving.
+            </Typography>
+            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', my: 1.5 }}>
+              {sessions.map((session) => (
+                <Box key={session.key} sx={{ minWidth: 130 }}>
+                  <Typography variant="body2" fontWeight="bold">{session.label}</Typography>
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    {session.localTime + ' local · ' + String(session.startHour).padStart(2, '0') +
+                      ':00–' + String(session.endHour).padStart(2, '0') + ':00'}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+            {health.cooldownActive && health.cooldownUntil && (
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                Cooldown ends {new Date(health.cooldownUntil).toLocaleString()}.
+              </Typography>
+            )}
+            {issues.map((issue) => (
+              <Typography key={issue.key} variant="body2" sx={{ mb: 0.5 }}>{issue.message}</Typography>
+            ))}
+            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
+              {'Updated ' + new Date(health.checkedAt).toLocaleTimeString() +
+                ' · Broker reconciliation ' + (health.brokerSyncAgeMs === null ? 'unverified'
+                  : Math.round(health.brokerSyncAgeMs / 1000) + ' seconds ago') +
+                ' · Operational email alerts ' + (health.alerting?.enabled ? 'enabled' : 'disabled')}
+            </Typography>
+          </>}
+          {unavailable && <Typography variant="body2">The backend has not provided a current operational status.</Typography>}
         </Box>
       </Collapse>
     </Box>

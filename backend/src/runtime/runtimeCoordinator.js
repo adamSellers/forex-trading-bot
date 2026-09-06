@@ -358,14 +358,13 @@ class RuntimeCoordinator extends EventEmitter {
             );
             const timeframe = session.generator.config.timeframe || "4h";
             const candles = context?.timeframes?.[timeframe]?.candles || [];
-            const currentPrice = Number(context?.price?.price);
-            if (!Number.isFinite(currentPrice) || !candles.length) continue;
+            const currentPrice = context?.price?.price;
 
             let signal = await session.generator.generateSignal(
                 instrument,
                 candles,
                 currentPrice,
-                { marketContext: context }
+                { marketContext: context, nowMs: sharedContext.generatedAt }
             );
             if (!signal) continue;
             signal.timeframe = timeframe;

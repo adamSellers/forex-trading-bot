@@ -25,11 +25,20 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The current product has one live OANDA runtime and one strategy: `intraday_momentum` `1.0.0`. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
+The current product has one live OANDA runtime and one strategy: `intraday_momentum`. Production was verified on `1.0.0`; the local September 6 remediation moves it to `1.1.0`. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
 
 ---
 
 ## Completed Features
+
+### 2026-09-06 — End-to-end production review and remediation authorization
+
+Read-only review verified production commit `bee8527`, `m15-intraday-v2`, a flat A$96.7558 account, and all 17 M15 close prices/net outcomes against OANDA. Combined net profit was A$0.0162; this is not evidence of reliable profitability. Found disconnected timed exits, incorrect closeout entry quotes, lifecycle/recovery gaps and misleading operator analytics. The full [review](docs/reviews/2026-09-06-production-review.md) preserves evidence and limitations.
+
+The user authorized local implementation and documentation of the findings. Track each change and its justification in the [remediation register](docs/reviews/2026-09-06-remediation.md). Funding and risk limits remain unchanged. The former CLAUDE instructions are archived and replaced by an authoritative current-state guide.
+
+**Deployment state**: September 2 cooldown and August backup changes verified deployed on September 6. September 6 remediation is implemented and verified locally (500 backend tests; isolated operations tests), and has not been deployed. The corrected local identity is `m15-intraday-v3` / `intraday-risk-v3` / `broker-liquidity-v2`, strategy `1.1.0`. The remediation register records each change, justification and verification limit.
+
 
 ### 2026-09-02 - Bounded Consecutive-Loss Cooldown (Code Complete)
 
@@ -41,7 +50,7 @@ The current product has one live OANDA runtime and one strategy: `intraday_momen
 
 **Coverage**: Risk, engine, route and configuration tests cover activation, expiry, restart reconstruction, new-run isolation, post-expiry counting and readiness-gated activation.
 
-**Deployment Note**: Not yet deployed. Roll out only while the broker is flat and new entries are paused, then restore the prior enabled state after live readiness and reconciliation pass.
+**Deployment Note**: Verified deployed on 2026-09-06 at production commit `bee8527`, with `m15-intraday-v2` active. Future rollouts still require a flat broker account, paused entries, readiness and reconciliation.
 
 ### 2026-08-13 - Bounded, Single-Instance Production Backups (Code Complete)
 
@@ -51,7 +60,7 @@ The current product has one live OANDA runtime and one strategy: `intraday_momen
 
 **Coverage**: `deploy.sh` and `update.sh` now use the canonical implementation and require a fresh backup. Shell regression tests cover success, overlap, snapshot failure recovery, and open-position refusal.
 
-**Deployment Note**: Production containment is complete. Mark the script changes deployed after the guarded rollout and a verified snapshot complete.
+**Deployment Note**: Verified deployed on 2026-09-06. Current backup logs show bounded snapshots, open-position deferral and restoration; September 6 immutable SQLite snapshot passed an independent quick_check.
 
 ### 2026-08-10 - M15 Intraday Momentum Live Release (Code Complete)
 

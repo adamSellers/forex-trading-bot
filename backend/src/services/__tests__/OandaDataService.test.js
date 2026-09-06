@@ -66,7 +66,7 @@ describe("OandaDataService required granularities", () => {
         expect(service.getRequiredGranularities()).toEqual(["H4"]);
     });
 
-    test("reports price and candle refresh freshness without using candle market time", () => {
+    test("retains refresh diagnostics for legacy timeframes outside the intraday entry contract", () => {
         service.isRunning = true;
         service.priceCache.AUD_USD = { timestamp: 99_000 };
         service.candleCache.AUD_USD_H4 = [{ time: "2026-01-01T00:00:00Z" }];
@@ -103,6 +103,102 @@ describe("OandaDataService required granularities", () => {
                 staleCandles: ["AUD_USD_H4", "AUD_USD_H1"],
             })
         );
+    });
+});
+
+describe("OandaDataService broker event integrity", () => {
+    const nowMs = Date.parse("2026-08-10T10:02:00Z");
+    let service;
+    beforeEach(() => {
+        service = new OandaDataService(["AUD_USD"], { requestTimeoutMs: 25 });
+        jest.spyOn(Date, "now").mockReturnValue(nowMs);
+    });
+    afterEach(() => {
+        jest.restoreAllMocks();
+        jest.useRealTimers();
+    });
+
+    const quote = (overrides = {}) => ({ instrument: "AUD_USD", time: new Date(nowMs - 1000).toISOString(),
+        bids: [{ price: "0.65996" }], asks: [{ price: "0.66004" }], tradeable: true, ...overrides });
+
+    test("a recent HTTP fetch does not freshen an old broker event", async () => {
+        service.oandaRequest = jest.fn().mockResolvedValue({ prices: [quote({ time: new Date(nowMs - 60_000).toISOString() })] });
+        await service.fetchAllPrices();
+        expect(service.getCurrentPrice("AUD_USD")).toMatchObject({ timestamp: nowMs - 60_000, fetchedAt: nowMs });
+        expect(service.getFreshnessStatus({ nowMs }).pricesFresh).toBe(false);
+    });
+
+    test.each([
+        { bids: [] }, { asks: [] }, { bids: [{ price: "garbage" }] },
+        { asks: [{ price: "0.659" }] }, { time: null },
+        { time: new Date(nowMs + 60_000).toISOString() },
+    ])("invalid broker quote %j overwrites availability rather than exposing old tradeable prices", async (overrides) => {
+        service.priceCache.AUD_USD = { price: 0.66, spread: 0.8, tradeable: true, timestamp: nowMs };
+        service.oandaRequest = jest.fn().mockResolvedValue({ prices: [quote(overrides)] });
+        await service.fetchAllPrices();
+        expect(service.getCurrentPrice("AUD_USD").tradeable).toBe(false);
+        expect(service.getCurrentPrice("AUD_USD").invalidReason).toBeTruthy();
+        expect(service.getFreshnessStatus({ nowMs }).pricesFresh).toBe(false);
+    });
+
+    test("preserves unrounded spread so the cost boundary cannot round down", async () => {
+        service.oandaRequest = jest.fn().mockResolvedValue({ prices: [quote({
+            bids: [{ price: "0.660000" }], asks: [{ price: "0.660074" }],
+        })] });
+        await service.fetchAllPrices();
+        expect(service.getCurrentPrice("AUD_USD").spread).toBeCloseTo(0.74, 8);
+    });
+
+    test("current cache timestamps cannot hide stale completed M15/H1 bars", () => {
+        service.updateCandleConfig({ timeframe: "15m" });
+        service.updateRuntimeTimeframes(["15m", "1h"]);
+        service.candleCache.AUD_USD_M15 = [{ time: "2026-08-10T09:30:00Z" }];
+        service.candleCache.AUD_USD_H1 = [{ time: "2026-08-10T08:00:00Z" }];
+        service.candleCacheUpdatedAt.AUD_USD_M15 = nowMs;
+        service.candleCacheUpdatedAt.AUD_USD_H1 = nowMs;
+        const status = service.getFreshnessStatus({ nowMs });
+        expect(status.candlesFresh).toBe(false);
+        expect(status.staleCandles).toEqual(["AUD_USD_M15", "AUD_USD_H1"]);
+        expect(service.getEntryFreshness("AUD_USD", { nowMs }).fresh).toBe(false);
+    });
+
+    test("aborts a hung HTTP request and releases the price polling latch", async () => {
+        jest.useFakeTimers();
+        jest.spyOn(global, "fetch").mockImplementation((_url, { signal }) => new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        }));
+        const pending = service.fetchAllPrices();
+        expect(service.isFetchingPrices).toBe(true);
+        await jest.advanceTimersByTimeAsync(25);
+        await pending;
+        expect(service.isFetchingPrices).toBe(false);
+        expect(jest.getTimerCount()).toBe(0);
+    });
+
+    test("the request deadline also covers a stalled response body", async () => {
+        jest.useFakeTimers();
+        jest.spyOn(global, "fetch").mockImplementation(async (_url, { signal }) => ({
+            ok: true,
+            json: () => new Promise((_resolve, reject) => {
+                signal.addEventListener("abort", () => reject(new Error("body aborted")), { once: true });
+            }),
+        }));
+        const pending = service.fetchAllPrices();
+        await jest.advanceTimersByTimeAsync(25);
+        await pending;
+        expect(service.isFetchingPrices).toBe(false);
+    });
+
+    test("invalid candle payloads do not replace valid cached history or freshen its receipt time", async () => {
+        const prior = [{ time: "2026-08-10T09:30:00Z", open: 0.66, close: 0.66, high: 0.661, low: 0.659 }];
+        service.candleCache.AUD_USD_M15 = prior;
+        service.candleCacheUpdatedAt.AUD_USD_M15 = nowMs - 60_000;
+        service.oandaRequest = jest.fn().mockResolvedValue({ candles: [
+            { time: "2026-08-10T09:45:00Z", complete: true, mid: { o: "0.66", c: "broken", h: "0.661", l: "0.659" } },
+        ] });
+        await service.fetchCandles("AUD_USD", "M15");
+        expect(service.candleCache.AUD_USD_M15).toBe(prior);
+        expect(service.candleCacheUpdatedAt.AUD_USD_M15).toBe(nowMs - 60_000);
     });
 });
 

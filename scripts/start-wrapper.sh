@@ -32,42 +32,46 @@ S3_BUCKET_NAME_FILE="$SECRETS_DIR/s3_bucket_name.enc"
 # --- Node Runtime ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
+source "$SCRIPT_DIR/load-operator-auth.sh"
+# PM2 may retain an old exported token across restarts. The encrypted local
+# credential is authoritative when present, including after deliberate rotation.
+if [ -f "$SECRETS_DIR/operator_token.enc" ]; then unset FOREX_OPERATOR_TOKEN; fi
+load_forex_operator_token || exit 1
 
 # --- Decrypt and Export ---
 if [ -f "$ENCRYPTION_KEY_FILE" ]; then
-    ENCRYPTION_KEY=$(cat "$ENCRYPTION_KEY_FILE")
 
     # 1. Decrypt Oanda Credentials
     if [ -f "$OANDA_API_KEY_FILE" ]; then
-        export OANDA_API_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$OANDA_API_KEY_FILE" 2>/dev/null)
+        export OANDA_API_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$OANDA_API_KEY_FILE" 2>/dev/null)
     fi
 
     if [ -f "$OANDA_ACCOUNT_ID_FILE" ]; then
-        export OANDA_ACCOUNT_ID=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$OANDA_ACCOUNT_ID_FILE" 2>/dev/null)
+        export OANDA_ACCOUNT_ID=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$OANDA_ACCOUNT_ID_FILE" 2>/dev/null)
     fi
 
     if [ -f "$OANDA_ENVIRONMENT_FILE" ]; then
-        export OANDA_ENVIRONMENT=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$OANDA_ENVIRONMENT_FILE" 2>/dev/null)
+        export OANDA_ENVIRONMENT=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$OANDA_ENVIRONMENT_FILE" 2>/dev/null)
     else
         export OANDA_ENVIRONMENT="live"
     fi
 
     # 2. Decrypt Email Credentials (Optional)
     if [ -f "$EMAIL_USER_FILE" ]; then
-        export EMAIL_USER=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_USER_FILE" 2>/dev/null)
-        export EMAIL_PASS=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_PASS_FILE" 2>/dev/null)
+        export EMAIL_USER=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$EMAIL_USER_FILE" 2>/dev/null)
+        export EMAIL_PASS=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$EMAIL_PASS_FILE" 2>/dev/null)
 
         if [ -f "$EMAIL_TO_FILE" ]; then
-            export EMAIL_TO=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$EMAIL_TO_FILE" 2>/dev/null)
+            export EMAIL_TO=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$EMAIL_TO_FILE" 2>/dev/null)
         fi
     fi
 
     # 3. Decrypt AWS S3 Credentials (Optional)
     if [ -f "$AWS_ACCESS_KEY_ID_FILE" ]; then
-        export AWS_REGION=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_REGION_FILE" 2>/dev/null)
-        export AWS_ACCESS_KEY_ID=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_ACCESS_KEY_ID_FILE" 2>/dev/null)
-        export AWS_SECRET_ACCESS_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$AWS_SECRET_ACCESS_KEY_FILE" 2>/dev/null)
-        export S3_BUCKET_NAME=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -k "$ENCRYPTION_KEY" -in "$S3_BUCKET_NAME_FILE" 2>/dev/null)
+        export AWS_REGION=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$AWS_REGION_FILE" 2>/dev/null)
+        export AWS_ACCESS_KEY_ID=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$AWS_ACCESS_KEY_ID_FILE" 2>/dev/null)
+        export AWS_SECRET_ACCESS_KEY=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$AWS_SECRET_ACCESS_KEY_FILE" 2>/dev/null)
+        export S3_BUCKET_NAME=$(openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 -salt -pass "file:$ENCRYPTION_KEY_FILE" -in "$S3_BUCKET_NAME_FILE" 2>/dev/null)
     fi
 
     echo "✅ Secrets decrypted and loaded into environment." >&2

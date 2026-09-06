@@ -45,13 +45,13 @@ import MarketStatusBanner from './dashboard/MarketStatusBanner';
 
 const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
 const SIDEBAR_WIDTH = 340;
-const DEFAULT_STRATEGY_KEY = 'supertrend_momentum';
+const DEFAULT_STRATEGY_KEY = 'intraday_momentum';
 const FALLBACK_STRATEGY_OPTIONS = [
   {
-    key: 'supertrend_momentum',
-    label: 'SuperTrend Momentum',
-    version: '2.0.0',
-    runtimeStatus: 'baseline',
+    key: 'intraday_momentum',
+    label: 'M15 Intraday Momentum',
+    version: 'unknown',
+    runtimeStatus: 'unavailable',
   },
 ];
 
@@ -70,7 +70,14 @@ const normalizeStrategySelection = (strategyKey, catalog = []) => {
 
 const getStrategyLabel = (strategyKey, catalog = []) => {
   const strategy = getStrategyOptions(catalog).find((option) => option.key === strategyKey);
-  return strategy?.label || 'SuperTrend Momentum';
+  return strategy?.label || 'M15 Intraday Momentum';
+};
+
+const withReadDeadline = (request) => {
+  let timer;
+  return Promise.race([request, new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Data request timed out')), 20000);
+  })]).finally(() => clearTimeout(timer));
 };
 
 const shortenRuntimeId = (value) => (value ? String(value).slice(0, 12) : 'unassigned');
@@ -125,6 +132,7 @@ const TradingDashboard = () => {
   const [portfolio, setPortfolio] = useState(null);
   const [prices, setPrices] = useState({});
   const [latestSignals, setLatestSignals] = useState(new Map());
+  const [hasSignalData, setHasSignalData] = useState(false);
   const [trades, setTrades] = useState([]);
   const [account, setAccount] = useState(null);
   const [tradingEnabled, setTradingEnabled] = useState(false);
@@ -138,6 +146,7 @@ const TradingDashboard = () => {
 
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState(null);
+  const [dataError, setDataError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -145,12 +154,16 @@ const TradingDashboard = () => {
   const isMountedRef = useRef(true);
   const strategyCatalogRef = useRef(strategyCatalog);
   const liveSelectionRef = useRef(liveSelection);
+  const refreshSequenceRef = useRef(0);
+  const readinessSequenceRef = useRef(0);
 
   // --- WEBSOCKET & DATA ---
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      refreshSequenceRef.current += 1;
+      readinessSequenceRef.current += 1;
     };
   }, []);
 
@@ -164,6 +177,7 @@ const TradingDashboard = () => {
 
   const updateSignalState = useCallback((newSignals) => {
     if (!newSignals) return;
+    setHasSignalData(true);
     const signalArray = Array.isArray(newSignals) ? newSignals : [newSignals];
     if (signalArray.length === 0) {
       setLatestSignals(new Map());
@@ -188,9 +202,10 @@ const TradingDashboard = () => {
 
   const fetchInitialData = useCallback(async () => {
     if (!isMountedRef.current) return;
+    const refreshSequence = ++refreshSequenceRef.current;
+    const readinessSequence = ++readinessSequenceRef.current;
     try {
       setLoading(true);
-      setError(null);
       const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, liveSelectionData, catalogData, readinessData] =
         await Promise.allSettled([
           tradingAPI.getStatus(),
@@ -201,16 +216,16 @@ const TradingDashboard = () => {
           tradingAPI.getAccount(),
           engineAPI.getStatus(),
           runtimeAPI.getLiveSelection({ includeRuns: false }),
-          strategiesAPI.getCatalog(),
+          strategiesAPI.getCatalog({ force: true }),
           tradingAPI.getLiveReadiness(),
-        ]);
+        ].map(withReadDeadline));
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || refreshSequence !== refreshSequenceRef.current) return;
 
       const catalog = catalogData.status === 'fulfilled' && Array.isArray(catalogData.value)
         ? catalogData.value
-        : [];
-      setStrategyCatalog(catalog);
+        : strategyCatalogRef.current;
+      if (catalogData.status === 'fulfilled') setStrategyCatalog(catalog);
 
       if (statusData.status === 'fulfilled') {
         setSystemStatus(statusData.value);
@@ -252,16 +267,22 @@ const TradingDashboard = () => {
         setPrices(pricesObj);
       }
       if (accountData.status === 'fulfilled') setAccount(accountData.value);
-      if (readinessData.status === 'fulfilled') {
+      if (readinessData.status === 'fulfilled' && readinessSequence === readinessSequenceRef.current) {
         setLiveReadiness(readinessData.value);
+      } else if (readinessData.status === 'rejected' && readinessSequence === readinessSequenceRef.current) {
+        setLiveReadiness(null);
       }
 
       setLoading(false);
-      setLastUpdate(Date.now());
+      const reads = { status: statusData, portfolio: portfolioData, trades: tradesData, signals: signalsData,
+        prices: pricesData, account: accountData, engine: engineData, runtime: liveSelectionData, catalog: catalogData, readiness: readinessData };
+      const failed = Object.entries(reads).filter(([, result]) => result.status === 'rejected').map(([name]) => name);
+      if (failed.length) setDataError(`Data refresh failed: ${failed.join(', ')}. Displayed values may be stale.`);
+      else if (readinessSequence === readinessSequenceRef.current) { setDataError(null); setLastUpdate(Date.now()); }
     } catch (err) {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && refreshSequence === refreshSequenceRef.current) {
         console.error(err);
-        setError(`Data Sync Error: ${err.message}`);
+        setDataError(`Data Sync Error: ${err.message}`);
         setLoading(false);
       }
     }
@@ -287,19 +308,18 @@ const TradingDashboard = () => {
 
         if (selectionChanged) {
           setLatestSignals(new Map());
+          setHasSignalData(false);
         }
         setLiveSelection(selection || null);
         setSelectedStrategy((current) =>
           normalizeStrategySelection(selection?.strategy || current, strategyCatalogRef.current)
         );
         fetchInitialData();
-        setLastUpdate(Date.now());
       }
     };
     const handlePortfolioUpdated = (d) => {
       if (isMountedRef.current) {
         setPortfolio(d);
-        setLastUpdate(Date.now());
       }
     };
     const handlePriceUpdate = (data) => {
@@ -325,25 +345,21 @@ const TradingDashboard = () => {
             }));
           }
         }
-        setLastUpdate(Date.now());
       }
     };
     const handleSignalUpdate = (d) => {
       if (isMountedRef.current) {
         updateSignalState(d);
-        setLastUpdate(Date.now());
       }
     };
     const handleSignalGenerated = (d) => {
       if (isMountedRef.current) {
         updateSignalState(d);
-        setLastUpdate(Date.now());
       }
     };
     const handleTradeExecuted = (t) => {
       if (isMountedRef.current) {
         setTrades((prev) => [t, ...prev].slice(0, FETCH_LIMITS.TRADES));
-        setLastUpdate(Date.now());
       }
     };
     // New: Listen for trade events from engine
@@ -367,12 +383,19 @@ const TradingDashboard = () => {
             strategyCatalogRef.current
           )
         );
-        setLastUpdate(Date.now());
-        tradingAPI.getLiveReadiness()
+        const readinessSequence = ++readinessSequenceRef.current;
+        withReadDeadline(tradingAPI.getLiveReadiness())
           .then((readiness) => {
-            if (isMountedRef.current) setLiveReadiness(readiness);
+            if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
+              setLiveReadiness(readiness);
+              setDataError((previous) => previous?.startsWith('Live readiness refresh failed') ? null : previous);
+            }
           })
           .catch((readinessError) => {
+            if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
+              setLiveReadiness(null);
+              setDataError('Live readiness refresh failed. Current activation readiness is unavailable.');
+            }
             console.error('Failed to refresh live readiness:', readinessError);
           });
       }
@@ -415,11 +438,20 @@ const TradingDashboard = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      tradingAPI.getLiveReadiness()
+      const readinessSequence = ++readinessSequenceRef.current;
+      withReadDeadline(tradingAPI.getLiveReadiness())
         .then((readiness) => {
-          if (isMountedRef.current) setLiveReadiness(readiness);
+          if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
+            setLiveReadiness(readiness);
+            setDataError((previous) => previous?.startsWith('Live readiness refresh failed') ? null : previous);
+          }
         })
-        .catch(() => {});
+        .catch(() => {
+          if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
+            setLiveReadiness(null);
+            setDataError('Live readiness refresh failed. Current activation readiness is unavailable.');
+          }
+        });
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -500,20 +532,6 @@ const TradingDashboard = () => {
   );
   const activeStrategyVersion = systemStatus?.config?.strategyVersion ||
     activeStrategyDefinition?.version || 'unknown';
-  const calculatedDailyPnL = useMemo(() => {
-    if (!trades || trades.length === 0) return 0;
-    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    return trades
-      .filter(
-        (t) =>
-          t.pnlAud !== null &&
-          !isNaN(Number(t.pnlAud)) &&
-          !t.isOpen &&
-          new Date(t.exitTime || t.timestamp).getTime() > oneDayAgo
-      )
-      .reduce((sum, t) => sum + Number(t.pnlAud), 0);
-  }, [trades]);
-
   const actionableSignalCount = useMemo(() => {
     return signalsToRender.filter(
       (s) =>
@@ -684,7 +702,7 @@ const TradingDashboard = () => {
               display: { xs: 'none', md: 'block' },
             }}
           >
-            Last sync: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}
+            Last full refresh: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}
           </Typography>
         </Stack>
       </Box>
@@ -696,6 +714,7 @@ const TradingDashboard = () => {
         </Alert>
       )}
 
+      {dataError && <Alert severity="warning" sx={{ mb: 2, flexShrink: 0 }}>{dataError}</Alert>}
       {error && (
         <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>
           {error}
@@ -809,8 +828,7 @@ const TradingDashboard = () => {
       {/* KPI Stats */}
       <DashboardStats
         portfolio={portfolio}
-        calculatedDailyPnL={calculatedDailyPnL}
-        activeSignalsCount={signalsToRender.length}
+        activeSignalsCount={hasSignalData ? actionableSignalCount : null}
         engineStatus={engineStatus}
       />
 

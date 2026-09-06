@@ -28,6 +28,7 @@ log_error() { echo -e "${RED}❌ $1${NC}"; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
+source "$SCRIPT_DIR/load-operator-auth.sh"
 
 # --- Pi-Specific: Swap Management ---
 setup_swap() {
@@ -143,6 +144,7 @@ log_success "Database initialized"
 log_step "Setting up encrypted secrets..."
 chmod +x scripts/*.sh
 ./scripts/setup-secrets.sh < /dev/tty
+./scripts/setup-operator-access.sh
 
 # --- 7. Register with PM2 ---
 log_step "Registering with PM2..."
@@ -157,7 +159,7 @@ max_attempts=12
 attempt=0
 
 while [ $attempt -lt $max_attempts ]; do
-    if curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
+    if forex_api_curl -f -s http://localhost:3101/api/health > /dev/null 2>&1; then
         break
     fi
     attempt=$((attempt + 1))
@@ -171,7 +173,7 @@ if [ $attempt -lt $max_attempts ]; then
     
     # Show status
     echo ""
-    curl -s http://localhost:3101/api/health | python3 -m json.tool 2>/dev/null || curl -s http://localhost:3101/api/health
+    forex_api_curl -s http://localhost:3101/api/health | python3 -m json.tool 2>/dev/null || forex_api_curl -s http://localhost:3101/api/health
 else
     log_warn "Health check timed out - checking logs..."
     pm2 logs forex-backend --lines 30 --nostream

@@ -48,7 +48,7 @@ describe("liveReadiness", () => {
                 passed: true,
                 status: "PASS",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.0.0",
+                strategyVersion: "1.1.0",
             })
         );
         expect(readiness).not.toHaveProperty("activationOptions");

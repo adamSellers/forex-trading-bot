@@ -1,4 +1,6 @@
 const { createStrategyDefinition } = require("./strategyContract");
+const { evaluateIntradayEntryFreshness } = require("../runtime/marketDataFreshness");
+const { resolveTimedExitReason } = require("../runtime/exitPolicy");
 const {
     calculateADX,
     calculateATR,
@@ -80,6 +82,7 @@ const PAIR_SESSIONS = Object.freeze({
 });
 
 function finite(value, fallback = null) {
+    if (value === null || value === undefined || value === "") return fallback;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -195,6 +198,7 @@ async function evaluateIntradayMomentumEntry({
     currentPrice,
     config = {},
     marketContext = null,
+    nowMs = Date.now(),
 }) {
     const resolved = { ...DEFAULT_INTRADAY_MOMENTUM_CONFIG, ...config };
     const m15 = marketContext?.timeframes?.["15m"]?.candles || [];
@@ -208,7 +212,7 @@ async function evaluateIntradayMomentumEntry({
     const pullbackBars = integer(resolved.intradayPullbackBars, 4, 2);
     const currentM15 = m15[m15.length - 1] || null;
     const currentH1 = h1[h1.length - 1] || null;
-    const price = finite(currentPrice, currentM15?.close);
+    const price = finite(currentPrice);
     const m15Highs = m15.map((candle) => candle.high);
     const m15Lows = m15.map((candle) => candle.low);
     const m15Closes = m15.map((candle) => candle.close);
@@ -229,7 +233,7 @@ async function evaluateIntradayMomentumEntry({
     if (
         m15.length < minimumM15 ||
         h1.length < minimumH1 ||
-        !Number.isFinite(price)
+        !Number.isFinite(price) || price <= 0
     ) {
         return hold(
             base,
@@ -238,9 +242,24 @@ async function evaluateIntradayMomentumEntry({
         );
     }
 
+    const freshness = evaluateIntradayEntryFreshness({ m15Candles: m15, h1Candles: h1, nowMs });
+    if (!freshness.fresh) {
+        return hold(base, `INTRADAY_MOMENTUM_${freshness.code}`,
+            "HOLD: waiting for current completed M15/H1 candles in an open market",
+            { dataFreshness: freshness });
+    }
+    if (resolveTimedExitReason({ trade: { entryTime: nowMs }, policy: resolved, now: nowMs }) === "SESSION_CLOSE") {
+        return hold(base, "INTRADAY_MOMENTUM_ROLLOVER_WINDOW",
+            "HOLD: new entries are blocked during the pre-rollover closure window",
+            { dataFreshness: freshness });
+    }
+    if (marketContext?.session?.tradeable !== true) {
+        return hold(base, "INTRADAY_MOMENTUM_NOT_TRADEABLE",
+            "HOLD: the broker has not supplied a tradeable quote");
+    }
     const signalCloseTime = candleCloseTimeMs(currentM15);
-    const activeSessions = Number.isFinite(signalCloseTime)
-        ? getActivePairSessions(instrument, signalCloseTime)
+    const activeSessions = Number.isFinite(nowMs)
+        ? getActivePairSessions(instrument, nowMs)
         : [];
     const h1FastSeries = emaSeries(h1Closes, fastPeriod);
     const h1SlowSeries = emaSeries(h1Closes, slowPeriod);
@@ -264,7 +283,8 @@ async function evaluateIntradayMomentumEntry({
     const longRegime = longStructure && adx >= minimumAdx;
     const shortRegime = shortStructure && adx >= minimumAdx;
     const direction = longRegime ? 1 : shortRegime ? -1 : 0;
-    const spreadPips = finite(marketContext?.session?.spreadPips, null);
+    const observedSpread = finite(marketContext?.session?.spreadPips, null);
+    const spreadPips = Number.isFinite(observedSpread) && observedSpread >= 0 ? observedSpread : null;
     const expectedSlippagePips = Math.max(
         0,
         finite(resolved.expectedSlippagePips, 0.2)
@@ -272,6 +292,8 @@ async function evaluateIntradayMomentumEntry({
     const context = {
         family: "intraday_momentum",
         signalCandleCloseTime: signalCloseTime,
+        evaluatedAt: nowMs,
+        dataFreshness: freshness,
         activeSessions,
         h1: {
             close: currentH1.close,
@@ -514,7 +536,7 @@ const intradayMomentumStrategy = createStrategyDefinition({
     label: "M15 Intraday Momentum",
     description:
         "Completed-M15 pullback and breakout entries aligned with a liquid-session H1 trend regime.",
-    version: "1.0.0",
+    version: "1.1.0",
     runtimeStatus: "live_ready",
     requiredData: {
         timeframes: ["15m", "1h"],

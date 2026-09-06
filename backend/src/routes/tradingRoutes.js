@@ -8,6 +8,7 @@ const {
 } = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
 const { evaluateLiveReadiness } = require("../runtime/liveReadiness");
+const { buildOperationalHealth } = require("../services/operationalHealthService");
 const { buildOandaApiError } = require("../utils/oandaErrors");
 
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
@@ -48,11 +49,32 @@ async function buildLiveReadiness(req) {
     const config = req.app.locals.configService?.get?.() || {};
     const coordinator = getRuntimeCoordinator(req);
     const entryRisk = await getEntryRiskState(req, config);
-    return evaluateLiveReadiness({
+    const readiness = evaluateLiveReadiness({
         liveSelection: coordinator?.getLiveSelection?.() || null,
         config,
         entryRisk,
     });
+    const persistence = req.app.locals.configService?.getPersistenceStatus?.();
+    if (persistence?.durable === false) {
+        readiness.passed = false;
+        readiness.status = "FAIL";
+        readiness.reasons.push({ code: "CONFIG_PERSISTENCE_FAILED", message: "Entries are paused in memory; save a paused configuration successfully before activation. Restart may reload the earlier saved state." });
+    }
+    const engineStatus = req.app.locals.tradingEngine?.getStatus?.();
+    if (engineStatus) {
+        const lifecycleReason = req.app.locals.tradingEngine.getBrokerEntryBlockReason
+            ? await req.app.locals.tradingEngine.getBrokerEntryBlockReason() : null;
+        const blocked = Boolean(lifecycleReason) || engineStatus.brokerStateUncertain === true ||
+            Number(engineStatus.pendingOrderIntents) > 0 || Array.isArray(engineStatus.pendingOrderIntents) && engineStatus.pendingOrderIntents.length > 0 ||
+            Number(engineStatus.quarantinedBrokerPositions) > 0 ||
+            Number(engineStatus.protectionPendingTrades) > 0 || Array.isArray(engineStatus.protectionPendingTrades) && engineStatus.protectionPendingTrades.length > 0;
+        if (blocked) {
+            readiness.passed = false;
+            readiness.status = "FAIL";
+            readiness.reasons.push({ code: "BROKER_LIFECYCLE_UNRESOLVED", message: "Broker positions, order intents or protective orders require reconciliation" });
+        }
+    }
+    return readiness;
 }
 
 function parseLimit(value, fallback, maximum = null) {
@@ -93,6 +115,7 @@ async function oandaRequest(endpoint, options = {}) {
 
     const response = await fetch(`${OANDA_BASE_URL}${endpoint}`, {
         ...options,
+        signal: options.signal || AbortSignal.timeout(10000),
         headers: {
             Authorization: `Bearer ${OANDA_API_KEY}`,
             "Content-Type": "application/json",
@@ -236,28 +259,21 @@ router.get("/system/health", async (req, res) => {
 
         const dataStatus = dataService?.getStatus?.() || {};
         const liveReadiness = await buildLiveReadiness(req);
-        const reasons = [];
+        const operationalHealth = buildOperationalHealth({
+            engineStatus: tradingEngine?.getStatus?.() || {}, dataStatus,
+            runtimeStatus: coordinator?.getStatus?.() || { isRunning: coordinator?.isRunning, lastRunTime: coordinator?.lastRunTime },
+            config, entryRisk: liveReadiness.entryRisk,
+            configPersistence: req.app.locals.configService?.getPersistenceStatus?.(),
+        });
+        const reasons = operationalHealth.issues.map((issue) => issue.code);
         if (!oanda.connected) reasons.push("OANDA_DISCONNECTED");
-        if (dataService?.isRunning !== true) reasons.push("DATA_SERVICE_STOPPED");
-        if (dataStatus.freshness?.pricesFresh === false)
-            reasons.push("STALE_PRICE_DATA");
-        if (dataStatus.freshness?.candlesFresh === false)
-            reasons.push("STALE_CANDLE_DATA");
-        if (coordinator?.isRunning !== true)
-            reasons.push("LIVE_STRATEGY_RUNTIME_STOPPED");
-        if (liveReadiness.entryRisk?.status === "UNAVAILABLE")
-            reasons.push("ENTRY_RISK_UNAVAILABLE");
-        if (tradingEngine?.isRunning !== true)
-            reasons.push(
-                config.enableTrading
-                    ? "TRADING_ENGINE_DETACHED_WHILE_TRADING_ENABLED"
-                    : "TRADING_ENGINE_STOPPED"
-            );
-
+        const alertStatus = req.app.locals.operationalHealthService?.getStatus?.();
+        if (alertStatus?.alerting) operationalHealth.alerting = alertStatus.alerting;
         res.json({
             status: reasons.length ? "degraded" : "healthy",
             runtime: "live_only",
             degradedReasons: reasons,
+            operationalHealth,
             timestamp: new Date().toISOString(),
             uptime: process.uptime(),
             uptimeFormatted: formatUptime(process.uptime()),
@@ -359,6 +375,7 @@ router.get("/account", async (_req, res) => {
             marginUsed: Number(account.marginUsed),
             marginAvailable: Number(account.marginAvailable),
             openTrades: Number(account.openTradeCount),
+            pendingOrders: Number(account.pendingOrderCount),
             unrealizedPL: Number(account.unrealizedPL),
             pl: Number(account.pl),
         });
@@ -482,7 +499,7 @@ router.get("/signals", async (req, res) => {
     }
 });
 
-router.get("/portfolio", async (_req, res) => {
+router.get("/portfolio", async (req, res) => {
     try {
         const [accountData, tradesData] = await Promise.all([
             oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/summary`),
@@ -499,9 +516,17 @@ router.get("/portfolio", async (_req, res) => {
             marginUsed: Number(trade.marginUsed || 0),
             openTime: trade.openTime,
         }));
+        const runId = getRuntimeCoordinator(req)?.getLiveSelection?.()?.liveRun?.runId || null;
+        const summary = runId && req.app.locals.tradeRepository?.getTradeSummary
+            ? await req.app.locals.tradeRepository.getTradeSummary({ mode: "live", ownerRunId: runId }) : null;
+        const recentClosed = req.app.locals.tradeRepository?.getTradesSince
+            ? await req.app.locals.tradeRepository.getTradesSince(Date.now() - 86400000, { mode: "live", timeBasis: "realized", endTime: Date.now() }) : null;
         res.json({
             balance: Number(account.balance),
             currency: account.currency,
+            performance: summary ? { scope: "Current run", runId, totalTrades: summary.closedTradeCount,
+                winRate: summary.closedTradeCount ? summary.winningTrades / summary.closedTradeCount * 100 : null } : null,
+            realizedLast24hAud: recentClosed ? recentClosed.reduce((sum, trade) => sum + Number(trade.pnlAud || 0), 0) : null,
             positions,
             totalValue: Number(account.NAV),
             unrealizedPnL: Number(account.unrealizedPL),
@@ -531,11 +556,9 @@ router.get("/trades", async (req, res) => {
 
 router.post("/trade/close/:id", async (req, res) => {
     try {
-        const data = await oandaRequest(
-            `/v3/accounts/${OANDA_ACCOUNT_ID}/trades/${req.params.id}/close`,
-            { method: "PUT" }
-        );
-        await req.app.locals.tradingEngine?.syncWithOanda?.();
+        const engine = req.app.locals.tradingEngine;
+        if (!requireService(res, engine?.closeBrokerTrade, "Serialized broker close")) return;
+        const data = await engine.closeBrokerTrade(req.params.id);
         res.json({
             success: true,
             message: `Position ${req.params.id} closed`,
@@ -865,13 +888,22 @@ router.get("/analytics", async (req, res) => {
             req.app.locals.signalRepository,
             req.app.locals.entryDecisionRepository
         );
+        const scope = req.query.scope || (req.query.runId ? "run" : "current");
+        if (!["current", "all-live", "run"].includes(scope)) return res.status(400).json({ error: "Invalid analytics scope" });
+        const runId = scope === "current" ? getRuntimeCoordinator(req)?.getLiveSelection?.()?.liveRun?.runId : req.query.runId;
+        if (scope !== "all-live" && !runId) return res.status(409).json({ error: "Selected analytics run is unavailable" });
+        if (scope === "run" && !await resolveLiveRun(req, runId)) return res.status(404).json({ error: "Analytics run not found" });
+        if (req.query.timeBasis && !["entry", "realized"].includes(req.query.timeBasis)) return res.status(400).json({ error: "Invalid time basis" });
+        if (req.query.period && !["24h", "7d", "30d", "90d", "all"].includes(req.query.period)) return res.status(400).json({ error: "Invalid analytics period" });
         const analytics = await service.getAnalytics(req.query.period || "30d", {
             mode: RUNTIME_MODES.LIVE,
-            strategy: "intraday_momentum",
-            runId: req.query.runId || undefined,
+            strategy: scope === "all-live" ? req.query.strategy || undefined : undefined,
+            runId: scope === "all-live" ? undefined : runId,
             selectionId: req.query.selectionId || undefined,
+            timeBasis: req.query.timeBasis || "realized",
             profile: req.query.profile === "dashboard" ? "dashboard" : "full",
         });
+        analytics.scope = scope;
         res.json(analytics);
     } catch (error) {
         res.status(500).json({ error: error.message });

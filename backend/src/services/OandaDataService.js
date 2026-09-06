@@ -3,6 +3,11 @@ const EventEmitter = require("events");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
 const { ACCOUNT_CURRENCY } = require("../runtime/currencyConversion");
+const {
+    evaluateCandleFreshness,
+    evaluateIntradayEntryFreshness,
+    getForexMarketState,
+} = require("../runtime/marketDataFreshness");
 
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
 const OANDA_ACCOUNT_ID = process.env.OANDA_ACCOUNT_ID;
@@ -16,6 +21,7 @@ const INSTRUMENT_METADATA_REFRESH_MS = 6 * 60 * 60 * 1000;
 const INSTRUMENT_METADATA_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PRICE_FRESHNESS_MAX_AGE_MS = 20_000;
 const CANDLE_REFRESH_FRESHNESS_MAX_AGE_MS = 180_000;
+const OANDA_REQUEST_TIMEOUT_MS = 10_000;
 
 class OandaDataService extends EventEmitter {
     constructor(
@@ -47,6 +53,9 @@ class OandaDataService extends EventEmitter {
         this.isFetchingPrices = false;
         this.isFetchingCandles = false;
         this.failureLogTimestamps = new Map();
+        this.requestTimeoutMs = Number.isFinite(options.requestTimeoutMs) && options.requestTimeoutMs > 0
+            ? Math.min(options.requestTimeoutMs, OANDA_REQUEST_TIMEOUT_MS)
+            : OANDA_REQUEST_TIMEOUT_MS;
     }
 
     logFailureThrottled(key, message, data = null, intervalMs = 60000) {
@@ -61,18 +70,21 @@ class OandaDataService extends EventEmitter {
     }
 
     async oandaRequest(endpoint) {
-        const response = await fetch(`${OANDA_BASE_URL}${endpoint}`, {
-            headers: {
-                Authorization: `Bearer ${OANDA_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!response.ok) {
-            throw await buildOandaApiError(response);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+        try {
+            const response = await fetch(`${OANDA_BASE_URL}${endpoint}`, {
+                headers: {
+                    Authorization: `Bearer ${OANDA_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+                signal: controller.signal,
+            });
+            if (!response.ok) throw await buildOandaApiError(response);
+            return await response.json();
+        } finally {
+            clearTimeout(timeout);
         }
-
-        return response.json();
     }
 
     getPipValue(instrument) {
@@ -134,22 +146,29 @@ class OandaDataService extends EventEmitter {
             this.seedHomeConversions(data.homeConversions, fetchedAt);
 
             data.prices.forEach((price) => {
-                const bid = parseFloat(price.bids?.[0]?.price || 0);
-                const ask = parseFloat(price.asks?.[0]?.price || 0);
-                const mid = (bid + ask) / 2;
+                const bid = Number(price.bids?.[0]?.price);
+                const ask = Number(price.asks?.[0]?.price);
+                const brokerTimestamp = Date.parse(price.time);
+                const validQuote = Number.isFinite(bid) && bid > 0 &&
+                    Number.isFinite(ask) && ask >= bid;
+                const validTime = Number.isFinite(brokerTimestamp) &&
+                    brokerTimestamp > 0 && brokerTimestamp <= fetchedAt + 1000;
+                const mid = validQuote ? (bid + ask) / 2 : null;
                 const pipValue = this.getPipValue(price.instrument);
-                const spread = (ask - bid) / pipValue;
+                const spread = validQuote ? (ask - bid) / pipValue : null;
 
                 const priceData = {
                     instrument: price.instrument,
-                    bid,
-                    ask,
+                    bid: validQuote ? bid : null,
+                    ask: validQuote ? ask : null,
                     mid,
                     price: mid, // alias for compatibility
-                    spread: parseFloat(spread.toFixed(1)),
-                    tradeable: price.tradeable,
+                    spread,
+                    tradeable: validQuote && validTime && price.tradeable === true,
                     time: price.time,
-                    timestamp: fetchedAt,
+                    timestamp: validTime ? brokerTimestamp : null,
+                    fetchedAt,
+                    invalidReason: !validQuote ? "INVALID_BID_ASK" : !validTime ? "INVALID_BROKER_TIME" : null,
                 };
 
                 this.priceCache[price.instrument] = priceData;
@@ -422,6 +441,17 @@ class OandaDataService extends EventEmitter {
                     close: parseFloat(c.mid.c),
                     volume: c.volume,
                 }));
+            let previousTime = -Infinity;
+            for (const candle of candles) {
+                const candleTime = Date.parse(candle.time);
+                if (!Number.isFinite(candleTime) || candleTime <= previousTime ||
+                    ![candle.open, candle.high, candle.low, candle.close].every((value) => Number.isFinite(value) && value > 0) ||
+                    candle.high < Math.max(candle.open, candle.close) ||
+                    candle.low > Math.min(candle.open, candle.close)) {
+                    throw new Error("Invalid or unordered completed candle data");
+                }
+                previousTime = candleTime;
+            }
 
             const key = `${instrument}_${granularity}`;
             this.candleCache[key] = candles;
@@ -456,6 +486,14 @@ class OandaDataService extends EventEmitter {
         const granularity = this.convertTimeframe(timeframe);
         const key = `${instrument}_${granularity}`;
         return this.candleCache[key] || [];
+    }
+
+    getEntryFreshness(instrument, { nowMs = Date.now() } = {}) {
+        return evaluateIntradayEntryFreshness({
+            m15Candles: this.getCandles(instrument, "15m"),
+            h1Candles: this.getCandles(instrument, "1h"),
+            nowMs,
+        });
     }
 
     convertTimeframe(tf) {
@@ -505,6 +543,7 @@ class OandaDataService extends EventEmitter {
             return {
                 instrument,
                 updatedAt,
+                invalid: Boolean(this.priceCache[instrument]?.invalidReason),
                 ageMs: updatedAt === null ? null : Math.max(0, nowMs - updatedAt),
             };
         });
@@ -512,22 +551,26 @@ class OandaDataService extends EventEmitter {
             this.getRequiredGranularities().map((granularity) => {
                 const key = `${instrument}_${granularity}`;
                 const updatedAt = Number(this.candleCacheUpdatedAt[key]) || null;
+                const completedCandle = ["M15", "H1"].includes(granularity)
+                    ? evaluateCandleFreshness(this.candleCache[key], granularity, { nowMs })
+                    : null;
                 return {
                     key,
                     instrument,
                     granularity,
                     updatedAt,
+                    completedCandle,
                     ageMs:
                         updatedAt === null ? null : Math.max(0, nowMs - updatedAt),
                 };
             })
         );
         const stalePrices = priceRows.filter(
-            (row) => row.ageMs === null || row.ageMs > maxPriceAgeMs
+            (row) => row.invalid || row.ageMs === null || row.ageMs > maxPriceAgeMs
         );
         const staleCandles = candleRows.filter(
             (row) =>
-                row.ageMs === null || row.ageMs > maxCandleRefreshAgeMs
+                row.ageMs === null || row.ageMs > maxCandleRefreshAgeMs || row.completedCandle?.fresh === false
         );
         const finitePriceAges = priceRows
             .map((row) => row.ageMs)
@@ -538,6 +581,7 @@ class OandaDataService extends EventEmitter {
 
         return {
             checkedAt: nowMs,
+            market: getForexMarketState(nowMs),
             pricesFresh: stalePrices.length === 0,
             candlesFresh: staleCandles.length === 0,
             oldestPriceAgeMs:
@@ -558,6 +602,10 @@ class OandaDataService extends EventEmitter {
             maxCandleRefreshAgeMs,
             stalePrices: stalePrices.map((row) => row.instrument),
             staleCandles: staleCandles.map((row) => row.key),
+            completedCandles: candleRows.filter((row) => row.completedCandle).map((row) => ({
+                instrument: row.instrument,
+                ...row.completedCandle,
+            })),
         };
     }
 

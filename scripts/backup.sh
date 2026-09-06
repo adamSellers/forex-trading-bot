@@ -15,6 +15,7 @@ BACKUP_MODE="${1:---safe}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
+source "$SCRIPT_DIR/load-operator-auth.sh"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -75,7 +76,7 @@ api_json_field() {
 wait_for_api() {
     local attempt
     for attempt in $(seq 1 18); do
-        if curl -sf --max-time 10 "$API_URL/health" >/dev/null 2>&1; then
+        if forex_api_curl -sf --max-time 10 "$API_URL/health" >/dev/null 2>&1; then
             return 0
         fi
         sleep 5
@@ -86,7 +87,7 @@ wait_for_api() {
 enable_live_trading() {
     local attempt
     for attempt in $(seq 1 18); do
-        if curl -sf --max-time 20 -X POST "$API_URL/trading/start" >/dev/null; then
+        if forex_api_curl -sf --max-time 20 -X POST "$API_URL/trading/start" >/dev/null; then
             return 0
         fi
         sleep 5
@@ -180,7 +181,7 @@ remove_stale_partials() {
 }
 
 quiesce_database() {
-    local health account open_trades pid_output service_pid trading_enabled
+    local health account broker open_trades pid_output service_pid trading_enabled
 
     pid_output=$(pm2 pid "$APP_NAME" 2>/dev/null) || \
         fail "cannot inspect PM2 state before database snapshot"
@@ -190,7 +191,7 @@ quiesce_database() {
         log_info "$APP_NAME is already stopped; snapshotting the quiet database"
         return 0
     fi
-    health=$(curl -sf --max-time 10 "$API_URL/health") || \
+    health=$(forex_api_curl -sf --max-time 10 "$API_URL/health") || \
         fail "cannot inspect runtime health before database snapshot"
     trading_enabled=$(api_json_field "$health" \
         "str(bool((data.get('config') or {}).get('enableTrading'))).lower()") || \
@@ -201,20 +202,31 @@ quiesce_database() {
     esac
     if [ "$trading_enabled" = true ]; then
         TRADING_WAS_ENABLED=true
-        curl -sf --max-time 20 -X POST "$API_URL/trading/stop" >/dev/null || \
+        forex_api_curl -sf --max-time 20 -X POST "$API_URL/trading/stop" >/dev/null || \
             fail "could not pause new entries before database snapshot"
         TRADING_PAUSED=true
         log_info "Paused new entries for consistent database snapshot"
     fi
 
-    # This is deliberately checked after pausing entries, closing the race in
-    # which a new order could open between the flat-account check and PM2 stop.
-    account=$(curl -sf --max-time 20 "$API_URL/account") || \
+    # Pausing entries must be durable, and a flat broker summary alone cannot
+    # exclude an unresolved in-flight submission. Keep management running when
+    # the local lifecycle ledger still records uncertainty.
+    python3 "$SCRIPT_DIR/restore-safety.py" "$PROJECT_DIR" || \
+        fail "database snapshot deferred because pause or durable broker state is unresolved"
+
+    # Broker truth is checked after pausing entries and inspecting the ledger.
+    account=$(forex_api_curl -sf --max-time 20 "$API_URL/account") || \
         fail "cannot verify broker positions before database snapshot"
     open_trades=$(api_json_field "$account" "int(data.get('openTrades', -1))") || \
         fail "cannot parse broker position count before database snapshot"
     [ "$open_trades" -eq 0 ] || \
         fail "database snapshot deferred because broker reports $open_trades open trade(s)"
+    # Check pending broker orders directly as well. This also works during the
+    # first auth rollout when the old /account API has no pendingOrders field.
+    broker=$(forex_broker_account_summary) || fail "cannot verify pending broker orders before snapshot"
+    printf '%s' "$broker" | python3 -c \
+        'import json,sys; a=json.load(sys.stdin).get("account",{}); sys.exit(0 if str(a.get("openTradeCount")) == "0" and str(a.get("pendingOrderCount")) == "0" else 1)' || \
+        fail "database snapshot deferred because broker account is not confirmed flat with zero pending orders"
 
     log_info "Stopping $APP_NAME while the flat database is snapshotted"
     SERVICE_STOPPED=true

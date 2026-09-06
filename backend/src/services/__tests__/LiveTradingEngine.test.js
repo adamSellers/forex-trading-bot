@@ -58,6 +58,7 @@ jest.mock('../Oandaclient', () => ({
             },
         ],
     }),
+    getExecutableQuote: jest.fn((...args) => jest.requireActual('../Oandaclient').getExecutableQuote(...args)),
     getCandles: jest.fn().mockResolvedValue({
         instrument: 'AUD_USD',
         granularity: 'M15',
@@ -182,7 +183,7 @@ function createMockBrokerLifecycleRepository() {
             return record;
         }),
         resolveMissingQuarantines: jest.fn().mockResolvedValue(0),
-        getOpenQuarantines: jest.fn(async () => [...quarantines.values()]),
+        getOpenQuarantines: jest.fn(async () => [...quarantines.values()].filter((record) => record.status === 'OPEN')),
         getState: jest.fn(async (key) => state.get(key) || null),
         setState: jest.fn(async (key, value) => {
             state.set(key, value);
@@ -205,6 +206,9 @@ describe('LiveTradingEngine', () => {
     let mockDataService;
     let mockEntryDecisionRepository;
     let oandaClient;
+    const defaultBrokerMocks = Object.fromEntries(Object.entries(require('../Oandaclient'))
+        .filter(([, value]) => jest.isMockFunction(value))
+        .map(([key, value]) => [key, value.getMockImplementation()]));
 
     const mockAudUsdPricingOnly = () => {
         oandaClient.getPricing.mockImplementation(async (instruments) => {
@@ -233,13 +237,30 @@ describe('LiveTradingEngine', () => {
 
         // Get the mocked oandaClient
         oandaClient = require('../Oandaclient');
+        Object.entries(defaultBrokerMocks).forEach(([key, implementation]) => {
+            oandaClient[key].mockReset().mockImplementation(implementation);
+        });
+        oandaClient.modifyTrade.mockImplementation(async (id, options) => ({
+            ...(options.stopLossPrice !== undefined ? { stopLossOrderTransaction: { tradeID: id, price: String(options.stopLossPrice) } } : {}),
+            ...(options.takeProfitPrice !== undefined ? { takeProfitOrderTransaction: { tradeID: id, price: String(options.takeProfitPrice) } } : {}),
+        }));
+        oandaClient.getTrade.mockImplementation(async (id) => {
+            let fill = null;
+            try { fill = (await oandaClient.closeTrade.mock.results.at(-1)?.value)?.orderFillTransaction; } catch (_) {}
+            const effect = fill?.tradesClosed?.find((item) => String(item.tradeID) === String(id));
+            return { trade: effect ? {
+                id, state: 'CLOSED', averageClosePrice: effect.price || fill.price,
+                realizedPL: effect.realizedPL || fill.pl, financing: effect.financing || fill.financing || '0',
+                closeTime: fill.time || String(Date.now() / 1000),
+            } : { id, state: 'OPEN', currentUnits: '795' } };
+        });
         oandaClient.getAccountSummary.mockResolvedValue({
             account: {
                 id: '001-011-20128302-001',
                 currency: 'AUD',
                 balance: '136.00',
                 marginAvailable: '71.00',
-                marginUsed: '65.00',
+                marginUsed: '0.00',
                 unrealizedPL: '5.63',
                 NAV: '141.63',
                 openTradeCount: 1,
@@ -254,6 +275,7 @@ describe('LiveTradingEngine', () => {
                     closeoutBid: '1.16566',
                     closeoutAsk: '1.16576',
                     tradeable: true,
+                    time: String(Date.now() / 1000),
                 },
             ],
         });
@@ -301,6 +323,7 @@ describe('LiveTradingEngine', () => {
             }),
             getCandles: jest.fn().mockReturnValue([]),
             getPipValue: jest.fn().mockReturnValue(0.0001),
+            getEntryFreshness: jest.fn().mockReturnValue({ fresh: true }),
         };
 
         // Create engine instance
@@ -313,9 +336,11 @@ describe('LiveTradingEngine', () => {
             null, // io
             mockEntryDecisionRepository
         );
+        engine.brokerStateUncertain = false;
     });
 
     afterEach(() => {
+        if (jest.isMockFunction(Date.now)) Date.now.mockRestore();
         if (engine.isRunning) {
             engine.stop();
         }
@@ -728,6 +753,9 @@ describe('LiveTradingEngine', () => {
                 account: {
                     balance: '136.00',
                     marginAvailable: '71.00',
+                    marginUsed: '0.00',
+                    NAV: '136.00',
+                    currency: 'AUD',
                 },
             });
 
@@ -1040,22 +1068,22 @@ describe('LiveTradingEngine', () => {
                 const instrument = instruments[0];
                 if (instrument === 'AUD_USD') {
                     return {
-                        prices: [{ closeoutBid: '0.6600', closeoutAsk: '0.6602' }],
+                        prices: [{ bids: [{ price: '0.6600' }], asks: [{ price: '0.6602' }] }],
                     };
                 }
                 if (instrument === 'USD_AUD') {
                     return {
-                        prices: [{ closeoutBid: '1.5147', closeoutAsk: '1.5152' }],
+                        prices: [{ bids: [{ price: '1.5147' }], asks: [{ price: '1.5152' }] }],
                     };
                 }
                 if (instrument === 'JPY_USD') {
                     return {
-                        prices: [{ closeoutBid: '0.0066', closeoutAsk: '0.0067' }],
+                        prices: [{ bids: [{ price: '0.0066' }], asks: [{ price: '0.0067' }] }],
                     };
                 }
                 if (instrument === 'USD_JPY') {
                     return {
-                        prices: [{ closeoutBid: '149.95', closeoutAsk: '150.05' }],
+                        prices: [{ bids: [{ price: '149.95' }], asks: [{ price: '150.05' }] }],
                     };
                 }
                 throw new Error(`Unexpected instrument: ${instrument}`);
@@ -1085,12 +1113,12 @@ describe('LiveTradingEngine', () => {
                 const instrument = instruments[0];
                 if (instrument === 'CHF_USD') {
                     return {
-                        prices: [{ closeoutBid: '1.1000', closeoutAsk: '1.1010' }],
+                        prices: [{ bids: [{ price: '1.1000' }], asks: [{ price: '1.1010' }] }],
                     };
                 }
                 if (instrument === 'USD_AUD') {
                     return {
-                        prices: [{ closeoutBid: '1.5147', closeoutAsk: '1.5152' }],
+                        prices: [{ bids: [{ price: '1.5147' }], asks: [{ price: '1.5152' }] }],
                     };
                 }
                 throw new Error(`Unexpected instrument: ${instrument}`);
@@ -1353,6 +1381,9 @@ describe('LiveTradingEngine', () => {
                 account: {
                     balance: '136.00',
                     marginAvailable: '71.00',
+                    marginUsed: '0.00',
+                    NAV: '136.00',
+                    currency: 'AUD',
                 },
             });
 
@@ -1635,7 +1666,7 @@ describe('LiveTradingEngine', () => {
             expect(sizeSpy.mock.calls[0][1]).toBeCloseTo(20, 5);
             expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(
                 'AUD_USD',
-                795,
+                601, // Final risk check caps the preliminary size at priceBound.
                 expect.objectContaining({
                     stopLossPrice: 1.16371,
                     takeProfitPrice: 1.16888,
@@ -1753,7 +1784,7 @@ describe('LiveTradingEngine', () => {
             expect(sizeSpy.mock.calls[0][1]).toBeCloseTo(25, 5);
             expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(
                 'AUD_USD',
-                795,
+                499, // Includes the worst permitted fill-to-stop distance.
                 expect.objectContaining({
                     stopLossPrice: 1.16326,
                     takeProfitPrice: null,
@@ -1978,7 +2009,7 @@ describe('LiveTradingEngine', () => {
             });
 
             mockDataService.getCurrentPrice.mockReturnValue({
-                price: 1.10150, // +15 pips
+                price: 1.10150, timestamp: Date.now(), // +15 pips
                 spread: 1.0,
             });
 
@@ -1989,6 +2020,7 @@ describe('LiveTradingEngine', () => {
                 enableTrailingStops: false,
             };
 
+            engine.openTrades.set(trade.id, trade);
             await engine.checkPosition(trade, config);
 
             expect(trade.stopLossPrice).toBe(1.1);
@@ -2018,7 +2050,7 @@ describe('LiveTradingEngine', () => {
             });
 
             mockDataService.getCurrentPrice.mockReturnValue({
-                price: 1.20130, // +13 pips
+                price: 1.20130, timestamp: Date.now(), // +13 pips
                 spread: 1.0,
             });
 
@@ -2029,6 +2061,7 @@ describe('LiveTradingEngine', () => {
                 enableTrailingStops: false,
             };
 
+            engine.openTrades.set(trade.id, trade);
             await engine.checkPosition(trade, config);
 
             expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
@@ -2061,6 +2094,7 @@ describe('LiveTradingEngine', () => {
                 enableTrailingStops: false,
             };
 
+            engine.openTrades.set(trade.id, trade);
             await engine.checkPosition(trade, config);
 
             expect(mockTradeRepository.updateTrade).not.toHaveBeenCalledWith(
@@ -2094,9 +2128,11 @@ describe('LiveTradingEngine', () => {
                 enableTrailingStops: false,
             };
 
+            engine.openTrades.set(trade.id, trade);
             await engine.updateBreakevenStop(trade, 1.10150, config);
             expect(mockTradeRepository.updateTrade).not.toHaveBeenCalled();
 
+            engine.openTrades.set(trade.id, trade);
             await engine.updateBreakevenStop(trade, 1.10210, config);
             expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
                 'trade-breakeven-risk',
@@ -2119,6 +2155,7 @@ describe('LiveTradingEngine', () => {
                 new Error('temporary broker failure')
             );
 
+            engine.openTrades.set(trade.id, trade);
             await engine.updateBreakevenStop(trade, 1.102, {
                 enableBreakeven: true,
                 breakevenTriggerPips: 12,
@@ -2212,9 +2249,11 @@ describe('LiveTradingEngine', () => {
                 trailingStopRiskMultiple: 1,
             };
 
+            engine.openTrades.set(trade.id, trade);
             await engine.updateTrailingStop(trade, 1.10250, config);
             expect(mockTradeRepository.updateTrade).not.toHaveBeenCalled();
 
+            engine.openTrades.set(trade.id, trade);
             await engine.updateTrailingStop(trade, 1.10350, config);
             expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(
                 'trade-trailing-risk',
@@ -2397,8 +2436,8 @@ describe('LiveTradingEngine', () => {
             // Without this, syncWithOanda sees empty Oanda trades and closes our DB trades
             oandaClient.getOpenTrades.mockResolvedValue({
                 trades: [
-                    { id: '501', instrument: 'AUD_USD', currentUnits: '795' },
-                    { id: '502', instrument: 'AUD_USD', currentUnits: '795' },
+                    { id: '501', instrument: 'AUD_USD', currentUnits: '795', stopLossOrder: { state: 'PENDING', price: '1.16320' }, takeProfitOrder: { state: 'PENDING', price: '1.16918' } },
+                    { id: '502', instrument: 'AUD_USD', currentUnits: '795', stopLossOrder: { state: 'PENDING', price: '1.16320' }, takeProfitOrder: { state: 'PENDING', price: '1.16918' } },
                 ],
             });
 
@@ -2420,7 +2459,7 @@ describe('LiveTradingEngine', () => {
             ]);
             oandaClient.getOpenTrades.mockResolvedValue({
                 trades: [
-                    { id: '501', instrument: 'AUD_USD', currentUnits: '795' },
+                    { id: '501', instrument: 'AUD_USD', currentUnits: '795', stopLossOrder: { state: 'PENDING', price: '1.16320' }, takeProfitOrder: { state: 'PENDING', price: '1.16918' } },
                 ],
             });
 
@@ -2462,6 +2501,354 @@ describe('LiveTradingEngine', () => {
             );
 
             await expect(engine.syncOpenTrades()).resolves.toBeUndefined();
+        });
+    });
+
+    describe('Live lifecycle safety regressions', () => {
+        const protectedBrokerTrade = (overrides = {}) => ({
+            id: '489', instrument: 'AUD_USD', state: 'OPEN', price: '1.16571',
+            currentUnits: '795', initialUnits: '795', openTime: String(Date.now() / 1000),
+            stopLossOrder: { state: 'PENDING', price: '1.16320' },
+            takeProfitOrder: { state: 'PENDING', price: '1.16918' }, ...overrides,
+        });
+        const addTrade = (overrides = {}) => {
+            const trade = createMockTrade(overrides);
+            engine.openTrades.set(trade.id, trade);
+            return trade;
+        };
+
+        test('closes an overdue owner-policy trade through the real monitor without a live quote', async () => {
+            const trade = addTrade({ entryTime: Date.now() - 7 * 3600000,
+                brokerReconciliationPayload: { liveRuntime: { ownerExitPolicy: {
+                    version: 1, config: { timeStopHours: 6, enableBreakeven: false },
+                } } },
+            });
+            mockConfigService.config.timeStopHours = 0;
+            mockDataService.getCurrentPrice.mockReturnValue(null);
+            await engine.monitorPositions();
+            expect(oandaClient.closeTrade).toHaveBeenCalledWith('489');
+            expect(engine.openTrades.has(trade.id)).toBe(false);
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(trade.id, expect.objectContaining({ exitReason: 'TIME_STOP', isOpen: false }));
+        });
+
+        test.each(['2026-08-19T20:45:00Z', '2026-01-14T21:45:00Z'])('executes New York rollover closure across DST at %s', async (timestamp) => {
+            const now = Date.parse(timestamp);
+            jest.spyOn(Date, 'now').mockReturnValue(now);
+            const trade = addTrade({ entryTime: now - 3600000,
+                brokerReconciliationPayload: { liveRuntime: { ownerExitPolicy: {
+                    version: 1, config: { sessionCloseTimeZone: 'America/New_York', sessionCloseLocalHour: 16,
+                        sessionCloseLocalMinute: 45, sessionCloseWindowMinutes: 30 },
+                } } },
+            });
+            await engine.checkPosition(trade, {});
+            expect(engine.openTrades.size).toBe(0);
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(trade.id, expect.objectContaining({ exitReason: 'SESSION_CLOSE' }));
+        });
+
+        test('flat monitoring reconciles a lost response and blocks another pair until resolved', async () => {
+            const repository = createMockBrokerLifecycleRepository();
+            engine.brokerLifecycleRepository = repository;
+            const error = Object.assign(new Error('lost response'), { ambiguous: true });
+            oandaClient.placeMarketOrder.mockRejectedValueOnce(error);
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toThrow('lost response');
+            expect(engine.openTrades.size).toBe(0);
+            expect(engine.getStatus().pendingOrderIntentCount).toBe(1);
+            expect(engine.getStatus().pendingOrderIntents[0].status).toBe('RECOVERY_PENDING');
+            const blocked = await engine.validateEntry(createMockSignal({ symbol: 'EUR_USD' }), mockConfigService.get());
+            expect(blocked.valid).toBe(false);
+            expect(blocked.reason).toMatch(/unresolved/);
+            const intent = [...repository.intents.values()][0];
+            oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade({ clientExtensions: { id: intent.clientTradeId } })] });
+            await engine.monitorPositions();
+            expect(engine.openTrades.size).toBe(1);
+            expect(repository.intents.get(intent.intentId).status).toBe('COMPLETED');
+            expect(engine.getStatus().pendingOrderIntentCount).toBe(0);
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(1);
+            expect(engine.getStatus().lastSuccessfulBrokerSyncAt).toEqual(expect.any(Number));
+        });
+
+        test('account-wide quarantines block entries on other instruments', async () => {
+            engine.brokerLifecycleRepository = createMockBrokerLifecycleRepository();
+            oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade({ id: 'unknown', instrument: 'EUR_USD' })] });
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toThrow(/quarantined/);
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('a failed flat broker sync blocks entry and is visible in health status', async () => {
+            oandaClient.getOpenTrades.mockRejectedValue(new Error('broker disconnected'));
+            await engine.monitorPositions();
+            expect(engine.getStatus()).toEqual(expect.objectContaining({ brokerStateUncertain: true, lastBrokerSyncError: 'broker disconnected' }));
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toThrow('broker disconnected');
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('serializes concurrent broker snapshots and entry execution', async () => {
+            let release;
+            oandaClient.getOpenTrades.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+            const sync = engine.syncWithOanda();
+            await Promise.resolve();
+            const entry = engine.executeEntry(createMockSignal(), mockConfigService.get());
+            await Promise.resolve();
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            release({ trades: [] });
+            await Promise.all([sync, entry]);
+            expect(engine.openTrades.size).toBe(1);
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(1);
+        });
+
+        test('uses executable liquidity buckets rather than closeout prices', async () => {
+            oandaClient.getPricing.mockResolvedValue({ prices: [{
+                instrument: 'AUD_USD', tradeable: true, time: String(Date.now() / 1000),
+                bids: [{ price: '1.16566', liquidity: 1000 }],
+                asks: [{ price: '1.16576', liquidity: 100 }, { price: '1.16580', liquidity: 900 }],
+                closeoutAsk: '1.1800', closeoutBid: '1.1500',
+            }] });
+            const quote = await engine.getFinalEntryQuote(createMockSignal(), mockConfigService.get(), null, 200);
+            expect(quote.finalQuote).toBeCloseTo(1.16578, 8);
+            expect(quote.worstPrice).toBe(1.1658);
+            expect(quote.spreadPips).toBeCloseTo(1.2, 8);
+        });
+
+        test.each(['stale', 'missing time', 'liquidity'])('rejects unusable final execution quote: %s', async (failure) => {
+            const price = { instrument: 'AUD_USD', tradeable: true, time: String(Date.now() / 1000),
+                bids: [{ price: '1.16566', liquidity: 100000 }], asks: [{ price: '1.16576', liquidity: 100000 }] };
+            if (failure === 'stale') price.time = String((Date.now() - 120000) / 1000);
+            if (failure === 'missing time') delete price.time;
+            if (failure === 'liquidity') price.asks[0].liquidity = 1;
+            oandaClient.getPricing.mockResolvedValue({ prices: [price] });
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toThrow();
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('rechecks the intraday cost-to-stop ratio on the final quote', async () => {
+            jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-08-19T13:00:00Z'));
+            const config = { ...mockConfigService.get(), strategy: 'intraday_momentum', minStopLossPips: 6 };
+            const signal = createMockSignal({ strategy: 'intraday_momentum', tradePlan: { stopPips: 6 } });
+            oandaClient.getPricing.mockResolvedValue({ prices: [{ instrument: 'AUD_USD', tradeable: true, time: String(Date.now() / 1000),
+                bids: [{ price: '1.16566', liquidity: 100000 }], asks: [{ price: '1.16576', liquidity: 100000 }] }] });
+            await expect(engine.executeEntry(signal, config)).rejects.toThrow(/execution cost/);
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('rejects a fresh quote when the completed-candle freshness gate fails', async () => {
+            mockDataService.getEntryFreshness.mockReturnValue({ fresh: false, code: 'STALE_H1' });
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toThrow('STALE_H1');
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('pause followed by resume cancels an entry already preparing its durable intent', async () => {
+            const repository = createMockBrokerLifecycleRepository();
+            engine.brokerLifecycleRepository = repository;
+            const create = repository.createIntent.getMockImplementation();
+            repository.createIntent.mockImplementation(async (intent) => {
+                const saved = await create(intent);
+                mockConfigService.emit('configChanged', { enableTrading: false });
+                mockConfigService.emit('configChanged', { enableTrading: true });
+                return saved;
+            });
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toMatchObject({ code: 'ENTRY_ACTIVATION_CHANGED' });
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect([...repository.intents.values()][0].status).toBe('ABANDONED');
+        });
+
+        test('engine stop cancels queued entry work and prevents an in-flight order', async () => {
+            const repository = createMockBrokerLifecycleRepository();
+            engine.brokerLifecycleRepository = repository;
+            const create = repository.createIntent.getMockImplementation();
+            repository.createIntent.mockImplementation(async (intent) => { const saved = await create(intent); engine.stop(); return saved; });
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toMatchObject({ code: 'ENTRY_ACTIVATION_CHANGED' });
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(engine.tradeQueue).toEqual([]);
+        });
+
+        test('retries equal initial stop alignment together with its take profit', async () => {
+            const trade = addTrade({ reconciliationStatus: 'STOP_UPDATE_RETRY_PENDING',
+                brokerReconciliationPayload: { stopUpdate: { status: 'RETRY_PENDING', desiredPrice: 1.1632,
+                    desiredTakeProfitPrice: 1.17, stopType: 'INITIAL_STOP_ALIGNMENT', nextRetryAt: 0 } },
+            });
+            await engine.retryPendingStopUpdate(trade);
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith('489', expect.objectContaining({ stopLossPrice: 1.1632, takeProfitPrice: 1.17 }));
+            expect(trade.brokerReconciliationPayload.stopUpdate).toBeNull();
+            expect(trade.takeProfitPrice).toBe(1.17);
+        });
+
+        test('repairs a cancelled broker stop even when the local stop price is unchanged', async () => {
+            const trade = addTrade();
+            oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade({ stopLossOrder: undefined })] });
+            await engine.syncWithOanda({ throwOnError: true });
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith('489', expect.objectContaining({ stopLossPrice: trade.stopLossPrice, takeProfitPrice: trade.takeProfitPrice }));
+            expect(engine.openTrades.has(trade.id)).toBe(true);
+        });
+
+        test('adopts a broker-confirmed tighter stop and completes a lost SQLite update', async () => {
+            const trade = addTrade({ brokerReconciliationPayload: { stopUpdate: {
+                status: 'RETRY_PENDING', desiredPrice: 1.16571, stopType: 'BREAKEVEN', localUpdates: { breakevenHit: true },
+            } } });
+            oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade({ stopLossOrder: { state: 'PENDING', price: '1.16571' } })] });
+            await engine.syncWithOanda({ throwOnError: true });
+            expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
+            expect(trade.stopLossPrice).toBe(1.16571);
+            expect(trade.breakevenHit).toBe(true);
+            expect(trade.brokerReconciliationPayload.stopUpdate).toBeNull();
+        });
+
+        test('closes exposure if a missing broker stop cannot be restored', async () => {
+            const trade = addTrade();
+            oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade({ stopLossOrder: undefined })] });
+            oandaClient.modifyTrade.mockRejectedValue(new Error('protective order rejected'));
+            await engine.syncWithOanda({ throwOnError: true });
+            expect(oandaClient.closeTrade).toHaveBeenCalledWith('489');
+            expect(engine.openTrades.has(trade.id)).toBe(false);
+            expect(engine.quarantinedBrokerTrades.size).toBe(0);
+        });
+
+        test('retains managed exposure and blocks entries when protection repair and emergency close fail', async () => {
+            const trade = addTrade();
+            oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade({ stopLossOrder: undefined })] });
+            oandaClient.modifyTrade.mockRejectedValue(new Error('protection unavailable'));
+            oandaClient.closeTrade.mockRejectedValue(new Error('close unavailable'));
+            await engine.syncWithOanda({ throwOnError: true });
+            expect(engine.openTrades.has(trade.id)).toBe(true);
+            expect(trade.reconciliationStatus).toBe('CLOSE_RETRY_PENDING');
+            expect(await engine.getBrokerEntryBlockReason()).toMatch(/pending/);
+        });
+
+        test('uses cumulative trade financing and positive fee charges on direct close', async () => {
+            const trade = addTrade();
+            oandaClient.getTrade.mockResolvedValue({ trade: { id: '489', state: 'CLOSED', averageClosePrice: '1.16784',
+                realizedPL: '2.50', financing: '-0.05', commission: '0.02', guaranteedExecutionFee: '0.01', closeTime: String(Date.now() / 1000) } });
+            const closed = await engine.executeExit(trade, 1.16, 'TIME_STOP');
+            expect(closed.pnlAud).toBeCloseTo(2.42, 8);
+            expect(closed.swapAud).toBe(-0.05);
+            expect(closed.commissionAud).toBe(0.02);
+            expect(closed.exitReason).toBe('TIME_STOP');
+        });
+
+        test('holds accounting reconciliation open when a broker-closed trade has no realized result', async () => {
+            const trade = addTrade();
+            oandaClient.getTrade.mockResolvedValue({ trade: { id: '489', state: 'CLOSED', averageClosePrice: '1.16784' } });
+            const closed = await engine.executeExit(trade, 1.16, 'MANUAL');
+            expect(closed).toBeNull();
+            expect(engine.openTrades.has(trade.id)).toBe(true);
+            expect(trade.reconciliationStatus).toBe('CLOSE_RETRY_PENDING');
+        });
+
+        test('records sampled executable-side excursions without inventing historical observations', async () => {
+            const now = Date.now();
+            const trade = addTrade({ entryPrice: 1.1, stopLossPrice: 1.098,
+                brokerReconciliationPayload: { liveRuntime: { initialStopDistance: 0.002 } } });
+            await engine.recordSampledExcursion(trade, 1.101, now);
+            await engine.recordSampledExcursion(trade, 1.105, now); // Same timestamp ignored.
+            await engine.recordSampledExcursion(trade, 1.0995, now + 1000);
+            const sample = trade.brokerReconciliationPayload.sampledExcursion;
+            expect(sample.observations).toBe(2);
+            expect(sample.maxFavorablePips).toBeCloseTo(10);
+            expect(sample.maxAdversePips).toBeCloseTo(5);
+            expect(sample.maxFavorableR).toBeCloseTo(0.5);
+            expect(sample.maxAdverseR).toBeCloseTo(0.25);
+        });
+
+        test('emergency-closes an unprotected fill even when SQLite cannot save the trade', async () => {
+            const repository = createMockBrokerLifecycleRepository();
+            engine.brokerLifecycleRepository = repository;
+            oandaClient.modifyTrade.mockRejectedValue(new Error('stop rejected'));
+            mockTradeRepository.save.mockRejectedValue(new Error('SQLite unavailable'));
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toMatchObject({ ambiguous: true });
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(1);
+            expect(oandaClient.closeTrade).toHaveBeenCalledWith('489');
+            expect([...repository.intents.values()][0].status).toBe('FILLED_UNPERSISTED');
+            expect(engine.brokerStateUncertain).toBe(true);
+        });
+
+        test('does not let excursion telemetry failures prevent a due timed close', async () => {
+            const trade = addTrade({ entryTime: Date.now() - 7 * 3600000,
+                brokerReconciliationPayload: { liveRuntime: { ownerExitPolicy: { version: 1, config: { timeStopHours: 6 } } } } });
+            mockTradeRepository.updateTrade.mockRejectedValueOnce(new Error('sample write failed'));
+            await engine.checkPosition(trade, {});
+            expect(oandaClient.closeTrade).toHaveBeenCalledWith('489');
+            expect(engine.openTrades.size).toBe(0);
+        });
+
+        test('serializes an explicit broker-ID manual close through managed cumulative accounting', async () => {
+            const trade = addTrade();
+            oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade()] });
+            const result = await engine.closeBrokerTrade('489');
+            expect(result.closedTrade.id).toBe(trade.id);
+            expect(result.closedTrade.exitReason).toBe('MANUAL');
+            expect(result.orderFillTransaction.tradesClosed[0].tradeID).toBe('489');
+            expect(engine.openTrades.size).toBe(0);
+        });
+
+        test('reports a confirmed FOK cancellation as rejected rather than permanently pending', async () => {
+            const repository = createMockBrokerLifecycleRepository();
+            engine.brokerLifecycleRepository = repository;
+            oandaClient.placeMarketOrder.mockResolvedValueOnce({ orderCancelTransaction: { id: 'cancelled' } });
+            oandaClient.findOrderIntent.mockResolvedValueOnce({ status: 'REJECTED' });
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get(), 'cancelled-decision')).rejects.toThrow(/rejected or cancelled/);
+            expect([...repository.intents.values()][0].status).toBe('REJECTED');
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenCalledWith('cancelled-decision', expect.objectContaining({ outcome: 'REJECTED' }));
+        });
+
+        test('does not loosen a newer protective stop during an old initial-alignment retry', async () => {
+            const trade = addTrade({ stopLossPrice: 1.16571, brokerReconciliationPayload: { stopUpdate: {
+                status: 'RETRY_PENDING', stopType: 'INITIAL_STOP_ALIGNMENT', nextRetryAt: 0,
+                desiredPrice: 1.1631, baselineStopPrice: 1.1632, desiredTakeProfitPrice: 1.169,
+            } } });
+            await engine.retryPendingStopUpdate(trade);
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith('489', expect.objectContaining({ stopLossPrice: 1.16571, takeProfitPrice: 1.169 }));
+            expect(trade.stopLossPrice).toBe(1.16571);
+        });
+
+        test('serializes a delayed close retry lookup with manual close without resurrecting the row', async () => {
+            const trade = addTrade({ reconciliationStatus: 'CLOSE_RETRY_PENDING',
+                brokerReconciliationPayload: { closeRetry: { reason: 'TIME_STOP', nextRetryAt: 0 } } });
+            let rejectLookup;
+            oandaClient.getTrade.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectLookup = reject; }));
+            const retry = engine.retryPendingClose(trade, trade.entryPrice);
+            await Promise.resolve();
+            const manual = engine.executeExit(trade, trade.entryPrice, 'MANUAL');
+            await Promise.resolve();
+            expect(oandaClient.closeTrade).not.toHaveBeenCalled();
+            rejectLookup(new Error('old lookup failed'));
+            await Promise.all([retry, manual]);
+            const stateWrites = mockTradeRepository.updateTrade.mock.calls.filter(([, update]) => update.isOpen !== undefined);
+            expect(stateWrites.at(-1)[1].isOpen).toBe(false);
+            expect(engine.openTrades.size).toBe(0);
+            expect(engine.stats.tradesClosed).toBe(1);
+        });
+
+        test('rechecks cooldown after execution reconciliation discovers a fresh loss', async () => {
+            const trade = addTrade({ runId: 'risk-run', ownerRunId: 'risk-run' });
+            await mockTradeRepository.save(trade);
+            mockConfigService.config.maxConsecutiveLosses = 1;
+            const signal = createMockSignal({ symbol: 'EUR_USD', runId: 'risk-run' });
+            const preliminary = await engine.validateEntry(signal, mockConfigService.get());
+            expect(preliminary.valid).toBe(true);
+            oandaClient.getTrade.mockResolvedValue({ trade: { id: '489', state: 'CLOSED', averageClosePrice: '1.1632',
+                realizedPL: '-1.00', financing: '0', closeTime: String(Date.now() / 1000) } });
+            await expect(engine.executeEntry(signal, mockConfigService.get())).rejects.toThrow(/CONSECUTIVE_LOSS_COOLDOWN/);
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('caps cash risk at the worst allowed fill even if stop realignment fails', async () => {
+            engine.brokerLifecycleRepository = createMockBrokerLifecycleRepository();
+            const config = { ...mockConfigService.get(), riskPerTrade: 0.0025, maxCapitalAtRisk: 100, minStopLossPips: 6 };
+            const signal = createMockSignal({ tradePlan: { stopPips: 6, targetRiskMultiple: 1.5 } });
+            let submittedStop;
+            oandaClient.placeMarketOrder.mockImplementation(async (_instrument, units, options) => {
+                submittedStop = options.stopLossPrice;
+                return { orderFillTransaction: { price: String(options.priceBound), units: String(units),
+                    tradeOpened: { tradeID: '489', price: String(options.priceBound), units: String(units), initialMarginRequired: '10' } } };
+            });
+            oandaClient.modifyTrade.mockRejectedValue(new Error('alignment unavailable'));
+            oandaClient.getTrade.mockImplementation(async () => ({ trade: { id: '489', state: 'OPEN',
+                stopLossOrder: { state: 'PENDING', price: String(submittedStop) } } }));
+            const trade = await engine.executeEntry(signal, config);
+            const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+            const cashRisk = trade.units * Math.abs(trade.entryPrice - trade.stopLossPrice) * intent.contextPayload.quoteToAudRate;
+            expect(cashRisk).toBeLessThanOrEqual(intent.contextPayload.riskBudgetAud + 1e-10);
+            expect(cashRisk).toBeCloseTo(intent.contextPayload.worstFillRiskAud, 8);
+            expect(trade.reconciliationStatus).toBe('STOP_UPDATE_RETRY_PENDING');
         });
     });
 
@@ -2565,7 +2952,7 @@ describe('LiveTradingEngine', () => {
             expect(engine.openTrades.size).toBe(0);
         });
 
-        test('should fail liquidation when current market price is unavailable', async () => {
+        test('liquidates using broker settlement when current market price is unavailable', async () => {
             const trade = createMockTrade({
                 id: 'trade-no-price',
                 instrument: 'GBP_USD',
@@ -2574,9 +2961,10 @@ describe('LiveTradingEngine', () => {
             engine.openTrades.set(trade.id, trade);
             mockDataService.getCurrentPrice.mockReturnValueOnce(null);
 
-            await expect(
-                engine.liquidateOpenTrades('STRATEGY_PROMOTION')
-            ).rejects.toThrow('No price data for GBP_USD');
+            const closed = await engine.liquidateOpenTrades('STRATEGY_PROMOTION');
+            expect(closed).toHaveLength(1);
+            expect(closed[0].exitPrice).toBe(1.16784);
+            expect(engine.openTrades.size).toBe(0);
         });
 
         test('should return correct status', () => {

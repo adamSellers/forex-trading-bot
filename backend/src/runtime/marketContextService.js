@@ -31,7 +31,8 @@ function buildSession(price = null) {
     return {
         generatedAt: Date.now(),
         utcHour: now.getUTCHours(),
-        spreadPips: Number.isFinite(Number(price?.spread))
+        spreadPips: price?.spread !== null && price?.spread !== undefined &&
+            price?.spread !== "" && Number.isFinite(Number(price.spread)) && Number(price.spread) >= 0
             ? Number(price.spread)
             : null,
         tradeable:
@@ -68,6 +69,7 @@ class MarketContextService {
                 instrument,
                 price,
                 session: buildSession(price),
+                entryFreshness: dataService?.getEntryFreshness?.(instrument) || null,
                 timeframes: Array.from(timeframes).reduce((result, timeframe) => {
                     result[timeframe] = {
                         candles:
@@ -115,6 +117,7 @@ class MarketContextService {
             instrument,
             price: source.price,
             session: source.session,
+            entryFreshness: source.entryFreshness,
             timeframes,
             peers,
         };

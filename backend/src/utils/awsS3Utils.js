@@ -19,7 +19,7 @@ function initializeS3() {
         process.env.AWS_ACCESS_KEY_ID &&
         process.env.AWS_SECRET_ACCESS_KEY
     ) {
-        s3Client = new S3Client({ region: process.env.AWS_REGION });
+        s3Client = new S3Client({ region: process.env.AWS_REGION, maxAttempts: 3 });
         logger.info("☁️  AWS S3 client initialized.");
     } else {
         logger.warn(
@@ -35,7 +35,7 @@ function initializeS3() {
  * @param {object} data - The JSON object to upload.
  * @returns {Promise<boolean>} - True if the upload was successful, false otherwise.
  */
-async function uploadJsonToS3(bucketName, key, data) {
+async function uploadJsonToS3(bucketName, key, data, options = {}) {
     if (!s3Client) {
         // This is now an expected state if S3 is disabled, so we don't log an error.
         return false;
@@ -47,13 +47,15 @@ async function uploadJsonToS3(bucketName, key, data) {
         Key: key,
         Body: JSON.stringify(data, null, 2),
         ContentType: "application/json",
+        ...(options.immutable ? { IfNoneMatch: "*" } : {}),
     });
 
     try {
         // V3: Send the command to the client.
-        await s3Client.send(command);
+        await s3Client.send(command, { abortSignal: AbortSignal.timeout(30000) });
         return true;
     } catch (error) {
+        if (options.immutable && error?.$metadata?.httpStatusCode === 412) return true;
         logger.error(`Failed to upload ${key} to S3:`, error);
         return false;
     }
@@ -64,4 +66,5 @@ initializeS3();
 
 module.exports = {
     uploadJsonToS3,
+    isS3Configured: () => Boolean(s3Client),
 };

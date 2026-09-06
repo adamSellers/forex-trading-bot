@@ -1,6 +1,7 @@
 // scripts/audit_s3_reports.js
 const path = require('path');
 const fs = require('fs');
+const backendRequire = require('module').createRequire(path.join(__dirname, '../backend/package.json'));
 
 // Usage: Run this from the 'backend' directory:
 // cd backend && node ../scripts/audit_s3_reports.js
@@ -8,9 +9,9 @@ const fs = require('fs');
 // Load env relative to this script location
 const envPath = path.join(__dirname, '../backend/.env');
 console.log(`Loading .env from: ${envPath}`);
-require('dotenv').config({ path: envPath });
+backendRequire('dotenv').config({ path: envPath });
 
-const { S3Client, ListObjectsV2Command, GetObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, ListObjectsV2Command, GetObjectCommand } = backendRequire("@aws-sdk/client-s3");
 const TEMP_DIR = path.join(__dirname, '../temp_reports');
 
 // Initialize S3 Client

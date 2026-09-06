@@ -6,6 +6,8 @@ const {
     wilsonInterval,
 } = require("./analyticsStatistics");
 
+const { getActivePairSessions } = require("../strategies/intradayMomentum");
+
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
 /**
@@ -47,6 +49,27 @@ function getSessionForTimestamp(timestamp) {
     return "Off-Hours";
 }
 
+function getTradeSession(trade) {
+    const payload = normalizePayloadObject(trade.brokerReconciliationPayload);
+    const context = trade.entryEvidence || {};
+    const saved = (payload.entryTelemetry || payload.liveRuntime?.entryTelemetry)?.sessions || context.signal?.strategyContext?.activeSessions
+        || context.strategyContext?.activeSessions;
+    const sessions = Array.isArray(saved) ? saved : getActivePairSessions(trade.instrument, trade.entryTime);
+    return sessions.length ? sessions.join(" + ") : "Off-Hours";
+}
+
+function getTriggerCohort(trade) {
+    const payload = normalizePayloadObject(trade.brokerReconciliationPayload);
+    const context = (payload.entryTelemetry || payload.liveRuntime?.entryTelemetry)?.strategyContext || trade.entryEvidence?.signal?.strategyContext
+        || trade.entryEvidence?.strategyContext || {};
+    const flags = context.m15?.trigger || context.entryConditions || context.triggerFlags || context;
+    const names = ["longPullback", "shortPullback", "longBreakout", "shortBreakout"];
+    if (!names.some((key) => typeof flags[key] === "boolean")) return "UNKNOWN";
+    const pullback = flags.longPullback === true || flags.shortPullback === true;
+    const breakout = flags.longBreakout === true || flags.shortBreakout === true;
+    return pullback && breakout ? "BOTH" : pullback ? "PULLBACK_ONLY" : breakout ? "BREAKOUT_ONLY" : "NEITHER";
+}
+
 /**
  * Parse period string to milliseconds
  */
@@ -56,7 +79,7 @@ function parsePeriod(period) {
         "7d": 7 * 24 * 60 * 60 * 1000,
         "30d": 30 * 24 * 60 * 60 * 1000,
         "90d": 90 * 24 * 60 * 60 * 1000,
-        all: 365 * 24 * 60 * 60 * 1000, // 1 year max
+        all: Infinity, // all persisted history
     };
     return periods[period] || periods["30d"];
 }
@@ -248,6 +271,7 @@ function isActionableSignal(signal) {
 }
 
 function getSignalEventKey(signal) {
+    const identity = [signal?.mode || "live", signal?.strategy || "unknown", signal?.runId || signal?.run_id || "unassigned", signal?.selectionId || "unassigned", signal?.configHash || "unknown"].join("|");
     const symbol =
         normalizeString(signal?.symbol) ||
         normalizeString(signal?.instrument) ||
@@ -262,16 +286,16 @@ function getSignalEventKey(signal) {
     const setupId = normalizeString(signal?.setupId);
 
     if (setupId) {
-        return `${symbol}|${side}|${setupId}`;
+        return `${identity}|${symbol}|${side}|${setupId}`;
     }
 
     const signalCandleTime = toFiniteNumber(signal?.signalCandleTime, NaN);
     if (Number.isFinite(signalCandleTime) && signalCandleTime > 0) {
-        return `${symbol}|${side}|${cohortType}|${signalCandleTime}`;
+        return `${identity}|${symbol}|${side}|${cohortType}|${signalCandleTime}`;
     }
 
     const timestampBucket = Math.floor(toFiniteNumber(signal?.timestamp, 0) / 60000);
-    return `${symbol}|${side}|${cohortType}|${timestampBucket}`;
+    return `${identity}|${symbol}|${side}|${cohortType}|${timestampBucket}`;
 }
 
 function isUniqueSignalEvent(signal, seenSignalKeys) {
@@ -500,16 +524,19 @@ class AnalyticsService {
      */
     async getAnalytics(period = "30d", runtimeFilters = {}) {
         try {
-            const now = Date.now();
+            const now = Number.isFinite(runtimeFilters?.endTime) ? runtimeFilters.endTime : Date.now();
             const periodMs = parsePeriod(period);
-            const cutoffTime = now - periodMs;
+            const cutoffTime = Number.isFinite(runtimeFilters?.startTime)
+                ? runtimeFilters.startTime : Number.isFinite(periodMs) ? now - periodMs : 0;
+            if (cutoffTime >= now || cutoffTime < 0) throw new Error("Invalid analytics interval");
+            const timeBasis = runtimeFilters?.timeBasis === "realized" ? "realized" : "entry";
             const filters = normalizeRuntimeFilters(runtimeFilters);
             const profile =
                 normalizeString(runtimeFilters?.profile || runtimeFilters?.view) ===
                 "dashboard"
                     ? "dashboard"
                     : "full";
-            const tradeFilters = { ...filters };
+            const tradeFilters = { ...filters, timeBasis, endTime: now };
             if (tradeFilters.runId) {
                 tradeFilters.ownerRunId = tradeFilters.runId;
                 delete tradeFilters.runId;
@@ -520,13 +547,19 @@ class AnalyticsService {
                 profile === "dashboard" && this.signalRepo.getSignalsSinceCompact
                     ? this.signalRepo.getSignalsSinceCompact(cutoffTime, filters)
                     : this.signalRepo.getSignalsSince(new Date(cutoffTime), filters);
-            const [trades, signals, entryDecisions] = await Promise.all([
+            const [trades, rawSignals, rawEntryDecisions] = await Promise.all([
                 this.tradeRepo.getTradesSince(cutoffTime, tradeFilters),
                 signalQuery,
-                profile === "full" && this.entryDecisionRepo
+                this.entryDecisionRepo
                     ? this.entryDecisionRepo.getDecisionsSince(cutoffTime, filters)
                     : Promise.resolve([]),
             ]);
+
+            const signals = rawSignals.filter((signal) => !signal.timestamp || Number(signal.timestamp) < now);
+            const entryDecisions = rawEntryDecisions.filter((decision) => !decision.decisionTime || decision.decisionTime < now);
+            const entryEvidence = this.tradeRepo.getEntryEvidenceForTrades
+                ? await this.tradeRepo.getEntryEvidenceForTrades(trades.map((trade) => trade.id)) : {};
+            for (const trade of trades) trade.entryEvidence = entryEvidence[trade.id] || null;
 
             // Filter to closed trades only for performance metrics
             const closedTrades = trades.filter(
@@ -537,7 +570,7 @@ class AnalyticsService {
 
             // Calculate all metrics
             const summary = this.calculateSummary(closedTrades, {
-                startTime: cutoffTime,
+                startTime: cutoffTime || undefined,
                 endTime: now,
             });
             const pairPerformance = this.calculatePairPerformance(closedTrades);
@@ -551,9 +584,7 @@ class AnalyticsService {
             const equityData = this.calculateEquityData(closedTrades);
             const adxAnalysis = this.calculateAdxAnalysis(closedTrades);
             const sidePerformance = this.calculateSidePerformance(closedTrades);
-            const deepAnalytics =
-                profile === "full"
-                    ? {
+            const deepAnalytics = {
                           cohortExpectancy:
                               this.calculateCohortExpectancy(closedTrades),
                           expectationVsActual: this.calculateExpectationVsActual(
@@ -575,10 +606,14 @@ class AnalyticsService {
                                   entryDecisions,
                                   closedTrades
                               ),
-                      }
-                    : {};
+                      };
 
+            if (profile === "dashboard") {
+                delete deepAnalytics.expectationVsActual;
+                delete deepAnalytics.executionGapByCohort;
+            }
             return {
+                diagnosticsAvailability: profile === "dashboard" ? "Compact signals omit expected-edge context; use full profile for expectation/execution diagnostics." : "Full persisted signal context",
                 period,
                 profile,
                 mode: "live",
@@ -588,7 +623,12 @@ class AnalyticsService {
                     runId: filters.runId || null,
                     selectionId: filters.selectionId || null,
                 },
-                generatedAt: new Date(now).toISOString(),
+                funnelTimeBasis: "Signals and entry decisions occur within the interval; closed-trade results use the selected entry/realized basis and are not a matched conversion denominator.",
+                interval: { start: new Date(cutoffTime).toISOString(), endExclusive: new Date(now).toISOString(), timeBasis },
+                sampleNotice: "Descriptive results; sample size alone does not establish a profitable edge. Pair, side and trigger groups may overlap or be confounded.",
+                generatedAt: new Date().toISOString(),
+                triggerPerformance: this.calculateTriggerPerformance(closedTrades),
+                excursionCoverage: this.calculateExcursionCoverage(closedTrades),
                 summary,
                 pairPerformance,
                 sessionPerformance,
@@ -643,7 +683,8 @@ class AnalyticsService {
                 avgHoldingTimeMs: 0,
                 sharpeRatio: 0,
                 winRate95: { lower: 0, upper: 100 },
-                expectancy95Aud: { lower: 0, upper: 0, samples: 0 },
+                expectancy95Aud: { lower: null, upper: null, samples: 0 },
+                netR: { observations: 0, mean: null, lower95: null, upper95: null },
                 maxDrawdownAud: 0,
                 longestLosingStreak: 0,
                 statisticalSampleAdequate: false,
@@ -717,15 +758,27 @@ class AnalyticsService {
             0
         );
 
+        const feeAud = trades.reduce((sum, trade) => {
+            const close = normalizePayloadObject(trade.brokerReconciliationPayload).closeCosts;
+            return sum + toFiniteNumber(close?.guaranteedExecutionFee);
+        }, 0);
+        const dividendAdjustmentAud = trades.reduce((sum, trade) => sum + toFiniteNumber(normalizePayloadObject(trade.brokerReconciliationPayload).closeCosts?.dividendAdjustment), 0);
+        const riskReturns = trades.map((trade) => {
+            const risk = this.getInitialRiskAud(trade);
+            return risk ? Number(trade.pnlAud) / risk : null;
+        }).filter((value) => value !== null && Number.isFinite(value));
+        const netR95 = riskReturns.length ? bootstrapMeanInterval(riskReturns, { samples: 500, seed: 0x41d5 }) : null;
         return {
+            netR: { observations: riskReturns.length, mean: riskReturns.length ? roundTo(riskReturns.reduce((sum, value) => sum + value, 0) / riskReturns.length, 4) : null,
+                lower95: netR95 ? roundTo(netR95.lower, 4) : null, upper95: netR95 ? roundTo(netR95.upper, 4) : null },
             totalTrades: trades.length,
             winningTrades: winners.length,
             losingTrades: losers.length,
             winRate:
                 trades.length > 0 ? (winners.length / trades.length) * 100 : 0,
-            totalPnLAud: parseFloat(totalPnLAud.toFixed(2)),
+            totalPnLAud: parseFloat(totalPnLAud.toFixed(4)),
             totalPnLPips: parseFloat(totalPnLPips.toFixed(1)),
-            avgPnLAud: parseFloat((totalPnLAud / trades.length).toFixed(2)),
+            avgPnLAud: parseFloat((totalPnLAud / trades.length).toFixed(4)),
             avgPnLPips: parseFloat((totalPnLPips / trades.length).toFixed(1)),
             avgWinAud: parseFloat(avgWinAud.toFixed(2)),
             avgLossAud: parseFloat(avgLossAud.toFixed(2)),
@@ -761,8 +814,10 @@ class AnalyticsService {
             costs: {
                 financingAud: roundTo(financingAud, 4),
                 commissionAud: roundTo(commissionAud, 4),
+                feeAud: roundTo(feeAud, 4),
+                dividendAdjustmentAud: roundTo(dividendAdjustmentAud, 4),
                 grossBeforeExplicitCostsAud: roundTo(
-                    totalPnLAud - financingAud - commissionAud,
+                    totalPnLAud - financingAud + commissionAud + feeAud - dividendAdjustmentAud,
                     4
                 ),
             },
@@ -893,7 +948,7 @@ class AnalyticsService {
                 stats.totalTrades > 0
                     ? stats.strengthSum / stats.totalTrades
                     : 0,
-            totalPnLAud: parseFloat(stats.totalPnLAud.toFixed(2)),
+            totalPnLAud: parseFloat(stats.totalPnLAud.toFixed(4)),
             totalPnLPips: parseFloat(stats.totalPnLPips.toFixed(1)),
             bestTradeAud:
                 stats.bestTradeAud === -Infinity
@@ -949,8 +1004,8 @@ class AnalyticsService {
         };
 
         trades.forEach((trade) => {
-            const session = getSessionForTimestamp(trade.entryTime);
-            const stats = sessionStats[session];
+            const session = getTradeSession(trade);
+            const stats = sessionStats[session] ||= { session, trades: 0, wins: 0, pnlAud: 0, pnlPips: 0 };
 
             stats.trades++;
             stats.pnlAud += trade.pnlAud || 0;
@@ -1290,6 +1345,7 @@ class AnalyticsService {
             total > 0 ? roundTo((value / total) * 100, 1) : 0;
 
         return {
+            stageCoverage: "Terminal recorded stages only: a later rejection replaces earlier stage evidence. These counts are minimum observed reach, not a complete historical step funnel.",
             summary: {
                 rawStrategyObservations: signalAnalysis?.rawTotal ?? generated,
                 uniqueStrategyDecisions:
@@ -1306,10 +1362,11 @@ class AnalyticsService {
                 rejectedEntries: rejected,
                 closedTrades: closedTrades.length,
             },
+            closeRateUnavailableReason: "A closure conversion rate requires matched trade IDs and follow-up, not period totals.",
             rates: {
                 validationRatePct: toRate(validated, tracked || generated),
                 fillRatePct: toRate(filled, tracked || generated),
-                closeRatePct: toRate(closedTrades.length, filled),
+                closeRatePct: null, // Closures and decisions use different period populations.
                 rejectionRatePct: toRate(rejected, tracked || generated),
             },
         };
@@ -1704,19 +1761,9 @@ class AnalyticsService {
                   losers.length
                 : 0;
 
-        // Determine correlation
-        let correlation = "neutral";
-        let recommendation = "ADX filter appears effective";
-
-        if (avgAdxWinners > avgAdxLosers + 3) {
-            correlation = "positive";
-            recommendation =
-                "Winners have stronger trends - ADX filter is working well";
-        } else if (avgAdxLosers > avgAdxWinners + 3) {
-            correlation = "inverted";
-            recommendation =
-                "Consider raising ADX threshold - losers show stronger ADX";
-        }
+        const correlation = avgAdxWinners > avgAdxLosers + 3 ? "positive"
+            : avgAdxLosers > avgAdxWinners + 3 ? "inverted" : "neutral";
+        const recommendation = "Descriptive comparison only. These executed trades do not establish whether an ADX filter improves returns.";
 
         return {
             avgAdxWinners: parseFloat(avgAdxWinners.toFixed(1)),
@@ -1805,7 +1852,7 @@ class AnalyticsService {
                 stats.totalTrades > 0 ? (stats.wins / stats.totalTrades) * 100 : 0;
             stats.avgPnLAud =
                 stats.totalTrades > 0 ? stats.totalPnLAud / stats.totalTrades : 0;
-            stats.totalPnLAud = parseFloat(stats.totalPnLAud.toFixed(2));
+            stats.totalPnLAud = parseFloat(stats.totalPnLAud.toFixed(4));
             stats.totalPnLPips = parseFloat(stats.totalPnLPips.toFixed(1));
             stats.avgPnLAud = parseFloat(stats.avgPnLAud.toFixed(2));
             stats.winRate = parseFloat(stats.winRate.toFixed(1));
@@ -1859,17 +1906,45 @@ class AnalyticsService {
             return initialStopDistance / pipValue;
         }
 
-        const entryPrice = toFiniteNumber(trade.entryPrice, NaN);
-        const stopLossPrice = toFiniteNumber(trade.stopLossPrice, NaN);
-        if (
-            Number.isFinite(entryPrice) &&
-            Number.isFinite(stopLossPrice) &&
-            entryPrice !== stopLossPrice
-        ) {
-            return Math.abs(entryPrice - stopLossPrice) / pipValue;
-        }
-
         return null;
+    }
+
+    getInitialRiskAud(trade = {}) {
+        const payload = normalizePayloadObject(trade.brokerReconciliationPayload);
+        const runtime = payload.liveRuntime || payload.runtime || {};
+        const stored = Number(runtime.initialRiskAud);
+        if (Number.isFinite(stored) && stored > 0) return stored;
+        const distance = Number(runtime.initialStopDistance);
+        const conversion = Number(runtime.quoteToAudRate || runtime.quoteToAUD || runtime.quoteToAud);
+        const units = Math.abs(Number((payload.entryTelemetry || payload.liveRuntime?.entryTelemetry)?.units || trade.quantity || trade.units));
+        const risk = distance * conversion * units;
+        return Number.isFinite(risk) && risk > 0 ? risk : null;
+    }
+
+    calculateTriggerPerformance(trades) {
+        const groups = new Map();
+        for (const trade of trades) {
+            const trigger = getTriggerCohort(trade);
+            if (!groups.has(trigger)) groups.set(trigger, []);
+            groups.get(trigger).push(trade);
+        }
+        return Array.from(groups, ([trigger, group]) => ({ trigger, ...this.calculateCohortExpectancy(group).summary }));
+    }
+
+    calculateExcursionCoverage(trades) {
+        const measured = trades.map((trade) => normalizePayloadObject(trade.brokerReconciliationPayload).sampledExcursion)
+            .filter((sample) => sample?.observations > 0);
+        const values = (key) => measured.map((sample) => sample[key])
+            .filter((value) => typeof value === "number" && Number.isFinite(value));
+        const mean = (key) => {
+            const finite = values(key);
+            return finite.length ? roundTo(finite.reduce((sum, value) => sum + value, 0) / finite.length, 3) : null;
+        };
+        return { totalTrades: trades.length, measuredTrades: measured.length,
+            favorableRMeasuredTrades: values("maxFavorableR").length,
+            adverseRMeasuredTrades: values("maxAdverseR").length,
+            method: "Executable quote polls; excursions between observations are unknown. Historical values are not backfilled.",
+            avgFavorableR: mean("maxFavorableR"), avgAdverseR: mean("maxAdverseR") };
     }
 
     calculateCohortExpectancy(trades = []) {
@@ -1896,26 +1971,28 @@ class AnalyticsService {
         const addTrade = (bucket, trade) => {
             const pnlAud = toFiniteNumber(trade.pnlAud);
             const pnlPips = toFiniteNumber(trade.pnlPips);
-            const initialRiskPips = this.getInitialRiskPips(trade);
+            const initialRiskAud = this.getInitialRiskAud(trade);
 
             bucket.trades++;
             bucket.totalPnLAud += pnlAud;
             bucket.totalPnLPips += pnlPips;
+            bucket.grossWinPips += Math.max(0, pnlPips);
+            bucket.grossLossPips += Math.max(0, -pnlPips);
 
-            if (pnlPips > 0) {
+            if (pnlAud > 0) {
                 bucket.wins++;
-                bucket.grossWinPips += pnlPips;
+
                 bucket.grossWinAud += Math.max(0, pnlAud);
-            } else if (pnlPips < 0) {
+            } else if (pnlAud < 0) {
                 bucket.losses++;
-                bucket.grossLossPips += Math.abs(pnlPips);
+
                 bucket.grossLossAud += Math.abs(Math.min(0, pnlAud));
             } else {
                 bucket.flat++;
             }
 
-            if (Number.isFinite(initialRiskPips) && initialRiskPips > 0) {
-                const riskMultiple = pnlPips / initialRiskPips;
+            if (Number.isFinite(initialRiskAud) && initialRiskAud > 0) {
+                const riskMultiple = pnlAud / initialRiskAud;
                 bucket.riskMultipleSum += riskMultiple;
                 bucket.riskMultipleCount++;
                 if (riskMultiple > 0) {
@@ -1952,11 +2029,11 @@ class AnalyticsService {
                     tradesCount > 0
                         ? roundTo((bucket.wins / tradesCount) * 100, 1)
                         : 0,
-                totalPnLAud: roundTo(bucket.totalPnLAud, 2),
+                totalPnLAud: roundTo(bucket.totalPnLAud, 4),
                 totalPnLPips: roundTo(bucket.totalPnLPips, 1),
                 netExpectancyAud:
                     tradesCount > 0
-                        ? roundTo(bucket.totalPnLAud / tradesCount, 2)
+                        ? roundTo(bucket.totalPnLAud / tradesCount, 4)
                         : 0,
                 netExpectancyPips:
                     tradesCount > 0
@@ -2022,7 +2099,7 @@ class AnalyticsService {
             const cohort = createTradeCohort(trade);
             const side = cohort.side || "UNKNOWN";
             const instrument = cohort.instrument || "UNKNOWN";
-            const session = getSessionForTimestamp(trade.entryTime);
+            const session = getTradeSession(trade);
             const entryType = cohort.cohortType || "UNKNOWN";
             const combinedKey = `${side}|${session}|${entryType}|${instrument}`;
 

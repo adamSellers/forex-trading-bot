@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   Chip,
-  CircularProgress,
   Divider,
   FormControl,
   IconButton,
@@ -48,21 +47,30 @@ const MODE_OPTIONS = [
   { value: 'live', label: 'Live' },
 ];
 
-const PERIOD_OPTIONS = ['24h', '7d', '30d', '90d'];
+const PERIOD_OPTIONS = ['24h', '7d', '30d', '90d', 'all'];
 const DEFAULT_PERIOD = '30d';
 const DEFAULT_MODE = 'live';
+
+const withReadDeadline = (request) => {
+  let timer;
+  return Promise.race([request, new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Analytics request timed out')), 20000);
+  })]).finally(() => clearTimeout(timer));
+};
 
 const formatNumber = (value) =>
   new Intl.NumberFormat('en-AU').format(Number.isFinite(Number(value)) ? Number(value) : 0);
 
 const formatMoney = (value) => {
-  const parsed = Number(value || 0);
-  return `${parsed < 0 ? '-' : ''}A$${Math.abs(parsed).toFixed(2)}`;
+  if (value == null || value === '' || !Number.isFinite(Number(value))) return 'N/A';
+  const parsed = Number(value);
+  return `${parsed < 0 ? '-' : ''}A$${Math.abs(parsed).toFixed(Math.abs(parsed) < 1 ? 4 : 2)}`;
 };
 
 const formatSignedMoney = (value) => {
-  const parsed = Number(value || 0);
-  return `${parsed >= 0 ? '+' : '-'}A$${Math.abs(parsed).toFixed(2)}`;
+  if (value == null || value === '' || !Number.isFinite(Number(value))) return 'N/A';
+  const parsed = Number(value);
+  return `${parsed >= 0 ? '+' : '-'}A$${Math.abs(parsed).toFixed(Math.abs(parsed) < 1 ? 4 : 2)}`;
 };
 
 const formatHoldingTime = (ms) => {
@@ -85,8 +93,9 @@ const formatRunLabel = (run, catalog = []) => {
     catalog.find((strategy) => strategy.key === run.strategy)?.label || run.strategy;
   const modeLabel = formatModeLabel(run.mode);
   const shortRunId = String(run.runId || '').slice(0, 12);
+  const release = run.metadata?.releaseVersion || run.configSnapshot?.liveReleaseVersion || 'Historical';
   const status = run.status ? ` | ${String(run.status).toUpperCase()}` : '';
-  return `${strategyLabel} | ${modeLabel} | ${shortRunId}${status}`;
+  return `${release} | ${strategyLabel} | ${modeLabel} | ${shortRunId}${status}`;
 };
 
 const formatGeneratedAt = (value) => {
@@ -105,6 +114,8 @@ const AnalyticsDashboard = () => {
   const [period, setPeriod] = useState(DEFAULT_PERIOD);
   const mode = DEFAULT_MODE;
   const [strategy, setStrategy] = useState('');
+  const [scope, setScope] = useState('current');
+  const [timeBasis, setTimeBasis] = useState('realized');
   const [runId, setRunId] = useState('');
   const [analytics, setAnalytics] = useState(null);
   const [availableRuns, setAvailableRuns] = useState([]);
@@ -112,27 +123,28 @@ const AnalyticsDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [contextErrors, setContextErrors] = useState({});
   const [refreshNonce, setRefreshNonce] = useState(0);
   const requestSeqRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    strategiesAPI
-      .getCatalog()
+    withReadDeadline(strategiesAPI.getCatalog({ force: true }))
       .then((catalog) => {
         if (!cancelled) {
           setStrategyCatalog(Array.isArray(catalog) ? catalog : []);
+          setContextErrors((previous) => ({ ...previous, catalog: null }));
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setContextErrors((previous) => ({ ...previous, catalog: err.message }));
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshNonce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,18 +152,19 @@ const AnalyticsDashboard = () => {
     const loadRuns = async () => {
       setContextLoading(true);
       try {
-        const runsResponse = await runtimeAPI.getRuns({
+        const runsResponse = await withReadDeadline(runtimeAPI.getRuns({
           mode,
-          strategy: strategy || undefined,
+          strategy: scope === 'all-live' ? strategy || undefined : undefined,
           includeSummary: false,
           limit: 150,
-        });
+        }));
 
         if (cancelled) return;
         const runs = Array.isArray(runsResponse?.runs) ? runsResponse.runs : [];
         setAvailableRuns(runs);
+        setContextErrors((previous) => ({ ...previous, runs: null }));
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setContextErrors((previous) => ({ ...previous, runs: err.message }));
       } finally {
         if (!cancelled) setContextLoading(false);
       }
@@ -162,7 +175,7 @@ const AnalyticsDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [mode, strategy]);
+  }, [mode, strategy, scope, refreshNonce]);
 
   useEffect(() => {
     if (runId && !availableRuns.some((run) => run.runId === runId)) {
@@ -176,16 +189,23 @@ const AnalyticsDashboard = () => {
     requestSeqRef.current = requestSeq;
 
     const loadAnalytics = async () => {
+      if (scope === 'run' && !runId) {
+        setLoading(false);
+        setError(null);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
-        const data = await analyticsAPI.get({
+        const data = await withReadDeadline(analyticsAPI.get({
           period,
           mode,
+          scope,
+          timeBasis,
           strategy: strategy || undefined,
           runId: runId || undefined,
           profile: 'dashboard',
-        });
+        }));
 
         if (!cancelled && requestSeqRef.current === requestSeq) {
           setAnalytics(data);
@@ -206,22 +226,17 @@ const AnalyticsDashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [period, mode, strategy, runId, refreshNonce]);
-
-  const selectedRun = useMemo(
-    () => availableRuns.find((run) => run.runId === runId) || null,
-    [availableRuns, runId]
-  );
-
-  const selectedStrategyLabel = useMemo(() => {
-    if (!strategy) return 'All Strategies';
-    return strategyCatalog.find((option) => option.key === strategy)?.label || strategy;
-  }, [strategy, strategyCatalog]);
+  }, [period, mode, scope, timeBasis, strategy, runId, refreshNonce]);
 
   const selectedScopeLabel = useMemo(() => {
-    if (selectedRun) return formatRunLabel(selectedRun, strategyCatalog);
-    return `${formatModeLabel(mode)} | ${selectedStrategyLabel}`;
-  }, [mode, selectedRun, selectedStrategyLabel, strategyCatalog]);
+    if (!analytics) return 'Choose a live history scope';
+    const snapshotRun = availableRuns.find((run) => run.runId === analytics.filters?.runId);
+    const snapshotStrategy = analytics.filters?.strategy;
+    const strategyLabel = strategyCatalog.find((option) => option.key === snapshotStrategy)?.label || snapshotStrategy || 'All strategies';
+    if (analytics.scope === 'current') return `Current live run snapshot | ${String(analytics.filters?.runId || '').slice(0, 12)}`;
+    if (analytics.scope === 'run') return snapshotRun ? formatRunLabel(snapshotRun, strategyCatalog) : `Run ${analytics.filters?.runId || 'unavailable'}`;
+    return `All live history | ${strategyLabel}`;
+  }, [analytics, availableRuns, strategyCatalog]);
 
   const handleStrategyChange = useCallback((event) => {
     setStrategy(event.target.value);
@@ -231,37 +246,6 @@ const AnalyticsDashboard = () => {
   const handleRefresh = useCallback(() => {
     setRefreshNonce((value) => value + 1);
   }, []);
-
-  const firstLoad = (loading || contextLoading) && !analytics;
-
-  if (firstLoad) {
-    return (
-      <Box minHeight="80vh" display="flex" alignItems="center" justifyContent="center">
-        <Stack alignItems="center" spacing={2}>
-          <CircularProgress />
-          <Typography variant="body2" color="text.secondary">
-            Loading analytics
-          </Typography>
-        </Stack>
-      </Box>
-    );
-  }
-
-  if (error && !analytics) {
-    return (
-      <Box p={3}>
-        <Alert severity="error">Error loading analytics: {error}</Alert>
-      </Box>
-    );
-  }
-
-  if (!analytics) {
-    return (
-      <Box p={3}>
-        <Alert severity="info">No analytics data available</Alert>
-      </Box>
-    );
-  }
 
   const {
     summary = {},
@@ -274,10 +258,12 @@ const AnalyticsDashboard = () => {
     sidePerformance,
     filters = {},
     rawCounts = {},
-  } = analytics;
+  } = analytics || {};
 
   const netPnL = Number(summary.totalPnLAud || 0);
   const loadingFreshData = loading || contextLoading;
+  const hasClosedTrades = Number(summary.totalTrades) > 0;
+  const awaitingRun = scope === 'run' && !runId;
 
   return (
     <Box px={{ xs: 2, md: 3 }} pb={4} pt={2}>
@@ -295,9 +281,12 @@ const AnalyticsDashboard = () => {
 
       {error && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Showing last analytics snapshot. Refresh failed: {error}
+          {analytics ? 'Showing the previously loaded scope below. ' : ''}Analytics unavailable: {error}
         </Alert>
       )}
+      {Object.entries(contextErrors).filter(([, message]) => message).map(([source, message]) => (
+        <Alert key={source} severity="warning" sx={{ mb: 2 }}>{source === 'runs' ? 'Run list' : 'Strategy catalog'} refresh failed: {message}. Previously loaded choices may be stale.</Alert>
+      ))}
 
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2} gap={2} flexWrap="wrap">
         <Box display="flex" alignItems="center" gap={1.25}>
@@ -315,18 +304,18 @@ const AnalyticsDashboard = () => {
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           <Chip
             icon={<Storage sx={{ fontSize: 16 }} />}
-            label={`${formatNumber(rawCounts.totalSignals)} signals`}
+            label={`${analytics ? formatNumber(rawCounts.totalSignals) : 'N/A'} signals`}
             variant="outlined"
           />
           <Chip
             icon={<QueryStats sx={{ fontSize: 16 }} />}
-            label={`${formatNumber(rawCounts.closedTrades)} closed trades`}
+            label={`${analytics ? formatNumber(rawCounts.closedTrades) : 'N/A'} closed trades`}
             variant="outlined"
           />
           <Chip
             icon={<Cached sx={{ fontSize: 16 }} />}
-            label={analytics.cached ? `Cache ${Math.round((analytics.cacheAgeMs || 0) / 1000)}s` : 'Fresh'}
-            color={analytics.cached ? 'default' : 'primary'}
+            label={!analytics ? 'No snapshot' : loadingFreshData ? 'Refreshing' : error || awaitingRun ? 'Previous snapshot' : analytics.cached ? `Cache ${Math.round((analytics.cacheAgeMs || 0) / 1000)}s` : 'Loaded'}
+            color="default"
             variant="outlined"
           />
           <Tooltip title="Refresh analytics">
@@ -366,7 +355,20 @@ const AnalyticsDashboard = () => {
           ))}
         </ToggleButtonGroup>
 
-        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 220 } }}>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <Select value={scope} onChange={(event) => { setScope(event.target.value); setRunId(''); }} inputProps={{ 'aria-label': 'Analytics scope' }}>
+            <MenuItem value="current">Current live run</MenuItem>
+            <MenuItem value="all-live">All live history</MenuItem>
+            <MenuItem value="run">Selected run</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <Select value={timeBasis} onChange={(event) => setTimeBasis(event.target.value)} inputProps={{ 'aria-label': 'Period time basis' }}>
+            <MenuItem value="realized">Closed in period</MenuItem>
+            <MenuItem value="entry">Entered in period</MenuItem>
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }} disabled={scope !== 'all-live'}>
           <Select value={strategy} onChange={handleStrategyChange}>
             <MenuItem value="">All Strategies</MenuItem>
             {strategyCatalog.map((option) => (
@@ -381,9 +383,9 @@ const AnalyticsDashboard = () => {
           <Select
             value={runId}
             onChange={(event) => setRunId(event.target.value)}
-            disabled={contextLoading}
+            disabled={contextLoading || scope !== 'run'}
           >
-            <MenuItem value="">All Runs</MenuItem>
+            <MenuItem value="">Select a run</MenuItem>
             {availableRuns.map((run) => (
               <MenuItem key={run.runId} value={run.runId}>
                 {formatRunLabel(run, strategyCatalog)}
@@ -403,6 +405,9 @@ const AnalyticsDashboard = () => {
         </Button>
       </Box>
 
+      {awaitingRun && <Alert severity="info" sx={{ mb: 2 }}>Select a run to load its results. {analytics && 'The previous snapshot remains displayed below.'}</Alert>}
+      {!analytics && !error && !awaitingRun && <Alert severity="info">No analytics snapshot is loaded.</Alert>}
+      {analytics && <>
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap mb={2}>
         <Chip
           icon={<FilterAlt sx={{ fontSize: 16 }} />}
@@ -411,7 +416,7 @@ const AnalyticsDashboard = () => {
         />
         <Chip
           icon={<Timeline sx={{ fontSize: 16 }} />}
-          label={`Run ${selectedRun ? String(selectedRun.runId).slice(0, 12) : 'All'}`}
+          label={`Run ${filters.runId ? String(filters.runId).slice(0, 12) : 'All live'}`}
           variant="outlined"
         />
         <Chip
@@ -421,6 +426,11 @@ const AnalyticsDashboard = () => {
         />
       </Stack>
 
+      <Alert severity="info" sx={{ mb: 2 }}>
+        {analytics.sampleNotice} {hasClosedTrades ? <>Net expectancy: {formatSignedMoney(summary.avgPnLAud)} per trade;
+        95% bootstrap interval {formatSignedMoney(summary.expectancy95Aud?.lower)} to {formatSignedMoney(summary.expectancy95Aud?.upper)}.</> : 'No closed trades in this scope and period; win rate, expectancy and confidence intervals are unavailable.'}
+        {analytics.interval && ` Period ${new Date(analytics.interval.start).toLocaleDateString('en-AU')} to ${new Date(analytics.interval.endExclusive).toLocaleString('en-AU')} (end excluded; ${analytics.interval.timeBasis === 'realized' ? 'close time' : 'entry time'}).`}
+      </Alert>
       <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(5, 1fr)' }} gap={2} mb={2}>
         <KPICard
           title="Net Profit"
@@ -431,34 +441,56 @@ const AnalyticsDashboard = () => {
         />
         <KPICard
           title="Win Rate"
-          value={`${summary.winRate?.toFixed?.(1) || 0}%`}
+          value={hasClosedTrades && summary.winRate != null ? `${summary.winRate.toFixed(1)}%` : 'N/A'}
           subtitle={`${summary.winningTrades || 0}W / ${summary.losingTrades || 0}L`}
           color={summary.winRate > 50 ? 'success.main' : 'warning.main'}
           icon={<DataUsage fontSize="small" />}
         />
         <KPICard
           title="Profit Factor"
-          value={summary.profitFactor?.toFixed?.(2) || '0.00'}
-          subtitle={`Avg win ${formatSignedMoney(summary.avgWinAud || 0)}`}
+          value={!hasClosedTrades ? 'N/A' : Number(summary.losingTrades) === 0 ? Number(summary.winningTrades) > 0 ? 'No losses' : 'N/A' : summary.profitFactor?.toFixed?.(2) || 'N/A'}
+          subtitle={`Avg win ${formatSignedMoney(Number(summary.winningTrades) > 0 ? summary.avgWinAud : null)}`}
           color={summary.profitFactor > 1 ? 'success.main' : 'error.main'}
           icon={<TrendingUp fontSize="small" />}
         />
         <KPICard
-          title="Sharpe Ratio"
-          value={summary.sharpeRatio?.toFixed?.(2) || '0.00'}
-          subtitle={selectedRun ? 'Selected run' : 'Aggregate scope'}
-          color={summary.sharpeRatio > 1 ? 'success.main' : 'warning.main'}
+          title="Mean Net R"
+          value={summary.netR?.mean == null ? 'N/A' : summary.netR.mean.toFixed(3)}
+          subtitle={`${summary.netR?.observations || 0} trades with original AUD risk`}
+          color="info.main"
           icon={<Insights fontSize="small" />}
         />
         <KPICard
           title="Avg Hold Time"
           value={formatHoldingTime(summary.avgHoldingTimeMs)}
-          subtitle={`Largest win ${formatSignedMoney(summary.largestWinAud || 0)}`}
+          subtitle={`Largest win ${formatSignedMoney(Number(summary.winningTrades) > 0 ? summary.largestWinAud : null)}`}
           color="info.main"
           icon={<FilterAlt fontSize="small" />}
         />
       </Box>
 
+      <Box sx={{ mb: 2, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+        <Typography variant="h6">Entry decisions and trigger overlap</Typography>
+        <Typography variant="body2" color="text.secondary" mb={1}>{analytics.funnelTimeBasis}</Typography>
+        {analytics.entryFunnel?.stageCoverage && <Typography variant="body2" color="text.secondary" mb={1}>{analytics.entryFunnel.stageCoverage}</Typography>}
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap mb={2}>
+          {(analytics.rejectionBreakdown?.breakdown || []).map((item) => (
+            <Chip key={item.code || item.reason || item.rejectionCode} label={`${item.code || item.reason || item.rejectionCode}: ${item.count || item.total || 0}`} />
+          ))}
+          <Chip label={`${rawCounts.entryDecisions || 0} entry decisions`} />
+          <Chip label={`${rawCounts.uniqueActionableSignals || 0} distinct actionable signals`} />
+        </Stack>
+        <Box component="table" sx={{ width: '100%', textAlign: 'left', '& th, & td': { p: 0.75 } }}>
+          <thead><tr><th>Raw trigger</th><th>Trades</th><th>Net AUD</th><th>Net mean R</th><th>Wins / losses / flat</th></tr></thead>
+          <tbody>{(analytics.triggerPerformance || []).map((row) => <tr key={row.trigger}>
+            <td>{row.trigger.replaceAll('_', ' ')}</td><td>{row.trades}</td><td>{formatSignedMoney(row.totalPnLAud)}</td>
+            <td>{row.avgR == null ? 'Unknown' : row.avgR.toFixed(3)}</td><td>{row.wins} / {row.losses} / {row.flat}</td>
+          </tr>)}</tbody>
+        </Box>
+        <Typography variant="body2" color="text.secondary" mt={1}>
+          Excursion coverage: {analytics.excursionCoverage?.measuredTrades || 0} / {analytics.excursionCoverage?.totalTrades || 0} trades. {analytics.excursionCoverage?.method}
+        </Typography>
+      </Box>
       <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={2} mb={2}>
         <Box flex={1} minWidth={0}>
           <EquityChart
@@ -491,6 +523,7 @@ const AnalyticsDashboard = () => {
       <Box width="100%">
         <PairPerformance pairStats={pairPerformance || []} />
       </Box>
+      </>}
     </Box>
   );
 };

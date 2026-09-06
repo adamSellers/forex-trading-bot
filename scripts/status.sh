@@ -17,6 +17,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/load-node-runtime.sh"
+source "$SCRIPT_DIR/load-operator-auth.sh"
 
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
@@ -72,11 +73,11 @@ else
 fi
 
 # API Health
-if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
+if forex_api_curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
     echo -e "  API Health:     ${GREEN}✅ Responding${NC}"
     
     # Get health data
-    health=$(curl -s "http://localhost:$PORT/api/health" 2>/dev/null)
+    health=$(forex_api_curl -s "http://localhost:$PORT/api/health" 2>/dev/null)
     if [ -n "$health" ]; then
         trading_enabled=$(echo "$health" | grep -o '"enableTrading":[^,}]*' | cut -d: -f2)
         
@@ -114,10 +115,10 @@ fi
 echo ""
 
 # Runtime status
-if curl -sf "http://localhost:$PORT/api/runtime/live-selection" > /dev/null 2>&1; then
+if forex_api_curl -sf "http://localhost:$PORT/api/runtime/live-selection" > /dev/null 2>&1; then
     echo -e "${BLUE}🧠 Runtime Status:${NC}"
 
-    runtime=$(curl -s "http://localhost:$PORT/api/runtime/live-selection" 2>/dev/null)
+    runtime=$(forex_api_curl -s "http://localhost:$PORT/api/runtime/live-selection" 2>/dev/null)
     runtime_info=$(echo "$runtime" | python3 -c "
 import sys, json
 
@@ -150,11 +151,11 @@ except Exception:
 fi
 
 # Trading Stats (if API is up)
-if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
+if forex_api_curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
     echo -e "${BLUE}📈 Trading Status:${NC}"
     
     # Get engine status
-    engine=$(curl -s "http://localhost:$PORT/api/engine/status" 2>/dev/null)
+    engine=$(forex_api_curl -s "http://localhost:$PORT/api/engine/status" 2>/dev/null)
     if [ -n "$engine" ]; then
         signals=$(echo "$engine" | grep -o '"signalsReceived":[0-9]*' | cut -d: -f2)
         trades=$(echo "$engine" | grep -o '"tradesExecuted":[0-9]*' | cut -d: -f2)
@@ -168,7 +169,7 @@ if curl -sf "http://localhost:$PORT/api/health" > /dev/null 2>&1; then
     fi
     
     # Get account info
-    account=$(curl -s "http://localhost:$PORT/api/account" 2>/dev/null)
+    account=$(forex_api_curl -s "http://localhost:$PORT/api/account" 2>/dev/null)
     if [ -n "$account" ]; then
         balance=$(echo "$account" | grep -o '"balance":"[^"]*"' | cut -d'"' -f4)
         unrealized=$(echo "$account" | grep -o '"unrealizedPL":"[^"]*"' | cut -d'"' -f4)

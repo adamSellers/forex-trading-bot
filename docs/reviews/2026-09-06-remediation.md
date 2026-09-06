@@ -1,0 +1,121 @@
+# September 6 remediation register
+
+Status: **implemented and verified locally; not deployed**. Authorized by the user after the [production review](2026-09-06-production-review.md). Baseline commit `bee8527`; baseline deployed release `m15-intraday-v2` / strategy `intraday_momentum` `1.0.0`.
+
+## Decisions and boundaries
+
+- Implement operational, execution, security, measurement and recovery corrections from the review. Preserve the single live strategy and historical broker records.
+- Retain 0.25% risk ceiling, A$100 sizing-capital cap and one position. Do not fund the account, raise limits, tune ADX/RSI/trigger thresholds or choose only historically winning groups.
+- Corrected local cohort: `m15-intraday-v3`, `intraday-risk-v3`, strategy `1.1.0`. This version change identifies corrected execution/exits, not a claimed profitable strategy.
+- No production mutation, test orders, Git publication, build or deployment in this implementation pass. User-managed rollout remains a separate step after validation and review.
+- New operator authentication uses credentials separate from OANDA and must be provisioned before rollout. Missing credentials fail closed; deployment instructions must cover browser access and unattended maintenance without exposing secrets.
+
+## Funding decision and justification
+
+More balance scales dollar outcomes only if sizing increases; it does not improve expected return per unit of risk. Current flat-account sizing is `0.0025 × min(0.8 × available margin, A$100)`. A$96.76 implies about A$0.194 risk, A$125 implies A$0.25, and A$1,000 still implies A$0.25 under the cap. The observed 76–351-unit trades, zero commissions and absence of size/margin rejections do not establish a material small-account disadvantage. Integer rounding is at most roughly 1.3% of the smallest observed position. Correct quote selection and timed exits before attributing weak results to account size. Any later scaling decision requires a clean, larger live sample and separately agreed drawdown/capital limits.
+
+## Accepted changes and acceptance evidence
+
+| ID | Change and justification | Required verification | Status |
+| --- | --- | --- | --- |
+| F1 | Wire owner-run six-hour/rollover exits; a broker-verified position lasted 11h57 and paid financing | Real monitor path, pause/restart, missing prices, DST and rollover-entry conflicts | Implemented; locally verified |
+| F2 | Use normal liquidity-sized entry bids/asks; closeout prices caused false movement comparisons and distorted initial protection | Divergent closeout/ordinary quotes, liquidity, price bounds, fill alignment, explicit pre-submit rejection | Implemented; locally verified |
+| F3 | Reconcile while locally flat and block account-wide uncertain/pending/quarantined exposure | Lost fill response then next queued pair, restart, unknown broker trades | Implemented; locally verified |
+| F4 | Confirm broker protection/units; retry initial SL and TP independently of monotonic tightening | Equal/favorable fill, failed alignment, missing/changed broker stops, partial units | Implemented; locally verified |
+| F5 | Authenticate API/socket access and authorize controls; LAN proxy exposed account/control routes | Missing/invalid credential, browser session, CSRF/origin, bearer scripts, socket handshake | Implemented; locally verified |
+| F6 | Durable atomic pause and cancellation of in-flight/queued entry work | Filesystem failure, restart state, pause during async validation | Implemented; locally verified |
+| F7 | Restore safely with preserved/separately recovered credentials and validated data, paused | Isolated restore, invalid archives/snapshots, credentials, no live orders, failure recovery | Implemented; locally verified |
+| M1 | Separate broker/candle event time from fetch time and enforce actual completed-bar freshness | Weekend/reopen, daily break, stale H1/M15, malformed times | Implemented; locally verified |
+| M2 | Bound data requests and release in-flight flags on timeout | Hung request abort then successful polling | Implemented; locally verified |
+| M3 | Recheck final quote spread/cost/age; null or missing spread fails closed | Spread widening and malformed quote inputs at submission | Implemented; locally verified |
+| M4 | Health and alerts include lifecycle obligations, uncertain exposure and service freshness | Healthy process with stale data/overdue exits fails readiness; cooldown/weekend remain distinguishable | Implemented; locally verified |
+| M5 | Remove API-editable release-freeze bypass | Attempts to disable freeze/change protected fields are rejected | Implemented; locally verified |
+| M6 | Correct positive broker-fee signs and cumulative financing | Broker-shaped commission/fee payloads and full-close finance | Implemented; locally verified |
+| M7 | Correct net AUD/R and actual session/trigger-overlap cohorts | Net-negative price-positive trade; DST and overlapping sessions | Implemented; locally verified |
+| M8 | Correct dashboard performance/refresh state and remove unsupported ADX conclusions | Backend/frontend data contracts, sample/uncertainty, failed reads | Implemented; locally verified |
+| M9 | Align current-release/all-live/historical and entry/realized-period scopes; expose entry/rejection counts with honest stage coverage | Historical-run filter, closed-at boundaries, UI/export parity | Implemented; locally verified |
+| M10 | Persist report successes, immutable interval identity and retries; expose disabled reporting | Failed upload/retry/restart/date boundaries | Implemented; locally verified |
+| M11 | Update affected dependency lockfile without unrelated upgrades | Production audit and full regression suite | Implemented; locally verified |
+| M12 | Replace stale current instructions, preserve archive and document actual deployment state | Current docs agree and review/register remain traceable | Implemented; locally verified |
+| M13 | Document midpoint breakeven/pullback semantics and correct executable-price protection inputs | Bid/ask breakeven behavior, production-default/pullback fixtures | Implemented; locally verified |
+| M14 | Capture initial risk, fills/costs, executable excursions, sessions, trigger overlap, rejection obligations consistently | Restart-safe telemetry and analytics across prior/current records | Implemented; locally verified |
+| O1 | Document database free-page maintenance and independent recovery; avoid automatic production compaction | Safe maintenance procedure, backup validation | Runbook complete; production maintenance/drill not performed |
+
+## Validation record
+
+Baseline: 313 tests passed; 47 database tests could not initialize because local native SQLite binding was absent. Backup regression script passed. Production M15 closes matched OANDA and latest immutable backup quick_check passed. Baseline green helper tests did not prove live timed exits were connected. Final checks below exercise the actual management paths and failure cases.
+
+Final local validation (September 6):
+
+- **500/500 backend tests passed across 32 suites**, using Node 20.20.2 and the exact updated lockfile. SQLite repository tests ran against the existing 9.6.0 package's official Node20 prebuilt binary; no native compilation or production build was run. Relevant mocked execution/data/auth suites also passed on Node22.
+- **7 backup scenarios**, **8 operational-health shell scenarios**, and **15 restore/credential/preflight tests** passed in isolated temporary fixtures. No real PM2, npm build, deployment or broker action occurred in those script tests.
+- **4 frontend refresh contract scenarios** passed against the actual source: obsolete request exclusion, partial failure retaining last-good data, catalog retention and read deadline. Runner: `scripts/tests/frontend_refresh_contract.test.cjs`.
+- Modified backend JavaScript, shell/Python scripts and JSON passed syntax checks; modified frontend JSX/JavaScript passed Babel parsing. Relative CommonJS imports were checked against exact filesystem names to avoid macOS/Linux casing differences. `git diff --check` passed.
+- Backend full dependency audit: **0 reported vulnerabilities** after installing the updated lockfile with lifecycle scripts disabled. Frontend production audit: **0 reported vulnerabilities**. Audit results are point-in-time, not a permanent security guarantee.
+- Frontend production build, visual/browser acceptance, production deployment, real recovery drill, email delivery and S3 delivery were **not performed**. These remain explicit operator verification steps under repository instructions; successful local tests do not claim live profitability or production completion.
+
+Reproduce the backend and script checks using supported Node20–22 with a matching installed SQLite binding:
+
+```bash
+cd backend
+npm test -- --runInBand
+cd ..
+bash scripts/tests/backup_test.sh
+bash scripts/tests/health_check_test.sh
+python3 scripts/tests/restore_test.py
+node scripts/tests/frontend_refresh_contract.test.cjs
+```
+
+## Implementation checkpoints
+
+1. Preserve audit and decisions; correct current instructions and register all work.
+2. Implement execution/data/auth foundations with lifecycle regression tests.
+3. Integrate operator health, analytics, reports, recovery and telemetry; update release/user/deployment docs.
+4. Run full isolated regression and relevant checks; document exact user-managed build/deployment commands, authentication provisioning and rollback prerequisites. Mark production unchanged until independently verified after a later rollout.
+
+## Implementation detail and deliberate behavior
+
+### Execution, ownership and risk (F1–F4, F6, M1–M3, M6, M13–M14)
+
+`LiveTradingEngine`, `Oandaclient`, `tradeReconciliationService`, `OandaDataService`, `marketContextService`, `runtimeCoordinator` and `marketDataFreshness` now enforce these boundaries:
+
+- Account reconciliation, entries, manual closes, retries and protective-order changes share a lifecycle queue. Flat local state still triggers broker reconciliation. Prepared/ambiguous/recoverable intents and quarantined broker exposure block entries across every pair.
+- Timed exits use the opening run's policy and are checked by the actual position monitor before requiring a market-price cache. Pausing entries does not disable management. Broker closure availability still limits an exit attempt; failed obligations stay observable and retryable.
+- Opening prices use ordinary bid/ask liquidity sized for the requested units. Closeout prices are excluded. Final quote timestamp, tradeability, spread/cost and permissible movement are checked again before sending an order. Broker price bounds constrain execution; an order rejected before submission is distinguished from an ambiguous broker request.
+- Every entry records original risk, executable quote/fill information, sessions and raw strategy context. Broker stop/target state is confirmed and repaired. A known managed position with changed broker units is closed rather than silently adopting unplanned exposure. If required protection remains unconfirmed, the engine attempts an emergency close. Unknown broker positions remain quarantined for operator review; they are not automatically closed.
+- A configuration generation invalidates queued/in-flight entries after pause or configuration changes. The final activation check occurs immediately before broker submission. Orders already accepted by the broker remain reconciliation obligations.
+- Cumulative broker close records include all financing and positive commission/guaranteed-execution charges with the correct sign. Partial close effects are not mistaken for a complete trade close.
+- Quote age means the broker's event timestamp. Completed M15/H1 age means the actual bar time, with a bounded 90-second publication grace and the broker's New York daily/weekend schedule. Freshly downloaded stale candles remain stale. HTTP request/body timeouts release polling flags.
+- Original ATR/RSI/ADX/EMA/pullback thresholds and midpoint-based breakeven trigger semantics remain unchanged. Production-default long/short breakout and pullback fixtures establish that these paths are reachable. A change to per-bar historical EMA semantics is a future strategy experiment.
+
+Telemetry schema for new trades uses `brokerReconciliationPayload.liveRuntime.initialRiskAud` and `.liveRuntime.entryTelemetry` (`requestedPrice`, `executablePrice`, `worstPrice`, `quoteTime`, `units`, `finalSpreadPips`, `entrySlippagePips`, `sessions`, `strategyContext`). `.sampledExcursion` stores executable-side sampled MFE/MAE, R values, observation count and timestamps. These are polling observations, not tick-exact excursions; historical coverage is explicitly unknown. Existing retained order-intent context is joined read-only for earlier trigger/session evidence.
+
+### Access, health and recovery (F5, F7, M4–M5, O1)
+
+`operatorAuthService`/`operatorAuth` protect API and Socket.IO access using a separate 32-byte operator token, expiring HttpOnly browser sessions, origin checks for session mutations and bearer authentication for maintenance. Tokens are not browser localStorage values or shell command-line arguments. Missing configuration fails closed. Release freeze cannot be disabled through the API. Configuration saves flush a same-directory temporary file, rename it, and flush the directory before updating memory or emitting success. Any persistence failure forces an in-memory pause, invalidates pending entries and exposes a critical persistence fault. It does not acknowledge a durable pause: restart may reload the prior on-disk state. Activation is blocked until a paused configuration is saved successfully.
+
+Operational health checks service/event freshness, broker uncertainty, unresolved intents, protection, monitoring and overdue closes. The dashboard uses this backend market/session calendar instead of a second hardcoded UTC schedule. Email incidents are deduplicated in SQLite and recovery messages follow actual recovery; configured SMTP calls have bounded timeouts. Email delivery requires existing credentials and enabled alerts; this work did not provision or send messages. External `health-check.sh` remains necessary to detect a dead process/host.
+
+Restore stages and validates the archive and exact matching SQLite snapshot before any service stop. It requires a persisted pause, verified flat broker account with no pending orders, and no unresolved durable lifecycle state. It preserves credentials and the original installation in a rollback directory, validates integrity/schema, and restores paused. Invalid input or a preparation failure does not remove the installation. A failure after cutover leaves the process stopped with the original retained for explicit recovery. See [the deployment and recovery runbook](../../scripts/DEPLOYMENT_README.md) for token provisioning, HTTPS, verification and independent backup/compaction procedures. No compaction or off-host backup was performed in this pass.
+
+### Measurement and reports (M7–M10)
+
+`tradeRepository` supports entry or realized timestamps with an exclusive end boundary; `all` is all persisted history, not a hidden one-year cap. `/analytics` explicitly separates current run, all live history and an identified historical run. It no longer forces the active strategy when the user requests all history. The dashboard's win rate is current-run closed trades; its 24-hour net P/L is all live closures. Failed refreshes report stale data rather than advancing the successful-sync timestamp.
+
+Cohort wins/losses and R use net AUD, with missing original risk left unknown. Sampled excursion R averages use only finite R observations and report separate risk coverage. Gross price P/L removes financing/dividend adjustments and adds back positive charges. Price-pip statistics remain separate. Actual pair sessions include daylight saving and overlap, and raw triggers distinguish pure pullback, pure breakout and both. ADX text no longer claims that a filter works from a handful of executed trades. Mean net R, sample coverage and descriptive uncertainty are visible; none is a promotion rule for profitability.
+
+Dashboard analytics retain entry decisions/rejections while using compact signal reads. Actionable-event deduplication includes run/config identity so separate releases are not collapsed. Signal/decision funnels are explicitly event-time views and are not a matched closure conversion rate; unmatched closure rates are unavailable. Existing decision rows retain terminal stages, not every reached stage, so intermediate counts are explicitly minimum observed reach rather than a full historical sequence. Compact dashboard signals omit expected-edge context, so expectation/execution diagnostics are only included in full reports. Empty samples show no measured confidence interval. S3 exports use complete UTC days and Sunday-to-Sunday weeks, immutable `v2` object identities, success-only durable checkpoints and bounded catch-up after outages. Finalization requires successful post-boundary broker reconciliation with no pending/uncertain/quarantined accounting, preventing a known delayed close from being permanently omitted. Failed uploads retry every five minutes; first enablement starts with the latest completed periods. Existing-object acknowledgement is safe after an upload/checkpoint split failure. Late broker corrections need a separately identified corrected export, preserving the original report. Disabled/credential-incomplete reporting is visible. The manual S3 audit utility resolves dependencies from the backend installation.
+
+### Dependencies and release identity (M11–M12)
+
+The local release becomes `m15-intraday-v3` / `intraday-risk-v3` / `broker-liquidity-v2`, strategy `1.1.0`, to distinguish corrected execution from the reviewed v2 sample. Risk/capital limits are unchanged. `qs` is pinned through an override to 6.16.0; compatible development dependency fixes include Browserslist 4.28.9 and js-yaml 3.15.2 with their required browser-data updates. The exact lockfile was installed locally with lifecycle scripts disabled. Backend audit returned zero vulnerabilities after installation.
+
+The original `CLAUDE.md` is preserved under `docs/archive/`; current instructions link to the review, remediation and operator/deployment guides. Historical facts are kept distinct from local implementation and later deployment.
+
+## Rollout verification still owned by the operator
+
+No source, configuration, broker state, service process, credentials, capital or deployment on `img.oakroad` was changed during implementation. No order, email or S3 upload was sent. Builds, Git publication and deployment remain user-managed under the repository instructions.
+
+Before activating v3: provision operator access, use the documented paused/flat deployment path, complete the frontend/production build, verify authenticated health and broker reconciliation, confirm the v3 run identity and preserved history, and then explicitly enable entries. Observe the first actual broker fill/protection and timed exit; do not manufacture a test order. Begin the next profitability assessment with the corrected cohort and recorded costs, rather than combining it with v1/v2 and attributing any change to increased funding.
+
+Independent integration review additionally corrected close/retry queue boundaries, risk/cooldown checks after reconciliation, sizing against the worst permitted fill, manual closes without a price cache, a Linux-sensitive import name, durable-intent checks in maintenance, a failed-save in-memory pause, run-aware signal deduplication, unmatched closure rates, empty-sample confidence intervals and stale overlapping dashboard refreshes. These are correctness fixes, not parameter tuning.

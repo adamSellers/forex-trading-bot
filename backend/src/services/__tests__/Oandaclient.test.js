@@ -201,6 +201,28 @@ describe('OandaClient', () => {
         });
     });
 
+    describe('executable order pricing', () => {
+        test('prices BUY and SELL from enough sorted liquidity and exposes the worst consumed level', () => {
+            const price = { bids: [{ price: '1.1000', liquidity: 100 }, { price: '1.0998', liquidity: 100 }],
+                asks: [{ price: '1.1004', liquidity: 100 }, { price: '1.1002', liquidity: 100 }],
+                closeoutBid: '1.09', closeoutAsk: '1.11' };
+            const buy = client.getExecutableQuote(price, 'BUY', 150);
+            const sell = client.getExecutableQuote(price, 'SELL', 150);
+            expect(buy.executablePrice).toBeCloseTo((100 * 1.1002 + 50 * 1.1004) / 150, 10);
+            expect(buy.worstPrice).toBe(1.1004);
+            expect(sell.executablePrice).toBeCloseTo((100 * 1.1000 + 50 * 1.0998) / 150, 10);
+            expect(sell.worstPrice).toBe(1.0998);
+        });
+        test('never falls back to closeout prices when executable liquidity is absent', () => {
+            expect(() => client.getExecutableQuote({ closeoutBid: '1.1', closeoutAsk: '1.2' }, 'BUY', 1)).toThrow(/liquidity/);
+        });
+        test('rejects insufficient depth and invalid requested units', () => {
+            const price = { bids: [{ price: '1.1', liquidity: 10 }], asks: [{ price: '1.2', liquidity: 10 }] };
+            expect(() => client.getExecutableQuote(price, 'BUY', 11)).toThrow(/liquidity/);
+            expect(() => client.getExecutableQuote(price, 'BUY', NaN)).toThrow(/positive/);
+        });
+    });
+
     describe('getCandles', () => {
         test('should return candle data with default parameters', async () => {
             global.fetch.mockResolvedValueOnce(createMockResponse({
