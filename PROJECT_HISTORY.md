@@ -25,15 +25,23 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The current product has one live OANDA runtime and one strategy: `intraday_momentum` `1.1.0`, release `m15-intraday-v3`, verified deployed at `788a725` on September 7. The operational-email removal below is local and pending deployment. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
+The current product has one live OANDA runtime and one strategy. Production `intraday_momentum` `1.1.0` / `m15-intraday-v3` was verified at revision `8e4fb99` on September 7 and 8, including operational-email removal. Local v3.1 / strategy 1.1.1 contains the approved quote-freshness correction and awaits user deployment. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
 
 ---
 
 ## Completed Features
 
-### 2026-09-07 — Remove operational warning/recovery emails (local)
+### 2026-09-08 — Quote-freshness investigation and full correction (local)
 
-The remediation had reused the existing trade-email flag for automatic health incidents and immediate recovery messages. Production logs showed 18 warning/recovery pairs (36 emails) on September 7, including the user's pictured quote-age warnings while the broker remained connected. Removed the operational email method, health-monitor mail dependencies, incident notification state and dashboard email-status label. Existing trade emails, health visibility and trading checks remain. The [incident record](docs/reviews/2026-09-07-operational-email-removal.md) captures the cause, product boundary and verification. **Local correction; publication/deployment remain user-managed.**
+Read-only observation showed normal five-second price delivery while the new event-age classification reported a degraded bot. Isolated engine reproductions confirmed possible entry vetoes, though the inspected current-run decisions contained no recorded age-based rejection. The user requested a cross-project lesson and a plan before deciding on implementation. Saved the lesson in global Codex instructions and wrote the [fix plan](docs/reviews/2026-09-08-quote-freshness-fix-plan.md), including hidden conversion/telemetry/deployment consumers and the release-upgrade defaults-reset hazard. The user then approved the full fix. Implemented validated receipt semantics across all affected consumers, preserved event-time evidence and numerical strategy/risk/exit settings, added bounded final request-to-submit timing, corrected health/API reporting and retained strict deployment checks. A narrow v3→v3.1 upgrade preserves saved parameters and prior owners/cohorts. The linked implementation record contains the change/rationale/test matrix and final verification totals. **Local code complete; production not changed in this pass.**
+
+### 2026-09-08 — Record exit-policy observations and take-profit review priority
+
+The user requested that future performance reviews keep the fixed 1.5R target under consideration after September 7's three USD/JPY profits preceded a larger decline. Updated current project instructions and the roadmap with that priority, evaluation criteria and the boundary that no tuning is authorized yet. Read-only production inspection explained September 8's USD/JPY Time Stop: entry 00:30:45, exit 06:30:51 AEST, net A$0.0219. The six-hour rule dated to August 10 but only became active through the September 6 live-monitor correction. The [observation record](docs/reviews/2026-09-08-exit-policy-observations.md) preserves exact evidence, provenance and limitations. This pass changed documentation only.
+
+### 2026-09-07 — Remove operational warning/recovery emails (deployed)
+
+The remediation had reused the existing trade-email flag for automatic health incidents and immediate recovery messages. Production logs showed 18 warning/recovery pairs (36 emails) on September 7, including the user's pictured quote-age warnings while the broker remained connected. Removed the operational email method, health-monitor mail dependencies, incident notification state and dashboard email-status label. Existing trade emails, health visibility and trading checks remain. The [incident record](docs/reviews/2026-09-07-operational-email-removal.md) captures the cause, product boundary and verification. **Subsequently deployed by the user at `8e4fb99`, verified over read-only SSH on September 7 and 8.**
 
 ### 2026-09-07 — v3 and startup checkpoint correction verified deployed
 

@@ -1,4 +1,5 @@
 // backend/src/services/OandaClient.js - Oanda REST v20 API Client
+const { performance } = require("node:perf_hooks");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
 
@@ -120,6 +121,7 @@ class OandaClient {
             1,
             toFiniteNumber(requestOptions.timeoutMs, this.requestTimeoutMs)
         );
+        const startedAt = performance.now();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         options.signal = controller.signal;
 
@@ -134,7 +136,14 @@ class OandaClient {
                 throw await buildOandaApiError(response);
             }
 
-            return await response.json();
+            const data = await response.json();
+            // Body completion and a delayed abort callback both count toward
+            // the request deadline; a late response cannot become fresh data.
+            if (controller.signal.aborted || performance.now() - startedAt > timeoutMs) {
+                controller.abort();
+                throw new Error("Response completed after request deadline");
+            }
+            return data;
         } catch (error) {
             if (error?.message?.includes("Oanda API Error")) {
                 throw error;

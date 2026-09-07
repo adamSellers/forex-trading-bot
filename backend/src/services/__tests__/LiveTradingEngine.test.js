@@ -314,13 +314,16 @@ describe('LiveTradingEngine', () => {
         mockSignalGenerator = createMockSignalGenerator();
 
         mockDataService = {
-            getCurrentPrice: jest.fn().mockReturnValue({
+            getCurrentPrice: jest.fn().mockImplementation((instrument) => ['AUD_USD', 'EUR_USD'].includes(instrument) ? {
+                instrument,
                 price: 1.16571,
                 bid: 1.16566,
                 ask: 1.16576,
                 spread: 1.0,
-                timestamp: Date.now(),
-            }),
+                get timestamp() { return Date.now(); },
+                get fetchedAt() { return Date.now(); },
+                tradeable: true,
+            } : null),
             getCandles: jest.fn().mockReturnValue([]),
             getPipValue: jest.fn().mockReturnValue(0.0001),
             getEntryFreshness: jest.fn().mockReturnValue({ fresh: true }),
@@ -341,6 +344,7 @@ describe('LiveTradingEngine', () => {
 
     afterEach(() => {
         if (jest.isMockFunction(Date.now)) Date.now.mockRestore();
+        jest.useRealTimers();
         if (engine.isRunning) {
             engine.stop();
         }
@@ -414,7 +418,7 @@ describe('LiveTradingEngine', () => {
                 ask: 1.16576,
                 spread: 1.0,
                 tradeable: false,
-                timestamp: Date.now(),
+                timestamp: Date.now(), fetchedAt: Date.now(),
             });
 
             const result = await engine.validateEntry(signal, config);
@@ -434,7 +438,7 @@ describe('LiveTradingEngine', () => {
                 ask: 1.16576,
                 spread: 1.0,
                 tradeable: true,
-                timestamp: Date.now() - 30000,
+                timestamp: Date.now() - 30000, fetchedAt: Date.now() - 30000,
             });
 
             const result = await engine.validateEntry(signal, config);
@@ -454,7 +458,7 @@ describe('LiveTradingEngine', () => {
                 ask: 1.16590,
                 spread: 4.0,
                 tradeable: true,
-                timestamp: Date.now(),
+                timestamp: Date.now(), fetchedAt: Date.now(),
             });
 
             const result = await engine.validateEntry(signal, config);
@@ -2009,7 +2013,8 @@ describe('LiveTradingEngine', () => {
             });
 
             mockDataService.getCurrentPrice.mockReturnValue({
-                price: 1.10150, timestamp: Date.now(), // +15 pips
+                price: 1.10150, bid: 1.10150, ask: 1.10160, tradeable: true,
+                timestamp: Date.now(), fetchedAt: Date.now(), // +15 pips
                 spread: 1.0,
             });
 
@@ -2050,7 +2055,8 @@ describe('LiveTradingEngine', () => {
             });
 
             mockDataService.getCurrentPrice.mockReturnValue({
-                price: 1.20130, timestamp: Date.now(), // +13 pips
+                price: 1.20130, bid: 1.20130, ask: 1.20140, tradeable: true,
+                timestamp: Date.now(), fetchedAt: Date.now(), // +13 pips
                 spread: 1.0,
             });
 
@@ -2609,15 +2615,188 @@ describe('LiveTradingEngine', () => {
             expect(quote.spreadPips).toBeCloseTo(1.2, 8);
         });
 
-        test.each(['stale', 'missing time', 'liquidity'])('rejects unusable final execution quote: %s', async (failure) => {
+        test.each(['future time', 'missing time', 'liquidity', 'wrong instrument', 'crossed quote', 'nontradeable', 'duplicate instrument'])('rejects unusable final execution quote: %s', async (failure) => {
             const price = { instrument: 'AUD_USD', tradeable: true, time: String(Date.now() / 1000),
                 bids: [{ price: '1.16566', liquidity: 100000 }], asks: [{ price: '1.16576', liquidity: 100000 }] };
-            if (failure === 'stale') price.time = String((Date.now() - 120000) / 1000);
+            if (failure === 'future time') price.time = String((Date.now() + 120000) / 1000);
+            if (failure === 'wrong instrument') price.instrument = 'EUR_USD';
+            if (failure === 'crossed quote') price.bids[0].price = '1.2';
+            if (failure === 'nontradeable') price.tradeable = false;
             if (failure === 'missing time') delete price.time;
             if (failure === 'liquidity') price.asks[0].liquidity = 1;
-            oandaClient.getPricing.mockResolvedValue({ prices: [price] });
+            oandaClient.getPricing.mockResolvedValue({ prices: failure === 'duplicate instrument' ? [price, price] : [price] });
             await expect(engine.executeEntry(createMockSignal(), mockConfigService.get())).rejects.toThrow();
             expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('a current receipt of an old event passes the complete signal-to-order path and preserves event evidence', async () => {
+            const repository = createMockBrokerLifecycleRepository();
+            engine.brokerLifecycleRepository = repository;
+            const now = Date.now();
+            const eventTime = now - 60000;
+            const cached = { ...mockDataService.getCurrentPrice('AUD_USD'), timestamp: eventTime, fetchedAt: now };
+            mockDataService.getCurrentPrice.mockImplementation((instrument) => instrument === 'AUD_USD' ? cached : null);
+            const pricing = await oandaClient.getPricing(['AUD_USD']);
+            pricing.prices[0].time = String(eventTime / 1000);
+            oandaClient.getPricing.mockClear();
+
+            await engine.processSignal(createMockSignal());
+
+            expect(oandaClient.getPricing).toHaveBeenCalledWith(['AUD_USD'], { includeHomeConversions: true });
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(1);
+            expect(mockEntryDecisionRepository.save).toHaveBeenCalledWith(expect.objectContaining({ priceAgeMs: expect.any(Number) }));
+            expect(mockEntryDecisionRepository.save.mock.calls[0][0].priceAgeMs).toBeGreaterThanOrEqual(60000);
+            const intent = [...repository.intents.values()][0];
+            expect(intent.status).toBe('COMPLETED');
+            expect(intent.contextPayload.finalQuote).toEqual(expect.objectContaining({
+                quoteTime: eventTime, fetchedAt: expect.any(Number),
+                requestStartedAt: expect.any(Number), requestElapsedMs: expect.any(Number),
+            }));
+            const telemetry = [...engine.openTrades.values()][0].brokerReconciliationPayload.liveRuntime.entryTelemetry;
+            expect(telemetry.quoteTime).toBe(eventTime);
+            expect(telemetry.quoteAgeMs).toBeGreaterThanOrEqual(60000);
+            expect(telemetry.quoteFetchedAt).toBeGreaterThanOrEqual(now);
+            expect(JSON.stringify(intent.contextPayload.finalQuote)).not.toContain('requestStartedMonotonicMs');
+        });
+
+        test.each(['stale receipt', 'missing receipt', 'invalid latest response'])(
+            'a genuinely unavailable cached quote stops the signal before final pricing: %s', async (failure) => {
+                const cached = { ...mockDataService.getCurrentPrice('AUD_USD'), timestamp: Date.now() - 60000 };
+                if (failure === 'stale receipt') cached.fetchedAt = Date.now() - 16000;
+                if (failure === 'missing receipt') delete cached.fetchedAt;
+                if (failure === 'invalid latest response') cached.invalidReason = 'PRICE_MISSING';
+                mockDataService.getCurrentPrice.mockReturnValue(cached);
+                await engine.processSignal(createMockSignal());
+                expect(oandaClient.getPricing).not.toHaveBeenCalled();
+                expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                expect(mockEntryDecisionRepository.updateDecision).toHaveBeenLastCalledWith(expect.any(String),
+                    expect.objectContaining({ outcome: 'REJECTED' }));
+            }
+        );
+
+        test.each(['pricing response', 'account preparation', 'intent write', 'submission write', 'clock rollback'])(
+            'a real execution-budget overrun never submits and resolves its local intent: %s', async (delayAt) => {
+                jest.useFakeTimers({ now: Date.now() });
+                const repository = createMockBrokerLifecycleRepository();
+                engine.brokerLifecycleRepository = repository;
+                let quoteReceived = false;
+                const pricing = await oandaClient.getPricing(['AUD_USD']);
+                oandaClient.getPricing.mockImplementation(async () => {
+                    quoteReceived = true;
+                    if (delayAt === 'pricing response') jest.advanceTimersByTime(15001);
+                    return pricing;
+                });
+                const account = oandaClient.getAccountSummary.getMockImplementation();
+                oandaClient.getAccountSummary.mockImplementation(async () => {
+                    if (quoteReceived && delayAt === 'account preparation') jest.advanceTimersByTime(15001);
+                    return account();
+                });
+                const create = repository.createIntent.getMockImplementation();
+                repository.createIntent.mockImplementation(async (intent) => {
+                    const result = await create(intent);
+                    if (delayAt === 'intent write') jest.advanceTimersByTime(15001);
+                    return result;
+                });
+                const update = repository.updateIntent.getMockImplementation();
+                repository.updateIntent.mockImplementation(async (id, changes) => {
+                    const result = await update(id, changes);
+                    if (changes.status === 'SUBMITTING' && ['submission write', 'clock rollback'].includes(delayAt)) {
+                        jest.advanceTimersByTime(15001);
+                        if (delayAt === 'clock rollback') jest.setSystemTime(Date.now() - 60000);
+                    }
+                    return result;
+                });
+
+                await expect(engine.executeEntry(createMockSignal(), mockConfigService.get(), 'expired-pricing'))
+                    .rejects.toMatchObject({ code: 'FINAL_QUOTE_EXPIRED', entryRejectionCode: 'STALE_PRICE' });
+                expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                expect(engine.getStatus().pendingOrderIntentCount).toBe(0);
+                expect(await repository.getRecoverableIntents()).toEqual([]);
+                for (const intent of repository.intents.values()) {
+                    expect(intent).toEqual(expect.objectContaining({ status: 'ABANDONED', resolvedAt: expect.any(Number) }));
+                }
+                expect(mockEntryDecisionRepository.updateDecision).toHaveBeenLastCalledWith('expired-pricing',
+                    expect.objectContaining({ outcome: 'REJECTED', rejectionCode: 'STALE_PRICE' }));
+            }
+        );
+
+        test('a final pricing timeout cannot become an ambiguous order', async () => {
+            engine.brokerLifecycleRepository = createMockBrokerLifecycleRepository();
+            oandaClient.getPricing.mockRejectedValue(Object.assign(new Error('Pricing body timed out'), { code: 'OANDA_TIMEOUT' }));
+            await expect(engine.executeEntry(createMockSignal(), mockConfigService.get(), 'pricing-timeout'))
+                .rejects.toMatchObject({ code: 'OANDA_TIMEOUT' });
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(await engine.brokerLifecycleRepository.getRecoverableIntents()).toEqual([]);
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenLastCalledWith('pricing-timeout',
+                expect.objectContaining({ outcome: 'REJECTED' }));
+        });
+
+        test('recent receipt permits breakeven on an unchanged event without duplicating excursion samples', async () => {
+            const now = Date.now();
+            const trade = addTrade({ entryPrice: 1.1, stopLossPrice: 1.098, entryTime: now - 120000 });
+            const price = { instrument: 'AUD_USD', price: 1.1015, bid: 1.1015, ask: 1.1016, spread: 1,
+                tradeable: true, timestamp: now - 60000, fetchedAt: now };
+            mockDataService.getCurrentPrice.mockReturnValue(price);
+            const config = { ...mockConfigService.get(), enableBreakeven: true, breakevenTriggerPips: 12, enableTrailingStops: false };
+            await engine.checkPosition(trade, config);
+            price.fetchedAt = Date.now();
+            await engine.checkPosition(trade, config);
+            expect(trade.breakevenHit).toBe(true);
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith('489', expect.objectContaining({ stopLossPrice: 1.1 }));
+            expect(trade.brokerReconciliationPayload.sampledExcursion).toEqual(expect.objectContaining({
+                observations: 1, firstObservedAt: now - 60000, lastObservedAt: now - 60000,
+            }));
+        });
+
+        test.each(['stale receipt', 'missing receipt', 'failed response', 'not tradeable'])(
+            'unavailable pricing defers quote-dependent protection and sampling: %s', async (failure) => {
+                const now = Date.now();
+                const trade = addTrade({ entryPrice: 1.1, stopLossPrice: 1.098, entryTime: now - 120000 });
+                const price = { instrument: 'AUD_USD', price: 1.1015, bid: 1.1015, ask: 1.1016, spread: 1,
+                    tradeable: true, timestamp: now - 60000, fetchedAt: now };
+                if (failure === 'stale receipt') price.fetchedAt -= 30001;
+                if (failure === 'missing receipt') delete price.fetchedAt;
+                if (failure === 'failed response') price.invalidReason = 'PRICE_REQUEST_FAILED';
+                if (failure === 'not tradeable') price.tradeable = false;
+                mockDataService.getCurrentPrice.mockReturnValue(price);
+                await engine.checkPosition(trade, { ...mockConfigService.get(), enableBreakeven: true, breakevenTriggerPips: 12 });
+                expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
+                expect(trade.brokerReconciliationPayload?.sampledExcursion).toBeUndefined();
+            }
+        );
+
+        test('a failed poll during awaited management work invalidates the prior quote before adjustment', async () => {
+            const now = Date.now();
+            const trade = addTrade({ entryPrice: 1.1, stopLossPrice: 1.098, entryTime: now - 120000 });
+            const price = { instrument: 'AUD_USD', price: 1.1015, bid: 1.1015, ask: 1.1016,
+                tradeable: true, timestamp: now - 60000, fetchedAt: now };
+            mockDataService.getCurrentPrice.mockReturnValue(price);
+            const retry = jest.spyOn(engine, 'retryPendingStopUpdate').mockImplementation(async () => {
+                mockDataService.getCurrentPrice.mockReturnValue({ ...price, invalidReason: 'PRICE_REQUEST_FAILED' });
+            });
+            await engine.checkPosition(trade, { ...mockConfigService.get(), enableBreakeven: true, breakevenTriggerPips: 12 });
+            expect(retry).toHaveBeenCalled();
+            expect(oandaClient.modifyTrade).not.toHaveBeenCalled();
+            expect(trade.breakevenHit).not.toBe(true);
+        });
+
+        test('an event predating entry remains unsampled even when freshly received', async () => {
+            const now = Date.now();
+            const trade = addTrade({ entryTime: now });
+            mockDataService.getCurrentPrice.mockReturnValue({ ...mockDataService.getCurrentPrice('AUD_USD'),
+                timestamp: now - 60000, fetchedAt: now });
+            await engine.checkPosition(trade, { enableBreakeven: false, enableTrailingStops: false });
+            expect(trade.brokerReconciliationPayload?.sampledExcursion).toBeUndefined();
+        });
+
+        test('a pending protective update still retries when pricing is unavailable', async () => {
+            const trade = addTrade({ reconciliationStatus: 'STOP_UPDATE_RETRY_PENDING',
+                brokerReconciliationPayload: { stopUpdate: { status: 'RETRY_PENDING', desiredPrice: 1.1632,
+                    desiredTakeProfitPrice: 1.17, stopType: 'INITIAL_STOP_ALIGNMENT', nextRetryAt: 0 } } });
+            mockDataService.getCurrentPrice.mockReturnValue(null);
+            await engine.checkPosition(trade, { enableBreakeven: true });
+            expect(oandaClient.modifyTrade).toHaveBeenCalledWith('489',
+                expect.objectContaining({ stopLossPrice: 1.1632, takeProfitPrice: 1.17 }));
         });
 
         test('rechecks the intraday cost-to-stop ratio on the final quote', async () => {
@@ -2879,7 +3058,7 @@ describe('LiveTradingEngine', () => {
                         bid: 1.0831,
                         ask: 1.0833,
                         spread: 1.0,
-                        timestamp: Date.now(),
+                        timestamp: Date.now(), fetchedAt: Date.now(),
                     };
                 }
 
@@ -2888,7 +3067,7 @@ describe('LiveTradingEngine', () => {
                     bid: 1.16779,
                     ask: 1.16789,
                     spread: 1.0,
-                    timestamp: Date.now(),
+                    timestamp: Date.now(), fetchedAt: Date.now(),
                 };
             });
 

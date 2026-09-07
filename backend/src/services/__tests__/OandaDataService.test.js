@@ -68,7 +68,7 @@ describe("OandaDataService required granularities", () => {
 
     test("retains refresh diagnostics for legacy timeframes outside the intraday entry contract", () => {
         service.isRunning = true;
-        service.priceCache.AUD_USD = { timestamp: 99_000 };
+        service.priceCache.AUD_USD = { bid: 0.66, ask: 0.6601, tradeable: true, timestamp: 99_000, fetchedAt: 99_000 };
         service.candleCache.AUD_USD_H4 = [{ time: "2026-01-01T00:00:00Z" }];
         service.candleCacheUpdatedAt.AUD_USD_H4 = 98_000;
 
@@ -121,11 +121,17 @@ describe("OandaDataService broker event integrity", () => {
     const quote = (overrides = {}) => ({ instrument: "AUD_USD", time: new Date(nowMs - 1000).toISOString(),
         bids: [{ price: "0.65996" }], asks: [{ price: "0.66004" }], tradeable: true, ...overrides });
 
-    test("a recent HTTP fetch does not freshen an old broker event", async () => {
+    test("a validated current response keeps its old event identity and confirms fresh delivery", async () => {
         service.oandaRequest = jest.fn().mockResolvedValue({ prices: [quote({ time: new Date(nowMs - 60_000).toISOString() })] });
         await service.fetchAllPrices();
         expect(service.getCurrentPrice("AUD_USD")).toMatchObject({ timestamp: nowMs - 60_000, fetchedAt: nowMs });
-        expect(service.getFreshnessStatus({ nowMs }).pricesFresh).toBe(false);
+        expect(service.getFreshnessStatus({ nowMs })).toMatchObject({
+            pricesFresh: true, oldestPriceAgeMs: 60_000, oldestPriceReceiptAgeMs: 0,
+        });
+        expect(service.getFreshnessStatus({ nowMs: nowMs + 20_001 })).toMatchObject({
+            pricesFresh: false, stalePrices: ["AUD_USD"],
+            priceAvailability: [expect.objectContaining({ reason: "STALE_PRICE", receiptAgeMs: 20_001 })],
+        });
     });
 
     test.each([
@@ -147,6 +153,97 @@ describe("OandaDataService broker event integrity", () => {
         })] });
         await service.fetchAllPrices();
         expect(service.getCurrentPrice("AUD_USD").spread).toBeCloseTo(0.74, 8);
+    });
+
+    test.each([{ prices: [] }, { prices: [quote({ instrument: "EUR_USD" })] }, { prices: [quote(), quote()] }])(
+        "missing, mismatched or duplicate instrument rows cannot leave a previous quote executable", async ({ prices }) => {
+            service.oandaRequest = jest.fn().mockResolvedValueOnce({ prices: [quote()] }).mockResolvedValueOnce({ prices });
+            await service.fetchAllPrices();
+            expect(service.getCurrentPrice("AUD_USD").tradeable).toBe(true);
+            await service.fetchAllPrices();
+            expect(service.getCurrentPrice("AUD_USD")).toMatchObject({ tradeable: false, fetchedAt: null });
+            expect(service.getFreshnessStatus({ nowMs }).pricesFresh).toBe(false);
+        }
+    );
+
+    test("one pair's success cannot refresh another pair omitted from the response", async () => {
+        service.instruments = ["AUD_USD", "EUR_USD"];
+        service.oandaRequest = jest.fn().mockResolvedValue({ prices: [quote()] });
+        await service.fetchAllPrices();
+        expect(service.getFreshnessStatus({ nowMs })).toMatchObject({
+            stalePrices: ["EUR_USD"],
+            priceAvailability: [
+                expect.objectContaining({ instrument: "AUD_USD", available: true }),
+                expect.objectContaining({ instrument: "EUR_USD", reason: "PRICE_MISSING", fetchedAt: null }),
+            ],
+        });
+    });
+
+    test("pricing health includes a requested conversion bridge outside the trading assets", async () => {
+        service.instruments = ["EUR_USD"];
+        service.oandaRequest = jest.fn().mockResolvedValue({ prices: [quote({ instrument: "EUR_USD" })] });
+        await service.fetchAllPrices();
+        expect(service.getFreshnessStatus({ nowMs })).toMatchObject({
+            pricesFresh: false, stalePrices: ["AUD_USD"],
+            priceAvailability: [
+                expect.objectContaining({ instrument: "EUR_USD", available: true }),
+                expect.objectContaining({ instrument: "AUD_USD", reason: "PRICE_MISSING" }),
+            ],
+        });
+    });
+
+    test("valid nontradeable broker state confirms communication but not execution availability", async () => {
+        service.oandaRequest = jest.fn().mockResolvedValue({ prices: [quote({ tradeable: false })] });
+        await service.fetchAllPrices();
+        expect(service.getFreshnessStatus({ nowMs })).toMatchObject({
+            pricesFresh: true, stalePrices: [],
+            unavailablePrices: [expect.objectContaining({ instrument: "AUD_USD", reason: "PRICE_NOT_TRADEABLE" })],
+        });
+    });
+
+    test.each([null, {}, { prices: {} }])("malformed response %j invalidates old availability", async (payload) => {
+        service.oandaRequest = jest.fn().mockResolvedValueOnce({ prices: [quote()] }).mockResolvedValueOnce(payload);
+        await service.fetchAllPrices();
+        await service.fetchAllPrices();
+        expect(service.getCurrentPrice("AUD_USD")).toMatchObject({
+            fetchedAt: nowMs, tradeable: false, invalidReason: "INVALID_PRICING_RESPONSE",
+        });
+        expect(service.getFreshnessStatus({ nowMs }).pricesFresh).toBe(false);
+    });
+
+    test("a failed poll invalidates the last executable quote and a valid repeated event recovers it", async () => {
+        const priceUpdates = jest.fn();
+        service.on("priceUpdate", priceUpdates);
+        service.oandaRequest = jest.fn()
+            .mockResolvedValueOnce({ prices: [quote()] })
+            .mockRejectedValueOnce(new Error("network down"))
+            .mockResolvedValueOnce({ prices: [quote()] });
+        await service.fetchAllPrices();
+        const eventTime = service.getCurrentPrice("AUD_USD").timestamp;
+        await service.fetchAllPrices();
+        expect(service.getCurrentPrice("AUD_USD")).toMatchObject({
+            timestamp: eventTime, fetchedAt: nowMs, invalidReason: "PRICE_REQUEST_FAILED", tradeable: false,
+        });
+        expect(service.getFreshnessStatus({ nowMs }).pricesFresh).toBe(false);
+        await service.fetchAllPrices();
+        expect(service.getCurrentPrice("AUD_USD")).toMatchObject({ timestamp: eventTime, tradeable: true, invalidReason: null });
+        expect(service.getFreshnessStatus({ nowMs }).pricesFresh).toBe(true);
+        expect(priceUpdates).toHaveBeenCalledTimes(3);
+    });
+
+    test("rejects a late body even when it resolves after ignoring the abort signal", async () => {
+        jest.useFakeTimers({ now: nowMs });
+        jest.spyOn(global, "fetch").mockResolvedValue({
+            ok: true,
+            json: () => new Promise((resolve) => setTimeout(() => resolve({ prices: [quote()] }), 26)),
+        });
+        const pending = service.fetchAllPrices();
+        await jest.advanceTimersByTimeAsync(26);
+        await pending;
+        expect(service.getCurrentPrice("AUD_USD")).toMatchObject({
+            fetchedAt: null, invalidReason: "PRICE_REQUEST_TIMEOUT", tradeable: false,
+        });
+        expect(service.isFetchingPrices).toBe(false);
     });
 
     test("current cache timestamps cannot hide stale completed M15/H1 bars", () => {

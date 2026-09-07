@@ -10,6 +10,8 @@ const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
 const { evaluateLiveReadiness } = require("../runtime/liveReadiness");
 const { buildOperationalHealth } = require("../services/operationalHealthService");
 const { buildOandaApiError } = require("../utils/oandaErrors");
+const { performance } = require("node:perf_hooks");
+const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
 
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
 const OANDA_ACCOUNT_ID = process.env.OANDA_ACCOUNT_ID;
@@ -102,10 +104,6 @@ function formatUptime(seconds) {
     return `${minutes}m ${Math.floor(seconds % 60)}s`;
 }
 
-function getPipValue(instrument) {
-    return instrument.includes("JPY") ? 0.01 : 0.0001;
-}
-
 async function oandaRequest(endpoint, options = {}) {
     if (!OANDA_API_KEY || !OANDA_ACCOUNT_ID) {
         const error = new Error("Oanda credentials are not configured");
@@ -113,9 +111,11 @@ async function oandaRequest(endpoint, options = {}) {
         throw error;
     }
 
+    const startedAt = performance.now();
+    const signal = options.signal || AbortSignal.timeout(10000);
     const response = await fetch(`${OANDA_BASE_URL}${endpoint}`, {
         ...options,
-        signal: options.signal || AbortSignal.timeout(10000),
+        signal,
         headers: {
             Authorization: `Bearer ${OANDA_API_KEY}`,
             "Content-Type": "application/json",
@@ -123,7 +123,16 @@ async function oandaRequest(endpoint, options = {}) {
         },
     });
     if (!response.ok) throw await buildOandaApiError(response);
-    return response.json();
+    const data = await response.json();
+    // Include body receipt: a delayed callback/body cannot revive an expired
+    // request merely by acquiring a recent fetchedAt timestamp afterward.
+    if (signal.aborted || performance.now() - startedAt > 10000) {
+        const error = new Error("Oanda request exceeded 10000ms deadline");
+        error.code = "OANDA_TIMEOUT";
+        error.statusCode = 503;
+        throw error;
+    }
+    return data;
 }
 
 function normalizeRun(run = {}, latestSignalCount = 0) {
@@ -391,9 +400,10 @@ router.get("/prices", async (req, res) => {
             .filter(Boolean);
         const cached = req.app.locals.dataService?.getAllPrices?.() || {};
         const cachedRows = requested.map((symbol) => cached[symbol]).filter(Boolean);
-        const fresh = cachedRows.every(
-            (price) => Date.now() - Number(price.timestamp || 0) <= 15000
-        );
+        const nowMs = Date.now();
+        const fresh = cachedRows.every((price) => evaluatePriceAvailability(price, {
+            nowMs, maxAgeMs: 15000, requireTradeable: false,
+        }).available);
         if (requested.length && cachedRows.length === requested.length && fresh) {
             return res.json({ prices: cachedRows, timestamp: Date.now() });
         }
@@ -403,22 +413,15 @@ router.get("/prices", async (req, res) => {
                 requested.join(",")
             )}`
         );
-        const prices = data.prices.map((price) => {
-            const bid = Number(price.bids?.[0]?.price || 0);
-            const ask = Number(price.asks?.[0]?.price || 0);
-            return {
-                instrument: price.instrument,
-                bid,
-                ask,
-                mid: (bid + ask) / 2,
-                spread: Number(
-                    ((ask - bid) / getPipValue(price.instrument)).toFixed(1)
-                ),
-                tradeable: price.tradeable,
-                time: price.time,
-            };
+        if (!Array.isArray(data?.prices)) throw new Error("Oanda pricing response did not contain prices");
+        const fetchedAt = Date.now();
+        const prices = requested.map((instrument) => {
+            const matches = data.prices.filter((price) => price?.instrument === instrument);
+            const price = normalizeOandaPrice(matches.length === 1 ? matches[0] : null, { instrument, fetchedAt });
+            if (matches.length > 1) price.invalidReason = "DUPLICATE_PRICE";
+            return price;
         });
-        res.json({ prices, timestamp: Date.now() });
+        res.json({ prices, timestamp: fetchedAt });
     } catch (error) {
         res.status(error.statusCode || 500).json({ error: error.message });
     }

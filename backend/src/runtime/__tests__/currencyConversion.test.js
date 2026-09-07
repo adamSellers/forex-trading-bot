@@ -3,6 +3,10 @@ const {
     AudCurrencyConverter,
     CurrencyConversionError,
 } = require("../currencyConversion");
+const price = (value, fetchedAt = Date.now(), extra = {}) => ({
+    price: value, bid: value, ask: value, tradeable: true,
+    timestamp: fetchedAt - 60_000, fetchedAt, ...extra,
+});
 
 describe("AudCurrencyConverter", () => {
     test("uses AUD as the canonical account currency", () => {
@@ -36,8 +40,8 @@ describe("AudCurrencyConverter", () => {
 
     test("converts JPY to AUD through current USD_JPY and AUD_USD prices", () => {
         const prices = {
-            USD_JPY: { price: 150, timestamp: Date.now() },
-            AUD_USD: { price: 0.65, timestamp: Date.now() },
+            USD_JPY: price(150),
+            AUD_USD: price(0.65),
         };
         const converter = new AudCurrencyConverter({
             priceProvider: (instrument) => prices[instrument] || null,
@@ -68,7 +72,7 @@ describe("AudCurrencyConverter", () => {
             now: () => 10_000,
             priceProvider: (instrument) =>
                 instrument === "AUD_USD"
-                    ? { price: 0.65, timestamp: 1_000 }
+                    ? price(0.65, 1_000, { timestamp: 1_000 })
                     : null,
         });
 
@@ -93,5 +97,53 @@ describe("AudCurrencyConverter", () => {
         expect(() => converter.getRate("USD", "AUD")).toThrow(
             CurrencyConversionError
         );
+    });
+
+    test("price conversions retain receipt age across repeated reads", () => {
+        let now = 100_000;
+        const converter = new AudCurrencyConverter({
+            maxAgeMs: 1_000, now: () => now,
+            priceProvider: (instrument) => instrument === "AUD_USD" ? price(0.65, 100_000) : null,
+        });
+        expect(converter.getRate("USD", "AUD")).toBeCloseTo(1 / 0.65);
+        now += 900;
+        expect(converter.getRate("USD", "AUD")).toBeCloseTo(1 / 0.65);
+        now += 101;
+        expect(() => converter.getRate("USD", "AUD")).toThrow(CurrencyConversionError);
+    });
+
+    test.each([undefined, null, 1_000, 200_000])("reading a provider cannot fabricate fresh home-conversion timing: %s", (updatedAt) => {
+        const converter = new AudCurrencyConverter({
+            now: () => 100_000,
+            homeConversionProvider: () => ({ currency: "USD", positionValue: 1.52, updatedAt }),
+        });
+        expect(() => converter.getRate("USD", "AUD")).toThrow(CurrencyConversionError);
+        expect(() => converter.getRate("USD", "AUD")).toThrow(CurrencyConversionError);
+        expect(converter.homeConversions.size).toBe(0);
+    });
+
+    test("a validated provider home conversion keeps its original receipt on every read", () => {
+        let now = 100_000;
+        const converter = new AudCurrencyConverter({
+            now: () => now,
+            homeConversionProvider: () => ({ currency: "USD", positionValue: 1.52, updatedAt: 100_000 }),
+        });
+        expect(converter.getRate("USD", "AUD")).toBe(1.52);
+        now += 30_001;
+        expect(() => converter.getRate("USD", "AUD")).toThrow(CurrencyConversionError);
+    });
+
+    test.each([
+        { invalidReason: "PRICE_REQUEST_FAILED" }, { tradeable: false },
+        { fetchedAt: null }, { fetchedAt: undefined }, { ask: 0.64 },
+    ])("a new unavailable provider quote cannot use an earlier cached rate: %j", (extra) => {
+        let observation = price(0.65);
+        const converter = new AudCurrencyConverter({
+            priceProvider: (instrument) => instrument === "AUD_USD" ? observation : null,
+        });
+        expect(converter.getRate("USD", "AUD")).toBeCloseTo(1 / 0.65);
+        observation = { ...observation, ...extra };
+        expect(() => converter.getRate("USD", "AUD", { instrument: "AUD_USD", price: 0.65 }))
+            .toThrow(CurrencyConversionError);
     });
 });

@@ -26,8 +26,17 @@ jest.mock("../src/services/configService", () => {
 });
 jest.mock("../src/services/OandaDataService", () => {
     const { EventEmitter } = require("events");
+    const { normalizeOandaPrice } = require("../src/runtime/quoteAvailability");
     return class extends EventEmitter {
-        getAllPrices() { return { AUD_USD: { instrument: "AUD_USD", bid: 0.67, ask: 0.6701, timestamp: Date.now() } }; }
+        constructor() {
+            super();
+            const fetchedAt = Date.now();
+            this.prices = { AUD_USD: normalizeOandaPrice({
+                instrument: "AUD_USD", bids: [{ price: "0.67" }], asks: [{ price: "0.6701" }],
+                time: new Date(fetchedAt - 60_000).toISOString(), tradeable: true,
+            }, { instrument: "AUD_USD", fetchedAt }) };
+        }
+        getAllPrices() { return this.prices; }
         getStatus() { return { isRunning: true, freshness: { pricesFresh: true, candlesFresh: true } }; }
     };
 });
@@ -143,7 +152,8 @@ describe("private internal-network app access", () => {
         const health = new OperationalHealthService(options);
         const snapshot = await health.check();
         expect(snapshot.issues).toContainEqual(expect.objectContaining({ code: "BROKER_STATE_UNCERTAIN" }));
-        expect(snapshot.entryState).toBe("BLOCKED");
+        expect(snapshot.entryState).toBe("PAUSED");
+        expect(snapshot.entryBlockers).toContain("BROKER_STATE_UNCERTAIN");
         expect(snapshot.alerting).toBeUndefined();
     });
 
@@ -175,6 +185,11 @@ describe("private internal-network app access", () => {
                 message: "Connected to Forex Trading Bot",
             })]);
             expect(events.filter(([name]) => name === "priceUpdate")).toHaveLength(2);
+            const response = await request(instance.server).get("/api/prices?instruments=AUD_USD").expect(200);
+            for (const [, prices] of events.filter(([name]) => name === "priceUpdate")) {
+                expect(prices.AUD_USD).toEqual(response.body.prices[0]);
+                expect(prices.AUD_USD.fetchedAt - prices.AUD_USD.timestamp).toBe(60_000);
+            }
         } finally {
             socket.terminate();
         }

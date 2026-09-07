@@ -43,6 +43,74 @@ describe("ConfigService governance", () => {
         );
     });
 
+    test.each([false, true])("quote-freshness upgrade preserves saved parameters and enableTrading=%s across restart", (enableTrading) => {
+        const prior = {
+            ...ConfigService.DEFAULT_CONFIG,
+            liveReleaseVersion: "m15-intraday-v3",
+            executionPolicyVersion: "intraday-risk-v3",
+            pricingModelVersion: "broker-liquidity-v2",
+            enableTrading,
+            assets: ["EUR_USD", "USD_JPY"],
+            riskPerTrade: 0.001,
+            maxCapitalAtRisk: 75,
+            signalCooldown: 120000,
+            maxPriceAgeMs: 12000,
+            maxSpreadPips: 1,
+            intradayMinAdx: 22,
+            intradayTargetRiskMultiple: 1.8,
+            timeStopHours: 4,
+            breakevenTriggerRiskMultiple: 1.2,
+            enableBreakeven: false,
+            sessionCloseLocalMinute: 40,
+            logLevel: "debug",
+            enableEmailAlerts: true,
+            alertEmail: "test@example.invalid",
+        };
+        fs.writeFileSync(configPath, JSON.stringify(prior));
+        const expected = {
+            ...prior,
+            liveReleaseVersion: ConfigService.DEFAULT_CONFIG.liveReleaseVersion,
+            executionPolicyVersion: ConfigService.DEFAULT_CONFIG.executionPolicyVersion,
+            pricingModelVersion: ConfigService.DEFAULT_CONFIG.pricingModelVersion,
+        };
+
+        const service = new ConfigService(configPath).init();
+        const { configHash, ...loaded } = service.get();
+        // Exact equality covers every saved numeric, boolean and other setting;
+        // the deliberately nondefault values expose an accidental defaults reset.
+        expect(loaded).toEqual(expected);
+        expect(configHash).not.toBe(ConfigService.computeConfigHash(prior));
+        expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(expected);
+
+        const restarted = new ConfigService(configPath);
+        const save = jest.spyOn(restarted, "save");
+        restarted.init();
+        expect(restarted.get()).toEqual(service.get());
+        expect(save).not.toHaveBeenCalled();
+    });
+
+    test("older releases retain the existing strategy-default migration", () => {
+        fs.writeFileSync(configPath, JSON.stringify({
+            liveReleaseVersion: "m15-intraday-v2",
+            enableTrading: true,
+            riskPerTrade: 0.01,
+            maxCapitalAtRisk: 500,
+            intradayTargetRiskMultiple: 3,
+            logLevel: "debug",
+            enableEmailAlerts: true,
+            alertEmail: "test@example.invalid",
+        }));
+        const service = new ConfigService(configPath).init();
+        const { configHash, ...loaded } = service.get();
+        expect(loaded).toEqual({
+            ...ConfigService.DEFAULT_CONFIG,
+            enableTrading: true,
+            logLevel: "debug",
+            enableEmailAlerts: true,
+            alertEmail: "test@example.invalid",
+        });
+    });
+
     test("rejects direct activation outside the readiness-gated path", () => {
         const service = new ConfigService(configPath).init();
 

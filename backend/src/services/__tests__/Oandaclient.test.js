@@ -67,6 +67,7 @@ describe('OandaClient', () => {
 
     afterEach(() => {
         jest.restoreAllMocks();
+        jest.useRealTimers();
     });
 
     describe('Configuration', () => {
@@ -719,6 +720,43 @@ describe('OandaClient', () => {
                 code: 'OANDA_TIMEOUT',
                 ambiguous: true,
             });
+        });
+
+        test.each([
+            ['GET', 'headers', false],
+            ['GET', 'body', false],
+            ['POST', 'body', true],
+        ])('rejects %s completion after late %s despite an ignored abort', async (method, delayedPart, ambiguous) => {
+            jest.useFakeTimers();
+            const data = { prices: [] };
+            const delay = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 26));
+            global.fetch.mockImplementation(() => delayedPart === 'headers'
+                ? delay(createMockResponse(data))
+                : Promise.resolve({ ok: true, json: () => delay(data) }));
+
+            const request = client._request(method, '/isolated-test', null, false, { timeoutMs: 25 });
+            const rejection = expect(request).rejects.toMatchObject({
+                name: 'OandaTimeoutError', code: 'OANDA_TIMEOUT', ambiguous,
+            });
+            await jest.advanceTimersByTimeAsync(26);
+            await rejection;
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+            expect(global.fetch.mock.calls[0][1].signal.aborted).toBe(true);
+            expect(jest.getTimerCount()).toBe(0);
+        });
+
+        test('rejects final pricing past the elapsed deadline even before the abort callback runs', async () => {
+            jest.useFakeTimers();
+            const { performance } = require('node:perf_hooks');
+            jest.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(126);
+            client.requestTimeoutMs = 25;
+            global.fetch.mockResolvedValueOnce(createMockResponse({ prices: [] }));
+
+            await expect(client.getPricing(['AUD_USD'])).rejects.toMatchObject({
+                code: 'OANDA_TIMEOUT', ambiguous: false,
+            });
+            expect(global.fetch.mock.calls[0][1].signal.aborted).toBe(true);
+            expect(jest.getTimerCount()).toBe(0);
         });
     });
 

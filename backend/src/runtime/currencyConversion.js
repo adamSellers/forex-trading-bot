@@ -1,3 +1,4 @@
+const { evaluatePriceAvailability } = require("./quoteAvailability");
 const ACCOUNT_CURRENCY = "AUD";
 const DEFAULT_RATE_MAX_AGE_MS = 30_000;
 
@@ -32,30 +33,6 @@ function getInstrumentCurrencies(instrument) {
     }
 
     return { baseCurrency, quoteCurrency };
-}
-
-function normalizePriceData(value) {
-    if (value === null || value === undefined) return null;
-    if (typeof value === "number" || typeof value === "string") {
-        const rate = toPositiveNumber(value);
-        return rate ? { rate, timestamp: null } : null;
-    }
-
-    const bid = toPositiveNumber(value.bid ?? value.closeoutBid);
-    const ask = toPositiveNumber(value.ask ?? value.closeoutAsk);
-    const rate =
-        toPositiveNumber(value.price ?? value.mid ?? value.rate) ||
-        (bid && ask ? (bid + ask) / 2 : bid || ask);
-
-    return rate
-        ? {
-              rate,
-              timestamp:
-                  Number.isFinite(Number(value.timestamp))
-                      ? Number(value.timestamp)
-                      : null,
-          }
-        : null;
 }
 
 function selectHomeRate(record, { purpose = "neutral", amount = 0 } = {}) {
@@ -119,10 +96,8 @@ class AudCurrencyConverter {
     }
 
     isFresh(timestamp) {
-        if (!Number.isFinite(Number(timestamp)) || this.maxAgeMs === 0) {
-            return true;
-        }
-        return this.now() - Number(timestamp) <= this.maxAgeMs;
+        if (!Number.isFinite(timestamp) || timestamp <= 0 || timestamp > this.now() + 1000) return false;
+        return this.maxAgeMs === 0 || this.now() - timestamp <= this.maxAgeMs;
     }
 
     seedHomeConversions(payload, updatedAt = this.now()) {
@@ -175,9 +150,11 @@ class AudCurrencyConverter {
             typeof provided === "object"
                 ? { currency, ...provided }
                 : { currency, rate: provided };
+        const updatedAt = Number(record.updatedAt);
+        if (!this.isFresh(updatedAt)) return null;
         if (!selectHomeRate(record, options)) return null;
-        this.seedHomeConversions([record]);
-        return record;
+        this.seedHomeConversions([{ ...record, updatedAt }], updatedAt);
+        return this.homeConversions.get(currency);
     }
 
     getHomeRate(currency, options = {}) {
@@ -218,37 +195,32 @@ class AudCurrencyConverter {
     getPriceRate(instrument) {
         if (!this.priceProvider) return null;
         const normalized = String(instrument || "").toUpperCase();
-        const priceData = normalizePriceData(this.priceProvider(normalized));
-        if (!priceData || !this.isFresh(priceData.timestamp)) return null;
+        const priceData = this.priceProvider(normalized);
+        if (!evaluatePriceAvailability(priceData, {
+            nowMs: this.now(), maxAgeMs: this.maxAgeMs === 0 ? Infinity : this.maxAgeMs,
+        }).available) return null;
+        const rate = toPositiveNumber(priceData.price ?? priceData.mid) || (priceData.bid + priceData.ask) / 2;
 
         const { baseCurrency, quoteCurrency } =
             getInstrumentCurrencies(normalized);
         this.cacheRate(
             baseCurrency,
             quoteCurrency,
-            priceData.rate,
-            priceData.timestamp || this.now()
+            rate,
+            priceData.fetchedAt
         );
-        return priceData.rate;
+        return rate;
     }
 
     getDirectRate(fromCurrency, toCurrency, options = {}) {
         const from = normalizeCurrency(fromCurrency);
         const to = normalizeCurrency(toCurrency);
-        const instrument = String(options.instrument || "").toUpperCase();
-        const referencePrice = toPositiveNumber(options.price);
-
-        if (instrument === `${from}_${to}` && referencePrice) {
-            this.cacheRate(from, to, referencePrice);
-            return referencePrice;
+        // A provider observation must be checked on every read: an invalid
+        // latest response cannot be bypassed by an earlier cached rate.
+        if (!this.priceProvider) {
+            const cached = this.getCachedRate(from, to);
+            if (cached) return cached;
         }
-        if (instrument === `${to}_${from}` && referencePrice) {
-            this.cacheRate(from, to, 1 / referencePrice);
-            return 1 / referencePrice;
-        }
-
-        const cached = this.getCachedRate(from, to);
-        if (cached) return cached;
 
         const direct = this.getPriceRate(`${from}_${to}`);
         if (direct) return direct;

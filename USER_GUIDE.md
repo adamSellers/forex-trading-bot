@@ -14,7 +14,7 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-The September 7 production check verified v3 / strategy 1.1.0 at commit `788a725`, including the startup checkpoint correction. This table describes that deployed release. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md) for validation and later fixes.
+Read-only production checks on September 7 and 8 verified v3 / strategy 1.1.0 at commit `8e4fb99`, including the startup checkpoint correction and operational-email removal. The local v3.1 / strategy 1.1.1 quote-freshness correction is prepared for user deployment and preserves these settings. This table describes the last verified deployed release. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md) for validation and later fixes.
 
 | Setting | Value |
 | --- | --- |
@@ -32,6 +32,8 @@ The September 7 production check verified v3 / strategy 1.1.0 at commit `788a725
 | Time controls | six-hour time stop and pre-rollover close window |
 | New-install trading state | disabled; deployment requires paused/flat, restore always starts paused |
 
+**Time Stop** means the position reached six hours from its original broker entry time. The bot requests a market close whether the trade is profitable, losing or near flat; it does not require a reversal or a stop/target price to be reached. The clock survives restarts and an entry pause. Execution occurs when the running monitor and broker can process the close, so the recorded duration may exceed six hours. The rule was documented with the August 10 strategy but was not connected to live position monitoring until the September 6 remediation. **Session Close** is the separate New York rollover-window exit. See [the September 8 example and rationale](docs/reviews/2026-09-08-exit-policy-observations.md).
+
 ## Opening the app
 
 Open [the dashboard](http://fx.oakroad) directly on your internal network. This is a private personal tool with no login, operator token or session expiry. The API and live updates use the same network access. Broker credentials remain server-side, and trading readiness/risk checks still govern entries.
@@ -40,7 +42,15 @@ Deploy with `./scripts/deploy.sh` from your local checkout after publishing the 
 
 ## Notifications
 
-The existing email setting controls trade-open and trade-close notifications. Operational health remains visible in the dashboard and API, with readiness and risk checks active. The repeated operational warning/recovery emails have been removed from the local code; production will stop sending them after this correction is published and deployed. See the [incident record](docs/reviews/2026-09-07-operational-email-removal.md).
+The existing email setting controls trade-open and trade-close notifications. Operational health remains visible in the dashboard and API, with readiness and risk checks active. Operational warning/recovery emails were removed in deployed revision `8e4fb99`. See the [incident record](docs/reviews/2026-09-07-operational-email-removal.md).
+
+## Pricing health in the prepared v3.1 release
+
+A broker quote can be current even when its price-event timestamp is old: OANDA may return the same event on successive successful polls. The dashboard separates **validated receipt age** from **price event age**. An old event alone produces no warning. A missing/invalid pair, failed request or receipt older than the existing 20-second health budget identifies the actual delivery problem. Valid nontradeable responses appear as broker market state in the details.
+
+Cached entry checks retain a 15-second receipt limit. The final pricing request and preparation must fit within the existing 15-second submission budget; spread, liquidity, movement bounds and risk checks still apply. Quote-dependent stop management and conversion fallback retain 30-second receipt limits. A genuinely unavailable cached quote can still stop entry before final pricing. Broker protection, six-hour exits and protection/close retries keep their existing paths.
+
+Health severity and entry state describe different things. A pair-specific delivery warning does not assert that every instrument is blocked. “Watching for a completed M15 setup” means the global runtime is enabled; each prospective trade still has to pass its own checks. Operational emails remain absent.
 
 ## Reading results
 
@@ -54,7 +64,7 @@ New trades capture sampled favorable/adverse excursions using executable exit bi
 
 ## Strategy semantics retained
 
-No ADX, RSI, EMA, pullback or target thresholds were optimized in this remediation. The existing pullback tests compare the lookback window against the latest EMA value; changing this to each historical bar's EMA is a separate hypothesis requiring its own cohort. Both breakout and pullback can be true. Breakeven moves the stop to the entry fill price at the existing midpoint-based trigger; spread, financing, slippage and quote polling mean it is not a guarantee of zero net loss.
+No ADX, RSI, EMA, pullback or target thresholds were optimized in this remediation. The existing pullback tests compare the lookback window against the latest EMA value; changing this to each historical bar's EMA is a separate hypothesis requiring its own cohort. Both breakout and pullback can be true. Breakeven moves the stop to the entry fill price at 1R; v3.1 quote-dependent management requires a validated bid and ask and uses the exit bid for a BUY and ask for a SELL. Missing executable pricing defers that adjustment; timed exits and existing close/protection retries remain independent. Financing, execution costs, slippage and quote polling mean it is not a guarantee of zero net loss.
 
 ## Live controls
 

@@ -10,6 +10,7 @@ const ENTRY_LABELS = {
   COOLDOWN: 'Consecutive-loss cooldown',
   MARKET_CLOSED: 'Waiting for the market to reopen',
   BLOCKED: 'Operational attention required',
+  UNKNOWN: 'Live entry state could not be verified',
 };
 
 const MarketStatusBanner = ({ compact = false }) => {
@@ -35,7 +36,7 @@ const MarketStatusBanner = ({ compact = false }) => {
           throw new Error('Operational status is unavailable or stale');
         }
         const brokerUnavailable = result.services?.oanda?.connected !== true;
-        const verified = brokerUnavailable ? { ...snapshot, status: 'degraded', entryState: 'BLOCKED',
+        const verified = brokerUnavailable ? { ...snapshot, status: 'degraded',
           issues: [{ key: 'BROKER_UNAVAILABLE', code: 'BROKER_UNAVAILABLE', severity: 'critical',
             message: 'The latest broker connection check failed' }, ...(snapshot.issues || [])] } : snapshot;
         if (active) { setHealth(verified); setError(false); }
@@ -128,6 +129,19 @@ const MarketStatusBanner = ({ compact = false }) => {
             )}
             {issues.map((issue) => (
               <Typography key={issue.key} variant="body2" sx={{ mb: 0.5 }}>{issue.message}</Typography>
+            ))}
+            {(health.unavailablePrices || []).filter((price) => price.reason === 'PRICE_NOT_TRADEABLE').map((price) => (
+              <Typography key={price.instrument} variant="body2" sx={{ mb: 0.5 }}>
+                {price.instrument + ': broker pricing received; currently not tradeable.'}
+              </Typography>
+            ))}
+            {(health.priceAvailability || []).map((price) => (
+              <Typography key={price.instrument} variant="caption" display="block" color="text.secondary">
+                {price.instrument + ' · Validated receipt ' + (Number.isFinite(price.receiptAgeMs)
+                  ? Math.round(price.receiptAgeMs / 1000) + ' seconds ago' : 'unavailable') +
+                  ' · Price event ' + (Number.isFinite(price.eventAgeMs)
+                    ? Math.round(price.eventAgeMs / 1000) + ' seconds ago' : 'unavailable')}
+              </Typography>
             ))}
             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
               {'Updated ' + new Date(health.checkedAt).toLocaleTimeString() +

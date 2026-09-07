@@ -1,5 +1,7 @@
 // backend/src/services/OandaDataService.js - Oanda Data Service with EventEmitter
 const EventEmitter = require("events");
+const { performance } = require("node:perf_hooks");
+const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
 const { ACCOUNT_CURRENCY } = require("../runtime/currencyConversion");
@@ -70,6 +72,7 @@ class OandaDataService extends EventEmitter {
     }
 
     async oandaRequest(endpoint) {
+        const startedAt = performance.now();
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), this.requestTimeoutMs);
         try {
@@ -81,7 +84,12 @@ class OandaDataService extends EventEmitter {
                 signal: controller.signal,
             });
             if (!response.ok) throw await buildOandaApiError(response);
-            return await response.json();
+            const data = await response.json();
+            if (controller.signal.aborted || performance.now() - startedAt > this.requestTimeoutMs) {
+                controller.abort();
+                throw new Error("Response completed after request deadline");
+            }
+            return data;
         } catch (error) {
             if (controller.signal.aborted) {
                 // A busy event loop can delay the abort callback beyond the
@@ -98,10 +106,6 @@ class OandaDataService extends EventEmitter {
         } finally {
             clearTimeout(timeout);
         }
-    }
-
-    getPipValue(instrument) {
-        return instrument.includes("JPY") ? 0.01 : 0.0001;
     }
 
     async start() {
@@ -147,55 +151,46 @@ class OandaDataService extends EventEmitter {
         }
 
         this.isFetchingPrices = true;
+        const requested = this.getPricingInstruments();
+        const startedAt = performance.now();
         try {
-            const instruments = this.getPricingInstruments().join(",");
             const data = await this.oandaRequest(
-                `/v3/accounts/${OANDA_ACCOUNT_ID}/pricing?instruments=${instruments}&includeHomeConversions=true`
+                `/v3/accounts/${OANDA_ACCOUNT_ID}/pricing?instruments=${requested.join(",")}&includeHomeConversions=true`
             );
-
-            const updatedPrices = {};
+            if (performance.now() - startedAt > this.requestTimeoutMs) {
+                const error = new Error("Pricing response completed after request deadline");
+                error.code = "OANDA_TIMEOUT";
+                throw error;
+            }
+            if (!Array.isArray(data?.prices)) {
+                const error = new Error("Pricing response has no prices array");
+                error.code = "INVALID_PRICING_RESPONSE";
+                throw error;
+            }
             const fetchedAt = Date.now();
-
+            const updatedPrices = {};
+            for (const instrument of requested) {
+                const matches = data.prices.filter((price) => price?.instrument === instrument);
+                const priceData = normalizeOandaPrice(matches.length === 1 ? matches[0] : null, { instrument, fetchedAt });
+                if (matches.length > 1) priceData.invalidReason = "DUPLICATE_PRICE";
+                updatedPrices[instrument] = this.priceCache[instrument] = priceData;
+            }
             this.seedHomeConversions(data.homeConversions, fetchedAt);
-
-            data.prices.forEach((price) => {
-                const bid = Number(price.bids?.[0]?.price);
-                const ask = Number(price.asks?.[0]?.price);
-                const brokerTimestamp = Date.parse(price.time);
-                const validQuote = Number.isFinite(bid) && bid > 0 &&
-                    Number.isFinite(ask) && ask >= bid;
-                const validTime = Number.isFinite(brokerTimestamp) &&
-                    brokerTimestamp > 0 && brokerTimestamp <= fetchedAt + 1000;
-                const mid = validQuote ? (bid + ask) / 2 : null;
-                const pipValue = this.getPipValue(price.instrument);
-                const spread = validQuote ? (ask - bid) / pipValue : null;
-
-                const priceData = {
-                    instrument: price.instrument,
-                    bid: validQuote ? bid : null,
-                    ask: validQuote ? ask : null,
-                    mid,
-                    price: mid, // alias for compatibility
-                    spread,
-                    tradeable: validQuote && validTime && price.tradeable === true,
-                    time: price.time,
-                    timestamp: validTime ? brokerTimestamp : null,
-                    fetchedAt,
-                    invalidReason: !validQuote ? "INVALID_BID_ASK" : !validTime ? "INVALID_BROKER_TIME" : null,
-                };
-
-                this.priceCache[price.instrument] = priceData;
-                updatedPrices[price.instrument] = priceData;
-            });
-
-            // Emit price update event for socket.io broadcasting
             this.emit("priceUpdate", updatedPrices);
         } catch (error) {
-            this.logFailureThrottled(
-                "prices",
-                "❌ Price fetch error:",
-                error.message
-            );
+            // Keep last-good display values, but the latest failed observation
+            // cannot authorize execution or conversion using that old row.
+            const updatedPrices = {};
+            for (const instrument of requested) {
+                updatedPrices[instrument] = this.priceCache[instrument] = {
+                    ...(this.priceCache[instrument] || normalizeOandaPrice(null, { instrument, fetchedAt: null })),
+                    tradeable: false,
+                    invalidReason: error.code === "OANDA_TIMEOUT" ? "PRICE_REQUEST_TIMEOUT"
+                        : error.code === "INVALID_PRICING_RESPONSE" ? error.code : "PRICE_REQUEST_FAILED",
+                };
+            }
+            this.emit("priceUpdate", updatedPrices);
+            this.logFailureThrottled("prices", "❌ Price fetch error:", error.message);
         } finally {
             this.isFetchingPrices = false;
         }
@@ -551,13 +546,16 @@ class OandaDataService extends EventEmitter {
         const maxCandleRefreshAgeMs =
             Number(options.maxCandleRefreshAgeMs) ||
             CANDLE_REFRESH_FRESHNESS_MAX_AGE_MS;
-        const priceRows = this.instruments.map((instrument) => {
-            const updatedAt = Number(this.priceCache[instrument]?.timestamp) || null;
+        const priceRows = this.getPricingInstruments().map((instrument) => {
+            const price = this.priceCache[instrument];
+            const delivery = evaluatePriceAvailability(price, { nowMs, maxAgeMs: maxPriceAgeMs, requireTradeable: false });
             return {
                 instrument,
-                updatedAt,
-                invalid: Boolean(this.priceCache[instrument]?.invalidReason),
-                ageMs: updatedAt === null ? null : Math.max(0, nowMs - updatedAt),
+                updatedAt: price?.timestamp ?? null,
+                fetchedAt: price?.fetchedAt ?? null,
+                tradeable: price?.tradeable === true,
+                ...delivery,
+                ageMs: delivery.eventAgeMs,
             };
         });
         const candleRows = this.instruments.flatMap((instrument) =>
@@ -579,7 +577,7 @@ class OandaDataService extends EventEmitter {
             })
         );
         const stalePrices = priceRows.filter(
-            (row) => row.invalid || row.ageMs === null || row.ageMs > maxPriceAgeMs
+            (row) => !row.available
         );
         const staleCandles = candleRows.filter(
             (row) =>
@@ -599,6 +597,13 @@ class OandaDataService extends EventEmitter {
             candlesFresh: staleCandles.length === 0,
             oldestPriceAgeMs:
                 finitePriceAges.length > 0 ? Math.max(...finitePriceAges) : null,
+            oldestPriceReceiptAgeMs: priceRows.some((row) => row.receiptAgeMs !== null)
+                ? Math.max(...priceRows.map((row) => row.receiptAgeMs).filter(Number.isFinite)) : null,
+            lastPriceReceiptAt: priceRows.length > 0 && priceRows.every((row) => row.fetchedAt !== null)
+                ? Math.max(...priceRows.map((row) => row.fetchedAt)) : null,
+            priceAvailability: priceRows,
+            unavailablePrices: priceRows.filter((row) => !row.available || !row.tradeable)
+                .map((row) => ({ ...row, available: false, reason: row.reason || "PRICE_NOT_TRADEABLE" })),
             oldestCandleRefreshAgeMs:
                 finiteCandleAges.length > 0
                     ? Math.max(...finiteCandleAges)

@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
 const emailService = require("./emailService");
+const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
 const {
     computeConfigHash,
     normalizeTradingConfig,
@@ -1007,17 +1008,17 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        const maxPriceAgeMs = Number(config.maxPriceAgeMs);
-        if (
-            Number.isFinite(maxPriceAgeMs) &&
-            maxPriceAgeMs > 0 &&
-            Number.isFinite(priceAgeMs) &&
-            priceAgeMs > maxPriceAgeMs
-        ) {
+        const maxPriceAgeMs = toFiniteNumber(config.maxPriceAgeMs, 15000);
+        const availability = evaluatePriceAvailability(priceData, { maxAgeMs: maxPriceAgeMs });
+        baseContext.priceReceiptAgeMs = availability.receiptAgeMs;
+        if (!availability.available) {
             return {
                 valid: false,
-                code: ENTRY_REJECTION_CODES.STALE_PRICE,
-                reason: `Price data stale (${priceAgeMs}ms > ${maxPriceAgeMs}ms)`,
+                code: availability.reason === "STALE_PRICE"
+                    ? ENTRY_REJECTION_CODES.STALE_PRICE : ENTRY_REJECTION_CODES.NO_LIVE_PRICE,
+                reason: availability.reason === "STALE_PRICE"
+                    ? `Price data stale: last validated receipt ${availability.receiptAgeMs}ms ago (limit ${maxPriceAgeMs}ms)`
+                    : `Live price unavailable for ${signal.symbol}: ${availability.reason}`,
                 context: baseContext,
             };
         }
@@ -1891,23 +1892,34 @@ class LiveTradingEngine extends EventEmitter {
 
     async getFinalEntryQuote(signal, config = {}, instrumentMetadata = null, units = 1) {
         this.assertEntryClock(signal, config);
+        const requestStartedAt = Date.now();
+        const requestStartedMonotonicMs = performance.now();
         const pricing = await oandaClient.getPricing([signal.symbol], {
             includeHomeConversions: true,
         });
-        const price = pricing?.prices?.[0];
-        if (!price || price.instrument !== signal.symbol || price.tradeable !== true) {
-            throw new Error(`No tradeable final quote for ${signal.symbol}`);
+        const fetchedAt = Date.now();
+        const requestElapsedMs = performance.now() - requestStartedMonotonicMs;
+        const maxAge = toFiniteNumber(config.maxPriceAgeMs, 15000);
+        if (requestElapsedMs > maxAge) {
+            const error = new Error(`Final pricing request exceeded the ${maxAge}ms execution budget`);
+            error.code = "FINAL_QUOTE_EXPIRED";
+            error.entryRejectionCode = ENTRY_REJECTION_CODES.STALE_PRICE;
+            throw error;
+        }
+        const matches = Array.isArray(pricing?.prices)
+            ? pricing.prices.filter((row) => row?.instrument === signal.symbol) : [];
+        const price = matches.length === 1 ? matches[0] : null;
+        const priceData = normalizeOandaPrice(price, { instrument: signal.symbol, fetchedAt });
+        const availability = evaluatePriceAvailability(priceData, { nowMs: fetchedAt, maxAgeMs: maxAge });
+        if (!availability.available) {
+            throw new Error(`Final quote unavailable for ${signal.symbol}: ${availability.reason}`);
         }
 
         const isSell = signal.signal === "SELL";
         const quote = oandaClient.getExecutableQuote(price, signal.signal, units);
         const finalQuote = quote.executablePrice;
-        const quoteTime = this.tradeReconciliation.parseBrokerTimestamp(price.time, null);
-        const maxAge = toFiniteNumber(config.maxPriceAgeMs, 30000);
-        const quoteAgeMs = Date.now() - quoteTime;
-        if (!Number.isFinite(quoteTime) || quoteAgeMs < -1000 || quoteAgeMs > maxAge) {
-            throw new Error(`Final quote is stale or has no valid broker timestamp for ${signal.symbol}`);
-        }
+        const quoteTime = priceData.timestamp;
+        const quoteAgeMs = fetchedAt - quoteTime;
         if (this.dataService.getEntryFreshness) {
             const freshness = this.dataService.getEntryFreshness(signal.symbol, { nowMs: Date.now() });
             if (freshness?.fresh !== true) throw new Error(`Entry market history unavailable: ${freshness?.code || "STALE_CANDLES"}`);
@@ -1948,7 +1960,7 @@ class LiveTradingEngine extends EventEmitter {
         const priceBound = isSell
             ? referencePrice - maxDeviationPips * pipValue
             : referencePrice + maxDeviationPips * pipValue;
-        return {
+        const result = {
             finalQuote,
             priceBound,
             deviationPips,
@@ -1956,23 +1968,32 @@ class LiveTradingEngine extends EventEmitter {
             spreadPips,
             quoteTime,
             quoteAgeMs,
+            requestStartedAt,
+            fetchedAt,
+            requestElapsedMs,
+            priceData,
             costToStopRatio,
             units,
             worstPrice: quote.worstPrice,
             pricing,
         };
+        // This deadline belongs to this process/request only, never persisted history.
+        Object.defineProperty(result, "requestStartedMonotonicMs", { value: requestStartedMonotonicMs });
+        return result;
     }
 
-    resolveAudConversionSnapshot(instrument, price, pricingPayload = null) {
+    resolveAudConversionSnapshot(instrument, price, pricingPayload = null, priceData = null) {
         const converter = new AudCurrencyConverter({
-            homeConversions: pricingPayload?.homeConversions || [],
             priceProvider: (requestedInstrument) => {
                 if (requestedInstrument === instrument) {
-                    return { price, timestamp: Date.now() };
+                    return priceData ? { ...priceData, price } : null;
                 }
                 return this.dataService?.getCurrentPrice?.(requestedInstrument);
             },
         });
+        if (Number.isFinite(priceData?.fetchedAt)) {
+            converter.seedHomeConversions(pricingPayload?.homeConversions || [], priceData.fetchedAt);
+        }
         const { baseCurrency, quoteCurrency } =
             getInstrumentCurrencies(instrument);
         return {
@@ -2348,6 +2369,10 @@ class LiveTradingEngine extends EventEmitter {
                 executablePrice: context.finalQuote?.finalQuote ?? null,
                 worstPrice: context.finalQuote?.worstPrice ?? null,
                 quoteTime: context.finalQuote?.quoteTime ?? null,
+                quoteAgeMs: context.finalQuote?.quoteAgeMs ?? null,
+                quoteFetchedAt: context.finalQuote?.fetchedAt ?? null,
+                quoteRequestStartedAt: context.finalQuote?.requestStartedAt ?? null,
+                quoteRequestElapsedMs: context.finalQuote?.requestElapsedMs ?? null,
                 units,
                 finalSpreadPips: context.finalQuote?.spreadPips ?? context.spreadPips ?? null,
                 entrySlippagePips: Number.isFinite(context.finalQuote?.finalQuote)
@@ -2747,7 +2772,8 @@ class LiveTradingEngine extends EventEmitter {
                 this.resolveAudConversionSnapshot(
                     symbol,
                     finalQuote.finalQuote,
-                    finalQuote.pricing
+                    finalQuote.pricing,
+                    finalQuote.priceData
                 );
             if (
                 !Number.isFinite(baseToAudRate) ||
@@ -2843,6 +2869,11 @@ class LiveTradingEngine extends EventEmitter {
                     quoteToAudRate,
                     instrumentMetadata,
                     finalQuote,
+                    cachedPriceObservation: {
+                        brokerEventTime: priceData?.timestamp ?? null,
+                        fetchedAt: priceData?.fetchedAt ?? null,
+                        receiptAgeMs: evaluatePriceAvailability(priceData, { maxAgeMs: config.maxPriceAgeMs }).receiptAgeMs,
+                    },
                     worstFillRiskAud: Math.abs(finalQuote.priceBound - plannedStopLossPrice) * units * quoteToAudRate,
                     riskBudgetAud: worstFillSizing.riskBudgetAud,
                 },
@@ -2882,8 +2913,12 @@ class LiveTradingEngine extends EventEmitter {
             try {
                 this.assertEntryActivation(generation);
                 this.assertEntryClock(signal, config);
-                if (Date.now() - finalQuote.quoteTime > toFiniteNumber(config.maxPriceAgeMs, 30000)) {
-                    throw new Error("Final quote expired before broker submission");
+                if (!Number.isFinite(finalQuote.requestStartedMonotonicMs) ||
+                    performance.now() - finalQuote.requestStartedMonotonicMs > toFiniteNumber(config.maxPriceAgeMs, 15000)) {
+                    const error = new Error("Final quote expired locally before broker submission");
+                    error.code = "FINAL_QUOTE_EXPIRED";
+                    error.entryRejectionCode = ENTRY_REJECTION_CODES.STALE_PRICE;
+                    throw error;
                 }
                 if (this.dataService.getEntryFreshness &&
                     this.dataService.getEntryFreshness(symbol, { nowMs: Date.now() })?.fresh !== true) {
@@ -3462,9 +3497,8 @@ class LiveTradingEngine extends EventEmitter {
             toFiniteNumber(priceData?.price, trade.entryPrice)
         );
         const executablePrice = toFiniteNumber(trade.side === "SELL" ? priceData?.ask : priceData?.bid, null);
-        if (priceData?.tradeable !== false && Number.isFinite(executablePrice) &&
-            Number.isFinite(priceData?.timestamp) && Date.now() - priceData.timestamp <= 30000 &&
-            priceData.timestamp <= Date.now() + 1000) {
+        const availability = evaluatePriceAvailability(priceData, { maxAgeMs: 30000 });
+        if (availability.available && Number.isFinite(executablePrice)) {
             try {
                 await this.recordSampledExcursion(trade, executablePrice, priceData.timestamp);
             } catch (error) {
@@ -3488,18 +3522,22 @@ class LiveTradingEngine extends EventEmitter {
         await this.retryPendingStopUpdate(trade);
         if (!this.openTrades.has(trade.id)) return;
         if (trade.brokerReconciliationPayload?.stopUpdate) return;
-        if (!priceData || priceData.tradeable === false ||
-            !Number.isFinite(priceData.timestamp) ||
-            Date.now() - priceData.timestamp > 30000) return;
+        // Retry work can overlap a new poll. Use its latest outcome, including
+        // failure, rather than a previously eligible object retained above.
+        const managementQuote = this.dataService.getCurrentPrice(trade.instrument);
+        if (!evaluatePriceAvailability(managementQuote, { maxAgeMs: 30000 }).available) return;
+        const managementPrice = trade.side === "SELL" ? managementQuote.ask : managementQuote.bid;
 
         // Breakeven protection: move stop to entry once trade is in sufficient profit
         if (config.enableBreakeven) {
-            await this.updateBreakevenStop(trade, currentPrice, config);
+            await this.updateBreakevenStop(trade, managementPrice, config);
         }
 
-        // Update trailing stop if enabled (works for both BUY and SELL)
+        // A breakeven request can also overlap polling before a trailing update.
         if (config.enableTrailingStops) {
-            await this.updateTrailingStop(trade, currentPrice, config);
+            const trailingQuote = this.dataService.getCurrentPrice(trade.instrument);
+            if (!evaluatePriceAvailability(trailingQuote, { maxAgeMs: 30000 }).available) return;
+            await this.updateTrailingStop(trade, trade.side === "SELL" ? trailingQuote.ask : trailingQuote.bid, config);
         }
     }
 

@@ -48,7 +48,7 @@ describe("operational health decisions", () => {
         const input = healthy(Date.parse("2026-09-05T10:00:00Z"));
         input.config.enableTrading = false;
         input.configPersistence = { durable: false, restartMayResumeTrading: true };
-        expect(buildOperationalHealth(input)).toMatchObject({ status: "degraded", entryState: "BLOCKED" });
+        expect(buildOperationalHealth(input)).toMatchObject({ status: "degraded", entryState: "PAUSED" });
         expect(buildOperationalHealth(input).issues).toContainEqual(expect.objectContaining({ code: "CONFIG_PERSISTENCE_FAILED", severity: "critical" }));
         input.configPersistence.durable = true;
         expect(buildOperationalHealth(input).status).toBe("healthy");
@@ -62,6 +62,43 @@ describe("operational health decisions", () => {
         const result = buildOperationalHealth(input);
         expect(result.status).toBe("degraded");
         expect(result.issues.map((issue) => issue.code)).toEqual(expect.arrayContaining(["BROKER_SYNC_STALE", "BROKER_SYNC_FAILED"]));
+    });
+
+    test("a delivery failure identifies its pair without claiming a global entry block", () => {
+        const input = healthy();
+        input.dataStatus.freshness.pricesFresh = false;
+        input.dataStatus.freshness.priceAvailability = [
+            { instrument: "EUR_USD", available: false, reason: "PRICE_REQUEST_FAILED", receiptAgeMs: 5000, eventAgeMs: 45000 },
+            { instrument: "USD_JPY", available: true, reason: null, receiptAgeMs: 1000, eventAgeMs: 60000 },
+        ];
+        const result = buildOperationalHealth(input);
+        expect(result).toMatchObject({ status: "degraded", entryState: "WATCHING", entryBlockers: [] });
+        expect(result.issues).toEqual([expect.objectContaining({
+            key: "STALE_PRICE_DATA:EUR_USD", instrument: "EUR_USD",
+            message: "EUR_USD: the latest pricing request failed",
+        })]);
+    });
+
+    test("valid nontradeable pricing is a per-pair market state rather than a transport failure", () => {
+        const input = healthy();
+        input.dataStatus.freshness.unavailablePrices = [{ instrument: "EUR_USD", reason: "PRICE_NOT_TRADEABLE" }];
+        expect(buildOperationalHealth(input)).toMatchObject({
+            status: "healthy", entryState: "WATCHING", issues: [],
+            unavailablePrices: [{ instrument: "EUR_USD", reason: "PRICE_NOT_TRADEABLE" }],
+        });
+    });
+
+    test("stale operational observations remain warnings while actual lifecycle gates block entries", () => {
+        const input = healthy();
+        input.runtimeStatus.lastRun = OPEN_TIME - 180001;
+        input.dataStatus.freshness.candlesFresh = false;
+        expect(buildOperationalHealth(input)).toMatchObject({ status: "degraded", entryState: "WATCHING" });
+        input.engineStatus.brokerStateUncertain = true;
+        expect(buildOperationalHealth(input)).toMatchObject({
+            entryState: "BLOCKED", entryBlockers: ["BROKER_STATE_UNCERTAIN"],
+        });
+        input.config.enableTrading = false;
+        expect(buildOperationalHealth(input).entryState).toBe("PAUSED");
     });
 
     test("missing protection and a detached management loop are critical", () => {
@@ -140,7 +177,8 @@ describe("read-only operational health monitoring", () => {
     test("input failures remain visible and subsequent checks recover", async () => {
         const getInputs = jest.fn().mockRejectedValueOnce(new Error("database offline")).mockResolvedValue(healthy());
         const service = new OperationalHealthService({ getInputs, now: () => OPEN_TIME });
-        expect((await service.check()).issues).toEqual([expect.objectContaining({ code: "HEALTH_CHECK_FAILED" })]);
+        expect(await service.check()).toMatchObject({ entryState: "UNKNOWN",
+            issues: [expect.objectContaining({ code: "HEALTH_CHECK_FAILED" })] });
         expect((await service.check()).status).toBe("healthy");
     });
 

@@ -75,42 +75,81 @@ describe("RuntimeCoordinator live-only release", () => {
         ).rejects.toMatchObject({ code: "LIVE_ONLY_RUNTIME" });
     });
 
-    test("marks an older live owner managing-only until its broker trade exits", async () => {
-        const deps = dependencies();
-        const coordinator = new RuntimeCoordinator(deps);
-        const first = await coordinator.selectLiveStrategy({
-            strategyKey: "intraday_momentum",
-            configSnapshot: deps.configService.get(),
-        });
-        deps.tradeRepository.getOpenTrades.mockImplementation(async (filters) => {
-            const trade = {
-                id: "trade-1",
-                instrument: "EUR_USD",
-                ownerRunId: first.liveRun.runId,
-                strategy: "intraday_momentum",
-            };
-            return !filters.ownerRunId || filters.ownerRunId === first.liveRun.runId
-                ? [trade]
-                : [];
-        });
-
-        const nextConfig = {
-            ...deps.configService.get(),
-            liveReleaseVersion: "m15-intraday-v2",
+    test("quote-freshness startup creates one new cohort and preserves a prior owner's attribution and exit config", async () => {
+        const deployed = cloneDefaultConfig();
+        const priorConfig = {
+            ...deployed,
+            liveReleaseVersion: "m15-intraday-v3",
+            executionPolicyVersion: "intraday-risk-v3",
+            pricingModelVersion: "broker-liquidity-v2",
+            intradayTargetRiskMultiple: 1.8,
+            timeStopHours: 4,
         };
-        await coordinator.selectLiveStrategy({
-            strategyKey: "intraday_momentum",
-            configSnapshot: nextConfig,
-            parentLiveRunId: first.liveRun.runId,
+        const priorRun = {
+            runId: "live_previous_quote_policy",
+            mode: "live",
+            status: "active",
+            strategy: "intraday_momentum",
+            selectionId: "selection_previous_quote_policy",
+            configSnapshot: priorConfig,
+            configHash: computeConfigHash(priorConfig),
+            metadata: { entryEnabled: true, releaseVersion: priorConfig.liveReleaseVersion },
+            startedAt: 1000,
+        };
+        const deps = dependencies({
+            ...priorConfig,
+            liveReleaseVersion: deployed.liveReleaseVersion,
+            executionPolicyVersion: deployed.executionPolicyVersion,
+            pricingModelVersion: deployed.pricingModelVersion,
         });
-
-        expect(coordinator.getRunSession(first.liveRun.runId).run.status).toBe(
-            "managing_only"
+        deps.strategyRunRepository.list.mockResolvedValue([priorRun]);
+        const trade = {
+            id: "trade-1",
+            instrument: "EUR_USD",
+            ownerRunId: priorRun.runId,
+            runId: priorRun.runId,
+            configHash: priorRun.configHash,
+            selectionId: priorRun.selectionId,
+            strategy: "intraday_momentum",
+        };
+        deps.tradeRepository.getOpenTrades.mockImplementation(async (filters) =>
+            !filters.ownerRunId || filters.ownerRunId === priorRun.runId ? [trade] : []
         );
-        expect(
-            coordinator.getRunSession(first.liveRun.runId).managedInstruments
-        ).toContain("EUR_USD");
+        const coordinator = new RuntimeCoordinator(deps);
+        const selection = await coordinator.ensureLiveSelectionInitialized();
+        const priorOwner = coordinator.getRunSession(priorRun.runId);
+
+        expect(selection.liveRun).toEqual(expect.objectContaining({
+            status: "active",
+            parentRunId: priorRun.runId,
+            configHash: computeConfigHash(deps.configService.get()),
+        }));
+        expect(selection.liveRun.configHash).not.toBe(priorRun.configHash);
+        expect(priorOwner.run).toEqual({
+            ...priorRun,
+            parentRunId: null,
+            stoppedAt: null,
+            status: "managing_only",
+            metadata: { ...priorRun.metadata, entryEnabled: false },
+        });
+        expect(priorOwner.generator.config).toEqual(priorConfig);
+        expect(priorOwner.managedInstruments).toContain("EUR_USD");
+        expect(deps.tradeRepository.updateTrade).not.toHaveBeenCalled();
         expect(coordinator.listRuns().filter((run) => run.status === "active"))
             .toHaveLength(1);
+
+        await coordinator.ensureLiveSelectionInitialized();
+        expect(deps.strategyRunRepository.create).toHaveBeenCalledTimes(1);
+        deps.tradeRepository.getOpenTrades.mockResolvedValue([]);
+        await coordinator.syncLiveTradeOwnership();
+        expect(coordinator.getRunSession(priorRun.runId)).toBeNull();
+        expect(deps.strategyRunRepository.update).toHaveBeenLastCalledWith(priorRun.runId,
+            expect.objectContaining({ status: "stopped" }));
+        // Run history is retired through status/metadata; its snapshot/hash and
+        // the trade record are never rewritten to the new pricing identity.
+        for (const [, updates] of deps.strategyRunRepository.update.mock.calls) {
+            expect(updates).not.toHaveProperty("configSnapshot");
+            expect(updates).not.toHaveProperty("configHash");
+        }
     });
 });

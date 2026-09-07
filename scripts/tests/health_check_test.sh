@@ -44,6 +44,17 @@ if case == "cooldown":
     health["entryState"]="COOLDOWN"
     data["liveReadiness"]={"passed":False,"status":"COOLDOWN"}
 if case == "broker_offline": data["services"]["oanda"]["connected"]=False
+if case in ("quiet_prices", "pricing_delivery_failed"):
+    # Match the real parsing -> /system/health regression: event age is neutral;
+    # the operational result uses validated receipt age. The deployment check
+    # must still reject the same service when actual delivery expires.
+    expired=case == "pricing_delivery_failed"
+    data["services"]["dataService"]={"freshness":{"pricesFresh":not expired,
+        "oldestPriceAgeMs":80001, "oldestPriceReceiptAgeMs":20001 if expired else 0}}
+    if expired:
+        health["status"]="degraded"
+        health["issues"]=[{"code":"STALE_PRICE_DATA", "instrument":"EUR_USD",
+            "message":"EUR_USD: last validated pricing response 21 seconds ago (20-second delivery limit)"}]
 if case == "unprotected":
     health["status"]="degraded"
     health["issues"]=[{"message":"EUR_USD has no recorded protective stop"}]
@@ -59,7 +70,7 @@ export FOREX_PROJECT_DIR="$workspace/app" FOREX_NODE_RUNTIME_LOADED=1
 export HEALTH_TEST_SQLITE_LOG="$workspace/sqlite.log"
 unset FOREX_OPERATOR_TOKEN
 
-for scenario in healthy weekend cooldown; do
+for scenario in healthy quiet_prices weekend cooldown; do
     : > "$HEALTH_TEST_SQLITE_LOG"
     HEALTH_TEST_CASE="$scenario" bash "$CHECK" > "$workspace/output" || {
         cat "$workspace/output"
@@ -73,7 +84,7 @@ for scenario in healthy weekend cooldown; do
     grep -q 'Database: integrity verified' "$workspace/output"
     grep -q 'Broker lifecycle: resolved' "$workspace/output"
 done
-for scenario in unavailable broker_offline unprotected stale readiness_failed malformed invalid_shape invalid_timestamp pm2_offline; do
+for scenario in unavailable broker_offline pricing_delivery_failed unprotected stale readiness_failed malformed invalid_shape invalid_timestamp pm2_offline; do
     : > "$HEALTH_TEST_SQLITE_LOG"
     if HEALTH_TEST_CASE="$scenario" bash "$CHECK" > "$workspace/output"; then
         cat "$workspace/output"
@@ -102,4 +113,4 @@ for scenario in database_corrupt database_pending database_quarantined database_
         database_timeout) grep -q 'Database: verification timed out after 0.2 seconds' "$workspace/output" ;;
     esac
 done
-echo "Health check fixtures passed (17 scenarios)."
+echo "Health check fixtures passed (19 scenarios)."

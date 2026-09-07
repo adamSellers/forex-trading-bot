@@ -1,6 +1,6 @@
 # September 7 operational-email removal
 
-Status: **implemented locally; publication and deployment pending**. Production was last verified at `788a725` at 13:56 AEST on September 7. That deployed version still contains the email path. The user manages publication and the single deployment command, `./scripts/deploy.sh`.
+Status: **subsequently deployed by the user at `8e4fb99`, verified over read-only SSH on September 7 and 8**. The original investigation below examined `788a725` at 13:56 AEST on September 7; that earlier version still contained the email path. The user manages publication and the single deployment command, `./scripts/deploy.sh`.
 
 ## Finding and cause
 
