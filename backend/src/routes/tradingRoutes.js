@@ -267,8 +267,6 @@ router.get("/system/health", async (req, res) => {
         });
         const reasons = operationalHealth.issues.map((issue) => issue.code);
         if (!oanda.connected) reasons.push("OANDA_DISCONNECTED");
-        const alertStatus = req.app.locals.operationalHealthService?.getStatus?.();
-        if (alertStatus?.alerting) operationalHealth.alerting = alertStatus.alerting;
         res.json({
             status: reasons.length ? "degraded" : "healthy",
             runtime: "live_only",

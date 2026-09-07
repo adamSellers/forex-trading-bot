@@ -4,7 +4,7 @@ There is one production path and one active strategy. Planned work must improve 
 
 ## Authorized September 6 remediation
 
-The user deployed v3 at `8d45be3`; healthy runtime and direct API access were verified on September 7. The [startup checkpoint/locale correction](docs/reviews/2026-09-07-startup-checkpoint.md) is local and pending the single `./scripts/deploy.sh` deployment. An independent recovery drill remains outstanding. The deployment command performs its own tests, build, backup and health checks. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md). Correct execution/exits, broker uncertainty, private-network usability, freshness, analytics and recovery before strategy tuning. Record every justification, regression check and deployment state. Funding and risk limits remain unchanged.
+The user deployed v3 and the [startup checkpoint/locale correction](docs/reviews/2026-09-07-startup-checkpoint.md) at `788a725`; healthy runtime and direct API access were verified on September 7. The [operational-email removal](docs/reviews/2026-09-07-operational-email-removal.md) is local and pending the single `./scripts/deploy.sh` deployment after publication. An independent recovery drill remains outstanding. The deployment command performs its own tests, build, backup and health checks. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md). Correct execution/exits, broker uncertainty, private-network usability, freshness, analytics and recovery before strategy tuning. Record every justification, regression check and deployment state. Funding and risk limits remain unchanged.
 
 ## Immediate live review
 
@@ -25,6 +25,7 @@ The user deployed v3 at `8d45be3`; healthy runtime and direct API access were ve
 
 - One live strategy and one active entry runtime.
 - Private internal-network personal tool with direct dashboard/API access; no operator login or account system.
+- Preserve existing trade emails; operational health is shown in the dashboard/API without automatic warning/recovery emails.
 - No simulated execution subsystem or strategy switching UI.
 - No manual test orders.
 - Risk per trade at or below 0.25% for the current intraday release.

@@ -126,8 +126,6 @@ const operationalHealthService = new OperationalHealthService({
         dataStatus: dataService.getStatus(),
         runtimeStatus: runtimeCoordinator.getStatus(),
     }),
-    emailService,
-    stateStore: brokerLifecycleRepository,
 });
 
 // Make services available to routes

@@ -3,7 +3,6 @@ const { resolveTimedExitReason } = require("../runtime/exitPolicy");
 const { SESSION_DEFINITIONS, getActivePairSessions, zonedClock } = require("../strategies/intradayMomentum");
 const logger = require("../utils/logger");
 
-const HEALTH_STATE_KEY = "operational-health-alerts-v1";
 const STALE_RUNTIME_MS = 180_000;
 const STALE_BROKER_SYNC_MS = 180_000;
 const EXIT_GRACE_MS = 120_000;
@@ -92,16 +91,10 @@ function buildOperationalHealth({
 }
 
 class OperationalHealthService {
-    constructor({ getInputs, emailService, stateStore = null, alertDelayMs = 60_000, now = Date.now } = {}) {
+    constructor({ getInputs, now = Date.now } = {}) {
         this.getInputs = getInputs;
-        this.emailService = emailService;
-        this.stateStore = stateStore;
-        this.alertDelayMs = alertDelayMs;
         this.now = now;
         this.snapshot = null;
-        this.announced = {};
-        this.firstSeen = {};
-        this.loadedState = false;
         this.timer = null;
         this.inFlight = null;
     }
@@ -115,32 +108,9 @@ class OperationalHealthService {
     }
 
     async runCheck() {
-        let config = {};
         try {
             const inputs = await this.getInputs();
-            config = inputs.config || {};
             this.snapshot = buildOperationalHealth({ ...inputs, nowMs: this.now() });
-            this.snapshot.alerting = { enabled: Boolean(this.emailService?.isEnabled?.(config)) };
-            if (!this.loadedState) {
-                const state = await this.stateStore?.getState?.(HEALTH_STATE_KEY);
-                this.announced = state?.announced || {};
-                this.loadedState = true;
-            }
-            const current = Object.fromEntries(this.snapshot.issues.map((issue) => [issue.key, issue]));
-            this.firstSeen = Object.fromEntries(Object.keys(current).map((key) => [key, this.firstSeen[key] ?? this.snapshot.checkedAt]));
-            const newIssues = this.snapshot.issues.filter((issue) => !this.announced[issue.key] &&
-                (issue.severity === "critical" || this.snapshot.checkedAt - this.firstSeen[issue.key] >= this.alertDelayMs));
-            const suppressedDuringClosure = new Set(["STALE_PRICE_DATA", "STALE_CANDLE_DATA", "STRATEGY_CYCLE_STALE"]);
-            const recoveredIssues = Object.values(this.announced).filter((issue) => !current[issue.key] &&
-                (this.snapshot.market.open || !suppressedDuringClosure.has(issue.code)));
-            if ((newIssues.length || recoveredIssues.length) && this.emailService?.isEnabled?.(config)) {
-                const sent = await this.emailService.sendOperationalHealthAlert({ snapshot: this.snapshot, newIssues, recoveredIssues }, config);
-                if (sent === true) {
-                    newIssues.forEach((issue) => { this.announced[issue.key] = issue; });
-                    recoveredIssues.forEach((issue) => { delete this.announced[issue.key]; });
-                    await this.stateStore?.setState?.(HEALTH_STATE_KEY, { announced: this.announced }, this.snapshot.checkedAt);
-                }
-            }
         } catch (error) {
             logger.error(`Operational health check failed: ${error.message}`);
             const issue = { key: "HEALTH_CHECK_FAILED", code: "HEALTH_CHECK_FAILED", severity: "warning", tradeId: null,

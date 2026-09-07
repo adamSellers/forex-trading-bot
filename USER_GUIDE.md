@@ -14,7 +14,7 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-The September 7 production check verified v3 / strategy 1.1.0 at commit `8d45be3`. This table describes that deployed release. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md) for validation and later fixes.
+The September 7 production check verified v3 / strategy 1.1.0 at commit `788a725`, including the startup checkpoint correction. This table describes that deployed release. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md) for validation and later fixes.
 
 | Setting | Value |
 | --- | --- |
@@ -37,6 +37,10 @@ The September 7 production check verified v3 / strategy 1.1.0 at commit `8d45be3
 Open [the dashboard](http://fx.oakroad) directly on your internal network. This is a private personal tool with no login, operator token or session expiry. The API and live updates use the same network access. Broker credentials remain server-side, and trading readiness/risk checks still govern entries.
 
 Deploy with `./scripts/deploy.sh` from your local checkout after publishing the reviewed release. See [the deployment guide](scripts/DEPLOYMENT_README.md), or [maintenance and recovery](docs/operations/recovery-and-access.md) for operational details.
+
+## Notifications
+
+The existing email setting controls trade-open and trade-close notifications. Operational health remains visible in the dashboard and API, with readiness and risk checks active. The repeated operational warning/recovery emails have been removed from the local code; production will stop sending them after this correction is published and deployed. See the [incident record](docs/reviews/2026-09-07-operational-email-removal.md).
 
 ## Reading results
 

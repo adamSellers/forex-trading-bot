@@ -100,88 +100,79 @@ describe("operational health decisions", () => {
     });
 });
 
-describe("operational alerts with mocked delivery only", () => {
-    const email = () => ({ isEnabled: jest.fn(() => true), sendOperationalHealthAlert: jest.fn(async () => true) });
-
-    test("sends each outage once and sends its recovery once", async () => {
-        let broken = true;
-        const mail = email();
-        const service = new OperationalHealthService({ emailService: mail, now: () => OPEN_TIME, alertDelayMs: 0,
-            getInputs: () => { const input = healthy(); input.dataStatus.freshness.pricesFresh = !broken; return input; } });
-        await service.check();
-        await service.check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(1);
-        broken = false;
-        await service.check();
-        await service.check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(2);
-        expect(mail.sendOperationalHealthAlert.mock.calls[1][0]).toMatchObject({ newIssues: [], recoveredIssues: [expect.objectContaining({ code: "STALE_PRICE_DATA" })] });
-    });
-
-    test("defers transient warnings but immediately reports critical missing protection", async () => {
+describe("read-only operational health monitoring", () => {
+    test("repeated warnings, critical issues and recoveries only update health snapshots", async () => {
         let now = OPEN_TIME;
-        const mail = email();
-        const service = new OperationalHealthService({ emailService: mail, now: () => now,
-            getInputs: () => { const input = healthy(now); input.dataStatus.freshness.pricesFresh = false; return input; } });
-        await service.check();
-        now += 30_000;
-        await service.check();
+        let input = healthy(now);
+        // Old caller dependencies must no longer trigger email or incident writes,
+        // even with trade emails enabled and a previously announced incident.
+        const mail = { isEnabled: jest.fn(() => true), sendOperationalHealthAlert: jest.fn(async () => true) };
+        const store = {
+            getState: jest.fn(async () => ({ announced: { STALE_PRICE_DATA: { code: "STALE_PRICE_DATA" } } })),
+            setState: jest.fn(),
+        };
+        const service = new OperationalHealthService({
+            getInputs: () => input, now: () => now, emailService: mail, stateStore: store,
+        });
+        for (let cycle = 0; cycle < 20; cycle += 1) {
+            input = healthy(now);
+            input.dataStatus.freshness.pricesFresh = false;
+            expect((await service.check()).issues).toContainEqual(
+                expect.objectContaining({ code: "STALE_PRICE_DATA" })
+            );
+            now += 60_000;
+            input = withTrade(healthy(now), { stopLossPrice: null });
+            expect((await service.check()).issues).toContainEqual(
+                expect.objectContaining({ code: "PROTECTIVE_STOP_MISSING", severity: "critical" })
+            );
+            now += 60_000;
+            input = healthy(now);
+            expect(await service.check()).toMatchObject({ status: "healthy", issues: [] });
+            now += 60_000;
+        }
+        expect(service.getStatus().alerting).toBeUndefined();
+        expect(mail.isEnabled).not.toHaveBeenCalled();
         expect(mail.sendOperationalHealthAlert).not.toHaveBeenCalled();
-        now += 30_000;
-        await service.check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(1);
-        const critical = new OperationalHealthService({ emailService: mail, now: () => now,
-            getInputs: () => withTrade(healthy(now), { stopLossPrice: null }) });
-        await critical.check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(2);
+        expect(store.getState).not.toHaveBeenCalled();
+        expect(store.setState).not.toHaveBeenCalled();
     });
 
-    test("disabled alerts never send; delivery failure is retried without false recovery", async () => {
-        const mail = email();
-        mail.isEnabled.mockReturnValue(false);
-        const service = new OperationalHealthService({ emailService: mail, now: () => OPEN_TIME, alertDelayMs: 0,
-            getInputs: () => withTrade(healthy(), { stopLossPrice: null }) });
-        await service.check();
-        expect(mail.sendOperationalHealthAlert).not.toHaveBeenCalled();
-        mail.isEnabled.mockReturnValue(true);
-        mail.sendOperationalHealthAlert.mockResolvedValueOnce(false);
-        await service.check();
-        await service.check();
-        await service.check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(2);
-    });
-
-    test("persists sent incident state so a process restart does not duplicate the outage", async () => {
-        let state = null;
-        const store = { getState: jest.fn(async () => state), setState: jest.fn(async (_key, value) => { state = JSON.parse(JSON.stringify(value)); }) };
-        const mail = email();
-        const options = { emailService: mail, stateStore: store, now: () => OPEN_TIME, alertDelayMs: 0,
-            getInputs: () => withTrade(healthy(), { stopLossPrice: null }) };
-        await new OperationalHealthService(options).check();
-        await new OperationalHealthService(options).check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(1);
-    });
-
-    test("a weekend pause in feed checks is not falsely reported as outage recovery", async () => {
-        let now = Date.parse("2026-09-04T20:00:00Z");
-        let fresh = false;
-        const mail = email();
-        const service = new OperationalHealthService({ emailService: mail, now: () => now, alertDelayMs: 0,
-            getInputs: () => { const input = healthy(now); input.dataStatus.freshness.pricesFresh = fresh; return input; } });
-        await service.check();
-        now = Date.parse("2026-09-05T10:00:00Z");
-        await service.check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(1);
-        now = Date.parse("2026-09-06T22:00:00Z");
-        fresh = true;
-        await service.check();
-        expect(mail.sendOperationalHealthAlert).toHaveBeenCalledTimes(2);
-    });
-
-    test("an input or state-store failure is visible and later checks can recover", async () => {
+    test("input failures remain visible and subsequent checks recover", async () => {
         const getInputs = jest.fn().mockRejectedValueOnce(new Error("database offline")).mockResolvedValue(healthy());
-        const service = new OperationalHealthService({ getInputs, now: () => OPEN_TIME, emailService: email() });
+        const service = new OperationalHealthService({ getInputs, now: () => OPEN_TIME });
         expect((await service.check()).issues).toEqual([expect.objectContaining({ code: "HEALTH_CHECK_FAILED" })]);
         expect((await service.check()).status).toBe("healthy");
+    });
+
+    test("overlapping checks share the current input read", async () => {
+        let resolveInput;
+        const getInputs = jest.fn(() => new Promise((resolve) => { resolveInput = resolve; }));
+        const service = new OperationalHealthService({ getInputs, now: () => OPEN_TIME });
+        const first = service.check();
+        const second = service.check();
+        expect(getInputs).toHaveBeenCalledTimes(1);
+        resolveInput(healthy());
+        const [firstSnapshot, secondSnapshot] = await Promise.all([first, second]);
+        expect(firstSnapshot).toBe(secondSnapshot);
+        expect(service.getStatus()).toBe(firstSnapshot);
+    });
+
+    test("scheduled monitoring refreshes snapshots and stops cleanly", async () => {
+        jest.useFakeTimers({ now: OPEN_TIME });
+        const getInputs = jest.fn(() => healthy(Date.now()));
+        const service = new OperationalHealthService({ getInputs });
+        try {
+            service.start();
+            await jest.advanceTimersByTimeAsync(60_000);
+            expect(getInputs).toHaveBeenCalledTimes(2);
+            expect(service.getStatus().status).toBe("healthy");
+            service.stop();
+            await jest.advanceTimersByTimeAsync(60_000);
+            expect(getInputs).toHaveBeenCalledTimes(2);
+            expect(jest.getTimerCount()).toBe(0);
+        } finally {
+            service.stop();
+            jest.useRealTimers();
+        }
     });
 });

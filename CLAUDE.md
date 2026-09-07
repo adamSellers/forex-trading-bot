@@ -2,7 +2,7 @@
 
 ## Authoritative current state
 
-This is one live OANDA AUD account and one `intraday_momentum` runtime. The user deployed commit `8d45be3`, release `m15-intraday-v3`, strategy `1.1.0`; read-only production inspection on 2026-09-07 verified a clean checkout, healthy operational state, direct access without login, fresh market data and resolved broker state. The [September 7 startup correction](docs/reviews/2026-09-07-startup-checkpoint.md) is implemented locally and is **not deployed** until separately verified.
+This is one live OANDA AUD account and one `intraday_momentum` runtime. The user deployed commit `788a725`, release `m15-intraday-v3`, strategy `1.1.0`, including the [September 7 startup correction](docs/reviews/2026-09-07-startup-checkpoint.md). Read-only production inspection at 13:56 AEST on 2026-09-07 verified healthy operational state, direct access without login, fresh market data and resolved broker state. The subsequent [operational-email removal](docs/reviews/2026-09-07-operational-email-removal.md) is local and **not deployed**.
 
 Read these documents before changing trading behavior:
 
@@ -16,6 +16,7 @@ Read these documents before changing trading behavior:
 
 - One live strategy, one active entry runtime, no simulated execution subsystem, no strategy promotion/switching interface.
 - This is a private personal tool available only on the user's internal network. The user explicitly removed the operator login requirement on 2026-09-07. Dashboard, API, sockets, startup and ordinary maintenance require no app login or operator token. Do not reintroduce accounts, sessions or access gates as general remediation; broker credentials and trading risk checks remain required.
+- Automatic emails cover the existing trade-open/close notifications only. Operational health belongs in the dashboard/API; do not reintroduce warning/recovery emails or reuse the trade-email setting for new notification categories without explicit user instruction. Keep health, readiness and risk checks active.
 - No manual test orders. Use isolated mocks/fixtures to test failures and lifecycle integration.
 - Preserve broker ownership, durable intents, historical run/config attribution and real trade records.
 - Broker/account truth wins over local caches. Uncertain exposure or protective orders must stop new entries while reconciliation/management continues.

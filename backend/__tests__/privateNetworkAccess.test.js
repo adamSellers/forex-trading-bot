@@ -28,6 +28,7 @@ jest.mock("../src/services/OandaDataService", () => {
     const { EventEmitter } = require("events");
     return class extends EventEmitter {
         getAllPrices() { return { AUD_USD: { instrument: "AUD_USD", bid: 0.67, ask: 0.6701, timestamp: Date.now() } }; }
+        getStatus() { return { isRunning: true, freshness: { pricesFresh: true, candlesFresh: true } }; }
     };
 });
 jest.mock("../src/services/LiveTradingEngine", () => {
@@ -45,6 +46,7 @@ jest.mock("../src/runtime/runtimeCoordinator", () => {
         init() {}
         getLiveSelection() { return null; }
         listRuns() { return []; }
+        getStatus() { return { isRunning: true, lastRunTime: Date.now() }; }
     };
 });
 jest.mock("../src/repositories/tradeRepository", () => jest.fn(() => ({})));
@@ -131,6 +133,18 @@ describe("private internal-network app access", () => {
     test("removed login endpoints return normal API not-found responses", async () => {
         await request(instance.server).get("/api/auth/status").expect(404, { error: "Not found" });
         await request(instance.server).post("/api/auth/login").send({ token: "unused" }).expect(404);
+    });
+
+    test("actual server supplies health monitoring with inputs only, preserving visible risk state", async () => {
+        const { OperationalHealthService: constructor } = require("../src/services/operationalHealthService");
+        const options = constructor.mock.calls[0][0];
+        expect(options).toEqual({ getInputs: expect.any(Function) });
+        const { OperationalHealthService } = jest.requireActual("../src/services/operationalHealthService");
+        const health = new OperationalHealthService(options);
+        const snapshot = await health.check();
+        expect(snapshot.issues).toContainEqual(expect.objectContaining({ code: "BROKER_STATE_UNCERTAIN" }));
+        expect(snapshot.entryState).toBe("BLOCKED");
+        expect(snapshot.alerting).toBeUndefined();
     });
 
     test("actual Socket.IO handshake and dashboard updates work without credentials", async () => {

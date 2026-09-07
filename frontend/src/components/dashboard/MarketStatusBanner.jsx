@@ -132,8 +132,7 @@ const MarketStatusBanner = ({ compact = false }) => {
             <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
               {'Updated ' + new Date(health.checkedAt).toLocaleTimeString() +
                 ' · Broker reconciliation ' + (health.brokerSyncAgeMs === null ? 'unverified'
-                  : Math.round(health.brokerSyncAgeMs / 1000) + ' seconds ago') +
-                ' · Operational email alerts ' + (health.alerting?.enabled ? 'enabled' : 'disabled')}
+                  : Math.round(health.brokerSyncAgeMs / 1000) + ' seconds ago')}
             </Typography>
           </>}
           {unavailable && <Typography variant="body2">The backend has not provided a current operational status.</Typography>}

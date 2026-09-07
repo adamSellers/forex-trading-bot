@@ -25,15 +25,19 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The current product has one live OANDA runtime and one strategy: `intraday_momentum`. Production was verified on `1.0.0`; the local September 6 remediation moves it to `1.1.0`. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
+The current product has one live OANDA runtime and one strategy: `intraday_momentum` `1.1.0`, release `m15-intraday-v3`, verified deployed at `788a725` on September 7. The operational-email removal below is local and pending deployment. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
 
 ---
 
 ## Completed Features
 
-### 2026-09-07 — v3 deployment verified; startup checkpoint collision corrected locally
+### 2026-09-07 — Remove operational warning/recovery emails (local)
 
-Read-only SSH verified user-deployed `8d45be3`, `m15-intraday-v3`, strategy `1.1.0`, healthy operation, direct API access, fresh quotes/candles and resolved broker state. Repeated startup candle aborts coincided with an exact 30-second synchronous WAL checkpoint stall while the deployment health scan held a database reader. The local patch moves TRUNCATE into a bounded child process, defers database health scans until the runtime is ready, identifies timeout timeframes and selects the installed UTF-8 locale. [The incident report](docs/reviews/2026-09-07-startup-checkpoint.md) records evidence, justification and tests. **This follow-up patch is not deployed; the preceding v3/login-removal work is deployed.**
+The remediation had reused the existing trade-email flag for automatic health incidents and immediate recovery messages. Production logs showed 18 warning/recovery pairs (36 emails) on September 7, including the user's pictured quote-age warnings while the broker remained connected. Removed the operational email method, health-monitor mail dependencies, incident notification state and dashboard email-status label. Existing trade emails, health visibility and trading checks remain. The [incident record](docs/reviews/2026-09-07-operational-email-removal.md) captures the cause, product boundary and verification. **Local correction; publication/deployment remain user-managed.**
+
+### 2026-09-07 — v3 and startup checkpoint correction verified deployed
+
+Read-only SSH first verified user-deployed `8d45be3`, `m15-intraday-v3`, strategy `1.1.0`, healthy operation and direct API access. Repeated startup candle aborts coincided with an exact 30-second synchronous WAL checkpoint stall while the deployment health scan held a database reader. The correction moves TRUNCATE into a bounded child process, defers database health scans until the runtime is ready, identifies timeout timeframes and selects the installed UTF-8 locale. At 13:56 AEST, read-only SSH verified user-deployed `788a725`, healthy operation after more than five hours of uptime, fresh quotes/candles and resolved broker state. [The incident report](docs/reviews/2026-09-07-startup-checkpoint.md) records evidence, justification and tests.
 
 ### 2026-09-07 — Remove operator login for private use (local)
 
