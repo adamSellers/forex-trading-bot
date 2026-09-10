@@ -310,8 +310,11 @@ const SystemHealth = () => {
             Live entries are in a 24-hour consecutive-loss cooldown
           </Typography>
           <Typography variant="caption">
-            {entryRisk.consecutiveLosses} losses reached the limit of {entryRisk.maxConsecutiveLosses}. Entries resume automatically at{' '}
-            {new Date(entryRisk.cooldownUntil).toLocaleString()} ({formatCooldownRemaining(entryRisk.remainingMs)} remaining). Infrastructure and position monitoring are healthy.
+            {entryRisk.consecutiveLosses} losses reached the limit of {entryRisk.maxConsecutiveLosses}. Cooldown ends at{' '}
+            {new Date(entryRisk.cooldownUntil).toLocaleString()} ({formatCooldownRemaining(entryRisk.remainingMs)} remaining).{' '}
+            {health.config?.enableTrading === true
+              ? 'Live trading is enabled; entries can resume then, subject to the normal entry checks.'
+              : 'Live trading is paused and will remain paused until you choose Enable Live.'}
           </Typography>
         </Alert>
       )}

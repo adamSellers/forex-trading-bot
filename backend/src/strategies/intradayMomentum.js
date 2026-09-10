@@ -1,6 +1,7 @@
 const { createStrategyDefinition } = require("./strategyContract");
 const { evaluateIntradayEntryFreshness } = require("../runtime/marketDataFreshness");
 const { resolveTimedExitReason } = require("../runtime/exitPolicy");
+const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 const {
     calculateADX,
     calculateATR,
@@ -478,7 +479,8 @@ async function evaluateIntradayMomentumEntry({
     );
     if (
         !Number.isFinite(costToStopRatio) ||
-        costToStopRatio > maxCostToStopRatio
+        exceedsQuoteLimit(costToStopRatio, maxCostToStopRatio,
+            priceDistanceError(price, price, pipValue) / stopPips)
     ) {
         return hold(
             base,
@@ -536,7 +538,7 @@ const intradayMomentumStrategy = createStrategyDefinition({
     label: "M15 Intraday Momentum",
     description:
         "Completed-M15 pullback and breakout entries aligned with a liquid-session H1 trend regime.",
-    version: "1.1.1",
+    version: "1.1.2",
     runtimeStatus: "live_ready",
     requiredData: {
         timeframes: ["15m", "1h"],

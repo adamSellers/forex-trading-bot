@@ -234,6 +234,35 @@ describe("intradayMomentum deployed defaults and data gates", () => {
         expect(result.strategyContext.m15.trigger.shortBreakout).toBe(false);
     });
 
+    test.each([1, -1].flatMap((direction) => [0.7, 0.8].map((spread) => ({ direction, spread }))))(
+        'direction $direction with broker spread $spread retains the 15 percent stop-cost boundary', async ({ direction, spread }) => {
+            const fixture = defaultEntryFixture({ direction });
+            const { normalizeOandaPrice } = require('../../runtime/quoteAvailability');
+            const quote = normalizeOandaPrice({ instrument: fixture.instrument, tradeable: true,
+                time: new Date(fixture.nowMs).toISOString(),
+                bids: [{ price: '1.30002' }], asks: [{ price: (1.30002 + spread * 0.0001).toFixed(5) }],
+            }, { instrument: fixture.instrument, fetchedAt: fixture.nowMs });
+            // Translate the complete fixture to this quote without changing its
+            // candle pattern, indicator direction or six-pip minimum stop.
+            const offset = quote.price - fixture.currentPrice;
+            for (const candle of [...fixture.m15, ...fixture.h1]) {
+                for (const key of ['open', 'close', 'high', 'low']) candle[key] += offset;
+            }
+            fixture.currentPrice = quote.price;
+            fixture.marketContext.price = quote;
+            fixture.marketContext.session.spreadPips = quote.spread;
+            const result = await evaluateIntradayMomentumEntry(fixture);
+            if (spread === 0.7) {
+                expect(result.strategyContext.costs.costToStopRatio).toBeGreaterThan(0.15);
+                expect(result.signalType).toBe(direction > 0 ? 'BUY' : 'SELL');
+                expect(result.tradePlan.stopPips).toBe(6);
+            } else {
+                expect(result.signalType).toBe('HOLD');
+                expect(result.reasonCode).toBe('INTRADAY_MOMENTUM_COST_TOO_HIGH');
+            }
+        }
+    );
+
     test.each([null, undefined, "", -0.1, NaN])("missing/invalid spread %s fails closed", async (spreadPips) => {
         const fixture = defaultEntryFixture();
         fixture.marketContext.session.spreadPips = spreadPips;

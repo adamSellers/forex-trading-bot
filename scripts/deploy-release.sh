@@ -46,7 +46,8 @@ resume_previous_state() {
             paused_by_deploy=false
             log "Previous trading state restored: enabled."
         else
-            # Never override cooldowns, unresolved state or failed persistence.
+            # Restoring enabled intent leaves entry cooldowns enforced. Other
+            # readiness blockers and failed persistence still prevent activation.
             log "Entries remain paused: live readiness did not allow automatic restoration. Position management remains running." >&2
             return 1
         fi

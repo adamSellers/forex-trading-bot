@@ -152,6 +152,10 @@ function evaluateLiveReadiness({
 
     return {
         passed: reasons.length === 0,
+        // Enabling records operator intent; the engine still enforces the
+        // bounded cooldown before every entry. Other blockers prevent activation.
+        activationAllowed: reasons.length === 0 || (cooldownOnly &&
+            Number.isFinite(entryRisk?.cooldownUntil) && entryRisk.cooldownUntil > Date.now()),
         status: reasons.length === 0 ? "PASS" : cooldownOnly ? "COOLDOWN" : "FAIL",
         strategy: config.strategy || null,
         strategyVersion: strategy?.version || null,

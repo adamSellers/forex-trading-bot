@@ -25,11 +25,17 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The current product has one live OANDA runtime and one strategy. Production `intraday_momentum` `1.1.0` / `m15-intraday-v3` was verified at revision `8e4fb99` on September 7 and 8, including operational-email removal. Local v3.1 / strategy 1.1.1 contains the approved quote-freshness correction and awaits user deployment. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
+The current product has one live OANDA runtime and one strategy. Production `intraday_momentum` `1.1.1` / `m15-intraday-v3.1` was verified at user-deployed revision `d46da61` on September 10. Local v3.2 / strategy 1.1.2 contains the approved maintenance and quote-limit corrections and awaits user publication/build/deployment. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
 
 ---
 
 ## Completed Features
+
+### 2026-09-10 — Maintenance and quote-limit correction (local)
+
+The user approved fixes after read-only investigation identified backup restoration turning a bounded loss cooldown into a persistent pause, and exact-limit spreads rejected through floating-point error. Activation now distinguishes desired enabled state from current entry eligibility, with truthful dashboard wording and all other readiness blockers retained. An active cooldown retains its original deadline across a new release cohort. Quote-derived spread, cost and movement comparisons account for numerical error without changing price precision or trading limits. The v3/v3.1 migration preserves saved parameters; new execution decisions belong to v3.2 / strategy 1.1.2. [The implementation record](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md) contains rationale, verification and limitations. **Local changes only; no production activation or deployment.**
+
+The same inspection verified the user's earlier v3.1 deployment at `d46da61`. Repeated entries were distinct completed-candle setups under the existing continuation strategy; no re-entry or pair-selection tuning was implemented.
 
 ### 2026-09-08 — Quote-freshness investigation and full correction (local)
 

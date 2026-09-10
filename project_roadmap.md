@@ -8,7 +8,8 @@ Read-only SSH on September 7 and 8 verified user-deployed `8e4fb99`, including v
 
 ## Immediate live review
 
-- **Implementation approved September 8:** [quote-freshness correction plan](docs/reviews/2026-09-08-quote-freshness-fix-plan.md). Separate event time from validated receipt throughout health, execution and management. Local code is complete for v3.1 / strategy 1.1.1; see the record for verification. The upgrade preserves existing settings. Next: user publication/deployment and observation of receipt/event separation in production.
+- **Local implementation verified September 10:** [maintenance and quote-limit correction](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md). v3.2 preserves enabled intent through cooldown/maintenance, retains an active cooldown across release replacement and corrects numerical boundary comparisons. Next: user publication/build/deployment. No strategy tuning or numerical risk-limit changes.
+- **Quote-freshness correction deployed:** September 10 read-only inspection verified `d46da61`, v3.1 / strategy 1.1.1, healthy price delivery and all four pairs evaluated. See the [quote-freshness record](docs/reviews/2026-09-08-quote-freshness-fix-plan.md).
 - Verify every scheduled cycle has fresh completed M15/H1 candles and current OANDA spread data.
 - Verify every actionable event creates one durable order intent and either one broker fill or one explicit rejection.
 - Verify all filled positions have a broker-side protective stop and survive process restarts.
@@ -19,6 +20,7 @@ Read-only SSH on September 7 and 8 verified user-deployed `8e4fb99`, including v
 - **Explicit user priority, September 8: review the fixed 1.5R target as the live sample grows.** September 7 USD/JPY banked three targets before a much larger continuation. Evaluate whether a different exit policy would improve net expectancy across continuing trends and reversals, including costs, drawdown, holding time and the one-position/re-entry constraints. Do not sum incompatible hypothetical trades or treat a larger possible winner as evidence of a superior policy. No target/trailing change is authorized by this request. See [exit-policy observations](docs/reviews/2026-09-08-exit-policy-observations.md).
 - Review the new executable-quote excursion coverage and sampling gaps. Exact tick-path excursions for old trades remain unavailable.
 - Review whether the M15 trigger mix produces the intended live cadence without excessive spread cost.
+- Review repeated same-direction entries after losses alongside the one-position limit and account-wide cooldown. September 10 inspection found separate qualifying candles under the existing continuation rules; do not infer a new selection bug from pair concentration alone or add a new re-entry restriction without evidence and approval.
 - Review breakout and pullback-resumption cohorts independently as new trades accumulate; 30 closed trades can trigger inspection, but does not establish an edge or justify selecting winners.
 - Review whether the 1.25 ATR stop, 1.5R target and six-hour time stop produce acceptable expectancy and holding duration.
 - Consider a release change only when the live event funnel or closed-trade evidence identifies a specific failure.

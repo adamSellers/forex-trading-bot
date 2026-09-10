@@ -112,7 +112,7 @@ const formatCooldownRemaining = (remainingMs) => {
 
 const getReadinessReasonDetail = (reason) => {
   if (reason?.cooldownUntil) {
-    return `Entries automatically resume at ${new Date(reason.cooldownUntil).toLocaleString()} (${formatCooldownRemaining(reason.remainingMs)} remaining).`;
+    return `Cooldown ends at ${new Date(reason.cooldownUntil).toLocaleString()} (${formatCooldownRemaining(reason.remainingMs)} remaining).`;
   }
   if (reason?.key) {
     return `Current ${formatReadinessValue(reason.key, reason.actual)}; live maximum ${formatReadinessValue(reason.key, reason.max)}.`;
@@ -472,7 +472,7 @@ const TradingDashboard = () => {
       } else {
         const readiness = await tradingAPI.getLiveReadiness();
         setLiveReadiness(readiness);
-        if (!readiness?.passed) {
+        if (!readiness?.activationAllowed) {
           setReadinessDialogOpen(true);
           return;
         }
@@ -548,7 +548,7 @@ const TradingDashboard = () => {
   const readinessReasons = getReadinessReasons(liveReadiness);
   const entryRisk = liveReadiness?.entryRisk || engineStatus?.entryRisk || null;
   const lossCooldownActive = entryRisk?.cooldownActive === true;
-  const liveActivationBlocked = !tradingEnabled && liveReadiness?.passed === false;
+  const liveActivationBlocked = !tradingEnabled && liveReadiness?.activationAllowed === false;
   const tradingActionPending = Boolean(tradingAction);
   const activationFailureReasons = Array.isArray(activationFailure?.baselineResume?.reasons)
     ? activationFailure.baselineResume.reasons
@@ -709,8 +709,11 @@ const TradingDashboard = () => {
 
       {lossCooldownActive && (
         <Alert severity="warning" sx={{ mb: 2, flexShrink: 0 }}>
-          Three consecutive losses triggered the 24-hour safety cooldown. New entries resume automatically at{' '}
-          <strong>{new Date(entryRisk.cooldownUntil).toLocaleString()}</strong>; market data and position monitoring remain active.
+          Three consecutive losses triggered the 24-hour safety cooldown, ending at{' '}
+          <strong>{new Date(entryRisk.cooldownUntil).toLocaleString()}</strong>.{' '}
+          {tradingEnabled
+            ? 'Live trading is enabled; entries can resume then, subject to the normal entry checks.'
+            : 'Live trading is paused and will remain paused until you choose Enable Live.'}
         </Alert>
       )}
 
@@ -733,7 +736,9 @@ const TradingDashboard = () => {
         fullWidth
       >
         <DialogTitle>
-          {liveReadiness?.passed ? 'Live strategy is ready' : 'Live activation is blocked'}
+          {liveReadiness?.passed ? 'Live strategy is ready'
+            : liveReadiness?.activationAllowed ? 'New entries are cooling down'
+              : 'Live activation is blocked'}
         </DialogTitle>
         <DialogContent dividers>
           {activationFailure && (
@@ -771,8 +776,10 @@ const TradingDashboard = () => {
           ) : (
             <Stack spacing={1.25}>
               <Alert severity="warning">
-                {lossCooldownActive
-                  ? `Live entries are cooling down and resume automatically in ${formatCooldownRemaining(entryRisk.remainingMs)}.`
+                {lossCooldownActive && liveReadiness?.activationAllowed
+                  ? tradingEnabled
+                    ? `Live trading is enabled. New entries can resume after the cooldown ends in ${formatCooldownRemaining(entryRisk.remainingMs)}, subject to the normal entry checks.`
+                    : `Live trading is paused. Choose Enable Live to allow entries after the cooldown ends in ${formatCooldownRemaining(entryRisk.remainingMs)}; enabling does not shorten the cooldown.`
                   : 'Live entries remain paused. Resolve every item below; this safety gate cannot be bypassed from the dashboard.'}
               </Alert>
               <Alert severity="info">

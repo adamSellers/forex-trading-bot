@@ -43,12 +43,17 @@ describe("ConfigService governance", () => {
         );
     });
 
-    test.each([false, true])("quote-freshness upgrade preserves saved parameters and enableTrading=%s across restart", (enableTrading) => {
+    test.each([
+        ["m15-intraday-v3", "intraday-risk-v3", "broker-liquidity-v2", false],
+        ["m15-intraday-v3", "intraday-risk-v3", "broker-liquidity-v2", true],
+        ["m15-intraday-v3.1", "intraday-risk-v3.1", "broker-liquidity-v3", false],
+        ["m15-intraday-v3.1", "intraday-risk-v3.1", "broker-liquidity-v3", true],
+    ])("maintenance upgrade from %s preserves settings (%s/%s, enabled=%s) across restart", (liveReleaseVersion, executionPolicyVersion, pricingModelVersion, enableTrading) => {
         const prior = {
             ...ConfigService.DEFAULT_CONFIG,
-            liveReleaseVersion: "m15-intraday-v3",
-            executionPolicyVersion: "intraday-risk-v3",
-            pricingModelVersion: "broker-liquidity-v2",
+            liveReleaseVersion,
+            executionPolicyVersion,
+            pricingModelVersion,
             enableTrading,
             assets: ["EUR_USD", "USD_JPY"],
             riskPerTrade: 0.001,

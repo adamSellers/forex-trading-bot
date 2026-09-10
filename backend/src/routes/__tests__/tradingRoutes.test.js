@@ -1,5 +1,6 @@
 const tradingRoutes = require("../tradingRoutes");
 const { cloneDefaultConfig, computeConfigHash } = require("../../config/tradingConfig");
+const { evaluateConsecutiveLossCooldown } = require("../../runtime/portfolioRiskPolicy");
 
 function handler(method, path) {
     const layer = tradingRoutes.stack.find(
@@ -83,6 +84,17 @@ function liveContext(overrides = {}) {
     };
 }
 
+function lossCooldown() {
+    const now = Date.now();
+    return evaluateConsecutiveLossCooldown({
+        closedTrades: [3, 2, 1].map((hours) => ({
+            exitTime: now - hours * 3_600_000, pnlAud: -0.1,
+        })),
+        maxConsecutiveLosses: 3,
+        evaluatedAt: now,
+    });
+}
+
 describe("live-only trading routes", () => {
     test("analytics distinguishes current run from genuinely all-live history", async () => {
         const AnalyticsService = require("../../services/analyticsService");
@@ -109,6 +121,7 @@ describe("live-only trading routes", () => {
         const res = response();
         await handler("get", "/trading/live-readiness")(req, res);
         expect(res.body.passed).toBe(false);
+        expect(res.body.activationAllowed).toBe(false);
         expect(res.body.reasons).toContainEqual(expect.objectContaining({ code: "BROKER_LIFECYCLE_UNRESOLVED" }));
     });
 
@@ -155,28 +168,80 @@ describe("live-only trading routes", () => {
         expect(res.body.message).toBe("Live trading enabled");
     });
 
-    test("live start remains blocked during the loss cooldown", async () => {
+    test("live start restores operator intent while the loss cooldown remains in force", async () => {
+        const entryRisk = lossCooldown();
         const tradingEngine = {
             isRunning: true,
-            getEntryRiskState: jest.fn(async () => ({
-                status: "COOLDOWN",
-                entryAllowed: false,
-                cooldownActive: true,
-                consecutiveLosses: 3,
-                maxConsecutiveLosses: 3,
-                cooldownStartedAt: Date.now(),
-                cooldownUntil: Date.now() + 60_000,
-                remainingMs: 60_000,
-            })),
+            getEntryRiskState: jest.fn(async () => entryRisk),
         };
-        const { req, configService } = liveContext({ tradingEngine });
+        const { req, config, configService } = liveContext({ tradingEngine });
         const res = response();
 
         await handler("post", "/trading/start")(req, res);
 
-        expect(res.statusCode).toBe(409);
+        expect(res.statusCode).toBe(200);
+        expect(config.enableTrading).toBe(true);
+        expect(configService.update).toHaveBeenCalledWith(
+            { enableTrading: true }, { allowLiveActivation: true }
+        );
+        expect(res.body.message).toBe("Live trading enabled; new entries remain paused until the loss cooldown ends");
+        expect(res.body.liveReadiness.activationAllowed).toBe(true);
+        expect(res.body.liveReadiness.passed).toBe(false);
         expect(res.body.liveReadiness.status).toBe("COOLDOWN");
+        expect(res.body.liveReadiness.entryRisk).toEqual(entryRisk);
+        expect(entryRisk.entryAllowed).toBe(false);
+    });
+
+    test.each([
+        ["invalid risk configuration", "LIVE_RISK_LIMIT", ({ config }) => { config.maxOpenPositions = 2; }],
+        ["missing runtime", "NO_ACTIVE_LIVE_RUNTIME", ({ liveSelection }) => { liveSelection.liveRun = null; }],
+        ["unresolved broker intent", "BROKER_LIFECYCLE_UNRESOLVED", ({ tradingEngine }) => {
+            tradingEngine.getStatus = () => ({ pendingOrderIntents: 1 });
+        }],
+        ["failed persistence", "CONFIG_PERSISTENCE_FAILED", ({ configService }) => {
+            configService.getPersistenceStatus = () => ({ durable: false });
+        }],
+        ["unavailable risk history", "ENTRY_RISK_UNAVAILABLE", ({ tradingEngine }) => {
+            tradingEngine.getEntryRiskState.mockRejectedValue(new Error("Risk history unavailable"));
+        }],
+    ])("cooldown activation preserves the %s blocker", async (_name, code, arrange) => {
+        const context = liveContext();
+        context.tradingEngine.getEntryRiskState.mockResolvedValue(lossCooldown());
+        arrange(context);
+        const res = response();
+        await handler("post", "/trading/start")(context.req, res);
+        expect(res.statusCode).toBe(409);
+        expect(res.body.liveReadiness.activationAllowed).toBe(false);
+        expect(res.body.liveReadiness.reasons).toContainEqual(expect.objectContaining({ code }));
+        expect(context.configService.update).not.toHaveBeenCalled();
+        expect(context.config.enableTrading).toBe(false);
+    });
+
+    test("a failed engine start cannot enable entries during cooldown", async () => {
+        const { req, tradingEngine, configService } = liveContext();
+        tradingEngine.isRunning = false;
+        tradingEngine.getEntryRiskState.mockResolvedValue(lossCooldown());
+        req.app.locals.ensureTradingEngineStarted = jest.fn(async () => ({ running: false }));
+        const res = response();
+        await handler("post", "/trading/start")(req, res);
+        expect(res.statusCode).toBe(503);
         expect(configService.update).not.toHaveBeenCalled();
+    });
+
+    test("operator pause during cooldown remains paused after risk eligibility returns", async () => {
+        const { req, config, tradingEngine } = liveContext();
+        tradingEngine.getEntryRiskState.mockResolvedValue(lossCooldown());
+        await handler("post", "/trading/start")(req, response());
+        expect(config.enableTrading).toBe(true);
+        handler("post", "/trading/stop")(req, response());
+        expect(config.enableTrading).toBe(false);
+        tradingEngine.getEntryRiskState.mockResolvedValue({
+            status: "READY", entryAllowed: true, cooldownActive: false,
+        });
+        const res = response();
+        await handler("get", "/trading/live-readiness")(req, res);
+        expect(res.body.passed).toBe(true);
+        expect(config.enableTrading).toBe(false);
     });
 
     test("runtime strategy cannot be changed through the API", () => {

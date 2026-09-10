@@ -15,7 +15,7 @@ import unittest
 SCRIPTS = Path(__file__).resolve().parents[1]
 
 COMMAND_STUB = r'''#!/usr/bin/env python3
-import json, os, pathlib, sys, tarfile
+import json, os, pathlib, subprocess, sys, tarfile
 name = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
 root = pathlib.Path(os.environ["TEST_ROOT"])
@@ -101,6 +101,20 @@ if name == "fixture-command":
             state["enabled"] = False; save(); fail("pause-response")
         elif endpoint == "trading/start":
             if os.environ.get("READINESS_BLOCKED") == "1": sys.exit(22)
+            if os.environ.get("STUB_ACTUAL_ACTIVATION") == "1":
+                config_path = pathlib.Path(os.environ["FOREX_PROJECT_DIR"]) / "backend/data/trading_config.json"
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                config_path.write_text(json.dumps({"enableTrading": state["enabled"]}))
+                result = subprocess.run([os.environ["MAINTENANCE_TEST_NODE"],
+                                         os.environ["MAINTENANCE_TEST_API"], "start"],
+                                        capture_output=True, text=True)
+                if result.returncode:
+                    sys.stderr.write(result.stderr + result.stdout); sys.exit(22)
+                reply = json.loads(result.stdout)
+                log(["actual-readiness", reply["liveReadiness"]["status"],
+                     reply["liveReadiness"]["entryRisk"]["entryAllowed"]])
+                state["enabled"] = json.loads(config_path.read_text())["enableTrading"]
+                save(); sys.exit(0)
             state["enabled"] = True; save(); fail("resume-response")
         else: raise SystemExit("Unexpected API request " + endpoint)
     elif action == "guard":
@@ -321,6 +335,19 @@ forex_acquire_deployment_lock() {
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse(self.state()["enabled"])
         self.assertNotIn(["api", "trading/start"], self.calls())
+
+    def test_restores_enabled_intent_through_real_activation_during_cooldown(self):
+        import time
+        result = self.release(
+            STUB_ACTUAL_ACTIVATION="1", STUB_LAST_LOSS_AT=str(int(time.time() * 1000) - 60000),
+            MAINTENANCE_TEST_NODE=shutil.which("node"),
+            MAINTENANCE_TEST_API=str(SCRIPTS / "tests/maintenance_api_fixture.cjs"),
+            MAINTENANCE_TEST_PROJECT=str(self.project),
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(self.state()["enabled"])
+        self.assertIn(["actual-readiness", "COOLDOWN", False], self.calls())
+        self.assertLess(self.calls().index(["health"]), self.calls().index(["api", "trading/start"]))
 
     def test_flat_guard_defers_without_stopping_position_management(self):
         result = self.release(NOT_FLAT="1")

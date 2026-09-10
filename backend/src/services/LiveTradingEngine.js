@@ -5,6 +5,7 @@ const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
 const emailService = require("./emailService");
 const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
+const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 const {
     computeConfigHash,
     normalizeTradingConfig,
@@ -35,8 +36,7 @@ const {
     resolveCanonicalTradePlan,
 } = require("../runtime/executionPolicy");
 const {
-    CONSECUTIVE_LOSS_COOLDOWN_MS,
-    evaluateConsecutiveLossCooldown,
+    evaluateRunLossCooldown,
     evaluatePortfolioRisk,
 } = require("../runtime/portfolioRiskPolicy");
 
@@ -1028,7 +1028,8 @@ class LiveTradingEngine extends EventEmitter {
             Number.isFinite(maxSpreadPips) &&
             maxSpreadPips > 0 &&
             Number.isFinite(spreadPips) &&
-            spreadPips > maxSpreadPips
+            exceedsQuoteLimit(spreadPips, maxSpreadPips,
+                priceDistanceError(priceData.bid, priceData.ask, oandaClient.getPipValue(signal.symbol)))
         ) {
             return {
                 valid: false,
@@ -1268,32 +1269,14 @@ class LiveTradingEngine extends EventEmitter {
             : this.tradeRepository?.getAllTrades
               ? await this.tradeRepository.getAllTrades()
               : null;
-        if (!Array.isArray(riskHistory)) {
-            throw new Error("Closed trade history is unavailable");
-        }
-
-        const closedTrades = riskHistory.filter((trade) => {
-            if (trade.isOpen) return false;
-            if (!runId) return true;
-            return (trade.ownerRunId || trade.runId || null) === runId;
-        });
-        const incompleteTrade = closedTrades.find(
-            (trade) =>
-                !Number.isFinite(toFiniteNumber(trade.exitTime, null)) ||
-                !Number.isFinite(toFiniteNumber(trade.pnlAud, null))
-        );
-        if (incompleteTrade) {
-            throw new Error("Closed trade risk history is incomplete");
-        }
-        const state = {
-            ...evaluateConsecutiveLossCooldown({
-                closedTrades,
-                maxConsecutiveLosses: config.maxConsecutiveLosses,
-                cooldownMs: CONSECUTIVE_LOSS_COOLDOWN_MS,
-                evaluatedAt,
-            }),
+        const run = this.signalGenerator?.getRunSession?.(runId)?.run;
+        const state = evaluateRunLossCooldown({
+            trades: riskHistory,
             runId,
-        };
+            config,
+            carryover: run?.metadata?.entryCooldownCarryover,
+            evaluatedAt,
+        });
         this.entryRiskState = state;
         return state;
     }
@@ -1934,11 +1917,13 @@ class LiveTradingEngine extends EventEmitter {
         const referencePrice = toFiniteNumber(signal.currentPrice, finalQuote);
         const deviationPips = Math.abs(quote.worstPrice - referencePrice) / pipValue;
         const spreadPips = quote.spread / pipValue;
+        const spreadError = priceDistanceError(quote.bid, quote.ask, pipValue);
         const stop = this.resolveStopLoss(signal, config);
         const costToStopRatio = (spreadPips + Math.max(0, toFiniteNumber(config.expectedSlippagePips, 0.2))) / stop.stopLossPips;
-        if (spreadPips > toFiniteNumber(config.maxSpreadPips, 3) ||
+        if (exceedsQuoteLimit(spreadPips, toFiniteNumber(config.maxSpreadPips, 3), spreadError) ||
             ((signal.strategy === "intraday_momentum" || config.strategy === "intraday_momentum") &&
-                costToStopRatio > toFiniteNumber(config.intradayMaxCostToStopRatio, 0.15))) {
+                exceedsQuoteLimit(costToStopRatio, toFiniteNumber(config.intradayMaxCostToStopRatio, 0.15),
+                    spreadError / stop.stopLossPips))) {
             throw new Error(`Final execution cost exceeds entry policy for ${signal.symbol}`);
         }
         const configuredDeviation = Number(config.maxEntryDeviationPips);
@@ -1947,7 +1932,8 @@ class LiveTradingEngine extends EventEmitter {
                 ? configuredDeviation
                 : 2;
 
-        if (deviationPips > maxDeviationPips) {
+        if (exceedsQuoteLimit(deviationPips, maxDeviationPips,
+            priceDistanceError(quote.worstPrice, referencePrice, pipValue))) {
             const error = new Error(
                 `Final quote moved ${deviationPips.toFixed(1)} pips (limit ${maxDeviationPips.toFixed(1)})`
             );

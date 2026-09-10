@@ -5,11 +5,13 @@ function dependencies(config = cloneDefaultConfig()) {
     const strategyRunRepository = {
         list: jest.fn(async () => []),
         create: jest.fn(async (run) => run),
+        replaceActiveRun: jest.fn(async (runId, updates, run) => run),
         update: jest.fn(async () => true),
         getByRunId: jest.fn(async () => null),
         retireNonLiveRuns: jest.fn(async () => 0),
     };
     const tradeRepository = {
+        getAllTrades: jest.fn(async () => []),
         getOpenTrades: jest.fn(async () => []),
         updateTrade: jest.fn(async () => true),
     };
@@ -139,7 +141,8 @@ describe("RuntimeCoordinator live-only release", () => {
             .toHaveLength(1);
 
         await coordinator.ensureLiveSelectionInitialized();
-        expect(deps.strategyRunRepository.create).toHaveBeenCalledTimes(1);
+        expect(deps.strategyRunRepository.replaceActiveRun).toHaveBeenCalledTimes(1);
+        expect(deps.strategyRunRepository.create).not.toHaveBeenCalled();
         deps.tradeRepository.getOpenTrades.mockResolvedValue([]);
         await coordinator.syncLiveTradeOwnership();
         expect(coordinator.getRunSession(priorRun.runId)).toBeNull();

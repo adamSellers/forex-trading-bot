@@ -61,11 +61,11 @@ class ConfigService extends EventEmitter {
                 nextConfig = normalizeTradingConfig(fileConfig);
                 delete nextConfig.tradingMode;
                 if (
-                    fileConfig.liveReleaseVersion === "m15-intraday-v3" &&
-                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v3.1"
+                    ["m15-intraday-v3", "m15-intraday-v3.1"].includes(fileConfig.liveReleaseVersion) &&
+                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v3.2"
                 ) {
-                    // This release corrects quote availability, not strategy or
-                    // risk settings. Preserve the saved experiment parameters.
+                    // These maintenance releases preserve the saved strategy
+                    // and risk parameters; only execution identities change.
                     nextConfig = {
                         ...nextConfig,
                         liveReleaseVersion: DEFAULT_CONFIG.liveReleaseVersion,
@@ -74,7 +74,7 @@ class ConfigService extends EventEmitter {
                     };
                     needsSave = true;
                     logger.info(
-                        `Applied quote freshness release ${DEFAULT_CONFIG.liveReleaseVersion}; existing configuration values were preserved`
+                        `Applied maintenance release ${DEFAULT_CONFIG.liveReleaseVersion}; existing configuration values were preserved`
                     );
                 } else if (
                     fileConfig.liveReleaseVersion !==

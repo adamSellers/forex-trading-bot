@@ -103,9 +103,7 @@ class StrategyRunRepository {
         return this.getByRunId(run.runId);
     }
 
-    async update(runId, updates = {}) {
-        if (!runId) return null;
-
+    _buildUpdates(updates = {}) {
         const immutableKeys = [
             "mode",
             "strategy",
@@ -137,9 +135,35 @@ class StrategyRunRepository {
         if (updates.metadata !== undefined) {
             dbUpdates.metadata = this._serializeJson(updates.metadata);
         }
+        return dbUpdates;
+    }
 
-        await db("strategy_runs").where("run_id", runId).update(dbUpdates);
+    async update(runId, updates = {}) {
+        if (!runId) return null;
+        await db("strategy_runs").where("run_id", runId).update(this._buildUpdates(updates));
         return this.getByRunId(runId);
+    }
+
+    async replaceActiveRun(runId, updates, nextRun) {
+        const priorUpdates = this._buildUpdates(updates);
+        const nextRecord = this._buildRecord(nextRun);
+        if (!["stopped", "managing_only"].includes(updates.status) ||
+            nextRun.mode !== "live" || nextRun.status !== "active") {
+            throw new Error("Live replacement must retire its predecessor and activate its successor");
+        }
+        return db.transaction(async (transaction) => {
+            const changed = await transaction("strategy_runs")
+                .where({ run_id: runId, mode: "live", status: "active" })
+                .update(priorUpdates);
+            if (changed !== 1) {
+                throw new Error("Active live run changed before replacement");
+            }
+            // A failed successor insert must also roll back the retirement, so
+            // restart can still recover the prior run and its active cooldown.
+            await transaction("strategy_runs").insert(nextRecord);
+            return this._mapRow(await transaction("strategy_runs")
+                .where("run_id", nextRun.runId).first());
+        });
     }
 
     async getByRunId(runId) {

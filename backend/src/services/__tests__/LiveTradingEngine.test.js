@@ -720,6 +720,59 @@ describe('LiveTradingEngine', () => {
             );
         });
 
+        test('API activation during cooldown preserves engine rejection until the recorded cooldown expires', async () => {
+            const { cloneDefaultConfig, computeConfigHash } = require('../../config/tradingConfig');
+            const routes = require('../../routes/tradingRoutes');
+            let now = Date.parse('2026-09-08T13:00:00Z');
+            jest.spyOn(Date, 'now').mockImplementation(() => now);
+            const finalExit = now - 3_600_000;
+            [1, 2, 3].forEach((index) => mockTradeRepository.trades.push({
+                id: `activation-loss-${index}`, isOpen: false, pnlAud: -0.1,
+                exitTime: finalExit - (3 - index) * 1_000, ownerRunId: 'active-live-run',
+            }));
+            Object.assign(mockConfigService.config, cloneDefaultConfig(), { enableTrading: false });
+            oandaClient.getAccountSummary.mockResolvedValue({ account: {
+                balance: '100', NAV: '100', currency: 'AUD', marginUsed: '0', marginAvailable: '100',
+            } });
+            engine.isRunning = true;
+            const config = mockConfigService.get();
+            const req = { app: { locals: {
+                configService: mockConfigService,
+                tradingEngine: engine,
+                runtimeCoordinator: { getLiveSelection: () => ({ liveRun: {
+                    runId: 'active-live-run', strategy: config.strategy, configHash: computeConfigHash(config),
+                } }) },
+            } } };
+            const res = { statusCode: 200,
+                status(code) { this.statusCode = code; return this; },
+                json(body) { this.body = body; return this; },
+            };
+            await routes.stack.find((layer) => layer.route?.path === '/trading/start')
+                .route.stack[0].handle(req, res);
+            expect(res.statusCode).toBe(200);
+            expect(config.enableTrading).toBe(true);
+            expect(res.body.liveReadiness).toMatchObject({ passed: false, activationAllowed: true });
+            const cooldownUntil = engine.entryRiskState.cooldownUntil;
+            expect(cooldownUntil).toBe(finalExit + CONSECUTIVE_LOSS_COOLDOWN_MS);
+
+            // Keep the real signal, validation and portfolio-risk path; stop
+            // at the execution boundary so this test never submits an order.
+            const execution = jest.spyOn(engine, 'executeEntry').mockResolvedValue(null);
+            await engine.processSignal(createMockSignal({ runId: 'active-live-run' }));
+            expect(execution).not.toHaveBeenCalled();
+            expect(engine.entryRiskState).toMatchObject({ cooldownActive: true, entryAllowed: false, cooldownUntil });
+            expect(mockEntryDecisionRepository.updateDecision).toHaveBeenCalledWith(expect.any(String),
+                expect.objectContaining({ rejectionReason: 'Portfolio risk rejected entry: CONSECUTIVE_LOSS_COOLDOWN' }));
+
+            now = cooldownUntil + 1;
+            await engine.processSignal(createMockSignal({ runId: 'active-live-run', setupId: 'after-cooldown' }));
+            expect(engine.entryRiskState).toMatchObject({ cooldownActive: false, entryAllowed: true });
+            expect(execution).toHaveBeenCalledTimes(1);
+            expect(config.enableTrading).toBe(true);
+            expect(mockTradeRepository.trades).toHaveLength(3);
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
         test('fails closed when persisted loss history is incomplete', async () => {
             mockTradeRepository.trades.push({
                 id: 'incomplete-closed-trade',
@@ -2508,6 +2561,133 @@ describe('LiveTradingEngine', () => {
 
             await expect(engine.syncOpenTrades()).resolves.toBeUndefined();
         });
+    });
+
+    describe('quote numerical boundaries through pricing, decisions and orders', () => {
+        const markets = [
+            { symbol: 'GBP_USD', bid: 1.30002, pip: 0.0001, precision: 5 },
+            { symbol: 'USD_JPY', bid: 153.300, pip: 0.01, precision: 3 },
+        ];
+        const cases = markets.flatMap((market) => ['BUY', 'SELL'].map((side) => ({ ...market, side })));
+
+        async function prepareQuoteCase(market, { cachedSpread = 1.2, finalSpread = cachedSpread, deviation = null, stopPips = 20 } = {}) {
+            jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-10T13:00:00Z'));
+            Object.assign(mockConfigService.config, require('../../../../shared/tradingConfigDefaults.json'), { enableTrading: true });
+            const price = (value) => value.toFixed(market.precision);
+            const makeQuote = (bid, ask) => ({
+                instrument: market.symbol, tradeable: true, time: new Date(Date.now()).toISOString(),
+                bids: [{ price: price(bid), liquidity: 1000000 }],
+                asks: [{ price: price(ask), liquidity: 1000000 }],
+            });
+            const cached = makeQuote(market.bid, market.bid + cachedSpread * market.pip);
+            const midpoint = (Number(cached.bids[0].price) + Number(cached.asks[0].price)) / 2;
+            const executable = deviation === null ? null : midpoint + (market.side === 'SELL' ? -1 : 1) * deviation * market.pip;
+            const final = executable === null
+                ? makeQuote(market.bid, market.bid + finalSpread * market.pip)
+                : market.side === 'BUY'
+                    ? makeQuote(executable - finalSpread * market.pip, executable)
+                    : makeQuote(executable, executable + finalSpread * market.pip);
+            const homeConversions = Object.entries({ AUD: 1, GBP: 1.9, USD: 1.5, JPY: 0.01 })
+                .map(([currency, rate]) => ({ currency, accountGain: String(rate), accountLoss: String(rate), positionValue: String(rate) }));
+            const OandaDataService = require('../OandaDataService');
+            const data = new OandaDataService([market.symbol]);
+            data.oandaRequest = jest.fn().mockResolvedValue({ prices: [cached], homeConversions });
+            await data.fetchAllPrices();
+            data.getEntryFreshness = jest.fn().mockReturnValue({ fresh: true });
+            engine.dataService = data;
+            engine.brokerLifecycleRepository = createMockBrokerLifecycleRepository();
+            // Isolate currency/account services while retaining the real entry,
+            // sizing, quote validation, durable intent and submission sequence.
+            const rates = { AUD: 1, GBP: 1.9, USD: 1.5, JPY: 0.01 };
+            jest.spyOn(engine, 'getConversionRate').mockImplementation(async (from, to) => rates[from] / rates[to]);
+            oandaClient.getInstrumentMetadata.mockResolvedValue({ name: market.symbol,
+                pipLocation: market.precision === 3 ? -2 : -4, displayPrecision: market.precision, marginRate: '0.05' });
+            oandaClient.getPricing.mockResolvedValue({ prices: [final], homeConversions });
+            oandaClient.placeMarketOrder.mockImplementation(async (_symbol, units) => {
+                const fillPrice = market.side === 'SELL' ? final.bids[0].price : final.asks[0].price;
+                return { orderFillTransaction: { id: '501', time: String(Date.now() / 1000), price: fillPrice,
+                    units: String(units), tradeOpened: { tradeID: '489', units: String(units), price: fillPrice, initialMarginRequired: '1' } } };
+            });
+            return createMockSignal({ symbol: market.symbol, signal: market.side, currentPrice: midpoint,
+                strategy: 'intraday_momentum', entryType: 'M15_RANGE_BREAKOUT',
+                tradePlan: { stopPips, targetRiskMultiple: 1.5 } });
+        }
+
+        test.each(cases.flatMap((market) => [1.1, 1.2, 1.3].map((spread) => ({ ...market, spread }))))(
+            '$symbol $side cached spread $spread pips respects the unchanged 1.2-pip limit', async (market) => {
+                const signal = await prepareQuoteCase(market, { cachedSpread: market.spread });
+                await engine.processSignal(signal);
+                if (market.spread > 1.2) {
+                    expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                    expect(oandaClient.getPricing).not.toHaveBeenCalled();
+                    expect(mockEntryDecisionRepository.updateDecision).toHaveBeenLastCalledWith(expect.any(String),
+                        expect.objectContaining({ rejectionCode: 'SPREAD_TOO_WIDE' }));
+                } else {
+                    expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(1);
+                    expect([...engine.brokerLifecycleRepository.intents.values()][0].status).toBe('COMPLETED');
+                    expect([...engine.openTrades.values()][0]).toEqual(expect.objectContaining({ instrument: market.symbol, side: market.side }));
+                }
+            }
+        );
+
+        test.each(cases.flatMap((market) => [1.2, 1.3].map((spread) => ({ ...market, spread }))))(
+            '$symbol $side final spread $spread pips is checked again before submission', async (market) => {
+                const signal = await prepareQuoteCase(market, { cachedSpread: 1, finalSpread: market.spread });
+                const operation = engine.processSignal(signal);
+                if (market.spread > 1.2) {
+                    await expect(operation).rejects.toThrow('Final execution cost exceeds entry policy');
+                    expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                } else {
+                    await operation;
+                    expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(1);
+                }
+            }
+        );
+
+        test.each(cases.flatMap((market) => [1.4, 1.5, 1.6].map((deviation) => ({ ...market, deviation }))))(
+            '$symbol $side final deviation $deviation pips respects the unchanged 1.5-pip limit', async (market) => {
+                const signal = await prepareQuoteCase(market, { cachedSpread: 0.2, finalSpread: 0.5, deviation: market.deviation });
+                const operation = engine.processSignal(signal);
+                if (market.deviation > 1.5) {
+                    await expect(operation).rejects.toMatchObject({ code: 'ENTRY_PRICE_DEVIATION' });
+                    expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                } else {
+                    await operation;
+                    expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(market.symbol, expect.any(Number),
+                        expect.objectContaining({ priceBound: signal.currentPrice + (market.side === 'SELL' ? -1 : 1) * 1.5 * market.pip }));
+                }
+            }
+        );
+
+        test.each(markets)('$symbol preserves and rejects a genuine volume-weighted spread excess below one tick', async (market) => {
+            const signal = await prepareQuoteCase({ ...market, side: 'BUY' }, { cachedSpread: 1 });
+            const pricing = await oandaClient.getPricing([market.symbol]);
+            pricing.prices[0].asks = [
+                { price: (market.bid + 1.2 * market.pip).toFixed(market.precision), liquidity: 199 },
+                { price: (market.bid + 1.3 * market.pip).toFixed(market.precision), liquidity: 1 },
+            ];
+            const executable = oandaClient.getExecutableQuote(pricing.prices[0], 'BUY', 200);
+            expect(executable.spread / market.pip).toBeGreaterThan(1.2);
+            expect(executable.spread / market.pip).toBeLessThan(1.201);
+            expect(executable.ask).not.toBe(Number(executable.ask.toFixed(market.precision)));
+            await expect(engine.getFinalEntryQuote(signal, mockConfigService.get(), null, 200))
+                .rejects.toThrow('Final execution cost exceeds entry policy');
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test.each(cases.flatMap((market) => [1, 1.1].map((spread) => ({ ...market, spread }))))(
+            '$symbol $side final cost at $spread pips spread retains the 15 percent stop-cost limit', async (market) => {
+                const signal = await prepareQuoteCase(market, { cachedSpread: 0.8, finalSpread: market.spread, stopPips: 8 });
+                const operation = engine.processSignal(signal);
+                if (market.spread > 1) {
+                    await expect(operation).rejects.toThrow('Final execution cost exceeds entry policy');
+                    expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                } else {
+                    await operation;
+                    expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(1);
+                }
+            }
+        );
     });
 
     describe('Live lifecycle safety regressions', () => {

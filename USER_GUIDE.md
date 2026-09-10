@@ -14,12 +14,12 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-Read-only production checks on September 7 and 8 verified v3 / strategy 1.1.0 at commit `8e4fb99`, including the startup checkpoint correction and operational-email removal. The local v3.1 / strategy 1.1.1 quote-freshness correction is prepared for user deployment and preserves these settings. This table describes the last verified deployed release. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md) for validation and later fixes.
+Read-only production checks on September 10 verified v3.1 / strategy 1.1.1 at commit `d46da61`, including the quote-freshness correction. Local v3.2 / strategy 1.1.2 contains the [maintenance and quote-limit correction](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md), pending user deployment with the same numerical settings. This table describes the last verified deployed release.
 
 | Setting | Value |
 | --- | --- |
-| Release | `m15-intraday-v3` |
-| Strategy | `intraday_momentum` `1.1.0` |
+| Release | `m15-intraday-v3.1` |
+| Strategy | `intraday_momentum` `1.1.1` |
 | Decision candles | completed M15 with completed H1 regime context |
 | Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
 | Entry | eight-bar breakout or four-bar pullback resumption with H1 EMA/ADX and M15 RSI alignment |
@@ -44,7 +44,7 @@ Deploy with `./scripts/deploy.sh` from your local checkout after publishing the 
 
 The existing email setting controls trade-open and trade-close notifications. Operational health remains visible in the dashboard and API, with readiness and risk checks active. Operational warning/recovery emails were removed in deployed revision `8e4fb99`. See the [incident record](docs/reviews/2026-09-07-operational-email-removal.md).
 
-## Pricing health in the prepared v3.1 release
+## Pricing health
 
 A broker quote can be current even when its price-event timestamp is old: OANDA may return the same event on successive successful polls. The dashboard separates **validated receipt age** from **price event age**. An old event alone produces no warning. A missing/invalid pair, failed request or receipt older than the existing 20-second health budget identifies the actual delivery problem. Valid nontradeable responses appear as broker market state in the details.
 
@@ -69,6 +69,10 @@ No ADX, RSI, EMA, pullback or target thresholds were optimized in this remediati
 ## Live controls
 
 The dashboard can start or stop new entries and can close a specific live trade. Closing a trade is a real broker action. Resetting statistics does not reset the broker account.
+
+In v3.2, **Enable Live** can record that trading should resume after an active loss cooldown. Entries remain blocked until its original expiry; the dashboard shows the cooldown separately from the enabled state. **Pause Entries** keeps trading disabled even after expiry. Backups and deployments preserve that choice, and a release update retains an already-active cooldown without restarting its clock. Other readiness failures still prevent enabling.
+
+An installation already left disabled by the old backup fault stays disabled through deployment. Use **Enable Live** once after installing the correction; subsequent maintenance preserves the enabled state while respecting cooldowns.
 
 Useful read-only endpoints:
 

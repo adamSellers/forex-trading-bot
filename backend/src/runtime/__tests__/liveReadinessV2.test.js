@@ -46,9 +46,10 @@ describe("liveReadiness", () => {
         expect(readiness).toEqual(
             expect.objectContaining({
                 passed: true,
+                activationAllowed: true,
                 status: "PASS",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.1.1",
+                strategyVersion: "1.1.2",
             })
         );
         expect(readiness).not.toHaveProperty("activationOptions");
@@ -62,6 +63,7 @@ describe("liveReadiness", () => {
         const readiness = evaluateLiveReadiness({ config, liveSelection: selection });
 
         expect(readiness.passed).toBe(false);
+        expect(readiness.activationAllowed).toBe(false);
         expect(readiness.reasons).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({ code: "LIVE_CONFIG_MISMATCH" }),
@@ -109,6 +111,7 @@ describe("liveReadiness", () => {
         expect(readiness).toEqual(
             expect.objectContaining({
                 passed: false,
+                activationAllowed: true,
                 status: "COOLDOWN",
                 entryRisk: expect.objectContaining({
                     cooldownUntil,
@@ -120,6 +123,34 @@ describe("liveReadiness", () => {
                 code: "CONSECUTIVE_LOSS_COOLDOWN",
                 cooldownUntil,
             }),
+        ]);
+    });
+
+    test.each([undefined, null, NaN, Infinity, "2099-01-01", 1])(
+        "an unbounded or expired cooldown (%s) cannot authorize activation",
+        (cooldownUntil) => {
+            const config = readyConfig();
+            const readiness = evaluateLiveReadiness({
+                config,
+                liveSelection: readySelection(config),
+                entryRisk: { cooldownActive: true, cooldownUntil },
+            });
+            expect(readiness.passed).toBe(false);
+            expect(readiness.activationAllowed).toBe(false);
+        }
+    );
+
+    test("a cooldown cannot conceal another activation blocker", () => {
+        const config = readyConfig({ maxOpenPositions: 2 });
+        const readiness = evaluateLiveReadiness({
+            config,
+            liveSelection: readySelection(config),
+            entryRisk: { cooldownActive: true, cooldownUntil: Date.now() + 60_000 },
+        });
+        expect(readiness.status).toBe("FAIL");
+        expect(readiness.activationAllowed).toBe(false);
+        expect(readiness.reasons.map((reason) => reason.code)).toEqual([
+            "LIVE_RISK_LIMIT", "CONSECUTIVE_LOSS_COOLDOWN",
         ]);
     });
 });

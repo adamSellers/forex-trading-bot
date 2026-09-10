@@ -59,6 +59,7 @@ async function buildLiveReadiness(req) {
     const persistence = req.app.locals.configService?.getPersistenceStatus?.();
     if (persistence?.durable === false) {
         readiness.passed = false;
+        readiness.activationAllowed = false;
         readiness.status = "FAIL";
         readiness.reasons.push({ code: "CONFIG_PERSISTENCE_FAILED", message: "Entries are paused in memory; save a paused configuration successfully before activation. Restart may reload the earlier saved state." });
     }
@@ -72,6 +73,7 @@ async function buildLiveReadiness(req) {
             Number(engineStatus.protectionPendingTrades) > 0 || Array.isArray(engineStatus.protectionPendingTrades) && engineStatus.protectionPendingTrades.length > 0;
         if (blocked) {
             readiness.passed = false;
+            readiness.activationAllowed = false;
             readiness.status = "FAIL";
             readiness.reasons.push({ code: "BROKER_LIFECYCLE_UNRESOLVED", message: "Broker positions, order intents or protective orders require reconciliation" });
         }
@@ -589,7 +591,7 @@ router.post("/trading/start", async (req, res) => {
 
         await coordinator.ensureLiveSelectionInitialized?.();
         const readiness = await buildLiveReadiness(req);
-        if (!readiness.passed) {
+        if (!readiness.activationAllowed) {
             return res.status(409).json({
                 error: "Live strategy readiness failed",
                 liveReadiness: readiness,
@@ -619,7 +621,9 @@ router.post("/trading/start", async (req, res) => {
         req.app.locals.broadcastEngineStatus?.();
         res.json({
             success: true,
-            message: "Live trading enabled",
+            message: readiness.status === "COOLDOWN"
+                ? "Live trading enabled; new entries remain paused until the loss cooldown ends"
+                : "Live trading enabled",
             engineRunning: engine.isRunning,
             liveReadiness: readiness,
         });

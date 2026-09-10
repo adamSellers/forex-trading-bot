@@ -174,6 +174,69 @@ function evaluateConsecutiveLossCooldown({
     };
 }
 
+function evaluateRunLossCooldown({
+    trades,
+    runId = null,
+    config = {},
+    carryover = null,
+    evaluatedAt = Date.now(),
+} = {}) {
+    if (!Array.isArray(trades)) {
+        throw new Error("Closed trade history is unavailable");
+    }
+    const closedTrades = trades.filter((trade) =>
+        !trade.isOpen && (!runId || (trade.ownerRunId || trade.runId || null) === runId)
+    );
+    if (closedTrades.some((trade) => [trade.exitTime, trade.pnlAud].some(
+        (value) => value === null || value === undefined || value === "" ||
+            !Number.isFinite(Number(value))
+    ))) {
+        throw new Error("Closed trade risk history is incomplete");
+    }
+    const state = {
+        ...evaluateConsecutiveLossCooldown({
+            closedTrades,
+            maxConsecutiveLosses: config.maxConsecutiveLosses,
+            evaluatedAt,
+        }),
+        runId,
+    };
+    if (!carryover) return state;
+    if (!carryover.sourceRunId || ![
+        carryover.cooldownStartedAt,
+        carryover.cooldownUntil,
+        carryover.consecutiveLosses,
+        carryover.maxConsecutiveLosses,
+    ].every(Number.isFinite) ||
+        carryover.cooldownUntil <= carryover.cooldownStartedAt ||
+        carryover.maxConsecutiveLosses < 1 ||
+        carryover.consecutiveLosses < carryover.maxConsecutiveLosses
+    ) {
+        throw new Error("Release cooldown carryover is incomplete");
+    }
+    if (evaluatedAt >= carryover.cooldownUntil ||
+        (state.cooldownActive && state.cooldownUntil >= carryover.cooldownUntil)) {
+        return state;
+    }
+    // A release can inherit an existing stop, never the prior cohort's loss streak.
+    // Its original deadline survives restarts and is not extended by deployment.
+    return {
+        ...state,
+        status: "COOLDOWN",
+        entryAllowed: false,
+        cooldownActive: true,
+        consecutiveLosses: carryover.consecutiveLosses,
+        maxConsecutiveLosses: carryover.maxConsecutiveLosses,
+        cooldownStartedAt: carryover.cooldownStartedAt,
+        cooldownUntil: carryover.cooldownUntil,
+        cooldownDurationMs: carryover.cooldownUntil - carryover.cooldownStartedAt,
+        remainingMs: carryover.cooldownUntil - evaluatedAt,
+        lastLossAt: carryover.cooldownStartedAt,
+        lastCooldownUntil: carryover.cooldownUntil,
+        cooldownSourceRunId: carryover.sourceRunId,
+    };
+}
+
 function evaluatePortfolioRisk({
     navAud,
     openPositions = [],
@@ -375,6 +438,7 @@ module.exports = {
     CONSECUTIVE_LOSS_COOLDOWN_MS,
     DEFAULT_PORTFOLIO_RISK_LIMITS,
     evaluateConsecutiveLossCooldown,
+    evaluateRunLossCooldown,
     evaluatePortfolioRisk,
     normalizeInstrument,
     positionNotionalAud,

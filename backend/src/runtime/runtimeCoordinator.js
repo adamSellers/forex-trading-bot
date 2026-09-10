@@ -10,6 +10,7 @@ const {
 } = require("../config/tradingConfig");
 const { RUNTIME_MODES, RUN_STATUSES } = require("./runtimeConstants");
 const { isCanonicalStrategyKey } = require("../strategies");
+const { evaluateRunLossCooldown } = require("./portfolioRiskPolicy");
 
 function createRunId() {
     return `live_${uuidv4()}`;
@@ -452,7 +453,27 @@ class RuntimeCoordinator extends EventEmitter {
             strategyKey: requested.strategy,
         });
 
+        let entryCooldownCarryover = null;
+        let priorUpdates = null;
+        let managedInstruments = [];
         if (active) {
+            // Resolve the stop before retiring its owner so missing risk history
+            // cannot silently create a release with no cooldown.
+            const entryRisk = evaluateRunLossCooldown({
+                trades: await this.tradeRepository?.getAllTrades?.(),
+                runId: active.run.runId,
+                config: active.run.configSnapshot,
+                carryover: active.run.metadata?.entryCooldownCarryover,
+            });
+            if (entryRisk.cooldownActive) {
+                entryCooldownCarryover = {
+                    sourceRunId: entryRisk.cooldownSourceRunId || active.run.runId,
+                    cooldownStartedAt: entryRisk.cooldownStartedAt,
+                    cooldownUntil: entryRisk.cooldownUntil,
+                    consecutiveLosses: entryRisk.consecutiveLosses,
+                    maxConsecutiveLosses: entryRisk.maxConsecutiveLosses,
+                };
+            }
             const openTrades = this.tradeRepository?.getOpenTrades
                 ? await this.tradeRepository.getOpenTrades({
                       mode: RUNTIME_MODES.LIVE,
@@ -460,33 +481,54 @@ class RuntimeCoordinator extends EventEmitter {
                   })
                 : [];
             if (openTrades.length) {
-                await this.updateRun(active.run.runId, {
+                priorUpdates = {
                     status: RUN_STATUSES.MANAGING_ONLY,
                     metadata: { ...active.run.metadata, entryEnabled: false },
-                });
-                this.setManagedInstruments(
-                    active.run.runId,
-                    openTrades.map((trade) => trade.instrument)
-                );
+                };
+                managedInstruments = openTrades.map((trade) => trade.instrument);
             } else {
-                await this.stopRun(active.run.runId, {
+                priorUpdates = {
+                    status: RUN_STATUSES.STOPPED,
+                    stoppedAt: Date.now(),
                     metadata: {
                         ...active.run.metadata,
                         reason: "live-release-replaced",
                     },
-                });
+                };
             }
         }
 
         const selectionId = `selection_${uuidv4()}`;
-        const run = await this.startRun({
+        const run = normalizeRunRecord({
             strategy: config.strategy,
             selectionId,
             parentRunId: parentLiveRunId,
             configSnapshot: config,
             configHash: computeConfigHash(config),
-            metadata: { entryEnabled: true, initiatedBy, ...metadata },
+            metadata: {
+                entryEnabled: true,
+                initiatedBy,
+                ...metadata,
+                entryCooldownCarryover,
+            },
         });
+        if (active) {
+            await this.strategyRunRepository.replaceActiveRun(active.run.runId, priorUpdates, run);
+            // Publish the new session only after both durable records commit.
+            active.run = { ...active.run, ...priorUpdates };
+            if (priorUpdates.status === RUN_STATUSES.MANAGING_ONLY) {
+                this.setManagedInstruments(active.run.runId, managedInstruments);
+            } else {
+                this.runSessions.delete(active.run.runId);
+            }
+            const session = this.registerRunSession(run);
+            if (priorUpdates.status === RUN_STATUSES.STOPPED) {
+                this.emit("runStopped", this.toPublicRun(active.run));
+            }
+            this.emit("runStarted", this.toPublicRun(session));
+        } else {
+            await this.startRun(run);
+        }
         await this.syncLiveTradeOwnership();
         const selection = this.getLiveSelection();
         this.emit("liveSelectionChanged", selection);

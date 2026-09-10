@@ -20,7 +20,7 @@ For the one transition from the former login-gated release, deployment alone may
 
 ## Backups
 
-The daily backup shares a nonblocking lock with deployment and restores, keeps three source archives and verified SQLite snapshots, uses bounded SQLite copy/integrity checks and atomic publication, and refuses to stop management while broker exposure or pending orders exist. It pauses new entries, requires a flat broker, briefly stops the process for the copy, and restores the previous enabled state through live readiness. An open trade defers the DB copy; the separately created source archive can therefore have no matching snapshot. `--archive-only` also has no database snapshot. A full restore must never silently select some other newest DB.
+The daily backup shares a nonblocking lock with deployment and restores, keeps three source archives and verified SQLite snapshots, uses bounded SQLite copy/integrity checks and atomic publication, and refuses to stop management while broker exposure or pending orders exist. It pauses new entries, requires a flat broker, briefly stops the process for the copy, and restores the previous enabled state through live readiness. In v3.2 a loss cooldown permits restoring enabled intent while the engine continues blocking entries until expiry; other readiness failures still prevent activation. A previously disabled bot remains disabled. An open trade defers the DB copy; the separately created source archive can therefore have no matching snapshot. `--archive-only` also has no database snapshot. A full restore must never silently select some other newest DB.
 
 ```bash
 ./scripts/backup.sh
@@ -71,6 +71,7 @@ bash scripts/tests/health_check_test.sh
 python3 scripts/tests/restore_test.py
 python3 scripts/tests/deployment_test.py
 node scripts/tests/frontend_refresh_contract.test.cjs
+node --test frontend/src/components/__tests__/tradingActivation.test.cjs
 ```
 
 Deployment and restore tests use isolated fixtures and stub external operations; they perform no real deployments, broker requests or builds. A successful test is not a production restore drill. Build and deploy remain user-managed steps.

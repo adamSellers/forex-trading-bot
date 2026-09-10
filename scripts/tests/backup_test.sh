@@ -79,6 +79,13 @@ case "$*" in
         ;;
     *) [[ "$*" != *'--config -'* && "$*" != *'Authorization:'* ]] || exit 99 ;;
 esac
+if [ "${STUB_ACTUAL_ACTIVATION:-0}" = 1 ]; then
+    case "$*" in
+        *'/health'*) exec "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health ;;
+        *'/trading/stop'*) exec "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" stop ;;
+        *'/trading/start'*) exec "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" start ;;
+    esac
+fi
 case "$*" in
     *'/summary'*) echo '{"account":{"openTradeCount":"0","pendingOrderCount":"0"}}' ;;
     *'/engine/stats'*)
@@ -149,6 +156,9 @@ export FOREX_BACKUP_DIR="$BACKUP_DIR"
 export FOREX_BACKUP_RETENTION=3
 export FOREX_BACKUP_TIMEOUT_SECONDS=60
 export FOREX_BACKUP_TIMESTAMP=20990101_000000
+export MAINTENANCE_TEST_NODE="$(command -v node)"
+export MAINTENANCE_TEST_API="$REPO_ROOT/scripts/tests/maintenance_api_fixture.cjs"
+export MAINTENANCE_TEST_PROJECT="$PROJECT_DIR"
 
 reset_case() {
     rm -rf "$PROJECT_DIR" "$BACKUP_DIR"
@@ -163,6 +173,42 @@ PY
     : > "$CALL_LOG"
     unset STUB_FLOCK_FAIL STUB_OPEN_TRADES STUB_SQLITE_BACKUP_FAIL STUB_SQLITE_INTEGRITY_FAIL
     unset STUB_ENGINE_STATS STUB_ENGINE_STATS_FAIL
+    unset STUB_ACTUAL_ACTIVATION STUB_LAST_LOSS_AT STUB_RISK_CLOCK_MS
+}
+
+test_backup_restores_enabled_intent_without_clearing_loss_cooldown() {
+    reset_case
+    export STUB_ACTUAL_ACTIVATION=1
+    export STUB_LAST_LOSS_AT="$(python3 -c 'import time; print(int(time.time()*1000)-60000)')"
+
+    bash "$BACKUP_SCRIPT" >/dev/null
+
+    assert_file "$BACKUP_DIR/trading_20990101_000000.db"
+    assert_no_file "$BACKUP_DIR/trading_20990101_000000.db.partial"
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | python3 -c \
+        'import json,sys; assert json.load(sys.stdin)["config"]["enableTrading"] is True'
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" readiness | python3 -c \
+        'import json,sys,os; r=json.load(sys.stdin); assert r["status"]=="COOLDOWN" and r["passed"] is False; assert r["entryRisk"]["entryAllowed"] is False; assert r["entryRisk"]["cooldownUntil"]==int(os.environ["STUB_LAST_LOSS_AT"])+86400000'
+    export STUB_RISK_CLOCK_MS="$((STUB_LAST_LOSS_AT + 86400000))"
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" readiness | python3 -c \
+        'import json,sys; r=json.load(sys.stdin); assert r["passed"] is True and r["entryRisk"]["consecutiveLosses"]==0'
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | python3 -c \
+        'import json,sys; assert json.load(sys.stdin)["config"]["enableTrading"] is True'
+}
+
+test_backup_preserves_operator_pause_during_and_after_cooldown() {
+    reset_case
+    export STUB_ACTUAL_ACTIVATION=1
+    export STUB_LAST_LOSS_AT="$(python3 -c 'import time; print(int(time.time()*1000)-60000)')"
+    printf '{"enableTrading":false}' > "$PROJECT_DIR/backend/data/trading_config.json"
+
+    bash "$BACKUP_SCRIPT" >/dev/null
+
+    assert_file "$BACKUP_DIR/trading_20990101_000000.db"
+    if grep -Fq '/trading/start' "$CALL_LOG"; then fail "backup overrode an operator pause"; fi
+    export STUB_RISK_CLOCK_MS="$((STUB_LAST_LOSS_AT + 86400000))"
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | python3 -c \
+        'import json,sys; assert json.load(sys.stdin)["config"]["enableTrading"] is False'
 }
 
 test_successful_safe_backup() {
@@ -355,5 +401,7 @@ test_descriptor_for_another_file_is_rejected
 test_inherited_descriptor_must_itself_obtain_the_lock
 test_busy_or_unverified_entry_queue_keeps_management_running
 test_unavailable_entry_queue_keeps_management_running
+test_backup_restores_enabled_intent_without_clearing_loss_cooldown
+test_backup_preserves_operator_pause_during_and_after_cooldown
 
 echo "backup_test.sh: all tests passed"

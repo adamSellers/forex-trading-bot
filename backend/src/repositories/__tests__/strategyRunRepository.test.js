@@ -113,6 +113,60 @@ describe("StrategyRunRepository", () => {
         );
     });
 
+    test.each(["stopped", "managing_only"])("atomically replaces an active run and leaves its owner %s", async (status) => {
+        const prior = await repository.create({
+            runId: "prior-active-run", mode: "live", strategy: "intraday_momentum",
+            status: "active", configHash: "prior-config",
+            configSnapshot: { strategy: "intraday_momentum", timeStopHours: 6 },
+            startedAt: 1710000000000,
+        });
+        const carryover = { sourceRunId: prior.runId, cooldownUntil: 1710100000000 };
+        const next = await repository.replaceActiveRun(prior.runId, {
+            status,
+            stoppedAt: status === "stopped" ? 1710000005000 : null,
+            metadata: { entryEnabled: false },
+        }, {
+            runId: "replacement-run", parentRunId: prior.runId,
+            mode: "live", strategy: "intraday_momentum", status: "active",
+            configHash: "new-config", configSnapshot: { strategy: "intraday_momentum" },
+            metadata: { entryCooldownCarryover: carryover }, startedAt: 1710000005000,
+        });
+        expect(next.metadata.entryCooldownCarryover).toEqual(carryover);
+        expect(await repository.getByRunId(prior.runId)).toMatchObject({
+            status, configHash: prior.configHash, configSnapshot: prior.configSnapshot,
+        });
+        expect((await repository.list({ status: "active" })).map((run) => run.runId))
+            .toEqual(["replacement-run"]);
+    });
+
+    test.each(["stopped", "managing_only"])("rolls back %s retirement when SQLite rejects the successor insert", async (status) => {
+        const prior = await repository.create({
+            runId: "prior-active-run", mode: "live", strategy: "intraday_momentum",
+            status: "active", metadata: { entryEnabled: true }, startedAt: 1710000000000,
+        });
+        await expect(repository.replaceActiveRun(prior.runId, {
+            status, stoppedAt: 1710000005000, metadata: { entryEnabled: false },
+        }, {
+            // Duplicate identity causes a real SQLite failure after the status write.
+            runId: prior.runId, mode: "live", strategy: "intraday_momentum",
+            status: "active", startedAt: 1710000005000,
+        })).rejects.toMatchObject({ code: "SQLITE_CONSTRAINT_UNIQUE" });
+        expect(await repository.getByRunId(prior.runId)).toEqual(prior);
+        expect(await repository.list()).toHaveLength(1);
+    });
+
+    test("does not create another successor if the predecessor is no longer active", async () => {
+        await repository.create({
+            runId: "retired-run", mode: "live", strategy: "intraday_momentum",
+            status: "stopped", startedAt: 1710000000000,
+        });
+        await expect(repository.replaceActiveRun("retired-run", { status: "stopped" }, {
+            runId: "replacement-run", mode: "live", strategy: "intraday_momentum",
+            status: "active", startedAt: 1710000005000,
+        })).rejects.toThrow("Active live run changed before replacement");
+        expect(await repository.getByRunId("replacement-run")).toBeNull();
+    });
+
     test("rejects changes to immutable live release identity", async () => {
         await repository.create({
             runId: "run-immutable",
