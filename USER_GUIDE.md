@@ -14,12 +14,12 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-Read-only production checks on September 10 verified v3.1 / strategy 1.1.1 at commit `d46da61`, including the quote-freshness correction. Local v3.2 / strategy 1.1.2 contains the [maintenance and quote-limit correction](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md), pending user deployment with the same numerical settings. This table describes the last verified deployed release.
+Read-only production checks on September 11 verified v3.2 / strategy 1.1.2 at commit `33e0b76`, including the maintenance and quote-limit correction. Local v3.3 / strategy 1.1.3 contains the [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md), locally validated and awaiting user deployment with the same numerical settings. This table describes the last verified deployed release.
 
 | Setting | Value |
 | --- | --- |
-| Release | `m15-intraday-v3.1` |
-| Strategy | `intraday_momentum` `1.1.1` |
+| Release | `m15-intraday-v3.2` |
+| Strategy | `intraday_momentum` `1.1.2` |
 | Decision candles | completed M15 with completed H1 regime context |
 | Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
 | Entry | eight-bar breakout or four-bar pullback resumption with H1 EMA/ADX and M15 RSI alignment |
@@ -52,9 +52,17 @@ Cached entry checks retain a 15-second receipt limit. The final pricing request 
 
 Health severity and entry state describe different things. A pair-specific delivery warning does not assert that every instrument is blocked. “Watching for a completed M15 setup” means the global runtime is enabled; each prospective trade still has to pass its own checks. Operational emails remain absent.
 
+## Pricing rejections and later scans
+
+The local v3.3 correction records a spread, execution-cost or price-movement decline before submission as an expected entry rejection, with its specific reason. The error count records unexpected failures; one failure is counted once.
+
+After a recognized local pricing rejection, the next regular scan may reconsider the same completed-candle setup if it still qualifies. Every entry check runs again, and the original decision-price movement limit remains anchored to the first attempt, including after restart. A better cached quote does not guarantee an acceptable final executable quote. Submission, an uncertain outcome or a fill keeps duplicate entry suppression in place; risk and other rejection types retain their existing behavior. There is no new polling loop or wider cost/risk allowance.
+
 ## Reading results
 
 Analytics defaults to the current live run and trades **closed in the selected period**. Choose all live history or a named historical run explicitly. The alternative entry-time view includes trades opened in the period; entry decisions and signals always use their own event times. Earlier stages overwritten by a final rejection cannot be recovered; intermediate stage counts are labelled as minimum observed reach. A report's end boundary is excluded. Do not divide closures by signals from a different time cohort and call it a conversion rate.
+
+From v3.3, actionable-event and entry-decision counts include each distinct reconsideration attempt. Several attempts can belong to one completed-candle setup; the strategy-decision count still groups that setup once. A rejected attempt followed by a fill is two attempts and one trade.
 
 Wins, losses and R use **net AUD** including financing and explicit broker charges. Original risk is captured at entry; missing original risk is unknown, never reconstructed from a later moved stop. Historical intent evidence preserves raw `PULLBACK_ONLY`, `BREAKOUT_ONLY` and `BOTH` triggers. Display entry labels alone do not identify these groups. Pair sessions use their actual timezone and overlapping sessions remain visible.
 

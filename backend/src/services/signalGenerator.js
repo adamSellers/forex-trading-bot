@@ -1,8 +1,16 @@
 const EventEmitter = require("events");
+const { v4: uuidv4 } = require("uuid");
 
 const logger = require("../utils/logger");
 const { computeConfigHash } = require("../config/tradingConfig");
 const { getStrategyDefinition } = require("../strategies");
+const { ENTRY_REJECTION_CODES } = require("../constants/entryDecisionCodes");
+
+const RECONSIDERABLE_CODES = new Set([
+    ENTRY_REJECTION_CODES.SPREAD_TOO_WIDE,
+    ENTRY_REJECTION_CODES.COST_TO_STOP_TOO_HIGH,
+    ENTRY_REJECTION_CODES.ENTRY_PRICE_DEVIATION,
+]);
 
 function candleTimeMs(value) {
     if (typeof value === "number") return value > 1e12 ? value : value * 1000;
@@ -151,17 +159,66 @@ class SignalGenerator extends EventEmitter {
         }
     }
 
+    actionKey(signal) {
+        return JSON.stringify([
+            signal.runId || null, signal.configHash || null,
+            signal.symbol, signal.signal, signal.intent || "",
+        ]);
+    }
+
+    setupKey(signal) {
+        return `${this.actionKey(signal)}:${signal.entryType || ""}`;
+    }
+
+    hasCandleState(signal) {
+        const prior = this.lastSignals.get(this.setupKey(signal));
+        return prior?.signalCandleTime === signal.signalCandleTime &&
+            prior?.setupId === signal.setupId;
+    }
+
+    restoreEntryDecision(signal, decision) {
+        if (!decision || decision.runId !== signal.runId ||
+            decision.configHash !== signal.configHash || decision.setupId !== signal.setupId ||
+            decision.signalCandleTime !== signal.signalCandleTime || decision.side !== signal.signal) {
+            return;
+        }
+        const reference = Number(decision.entryReferencePrice);
+        this.lastSignals.set(this.setupKey(signal), {
+            actionKey: this.actionKey(signal),
+            setupId: signal.setupId,
+            signalCandleTime: signal.signalCandleTime,
+            time: Number(decision.decisionTime),
+            entryAttemptId: decision.decisionId,
+            entryReferencePrice: Number.isFinite(reference) && reference > 0 ? reference : null,
+            canReconsider: decision.outcome === "REJECTED" && decision.canReconsider === true &&
+                RECONSIDERABLE_CODES.has(decision.rejectionCode) && Number.isFinite(reference) && reference > 0,
+        });
+    }
+
+    acknowledgeEntryRejection({ signal, decisionId, rejectionCode, canReconsider } = {}) {
+        if (!signal || canReconsider !== true || !RECONSIDERABLE_CODES.has(rejectionCode)) return false;
+        const prior = this.lastSignals.get(this.setupKey(signal));
+        if (!prior || prior.setupId !== signal.setupId ||
+            prior.signalCandleTime !== signal.signalCandleTime ||
+            prior.entryAttemptId !== signal.entryAttemptId || decisionId !== prior.entryAttemptId ||
+            !Number.isFinite(prior.entryReferencePrice) || prior.entryReferencePrice <= 0) return false;
+        prior.canReconsider = true;
+        return true;
+    }
+
     validateSignal(signal) {
         if (!signal) return null;
         if (signal.signal !== "BUY" && signal.signal !== "SELL") return signal;
 
-        const key = `${signal.symbol}:${signal.signal}:${signal.intent || ""}`;
+        const key = this.setupKey(signal);
         const prior = this.lastSignals.get(key);
-        const duplicateCandle =
-            prior?.signalCandleTime === signal.signalCandleTime &&
-            prior?.entryType === signal.entryType;
-        const rateLimited =
-            prior && Date.now() - prior.time < Number(this.config.signalCooldown || 0);
+        const sameCandle = this.hasCandleState(signal);
+        const duplicateCandle = sameCandle && !prior.canReconsider;
+        const actionKey = this.actionKey(signal);
+        const rateLimited = Array.from(this.lastSignals.values()).some((state) =>
+            state.actionKey === actionKey &&
+            Date.now() - state.time < Number(this.config.signalCooldown || 0)
+        );
         if (duplicateCandle || rateLimited) {
             return {
                 ...signal,
@@ -177,12 +234,29 @@ class SignalGenerator extends EventEmitter {
                 cooldownSuppressed: true,
             };
         }
+        // A new observation may improve costs; it must not move the first
+        // attempt's execution bound. Reserve this attempt before emitting it.
+        const entryReferencePrice = sameCandle ? prior.entryReferencePrice : signal.currentPrice;
+        const entryAttemptId = uuidv4();
         this.lastSignals.set(key, {
+            actionKey,
+            setupId: signal.setupId,
             time: Date.now(),
             signalCandleTime: signal.signalCandleTime,
-            entryType: signal.entryType,
+            entryAttemptId,
+            entryReferencePrice,
+            canReconsider: false,
         });
-        return signal;
+        return {
+            ...signal,
+            entryAttemptId,
+            entryReferencePrice,
+            decisionContext: {
+                ...signal.decisionContext,
+                entryAttemptId,
+                entryReferencePrice,
+            },
+        };
     }
 
     async generateAllSignals(dataService) {

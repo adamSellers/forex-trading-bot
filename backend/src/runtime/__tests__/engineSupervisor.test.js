@@ -9,7 +9,7 @@ function createLogger() {
     };
 }
 
-function createHarness(engineOverrides = {}) {
+function createHarness(engineOverrides = {}, supervisorOverrides = {}) {
     const timers = [];
     const engine = {
         isRunning: false,
@@ -36,6 +36,7 @@ function createHarness(engineOverrides = {}) {
         clearTimeoutFn: (timer) => {
             if (timer) timer.cleared = true;
         },
+        ...supervisorOverrides,
     });
 
     // Run the most recently scheduled retry timer.
@@ -57,6 +58,48 @@ describe("engineSupervisor", () => {
         expect(engine.start).toHaveBeenCalledTimes(1);
         expect(engine.startMonitoring).toHaveBeenCalledTimes(1);
         expect(onStatusChange).toHaveBeenCalled();
+    });
+
+    test("initializes ownership and attaches management before starting scans", async () => {
+        const sequence = [];
+        const beforeStart = jest.fn(async () => sequence.push("ownership"));
+        const onStarted = jest.fn(async () => sequence.push("scan"));
+        const { supervisor, engine } = createHarness({
+            start: jest.fn(async () => { sequence.push("attach"); engine.isRunning = true; }),
+            startMonitoring: jest.fn(() => sequence.push("monitor")),
+        }, { beforeStart, onStarted });
+        await supervisor.ensureStarted();
+        expect(sequence).toEqual(["ownership", "attach", "monitor", "scan"]);
+    });
+
+    test("starts scans when a delayed attachment retry succeeds", async () => {
+        const beforeStart = jest.fn();
+        const onStarted = jest.fn();
+        const { supervisor, engine, fireLastTimer } = createHarness({}, { beforeStart, onStarted });
+        engine.start.mockRejectedValueOnce(new Error("Broker unavailable"));
+        await supervisor.ensureStarted();
+        expect(onStarted).not.toHaveBeenCalled();
+        await fireLastTimer();
+        expect(onStarted).toHaveBeenCalledTimes(1);
+        expect(beforeStart).toHaveBeenCalledTimes(2);
+        expect(engine.startMonitoring).toHaveBeenCalledTimes(1);
+    });
+
+    test("retries failed signal startup without detaching or duplicating management", async () => {
+        const beforeStart = jest.fn();
+        const onStarted = jest.fn().mockRejectedValueOnce(new Error("Signal history unavailable"))
+            .mockResolvedValue(undefined);
+        const { supervisor, engine, fireLastTimer } = createHarness({}, { beforeStart, onStarted });
+        await expect(supervisor.ensureStarted()).resolves.toMatchObject({
+            running: true, error: "Signal history unavailable", retryInMs: 1000,
+        });
+        expect(engine.isRunning).toBe(true);
+        expect(engine.startMonitoring).toHaveBeenCalledTimes(1);
+        await fireLastTimer();
+        expect(engine.start).toHaveBeenCalledTimes(1);
+        expect(beforeStart).toHaveBeenCalledTimes(1);
+        expect(onStarted).toHaveBeenCalledTimes(2);
+        expect(supervisor.isRetryScheduled()).toBe(false);
     });
 
     test("is a no-op when the engine is already attached", async () => {

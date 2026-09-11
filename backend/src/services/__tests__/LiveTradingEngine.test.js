@@ -2613,6 +2613,291 @@ describe('LiveTradingEngine', () => {
                 tradePlan: { stopPips, targetRiskMultiple: 1.5 } });
         }
 
+        async function queueEntry(signal) {
+            engine.tradeQueue.push({ type: 'signal', signal, generation: engine.activationGeneration });
+            await engine.processQueue();
+        }
+
+        function observeRejection() {
+            const rejected = jest.fn();
+            const orderError = jest.fn();
+            mockSignalGenerator.handleEntryRejection = jest.fn();
+            engine.on('entryRejected', rejected);
+            engine.on('orderError', orderError);
+            return { rejected, orderError };
+        }
+
+        test('a cached spread decline is acknowledged only after its exact attempt is durably rejected', async () => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'SELL' }, { cachedSpread: 1.3 });
+            signal.entryAttemptId = 'attempt-cached-spread';
+            signal.entryReferencePrice = signal.currentPrice;
+            const { rejected, orderError } = observeRejection();
+            mockSignalGenerator.handleEntryRejection.mockImplementation((event) => {
+                expect(mockEntryDecisionRepository.decisions[0]).toMatchObject({
+                    decisionId: signal.entryAttemptId, outcome: 'REJECTED', canReconsider: true,
+                    entryReferencePrice: signal.entryReferencePrice,
+                    rejectionContext: event.context,
+                });
+                expect(rejected).not.toHaveBeenCalled();
+            });
+
+            await queueEntry(signal);
+
+            expect(engine.stats).toMatchObject({ signalsRejected: 1, errors: 0, tradesExecuted: 0 });
+            expect(orderError).not.toHaveBeenCalled();
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(mockSignalGenerator.handleEntryRejection).toHaveBeenCalledTimes(1);
+            expect(rejected).toHaveBeenCalledWith(expect.objectContaining({
+                signal, decisionId: signal.entryAttemptId, rejectionCode: 'SPREAD_TOO_WIDE', canReconsider: true,
+                context: expect.objectContaining({ phase: 'CACHED_PRICE', spreadPips: expect.closeTo(1.3, 8), maxSpreadPips: 1.2 }),
+            }));
+        });
+
+        test('revalidation records the newer spread that caused the decline, not the first passing quote', async () => {
+            const signal = await prepareQuoteCase({ ...markets[1], side: 'BUY' }, { cachedSpread: 1.2 });
+            const { rejected, orderError } = observeRejection();
+            oandaClient.getOpenTrades.mockImplementation(async () => {
+                const cached = engine.dataService.getCurrentPrice(signal.symbol);
+                cached.ask = cached.bid + 1.3 * markets[1].pip;
+                cached.spread = (cached.ask - cached.bid) / markets[1].pip;
+                return { trades: [] };
+            });
+
+            await queueEntry(signal);
+
+            expect(engine.stats).toMatchObject({ signalsRejected: 1, errors: 0 });
+            expect(orderError).not.toHaveBeenCalled();
+            expect(oandaClient.getPricing).not.toHaveBeenCalled();
+            expect(rejected).toHaveBeenCalledWith(expect.objectContaining({
+                rejectionCode: 'SPREAD_TOO_WIDE', canReconsider: true,
+                context: expect.objectContaining({ phase: 'REVALIDATION', spreadPips: expect.closeTo(1.3, 8) }),
+            }));
+            expect(mockEntryDecisionRepository.decisions[0]).toMatchObject({ spreadPips: expect.closeTo(1.3, 8) });
+        });
+
+        test.each([
+            { name: 'spread', options: { cachedSpread: 1, finalSpread: 1.3 }, code: 'SPREAD_TOO_WIDE', context: { spreadPips: expect.closeTo(1.3, 8), maxSpreadPips: 1.2 } },
+            { name: 'cost', options: { cachedSpread: 0.6, finalSpread: 0.8, stopPips: 6 }, code: 'COST_TO_STOP_TOO_HIGH', context: { spreadPips: expect.closeTo(0.8, 8), costToStopRatio: expect.closeTo(1 / 6, 8), maxCostToStopRatio: 0.15, stopPips: 6 } },
+            { name: 'deviation', options: { cachedSpread: 0.2, finalSpread: 0.5, deviation: 1.6 }, code: 'ENTRY_PRICE_DEVIATION', context: { deviationPips: expect.closeTo(1.6, 8), maxEntryDeviationPips: 1.5 } },
+        ])('a final $name decline is one policy rejection with the measured final quote', async ({ options, code, context }) => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'SELL' }, options);
+            const { rejected, orderError } = observeRejection();
+
+            await queueEntry(signal);
+
+            expect(engine.stats).toMatchObject({ signalsRejected: 1, errors: 0, tradesExecuted: 0 });
+            expect(orderError).not.toHaveBeenCalled();
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(engine.brokerLifecycleRepository.intents.size).toBe(0);
+            expect(rejected).toHaveBeenCalledTimes(1);
+            expect(rejected).toHaveBeenCalledWith(expect.objectContaining({
+                rejectionCode: code, canReconsider: true,
+                context: expect.objectContaining({ phase: 'FINAL_QUOTE', ...context,
+                    bid: expect.any(Number), ask: expect.any(Number), quoteFetchedAt: Date.now(),
+                    entryReferencePrice: signal.currentPrice }),
+            }));
+            expect(mockEntryDecisionRepository.decisions[0]).toMatchObject({
+                rejectionCode: code, canReconsider: true,
+                rejectionContext: expect.objectContaining(context),
+            });
+        });
+
+        test.each(cases)('$symbol $side retains the original reference for a later attempt and its submitted bound', async (market) => {
+            const signal = await prepareQuoteCase(market, { cachedSpread: 0.2, finalSpread: 0.5, deviation: 1.4 });
+            signal.entryReferencePrice = signal.currentPrice;
+            signal.currentPrice += (market.side === 'SELL' ? -1 : 1) * market.pip;
+            signal.entryAttemptId = `later-${market.symbol}-${market.side}`;
+
+            await queueEntry(signal);
+
+            const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(market.symbol, expect.any(Number),
+                expect.objectContaining({ priceBound: signal.entryReferencePrice + (market.side === 'SELL' ? -1 : 1) * 1.5 * market.pip }));
+            expect(intent).toMatchObject({ referencePrice: signal.currentPrice,
+                contextPayload: { entryReferencePrice: signal.entryReferencePrice,
+                    finalQuote: { entryReferencePrice: signal.entryReferencePrice } } });
+            expect(mockEntryDecisionRepository.decisions[0]).toMatchObject({
+                decisionId: signal.entryAttemptId, entryReferencePrice: signal.entryReferencePrice, outcome: 'FILLED',
+            });
+            expect([...engine.openTrades.values()][0].brokerReconciliationPayload.liveRuntime.entryTelemetry)
+                .toMatchObject({ requestedPrice: signal.currentPrice, entryReferencePrice: signal.entryReferencePrice });
+        });
+
+        test.each(cases)('$symbol $side cannot reset the original deviation allowance on a later attempt', async (market) => {
+            const signal = await prepareQuoteCase(market, { cachedSpread: 0.2, finalSpread: 0.5, deviation: 1.6 });
+            signal.entryReferencePrice = signal.currentPrice;
+            signal.currentPrice += (market.side === 'SELL' ? -1 : 1) * market.pip;
+            const { rejected } = observeRejection();
+
+            await queueEntry(signal);
+
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(rejected).toHaveBeenCalledWith(expect.objectContaining({ rejectionCode: 'ENTRY_PRICE_DEVIATION',
+                context: expect.objectContaining({ entryReferencePrice: signal.entryReferencePrice,
+                    currentPrice: signal.currentPrice, deviationPips: expect.closeTo(1.6, 8) }) }));
+        });
+
+        test('without durable decisions a pricing decline is never acknowledged as reconsiderable', async () => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'BUY' }, { finalSpread: 1.3 });
+            engine.entryDecisionRepository = null;
+            const { rejected } = observeRejection();
+
+            await queueEntry(signal);
+
+            expect(rejected).toHaveBeenCalledWith(expect.objectContaining({ decisionId: null, canReconsider: false }));
+            expect(engine.stats).toMatchObject({ signalsRejected: 1, errors: 0 });
+        });
+
+        test.each(['cached spread', 'final spread', 'zero size'])('a failed rejection write for %s does not acknowledge retry or double-count errors', async (phase) => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'BUY' }, {
+                cachedSpread: phase === 'cached spread' ? 1.3 : 1,
+                finalSpread: phase === 'final spread' ? 1.3 : 1,
+            });
+            if (phase === 'zero size') {
+                const size = engine.calculatePositionSize.bind(engine);
+                jest.spyOn(engine, 'calculatePositionSize').mockResolvedValue(0).mockImplementationOnce(size);
+            }
+            const update = mockEntryDecisionRepository.updateDecision.getMockImplementation();
+            mockEntryDecisionRepository.updateDecision.mockImplementation(async (id, updates) => {
+                if (updates.outcome === 'REJECTED') throw new Error('decision write failed');
+                return update(id, updates);
+            });
+            const { rejected } = observeRejection();
+
+            await queueEntry(signal);
+
+            expect(engine.stats).toMatchObject({ signalsRejected: 0, errors: 1, tradesExecuted: 0 });
+            expect(rejected).not.toHaveBeenCalled();
+            expect(mockSignalGenerator.handleEntryRejection).not.toHaveBeenCalled();
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.decisions[0].outcome).not.toBe('REJECTED');
+        });
+
+        test.each(['zero size', 'stale price'])('%s is a non-retryable policy decline counted once', async (reason) => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'BUY' }, { cachedSpread: 1 });
+            if (reason === 'zero size') {
+                const size = engine.calculatePositionSize.bind(engine);
+                jest.spyOn(engine, 'calculatePositionSize').mockResolvedValue(0).mockImplementationOnce(size);
+            } else engine.dataService.getCurrentPrice(signal.symbol).fetchedAt = Date.now() - 60000;
+            const { rejected, orderError } = observeRejection();
+
+            await queueEntry(signal);
+
+            expect(engine.stats).toMatchObject({ signalsRejected: 1, errors: 0 });
+            expect(orderError).not.toHaveBeenCalled();
+            expect(rejected).toHaveBeenCalledWith(expect.objectContaining({ canReconsider: false,
+                rejectionCode: reason === 'zero size' ? 'POSITION_SIZE_TOO_SMALL' : 'STALE_PRICE' }));
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test.each(['final size', 'final exposure', 'invalid final account'])('%s is reported according to the final account evidence', async (failure) => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'BUY' }, { cachedSpread: 1 });
+            let finalQuoteReceived = false;
+            const getPricing = oandaClient.getPricing.getMockImplementation();
+            oandaClient.getPricing.mockImplementation(async (...args) => {
+                finalQuoteReceived = true;
+                return getPricing(...args);
+            });
+            const getAccount = oandaClient.getAccountSummary.getMockImplementation();
+            oandaClient.getAccountSummary.mockImplementation(async () => {
+                const snapshot = await getAccount();
+                if (!finalQuoteReceived) return snapshot;
+                return { ...snapshot, account: { ...snapshot.account,
+                    ...(failure === 'final size' ? { marginAvailable: '0.01' }
+                        : { marginUsed: failure === 'final exposure' ? snapshot.account.balance : undefined }),
+                } };
+            });
+            const { rejected, orderError } = observeRejection();
+
+            await queueEntry(signal);
+
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            if (failure === 'invalid final account') {
+                expect(engine.stats).toMatchObject({ signalsRejected: 0, errors: 1 });
+                expect(orderError).toHaveBeenCalledTimes(1);
+                expect(rejected).not.toHaveBeenCalled();
+                expect(mockEntryDecisionRepository.decisions[0]).toMatchObject({
+                    rejectionCode: 'ENTRY_PREPARATION_FAILED', canReconsider: false,
+                });
+            } else {
+                expect(engine.stats).toMatchObject({ signalsRejected: 1, errors: 0 });
+                expect(orderError).not.toHaveBeenCalled();
+                expect(rejected).toHaveBeenCalledWith(expect.objectContaining({ canReconsider: false,
+                    rejectionCode: failure === 'final size' ? 'POSITION_SIZE_TOO_SMALL' : 'EXPOSURE_LIMIT',
+                    context: expect.objectContaining({ phase: 'FINAL_SIZING' }),
+                }));
+            }
+        });
+
+        test.each([false, true])('prepared-intent cancellation requires terminal persistence before acknowledgement (write failure: %s)', async (writeFailure) => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'BUY' }, { cachedSpread: 1 });
+            const repository = engine.brokerLifecycleRepository;
+            const create = repository.createIntent.getMockImplementation();
+            repository.createIntent.mockImplementation(async (intent) => {
+                const saved = await create(intent);
+                mockConfigService.config.enableTrading = false;
+                return saved;
+            });
+            if (writeFailure) {
+                const update = repository.updateIntent.getMockImplementation();
+                repository.updateIntent.mockImplementation(async (id, updates) => {
+                    if (['REJECTED', 'ABANDONED'].includes(updates.status)) throw new Error('intent write failed');
+                    return update(id, updates);
+                });
+            }
+            const { rejected } = observeRejection();
+            mockSignalGenerator.handleEntryRejection.mockImplementation(() => {
+                expect([...repository.intents.values()][0]).toMatchObject({ status: 'ABANDONED' });
+            });
+
+            await queueEntry(signal);
+
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            if (writeFailure) {
+                expect(engine.stats).toMatchObject({ signalsRejected: 0, errors: 1 });
+                expect(rejected).not.toHaveBeenCalled();
+                expect(mockSignalGenerator.handleEntryRejection).not.toHaveBeenCalled();
+                expect(await repository.getRecoverableIntents()).toHaveLength(1);
+            } else {
+                expect(engine.stats).toMatchObject({ signalsRejected: 1, errors: 0 });
+                expect(rejected).toHaveBeenCalledWith(expect.objectContaining({
+                    rejectionCode: 'TRADING_DISABLED', canReconsider: false,
+                }));
+                expect(await repository.getRecoverableIntents()).toEqual([]);
+            }
+        });
+
+        test.each(['preparation', 'broker rejection', 'broker policy-shaped error', 'ambiguous broker response'])('%s remains one real error and cannot release the setup', async (failure) => {
+            const signal = await prepareQuoteCase({ ...markets[0], side: 'BUY' }, { cachedSpread: 1 });
+            const error = new Error(failure);
+            if (failure === 'preparation') oandaClient.getPricing.mockRejectedValue(error);
+            else {
+                error.ambiguous = failure === 'ambiguous broker response';
+                if (failure === 'broker policy-shaped error') Object.assign(error, {
+                    entryPolicyRejection: true, entryRejectionCode: 'SPREAD_TOO_WIDE',
+                });
+                oandaClient.placeMarketOrder.mockRejectedValue(error);
+            }
+            const { rejected, orderError } = observeRejection();
+
+            await queueEntry(signal);
+
+            expect(engine.stats).toMatchObject({ signalsRejected: 0, errors: 1, tradesExecuted: 0 });
+            expect(orderError).toHaveBeenCalledTimes(1);
+            expect(rejected).not.toHaveBeenCalled();
+            expect(mockSignalGenerator.handleEntryRejection).not.toHaveBeenCalled();
+            const decision = mockEntryDecisionRepository.decisions[0];
+            if (error.ambiguous) {
+                expect(decision).toMatchObject({ stage: 'ORDER_SUBMITTED', outcome: 'PENDING' });
+                expect(engine.getStatus().pendingOrderIntents).toHaveLength(1);
+            } else {
+                expect(decision).toMatchObject({ outcome: 'REJECTED', canReconsider: false,
+                    rejectionCode: failure === 'preparation' ? 'ENTRY_PREPARATION_FAILED' : 'ORDER_SUBMIT_FAILED' });
+                expect(engine.getStatus().pendingOrderIntents).toHaveLength(0);
+            }
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(failure === 'preparation' ? 0 : 1);
+        });
+
         test.each(cases.flatMap((market) => [1.1, 1.2, 1.3].map((spread) => ({ ...market, spread }))))(
             '$symbol $side cached spread $spread pips respects the unchanged 1.2-pip limit', async (market) => {
                 const signal = await prepareQuoteCase(market, { cachedSpread: market.spread });

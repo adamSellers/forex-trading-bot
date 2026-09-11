@@ -8,10 +8,11 @@ Read-only SSH on September 7 and 8 verified user-deployed `8e4fb99`, including v
 
 ## Immediate live review
 
-- **Local implementation verified September 10:** [maintenance and quote-limit correction](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md). v3.2 preserves enabled intent through cooldown/maintenance, retains an active cooldown across release replacement and corrects numerical boundary comparisons. Next: user publication/build/deployment. No strategy tuning or numerical risk-limit changes.
+- **Locally validated September 11 correction:** [entry rejection and reconsideration](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md). v3.3 separates expected pricing declines from errors, counts unexpected failures once and permits the next regular scan to reconsider a still-valid setup after a confirmed local pricing rejection. Preserve the original decision-price bound across attempts and restart. All 713 backend tests pass. User publication/build/deployment remains pending; no strategy or risk tuning.
+- **Maintenance correction deployed:** September 11 read-only inspection verified `33e0b76`, v3.2 / strategy 1.1.2. The [maintenance and quote-limit correction](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md) preserves enabled intent, active cooldown deadlines and exact quote-limit comparisons.
 - **Quote-freshness correction deployed:** September 10 read-only inspection verified `d46da61`, v3.1 / strategy 1.1.1, healthy price delivery and all four pairs evaluated. See the [quote-freshness record](docs/reviews/2026-09-08-quote-freshness-fix-plan.md).
 - Verify every scheduled cycle has fresh completed M15/H1 candles and current OANDA spread data.
-- Verify every actionable event creates one durable order intent and either one broker fill or one explicit rejection.
+- Verify every actionable event has an explicit decision outcome; create a durable order intent before broker submission. A local pricing decline before submission must remain distinguishable from an order submission or unknown broker outcome.
 - Verify all filled positions have a broker-side protective stop and survive process restarts.
 - Track actual fill slippage, spread cost and rejection counts by reason, pair and local market session.
 

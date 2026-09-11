@@ -53,6 +53,8 @@ jest.mock("../src/runtime/runtimeCoordinator", () => {
     const { EventEmitter } = require("events");
     return class extends EventEmitter {
         init() {}
+        ensureLiveSelectionInitialized = jest.fn(async () => {});
+        start = jest.fn(async () => {});
         getLiveSelection() { return null; }
         listRuns() { return []; }
         getStatus() { return { isRunning: true, lastRunTime: Date.now() }; }
@@ -67,7 +69,7 @@ jest.mock("../src/repositories/brokerLifecycleRepository", () => jest.fn(() => (
 jest.mock("../src/services/emailService", () => ({ initialize: jest.fn() }));
 jest.mock("../src/services/s3ReportScheduler", () => jest.fn(() => ({})));
 jest.mock("../src/runtime/engineSupervisor", () => ({
-    createEngineSupervisor: () => ({ ensureStarted: jest.fn() }),
+    createEngineSupervisor: jest.fn(() => ({ ensureStarted: jest.fn() })),
 }));
 jest.mock("../src/services/operationalHealthService", () => ({
     OperationalHealthService: jest.fn(() => ({ start: jest.fn() })),
@@ -122,6 +124,16 @@ describe("private internal-network app access", () => {
         expect(config.headers["access-control-allow-origin"]).toBe("http://fx.oakroad");
         const prices = await request(instance.server).get("/api/prices?instruments=AUD_USD").expect(200);
         expect(prices.body.prices[0].bid).toBe(0.67);
+    });
+
+    test("actual server delegates ownership initialization and first scan to supervised attachment", async () => {
+        const { createEngineSupervisor } = require("../src/runtime/engineSupervisor");
+        const options = createEngineSupervisor.mock.calls[0][0];
+        const coordinator = instance.app.locals.runtimeCoordinator;
+        await options.beforeStart();
+        expect(coordinator.ensureLiveSelectionInitialized).toHaveBeenCalledTimes(1);
+        await options.onStarted();
+        expect(coordinator.start).toHaveBeenCalledWith(instance.app.locals.dataService, 60000);
     });
 
     test("actual control route accepts pause without login", async () => {

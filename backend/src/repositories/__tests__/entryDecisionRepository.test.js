@@ -1,4 +1,6 @@
 const EntryDecisionRepository = require("../entryDecisionRepository");
+const { createTestDb, destroyTestDb } = require("../../../__tests__/helpers/testDb");
+const reconsiderationMigration = require("../../../migrations/011_add_entry_reconsideration");
 
 let mockTestDbInstance = null;
 
@@ -181,6 +183,69 @@ describe("EntryDecisionRepository", () => {
                 instrument: "AUD_USD",
             })
         );
+    });
+
+    describe("durable setup recovery", () => {
+        let database;
+        beforeEach(async () => {
+            database = await createTestDb();
+            mockTestDbInstance = database;
+        });
+        afterEach(async () => {
+            await destroyTestDb(database);
+        });
+
+        const attempt = (overrides = {}) => ({
+            decisionId: "attempt-1", setupId: "setup-1", signalCandleTime: 1789082100000,
+            decisionTime: 1789083032000, instrument: "USD_JPY", side: "BUY", signal: "BUY",
+            runId: "run-1", configHash: "config-1", entryReferencePrice: 154.537,
+            ...overrides,
+        });
+        const identity = { runId: "run-1", configHash: "config-1", setupId: "setup-1" };
+
+        test("round trips the actual rejection, original reference and latest attempt within its owner", async () => {
+            await repository.save(attempt());
+            const rejectionContext = { phase: "FINAL_QUOTE", spreadPips: 1.3, maxSpreadPips: 1.2 };
+            await repository.updateDecision("attempt-1", {
+                outcome: "REJECTED", rejectionCode: "SPREAD_TOO_WIDE", spreadPips: 1.3,
+                canReconsider: true, rejectionContext,
+            });
+            expect(await repository.getLatestForSetup(identity)).toMatchObject({
+                decisionId: "attempt-1", entryReferencePrice: 154.537,
+                spreadPips: 1.3, rejectionContext, canReconsider: true,
+            });
+            // A clock correction must not resurrect the older safe rejection.
+            await repository.save(attempt({ decisionId: "attempt-2", decisionTime: 1789082972000 }));
+            await repository.save(attempt({ decisionId: "other-run", runId: "other", decisionTime: 1789083152000 }));
+            await repository.save(attempt({ decisionId: "other-config", configHash: "other", decisionTime: 1789083152000 }));
+            expect(await repository.getLatestForSetup(identity)).toMatchObject({
+                decisionId: "attempt-2", outcome: "PENDING", canReconsider: false,
+                entryReferencePrice: 154.537,
+            });
+            expect(await repository.getLatestForSetup({ ...identity, setupId: "missing" })).toBeNull();
+        });
+
+        test("a missing decision cannot acknowledge a safe rejection", async () => {
+            await expect(repository.updateDecision("missing", { canReconsider: true }))
+                .rejects.toThrow("was not updated");
+            await expect(repository.getLatestForSetup({ setupId: "setup-1" }))
+                .rejects.toThrow("requires run, config and setup identity");
+        });
+
+        test("migration preserves historical outcomes without inventing retry permission or quote evidence", async () => {
+            await reconsiderationMigration.down(database);
+            await database("entry_decisions").insert({
+                decision_id: "historical", decision_time: 1789083032000, instrument: "USD_JPY",
+                side: "BUY", signal: "BUY", outcome: "FILLED", trade_id: "original-trade",
+                spread_pips: 1.1,
+            });
+            await reconsiderationMigration.up(database);
+            const rows = await repository.getDecisionsSince(0);
+            expect(rows[0]).toMatchObject({
+                decisionId: "historical", outcome: "FILLED", tradeId: "original-trade", spreadPips: 1.1,
+                entryReferencePrice: null, canReconsider: false, rejectionContext: null,
+            });
+        });
     });
 
     describe("deleteOlderThan", () => {

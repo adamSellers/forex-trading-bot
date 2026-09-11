@@ -1,5 +1,6 @@
 // Tests for SignalRepository - Signal database operations
 const SignalRepository = require('../signalRepository');
+const { createTestDb, destroyTestDb } = require('../../../__tests__/helpers/testDb');
 
 // Store reference to test database for mock
 let mockTestDbInstance = null;
@@ -33,6 +34,28 @@ describe('SignalRepository', () => {
 
     afterEach(() => {
         jest.clearAllMocks();
+    });
+
+    test('compact and full reads retain attempt identity without loading full context into the dashboard', async () => {
+        const database = await createTestDb();
+        mockTestDbInstance = database;
+        try {
+            await database.schema.alterTable('signals', (table) => table.text('message'));
+            await database('signals').insert([
+                { instrument: 'GBP_USD', signal: 'SELL', timestamp: 1000,
+                    decision_context: JSON.stringify({ entryAttemptId: 'attempt-1', strategyContext: { large: true } }) },
+                { instrument: 'GBP_USD', signal: 'SELL', timestamp: 2000, decision_context: '{broken' },
+            ]);
+            const compact = await repository.getSignalsSinceCompact(0);
+            const full = await repository.getSignalsSince(0);
+            expect(compact.map((row) => row.entryAttemptId)).toEqual(full.map((row) => row.entryAttemptId));
+            expect(compact[1]).toMatchObject({ entryAttemptId: 'attempt-1', decisionContext: null });
+            expect(full[1].decisionContext).toMatchObject({ entryAttemptId: 'attempt-1' });
+            expect(compact[0].entryAttemptId).toBeNull();
+        } finally {
+            await destroyTestDb(database);
+            mockTestDbInstance = null;
+        }
     });
 
     // Retention methods delete/update via batched whereIn-id-subquery chains:

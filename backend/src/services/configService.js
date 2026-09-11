@@ -61,8 +61,8 @@ class ConfigService extends EventEmitter {
                 nextConfig = normalizeTradingConfig(fileConfig);
                 delete nextConfig.tradingMode;
                 if (
-                    ["m15-intraday-v3", "m15-intraday-v3.1"].includes(fileConfig.liveReleaseVersion) &&
-                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v3.2"
+                    ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2"].includes(fileConfig.liveReleaseVersion) &&
+                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v3.3"
                 ) {
                     // These maintenance releases preserve the saved strategy
                     // and risk parameters; only execution identities change.

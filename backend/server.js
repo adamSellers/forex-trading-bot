@@ -70,6 +70,7 @@ const brokerLifecycleRepository = new BrokerLifecycleRepository();
 const runtimeCoordinator = new RuntimeCoordinator({
     dataService,
     signalRepository,
+    entryDecisionRepository,
     strategyRunRepository,
     tradeRepository,
     configService,
@@ -319,6 +320,10 @@ tradingEngine.on("entryRejected", ({ signal, reason }) => {
 // 2026-07-23 outage described in engineSupervisor.js).
 const engineSupervisor = createEngineSupervisor({
     tradingEngine,
+    beforeStart: () => runtimeCoordinator.ensureLiveSelectionInitialized(),
+    // The engine must be listening before start() evaluates its first scan,
+    // including when attachment succeeds only on a later supervisor retry.
+    onStarted: () => runtimeCoordinator.start(dataService, 60000),
     onStatusChange: () => broadcastEngineStatus(),
 });
 const ensureTradingEngineStarted = engineSupervisor.ensureStarted;
@@ -432,9 +437,7 @@ server.listen(PORT, async () => {
                 runtimeCoordinator.on("liveSelectionChanged", broadcastLiveSelection);
                 runtimeCoordinator.on("runtimeRunsChanged", broadcastRuntimeRuns);
 
-                await runtimeCoordinator.start(dataService, 60000);
-
-                // Start trading engine (will subscribe to signals)
+                // Initialize ownership, attach the engine, then start scans.
                 // Note: Trading is controlled by config.enableTrading flag.
                 // A failure here retries in the background rather than leaving the
                 // engine detached from the signal stream for the process lifetime.

@@ -124,6 +124,7 @@ class SignalRepository {
     }
 
     _mapRow(row) {
+        const decisionContext = row.decision_context ? this._parseJson(row.decision_context) : null;
         return {
             ...row,
             symbol: row.instrument,
@@ -131,6 +132,7 @@ class SignalRepository {
             signalClass: row.signal_class,
             intent: row.intent,
             setupId: row.setup_id,
+            entryAttemptId: row.entry_attempt_id || decisionContext?.entryAttemptId || null,
             signalCandleTime: row.signal_candle_time,
             uniqueEvent:
                 row.unique_event === null || row.unique_event === undefined
@@ -156,9 +158,7 @@ class SignalRepository {
                           waitingFor: row.pending_waiting_for,
                       }
                     : null,
-            decisionContext: row.decision_context
-                ? this._parseJson(row.decision_context)
-                : null,
+            decisionContext,
         };
     }
 
@@ -299,7 +299,8 @@ class SignalRepository {
                         "config_hash",
                         "run_id",
                         "selection_id",
-                        "mode"
+                        "mode",
+                        db.raw("CASE WHEN json_valid(decision_context) THEN json_extract(decision_context, '$.entryAttemptId') END AS entry_attempt_id")
                     )
                     .where("timestamp", ">=", timestamp),
                 filters

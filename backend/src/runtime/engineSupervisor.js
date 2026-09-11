@@ -17,6 +17,8 @@ const DEFAULT_MAX_RETRY_MS = 300000;
 function createEngineSupervisor({
     tradingEngine,
     onStatusChange = () => {},
+    beforeStart = null,
+    onStarted = null,
     minRetryMs = DEFAULT_MIN_RETRY_MS,
     maxRetryMs = DEFAULT_MAX_RETRY_MS,
     setTimeoutFn = setTimeout,
@@ -45,59 +47,64 @@ function createEngineSupervisor({
 
         retryTimer = setTimeoutFn(() => {
             retryTimer = null;
-            ensureStarted({ reason: "retry" });
+            return ensureStarted({ reason: "retry" });
         }, delayMs);
         // A pending retry must never hold the process open during shutdown.
         retryTimer.unref?.();
     }
 
     async function ensureStarted({ reason = "boot" } = {}) {
-        if (tradingEngine.isRunning) {
-            return { running: true, alreadyRunning: true };
-        }
-
         // Collapse concurrent callers (boot, retry timer, activation endpoint)
         // onto a single attempt so they cannot race each other into duplicate
         // signal subscriptions.
         if (inFlight) {
             return inFlight;
         }
+        if (tradingEngine.isRunning && !onStarted) {
+            return { running: true, alreadyRunning: true };
+        }
 
         inFlight = (async () => {
+            const alreadyRunning = tradingEngine.isRunning;
             try {
-                await tradingEngine.start();
+                if (!alreadyRunning) {
+                    if (beforeStart) await beforeStart();
+                    await tradingEngine.start();
 
-                // A monitoring failure must not roll back a successful attach:
-                // the engine is subscribed to signals by this point, and a
-                // retry would short-circuit on isRunning and silently skip
-                // monitoring forever.
-                try {
-                    tradingEngine.startMonitoring();
-                } catch (monitorError) {
-                    logger.error(
-                        "Trading engine attached but position monitoring failed to start:",
-                        monitorError.message
+                    // Monitoring starts before scans and remains active even
+                    // if signal startup needs another supervised attempt.
+                    try {
+                        tradingEngine.startMonitoring();
+                    } catch (monitorError) {
+                        logger.error(
+                            "Trading engine attached but position monitoring failed to start:",
+                            monitorError.message
+                        );
+                    }
+                }
+                if (onStarted) await onStarted();
+
+                cancelPendingRetry();
+                retryDelayMs = minRetryMs;
+                if (!alreadyRunning) {
+                    logger.success(
+                        `Trading engine started and listening for signals (${reason})`
                     );
                 }
-
-                retryDelayMs = minRetryMs;
-                logger.success(
-                    `Trading engine started and listening for signals (${reason})`
-                );
                 onStatusChange();
-                return { running: true };
+                return alreadyRunning ? { running: true, alreadyRunning: true } : { running: true };
             } catch (error) {
                 const retryInMs = retryDelayMs;
                 retryDelayMs = Math.min(retryDelayMs * 2, maxRetryMs);
                 logger.error(
-                    `Failed to start trading engine (${reason}); retrying in ${Math.round(
+                    `${tradingEngine.isRunning ? "Trading engine attached but signal startup failed" : "Failed to start trading engine"} (${reason}); retrying in ${Math.round(
                         retryInMs / 1000
                     )}s:`,
                     error.message
                 );
                 scheduleRetry(retryInMs);
                 onStatusChange();
-                return { running: false, error: error.message, retryInMs };
+                return { running: tradingEngine.isRunning === true, error: error.message, retryInMs };
             } finally {
                 inFlight = null;
             }

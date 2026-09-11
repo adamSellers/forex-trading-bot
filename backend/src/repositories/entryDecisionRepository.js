@@ -68,6 +68,9 @@ class EntryDecisionRepository {
             stage: decision.stage || "RECEIVED",
             rejection_code: decision.rejectionCode || null,
             rejection_reason: decision.rejectionReason || null,
+            rejection_context: this._serializeJson(decision.rejectionContext) ?? null,
+            entry_reference_price: decision.entryReferencePrice ?? null,
+            can_reconsider: decision.canReconsider === true,
             spread_pips:
                 decision.spreadPips === undefined ? null : decision.spreadPips,
             price_age_ms:
@@ -117,6 +120,9 @@ class EntryDecisionRepository {
             stage: row.stage,
             rejectionCode: row.rejection_code,
             rejectionReason: row.rejection_reason,
+            rejectionContext: this._parseJson(row.rejection_context),
+            entryReferencePrice: this._toNumber(row.entry_reference_price),
+            canReconsider: row.can_reconsider === 1 || row.can_reconsider === true,
             spreadPips: this._toNumber(row.spread_pips),
             priceAgeMs: this._toNumber(row.price_age_ms),
             openPositions: this._toNumber(row.open_positions),
@@ -188,6 +194,15 @@ class EntryDecisionRepository {
             if (updates.rejectionReason !== undefined) {
                 dbUpdates.rejection_reason = updates.rejectionReason;
             }
+            if (updates.rejectionContext !== undefined) {
+                dbUpdates.rejection_context = this._serializeJson(updates.rejectionContext);
+            }
+            if (updates.entryReferencePrice !== undefined) {
+                dbUpdates.entry_reference_price = updates.entryReferencePrice;
+            }
+            if (updates.canReconsider !== undefined) {
+                dbUpdates.can_reconsider = updates.canReconsider === true;
+            }
             if (updates.spreadPips !== undefined) dbUpdates.spread_pips = updates.spreadPips;
             if (updates.priceAgeMs !== undefined) dbUpdates.price_age_ms = updates.priceAgeMs;
             if (updates.openPositions !== undefined) {
@@ -212,9 +227,12 @@ class EntryDecisionRepository {
 
             if (Object.keys(dbUpdates).length <= 1) return;
 
-            await db("entry_decisions")
+            const updated = await db("entry_decisions")
                 .where("decision_id", decisionId)
                 .update(dbUpdates);
+            if (updated !== 1) {
+                throw new Error(`Entry decision ${decisionId} was not updated`);
+            }
         } catch (error) {
             logger.error(`Error updating entry decision ${decisionId}:`, error);
             throw error;
@@ -234,6 +252,18 @@ class EntryDecisionRepository {
             logger.error("Error getting entry decisions since cutoff:", error);
             throw error;
         }
+    }
+
+    async getLatestForSetup({ runId, configHash, setupId }) {
+        if (!runId || !configHash || !setupId) {
+            throw new Error("Setup recovery requires run, config and setup identity");
+        }
+        const row = await db("entry_decisions")
+            .where({ run_id: runId, config_hash: configHash, setup_id: setupId })
+            // Insertion order identifies the latest attempt even if the clock moves back.
+            .orderBy("id", "desc")
+            .first();
+        return this._mapRow(row);
     }
 
     async deleteByRuntimeFilters(filters = {}) {

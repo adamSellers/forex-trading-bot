@@ -538,7 +538,7 @@ const intradayMomentumStrategy = createStrategyDefinition({
     label: "M15 Intraday Momentum",
     description:
         "Completed-M15 pullback and breakout entries aligned with a liquid-session H1 trend regime.",
-    version: "1.1.2",
+    version: "1.1.3",
     runtimeStatus: "live_ready",
     requiredData: {
         timeframes: ["15m", "1h"],

@@ -77,6 +77,24 @@ describe("RuntimeCoordinator live-only release", () => {
         ).rejects.toMatchObject({ code: "LIVE_ONLY_RUNTIME" });
     });
 
+    test("allows supervised retry when the initial scan fails", async () => {
+        const coordinator = new RuntimeCoordinator(dependencies());
+        const cycle = jest.spyOn(coordinator, "runCycle")
+            .mockRejectedValueOnce(new Error("Decision history unavailable"))
+            .mockResolvedValue([]);
+        try {
+            await expect(coordinator.start()).rejects.toThrow("Decision history unavailable");
+            expect(coordinator.isRunning).toBe(false);
+            expect(coordinator.runInterval).toBeNull();
+            await coordinator.start();
+            expect(coordinator.isRunning).toBe(true);
+            expect(coordinator.runInterval).not.toBeNull();
+            expect(cycle).toHaveBeenCalledTimes(2);
+        } finally {
+            coordinator.stop();
+        }
+    });
+
     test("quote-freshness startup creates one new cohort and preserves a prior owner's attribution and exit config", async () => {
         const deployed = cloneDefaultConfig();
         const priorConfig = {

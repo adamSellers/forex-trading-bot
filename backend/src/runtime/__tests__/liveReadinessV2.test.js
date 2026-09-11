@@ -49,7 +49,7 @@ describe("liveReadiness", () => {
                 activationAllowed: true,
                 status: "PASS",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.1.2",
+                strategyVersion: "1.1.3",
             })
         );
         expect(readiness).not.toHaveProperty("activationOptions");

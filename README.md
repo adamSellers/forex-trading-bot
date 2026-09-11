@@ -6,7 +6,7 @@ See the [September 6 production review](docs/reviews/2026-09-06-production-revie
 
 ## Live strategy
 
-This checkout contains `intraday_momentum` version `1.1.2` in `m15-intraday-v3.2`, the [maintenance and quote-limit correction](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md), pending user deployment. Production was verified at `d46da61` / v3.1 / strategy `1.1.1` on September 10. The correction preserves enabled intent through maintenance, retains active cooldown deadlines across releases and handles exact quote limits correctly. Existing numerical strategy, risk and exit settings are preserved. The strategy evaluates completed M15 candles and trades only when all of these agree:
+Production was verified at `33e0b76` / `m15-intraday-v3.2` / strategy `1.1.2` on September 11, including the maintenance and quote-limit correction. Local `m15-intraday-v3.3` / strategy `1.1.3` contains the approved [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md), locally validated and awaiting user deployment. Recognized local pricing declines can be reconsidered on a later regular scan while preserving the original decision-price bound; expected rejections are counted separately from unexpected errors. Existing numerical strategy, risk and exit settings are preserved. The strategy evaluates completed M15 candles and trades only when all of these agree:
 
 - the completed H1 close, 20/50 EMAs and ADX define a directional regime;
 - M15 trend and RSI confirm that direction;

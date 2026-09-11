@@ -48,6 +48,14 @@ function toFiniteNumber(value, fallback = null) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function entryPolicyRejection(code, reason, context = {}) {
+    const error = new Error(reason);
+    error.entryPolicyRejection = true;
+    error.entryRejectionCode = code;
+    error.entryRejectionContext = context;
+    return error;
+}
+
 /**
  * LiveTradingEngine - Executes trades based on signals from SignalGenerator
  *
@@ -386,7 +394,8 @@ class LiveTradingEngine extends EventEmitter {
     assertEntryActivation(generation) {
         if (this.engineStopped || this.configService.get().enableTrading !== true ||
             generation !== this.activationGeneration) {
-            const error = new Error("Live activation changed before order submission");
+            const error = entryPolicyRejection(ENTRY_REJECTION_CODES.TRADING_DISABLED,
+                "Live activation changed before order submission", { phase: "PRE_SUBMISSION" });
             error.code = "ENTRY_ACTIVATION_CHANGED";
             throw error;
         }
@@ -397,7 +406,8 @@ class LiveTradingEngine extends EventEmitter {
         const { getActivePairSessions } = require("../strategies/intradayMomentum");
         if (!getActivePairSessions(signal.symbol, now).length ||
             resolveTimedExitReason({ trade: { entryTime: now }, policy: config, now })) {
-            throw new Error("Intraday entry session ended or rollover closure is active");
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.OUTSIDE_SESSION,
+                "Intraday entry session ended or rollover closure is active", { phase: "ENTRY_CLOCK" });
         }
     }
 
@@ -539,6 +549,7 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     buildEntryDecisionId(signal, decisionTime) {
+        if (signal?.entryAttemptId) return signal.entryAttemptId;
         if (signal?.setupId && Number.isFinite(decisionTime)) {
             return `${signal.setupId}:${decisionTime}`;
         }
@@ -561,6 +572,7 @@ class LiveTradingEngine extends EventEmitter {
                 this.buildEntryDecisionId(signal, decisionTime),
             setupId: signal?.setupId || null,
             signalCandleTime: signal?.signalCandleTime ?? null,
+            entryReferencePrice: toFiniteNumber(signal?.entryReferencePrice, signal?.currentPrice),
             decisionTime,
             instrument: signal?.symbol,
             side: signal?.signal === "SELL" ? "SELL" : "BUY",
@@ -635,6 +647,29 @@ class LiveTradingEngine extends EventEmitter {
         });
     }
 
+    async reportEntryRejection(signal, config, decisionId, { rejectionCode, reason, context = {} }, mayReconsider = false) {
+        const pricingCode = [ENTRY_REJECTION_CODES.SPREAD_TOO_WIDE,
+            ENTRY_REJECTION_CODES.COST_TO_STOP_TOO_HIGH,
+            ENTRY_REJECTION_CODES.ENTRY_PRICE_DEVIATION].includes(rejectionCode);
+        const canReconsider = Boolean(mayReconsider && pricingCode && decisionId && this.entryDecisionRepository);
+        await this.rejectEntryDecision(decisionId, {
+            ...context,
+            rejectionCode,
+            rejectionReason: reason,
+            rejectionContext: context,
+            canReconsider,
+        });
+        this.stats.signalsRejected++;
+        logger.info(`⏸️ Entry rejected for ${signal.symbol}: ${reason}`);
+        this.emitEngineTelemetry("validationRejected", {
+            ...this.buildSignalTelemetry(signal, config), rejectionCode, reason, context,
+        });
+        const event = { signal, decisionId, rejectionCode, reason, context, canReconsider };
+        // Reconsideration is acknowledged only after the rejection is durable.
+        this.signalGenerator?.handleEntryRejection?.(event);
+        this.emit("entryRejected", event);
+    }
+
     getFallbackCloseResolution(trade) {
         const activeStopPrice =
             trade.trailingStopPrice ||
@@ -703,8 +738,11 @@ class LiveTradingEngine extends EventEmitter {
                     await this.processSignal(item.signal, item.generation);
                 }
             } catch (error) {
-                logger.error(`❌ Queue processing error:`, error.message);
-                this.stats.errors++;
+                if (!error.entryRejectionReported && !error.executionErrorReported) {
+                    logger.error(`❌ Queue processing error:`, error.message);
+                    this.stats.errors++;
+                    error.executionErrorReported = true;
+                }
             }
         }
 
@@ -789,24 +827,11 @@ class LiveTradingEngine extends EventEmitter {
             // Validate and execute entry
             const validation = await this.validateEntry(signal, config);
             if (!validation.valid) {
-                logger.info(
-                    `⏸️ Entry rejected for ${symbol}: ${validation.reason}`
-                );
-                this.stats.signalsRejected++;
-                this.emitEngineTelemetry("validationRejected", {
-                    ...this.buildSignalTelemetry(signal, config),
+                await this.reportEntryRejection(signal, config, decisionId, {
+                    rejectionCode: validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                     reason: validation.reason,
-                });
-                this.emit("entryRejected", {
-                    signal,
-                    reason: validation.reason,
-                });
-                await this.rejectEntryDecision(decisionId, {
-                    rejectionCode:
-                        validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
-                    rejectionReason: validation.reason,
-                    ...validation.context,
-                });
+                    context: validation.context,
+                }, true);
                 return;
             }
 
@@ -869,24 +894,11 @@ class LiveTradingEngine extends EventEmitter {
                 // Validate and execute entry
                 const validation = await this.validateEntry(signal, config);
                 if (!validation.valid) {
-                    logger.info(
-                        `⏸️ Short Entry rejected for ${symbol}: ${validation.reason}`
-                    );
-                    this.stats.signalsRejected++;
-                    this.emitEngineTelemetry("validationRejected", {
-                        ...this.buildSignalTelemetry(signal, config),
+                    await this.reportEntryRejection(signal, config, decisionId, {
+                        rejectionCode: validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                         reason: validation.reason,
-                    });
-                    this.emit("entryRejected", {
-                        signal,
-                        reason: validation.reason,
-                    });
-                    await this.rejectEntryDecision(decisionId, {
-                        rejectionCode:
-                            validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
-                        rejectionReason: validation.reason,
-                        ...validation.context,
-                    });
+                        context: validation.context,
+                    }, true);
                     return;
                 }
 
@@ -957,6 +969,13 @@ class LiveTradingEngine extends EventEmitter {
             : null;
         const spreadPips = Number(priceData?.spread);
         const baseContext = {
+            phase: "CACHED_PRICE",
+            bid: priceData?.bid ?? null,
+            ask: priceData?.ask ?? null,
+            maxSpreadPips: toFiniteNumber(config.maxSpreadPips, null),
+            entryReferencePrice: toFiniteNumber(signal.entryReferencePrice, signal.currentPrice),
+            quoteTime: priceData?.timestamp ?? null,
+            quoteFetchedAt: priceData?.fetchedAt ?? null,
             spreadPips: Number.isFinite(spreadPips) ? spreadPips : null,
             priceAgeMs: Number.isFinite(priceAgeMs) ? priceAgeMs : null,
             openPositions: this.openTrades.size,
@@ -1884,9 +1903,13 @@ class LiveTradingEngine extends EventEmitter {
         const requestElapsedMs = performance.now() - requestStartedMonotonicMs;
         const maxAge = toFiniteNumber(config.maxPriceAgeMs, 15000);
         if (requestElapsedMs > maxAge) {
-            const error = new Error(`Final pricing request exceeded the ${maxAge}ms execution budget`);
+            const error = entryPolicyRejection(ENTRY_REJECTION_CODES.STALE_PRICE,
+                `Final pricing request exceeded the ${maxAge}ms execution budget`, {
+                    phase: "FINAL_QUOTE", quoteRequestStartedAt: requestStartedAt,
+                    quoteFetchedAt: fetchedAt, quoteRequestElapsedMs: requestElapsedMs,
+                    maxPriceAgeMs: maxAge,
+                });
             error.code = "FINAL_QUOTE_EXPIRED";
-            error.entryRejectionCode = ENTRY_REJECTION_CODES.STALE_PRICE;
             throw error;
         }
         const matches = Array.isArray(pricing?.prices)
@@ -1914,29 +1937,45 @@ class LiveTradingEngine extends EventEmitter {
             Number.isInteger(Number(instrumentMetadata?.pipLocation))
                 ? 10 ** Number(instrumentMetadata.pipLocation)
                 : oandaClient.getPipValue(signal.symbol);
-        const referencePrice = toFiniteNumber(signal.currentPrice, finalQuote);
+        const referencePrice = toFiniteNumber(signal.entryReferencePrice,
+            toFiniteNumber(signal.currentPrice, finalQuote));
         const deviationPips = Math.abs(quote.worstPrice - referencePrice) / pipValue;
         const spreadPips = quote.spread / pipValue;
         const spreadError = priceDistanceError(quote.bid, quote.ask, pipValue);
         const stop = this.resolveStopLoss(signal, config);
         const costToStopRatio = (spreadPips + Math.max(0, toFiniteNumber(config.expectedSlippagePips, 0.2))) / stop.stopLossPips;
-        if (exceedsQuoteLimit(spreadPips, toFiniteNumber(config.maxSpreadPips, 3), spreadError) ||
-            ((signal.strategy === "intraday_momentum" || config.strategy === "intraday_momentum") &&
-                exceedsQuoteLimit(costToStopRatio, toFiniteNumber(config.intradayMaxCostToStopRatio, 0.15),
-                    spreadError / stop.stopLossPips))) {
-            throw new Error(`Final execution cost exceeds entry policy for ${signal.symbol}`);
-        }
         const configuredDeviation = Number(config.maxEntryDeviationPips);
         const maxDeviationPips =
             Number.isFinite(configuredDeviation) && configuredDeviation > 0
                 ? configuredDeviation
                 : 2;
+        const context = {
+            phase: "FINAL_QUOTE", bid: quote.bid, ask: quote.ask,
+            executablePrice: finalQuote, worstPrice: quote.worstPrice,
+            spreadPips, maxSpreadPips: toFiniteNumber(config.maxSpreadPips, 3),
+            stopPips: stop.stopLossPips,
+            expectedSlippagePips: Math.max(0, toFiniteNumber(config.expectedSlippagePips, 0.2)),
+            costToStopRatio, maxCostToStopRatio: toFiniteNumber(config.intradayMaxCostToStopRatio, 0.15),
+            entryReferencePrice: referencePrice, currentPrice: signal.currentPrice,
+            deviationPips, maxEntryDeviationPips: maxDeviationPips,
+            priceAgeMs: quoteAgeMs, priceReceiptAgeMs: fetchedAt - priceData.fetchedAt,
+            quoteTime, quoteFetchedAt: fetchedAt, quoteRequestStartedAt: requestStartedAt,
+            quoteRequestElapsedMs: requestElapsedMs,
+        };
+        if (exceedsQuoteLimit(spreadPips, context.maxSpreadPips, spreadError)) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.SPREAD_TOO_WIDE,
+                `Final execution cost exceeds entry policy for ${signal.symbol}: spread ${Number(spreadPips.toPrecision(10))} pips exceeds ${context.maxSpreadPips}`, context);
+        }
+        if ((signal.strategy === "intraday_momentum" || config.strategy === "intraday_momentum") &&
+            exceedsQuoteLimit(costToStopRatio, context.maxCostToStopRatio, spreadError / stop.stopLossPips)) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.COST_TO_STOP_TOO_HIGH,
+                `Final execution cost exceeds entry policy for ${signal.symbol}: cost/stop ${Number((costToStopRatio * 100).toPrecision(10))}% exceeds ${context.maxCostToStopRatio * 100}%`, context);
+        }
 
         if (exceedsQuoteLimit(deviationPips, maxDeviationPips,
             priceDistanceError(quote.worstPrice, referencePrice, pipValue))) {
-            const error = new Error(
-                `Final quote moved ${deviationPips.toFixed(1)} pips (limit ${maxDeviationPips.toFixed(1)})`
-            );
+            const error = entryPolicyRejection(ENTRY_REJECTION_CODES.ENTRY_PRICE_DEVIATION,
+                `Final quote moved ${Number(deviationPips.toPrecision(10))} pips (limit ${maxDeviationPips})`, context);
             error.code = "ENTRY_PRICE_DEVIATION";
             throw error;
         }
@@ -1949,6 +1988,7 @@ class LiveTradingEngine extends EventEmitter {
         const result = {
             finalQuote,
             priceBound,
+            entryReferencePrice: referencePrice,
             deviationPips,
             maxDeviationPips,
             spreadPips,
@@ -2359,6 +2399,7 @@ class LiveTradingEngine extends EventEmitter {
                 quoteFetchedAt: context.finalQuote?.fetchedAt ?? null,
                 quoteRequestStartedAt: context.finalQuote?.requestStartedAt ?? null,
                 quoteRequestElapsedMs: context.finalQuote?.requestElapsedMs ?? null,
+                entryReferencePrice: context.finalQuote?.entryReferencePrice ?? signal.entryReferencePrice ?? null,
                 units,
                 finalSpreadPips: context.finalQuote?.spreadPips ?? context.spreadPips ?? null,
                 entrySlippagePips: Number.isFinite(context.finalQuote?.finalQuote)
@@ -2665,10 +2706,13 @@ class LiveTradingEngine extends EventEmitter {
             this.assertEntryActivation(generation);
             await this._syncWithOanda({ throwOnError: true });
             const block = await this.getBrokerEntryBlockReason();
-            if (block) throw new Error(block);
+            if (block) throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
+                block, { phase: "RECONCILIATION" });
             if (this.openTrades.size >= config.maxOpenPositions ||
                 this.getOpenTradeByInstrument(symbol)) {
-                throw new Error("Broker reconciliation found existing position capacity in use");
+                throw entryPolicyRejection(ENTRY_REJECTION_CODES.MAX_POSITIONS,
+                    "Broker reconciliation found existing position capacity in use",
+                    { phase: "RECONCILIATION", openPositions: this.openTrades.size });
             }
             let units = await this.calculatePositionSize(
                 symbol,
@@ -2679,31 +2723,20 @@ class LiveTradingEngine extends EventEmitter {
                 signal
             );
             if (units === 0) {
-                logger.warn(
-                    "⚠️ Position size calculation returned 0 units - skipping trade"
-                );
-                this.emitEngineTelemetry("validationRejected", {
-                    ...this.buildSignalTelemetry(signal, config),
-                    reason: "Position size too small",
-                });
-                this.emit("entryRejected", {
-                    signal,
-                    reason: "Position size too small",
-                });
-                await this.rejectEntryDecision(decisionId, {
+                await this.reportEntryRejection(signal, config, decisionId, {
                     rejectionCode: ENTRY_REJECTION_CODES.POSITION_SIZE_TOO_SMALL,
-                    rejectionReason: "Position size too small",
-                    ...validationContext,
+                    reason: "Position size too small",
+                    context: { ...validationContext, phase: "SIZING", units },
                 });
                 return;
             }
             // Reconciliation may just have recorded a loss. The earlier signal
             // validation cannot authorize this entry against that older history.
             const authoritativeValidation = await this.validateEntry(signal, config);
+            validationContext = { ...validationContext, ...authoritativeValidation.context, phase: "REVALIDATION" };
             if (!authoritativeValidation.valid) {
-                const error = new Error(authoritativeValidation.reason);
-                error.entryRejectionCode = authoritativeValidation.code;
-                throw error;
+                throw entryPolicyRejection(authoritativeValidation.code,
+                    authoritativeValidation.reason, validationContext);
             }
             await this.updateEntryDecision(decisionId, {
                 stage: ENTRY_DECISION_STAGES.SIZED,
@@ -2794,13 +2827,22 @@ class LiveTradingEngine extends EventEmitter {
                 throw new Error("Broker margin requirement is unavailable");
             }
             units = Math.min(units, Math.floor(worstFillSizing.safeMarginAvailableAud / (baseToAudRate * brokerMarginRate)));
-            if (!Number.isFinite(units) || units < 1) throw new Error("Worst-fill risk budget cannot support this order");
+            if (!Number.isFinite(units)) throw new Error("Worst-fill position size is unavailable");
+            if (units < 1) throw entryPolicyRejection(ENTRY_REJECTION_CODES.POSITION_SIZE_TOO_SMALL,
+                "Worst-fill risk budget cannot support this order", { phase: "FINAL_SIZING", units });
             const projectedMargin = units * baseToAudRate * brokerMarginRate;
             const balance = toFiniteNumber(accountSnapshot?.account?.balance, null);
             const marginUsed = toFiniteNumber(accountSnapshot?.account?.marginUsed, null);
-            if (!(balance > 0) || !Number.isFinite(marginUsed) ||
-                (marginUsed + projectedMargin) / balance >= config.maxPortfolioExposure) {
-                throw new Error("Final broker margin exposure exceeds the entry limit");
+            if (!(balance > 0) || !Number.isFinite(marginUsed)) {
+                throw new Error("Final broker margin exposure is unavailable");
+            }
+            if ((marginUsed + projectedMargin) / balance >= config.maxPortfolioExposure) {
+                throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
+                    "Final broker margin exposure exceeds the entry limit", {
+                        phase: "FINAL_SIZING", balance, marginUsed, projectedMargin,
+                        projectedExposure: (marginUsed + projectedMargin) / balance,
+                        maxPortfolioExposure: config.maxPortfolioExposure,
+                    });
             }
 
             const priceData = this.dataService.getCurrentPrice(symbol);
@@ -2855,6 +2897,7 @@ class LiveTradingEngine extends EventEmitter {
                     quoteToAudRate,
                     instrumentMetadata,
                     finalQuote,
+                    entryReferencePrice: finalQuote.entryReferencePrice,
                     cachedPriceObservation: {
                         brokerEventTime: priceData?.timestamp ?? null,
                         fetchedAt: priceData?.fetchedAt ?? null,
@@ -2875,8 +2918,8 @@ class LiveTradingEngine extends EventEmitter {
             this.rememberOrderIntent(intent);
             await this.updateEntryDecision(decisionId, {
                 stage: ENTRY_DECISION_STAGES.ORDER_SUBMITTED,
-                spreadPips,
                 ...validationContext,
+                spreadPips,
             });
             this.emitEngineTelemetry("orderSubmitted", {
                 ...this.buildSignalTelemetry(signal, config),
@@ -2901,9 +2944,14 @@ class LiveTradingEngine extends EventEmitter {
                 this.assertEntryClock(signal, config);
                 if (!Number.isFinite(finalQuote.requestStartedMonotonicMs) ||
                     performance.now() - finalQuote.requestStartedMonotonicMs > toFiniteNumber(config.maxPriceAgeMs, 15000)) {
-                    const error = new Error("Final quote expired locally before broker submission");
+                    const error = entryPolicyRejection(ENTRY_REJECTION_CODES.STALE_PRICE,
+                        "Final quote expired locally before broker submission", {
+                            phase: "PRE_SUBMISSION", quoteTime: finalQuote.quoteTime,
+                            quoteFetchedAt: finalQuote.fetchedAt, quoteRequestStartedAt: finalQuote.requestStartedAt,
+                            quoteRequestElapsedMs: performance.now() - finalQuote.requestStartedMonotonicMs,
+                            maxPriceAgeMs: toFiniteNumber(config.maxPriceAgeMs, 15000),
+                        });
                     error.code = "FINAL_QUOTE_EXPIRED";
-                    error.entryRejectionCode = ENTRY_REJECTION_CODES.STALE_PRICE;
                     throw error;
                 }
                 if (this.dataService.getEntryFreshness &&
@@ -3002,8 +3050,8 @@ class LiveTradingEngine extends EventEmitter {
                 stage: ENTRY_DECISION_STAGES.FILLED,
                 outcome: ENTRY_DECISION_OUTCOMES.FILLED,
                 tradeId: trade.id,
-                spreadPips,
                 ...validationContext,
+                spreadPips,
             });
 
             if (!trade.isOpen) return trade;
@@ -3041,25 +3089,48 @@ class LiveTradingEngine extends EventEmitter {
                     status: "ABANDONED", resolvedAt: Date.now(), lastError: error.message,
                 });
             }
+            const localPolicyRejection = error.entryPolicyRejection === true &&
+                !brokerRequestStarted && !brokerFillReceived && !error.ambiguous;
+            if (localPolicyRejection) {
+                await this.reportEntryRejection(signal, config, decisionId, {
+                    rejectionCode: error.entryRejectionCode,
+                    reason: error.message,
+                    context: { ...validationContext, ...error.entryRejectionContext },
+                }, true);
+                error.entryRejectionReported = true;
+                throw error;
+            }
             logger.error(
-                `❌ Order execution failed for ${symbol}:`,
+                `❌ ${brokerRequestStarted ? "Order execution" : "Entry preparation"} failed for ${symbol}:`,
                 error.message
             );
             this.stats.errors++;
+            error.executionErrorReported = true;
             this.emit("orderError", { signal, error: error.message });
-            if (!error.ambiguous) {
-                await this.rejectEntryDecision(decisionId, {
-                    rejectionCode: error.entryRejectionCode || ENTRY_REJECTION_CODES.ORDER_SUBMIT_FAILED,
-                    rejectionReason: error.message,
-                    ...validationContext,
-                });
-            } else {
-                await this.updateEntryDecision(decisionId, {
-                    stage: ENTRY_DECISION_STAGES.ORDER_SUBMITTED,
-                    outcome: ENTRY_DECISION_OUTCOMES.PENDING,
-                    rejectionReason: error.message,
-                    ...validationContext,
-                });
+            try {
+                if (!error.ambiguous) {
+                    await this.rejectEntryDecision(decisionId, {
+                        rejectionCode: brokerRequestStarted
+                            ? ENTRY_REJECTION_CODES.ORDER_SUBMIT_FAILED
+                            : ENTRY_REJECTION_CODES.ENTRY_PREPARATION_FAILED,
+                        rejectionReason: error.message,
+                        ...validationContext,
+                        rejectionContext: { ...validationContext, ...error.entryRejectionContext },
+                        canReconsider: false,
+                    });
+                } else {
+                    await this.updateEntryDecision(decisionId, {
+                        stage: ENTRY_DECISION_STAGES.ORDER_SUBMITTED,
+                        outcome: ENTRY_DECISION_OUTCOMES.PENDING,
+                        rejectionReason: error.message,
+                        ...validationContext,
+                    });
+                }
+            } catch (persistenceError) {
+                logger.error("❌ Failed to persist entry failure:", persistenceError.message);
+                if (persistenceError !== error) persistenceError.cause = error;
+                persistenceError.executionErrorReported = true;
+                throw persistenceError;
             }
             throw error;
         }

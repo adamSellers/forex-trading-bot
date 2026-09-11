@@ -25,11 +25,15 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The current product has one live OANDA runtime and one strategy. Production `intraday_momentum` `1.1.1` / `m15-intraday-v3.1` was verified at user-deployed revision `d46da61` on September 10. Local v3.2 / strategy 1.1.2 contains the approved maintenance and quote-limit corrections and awaits user publication/build/deployment. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
+The current product has one live OANDA runtime and one strategy. Production `intraday_momentum` `1.1.2` / `m15-intraday-v3.2` was verified at user-deployed revision `33e0b76` on September 11. Local v3.3 / strategy 1.1.3 contains the approved entry-rejection and reconsideration correction, locally validated with 713 backend tests passing; awaiting user publication/build/deployment. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics.
 
 ---
 
 ## Completed Features
+
+### 2026-09-11 — Entry rejection and reconsideration correction (local)
+
+Read-only inspection verified the user's v3.2 deployment at `33e0b76`. Four local pricing declines exposed expected rejections reported as errors and continued suppression of the same completed-candle setup after later cached quotes qualified again. Three declines after the process restart appeared as six errors because two layers counted the same failure. The user approved specific rejection reporting and reconsideration on the next regular scan only after recognized, confirmed local pricing declines. Original decision-price bounds persist across attempts and restart. Local v3.3 / strategy 1.1.3 retains all numerical settings. All 713 backend tests in 39 suites pass, including startup sequencing, original-bound recovery and once-only rejection reporting. [The implementation record](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md) retains the evidence, rationale and limits. No production mutation, Git publication, build or deployment was performed in this pass.
 
 ### 2026-09-10 — Maintenance and quote-limit correction (local)
 

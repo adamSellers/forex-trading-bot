@@ -1006,6 +1006,21 @@ describe('AnalyticsService', () => {
     });
 
     describe('review regressions', () => {
+        test('reconsidered attempts count once each while the strategy setup remains one decision', () => {
+            const setup = createMockSignal({ signalClass: 'ACTIONABLE', intent: 'ENTER_LONG',
+                setupId: 'same-setup', signalCandleTime: Date.parse('2026-09-11T00:00:00Z'),
+                uniqueEvent: true, reasonCode: 'INTRADAY_MOMENTUM_LONG_ENTRY' });
+            const first = { ...setup, entryAttemptId: 'attempt-1' };
+            const second = { ...setup, decisionContext: { entryAttemptId: 'attempt-2' } };
+            const signals = [first, second, { ...second }];
+            const summary = service.extractSignalEventSummary(signals);
+            expect(summary.uniqueActionableSignals).toHaveLength(2);
+            expect(service.calculateSignalAnalysis(signals).decisionTotal).toBe(1);
+            const funnel = service.calculateEntryFunnel(summary.uniqueActionableSignals,
+                [{ outcome: 'REJECTED' }, { outcome: 'FILLED', stage: 'FILLED' }], []);
+            expect(funnel.summary).toMatchObject({ generatedSignals: 2, trackedDecisions: 2, telemetryCoveragePct: 100 });
+            expect(funnel.rates).toMatchObject({ fillRatePct: 50, rejectionRatePct: 50 });
+        });
         test('same setup in distinct releases remains two distinct actionable events', () => {
             const setup = createMockSignal({ signalClass: 'ACTIONABLE', intent: 'ENTER_LONG', setupId: 'same-setup', uniqueEvent: true });
             const result = service.calculateSignalAnalysis([{ ...setup, runId: 'v2-run' }, { ...setup, runId: 'v3-run' }]);

@@ -69,6 +69,7 @@ class RuntimeCoordinator extends EventEmitter {
         super();
         this.dataService = options.dataService || null;
         this.signalRepository = options.signalRepository || null;
+        this.entryDecisionRepository = options.entryDecisionRepository || null;
         this.strategyRunRepository = options.strategyRunRepository || null;
         this.tradeRepository = options.tradeRepository || null;
         this.configService = options.configService || null;
@@ -88,12 +89,14 @@ class RuntimeCoordinator extends EventEmitter {
     init({
         dataService = null,
         signalRepository = null,
+        entryDecisionRepository = null,
         strategyRunRepository = null,
         tradeRepository = null,
         configService = null,
     } = {}) {
         this.dataService = dataService || this.dataService;
         this.signalRepository = signalRepository || this.signalRepository;
+        this.entryDecisionRepository = entryDecisionRepository || this.entryDecisionRepository;
         this.strategyRunRepository =
             strategyRunRepository || this.strategyRunRepository;
         this.tradeRepository = tradeRepository || this.tradeRepository;
@@ -348,6 +351,13 @@ class RuntimeCoordinator extends EventEmitter {
         };
     }
 
+    handleEntryRejection(event) {
+        const session = this.getRunSession(event?.signal?.runId);
+        if (!session || session.run.status !== RUN_STATUSES.ACTIVE ||
+            session.run.configHash !== event.signal.configHash) return false;
+        return session.generator.acknowledgeEntryRejection(event);
+    }
+
     async evaluateRunSession(session, sharedContext) {
         const signals = [];
         const assets = this.getRunAssets(session);
@@ -369,8 +379,17 @@ class RuntimeCoordinator extends EventEmitter {
             );
             if (!signal) continue;
             signal.timeframe = timeframe;
+            signal = this.enrichSignal(session, signal);
+            if ((signal.signal === "BUY" || signal.signal === "SELL") && signal.entryEnabled &&
+                signal.entryType !== "EXIT_ONLY" && !session.generator.hasCandleState(signal) &&
+                this.entryDecisionRepository) {
+                const prior = await this.entryDecisionRepository.getLatestForSetup({
+                    runId: signal.runId, configHash: signal.configHash, setupId: signal.setupId,
+                });
+                session.generator.restoreEntryDecision(signal, prior);
+            }
             signal = session.generator.validateSignal(signal);
-            if (signal) signals.push(this.enrichSignal(session, signal));
+            if (signal) signals.push(signal);
         }
 
         signals.sort((left, right) => {
@@ -576,15 +595,20 @@ class RuntimeCoordinator extends EventEmitter {
         });
         this.syncDataServiceTimeframes();
         this.isRunning = true;
-        await this.ensureLiveSelectionInitialized();
-        await this.runCycle();
-        this.runInterval = setInterval(() => {
-            if (this.isRunning) {
-                this.runCycle().catch((error) =>
-                    logger.error("Live strategy cycle failed:", error)
-                );
-            }
-        }, intervalMs);
+        try {
+            await this.ensureLiveSelectionInitialized();
+            await this.runCycle();
+            this.runInterval = setInterval(() => {
+                if (this.isRunning) {
+                    this.runCycle().catch((error) =>
+                        logger.error("Live strategy cycle failed:", error)
+                    );
+                }
+            }, intervalMs);
+        } catch (error) {
+            this.isRunning = false;
+            throw error;
+        }
     }
 
     stop() {

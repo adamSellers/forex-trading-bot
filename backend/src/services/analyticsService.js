@@ -284,6 +284,11 @@ function getSignalEventKey(signal) {
         normalizeString(signal?.signal) ||
         "UNKNOWN";
     const setupId = normalizeString(signal?.setupId);
+    const entryAttemptId = normalizeString(signal?.entryAttemptId || signal?.decisionContext?.entryAttemptId);
+
+    // Reconsideration emits another attempt for the same setup. Repeated rows
+    // for that attempt still count once; legacy setup deduplication is retained.
+    if (entryAttemptId) return `${identity}|${symbol}|${side}|attempt:${entryAttemptId}`;
 
     if (setupId) {
         return `${identity}|${symbol}|${side}|${setupId}`;

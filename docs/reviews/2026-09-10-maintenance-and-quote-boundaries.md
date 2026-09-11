@@ -1,6 +1,6 @@
 # Maintenance restoration and quote-limit correction
 
-**Status:** local implementation and verification complete on September 10. Production was verified read-only at `d46da61`, v3.1 / strategy 1.1.1. This correction is v3.2 / strategy 1.1.2; publication, builds and deployment remain user-managed.
+**Status:** local implementation and verification completed September 10. User deployment of `33e0b76`, v3.2 / strategy 1.1.2, was verified read-only on September 11. The [September 11 follow-up](2026-09-11-entry-rejection-and-reconsideration.md) addresses local rejection reporting and same-candle reconsideration; its delivery state is recorded separately. Publication, builds and deployment remain user-managed.
 
 ## Findings and scope
 
@@ -54,4 +54,4 @@ Validation completed:
 
 Tests use disposable local persistence and mocked external operations. They place no orders and perform no real production backup, restart, deployment, email or upload. All numerical trading defaults were compared with the previous revision; only the three release identities differ. Syntax/parsing and whitespace checks pass. Frontend/production builds remain user-managed.
 
-The user publishes local commits to GitHub, then runs the existing single command, `./scripts/deploy.sh`. No source edits, commits or reverse synchronization occur on production. This implementation does not re-enable the currently paused production instance. If it is still disabled when deployed, use the dashboard's **Enable Live** control once; the bot retains any active cooldown until expiry.
+The user publishes local commits to GitHub, then runs the existing single command, `./scripts/deploy.sh`. No source edits, commits or reverse synchronization occur on production. The September 10 implementation did not re-enable production. An installation still disabled when deployed requires the dashboard's **Enable Live** control once; the bot retains any active cooldown until expiry.

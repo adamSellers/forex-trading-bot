@@ -140,6 +140,7 @@ const runMigrations = async (db) => {
         table.timestamp('created_at').defaultTo(db.fn.now());
         table.timestamp('updated_at').defaultTo(db.fn.now());
     });
+    await require('../../migrations/011_add_entry_reconsideration').up(db);
 
     await db.schema.createTable('strategy_runs', (table) => {
         table.increments('id').primary();

@@ -48,6 +48,8 @@ describe("ConfigService governance", () => {
         ["m15-intraday-v3", "intraday-risk-v3", "broker-liquidity-v2", true],
         ["m15-intraday-v3.1", "intraday-risk-v3.1", "broker-liquidity-v3", false],
         ["m15-intraday-v3.1", "intraday-risk-v3.1", "broker-liquidity-v3", true],
+        ["m15-intraday-v3.2", "intraday-risk-v3.2", "broker-liquidity-v3.1", false],
+        ["m15-intraday-v3.2", "intraday-risk-v3.2", "broker-liquidity-v3.1", true],
     ])("maintenance upgrade from %s preserves settings (%s/%s, enabled=%s) across restart", (liveReleaseVersion, executionPolicyVersion, pricingModelVersion, enableTrading) => {
         const prior = {
             ...ConfigService.DEFAULT_CONFIG,
