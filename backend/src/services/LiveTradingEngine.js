@@ -6,6 +6,7 @@ const oandaClient = require("./Oandaclient");
 const emailService = require("./emailService");
 const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
 const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
+const { appendExcursionSample, finalizeSampledExcursion } = require("../runtime/sampledExcursion");
 const {
     computeConfigHash,
     normalizeTradingConfig,
@@ -3213,15 +3214,23 @@ class LiveTradingEngine extends EventEmitter {
                 // Trade details contain lifetime financing, entry commission
                 // and any earlier partial realization. Keep exposure blocked
                 // until this cumulative accounting can be confirmed.
+                // Keep proven full-close timing in the same durable payload as
+                // the retry state if cumulative accounting is unavailable.
+                closeContext.brokerReconciliationPayload = {
+                    ...closeContext.brokerReconciliationPayload,
+                    directClose: closeResult,
+                };
+                const directClosePayload = closeContext.brokerReconciliationPayload;
                 const details = await oandaClient.getTrade(trade.oandaTradeId);
                 closeContext = this.tradeReconciliation.resolveExternalClose({
                     localTrade: trade, tradeDetails: details,
                     fallbackExitPrice: exitPrice, fallbackExitReason: reason,
+                    closeTimeEvidence: directClosePayload.closeTimeEvidence,
                 });
                 closeContext.exitReason = reason;
                 closeContext.brokerReconciliationPayload = {
+                    ...directClosePayload,
                     ...closeContext.brokerReconciliationPayload,
-                    directClose: closeResult,
                 };
             }
         } catch (error) {
@@ -3229,6 +3238,7 @@ class LiveTradingEngine extends EventEmitter {
             closeContext.reconciliationStatus = "UNRESOLVED";
             closeContext.brokerConfirmedClosed = false;
             closeContext.brokerReconciliationPayload = {
+                ...closeContext.brokerReconciliationPayload,
                 closeAttempt: {
                     error: error.message,
                     type: error.name || "Error",
@@ -3251,8 +3261,13 @@ class LiveTradingEngine extends EventEmitter {
                     fallbackExitPrice: exitPrice,
                     fallbackPriceSource: "LOCAL_MARKET_FALLBACK",
                     fallbackExitReason: reason,
+                    closeTimeEvidence: closeContext.brokerReconciliationPayload?.closeTimeEvidence,
                 });
                 if (recovered.brokerConfirmedClosed) {
+                    recovered.brokerReconciliationPayload = {
+                        ...closeContext.brokerReconciliationPayload,
+                        ...recovered.brokerReconciliationPayload,
+                    };
                     closeContext = recovered;
                 }
             } catch (lookupError) {
@@ -3347,6 +3362,11 @@ class LiveTradingEngine extends EventEmitter {
                 dividendAdjustment: closeContext.oandaDividendAdjustment ?? 0,
             },
         });
+        const sampledExcursion = finalizeSampledExcursion(
+            trade.brokerReconciliationPayload?.sampledExcursion,
+            { entryTime: trade.entryTime, confirmedBrokerClosedAt: closeContext.confirmedBrokerClosedAt }
+        );
+        if (sampledExcursion) brokerReconciliationPayload.sampledExcursion = sampledExcursion;
 
         // Calculate P/L - use Oanda's realizedPL if available (includes all costs)
         const pipValue = oandaClient.getPipValue(trade.instrument);
@@ -3611,25 +3631,19 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async _recordSampledExcursion(trade, price, observedAt) {
-        if (!this.openTrades.has(trade.id)) return;
+        // A queued sample may follow a database reload. Merge into the current
+        // managed object instead of overwriting newer reconciliation metadata.
+        trade = this.openTrades.get(trade.id);
+        if (!trade) return;
         if (!Number.isFinite(price) || !Number.isFinite(observedAt) || observedAt < trade.entryTime) return;
-        const prior = trade.brokerReconciliationPayload?.sampledExcursion || {};
+        const prior = trade.brokerReconciliationPayload?.sampledExcursion;
         // Repeated polls of the same quote are not independent observations.
-        if (prior.lastObservedAt >= observedAt) return;
+        if (prior?.lastObservedAt >= observedAt) return;
         const distance = (trade.side === "SELL" ? trade.entryPrice - price : price - trade.entryPrice);
         const pips = distance / oandaClient.getPipValue(trade.instrument);
         const riskDistance = toFiniteNumber(this.getLiveRuntimeMetadata(trade).initialStopDistance, null);
         const r = riskDistance > 0 ? distance / riskDistance : null;
-        const sampledExcursion = {
-            version: 1, method: "EXECUTABLE_QUOTE_POLL",
-            maxFavorablePips: Math.max(prior.maxFavorablePips || 0, pips),
-            maxAdversePips: Math.max(prior.maxAdversePips || 0, -pips),
-            maxFavorableR: r === null ? null : Math.max(prior.maxFavorableR || 0, r),
-            maxAdverseR: r === null ? null : Math.max(prior.maxAdverseR || 0, -r),
-            observations: (prior.observations || 0) + 1,
-            firstObservedAt: prior.firstObservedAt || observedAt,
-            lastObservedAt: observedAt,
-        };
+        const sampledExcursion = appendExcursionSample(prior, { observedAt, pips, r });
         const brokerReconciliationPayload = this.mergeBrokerPayload(trade, { sampledExcursion });
         await this.tradeRepository.updateTrade(trade.id, { brokerReconciliationPayload });
         trade.brokerReconciliationPayload = brokerReconciliationPayload;

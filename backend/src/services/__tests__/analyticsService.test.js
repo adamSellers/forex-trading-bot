@@ -64,6 +64,26 @@ describe('AnalyticsService', () => {
             expect(result.summary.totalTrades).toBe(1);
         });
 
+        test('reports verified excursion coverage without mixing historical or open observations', async () => {
+            mockTradeRepo.getTradesSince.mockResolvedValue([
+                createClosedTrade({ brokerReconciliationPayload: JSON.stringify({ sampledExcursion: {
+                    version: 2, lifetimeStatus: 'VERIFIED', observations: 3, maxFavorableR: 1.25, maxAdverseR: 0.5,
+                } }) }),
+                createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: {
+                    version: 1, observations: 10, maxFavorableR: 99, maxAdverseR: 99,
+                } } }),
+                createMockTrade({ brokerReconciliationPayload: { sampledExcursion: {
+                    version: 2, lifetimeStatus: 'PROVISIONAL', observations: 2, maxFavorableR: 50, maxAdverseR: 50,
+                } } }),
+            ]);
+            const result = await service.getAnalytics('7d', 'live');
+            expect(result.excursionCoverage).toMatchObject({
+                totalTrades: 2, measuredTrades: 2, verifiedTrades: 1, unverifiedTrades: 1,
+                favorableRMeasuredTrades: 1, adverseRMeasuredTrades: 1,
+                avgFavorableR: 1.25, avgAdverseR: 0.5,
+            });
+        });
+
         test('should handle empty data', async () => {
             const result = await service.getAnalytics('7d', 'live');
 
@@ -1066,11 +1086,82 @@ describe('AnalyticsService', () => {
             expect(result.recommendation).toContain('do not establish');
         });
         test('sampled price excursions do not invent missing risk multiples', () => {
-            const trade = (value) => createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: { observations: 3, maxFavorableR: value, maxAdverseR: value } } });
-            expect(service.calculateExcursionCoverage([trade(null), trade(2)])).toMatchObject({ measuredTrades: 2, favorableRMeasuredTrades: 1, avgFavorableR: 2 });
+            const trade = (value) => createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: {
+                version: 2, lifetimeStatus: 'VERIFIED', observations: 3,
+                maxFavorableR: value, maxAdverseR: value,
+            } } });
+            expect(service.calculateExcursionCoverage([trade(null), trade(2)])).toMatchObject({
+                measuredTrades: 2, verifiedTrades: 2, unverifiedTrades: 0,
+                favorableRMeasuredTrades: 1, adverseRMeasuredTrades: 1,
+                avgFavorableR: 2, avgAdverseR: 2,
+            });
+        });
+        test.each([
+            ['legacy aggregate', { version: 1 }],
+            ['unversioned historical aggregate', {}],
+            ['provisional observations', { version: 2, lifetimeStatus: 'PROVISIONAL' }],
+            ['missing broker closure time', { version: 2, lifetimeStatus: 'UNVERIFIED_CLOSE_TIME' }],
+            ['partial legacy coverage', { version: 2, lifetimeStatus: 'VERIFIED', legacyAggregate: { version: 1, observations: 2 } }],
+        ])('excludes %s from verified excursion averages while retaining measured coverage', (_description, unverified) => {
+            const trade = (sample) => createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: sample } });
+            const result = service.calculateExcursionCoverage([
+                trade({ observations: 3, maxFavorableR: 100, maxAdverseR: 100, ...unverified }),
+                trade({ version: 2, lifetimeStatus: 'VERIFIED', observations: 2, maxFavorableR: 1.5, maxAdverseR: 0.5 }),
+            ]);
+            expect(result).toMatchObject({
+                totalTrades: 2, measuredTrades: 2, verifiedTrades: 1, unverifiedTrades: 1,
+                favorableRMeasuredTrades: 1, adverseRMeasuredTrades: 1,
+                avgFavorableR: 1.5, avgAdverseR: 0.5,
+            });
+            expect(result.method).toContain('Historical aggregates, partial legacy coverage and unverified samples are excluded');
+        });
+        test('open trades cannot contribute to verified closed-lifetime excursion averages', () => {
+            const trade = createMockTrade({ brokerReconciliationPayload: { sampledExcursion: {
+                version: 2, lifetimeStatus: 'VERIFIED', observations: 1, maxFavorableR: 99, maxAdverseR: 99,
+            } } });
+            expect(service.calculateExcursionCoverage([trade])).toMatchObject({
+                measuredTrades: 1, verifiedTrades: 0, unverifiedTrades: 1,
+                favorableRMeasuredTrades: 0, adverseRMeasuredTrades: 0,
+                avgFavorableR: null, avgAdverseR: null,
+            });
+        });
+        test('legitimate zero excursions remain measured in verified averages', () => {
+            const trade = createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: {
+                version: 2, lifetimeStatus: 'VERIFIED', observations: 1, maxFavorableR: 0, maxAdverseR: 0,
+            } } });
+            expect(service.calculateExcursionCoverage([trade])).toMatchObject({
+                measuredTrades: 1, verifiedTrades: 1, unverifiedTrades: 0,
+                favorableRMeasuredTrades: 1, adverseRMeasuredTrades: 1,
+                avgFavorableR: 0, avgAdverseR: 0,
+            });
+        });
+        test('finalization with no in-lifetime observations cannot create measured zero excursions', () => {
+            const trade = createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: {
+                version: 2, lifetimeStatus: 'VERIFIED', observations: 0, maxFavorableR: 0, maxAdverseR: 0,
+            } } });
+            expect(service.calculateExcursionCoverage([trade])).toMatchObject({
+                totalTrades: 1, measuredTrades: 0, verifiedTrades: 0, unverifiedTrades: 0,
+                favorableRMeasuredTrades: 0, adverseRMeasuredTrades: 0,
+                avgFavorableR: null, avgAdverseR: null,
+            });
+        });
+        test('retains unverified legacy coverage when all new observations were outside the lifetime', () => {
+            const trade = createClosedTrade({ brokerReconciliationPayload: { sampledExcursion: {
+                version: 2, lifetimeStatus: 'VERIFIED', observations: 0, maxFavorableR: 0, maxAdverseR: 0,
+                legacyAggregate: { version: 1, observations: 3, maxFavorableR: 10, maxAdverseR: 5 },
+            } } });
+            expect(service.calculateExcursionCoverage([trade])).toMatchObject({
+                totalTrades: 1, measuredTrades: 1, verifiedTrades: 0, unverifiedTrades: 1,
+                favorableRMeasuredTrades: 0, adverseRMeasuredTrades: 0,
+                avgFavorableR: null, avgAdverseR: null,
+            });
         });
         test('missing sampled excursions are explicitly uncovered', () => {
-            expect(service.calculateExcursionCoverage([createClosedTrade()])).toMatchObject({ measuredTrades: 0, totalTrades: 1, avgFavorableR: null });
+            expect(service.calculateExcursionCoverage([createClosedTrade()])).toMatchObject({
+                measuredTrades: 0, totalTrades: 1, verifiedTrades: 0, unverifiedTrades: 0,
+                favorableRMeasuredTrades: 0, adverseRMeasuredTrades: 0,
+                avgFavorableR: null, avgAdverseR: null,
+            });
         });
     });
 

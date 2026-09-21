@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="590" viewBox="0 0 1200 590" role="img" aria-labelledby="title desc">
+<title id="title">Eight days of realized trading P&amp;L</title>
+<desc id="desc">Fifteen closed trades from 13 September 2026 20:35 through 21 September 2026 20:35 Sydney time. Cumulative realized P&amp;L ends at minus 0.7324 Australian dollars. Steps change only at broker close times; this is not an intratrade NAV curve.</desc>
+<rect width="1200" height="590" fill="#ffffff"/>
+<g font-family="Arial, Helvetica, sans-serif" fill="#192d3d">
+<text x="70" y="48" font-size="27" font-weight="700">Eight days of realized trading P&amp;L</text>
+<text x="70" y="76" font-size="16" fill="#627384">13–21 September 2026 · Australia/Sydney · 15 closed trades</text>
+<circle cx="100" cy="106" r="5.5" fill="#11866c"/>
+<text x="114" y="111" font-size="15">Take profit (3)</text>
+<circle cx="295" cy="106" r="5.5" fill="#c04747"/>
+<text x="309" y="111" font-size="15">Stop loss (9)</text>
+<circle cx="485" cy="106" r="5.5" fill="#7484a0"/>
+<text x="499" y="111" font-size="15">Breakeven (2)</text>
+<circle cx="690" cy="106" r="5.5" fill="#a66e17"/>
+<text x="704" y="111" font-size="15">Session close (1)</text>
+<text x="29" y="157" font-size="14" fill="#627384">AUD</text>
+<line x1="100" y1="469.83" x2="1125" y2="469.83" stroke="#e7ecf0" stroke-width="1"/>
+<text x="84" y="474.83" text-anchor="end" font-size="14" fill="#627384">−0.8</text>
+<line x1="100" y1="409.15" x2="1125" y2="409.15" stroke="#e7ecf0" stroke-width="1"/>
+<text x="84" y="414.15" text-anchor="end" font-size="14" fill="#627384">−0.6</text>
+<line x1="100" y1="348.46" x2="1125" y2="348.46" stroke="#e7ecf0" stroke-width="1"/>
+<text x="84" y="353.46" text-anchor="end" font-size="14" fill="#627384">−0.4</text>
+<line x1="100" y1="287.78" x2="1125" y2="287.78" stroke="#e7ecf0" stroke-width="1"/>
+<text x="84" y="292.78" text-anchor="end" font-size="14" fill="#627384">−0.2</text>
+<line x1="100" y1="227.09" x2="1125" y2="227.09" stroke="#a1adb7" stroke-width="1.7"/>
+<text x="84" y="232.09" text-anchor="end" font-size="14" fill="#627384">0.0</text>
+<line x1="100" y1="166.41" x2="1125" y2="166.41" stroke="#e7ecf0" stroke-width="1"/>
+<text x="84" y="171.41" text-anchor="end" font-size="14" fill="#627384">+0.2</text>
+<line x1="118.24" y1="130" x2="118.24" y2="485" stroke="#f0f3f5"/>
+<text x="118.24" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 14</text>
+<line x1="246.37" y1="130" x2="246.37" y2="485" stroke="#f0f3f5"/>
+<text x="246.37" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 15</text>
+<line x1="374.49" y1="130" x2="374.49" y2="485" stroke="#f0f3f5"/>
+<text x="374.49" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 16</text>
+<line x1="502.62" y1="130" x2="502.62" y2="485" stroke="#f0f3f5"/>
+<text x="502.62" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 17</text>
+<line x1="630.74" y1="130" x2="630.74" y2="485" stroke="#f0f3f5"/>
+<text x="630.74" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 18</text>
+<line x1="758.87" y1="130" x2="758.87" y2="485" stroke="#f0f3f5"/>
+<text x="758.87" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 19</text>
+<line x1="886.99" y1="130" x2="886.99" y2="485" stroke="#f0f3f5"/>
+<text x="886.99" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 20</text>
+<line x1="1015.12" y1="130" x2="1015.12" y2="485" stroke="#f0f3f5"/>
+<text x="1015.12" y="514" text-anchor="middle" font-size="14" fill="#627384">Sep 21</text>
+<path d="M 100.00,227.09 H 173.78 V 274.94 H 208.18 V 205.25 H 210.46 V 253.92 H 245.33 V 168.72 H 247.30 V 219.75 H 333.04 V 219.75 H 339.75 V 271.36 H 367.08 V 271.36 H 374.27 V 326.86 H 410.54 V 313.84 H 425.89 V 236.20 H 454.67 V 285.44 H 504.44 V 338.84 H 564.02 V 392.55 H 753.59 V 449.32 H 1125.00" fill="none" stroke="#304f68" stroke-width="2.4" stroke-linejoin="round"/>
+<circle cx="173.78" cy="274.94" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3185 · USD_JPY SELL · STOP_LOSS · 14 Sep 10:24:12 AEST · trade P&amp;L A$-0.1577 · cumulative A$-0.1577</title></circle>
+<circle cx="208.18" cy="205.25" r="5" fill="#11866c" stroke="#fff" stroke-width="1.2"><title>Trade 3195 · AUD_USD SELL · TAKE_PROFIT · 14 Sep 16:50:47 AEST · trade P&amp;L A$+0.2297 · cumulative A$+0.0720</title></circle>
+<circle cx="210.46" cy="253.92" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3207 · AUD_USD SELL · STOP_LOSS · 14 Sep 17:16:28 AEST · trade P&amp;L A$-0.1604 · cumulative A$-0.0884</title></circle>
+<circle cx="245.33" cy="168.72" r="5" fill="#11866c" stroke="#fff" stroke-width="1.2"><title>Trade 3217 · USD_JPY BUY · TAKE_PROFIT · 14 Sep 23:48:20 AEST · trade P&amp;L A$+0.2808 · cumulative A$+0.1924</title></circle>
+<circle cx="247.30" cy="219.75" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3229 · EUR_USD SELL · STOP_LOSS · 15 Sep 00:10:27 AEST · trade P&amp;L A$-0.1682 · cumulative A$+0.0242</title></circle>
+<circle cx="333.04" cy="219.75" r="5" fill="#7484a0" stroke="#fff" stroke-width="1.2"><title>Trade 3239 · AUD_USD SELL · BREAKEVEN_STOP · 15 Sep 16:14:10 AEST · trade P&amp;L A$+0.0000 · cumulative A$+0.0242</title></circle>
+<circle cx="339.75" cy="271.36" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3251 · AUD_USD SELL · STOP_LOSS · 15 Sep 17:29:32 AEST · trade P&amp;L A$-0.1701 · cumulative A$-0.1459</title></circle>
+<circle cx="367.08" cy="271.36" r="5" fill="#7484a0" stroke="#fff" stroke-width="1.2"><title>Trade 3261 · USD_JPY BUY · BREAKEVEN_STOP · 15 Sep 22:36:42 AEST · trade P&amp;L A$+0.0000 · cumulative A$-0.1459</title></circle>
+<circle cx="374.27" cy="326.86" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3273 · USD_JPY BUY · STOP_LOSS · 15 Sep 23:57:30 AEST · trade P&amp;L A$-0.1829 · cumulative A$-0.3288</title></circle>
+<circle cx="410.54" cy="313.84" r="5" fill="#a66e17" stroke="#fff" stroke-width="1.2"><title>Trade 3283 · USD_JPY BUY · SESSION_CLOSE · 16 Sep 06:45:09 AEST · trade P&amp;L A$+0.0429 · cumulative A$-0.2859</title></circle>
+<circle cx="425.89" cy="236.20" r="5" fill="#11866c" stroke="#fff" stroke-width="1.2"><title>Trade 3295 · USD_JPY BUY · TAKE_PROFIT · 16 Sep 09:37:42 AEST · trade P&amp;L A$+0.2559 · cumulative A$-0.0300</title></circle>
+<circle cx="454.67" cy="285.44" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3307 · AUD_USD SELL · STOP_LOSS · 16 Sep 15:01:05 AEST · trade P&amp;L A$-0.1623 · cumulative A$-0.1923</title></circle>
+<circle cx="504.44" cy="338.84" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3317 · USD_JPY BUY · STOP_LOSS · 17 Sep 00:20:33 AEST · trade P&amp;L A$-0.1760 · cumulative A$-0.3683</title></circle>
+<circle cx="564.02" cy="392.55" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3327 · USD_JPY BUY · STOP_LOSS · 17 Sep 11:30:06 AEST · trade P&amp;L A$-0.1770 · cumulative A$-0.5453</title></circle>
+<circle cx="753.59" cy="449.32" r="5" fill="#c04747" stroke="#fff" stroke-width="1.2"><title>Trade 3337 · USD_JPY BUY · STOP_LOSS · 18 Sep 23:00:46 AEST · trade P&amp;L A$-0.1871 · cumulative A$-0.7324</title></circle>
+<text x="259.33" y="157.72" font-size="14" fill="#304f68">Peak +A$0.1924</text>
+<text x="1125" y="434.32" text-anchor="end" font-size="23" font-weight="700" fill="#a73636">−A$0.7324</text>
+<text x="100" y="550" font-size="14" fill="#627384">Steps change at broker close times. Spread is included in realized P&amp;L; fees and financing were zero.</text>
+<text x="100" y="574" font-size="14" fill="#627384">This chart shows closed-trade results, not intratrade NAV. No positions were open at the review boundary.</text>
+</g>
+</svg>

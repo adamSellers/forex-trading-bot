@@ -488,7 +488,7 @@ const AnalyticsDashboard = () => {
           </tr>)}</tbody>
         </Box>
         <Typography variant="body2" color="text.secondary" mt={1}>
-          Excursion coverage: {analytics.excursionCoverage?.measuredTrades || 0} / {analytics.excursionCoverage?.totalTrades || 0} trades. {analytics.excursionCoverage?.method}
+          Verified excursion coverage: {analytics.excursionCoverage?.verifiedTrades || 0} / {analytics.excursionCoverage?.totalTrades || 0} trades. {analytics.excursionCoverage?.unverifiedTrades || 0} trades have unverified samples. {analytics.excursionCoverage?.method}
         </Typography>
       </Box>
       <Box display="flex" flexDirection={{ xs: 'column', lg: 'row' }} gap={2} mb={2}>

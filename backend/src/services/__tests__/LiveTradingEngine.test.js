@@ -3413,6 +3413,24 @@ describe('LiveTradingEngine', () => {
             expect(engine.openTrades.size).toBe(0);
         });
 
+        test('unrecoverable excursion history does not prevent a broker-confirmed timed close', async () => {
+            const trade = addTrade({ entryTime: Date.now() - 7 * 3600000,
+                brokerReconciliationPayload: {
+                    sampledExcursion: { version: 2, observations: 1, samples: [null], maxFavorableR: 2 },
+                    liveRuntime: { ownerExitPolicy: { version: 1, config: { timeStopHours: 6 } } },
+                } });
+            mockDataService.getCurrentPrice.mockReturnValue(null);
+            await engine.monitorPositions();
+            expect(oandaClient.closeTrade).toHaveBeenCalledWith('489');
+            expect(engine.openTrades.size).toBe(0);
+            expect(mockTradeRepository.updateTrade).toHaveBeenCalledWith(trade.id, expect.objectContaining({
+                isOpen: false,
+                brokerReconciliationPayload: expect.objectContaining({
+                    sampledExcursion: expect.objectContaining({ lifetimeStatus: 'UNVERIFIED_HISTORY' }),
+                }),
+            }));
+        });
+
         test('serializes an explicit broker-ID manual close through managed cumulative accounting', async () => {
             const trade = addTrade();
             oandaClient.getOpenTrades.mockResolvedValue({ trades: [protectedBrokerTrade()] });

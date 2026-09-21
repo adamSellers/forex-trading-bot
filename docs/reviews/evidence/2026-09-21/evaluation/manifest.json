@@ -1,0 +1,12 @@
+{
+  "description": "Read-only broker candles and minimal saved-entry/decision evidence; no account identifiers or secrets.",
+  "source_sha256": {
+    "production-evidence.json": "a4755b58dff7b36fa0de3af2ced989b3536ea1452622261c3367a1360408a198",
+    "broker-evidence.json": "4aed63c88d34cb1a086f46e05c8f713cb56703be5f1e43e4987854134aa9de0b",
+    "evaluation-candles.json": "dfadcb293a37f4adde5ee9c9ebd092a7b5f5a817becff76bbaccecd4451e7906"
+  },
+  "candle_capture_time": "2026-09-21T10:54:17.970388+00:00",
+  "trades": 25,
+  "regime_observations": 2096,
+  "decisions": 161
+}

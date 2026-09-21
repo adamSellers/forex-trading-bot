@@ -1,0 +1,20 @@
+{
+  "review_interval_utc": [
+    "2026-09-13T10:35:00Z",
+    "2026-09-21T10:35:00Z"
+  ],
+  "source_commit": "5c250a74b33705eda15dc2b94d2e84a5afff30a3",
+  "source_exports": {
+    "production-evidence.json": {
+      "local_path": "/tmp/forex-review-20260921/production-evidence.json",
+      "sha256": "a4755b58dff7b36fa0de3af2ced989b3536ea1452622261c3367a1360408a198",
+      "bytes": 103631121
+    },
+    "broker-evidence.json": {
+      "local_path": "/tmp/forex-review-20260921/broker-evidence.json",
+      "sha256": "4aed63c88d34cb1a086f46e05c8f713cb56703be5f1e43e4987854134aa9de0b",
+      "bytes": 1443919
+    }
+  },
+  "note": "Raw exports remain local temporary audit files; contain operational data and are not committed. Derived ledger, summary, broker verification and post-exit metrics retained here. Source export hash establishes identity, not independent provenance."
+}

@@ -2,11 +2,13 @@
 
 This repository runs one automated strategy against one live OANDA account. It has no simulated execution mode, strategy selector, or alternate runtime.
 
-See the [September 6 production review](docs/reviews/2026-09-06-production-review.md) and [remediation register](docs/reviews/2026-09-06-remediation.md) for the current audit, approved corrections and validation status.
+See the [September 21 eight-day trading review](docs/reviews/2026-09-21-eight-day-trading-review.md) for current performance and observed re-entry behaviour, and the [September 6 production review](docs/reviews/2026-09-06-production-review.md) and [remediation register](docs/reviews/2026-09-06-remediation.md) for the earlier audit and approved corrections.
+
+The [excursion measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) is complete locally, with 744 backend tests passing, and awaits user publication/deployment. It removes post-close observations from new measurements and separates unverified legacy data. The [target and re-entry study](docs/reviews/2026-09-21-target-and-reentry-evaluation.md) records candidate rules and counterexamples; trading settings remain unchanged.
 
 ## Live strategy
 
-Production was verified at `33e0b76` / `m15-intraday-v3.2` / strategy `1.1.2` on September 11, including the maintenance and quote-limit correction. Local `m15-intraday-v3.3` / strategy `1.1.3` contains the approved [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md), locally validated and awaiting user deployment. Recognized local pricing declines can be reconsidered on a later regular scan while preserving the original decision-price bound; expected rejections are counted separately from unexpected errors. Existing numerical strategy, risk and exit settings are preserved. The strategy evaluates completed M15 candles and trades only when all of these agree:
+Read-only inspection on September 21 verified user-deployed revision `5c250a7` / `m15-intraday-v3.3` / strategy `1.1.3`, including the approved [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md). Recognized local pricing declines can be reconsidered on a later regular scan while preserving the original decision-price bound; expected rejections are counted separately from unexpected errors. Existing numerical strategy, risk and exit settings are preserved. The strategy evaluates completed M15 candles and trades only when all of these agree:
 
 - the completed H1 close, 20/50 EMAs and ADX define a directional regime;
 - M15 trend and RSI confirm that direction;

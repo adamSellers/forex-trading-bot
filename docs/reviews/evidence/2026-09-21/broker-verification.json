@@ -1,0 +1,1239 @@
+{
+  "rows": [
+    {
+      "broker_id": "3185",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.1577,
+      "pnl_trade": -0.1577,
+      "pnl_transactions": -0.1577,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0074",
+      "exit_spread_cost": 0.0068,
+      "sl": {
+        "id": "3191",
+        "createTime": "2026-09-13T23:53:31.961607515Z",
+        "replacesOrderID": "3187",
+        "type": "STOP_LOSS",
+        "tradeID": "3185",
+        "price": "153.612",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3192",
+        "filledTime": "2026-09-14T00:24:12.900496585Z",
+        "tradeClosedIDs": [
+          "3185"
+        ]
+      },
+      "tp": {
+        "id": "3189",
+        "createTime": "2026-09-13T23:53:31.961607515Z",
+        "replacesOrderID": "3186",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3185",
+        "price": "153.294",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3193",
+        "cancelledTime": "2026-09-14T00:24:12.900496585Z"
+      },
+      "entry_request_orders": {
+        "id": "3184",
+        "batchID": "3184",
+        "requestID": "205663434670154376",
+        "time": "2026-09-13T23:53:31.726523836Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "-135",
+        "priceBound": "153.456",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "153.294",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "153.612",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-de436ccb-cdba-4749-a4c8-e004e41e6b46",
+          "tag": "forex-bot-entry",
+          "comment": "intent:de436ccb-cdba-4749-a4c8-e004e41e6b46"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-de436ccb-cdba-4749-a4c8-e004e41e6b46",
+          "tag": "forex-bot-trade",
+          "comment": "intent:de436ccb-cdba-4749-a4c8-e004e41e6b46"
+        }
+      },
+      "dependent_order_ids": [
+        "3186",
+        "3187",
+        "3189",
+        "3191"
+      ],
+      "holding_s": 1841.173
+    },
+    {
+      "broker_id": "3195",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": 0.2297,
+      "pnl_trade": 0.2297,
+      "pnl_transactions": 0.2297,
+      "financing": "0.0000",
+      "close_reason": "TAKE_PROFIT_ORDER",
+      "entry_spread_cost": "0.0103",
+      "exit_spread_cost": 0.0103,
+      "sl": {
+        "id": "3203",
+        "createTime": "2026-09-14T06:18:15.681440794Z",
+        "replacesOrderID": "3201",
+        "type": "STOP_LOSS",
+        "tradeID": "3195",
+        "price": "0.71475",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3205",
+        "cancelledTime": "2026-09-14T06:50:47.965023101Z"
+      },
+      "tp": {
+        "id": "3199",
+        "createTime": "2026-09-14T03:43:26.782509428Z",
+        "replacesOrderID": "3196",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3195",
+        "price": "0.71385",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "FILLED",
+        "fillingTransactionID": "3204",
+        "filledTime": "2026-09-14T06:50:47.965023101Z",
+        "tradeClosedIDs": [
+          "3195"
+        ]
+      },
+      "entry_request_orders": {
+        "id": "3194",
+        "batchID": "3194",
+        "requestID": "97577101475062588",
+        "time": "2026-09-14T03:43:26.558920880Z",
+        "type": "MARKET_ORDER",
+        "instrument": "AUD_USD",
+        "units": "-184",
+        "priceBound": "0.71461",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "0.71385",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "0.71535",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-ebb0f0c1-edb0-4d10-a2ec-14f68e09ed62",
+          "tag": "forex-bot-entry",
+          "comment": "intent:ebb0f0c1-edb0-4d10-a2ec-14f68e09ed62"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-ebb0f0c1-edb0-4d10-a2ec-14f68e09ed62",
+          "tag": "forex-bot-trade",
+          "comment": "intent:ebb0f0c1-edb0-4d10-a2ec-14f68e09ed62"
+        }
+      },
+      "dependent_order_ids": [
+        "3196",
+        "3197",
+        "3199",
+        "3201",
+        "3203"
+      ],
+      "holding_s": 11241.406
+    },
+    {
+      "broker_id": "3207",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.1604,
+      "pnl_trade": -0.1604,
+      "pnl_transactions": -0.1604,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0106",
+      "exit_spread_cost": 0.0106,
+      "sl": {
+        "id": "3213",
+        "createTime": "2026-09-14T07:00:26.978252959Z",
+        "replacesOrderID": "3209",
+        "type": "STOP_LOSS",
+        "tradeID": "3207",
+        "price": "0.71428",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3214",
+        "filledTime": "2026-09-14T07:16:28.333703231Z",
+        "tradeClosedIDs": [
+          "3207"
+        ]
+      },
+      "tp": {
+        "id": "3211",
+        "createTime": "2026-09-14T07:00:26.978252959Z",
+        "replacesOrderID": "3208",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3207",
+        "price": "0.71278",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3215",
+        "cancelledTime": "2026-09-14T07:16:28.333703231Z"
+      },
+      "entry_request_orders": {
+        "id": "3206",
+        "batchID": "3206",
+        "requestID": "115591549561567316",
+        "time": "2026-09-14T07:00:26.745682055Z",
+        "type": "MARKET_ORDER",
+        "instrument": "AUD_USD",
+        "units": "-189",
+        "priceBound": "0.71357",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "0.71279",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "0.71429",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-d72c1c36-3dbd-4bec-af93-8ec3b4d46f98",
+          "tag": "forex-bot-entry",
+          "comment": "intent:d72c1c36-3dbd-4bec-af93-8ec3b4d46f98"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-d72c1c36-3dbd-4bec-af93-8ec3b4d46f98",
+          "tag": "forex-bot-trade",
+          "comment": "intent:d72c1c36-3dbd-4bec-af93-8ec3b4d46f98"
+        }
+      },
+      "dependent_order_ids": [
+        "3208",
+        "3209",
+        "3211",
+        "3213"
+      ],
+      "holding_s": 961.588
+    },
+    {
+      "broker_id": "3217",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": 0.2808,
+      "pnl_trade": 0.2808,
+      "pnl_transactions": 0.2808,
+      "financing": "0.0000",
+      "close_reason": "TAKE_PROFIT_ORDER",
+      "entry_spread_cost": "0.0063",
+      "exit_spread_cost": 0.0042,
+      "sl": {
+        "id": "3225",
+        "createTime": "2026-09-14T12:53:56.676415227Z",
+        "replacesOrderID": "3223",
+        "type": "STOP_LOSS",
+        "tradeID": "3217",
+        "price": "154.706",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3227",
+        "cancelledTime": "2026-09-14T13:48:20.698261670Z"
+      },
+      "tp": {
+        "id": "3221",
+        "createTime": "2026-09-14T12:30:32.149757985Z",
+        "replacesOrderID": "3218",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3217",
+        "price": "154.908",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "FILLED",
+        "fillingTransactionID": "3226",
+        "filledTime": "2026-09-14T13:48:20.698261670Z",
+        "tradeClosedIDs": [
+          "3217"
+        ]
+      },
+      "entry_request_orders": {
+        "id": "3216",
+        "batchID": "3216",
+        "requestID": "205663625174934714",
+        "time": "2026-09-14T12:30:31.920011864Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "154",
+        "priceBound": "154.712",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "154.911",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "154.575",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-b279230b-9d0b-43d5-a32e-fa5270f9e78d",
+          "tag": "forex-bot-entry",
+          "comment": "intent:b279230b-9d0b-43d5-a32e-fa5270f9e78d"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-b279230b-9d0b-43d5-a32e-fa5270f9e78d",
+          "tag": "forex-bot-trade",
+          "comment": "intent:b279230b-9d0b-43d5-a32e-fa5270f9e78d"
+        }
+      },
+      "dependent_order_ids": [
+        "3218",
+        "3219",
+        "3221",
+        "3223",
+        "3225"
+      ],
+      "holding_s": 4668.778
+    },
+    {
+      "broker_id": "3229",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.1682,
+      "pnl_trade": -0.1682,
+      "pnl_transactions": -0.1682,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0100",
+      "exit_spread_cost": 0.0089,
+      "sl": {
+        "id": "3235",
+        "createTime": "2026-09-14T14:00:31.369774370Z",
+        "replacesOrderID": "3231",
+        "type": "STOP_LOSS",
+        "tradeID": "3229",
+        "price": "1.15329",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3236",
+        "filledTime": "2026-09-14T14:10:27.207346034Z",
+        "tradeClosedIDs": [
+          "3229"
+        ]
+      },
+      "tp": {
+        "id": "3233",
+        "createTime": "2026-09-14T14:00:31.369774370Z",
+        "replacesOrderID": "3230",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3229",
+        "price": "1.15141",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3237",
+        "cancelledTime": "2026-09-14T14:10:27.207346034Z"
+      },
+      "entry_request_orders": {
+        "id": "3228",
+        "batchID": "3228",
+        "requestID": "97577256768279769",
+        "time": "2026-09-14T14:00:31.135049376Z",
+        "type": "MARKET_ORDER",
+        "instrument": "EUR_USD",
+        "units": "-158",
+        "priceBound": "1.15243",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "1.15142",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "1.15330",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-d2d39fea-5ea9-4d84-8e9c-1cc76d8e3385",
+          "tag": "forex-bot-entry",
+          "comment": "intent:d2d39fea-5ea9-4d84-8e9c-1cc76d8e3385"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-d2d39fea-5ea9-4d84-8e9c-1cc76d8e3385",
+          "tag": "forex-bot-trade",
+          "comment": "intent:d2d39fea-5ea9-4d84-8e9c-1cc76d8e3385"
+        }
+      },
+      "dependent_order_ids": [
+        "3230",
+        "3231",
+        "3233",
+        "3235"
+      ],
+      "holding_s": 596.072
+    },
+    {
+      "broker_id": "3239",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": 0.0,
+      "pnl_trade": 0.0,
+      "pnl_transactions": 0.0,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0094",
+      "exit_spread_cost": 0.0107,
+      "sl": {
+        "id": "3247",
+        "createTime": "2026-09-15T04:24:56.057105244Z",
+        "replacesOrderID": "3245",
+        "type": "STOP_LOSS",
+        "tradeID": "3239",
+        "price": "0.71248",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3248",
+        "filledTime": "2026-09-15T06:14:10.196995565Z",
+        "tradeClosedIDs": [
+          "3239"
+        ]
+      },
+      "tp": {
+        "id": "3243",
+        "createTime": "2026-09-15T03:53:28.344534021Z",
+        "replacesOrderID": "3240",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3239",
+        "price": "0.71158",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3249",
+        "cancelledTime": "2026-09-15T06:14:10.196995565Z"
+      },
+      "entry_request_orders": {
+        "id": "3238",
+        "batchID": "3238",
+        "requestID": "97577466387682003",
+        "time": "2026-09-15T03:53:28.105565845Z",
+        "type": "MARKET_ORDER",
+        "instrument": "AUD_USD",
+        "units": "-191",
+        "priceBound": "0.71237",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "0.71158",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "0.71308",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-84ba40f8-0aca-458f-9a57-cb08516dc95d",
+          "tag": "forex-bot-entry",
+          "comment": "intent:84ba40f8-0aca-458f-9a57-cb08516dc95d"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-84ba40f8-0aca-458f-9a57-cb08516dc95d",
+          "tag": "forex-bot-trade",
+          "comment": "intent:84ba40f8-0aca-458f-9a57-cb08516dc95d"
+        }
+      },
+      "dependent_order_ids": [
+        "3240",
+        "3241",
+        "3243",
+        "3245",
+        "3247"
+      ],
+      "holding_s": 8442.091
+    },
+    {
+      "broker_id": "3251",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.1701,
+      "pnl_trade": -0.1701,
+      "pnl_transactions": -0.1701,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0098",
+      "exit_spread_cost": 0.0112,
+      "sl": {
+        "id": "3257",
+        "createTime": "2026-09-15T06:58:28.205659863Z",
+        "replacesOrderID": "3253",
+        "type": "STOP_LOSS",
+        "tradeID": "3251",
+        "price": "0.71244",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3258",
+        "filledTime": "2026-09-15T07:29:32.060053715Z",
+        "tradeClosedIDs": [
+          "3251"
+        ]
+      },
+      "tp": {
+        "id": "3255",
+        "createTime": "2026-09-15T06:58:28.205659863Z",
+        "replacesOrderID": "3252",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3251",
+        "price": "0.71094",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3259",
+        "cancelledTime": "2026-09-15T07:29:32.060053715Z"
+      },
+      "entry_request_orders": {
+        "id": "3250",
+        "batchID": "3250",
+        "requestID": "151620708469630939",
+        "time": "2026-09-15T06:58:27.970260865Z",
+        "type": "MARKET_ORDER",
+        "instrument": "AUD_USD",
+        "units": "-200",
+        "priceBound": "0.71176",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "0.71094",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "0.71244",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-8898ca8e-5cb8-422e-a47e-16be18a37293",
+          "tag": "forex-bot-entry",
+          "comment": "intent:8898ca8e-5cb8-422e-a47e-16be18a37293"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-8898ca8e-5cb8-422e-a47e-16be18a37293",
+          "tag": "forex-bot-trade",
+          "comment": "intent:8898ca8e-5cb8-422e-a47e-16be18a37293"
+        }
+      },
+      "dependent_order_ids": [
+        "3252",
+        "3253",
+        "3255",
+        "3257"
+      ],
+      "holding_s": 1864.09
+    },
+    {
+      "broker_id": "3261",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": 0.0,
+      "pnl_trade": 0.0,
+      "pnl_transactions": 0.0,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0046",
+      "exit_spread_cost": 0.0057,
+      "sl": {
+        "id": "3269",
+        "createTime": "2026-09-15T12:20:17.610827529Z",
+        "replacesOrderID": "3267",
+        "type": "STOP_LOSS",
+        "tradeID": "3261",
+        "price": "154.918",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3270",
+        "filledTime": "2026-09-15T12:36:42.126474505Z",
+        "tradeClosedIDs": [
+          "3261"
+        ]
+      },
+      "tp": {
+        "id": "3265",
+        "createTime": "2026-09-15T12:00:33.467052347Z",
+        "replacesOrderID": "3262",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3261",
+        "price": "155.144",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3271",
+        "cancelledTime": "2026-09-15T12:36:42.126474505Z"
+      },
+      "entry_request_orders": {
+        "id": "3260",
+        "batchID": "3260",
+        "requestID": "205663980023802128",
+        "time": "2026-09-15T12:00:33.222231282Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "127",
+        "priceBound": "154.933",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "155.144",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "154.767",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-3ff3d851-0168-4b89-b313-5791adb4047d",
+          "tag": "forex-bot-entry",
+          "comment": "intent:3ff3d851-0168-4b89-b313-5791adb4047d"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-3ff3d851-0168-4b89-b313-5791adb4047d",
+          "tag": "forex-bot-trade",
+          "comment": "intent:3ff3d851-0168-4b89-b313-5791adb4047d"
+        }
+      },
+      "dependent_order_ids": [
+        "3262",
+        "3263",
+        "3265",
+        "3267",
+        "3269"
+      ],
+      "holding_s": 2168.904
+    },
+    {
+      "broker_id": "3273",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.1829,
+      "pnl_trade": -0.1829,
+      "pnl_transactions": -0.1829,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0047",
+      "exit_spread_cost": 0.0053,
+      "sl": {
+        "id": "3279",
+        "createTime": "2026-09-15T13:30:33.521283735Z",
+        "replacesOrderID": "3275",
+        "type": "STOP_LOSS",
+        "tradeID": "3273",
+        "price": "154.911",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3280",
+        "filledTime": "2026-09-15T13:57:30.102672228Z",
+        "tradeClosedIDs": [
+          "3273"
+        ]
+      },
+      "tp": {
+        "id": "3277",
+        "createTime": "2026-09-15T13:30:33.521283735Z",
+        "replacesOrderID": "3274",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3273",
+        "price": "155.296",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3281",
+        "cancelledTime": "2026-09-15T13:57:30.102672228Z"
+      },
+      "entry_request_orders": {
+        "id": "3272",
+        "batchID": "3272",
+        "requestID": "205664002672742765",
+        "time": "2026-09-15T13:30:33.285993391Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "130",
+        "priceBound": "155.075",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "155.297",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "154.912",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-a3a342cd-f97e-40eb-b797-556f8167749c",
+          "tag": "forex-bot-entry",
+          "comment": "intent:a3a342cd-f97e-40eb-b797-556f8167749c"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-a3a342cd-f97e-40eb-b797-556f8167749c",
+          "tag": "forex-bot-trade",
+          "comment": "intent:a3a342cd-f97e-40eb-b797-556f8167749c"
+        }
+      },
+      "dependent_order_ids": [
+        "3274",
+        "3275",
+        "3277",
+        "3279"
+      ],
+      "holding_s": 1616.817
+    },
+    {
+      "broker_id": "3283",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": 0.0429,
+      "pnl_trade": 0.0429,
+      "pnl_transactions": 0.0429,
+      "financing": "0.0000",
+      "close_reason": "MARKET_ORDER_TRADE_CLOSE",
+      "entry_spread_cost": "0.0037",
+      "exit_spread_cost": 0.0063,
+      "sl": {
+        "id": "3289",
+        "createTime": "2026-09-15T15:00:33.211999814Z",
+        "replacesOrderID": "3285",
+        "type": "STOP_LOSS",
+        "tradeID": "3283",
+        "price": "154.934",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3293",
+        "cancelledTime": "2026-09-15T20:45:09.036361315Z"
+      },
+      "tp": {
+        "id": "3287",
+        "createTime": "2026-09-15T15:00:33.211999814Z",
+        "replacesOrderID": "3284",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3283",
+        "price": "155.326",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3292",
+        "cancelledTime": "2026-09-15T20:45:09.036361315Z"
+      },
+      "entry_request_orders": {
+        "id": "3282",
+        "batchID": "3282",
+        "requestID": "151620829787612638",
+        "time": "2026-09-15T15:00:32.989739889Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "117",
+        "priceBound": "155.114",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "155.326",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "154.934",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-52e51c67-a097-4c4f-bcaf-cf2d24c89189",
+          "tag": "forex-bot-entry",
+          "comment": "intent:52e51c67-a097-4c4f-bcaf-cf2d24c89189"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-52e51c67-a097-4c4f-bcaf-cf2d24c89189",
+          "tag": "forex-bot-trade",
+          "comment": "intent:52e51c67-a097-4c4f-bcaf-cf2d24c89189"
+        }
+      },
+      "dependent_order_ids": [
+        "3284",
+        "3285",
+        "3287",
+        "3289"
+      ],
+      "holding_s": 20676.046
+    },
+    {
+      "broker_id": "3295",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": 0.2559,
+      "pnl_trade": 0.2559,
+      "pnl_transactions": 0.2559,
+      "financing": "0.0000",
+      "close_reason": "TAKE_PROFIT_ORDER",
+      "entry_spread_cost": "0.0090",
+      "exit_spread_cost": 0.0089,
+      "sl": {
+        "id": "3303",
+        "createTime": "2026-09-15T23:37:39.667828934Z",
+        "replacesOrderID": "3301",
+        "type": "STOP_LOSS",
+        "tradeID": "3295",
+        "price": "155.145",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3305",
+        "cancelledTime": "2026-09-15T23:37:42.137969450Z"
+      },
+      "tp": {
+        "id": "3299",
+        "createTime": "2026-09-15T23:25:33.413352411Z",
+        "replacesOrderID": "3296",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3295",
+        "price": "155.272",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "FILLED",
+        "fillingTransactionID": "3304",
+        "filledTime": "2026-09-15T23:37:42.137969450Z",
+        "tradeClosedIDs": [
+          "3295"
+        ]
+      },
+      "entry_request_orders": {
+        "id": "3294",
+        "batchID": "3294",
+        "requestID": "223678550919919103",
+        "time": "2026-09-15T23:25:33.185018710Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "220",
+        "priceBound": "155.157",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "155.272",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "155.061",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-9a44f913-3be4-4863-8b78-7e681ffbe271",
+          "tag": "forex-bot-entry",
+          "comment": "intent:9a44f913-3be4-4863-8b78-7e681ffbe271"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-9a44f913-3be4-4863-8b78-7e681ffbe271",
+          "tag": "forex-bot-trade",
+          "comment": "intent:9a44f913-3be4-4863-8b78-7e681ffbe271"
+        }
+      },
+      "dependent_order_ids": [
+        "3296",
+        "3297",
+        "3299",
+        "3301",
+        "3303"
+      ],
+      "holding_s": 728.953
+    },
+    {
+      "broker_id": "3307",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.1623,
+      "pnl_trade": -0.1623,
+      "pnl_transactions": -0.1623,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0094",
+      "exit_spread_cost": 0.0094,
+      "sl": {
+        "id": "3313",
+        "createTime": "2026-09-16T00:18:28.416933050Z",
+        "replacesOrderID": "3309",
+        "type": "STOP_LOSS",
+        "tradeID": "3307",
+        "price": "0.71303",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3314",
+        "filledTime": "2026-09-16T05:01:05.654707481Z",
+        "tradeClosedIDs": [
+          "3307"
+        ]
+      },
+      "tp": {
+        "id": "3311",
+        "createTime": "2026-09-16T00:18:28.416933050Z",
+        "replacesOrderID": "3308",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3307",
+        "price": "0.71153",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3315",
+        "cancelledTime": "2026-09-16T05:01:05.654707481Z"
+      },
+      "entry_request_orders": {
+        "id": "3306",
+        "batchID": "3306",
+        "requestID": "223678564234882562",
+        "time": "2026-09-16T00:18:28.195646511Z",
+        "type": "MARKET_ORDER",
+        "instrument": "AUD_USD",
+        "units": "-191",
+        "priceBound": "0.71232",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "0.71153",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "0.71303",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-8c4cf4e2-eb00-4e28-b4d1-8ece612e2bed",
+          "tag": "forex-bot-entry",
+          "comment": "intent:8c4cf4e2-eb00-4e28-b4d1-8ece612e2bed"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-8c4cf4e2-eb00-4e28-b4d1-8ece612e2bed",
+          "tag": "forex-bot-trade",
+          "comment": "intent:8c4cf4e2-eb00-4e28-b4d1-8ece612e2bed"
+        }
+      },
+      "dependent_order_ids": [
+        "3308",
+        "3309",
+        "3311",
+        "3313"
+      ],
+      "holding_s": 16957.459
+    },
+    {
+      "broker_id": "3317",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.176,
+      "pnl_trade": -0.176,
+      "pnl_transactions": -0.176,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0080",
+      "exit_spread_cost": 0.0081,
+      "sl": {
+        "id": "3323",
+        "createTime": "2026-09-16T13:30:33.955058398Z",
+        "replacesOrderID": "3319",
+        "type": "STOP_LOSS",
+        "tradeID": "3317",
+        "price": "155.173",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3324",
+        "filledTime": "2026-09-16T14:20:33.377177336Z",
+        "tradeClosedIDs": [
+          "3317"
+        ]
+      },
+      "tp": {
+        "id": "3321",
+        "createTime": "2026-09-16T13:30:33.955058398Z",
+        "replacesOrderID": "3318",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3317",
+        "price": "155.470",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3325",
+        "cancelledTime": "2026-09-16T14:20:33.377177336Z"
+      },
+      "entry_request_orders": {
+        "id": "3316",
+        "batchID": "3316",
+        "requestID": "205664365060863930",
+        "time": "2026-09-16T13:30:33.716995356Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "162",
+        "priceBound": "155.300",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "155.466",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "155.169",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-ec814222-433f-43ce-a10e-45a563869a1f",
+          "tag": "forex-bot-entry",
+          "comment": "intent:ec814222-433f-43ce-a10e-45a563869a1f"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-ec814222-433f-43ce-a10e-45a563869a1f",
+          "tag": "forex-bot-trade",
+          "comment": "intent:ec814222-433f-43ce-a10e-45a563869a1f"
+        }
+      },
+      "dependent_order_ids": [
+        "3318",
+        "3319",
+        "3321",
+        "3323"
+      ],
+      "holding_s": 2999.66
+    },
+    {
+      "broker_id": "3327",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.177,
+      "pnl_trade": -0.177,
+      "pnl_transactions": -0.177,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0040",
+      "exit_spread_cost": 0.0063,
+      "sl": {
+        "id": "3333",
+        "createTime": "2026-09-17T01:12:32.402048139Z",
+        "replacesOrderID": "3329",
+        "type": "STOP_LOSS",
+        "tradeID": "3327",
+        "price": "156.053",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3334",
+        "filledTime": "2026-09-17T01:30:06.992696766Z",
+        "tradeClosedIDs": [
+          "3327"
+        ]
+      },
+      "tp": {
+        "id": "3331",
+        "createTime": "2026-09-17T01:12:32.402048139Z",
+        "replacesOrderID": "3328",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3327",
+        "price": "156.436",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3335",
+        "cancelledTime": "2026-09-17T01:30:06.992696766Z"
+      },
+      "entry_request_orders": {
+        "id": "3326",
+        "batchID": "3326",
+        "requestID": "133606947683455966",
+        "time": "2026-09-17T01:12:32.113652041Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "126",
+        "priceBound": "156.222",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "156.438",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "156.055",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-e0b89fec-d629-4e02-8924-cb51792f01ba",
+          "tag": "forex-bot-entry",
+          "comment": "intent:e0b89fec-d629-4e02-8924-cb51792f01ba"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-e0b89fec-d629-4e02-8924-cb51792f01ba",
+          "tag": "forex-bot-trade",
+          "comment": "intent:e0b89fec-d629-4e02-8924-cb51792f01ba"
+        }
+      },
+      "dependent_order_ids": [
+        "3328",
+        "3329",
+        "3331",
+        "3333"
+      ],
+      "holding_s": 1054.879
+    },
+    {
+      "broker_id": "3337",
+      "entry_matches": true,
+      "exit_matches": true,
+      "pnl_local": -0.1871,
+      "pnl_trade": -0.1871,
+      "pnl_transactions": -0.1871,
+      "financing": "0.0000",
+      "close_reason": "STOP_LOSS_ORDER",
+      "entry_spread_cost": "0.0044",
+      "exit_spread_cost": 0.004,
+      "sl": {
+        "id": "3343",
+        "createTime": "2026-09-18T12:15:29.757608135Z",
+        "replacesOrderID": "3339",
+        "type": "STOP_LOSS",
+        "tradeID": "3337",
+        "price": "157.674",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "triggerMode": "TOP_OF_BOOK",
+        "state": "FILLED",
+        "fillingTransactionID": "3344",
+        "filledTime": "2026-09-18T13:00:46.153813202Z",
+        "tradeClosedIDs": [
+          "3337"
+        ]
+      },
+      "tp": {
+        "id": "3341",
+        "createTime": "2026-09-18T12:15:29.757608135Z",
+        "replacesOrderID": "3338",
+        "type": "TAKE_PROFIT",
+        "tradeID": "3337",
+        "price": "158.252",
+        "timeInForce": "GTC",
+        "triggerCondition": "DEFAULT",
+        "state": "CANCELLED",
+        "cancellingTransactionID": "3345",
+        "cancelledTime": "2026-09-18T13:00:46.153813202Z"
+      },
+      "entry_request_orders": {
+        "id": "3336",
+        "batchID": "3336",
+        "requestID": "205665070944382948",
+        "time": "2026-09-18T12:15:29.507141416Z",
+        "type": "MARKET_ORDER",
+        "instrument": "USD_JPY",
+        "units": "90",
+        "priceBound": "157.912",
+        "timeInForce": "FOK",
+        "positionFill": "OPEN_ONLY",
+        "takeProfitOnFill": {
+          "price": "158.252",
+          "timeInForce": "GTC"
+        },
+        "stopLossOnFill": {
+          "price": "157.674",
+          "timeInForce": "GTC",
+          "triggerMode": "TOP_OF_BOOK"
+        },
+        "reason": "CLIENT_ORDER",
+        "clientExtensions": {
+          "id": "oi-ede47456-d8f5-402c-b496-e2b1a0e49881",
+          "tag": "forex-bot-entry",
+          "comment": "intent:ede47456-d8f5-402c-b496-e2b1a0e49881"
+        },
+        "tradeClientExtensions": {
+          "id": "ti-ede47456-d8f5-402c-b496-e2b1a0e49881",
+          "tag": "forex-bot-trade",
+          "comment": "intent:ede47456-d8f5-402c-b496-e2b1a0e49881"
+        }
+      },
+      "dependent_order_ids": [
+        "3338",
+        "3339",
+        "3341",
+        "3343"
+      ],
+      "holding_s": 2716.647
+    }
+  ],
+  "transaction_types": {
+    "MARKET_ORDER": 16,
+    "ORDER_FILL": 30,
+    "TAKE_PROFIT_ORDER": 30,
+    "STOP_LOSS_ORDER": 35,
+    "ORDER_CANCEL": 51
+  },
+  "account": {
+    "balance": "96.5056",
+    "NAV": "96.5056",
+    "currency": "AUD",
+    "openTradeCount": 0,
+    "pendingOrderCount": 0,
+    "financing": "-1.1281",
+    "pl": "-52.3663"
+  },
+  "cashflows": [],
+  "broker_trades_missing_local": []
+}

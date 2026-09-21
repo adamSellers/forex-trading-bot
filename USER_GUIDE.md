@@ -14,12 +14,12 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-Read-only production checks on September 11 verified v3.2 / strategy 1.1.2 at commit `33e0b76`, including the maintenance and quote-limit correction. Local v3.3 / strategy 1.1.3 contains the [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md), locally validated and awaiting user deployment with the same numerical settings. This table describes the last verified deployed release.
+Read-only production checks on September 21 verified v3.3 / strategy 1.1.3 at commit `5c250a7`, including the [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md). The [excursion measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) is validated locally and awaits user publication/deployment; numerical trading settings remain the same. This table describes the last verified deployed release.
 
 | Setting | Value |
 | --- | --- |
-| Release | `m15-intraday-v3.2` |
-| Strategy | `intraday_momentum` `1.1.2` |
+| Release | `m15-intraday-v3.3` |
+| Strategy | `intraday_momentum` `1.1.3` |
 | Decision candles | completed M15 with completed H1 regime context |
 | Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
 | Entry | eight-bar breakout or four-bar pullback resumption with H1 EMA/ADX and M15 RSI alignment |
@@ -54,7 +54,7 @@ Health severity and entry state describe different things. A pair-specific deliv
 
 ## Pricing rejections and later scans
 
-The local v3.3 correction records a spread, execution-cost or price-movement decline before submission as an expected entry rejection, with its specific reason. The error count records unexpected failures; one failure is counted once.
+The deployed v3.3 correction records a spread, execution-cost or price-movement decline before submission as an expected entry rejection, with its specific reason. The error count records unexpected failures; one failure is counted once.
 
 After a recognized local pricing rejection, the next regular scan may reconsider the same completed-candle setup if it still qualifies. Every entry check runs again, and the original decision-price movement limit remains anchored to the first attempt, including after restart. A better cached quote does not guarantee an acceptable final executable quote. Submission, an uncertain outcome or a fill keeps duplicate entry suppression in place; risk and other rejection types retain their existing behavior. There is no new polling loop or wider cost/risk allowance.
 
@@ -68,7 +68,9 @@ Wins, losses and R use **net AUD** including financing and explicit broker charg
 
 The dashboard win-rate card is explicitly current-run closed trades; the 24-hour P/L card includes all live closures. Failed refreshes retain prior values with a visible stale-data warning. ADX comparisons and bootstrap intervals describe the available sample; they do not establish filter effectiveness or a durable edge.
 
-New trades capture sampled favorable/adverse excursions using executable exit bids/asks. The dashboard reports measurement coverage. Polling misses movements between observations; older trades have no invented excursion history. S3 reports use immutable completed UTC days and Sunday-to-Sunday weeks, wait for post-boundary broker reconciliation, retry failed uploads, and persist successful checkpoints. A first-time scheduler starts with the latest completed periods; it catches up subsequent missed periods. Reports are snapshots of reconciled records available at generation, so later broker corrections require a separately identified corrected export, not overwriting history.
+Trades capture sampled favorable/adverse excursions using executable exit bids/asks. After deployment of the September 21 measurement correction, new version 2 samples remain provisional until the matching broker close establishes their lifetime. The close removes observations outside that lifetime and recomputes extrema. The dashboard reports verified coverage separately from unverified samples; averages use verified closed-trade samples only. Older aggregates and partial legacy history remain available but excluded from these averages because their timing cannot be repaired. Polling still misses movements between observations; verified does not mean tick-complete or exact historical extrema.
+
+S3 reports use the same analytics calculation and immutable completed UTC days and Sunday-to-Sunday weeks, wait for post-boundary broker reconciliation, retry failed uploads, and persist successful checkpoints. A first-time scheduler starts with the latest completed periods; it catches up subsequent missed periods. Reports are snapshots of reconciled records available at generation, so later broker corrections require a separately identified corrected export, not overwriting history.
 
 ## Strategy semantics retained
 

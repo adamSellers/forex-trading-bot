@@ -1,0 +1,826 @@
+{
+  "method": "Conditional observed-entry sensitivity; not an execution replay or projected AUD return.",
+  "target_multiple": 2,
+  "target_extensions": [
+    {
+      "id": "3073",
+      "review_window": false,
+      "side": "SELL",
+      "quote_side": "ask",
+      "target_price": 155.755,
+      "target_r_after_price_rounding": 2.0027294656679224,
+      "actual_tp_utc": "2026-09-07T05:58:36.059000+00:00",
+      "deadline_utc": "2026-09-07T11:45:45.301000+00:00",
+      "breakeven_confirmed_before_tp": true,
+      "minimum_r_in_included_bars": 0.5880354601323928,
+      "partial_bar_target_touch": null,
+      "first_resolved_event": {
+        "bar_start_utc": "2026-09-07T06:19:00+00:00",
+        "bar_end_utc": "2026-09-07T06:20:00+00:00",
+        "earliest_ms": 1788761940000.0,
+        "latest_ms": 1788762000000.0,
+        "partial_start_bar": false,
+        "low_r": 1.5766168133980794,
+        "high_r": 2.1646522735304723,
+        "kind": "TARGET"
+      },
+      "possible_terminal_r": [
+        2.0027294656679224
+      ],
+      "exit_earliest_ms": 1788761940000.0,
+      "exit_latest_ms": 1788762000000.0,
+      "observed_trade_capacity_conflicts": [
+        {
+          "id": "3085",
+          "entry_utc": "2026-09-07T06:00:45.236000+00:00",
+          "status": "definite",
+          "actual_pnl_aud": 0.2693
+        }
+      ],
+      "observed_decisions_during_extension": [
+        {
+          "setup_id": "USD_JPY:SHORT:1788759900000:M15_PULLBACK_RESUMPTION",
+          "decision_time": 1788760837112,
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "outcome": "FILLED",
+          "rejection_code": null
+        }
+      ]
+    },
+    {
+      "id": "3085",
+      "review_window": false,
+      "side": "SELL",
+      "quote_side": "ask",
+      "target_price": 155.568,
+      "target_r_after_price_rounding": 2.0028521457663744,
+      "actual_tp_utc": "2026-09-07T06:24:50.773000+00:00",
+      "deadline_utc": "2026-09-07T12:00:45.236000+00:00",
+      "breakeven_confirmed_before_tp": true,
+      "minimum_r_in_included_bars": -0.1082622781496169,
+      "partial_bar_target_touch": {
+        "bar_start_utc": "2026-09-07T06:24:00+00:00",
+        "bar_end_utc": "2026-09-07T06:25:00+00:00",
+        "earliest_ms": 1788762290773,
+        "latest_ms": 1788762300000.0,
+        "partial_start_bar": true,
+        "low_r": 0.9202293642710843,
+        "high_r": 2.1961776424620245
+      },
+      "first_resolved_event": {
+        "bar_start_utc": "2026-09-07T06:56:00+00:00",
+        "bar_end_utc": "2026-09-07T06:57:00+00:00",
+        "earliest_ms": 1788764160000.0,
+        "latest_ms": 1788764220000.0,
+        "partial_start_bar": false,
+        "low_r": -0.1082622781496169,
+        "high_r": 0.1082622781496169,
+        "kind": "BREAKEVEN"
+      },
+      "possible_terminal_r": [
+        0,
+        2.0028521457663744
+      ],
+      "exit_earliest_ms": 1788762290773,
+      "exit_latest_ms": 1788764220000.0,
+      "observed_trade_capacity_conflicts": [],
+      "observed_decisions_during_extension": []
+    },
+    {
+      "id": "3097",
+      "review_window": false,
+      "side": "SELL",
+      "quote_side": "ask",
+      "target_price": 155.177,
+      "target_r_after_price_rounding": 2.0024558704317053,
+      "actual_tp_utc": "2026-09-07T08:07:36.168000+00:00",
+      "deadline_utc": "2026-09-07T14:00:45.781000+00:00",
+      "breakeven_confirmed_before_tp": false,
+      "minimum_r_in_included_bars": 0.5951743837116193,
+      "partial_bar_target_touch": {
+        "bar_start_utc": "2026-09-07T08:07:00+00:00",
+        "bar_end_utc": "2026-09-07T08:08:00+00:00",
+        "earliest_ms": 1788768456168,
+        "latest_ms": 1788768480000.0,
+        "partial_start_bar": true,
+        "low_r": 0.5951743837116193,
+        "high_r": 2.330636138085764
+      },
+      "first_resolved_event": {
+        "bar_start_utc": "2026-09-07T08:08:00+00:00",
+        "bar_end_utc": "2026-09-07T08:09:00+00:00",
+        "earliest_ms": 1788768480000.0,
+        "latest_ms": 1788768540000.0,
+        "partial_start_bar": false,
+        "low_r": 1.7966479059706424,
+        "high_r": 3.009246183065292,
+        "kind": "TARGET"
+      },
+      "possible_terminal_r": [
+        2.0024558704317053
+      ],
+      "exit_earliest_ms": 1788768456168,
+      "exit_latest_ms": 1788768540000.0,
+      "observed_trade_capacity_conflicts": [],
+      "observed_decisions_during_extension": []
+    },
+    {
+      "id": "3121",
+      "review_window": false,
+      "side": "SELL",
+      "quote_side": "ask",
+      "target_price": 153.167,
+      "target_r_after_price_rounding": 1.999336242350154,
+      "actual_tp_utc": "2026-09-09T05:58:30.217000+00:00",
+      "deadline_utc": "2026-09-09T08:00:51.451000+00:00",
+      "breakeven_confirmed_before_tp": true,
+      "minimum_r_in_included_bars": 1.135173007165484,
+      "partial_bar_target_touch": null,
+      "first_resolved_event": {
+        "bar_start_utc": "2026-09-09T06:04:00+00:00",
+        "bar_end_utc": "2026-09-09T06:05:00+00:00",
+        "earliest_ms": 1788933840000.0,
+        "latest_ms": 1788933900000.0,
+        "partial_start_bar": false,
+        "low_r": 1.7027595107483713,
+        "high_r": 2.1373978243028033,
+        "kind": "TARGET"
+      },
+      "possible_terminal_r": [
+        1.999336242350154
+      ],
+      "exit_earliest_ms": 1788933840000.0,
+      "exit_latest_ms": 1788933900000.0,
+      "observed_trade_capacity_conflicts": [],
+      "observed_decisions_during_extension": []
+    },
+    {
+      "id": "3195",
+      "review_window": true,
+      "side": "SELL",
+      "quote_side": "ask",
+      "target_price": 0.71355,
+      "target_r_after_price_rounding": 1.999999999999815,
+      "actual_tp_utc": "2026-09-14T06:50:47.965000+00:00",
+      "deadline_utc": "2026-09-14T09:43:26.559000+00:00",
+      "breakeven_confirmed_before_tp": true,
+      "minimum_r_in_included_bars": 0.6833333333333179,
+      "partial_bar_target_touch": null,
+      "first_resolved_event": {
+        "bar_start_utc": "2026-09-14T08:05:00+00:00",
+        "bar_end_utc": "2026-09-14T08:06:00+00:00",
+        "earliest_ms": 1789373100000.0,
+        "latest_ms": 1789373160000.0,
+        "partial_start_bar": false,
+        "low_r": 1.916666666666497,
+        "high_r": 2.0666666666665434,
+        "kind": "TARGET"
+      },
+      "possible_terminal_r": [
+        1.999999999999815
+      ],
+      "exit_earliest_ms": 1789373100000.0,
+      "exit_latest_ms": 1789373160000.0,
+      "observed_trade_capacity_conflicts": [
+        {
+          "id": "3207",
+          "entry_utc": "2026-09-14T07:00:26.746000+00:00",
+          "status": "definite",
+          "actual_pnl_aud": -0.1604
+        }
+      ],
+      "observed_decisions_during_extension": [
+        {
+          "setup_id": "AUD_USD:SHORT:1789368300000:M15_PULLBACK_RESUMPTION",
+          "decision_time": 1789369223771,
+          "instrument": "AUD_USD",
+          "side": "SELL",
+          "outcome": "FILLED",
+          "rejection_code": null
+        }
+      ]
+    },
+    {
+      "id": "3217",
+      "review_window": true,
+      "side": "BUY",
+      "quote_side": "bid",
+      "target_price": 154.975,
+      "target_r_after_price_rounding": 2.0002857905168616,
+      "actual_tp_utc": "2026-09-14T13:48:20.698000+00:00",
+      "deadline_utc": "2026-09-14T18:30:31.920000+00:00",
+      "breakeven_confirmed_before_tp": true,
+      "minimum_r_in_included_bars": 1.2120690849600881,
+      "partial_bar_target_touch": null,
+      "first_resolved_event": {
+        "bar_start_utc": "2026-09-14T13:54:00+00:00",
+        "bar_end_utc": "2026-09-14T13:55:00+00:00",
+        "earliest_ms": 1789394040000.0,
+        "latest_ms": 1789394100000.0,
+        "partial_start_bar": false,
+        "low_r": 1.836693644080606,
+        "high_r": 2.0002857905168616,
+        "kind": "TARGET"
+      },
+      "possible_terminal_r": [
+        2.0002857905168616
+      ],
+      "exit_earliest_ms": 1789394040000.0,
+      "exit_latest_ms": 1789394100000.0,
+      "observed_trade_capacity_conflicts": [],
+      "observed_decisions_during_extension": []
+    },
+    {
+      "id": "3295",
+      "review_window": true,
+      "side": "BUY",
+      "quote_side": "bid",
+      "target_price": 155.314,
+      "target_r_after_price_rounding": 2.0031146324020357,
+      "actual_tp_utc": "2026-09-15T23:37:42.138000+00:00",
+      "deadline_utc": "2026-09-16T05:25:33.185000+00:00",
+      "breakeven_confirmed_before_tp": true,
+      "minimum_r_in_included_bars": 0.5926374652075613,
+      "partial_bar_target_touch": null,
+      "first_resolved_event": {
+        "bar_start_utc": "2026-09-15T23:38:00+00:00",
+        "bar_end_utc": "2026-09-15T23:39:00+00:00",
+        "earliest_ms": 1789515480000.0,
+        "latest_ms": 1789515540000.0,
+        "partial_start_bar": false,
+        "low_r": 1.4815936630194086,
+        "high_r": 2.026820131010459,
+        "kind": "TARGET"
+      },
+      "possible_terminal_r": [
+        2.0031146324020357
+      ],
+      "exit_earliest_ms": 1789515480000.0,
+      "exit_latest_ms": 1789515540000.0,
+      "observed_trade_capacity_conflicts": [],
+      "observed_decisions_during_extension": []
+    }
+  ],
+  "frozen_tape_review_window": {
+    "baseline_entries": 15,
+    "conditional_retained_entries": 14,
+    "baseline_price_r": -4.18737072975819,
+    "conditional_price_r": -1.7343370675873997,
+    "rows": [
+      {
+        "id": "3185",
+        "included": true,
+        "conditional_price_r": -0.9982470209638239,
+        "exit_earliest_ms": 1789345452900,
+        "exit_latest_ms": 1789345452900
+      },
+      {
+        "id": "3195",
+        "included": true,
+        "conditional_price_r": 1.999999999999815,
+        "exit_earliest_ms": 1789373100000.0,
+        "exit_latest_ms": 1789373160000.0
+      },
+      {
+        "id": "3207",
+        "included": false,
+        "reason": "LONGER_EXISTING_POSITION"
+      },
+      {
+        "id": "3217",
+        "included": true,
+        "conditional_price_r": 2.0002857905168616,
+        "exit_earliest_ms": 1789394040000.0,
+        "exit_latest_ms": 1789394100000.0
+      },
+      {
+        "id": "3229",
+        "included": true,
+        "conditional_price_r": -0.9944126009475586,
+        "exit_earliest_ms": 1789395027207,
+        "exit_latest_ms": 1789395027207
+      },
+      {
+        "id": "3239",
+        "included": true,
+        "conditional_price_r": -0.0,
+        "exit_earliest_ms": 1789452850197,
+        "exit_latest_ms": 1789452850197
+      },
+      {
+        "id": "3251",
+        "included": true,
+        "conditional_price_r": -0.9999999999998149,
+        "exit_earliest_ms": 1789457372060,
+        "exit_latest_ms": 1789457372060
+      },
+      {
+        "id": "3261",
+        "included": true,
+        "conditional_price_r": 0.0,
+        "exit_earliest_ms": 1789475802126,
+        "exit_latest_ms": 1789475802126
+      },
+      {
+        "id": "3273",
+        "included": true,
+        "conditional_price_r": -1.0008280012231752,
+        "exit_earliest_ms": 1789480650103,
+        "exit_latest_ms": 1789480650103
+      },
+      {
+        "id": "3283",
+        "included": true,
+        "conditional_price_r": 0.2614304537634857,
+        "exit_earliest_ms": 1789505109036,
+        "exit_latest_ms": 1789505109036
+      },
+      {
+        "id": "3295",
+        "included": true,
+        "conditional_price_r": 2.0031146324020357,
+        "exit_earliest_ms": 1789515480000.0,
+        "exit_latest_ms": 1789515540000.0
+      },
+      {
+        "id": "3307",
+        "included": true,
+        "conditional_price_r": -1.0,
+        "exit_earliest_ms": 1789534865655,
+        "exit_latest_ms": 1789534865655
+      },
+      {
+        "id": "3317",
+        "included": true,
+        "conditional_price_r": -1.0028884178677648,
+        "exit_earliest_ms": 1789568433377,
+        "exit_latest_ms": 1789568433377
+      },
+      {
+        "id": "3327",
+        "included": true,
+        "conditional_price_r": -1.004201217699079,
+        "exit_earliest_ms": 1789608606993,
+        "exit_latest_ms": 1789608606993
+      },
+      {
+        "id": "3337",
+        "included": true,
+        "conditional_price_r": -0.9985906855683812,
+        "exit_earliest_ms": 1789736446154,
+        "exit_latest_ms": 1789736446154
+      }
+    ]
+  },
+  "frozen_tape_earlier_context": {
+    "baseline_entries": 10,
+    "conditional_retained_entries": 9,
+    "baseline_price_r": 2.8086204543032673,
+    "conditional_price_r": 2.78464145427254,
+    "rows": [
+      {
+        "id": "3073",
+        "included": true,
+        "conditional_price_r": 2.0027294656679224,
+        "exit_earliest_ms": 1788761940000.0,
+        "exit_latest_ms": 1788762000000.0
+      },
+      {
+        "id": "3085",
+        "included": false,
+        "reason": "LONGER_EXISTING_POSITION"
+      },
+      {
+        "id": "3097",
+        "included": true,
+        "conditional_price_r": 2.0024558704317053,
+        "exit_earliest_ms": 1788768456168,
+        "exit_latest_ms": 1788768540000.0
+      },
+      {
+        "id": "3109",
+        "included": true,
+        "conditional_price_r": 0.12013033507458085,
+        "exit_earliest_ms": 1788813051157,
+        "exit_latest_ms": 1788813051157
+      },
+      {
+        "id": "3121",
+        "included": true,
+        "conditional_price_r": 1.999336242350154,
+        "exit_earliest_ms": 1788933840000.0,
+        "exit_latest_ms": 1788933900000.0
+      },
+      {
+        "id": "3133",
+        "included": true,
+        "conditional_price_r": -1.023021901349213,
+        "exit_earliest_ms": 1788935461435,
+        "exit_latest_ms": 1788935461435
+      },
+      {
+        "id": "3143",
+        "included": true,
+        "conditional_price_r": -0.9988001514909739,
+        "exit_earliest_ms": 1788956856617,
+        "exit_latest_ms": 1788956856617
+      },
+      {
+        "id": "3153",
+        "included": true,
+        "conditional_price_r": -0.9989367637754752,
+        "exit_earliest_ms": 1788961350781,
+        "exit_latest_ms": 1788961350781
+      },
+      {
+        "id": "3163",
+        "included": true,
+        "conditional_price_r": 0.6964400098950635,
+        "exit_earliest_ms": 1789073103045,
+        "exit_latest_ms": 1789073103045
+      },
+      {
+        "id": "3175",
+        "included": true,
+        "conditional_price_r": -1.0156916525312238,
+        "exit_earliest_ms": 1789096436553,
+        "exit_latest_ms": 1789096436553
+      }
+    ]
+  },
+  "reentry_episodes": [
+    {
+      "previous_id": "3073",
+      "id": "3085",
+      "pair": "USD_JPY",
+      "review_window": false,
+      "release": "m15-intraday-v3",
+      "previous_exit_reason": "TAKE_PROFIT",
+      "previous_exit_utc": "2026-09-07T05:58:36.059000+00:00",
+      "entry_utc": "2026-09-07T06:00:45.236000+00:00",
+      "gap_minutes": 2.15295,
+      "same_side": true,
+      "actual_pnl_aud": 0.2693,
+      "outcome": "TAKE_PROFIT",
+      "breakout": true,
+      "pullback": true,
+      "ema20_at_signal": 156.05997379864655,
+      "touch_bars": [
+        {
+          "time": "2026-09-07T04:45:00.000000000Z",
+          "mid_high": "156.112",
+          "mid_low": "156.033",
+          "entirely_after_exit": false,
+          "ends_after_exit": false
+        },
+        {
+          "time": "2026-09-07T05:00:00.000000000Z",
+          "mid_high": "156.088",
+          "mid_low": "156.020",
+          "entirely_after_exit": false,
+          "ends_after_exit": false
+        },
+        {
+          "time": "2026-09-07T05:15:00.000000000Z",
+          "mid_high": "156.101",
+          "mid_low": "156.038",
+          "entirely_after_exit": false,
+          "ends_after_exit": false
+        }
+      ],
+      "fresh_completed_post_exit_touch": false,
+      "fresh_rule_gating_all_triggers_accepts": false,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": false,
+      "h1_reset_observed": null,
+      "first_h1_reset_utc": null
+    },
+    {
+      "previous_id": "3085",
+      "id": "3097",
+      "pair": "USD_JPY",
+      "review_window": false,
+      "release": "m15-intraday-v3",
+      "previous_exit_reason": "TAKE_PROFIT",
+      "previous_exit_utc": "2026-09-07T06:24:50.773000+00:00",
+      "entry_utc": "2026-09-07T08:00:45.781000+00:00",
+      "gap_minutes": 95.9168,
+      "same_side": true,
+      "actual_pnl_aud": 0.2694,
+      "outcome": "TAKE_PROFIT",
+      "breakout": false,
+      "pullback": true,
+      "ema20_at_signal": 155.8831536845015,
+      "touch_bars": [
+        {
+          "time": "2026-09-07T07:00:00.000000000Z",
+          "mid_high": "155.906",
+          "mid_low": "155.818",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-07T07:15:00.000000000Z",
+          "mid_high": "155.892",
+          "mid_low": "155.660",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        }
+      ],
+      "fresh_completed_post_exit_touch": true,
+      "fresh_rule_gating_all_triggers_accepts": true,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": true,
+      "h1_reset_observed": null,
+      "first_h1_reset_utc": null
+    },
+    {
+      "previous_id": "3097",
+      "id": "3109",
+      "pair": "USD_JPY",
+      "review_window": false,
+      "release": "m15-intraday-v3",
+      "previous_exit_reason": "TAKE_PROFIT",
+      "previous_exit_utc": "2026-09-07T08:07:36.168000+00:00",
+      "entry_utc": "2026-09-07T14:30:45.834000+00:00",
+      "gap_minutes": 383.1611,
+      "same_side": true,
+      "actual_pnl_aud": 0.0219,
+      "outcome": "TIME_STOP",
+      "breakout": false,
+      "pullback": true,
+      "ema20_at_signal": 154.60362369790843,
+      "touch_bars": [
+        {
+          "time": "2026-09-07T14:00:00.000000000Z",
+          "mid_high": "154.638",
+          "mid_low": "154.455",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        }
+      ],
+      "fresh_completed_post_exit_touch": true,
+      "fresh_rule_gating_all_triggers_accepts": true,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": true,
+      "h1_reset_observed": null,
+      "first_h1_reset_utc": null
+    },
+    {
+      "previous_id": "3121",
+      "id": "3133",
+      "pair": "USD_JPY",
+      "review_window": false,
+      "release": "m15-intraday-v3.1",
+      "previous_exit_reason": "TAKE_PROFIT",
+      "previous_exit_utc": "2026-09-09T05:58:30.217000+00:00",
+      "entry_utc": "2026-09-09T06:15:51.544000+00:00",
+      "gap_minutes": 17.35545,
+      "same_side": true,
+      "actual_pnl_aud": -0.1926,
+      "outcome": "STOP_LOSS",
+      "breakout": true,
+      "pullback": true,
+      "ema20_at_signal": 153.43367680874874,
+      "touch_bars": [
+        {
+          "time": "2026-09-09T05:00:00.000000000Z",
+          "mid_high": "153.485",
+          "mid_low": "153.341",
+          "entirely_after_exit": false,
+          "ends_after_exit": false
+        },
+        {
+          "time": "2026-09-09T05:15:00.000000000Z",
+          "mid_high": "153.457",
+          "mid_low": "153.296",
+          "entirely_after_exit": false,
+          "ends_after_exit": false
+        }
+      ],
+      "fresh_completed_post_exit_touch": false,
+      "fresh_rule_gating_all_triggers_accepts": false,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": true,
+      "h1_reset_observed": null,
+      "first_h1_reset_utc": null
+    },
+    {
+      "previous_id": "3195",
+      "id": "3207",
+      "pair": "AUD_USD",
+      "review_window": true,
+      "release": "m15-intraday-v3.3",
+      "previous_exit_reason": "TAKE_PROFIT",
+      "previous_exit_utc": "2026-09-14T06:50:47.965000+00:00",
+      "entry_utc": "2026-09-14T07:00:26.746000+00:00",
+      "gap_minutes": 9.64635,
+      "same_side": true,
+      "actual_pnl_aud": -0.1604,
+      "outcome": "STOP_LOSS",
+      "breakout": true,
+      "pullback": true,
+      "ema20_at_signal": 0.714713469647944,
+      "touch_bars": [
+        {
+          "time": "2026-09-14T05:45:00.000000000Z",
+          "mid_high": "0.71484",
+          "mid_low": "0.71454",
+          "entirely_after_exit": false,
+          "ends_after_exit": false
+        },
+        {
+          "time": "2026-09-14T06:00:00.000000000Z",
+          "mid_high": "0.71487",
+          "mid_low": "0.71428",
+          "entirely_after_exit": false,
+          "ends_after_exit": false
+        }
+      ],
+      "fresh_completed_post_exit_touch": false,
+      "fresh_rule_gating_all_triggers_accepts": false,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": false,
+      "h1_reset_observed": false,
+      "first_h1_reset_utc": null
+    },
+    {
+      "previous_id": "3217",
+      "id": "3261",
+      "pair": "USD_JPY",
+      "review_window": true,
+      "release": "m15-intraday-v3.3",
+      "previous_exit_reason": "TAKE_PROFIT",
+      "previous_exit_utc": "2026-09-14T13:48:20.698000+00:00",
+      "entry_utc": "2026-09-15T12:00:33.222000+00:00",
+      "gap_minutes": 1332.2087333333334,
+      "same_side": true,
+      "actual_pnl_aud": 0.0,
+      "outcome": "BREAKEVEN_STOP",
+      "breakout": false,
+      "pullback": true,
+      "ema20_at_signal": 154.85818371479323,
+      "touch_bars": [
+        {
+          "time": "2026-09-15T10:45:00.000000000Z",
+          "mid_high": "154.858",
+          "mid_low": "154.757",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-15T11:00:00.000000000Z",
+          "mid_high": "154.859",
+          "mid_low": "154.764",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-15T11:15:00.000000000Z",
+          "mid_high": "154.851",
+          "mid_low": "154.784",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-15T11:30:00.000000000Z",
+          "mid_high": "154.831",
+          "mid_low": "154.698",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        }
+      ],
+      "fresh_completed_post_exit_touch": true,
+      "fresh_rule_gating_all_triggers_accepts": true,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": true,
+      "h1_reset_observed": true,
+      "first_h1_reset_utc": "2026-09-14T17:00:24.021000+00:00"
+    },
+    {
+      "previous_id": "3239",
+      "id": "3251",
+      "pair": "AUD_USD",
+      "review_window": true,
+      "release": "m15-intraday-v3.3",
+      "previous_exit_reason": "BREAKEVEN_STOP",
+      "previous_exit_utc": "2026-09-15T06:14:10.197000+00:00",
+      "entry_utc": "2026-09-15T06:58:27.970000+00:00",
+      "gap_minutes": 44.296216666666666,
+      "same_side": true,
+      "actual_pnl_aud": -0.1701,
+      "outcome": "STOP_LOSS",
+      "breakout": false,
+      "pullback": true,
+      "ema20_at_signal": 0.7124469559365381,
+      "touch_bars": [
+        {
+          "time": "2026-09-15T06:00:00.000000000Z",
+          "mid_high": "0.71245",
+          "mid_low": "0.71194",
+          "entirely_after_exit": false,
+          "ends_after_exit": true
+        }
+      ],
+      "fresh_completed_post_exit_touch": false,
+      "fresh_rule_gating_all_triggers_accepts": false,
+      "fresh_rule_gating_pullback_only_accepts": false,
+      "signal_candle_starts_after_exit": true,
+      "h1_reset_observed": false,
+      "first_h1_reset_utc": null
+    },
+    {
+      "previous_id": "3261",
+      "id": "3273",
+      "pair": "USD_JPY",
+      "review_window": true,
+      "release": "m15-intraday-v3.3",
+      "previous_exit_reason": "BREAKEVEN_STOP",
+      "previous_exit_utc": "2026-09-15T12:36:42.126000+00:00",
+      "entry_utc": "2026-09-15T13:30:33.286000+00:00",
+      "gap_minutes": 53.852666666666664,
+      "same_side": true,
+      "actual_pnl_aud": -0.1829,
+      "outcome": "STOP_LOSS",
+      "breakout": false,
+      "pullback": true,
+      "ema20_at_signal": 154.9212357301352,
+      "touch_bars": [
+        {
+          "time": "2026-09-15T12:30:00.000000000Z",
+          "mid_high": "155.013",
+          "mid_low": "154.919",
+          "entirely_after_exit": false,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-15T12:45:00.000000000Z",
+          "mid_high": "155.021",
+          "mid_low": "154.833",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-15T13:00:00.000000000Z",
+          "mid_high": "154.976",
+          "mid_low": "154.892",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        }
+      ],
+      "fresh_completed_post_exit_touch": true,
+      "fresh_rule_gating_all_triggers_accepts": true,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": true,
+      "h1_reset_observed": false,
+      "first_h1_reset_utc": null
+    },
+    {
+      "previous_id": "3295",
+      "id": "3317",
+      "pair": "USD_JPY",
+      "review_window": true,
+      "release": "m15-intraday-v3.3",
+      "previous_exit_reason": "TAKE_PROFIT",
+      "previous_exit_utc": "2026-09-15T23:37:42.138000+00:00",
+      "entry_utc": "2026-09-16T13:30:33.717000+00:00",
+      "gap_minutes": 832.85965,
+      "same_side": true,
+      "actual_pnl_aud": -0.176,
+      "outcome": "STOP_LOSS",
+      "breakout": true,
+      "pullback": true,
+      "ema20_at_signal": 155.14090001209686,
+      "touch_bars": [
+        {
+          "time": "2026-09-16T12:15:00.000000000Z",
+          "mid_high": "155.180",
+          "mid_low": "155.056",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-16T12:30:00.000000000Z",
+          "mid_high": "155.220",
+          "mid_low": "155.132",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        },
+        {
+          "time": "2026-09-16T12:45:00.000000000Z",
+          "mid_high": "155.256",
+          "mid_low": "155.116",
+          "entirely_after_exit": true,
+          "ends_after_exit": true
+        }
+      ],
+      "fresh_completed_post_exit_touch": true,
+      "fresh_rule_gating_all_triggers_accepts": true,
+      "fresh_rule_gating_pullback_only_accepts": true,
+      "signal_candle_starts_after_exit": true,
+      "h1_reset_observed": true,
+      "first_h1_reset_utc": "2026-09-16T07:00:25.533000+00:00"
+    }
+  ]
+}

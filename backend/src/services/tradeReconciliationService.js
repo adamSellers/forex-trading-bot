@@ -12,7 +12,7 @@ class TradeReconciliationService {
         return instrument && instrument.endsWith("_JPY") ? 0.01 : 0.0001;
     }
 
-    getBrokerClosedAt(payload) {
+    getBrokerClosedAt(payload, fallback = Date.now()) {
         const trade = payload?.trade;
         const closeTime =
             trade?.closeTime ||
@@ -20,7 +20,16 @@ class TradeReconciliationService {
             payload?.orderFillTransaction?.time ||
             null;
 
-        return this.parseBrokerTimestamp(closeTime, Date.now());
+        return this.parseBrokerTimestamp(closeTime, fallback);
+    }
+
+    getCloseTimeEvidence(localTrade, candidate = null) {
+        const brokerTradeId = String(localTrade?.oandaTradeId || "");
+        if (!brokerTradeId) return null;
+        return [candidate, localTrade?.brokerReconciliationPayload?.closeTimeEvidence]
+            .find((evidence) => evidence && String(evidence.brokerTradeId) === brokerTradeId &&
+                Number.isFinite(evidence.confirmedBrokerClosedAt) && evidence.confirmedBrokerClosedAt > 0 &&
+                ["BROKER_FULL_CLOSE_FILL", "BROKER_CLOSED_TRADE"].includes(evidence.source)) || null;
     }
 
     parseBrokerTimestamp(value, fallback = null) {
@@ -186,6 +195,11 @@ class TradeReconciliationService {
             fillTransaction: orderFill,
             effect: targetEffect,
         });
+        const closeTimeEvidence = this.getCloseTimeEvidence(localTrade, {
+            brokerTradeId: String(localTrade?.oandaTradeId || ""),
+            confirmedBrokerClosedAt: brokerConfirmedClosed ? this.getBrokerClosedAt(closeResult, null) : null,
+            source: "BROKER_FULL_CLOSE_FILL",
+        });
 
         return {
             exitPrice,
@@ -203,8 +217,11 @@ class TradeReconciliationService {
             fillEffects: effects,
             brokerExitReason: fallbackExitReason,
             brokerClosedAt: this.getBrokerClosedAt(closeResult),
+            confirmedBrokerClosedAt: brokerConfirmedClosed
+                ? closeTimeEvidence?.confirmedBrokerClosedAt ?? null : null,
             lastBrokerSyncAt: Date.now(),
-            brokerReconciliationPayload: closeResult || null,
+            brokerReconciliationPayload: closeTimeEvidence
+                ? { ...closeResult, closeTimeEvidence } : closeResult || null,
             oandaRealizedPL: costs.totalRealizedPL,
             oandaGrossRealizedPL: costs.grossRealizedPL,
             oandaFinancing: costs.financing,
@@ -222,6 +239,7 @@ class TradeReconciliationService {
         fallbackPriceSource = "LOCAL_MARKET_FALLBACK",
         fallbackExitReason = "EXTERNAL",
         lookupError = null,
+        closeTimeEvidence: pendingCloseTimeEvidence = null,
     }) {
         const brokerExitPrice =
             this.normalizeNumber(tradeDetails?.trade?.averageClosePrice);
@@ -233,6 +251,18 @@ class TradeReconciliationService {
         );
         const brokerConfirmedClosed = tradeDetails?.trade?.state === "CLOSED";
         const costs = this.getCostBreakdown({ trade: tradeDetails?.trade });
+        const matchingClosedTrade = brokerConfirmedClosed &&
+            String(tradeDetails.trade.id || "") === String(localTrade?.oandaTradeId || "");
+        const closeTimeEvidence = this.getCloseTimeEvidence(localTrade, {
+            brokerTradeId: String(tradeDetails?.trade?.id || ""),
+            confirmedBrokerClosedAt: matchingClosedTrade ? this.getBrokerClosedAt(tradeDetails, null) : null,
+            source: "BROKER_CLOSED_TRADE",
+        }) || this.getCloseTimeEvidence(localTrade, pendingCloseTimeEvidence);
+        const brokerReconciliationPayload = tradeDetails?.trade
+            ? tradeDetails
+            : lookupError
+            ? { error: lookupError.message, type: lookupError.name || "Error" }
+            : null;
 
         return {
             exitPrice,
@@ -250,15 +280,11 @@ class TradeReconciliationService {
             brokerAccountingComplete: brokerConfirmedClosed && brokerExitPrice !== null && costs.grossRealizedPL !== null,
             brokerExitReason: resolvedReason.brokerExitReason,
             brokerClosedAt: this.getBrokerClosedAt(tradeDetails),
+            confirmedBrokerClosedAt: matchingClosedTrade
+                ? closeTimeEvidence?.confirmedBrokerClosedAt ?? null : null,
             lastBrokerSyncAt: Date.now(),
-            brokerReconciliationPayload: tradeDetails?.trade
-                ? tradeDetails
-                : lookupError
-                ? {
-                      error: lookupError.message,
-                      type: lookupError.name || "Error",
-                  }
-                : null,
+            brokerReconciliationPayload: closeTimeEvidence
+                ? { ...brokerReconciliationPayload, closeTimeEvidence } : brokerReconciliationPayload,
             oandaRealizedPL: costs.totalRealizedPL,
             oandaGrossRealizedPL: costs.grossRealizedPL,
             oandaFinancing: costs.financing,

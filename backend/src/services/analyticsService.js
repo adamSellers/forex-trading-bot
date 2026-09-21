@@ -1937,18 +1937,26 @@ class AnalyticsService {
     }
 
     calculateExcursionCoverage(trades) {
-        const measured = trades.map((trade) => normalizePayloadObject(trade.brokerReconciliationPayload).sampledExcursion)
-            .filter((sample) => sample?.observations > 0);
-        const values = (key) => measured.map((sample) => sample[key])
+        const measured = trades.map((trade) => ({
+            trade,
+            sample: normalizePayloadObject(trade.brokerReconciliationPayload).sampledExcursion,
+        })).filter(({ sample }) => sample?.observations > 0 || sample?.legacyAggregate?.observations > 0);
+        // Legacy aggregates cannot be trimmed to the broker-confirmed lifetime.
+        // Upgraded open trades also retain incomplete legacy coverage separately.
+        const verified = measured.filter(({ trade, sample }) =>
+            trade.isOpen === false && sample.version === 2 &&
+            sample.lifetimeStatus === "VERIFIED" && !sample.legacyAggregate);
+        const values = (key) => verified.map(({ sample }) => sample[key])
             .filter((value) => typeof value === "number" && Number.isFinite(value));
         const mean = (key) => {
             const finite = values(key);
             return finite.length ? roundTo(finite.reduce((sum, value) => sum + value, 0) / finite.length, 3) : null;
         };
         return { totalTrades: trades.length, measuredTrades: measured.length,
+            verifiedTrades: verified.length, unverifiedTrades: measured.length - verified.length,
             favorableRMeasuredTrades: values("maxFavorableR").length,
             adverseRMeasuredTrades: values("maxAdverseR").length,
-            method: "Executable quote polls; excursions between observations are unknown. Historical values are not backfilled.",
+            method: "Averages use only samples verified within the broker-confirmed trade lifetime. Historical aggregates, partial legacy coverage and unverified samples are excluded. Excursions between quote polls are unknown; historical values are not backfilled.",
             avgFavorableR: mean("maxFavorableR"), avgAdverseR: mean("maxAdverseR") };
     }
 
