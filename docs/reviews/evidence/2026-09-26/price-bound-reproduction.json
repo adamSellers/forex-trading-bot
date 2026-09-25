@@ -1,0 +1,15 @@
+{
+  "brokerTradeId": "3435",
+  "passed": true,
+  "method": "real OandaClient.placeMarketOrder, stubbed _request",
+  "intendedPriceBound": 0.700765,
+  "serializedPriceBound": "0.70076",
+  "intendedWorstFillRiskAud": 0.19255452832100214,
+  "serializedWorstFillRiskAud": 0.19372152546232319,
+  "riskBudgetAud": 0.1925872,
+  "excessAud": 0.001134325462323199,
+  "intendedAdverseDeviationPips": 1.4999999999998348,
+  "serializedAdverseDeviationPips": 1.5499999999990521,
+  "networkRequests": 0,
+  "actualFillRiskBreachObserved": false
+}

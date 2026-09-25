@@ -1,6 +1,6 @@
 # Entry rejection reporting and same-candle reconsideration
 
-**Status:** implemented and locally validated for `m15-intraday-v3.3` / strategy `1.1.3`; awaiting user publication/build/deployment. Read-only production inspection on September 11 verified the user's deployment of `33e0b76`, v3.2 / strategy 1.1.2. No Git publication, build, production activation or deployment has been performed in this pass.
+**Status: deployed.** Read-only inspection on September 21 verified user-deployed `5c250a7`, `m15-intraday-v3.3` / strategy `1.1.3`; September 26 verified the same reconsideration behavior retained at `5889b66`. See the [current status and decision register](2026-09-26-status-and-decisions.md). The original September 11 investigation below inspected `33e0b76` / v3.2 and completed local implementation/validation only; its statements about pending rollout or no deployment describe that pass, not the current state. Publication, builds and deployment remain user-managed.
 
 ## Observed behavior
 

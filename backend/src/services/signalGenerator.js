@@ -55,12 +55,17 @@ class SignalGenerator extends EventEmitter {
                 : evaluation.signalType === "SELL"
                   ? "SHORT"
                   : "WAIT";
-        const setupId = [
+        const setupParts = [
             instrument,
             direction,
             signalCandleTime,
             evaluation.entryType || "SCAN",
-        ].join(":");
+        ];
+        if (evaluation.entryType === "M15_POST_TP_FADE") {
+            setupParts.push(evaluation.strategyContext?.reentry?.anchor?.tradeId);
+        }
+        const setupId = setupParts.join(":");
+        const rsi = Number.isFinite(evaluation.rsiVal) ? evaluation.rsiVal : null;
         const decisionContext = {
             currentDirection: evaluation.currentDir || 0,
             previousDirection: evaluation.prevDir || 0,
@@ -68,6 +73,7 @@ class SignalGenerator extends EventEmitter {
             adx: evaluation.adxVal || 0,
             atr: evaluation.atrVal || 0,
             atrPips: evaluation.atrPips || 0,
+            rsi,
             htf,
             strategyContext: evaluation.strategyContext || null,
         };
@@ -97,6 +103,7 @@ class SignalGenerator extends EventEmitter {
             trend: {
                 currentPrice,
                 adx: Number(evaluation.adxVal || 0),
+                rsi,
                 supertrend_direction: evaluation.currentDir || 0,
                 atrPips: Number(evaluation.atrPips || 0),
                 htfDirection: htf.direction,
@@ -105,6 +112,7 @@ class SignalGenerator extends EventEmitter {
             data: {
                 currentPrice,
                 adx: Number(evaluation.adxVal || 0),
+                rsi,
                 stDirection: evaluation.currentDir || 0,
                 atrPips: Number(evaluation.atrPips || 0),
                 htfDirection: htf.direction,
@@ -141,6 +149,8 @@ class SignalGenerator extends EventEmitter {
                 config: this.config,
                 dataService: this.dataService,
                 marketContext: options.marketContext || null,
+                latestClosedTrade: options.latestClosedTrade,
+                reentryHistoryAvailable: options.reentryHistoryAvailable,
                 nowMs:
                     options.nowMs ??
                     candleTimeMs(candles[candles.length - 1]?.time),

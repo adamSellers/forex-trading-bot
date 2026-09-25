@@ -1,0 +1,23 @@
+{
+  "review_interval_utc": [
+    "2026-09-21T10:35:00Z",
+    "2026-09-25T20:45:00Z"
+  ],
+  "source_revision": "5889b66ca0cf88bb17298c8d9a9b2ed0abfccf75",
+  "capture_time": "2026-09-25T20:47:01.909216+00:00",
+  "raw_sources": {
+    "production-evidence.json": {
+      "local_path": "/tmp/forex-review-20260926/production-evidence.json",
+      "sha256": "c2d705bfcecf7abb7bdce83cc63d89543cc7b451f21f64524a52b4fdb58c5fb4"
+    },
+    "broker-evidence.json": {
+      "local_path": "/tmp/forex-review-20260926/broker-evidence.json",
+      "sha256": "feb19636aaeda52fd985abfc413c3163d79ea829c69a0353e5b32d1c37a658b3"
+    },
+    "runtime-logs.json": {
+      "local_path": "/tmp/forex-review-20260926/runtime-logs.json",
+      "sha256": "40c39173d565542efa049ac3888b3c2269e2d923e211b4c1afae449b71cb99b9"
+    }
+  },
+  "retained_inputs": "The similarly named retained files are reduced inputs, not byte-identical raw exports. Raw captures remain temporary. No credentials were exported."
+}

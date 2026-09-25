@@ -11,6 +11,7 @@ const {
 const { RUNTIME_MODES, RUN_STATUSES } = require("./runtimeConstants");
 const { isCanonicalStrategyKey } = require("../strategies");
 const { evaluateRunLossCooldown } = require("./portfolioRiskPolicy");
+const { latestClosedTradeForInstrument } = require("./intradayReentryPolicy");
 
 function createRunId() {
     return `live_${uuidv4()}`;
@@ -361,6 +362,8 @@ class RuntimeCoordinator extends EventEmitter {
     async evaluateRunSession(session, sharedContext) {
         const signals = [];
         const assets = this.getRunAssets(session);
+        const tradeHistory = this.tradeRepository?.getAllTrades
+            ? await this.tradeRepository.getAllTrades({ mode: RUNTIME_MODES.LIVE }) : null;
         for (const instrument of assets) {
             const context = this.marketContextService.createInstrumentContext(
                 sharedContext,
@@ -375,7 +378,13 @@ class RuntimeCoordinator extends EventEmitter {
                 instrument,
                 candles,
                 currentPrice,
-                { marketContext: context, nowMs: sharedContext.generatedAt }
+                {
+                    marketContext: context, nowMs: sharedContext.generatedAt,
+                    reentryHistoryAvailable: Array.isArray(tradeHistory),
+                    latestClosedTrade: Array.isArray(tradeHistory)
+                        ? latestClosedTradeForInstrument(tradeHistory, instrument, sharedContext.generatedAt)
+                        : null,
+                }
             );
             if (!signal) continue;
             signal.timeframe = timeframe;

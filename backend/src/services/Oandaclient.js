@@ -2,6 +2,7 @@
 const { performance } = require("node:perf_hooks");
 const logger = require("../utils/logger");
 const { buildOandaApiError } = require("../utils/oandaErrors");
+const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 10000;
 const EXPECTED_ACCOUNT_CURRENCY = "AUD";
@@ -335,9 +336,10 @@ class OandaClient {
         }
 
         if (Number.isFinite(Number(options.priceBound))) {
-            orderData.order.priceBound = this.formatPrice(
+            orderData.order.priceBound = this.formatPriceBound(
                 instrument,
                 Number(options.priceBound),
+                Number(units) < 0 ? "SELL" : "BUY",
                 options.instrumentMetadata
             );
         }
@@ -850,6 +852,21 @@ class OandaClient {
             )
         );
         return Number(price).toFixed(displayPrecision);
+    }
+
+    // A BUY bound is a maximum, and a SELL bound is a minimum. Nearest-price
+    // rounding can expand either limit; choose the nearest representable price
+    // inside it. Only tolerate binary arithmetic error at an exact tick.
+    formatPriceBound(instrument, price, side, metadata = null) {
+        const formatted = this.formatPrice(instrument, price, metadata);
+        const rounded = Number(formatted);
+        const direction = side === "SELL" ? -1 : 1;
+        if (exceedsQuoteLimit(direction * (rounded - Number(price)), 0,
+            priceDistanceError(rounded, Number(price), 1))) {
+            const precision = formatted.split(".")[1]?.length || 0;
+            return this.formatPrice(instrument, rounded - direction * 10 ** -precision, metadata);
+        }
+        return formatted;
     }
 
     /**

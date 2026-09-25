@@ -1,6 +1,6 @@
 # Quote freshness correction — approved plan and implementation record
 
-**Status: local implementation and validation complete for `m15-intraday-v3.1` / strategy `1.1.1`; awaiting user publication/deployment.** The user selected the full correction and required every change to be justified, validated and minimal. Publication, builds and deployment remain user-managed. Existing production revision remains `8e4fb99` as last inspected.
+**Status: deployed.** Read-only inspection on September 10 verified user-deployed `d46da61`, `m15-intraday-v3.1` / strategy `1.1.1`. The correction remains included in `5889b66` / v3.3, verified September 26; see the [current status and decision register](2026-09-26-status-and-decisions.md). The implementation and validation record below describes the September 8 local work, when production was still `8e4fb99`; its local-only delivery statements are historical. The user selected the full correction and required every change to be justified, validated and minimal. Publication, builds and deployment remain user-managed.
 
 ## Problem and evidence
 

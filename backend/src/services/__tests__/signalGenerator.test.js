@@ -37,7 +37,7 @@ describe("live SignalGenerator", () => {
                 symbol: "AUD_USD",
                 signal: "HOLD",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.1.3",
+                strategyVersion: "1.2.0",
                 timeframe: "15m",
             })
         );
@@ -64,6 +64,7 @@ describe("live SignalGenerator", () => {
                 atrVal: 0.006,
                 atrPips: 60,
                 adxVal: 42,
+                rsiVal: 58,
                 currentDir: 1,
                 tradePlan,
                 strategyContext,
@@ -81,7 +82,58 @@ describe("live SignalGenerator", () => {
             })
         );
         expect(signal.decisionContext.strategyContext).toBe(strategyContext);
+        expect(signal.decisionContext.rsi).toBe(58);
+        expect(signal.trend.rsi).toBe(58);
+        expect(signal.data.rsi).toBe(58);
     });
+
+    test("passes durable pair history to the strategy without changing its meaning", async () => {
+        const strategy = require("../../strategies").getStrategyDefinition("intraday_momentum");
+        const latestClosedTrade = { id: "normal-tp-1", exitTime: 1788760000000 };
+        const evaluate = jest.spyOn(strategy, "evaluateEntry").mockReturnValue({
+            signalType: "HOLD", signalCandleTime: 1788760800000,
+        });
+        try {
+            await generator.generateSignal("AUD_USD", [{}, {}], 0.65, {
+                latestClosedTrade, reentryHistoryAvailable: false, nowMs: 1788760800000,
+            });
+            expect(evaluate).toHaveBeenCalledWith(expect.objectContaining({
+                latestClosedTrade, reentryHistoryAvailable: false,
+            }));
+        } finally {
+            evaluate.mockRestore();
+        }
+    });
+
+    test("fade setup identity includes its TP episode while normal setup identity stays stable", () => {
+        const evaluation = {
+            signalType: "BUY", entryType: "M15_POST_TP_FADE",
+            signalCandleTime: 1788760800000,
+            strategyContext: { reentry: { anchor: { tradeId: "normal-tp-1" } } },
+        };
+        const first = generator.buildSignal("AUD_USD", evaluation, { version: "1.2.0" }, 0.65);
+        const second = generator.buildSignal("AUD_USD", {
+            ...evaluation,
+            strategyContext: { reentry: { anchor: { tradeId: "normal-tp-2" } } },
+        }, { version: "1.2.0" }, 0.65);
+        expect(first.setupId).toBe("AUD_USD:LONG:1788760800000:M15_POST_TP_FADE:normal-tp-1");
+        expect(second.setupId).not.toBe(first.setupId);
+        const normal = generator.buildSignal("AUD_USD", {
+            ...evaluation, entryType: "M15_RANGE_BREAKOUT",
+        }, { version: "1.2.0" }, 0.65);
+        expect(normal.setupId).toBe("AUD_USD:LONG:1788760800000:M15_RANGE_BREAKOUT");
+    });
+
+    test.each([[0, 0], [null, null], [undefined, null], [NaN, null]])(
+        "keeps RSI %s distinct from unavailable RSI", (rsiVal, expected) => {
+            const signal = generator.buildSignal("AUD_USD", {
+                rsiVal, signalCandleTime: 1788760800000,
+            }, { version: "1.2.0" }, 0.65);
+            expect(signal.decisionContext.rsi).toBe(expected);
+            expect(signal.trend.rsi).toBe(expected);
+            expect(signal.data.rsi).toBe(expected);
+        }
+    );
 
     test("suppresses a duplicate live action from the same completed candle", () => {
         const signal = {

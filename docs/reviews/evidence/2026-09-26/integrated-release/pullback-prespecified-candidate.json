@@ -1,0 +1,16 @@
+{
+  "candidate_id": "bar-aligned-pullback-resumption-v1",
+  "frozen_before_outcome_comparison": true,
+  "rationale": "The current strategy compares all four prior bars with the signal-bar EMA values and confirms only a break of the last two bars. Use the indicator available at each completed bar and require the resumption to clear the intervening structure since its latest touch.",
+  "condition": [
+    "Keep all existing H1 regime, M15 alignment, RSI, candle quality, four-bar pullback window, eight-bar breakout window and numerical limits.",
+    "For a long pullback, at least one of the preceding four completed bars has low <= that bar EMA20; for short, high >= that bar EMA20.",
+    "Each preceding four completed bars closes strictly above its own EMA50 for long, or strictly below its own EMA50 for short.",
+    "Select the most recent qualifying touch. The signal is directional and closes above every high (long) or below every low (short) from that touch through the final pre-signal bar. Retain the existing prior-two-bar break, so the resumption comparison begins at the earlier of the latest touch and the penultimate pre-signal bar.",
+    "The separate breakout branch remains available; changing pullback membership does not exclude an entry that still qualifies as breakout."
+  ],
+  "claims": [
+    "This is a structural live-experiment candidate, not a demonstrated defect or validated profitability improvement.",
+    "No parameters are selected by the outcomes. All retained trades and available attempted setups are reported."
+  ]
+}

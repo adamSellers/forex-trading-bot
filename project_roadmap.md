@@ -1,39 +1,48 @@
 # Live Strategy Roadmap
 
-There is one production path and one active strategy. Planned work must improve real execution quality, risk control or the evidence obtained from actual live decisions.
+There is one production path and one active strategy. Planned work must improve real execution quality, risk control or the evidence obtained from actual live decisions. The [September 26 status and decision register](docs/reviews/2026-09-26-status-and-decisions.md) separates the last verified production baseline from the user-authorized local v4 implementation. Publication and deployment remain pending.
 
-## Authorized September 6 remediation
+## Verified baseline — September 26
 
-Read-only SSH on September 21 verified user-deployed `5c250a7`, v3.3 / strategy 1.1.3, including the prior runtime, quote, maintenance and reconsideration corrections. The [eight-day review](docs/reviews/2026-09-21-eight-day-trading-review.md) reconciles all 15 trades and records current performance. An independent recovery drill remains outstanding. The single `./scripts/deploy.sh` command performs its own tests, build, backup and health checks after publication. Follow the [remediation register](docs/reviews/2026-09-06-remediation.md). Correct execution/exits, broker uncertainty, private-network usability, freshness, analytics and recovery before strategy tuning. Record every justification, regression check and deployment state. Funding and risk limits remain unchanged.
+Read-only SSH verified clean user-deployed `5889b66`, v3.3 / strategy `1.1.3`, with the existing run/config and numerical rules unchanged. The [latest review](docs/reviews/2026-09-26-follow-up-trading-review.md) reconciles ten additional trades, net −A$0.5369. The current v3.3 run totals 25 / −A$1.2693; the 35 trades since September 6 total −A$0.7871 across mixed releases. The review interval continues from September 21 and spans 4 days 10 hours 10 minutes, not a second seven-day sample.
 
-## Immediate live review
+Completed checkpoints:
 
-- **Locally complete September 21 measurement correction:** [implementation record](docs/reviews/2026-09-21-excursion-measurement-correction.md). Version 2 reversible observations are finalized against authoritative broker closure; legacy and partial history stay outside verified averages. All 744 backend tests pass. User publication/build/deployment remains pending. Confirm the first new v2 broker-closed trade after deployment; no trading rule changes.
-- **September 11 correction deployed:** [entry rejection and reconsideration](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md), verified September 21 at `5c250a7`. v3.3 separates expected pricing declines from errors, counts unexpected failures once and permits the next regular scan to reconsider a still-valid setup after a confirmed local pricing rejection. The review confirms durable original bounds and distinct attempt decisions.
-- **Maintenance correction deployed:** September 11 read-only inspection verified `33e0b76`, v3.2 / strategy 1.1.2. The [maintenance and quote-limit correction](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md) preserves enabled intent, active cooldown deadlines and exact quote-limit comparisons.
-- **Quote-freshness correction deployed:** September 10 read-only inspection verified `d46da61`, v3.1 / strategy 1.1.1, healthy price delivery and all four pairs evaluated. See the [quote-freshness record](docs/reviews/2026-09-08-quote-freshness-fix-plan.md).
-- Verify every scheduled cycle has fresh completed M15/H1 candles and current OANDA spread data.
-- Verify every actionable event has an explicit decision outcome; create a durable order intent before broker submission. A local pricing decline before submission must remain distinguishable from an order submission or unknown broker outcome.
-- Verify all filled positions have a broker-side protective stop and survive process restarts.
-- Track actual fill slippage, spread cost and rejection counts by reason, pair and local market session.
+- **Excursion correction deployed and live verification complete:** all ten new closed trades have version 2 verified lifetime samples without legacy aggregates; 4,701 retained observations and six excluded post-close observations. The original local implementation passed 744 backend tests. The first-new-trade verification is complete; ongoing sampling coverage is still limited. [Implementation record](docs/reviews/2026-09-21-excursion-measurement-correction.md).
+- **Entry rejection/reconsideration deployed:** v3.3 was verified September 21 at `5c250a7` and is retained at `5889b66`. Recognized local pricing declines can be reconsidered on a regular scan with the original price anchor; filled setups remain suppressed. Ten new broker fills match ten completed, single-submission intents. [Contract](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md).
+- **Maintenance/quote-limit and quote-availability corrections deployed:** prior verification established `33e0b76` / v3.2 and `d46da61` / v3.1. Their numerical settings, active cooldown carryover and receipt/event distinctions remain part of the current baseline. [Maintenance record](docs/reviews/2026-09-10-maintenance-and-quote-boundaries.md), [quote record](docs/reviews/2026-09-08-quote-freshness-fix-plan.md).
 
-## After enough real observations
+## Authorized integrated release — local implementation
 
-- **Target and re-entry work requested September 21:** the [completed study](docs/reviews/2026-09-21-target-and-reentry-evaluation.md) compares a fixed 2R target and defines a fresh-post-exit pullback condition across both entry triggers. With single-position capacity, 2R avoids reviewed loser 3207 but displaces earlier winner 3085; the reviewed week remains negative. Keep the baseline while gathering prospective classifications. Any later comparison must include each change alone, their combination and baseline, with actual costs, capacity, release cohorts and unsuccessful continuations. These conditional calculations are not portfolio return estimates.
-- Review version 2 executable-quote coverage and sampling gaps after deployment. Legacy aggregates cannot establish in-position extrema; exact tick paths for old trades remain unavailable.
-- Review whether the M15 trigger mix produces the intended live cadence without excessive spread cost.
-- Review repeated same-direction entries after protected exits and losses alongside one-position capacity and account-wide cooldown. The September 21 all-trigger candidate is precisely specified, including its state anchor and winning counterexample. Retain the exit anchor, touching-bar start, trigger combination and completed-candle context when classifying future observations. Do not equate removed historical losses with an expected benefit; rejecting a trade changes later opportunity sequences.
-- Review breakout and pullback-resumption cohorts independently as new trades accumulate; 30 closed trades can trigger inspection, but does not establish an edge or justify selecting winners.
-- Review whether the 1.25 ATR stop, 1.5R target and six-hour time stop produce acceptable expectancy and holding duration.
-- Consider a release change only when the live event funnel or closed-trade evidence identifies a specific failure.
+The user approved the [integrated specification and implementation](docs/reviews/2026-09-26-integrated-release-specification.md). Local **m15-intraday-v4 / strategy 1.2.0 / intraday-risk-v4** combines:
+
+1. **Ordinary pullback structure:** contemporaneous EMA20 touch and EMA50 integrity, plus resumption beyond the latest touch's intervening structure with the existing two-bar minimum. Breakouts remain independent; numerical thresholds are unchanged.
+2. **Protected-exit continuation and fade:** require a wholly post-exit touch of the signal EMA20 across both triggers. Missing freshness after normal TP permits one opposite-direction fade; after BE it waits. Persist the TP episode through retries/restart, prevent recursive fades, and revalidate after broker reconciliation. Preserve actual-direction risk checks and owner exits.
+3. **Execution precision:** size, validate and persist exact serialized stop/bound prices; round adverse bounds inward so precision cannot widen existing limits. Reviewed actual fills stayed within budget; this is a correctness fix, not the cause of losses.
+4. **Attribution:** retain revised/legacy trigger evidence, original/executed direction, freshness and parent episode; populate existing scalar RSI without fabricating warmup values.
+
+The 1.5R target, +1R breakeven, original stops/deadlines, numerical risk limits and one-position capacity remain. Existing enabled intent, saved settings, active cooldown deadline and prior open-trade ownership must survive the new cohort.
+
+Local validation passed: 834 tests across 41 backend suites; the changed analytics JSX also passed syntax validation and its results belong in the specification. The next delivery step remains user-managed Git publication followed by the existing single-command deployment. No publication, build, production restart or deployment has occurred in this implementation pass.
+
+Research does not establish profitable expectancy: the structural candidate excludes five of 35 actual fills, including two winners, with +A$0.0315 combined net. Of 77 latest attempted setups, 59 have retained candles and change to 55 qualifying triggers; 18 GBP/USD setups cannot be evaluated. Four conditional fade paths give two targets/two stops, with no BUY-to-SELL example. Preserve these counterexamples in the next live review and distinguish whole-release results from uncertain component attribution.
+
+## Continuing observation and outstanding operational work
+
+- Track complete M15/H1 candles, confirmed current quote delivery, explicit actionable decisions, durable intents, broker protection, actual slippage and rejection reasons by pair/session. Event time and successful receipt time retain different meanings.
+- Continue version 2 sample-coverage checks. Legacy aggregates cannot establish in-position extrema; verified polling samples do not supply exact tick paths.
+- Review trigger mix, cadence, holding duration and repeated exposure after both protected exits and losses. Thirty closed trades can trigger an inspection, not establish an edge or authorize selecting winners. The current unchanged v3.3 run contains 25 trades at this review.
+- Verify the new decision/episode evidence and scalar RSI on natural live signals after rollout. Local scalar RSI population is implemented; its prior absence never established that the entry RSI filter was skipped.
+- S3 destination/reporting remains an unresolved operational choice; incomplete configuration was documented previously and S3 warnings persist. No new notifications or destinations are selected by this review.
+- An independent recovery drill and delivery checks remain outstanding; neither was performed in the latest review. Preserve the existing recovery and single-command deployment workflow.
+
+The [remediation register](docs/reviews/2026-09-06-remediation.md) retains finding → change → rationale → verification history. The user manages Git publication, builds and deployment; `./scripts/deploy.sh` performs its own tests, build, backup and health checks after publication. Develop and test locally, publish to GitHub, then deploy from GitHub. No direct production source edits or new manual deployment gates.
 
 ## Permanent constraints
 
-- One live strategy and one active entry runtime.
+- One live strategy and one active entry runtime; no simulated execution subsystem or strategy switching UI.
 - Private internal-network personal tool with direct dashboard/API access; no operator login or account system.
-- Preserve existing trade emails; operational health is shown in the dashboard/API without automatic warning/recovery emails.
-- No simulated execution subsystem or strategy switching UI.
-- No manual test orders.
-- Risk per trade at or below 0.25% for the current intraday release.
-- No more than one open position while the account remains near A$100.
-- Broker/account truth wins over cached local state.
+- Existing trade emails remain; operational health belongs in dashboard/API without automatic warning/recovery emails.
+- No manual test orders; preserve broker ownership, durable intents, historical cohorts and trade records.
+- Risk per trade at or below 0.25%, sizing-capital ceiling A$100, and one open position. Funding or limit increases need a separate explicit user decision.
+- Broker/account truth wins over cached state. Uncertain exposure blocks entries while reconciliation and management continue.

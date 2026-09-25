@@ -1070,6 +1070,31 @@ describe('AnalyticsService', () => {
                 trade({ longPullback: true, longBreakout: true }), trade({ longPullback: true, longBreakout: false }),
             ]);
             expect(groups.map((row) => row.trigger)).toEqual(['BOTH', 'PULLBACK_ONLY']);
+            expect(groups.every((row) => row.entryClass === 'TREND')).toBe(true);
+        });
+        test('trend and post-TP fade outcomes remain separate for the same original raw trigger', () => {
+            const trade = (entryType, pnlAud) => createClosedTrade({ entryType, pnlAud,
+                brokerReconciliationPayload: { liveRuntime: { initialRiskAud: 0.2,
+                    entryTelemetry: { strategyContext: { m15: { trigger: {
+                        longPullback: true, longBreakout: true, shortPullback: false, shortBreakout: false,
+                    } } } } } } });
+            const trades = [trade('M15_PULLBACK_RESUMPTION', 0.3), trade('M15_POST_TP_FADE', -0.2),
+                trade('M15_PULLBACK_RESUMPTION', -0.1), trade('M15_POST_TP_FADE', 0.05)];
+            const original = JSON.stringify(trades);
+
+            const groups = service.calculateTriggerPerformance(trades);
+
+            expect(groups).toEqual([
+                expect.objectContaining({ entryClass: 'TREND', trigger: 'BOTH', trades: 2,
+                    totalPnLAud: 0.2, wins: 1, losses: 1, avgR: 0.5 }),
+                expect.objectContaining({ entryClass: 'POST_TP_FADE', trigger: 'BOTH', trades: 2,
+                    totalPnLAud: -0.15, wins: 1, losses: 1, avgR: -0.375 }),
+            ]);
+            const overall = service.calculateCohortExpectancy(trades).summary;
+            expect(groups.reduce((sum, group) => sum + group.trades, 0)).toBe(overall.trades);
+            expect(groups.reduce((sum, group) => sum + group.totalPnLAud, 0)).toBeCloseTo(overall.totalPnLAud, 10);
+            expect(overall).toMatchObject({ trades: 4, totalPnLAud: 0.05, wins: 2, losses: 2 });
+            expect(JSON.stringify(trades)).toBe(original);
         });
         test('positive commissions and fees are added back to derive gross P/L', () => {
             const result = service.calculateSummary([createClosedTrade({ pnlAud: 0.55, swapAud: -0.1, commissionAud: 0.3,

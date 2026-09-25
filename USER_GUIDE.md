@@ -14,7 +14,7 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-Read-only production checks on September 21 verified v3.3 / strategy 1.1.3 at commit `5c250a7`, including the [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md). The [excursion measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) is validated locally and awaits user publication/deployment; numerical trading settings remain the same. This table describes the last verified deployed release.
+Read-only production checks on September 26 verified clean commit `5889b66`, with the [excursion measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) deployed. Release v3.3 / strategy 1.1.3, the existing run/config and numerical trading rules remain unchanged, including the [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md). This table describes the last verified deployed release; the [current status and decisions](docs/reviews/2026-09-26-status-and-decisions.md) separate deployed behavior from the authorized local v4 implementation.
 
 | Setting | Value |
 | --- | --- |
@@ -33,6 +33,18 @@ Read-only production checks on September 21 verified v3.3 / strategy 1.1.3 at co
 | New-install trading state | disabled; deployment requires paused/flat, restore always starts paused |
 
 **Time Stop** means the position reached six hours from its original broker entry time. The bot requests a market close whether the trade is profitable, losing or near flat; it does not require a reversal or a stop/target price to be reached. The clock survives restarts and an entry pause. Execution occurs when the running monitor and broker can process the close, so the recorded duration may exceed six hours. The rule was documented with the August 10 strategy but was not connected to live position monitoring until the September 6 remediation. **Session Close** is the separate New York rollover-window exit. See [the September 8 example and rationale](docs/reviews/2026-09-08-exit-policy-observations.md).
+
+## Local v4 release awaiting rollout
+
+The user authorized the [integrated release](docs/reviews/2026-09-26-integrated-release-specification.md), now implemented locally as **m15-intraday-v4 / strategy 1.2.0**. Local validation passed: 834 tests across 41 backend suites; the changed analytics JSX also passed syntax validation; it has not been published or deployed. The table above remains the last verified production state.
+
+Normal pullbacks now use each prior candle's own EMA20 touch and EMA50 integrity, then require the signal to clear the structure from the latest touch while retaining the two-bar confirmation. The independent breakout branch remains. For a same-direction repeat after TP or breakeven, both branches need a prior completed candle that started at or after the broker exit and touched the new signal's EMA20. The new signal must complete after the exit; an already-completed candle cannot be reused as a fade.
+
+A repeat after a normal TP without that fresh touch may produce **one opposite-direction fade**. The original trend signal still has to qualify; a fade deliberately trades against that direction. After breakeven, missing freshness means wait. A filled fade consumes its originating TP episode through restart, and the fade's own exit cannot arm another fade. A fresh normal continuation or independent opposite normal entry remains possible. Signal-reversal events do not close an open fade or close another position to make room for a fade.
+
+Normal and fade trades retain the same 1.5R target, +1R breakeven, stop-distance policy, time/session exits and risk controls. The order path sizes and checks exact broker-formatted prices; unchanged movement limits cannot expand through formatting. Existing scalar RSI now carries the calculated value, with unknown values left null. Trigger, original/executed direction and parent-exit evidence are retained for review. The existing trigger-performance table separates trend entries from post-TP fades while preserving their original trigger classification.
+
+The experiments have mixed evidence: five removed historical pullbacks included two winners and totalled +A$0.0315; four conditional fade paths produced two targets and two stops. Treat the next live cohort as an experiment, not a demonstrated improvement.
 
 ## Opening the app
 
@@ -68,13 +80,13 @@ Wins, losses and R use **net AUD** including financing and explicit broker charg
 
 The dashboard win-rate card is explicitly current-run closed trades; the 24-hour P/L card includes all live closures. Failed refreshes retain prior values with a visible stale-data warning. ADX comparisons and bootstrap intervals describe the available sample; they do not establish filter effectiveness or a durable edge.
 
-Trades capture sampled favorable/adverse excursions using executable exit bids/asks. After deployment of the September 21 measurement correction, new version 2 samples remain provisional until the matching broker close establishes their lifetime. The close removes observations outside that lifetime and recomputes extrema. The dashboard reports verified coverage separately from unverified samples; averages use verified closed-trade samples only. Older aggregates and partial legacy history remain available but excluded from these averages because their timing cannot be repaired. Polling still misses movements between observations; verified does not mean tick-complete or exact historical extrema.
+Trades capture sampled favorable/adverse excursions using executable exit bids/asks. The deployed September 21 measurement correction keeps new version 2 samples provisional until the matching broker close establishes their lifetime. The close removes observations outside that lifetime and recomputes extrema. The September 26 review independently verified all ten new trades' version 2 records. The dashboard reports verified coverage separately from unverified samples; averages use verified closed-trade samples only. Older aggregates and partial legacy history remain available but excluded from these averages because their timing cannot be repaired. Polling still misses movements between observations; verified does not mean tick-complete or exact historical extrema.
 
 S3 reports use the same analytics calculation and immutable completed UTC days and Sunday-to-Sunday weeks, wait for post-boundary broker reconciliation, retry failed uploads, and persist successful checkpoints. A first-time scheduler starts with the latest completed periods; it catches up subsequent missed periods. Reports are snapshots of reconciled records available at generation, so later broker corrections require a separately identified corrected export, not overwriting history.
 
 ## Strategy semantics retained
 
-No ADX, RSI, EMA, pullback or target thresholds were optimized in this remediation. The existing pullback tests compare the lookback window against the latest EMA value; changing this to each historical bar's EMA is a separate hypothesis requiring its own cohort. Both breakout and pullback can be true. Breakeven moves the stop to the entry fill price at 1R; v3.1 quote-dependent management requires a validated bid and ask and uses the exit bid for a BUY and ask for a SELL. Missing executable pricing defers that adjustment; timed exits and existing close/protection retries remain independent. Financing, execution costs, slippage and quote polling mean it is not a guarantee of zero net loss.
+No numeric ADX, RSI, EMA-period, pullback-window or target threshold was optimized. Last verified production v3.3 compares prior candles against the signal's EMA values; local v4 changes ordinary pullbacks to each bar's EMA and receives its own cohort. The separate post-exit freshness test retains its signal-EMA reference. Both breakout and pullback can be true. Breakeven moves the stop to the entry fill price at 1R; v3.1 quote-dependent management requires a validated bid and ask and uses the exit bid for a BUY and ask for a SELL. Missing executable pricing defers that adjustment; timed exits and existing close/protection retries remain independent. Financing, execution costs, slippage and quote polling mean it is not a guarantee of zero net loss.
 
 ## Live controls
 
@@ -82,7 +94,7 @@ The dashboard can start or stop new entries and can close a specific live trade.
 
 In v3.2, **Enable Live** can record that trading should resume after an active loss cooldown. Entries remain blocked until its original expiry; the dashboard shows the cooldown separately from the enabled state. **Pause Entries** keeps trading disabled even after expiry. Backups and deployments preserve that choice, and a release update retains an already-active cooldown without restarting its clock. Other readiness failures still prevent enabling.
 
-An installation already left disabled by the old backup fault stays disabled through deployment. Use **Enable Live** once after installing the correction; subsequent maintenance preserves the enabled state while respecting cooldowns.
+The earlier backup fault could leave an installation disabled; deploying its correction preserved that disabled choice. Such an installation needs **Enable Live** to resume by the user's choice. This is historical recovery guidance, not a standing post-deployment step; ordinary maintenance preserves enabled intent while respecting cooldowns.
 
 Useful read-only endpoints:
 
@@ -104,9 +116,15 @@ Changes go directly to a versioned live release. Use actual OANDA outcomes as th
 1. Record the completed M15 trigger, H1 regime, pair session, spread/cost ratio, requested units, actual fill, initial stop and rejection reason.
 2. For every closed trade, review realized P&L, spread, slippage, maximum favorable/adverse movement, holding time and exit reason.
 3. Review the entry funnel weekly, including all no-trade reason codes. Do not judge only the trades that filled.
-4. Change one coherent hypothesis at a time, bump the strategy/release version, test execution and risk regressions, deploy, and compare the new live cohort with prior real trades.
+4. Specify the complete release and each experimental component before implementation, bump its strategy/release version, test execution and risk regressions, then compare the deployed cohort with prior real trades. A combined release limits causal attribution; record entry categories and distinct episodes without treating hypothetical skipped trades as control returns.
 
 The design target is roughly 5–15 trades per week, not a quota. A quiet day is possible, but repeated weeks with materially lower cadence should trigger a review of the decision funnel rather than arbitrary filter removal.
+
+## Current review and decision points — September 26
+
+The [follow-up review](docs/reviews/2026-09-26-follow-up-trading-review.md) checked every trade from September 21 20:35 to September 26 06:45 AEST, end excluded: ten closed trades, two positive, seven negative and one flat, net **−A$0.5369**. The unchanged v3.3 run now has 25 closed trades and **−A$1.2693** net. The new interval is four days, ten hours and ten minutes, not seven elapsed days; earlier releases remain separate cohorts.
+
+The review itself changed no live setting. The subsequent authorized integrated implementation is described above and in the [release specification](docs/reviews/2026-09-26-integrated-release-specification.md). It retains 1.5R and existing risk/capital limits while combining entry changes, precision correctness and attribution. Actual reviewed fill risks remained within budget. Research sensitivities are not alternative live returns, and the new code has not been deployed. See the [status and decision record](docs/reviews/2026-09-26-status-and-decisions.md) for remaining verification, rollout and operational work.
 
 ## Incident rule
 

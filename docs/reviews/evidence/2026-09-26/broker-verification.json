@@ -1,0 +1,128 @@
+{
+  "all_new_broker_openings_matched": true,
+  "rows": [
+    {
+      "broker_id": "3347",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3357",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3369",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3381",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3393",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3403",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3413",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3425",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3435",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    },
+    {
+      "broker_id": "3445",
+      "checks": {
+        "entry_price": true,
+        "exit_price": true,
+        "units": true,
+        "net_pnl": true,
+        "entry_time_ms": true,
+        "exit_time_ms": true,
+        "sample_lifetime": true
+      }
+    }
+  ],
+  "financing": 0.0,
+  "commission": 0.0,
+  "guaranteed_fee": 0.0
+}

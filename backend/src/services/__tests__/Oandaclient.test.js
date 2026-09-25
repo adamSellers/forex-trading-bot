@@ -327,6 +327,23 @@ describe('OandaClient', () => {
             expect(result.orderFillTransaction.units).toBe('-795');
         });
 
+        test.each([
+            { instrument: 'AUD_USD', precision: 5, units: -162, raw: 0.700765, expected: '0.70077' },
+            { instrument: 'AUD_USD', precision: 5, units: 162, raw: 0.700769, expected: '0.70076' },
+            { instrument: 'USD_JPY', precision: 3, units: -100, raw: 153.3145, expected: '153.315' },
+            { instrument: 'USD_JPY', precision: 3, units: 100, raw: 153.3149, expected: '153.314' },
+            { instrument: 'AUD_USD', precision: 5, units: 162, raw: 1.3001800000000001, expected: '1.30018' },
+            { instrument: 'USD_JPY', precision: 3, units: 100, raw: 153.31599999999997, expected: '153.316' },
+        ])('$instrument signed units $units keeps the serialized bound inside $raw', async ({ instrument, precision, units, raw, expected }) => {
+            global.fetch.mockResolvedValueOnce(createMockResponse({ orderCancelTransaction: { reason: 'PRICE_BOUND_EXCEEDED' } }, 201));
+            await client.placeMarketOrder(instrument, units, { priceBound: raw,
+                instrumentMetadata: { displayPrecision: precision } });
+            const body = JSON.parse(global.fetch.mock.calls[0][1].body);
+            expect(body.order.priceBound).toBe(expected);
+            expect(client.formatPriceBound(instrument, Number(expected), units < 0 ? 'SELL' : 'BUY',
+                { displayPrecision: precision })).toBe(expected);
+        });
+
         test('uses metadata precision, priceBound, and deterministic client extensions', async () => {
             client.instrumentMetadata.set('USD_JPY', {
                 name: 'USD_JPY',

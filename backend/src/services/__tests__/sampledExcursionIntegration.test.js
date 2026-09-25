@@ -18,6 +18,7 @@ jest.mock('../Oandaclient', () => {
     return {
         getPipValue: actual.getPipValue.bind(actual),
         formatPrice: actual.formatPrice.bind(actual),
+        formatPriceBound: actual.formatPriceBound.bind(actual),
         getOpenTrades: jest.fn(), getTrade: jest.fn(),
         closeTrade: jest.fn(), modifyTrade: jest.fn(),
     };

@@ -2,6 +2,8 @@
 
 For an ordinary deployment, use [the one-command guide](../../scripts/DEPLOYMENT_README.md). These details cover exceptional recovery and broker credentials.
 
+Read-only inspection on September 26 verified clean deployed revision `5889b66` and the excursion measurement correction; release `m15-intraday-v3.3` / strategy `1.1.3` and the existing run/config remain unchanged. See [current status and decisions](../reviews/2026-09-26-status-and-decisions.md) for pending work. The enabled, flat and loss-cooldown state in that review is a dated capture, not a claim about present readiness. The review did not perform a deployment or restore drill. Develop and publish fixes locally, then use the existing GitHub-to-bot deployment path; do not repair source directly on the deployed checkout.
+
 ## Deployment failures
 
 Preparation runs in a private Git archive outside the installation. A dependency, test, build, backup or preflight failure leaves deployed source and dependencies unchanged. The script attempts to restore the previously enabled state through the API and verifies the result; a readiness block leaves entries paused. Open positions, pending orders or a busy entry queue defer stopping while position management continues.

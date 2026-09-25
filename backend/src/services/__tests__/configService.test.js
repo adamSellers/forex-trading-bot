@@ -19,6 +19,18 @@ describe("ConfigService governance", () => {
         fs.rmSync(directory, { recursive: true, force: true });
     });
 
+    test("identifies the integrated release without increasing numerical risk defaults", () => {
+        expect(ConfigService.DEFAULT_CONFIG).toMatchObject({
+            liveReleaseVersion: "m15-intraday-v4",
+            executionPolicyVersion: "intraday-risk-v4",
+            pricingModelVersion: "broker-liquidity-v3.1",
+            riskPerTrade: 0.0025,
+            maxCapitalAtRisk: 100,
+            maxOpenPositions: 1,
+            intradayTargetRiskMultiple: 1.5,
+        });
+    });
+
     test("migrates the deployed strategy release without disabling live trading", () => {
         fs.writeFileSync(
             configPath,
@@ -50,7 +62,9 @@ describe("ConfigService governance", () => {
         ["m15-intraday-v3.1", "intraday-risk-v3.1", "broker-liquidity-v3", true],
         ["m15-intraday-v3.2", "intraday-risk-v3.2", "broker-liquidity-v3.1", false],
         ["m15-intraday-v3.2", "intraday-risk-v3.2", "broker-liquidity-v3.1", true],
-    ])("maintenance upgrade from %s preserves settings (%s/%s, enabled=%s) across restart", (liveReleaseVersion, executionPolicyVersion, pricingModelVersion, enableTrading) => {
+        ["m15-intraday-v3.3", "intraday-risk-v3.3", "broker-liquidity-v3.1", false],
+        ["m15-intraday-v3.3", "intraday-risk-v3.3", "broker-liquidity-v3.1", true],
+    ])("integrated upgrade from %s preserves settings (%s/%s, enabled=%s) across restart", (liveReleaseVersion, executionPolicyVersion, pricingModelVersion, enableTrading) => {
         const prior = {
             ...ConfigService.DEFAULT_CONFIG,
             liveReleaseVersion,

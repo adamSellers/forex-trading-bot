@@ -1,0 +1,539 @@
+{
+  "review_window_utc": {
+    "start": "2026-09-21T10:35:00+00:00",
+    "end": "2026-09-25T20:45:00+00:00"
+  },
+  "captured_at": "2026-09-25T20:47:01.909216+00:00",
+  "revision": "5889b66ca0cf88bb17298c8d9a9b2ed0abfccf75",
+  "summary": {
+    "trades": 10,
+    "completed_intents": 10,
+    "entry_submissions": 10,
+    "unique_setup_count": 77,
+    "decision_attempt_count": 166,
+    "retried_setup_count": 17,
+    "rejections_by_code": {
+      "ALREADY_IN_POSITION": 6,
+      "MAX_POSITIONS": 8,
+      "COST_TO_STOP_TOO_HIGH": 14,
+      "ENTRY_PRICE_DEVIATION": 16,
+      "SPREAD_TOO_WIDE": 75,
+      "EXPOSURE_LIMIT": 34,
+      "TRADING_DISABLED": 3
+    },
+    "exposure_rejection_reasons": {
+      "Broker state is not reconciled": 5,
+      "Portfolio risk rejected entry: CONSECUTIVE_LOSS_COOLDOWN": 29
+    },
+    "duplicate_filled_setups": {},
+    "overlapping_trade_pairs": [],
+    "broker_open_trades": 0,
+    "broker_pending_orders": 0,
+    "all_initial_risk_within_budget": true,
+    "all_fills_within_sent_price_bound": true,
+    "all_stop_and_target_attached_at_fill": true
+  },
+  "retry_then_fill": [
+    {
+      "setup_id": "AUD_USD:SHORT:1790304300000:M15_PULLBACK_RESUMPTION",
+      "decision_ids": [
+        543,
+        544,
+        545
+      ],
+      "outcomes": [
+        "COST_TO_STOP_TOO_HIGH",
+        "COST_TO_STOP_TOO_HIGH",
+        "FILLED"
+      ],
+      "anchor_prices": [
+        0.700915,
+        0.700915,
+        0.700915
+      ]
+    }
+  ],
+  "cooldown_intervals": [
+    {
+      "start_utc": "2026-09-23T20:45:04.804000+00:00",
+      "until_utc": "2026-09-24T20:45:04.804000+00:00"
+    },
+    {
+      "start_utc": "2026-09-25T17:37:28.759000+00:00",
+      "until_utc": "2026-09-26T17:37:28.759000+00:00"
+    }
+  ],
+  "current_status": {
+    "isRunning": true,
+    "tradingEnabled": true,
+    "openPositions": 0,
+    "pendingOrderIntentCount": 0,
+    "brokerStateUncertain": false,
+    "lastBrokerSyncError": null,
+    "monitoringActive": true,
+    "protectionPendingTrades": [],
+    "overdueTrades": [],
+    "entryRisk": {
+      "status": "COOLDOWN",
+      "entryAllowed": false,
+      "cooldownActive": true,
+      "consecutiveLosses": 3,
+      "maxConsecutiveLosses": 3,
+      "cooldownDurationMs": 86400000,
+      "cooldownStartedAt": 1790357848759,
+      "cooldownUntil": 1790444248759,
+      "remainingMs": 75025865,
+      "lastLossAt": 1790357848759,
+      "lastCooldownUntil": 1790444248759,
+      "streakResetAt": 1790282704804,
+      "evaluatedAt": 1790369222894,
+      "runId": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3"
+    }
+  },
+  "signal_logging": {
+    "AUD_USD": {
+      "signal_count": 6366,
+      "first_utc": "2026-09-21T10:35:19.583000+00:00",
+      "last_utc": "2026-09-25T20:44:26.022000+00:00",
+      "maximum_gap_ms": 147050,
+      "gap_start_utc": "2026-09-21T20:21:17.625000+00:00",
+      "gap_end_utc": "2026-09-21T20:23:44.675000+00:00"
+    },
+    "EUR_USD": {
+      "signal_count": 6366,
+      "first_utc": "2026-09-21T10:35:19.590000+00:00",
+      "last_utc": "2026-09-25T20:44:26.026000+00:00",
+      "maximum_gap_ms": 147047,
+      "gap_start_utc": "2026-09-21T20:21:17.634000+00:00",
+      "gap_end_utc": "2026-09-21T20:23:44.681000+00:00"
+    },
+    "GBP_USD": {
+      "signal_count": 6366,
+      "first_utc": "2026-09-21T10:35:19.596000+00:00",
+      "last_utc": "2026-09-25T20:44:26.029000+00:00",
+      "maximum_gap_ms": 147039,
+      "gap_start_utc": "2026-09-21T20:21:17.643000+00:00",
+      "gap_end_utc": "2026-09-21T20:23:44.682000+00:00"
+    },
+    "USD_JPY": {
+      "signal_count": 6366,
+      "first_utc": "2026-09-21T10:35:19.602000+00:00",
+      "last_utc": "2026-09-25T20:44:26.033000+00:00",
+      "maximum_gap_ms": 147037,
+      "gap_start_utc": "2026-09-21T20:21:17.647000+00:00",
+      "gap_end_utc": "2026-09-21T20:23:44.684000+00:00"
+    }
+  },
+  "trade_checks": [
+    {
+      "broker_trade_id": "3347",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-22T12:16:05.123000+00:00",
+      "exit_utc": "2026-09-22T13:43:34.122000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 0.15,
+      "fill_adverse_deviation_from_final_quote_pips": -0.2,
+      "spread_pips": 0.7,
+      "quote_request_elapsed_ms": 236.48585999757051,
+      "broker_event_age_ms": 6552,
+      "cached_receipt_age_ms": 4421,
+      "price_bound_before_serialization": 0.710815,
+      "price_bound_sent": 0.71081,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.55,
+      "recorded_worst_fill_risk_aud": 0.1921211879163123,
+      "serialized_worst_fill_risk_aud": 0.19342813477286533,
+      "risk_budget_aud": 0.19301120000000002,
+      "encoded_risk_budget_excess_aud": 0.0004169347728653072,
+      "actual_initial_risk_aud": 0.16108505342245422,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 236.67822265625,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3357",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-22T14:46:09.339000+00:00",
+      "exit_utc": "2026-09-22T17:52:37.202000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 0.85,
+      "fill_adverse_deviation_from_final_quote_pips": -0.0,
+      "spread_pips": 0.9,
+      "quote_request_elapsed_ms": 230.9303969964385,
+      "broker_event_age_ms": 148,
+      "cached_receipt_age_ms": 2961,
+      "price_bound_before_serialization": 1.1439249999999999,
+      "price_bound_sent": 1.14392,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.55,
+      "recorded_worst_fill_risk_aud": 0.19225635819912623,
+      "serialized_worst_fill_risk_aud": 0.19339396978605997,
+      "risk_budget_aud": 0.1926874,
+      "encoded_risk_budget_excess_aud": 0.0007065697860599573,
+      "actual_initial_risk_aud": 0.1780715269653291,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 240.2509765625,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3369",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-23T07:03:05.361000+00:00",
+      "exit_utc": "2026-09-23T07:36:56.767000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 0.8,
+      "fill_adverse_deviation_from_final_quote_pips": 0.0,
+      "spread_pips": 0.7,
+      "quote_request_elapsed_ms": 221.6073900014162,
+      "broker_event_age_ms": 288,
+      "cached_receipt_age_ms": 4196,
+      "price_bound_before_serialization": 0.70911,
+      "price_bound_sent": 0.70911,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.5,
+      "recorded_worst_fill_risk_aud": 0.19178351001596713,
+      "serialized_worst_fill_risk_aud": 0.19178351001596713,
+      "risk_budget_aud": 0.1926874,
+      "encoded_risk_budget_excess_aud": 0,
+      "actual_initial_risk_aud": 0.17174642687999664,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 236.50390625,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3381",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-23T14:01:09.843000+00:00",
+      "exit_utc": "2026-09-23T14:27:12.880000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 1.05,
+      "fill_adverse_deviation_from_final_quote_pips": -0.0,
+      "spread_pips": 0.8,
+      "quote_request_elapsed_ms": 236.2898540198803,
+      "broker_event_age_ms": 235,
+      "cached_receipt_age_ms": 1181,
+      "price_bound_before_serialization": 1.1399249999999999,
+      "price_bound_sent": 1.13992,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.55,
+      "recorded_worst_fill_risk_aud": 0.19232703673659265,
+      "serialized_worst_fill_risk_aud": 0.19334464010553062,
+      "risk_budget_aud": 0.19320440000000003,
+      "encoded_risk_budget_excess_aud": 0.00014024010553059796,
+      "actual_initial_risk_aud": 0.18301588753828057,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 242.0849609375,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3393",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-23T14:31:09.856000+00:00",
+      "exit_utc": "2026-09-23T14:53:14.930000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 0.9,
+      "fill_adverse_deviation_from_final_quote_pips": -0.0,
+      "spread_pips": 0.9,
+      "quote_request_elapsed_ms": 237.98966100811958,
+      "broker_event_age_ms": 334,
+      "cached_receipt_age_ms": 1082,
+      "price_bound_before_serialization": 1.1387299999999998,
+      "price_bound_sent": 1.13873,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.5,
+      "recorded_worst_fill_risk_aud": 0.19365419950678894,
+      "serialized_worst_fill_risk_aud": 0.1936541995067472,
+      "risk_budget_aud": 0.193748,
+      "encoded_risk_budget_excess_aud": 0,
+      "actual_initial_risk_aud": 0.1825203156008831,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 234.64013671875,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3403",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "entry_utc": "2026-09-23T15:31:10.814000+00:00",
+      "exit_utc": "2026-09-23T16:36:58.898000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 1.3,
+      "fill_adverse_deviation_from_final_quote_pips": 0.2,
+      "spread_pips": 0.8,
+      "quote_request_elapsed_ms": 238.0053099989891,
+      "broker_event_age_ms": 158,
+      "cached_receipt_age_ms": 1839,
+      "price_bound_before_serialization": 158.363,
+      "price_bound_sent": 158.363,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.5,
+      "recorded_worst_fill_risk_aud": 0.19286691934494327,
+      "serialized_worst_fill_risk_aud": 0.19286691934494327,
+      "risk_budget_aud": 0.19337980000000002,
+      "encoded_risk_budget_excess_aud": 0,
+      "actual_initial_risk_aud": 0.1877424278521489,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 233.311767578125,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3413",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-23T18:30:31.378000+00:00",
+      "exit_utc": "2026-09-23T20:45:04.804000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 0.55,
+      "fill_adverse_deviation_from_final_quote_pips": -0.0,
+      "spread_pips": 1.1,
+      "quote_request_elapsed_ms": 234.18770200014114,
+      "broker_event_age_ms": 1024,
+      "cached_receipt_age_ms": 1872,
+      "price_bound_before_serialization": 1.137935,
+      "price_bound_sent": 1.13793,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.55,
+      "recorded_worst_fill_risk_aud": 0.19187560576279056,
+      "serialized_worst_fill_risk_aud": 0.19274382117344896,
+      "risk_budget_aud": 0.193004,
+      "encoded_risk_budget_excess_aud": 0,
+      "actual_initial_risk_aud": 0.17485607073660428,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 237.910888671875,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3425",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-24T22:53:28.578000+00:00",
+      "exit_utc": "2026-09-25T01:08:20.491000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 0.35,
+      "fill_adverse_deviation_from_final_quote_pips": -0.0,
+      "spread_pips": 0.7,
+      "quote_request_elapsed_ms": 226.0521409995854,
+      "broker_event_age_ms": 48299,
+      "cached_receipt_age_ms": 1877,
+      "price_bound_before_serialization": 0.700855,
+      "price_bound_sent": 0.70086,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.45,
+      "recorded_worst_fill_risk_aud": 0.1926392647597718,
+      "serialized_worst_fill_risk_aud": 0.19129213703417022,
+      "risk_budget_aud": 0.19291020000000003,
+      "encoded_risk_budget_excess_aud": 0,
+      "actual_initial_risk_aud": 0.16165532707114452,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 234.376953125,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3435",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "entry_utc": "2026-09-25T03:05:28.599000+00:00",
+      "exit_utc": "2026-09-25T04:38:21.233000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": -0.75,
+      "fill_adverse_deviation_from_final_quote_pips": -0.0,
+      "spread_pips": 0.7,
+      "quote_request_elapsed_ms": 226.86416199803352,
+      "broker_event_age_ms": 6338,
+      "cached_receipt_age_ms": 1091,
+      "price_bound_before_serialization": 0.700765,
+      "price_bound_sent": 0.70076,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.55,
+      "recorded_worst_fill_risk_aud": 0.19255452832100214,
+      "serialized_worst_fill_risk_aud": 0.19372152546232319,
+      "risk_budget_aud": 0.19258720000000001,
+      "encoded_risk_budget_excess_aud": 0.0011343254623231713,
+      "actual_initial_risk_aud": 0.14003965696072648,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 239.320068359375,
+      "broker_pnl_equals_local": true
+    },
+    {
+      "broker_trade_id": "3445",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "entry_utc": "2026-09-25T16:15:33.881000+00:00",
+      "exit_utc": "2026-09-25T17:37:28.759000+00:00",
+      "submission_attempts": 1,
+      "intent_status": "COMPLETED",
+      "fill_adverse_deviation_from_anchor_pips": 0.9,
+      "fill_adverse_deviation_from_final_quote_pips": 0.1,
+      "spread_pips": 1.0,
+      "quote_request_elapsed_ms": 224.01095500588417,
+      "broker_event_age_ms": 183,
+      "cached_receipt_age_ms": 2890,
+      "price_bound_before_serialization": 157.119,
+      "price_bound_sent": 157.119,
+      "serialized_bound_adverse_deviation_from_anchor_pips": 1.5,
+      "recorded_worst_fill_risk_aud": 0.1901310806716867,
+      "serialized_worst_fill_risk_aud": 0.1901310806716867,
+      "risk_budget_aud": 0.19230740000000002,
+      "encoded_risk_budget_excess_aud": 0,
+      "actual_initial_risk_aud": 0.18528425660001593,
+      "actual_initial_risk_within_budget": true,
+      "fill_within_sent_bound": true,
+      "broker_stop_and_target_attached_at_fill": true,
+      "first_protection_replacement_delay_ms": 229.684814453125,
+      "broker_pnl_equals_local": true
+    }
+  ],
+  "findings": [
+    {
+      "severity": "minor_correctness",
+      "claim": "Worst-fill sizing precedes broker price-bound serialization, so rounding can expand permitted cash risk and entry deviation by half a price tick.",
+      "evidence_level": "Observed production order parameters; potential risk only, not an observed excess-risk fill.",
+      "affected_orders_exceeding_budget": 4,
+      "maximum_excess_aud": 0.0011343254623231713,
+      "maximum_excess_fraction_of_budget": 0.005889931741689849,
+      "source": [
+        "backend/src/services/LiveTradingEngine.js:2817",
+        "backend/src/services/Oandaclient.js:337"
+      ],
+      "impact": "Cannot explain this week\u2019s losses: actual fills and initial stop risks stayed inside configured budgets.",
+      "smallest_correction": "Size and persist the exact broker-precision bound; round toward a stricter bound if preserving the original deviation ceiling."
+    },
+    {
+      "severity": "observation",
+      "claim": "AUD/USD3425 used a newly fetched tradeable broker quote with a 48,299ms unchanged broker event age.",
+      "evidence_level": "Production quote metadata",
+      "request_elapsed_ms": 226.0521409995854,
+      "impact": "Not stale receipt or proof of a service failure; actual fill matched executable quote."
+    }
+  ],
+  "limits": [
+    "Audit covers supplied post-review snapshot and broker records only; no production mutation performed.",
+    "Repeated decision attempts are not independent trade opportunities.",
+    "Signal logging gaps show observations, not complete process uptime or a cause for brief gaps.",
+    "Rejection records alone do not establish counterfactual profitability of blocked setups.",
+    "No evidence of duplicate fill, overlapping position, missing initial protection, excess actual initial risk, or broker/local trade P&L mismatch among these ten trades."
+  ],
+  "runtime_logs": {
+    "error_record_count": 8,
+    "error_message_counts": {
+      "\u274c Price fetch error:": 5,
+      "\u274c Failed to sync with Oanda:": 3
+    },
+    "errors": [
+      {
+        "timestamp": "2026-09-21T16:26:24.195Z",
+        "message": "\u274c Price fetch error:",
+        "detail": "Oanda request exceeded 10000ms deadline",
+        "open_trade_ids": []
+      },
+      {
+        "timestamp": "2026-09-21T20:28:01.194Z",
+        "message": "\u274c Price fetch error:",
+        "detail": "Oanda request exceeded 10000ms deadline",
+        "open_trade_ids": []
+      },
+      {
+        "timestamp": "2026-09-22T06:52:23.929Z",
+        "message": "\u274c Price fetch error:",
+        "detail": "Oanda request exceeded 10000ms deadline",
+        "open_trade_ids": []
+      },
+      {
+        "timestamp": "2026-09-22T06:52:23.934Z",
+        "message": "\u274c Failed to sync with Oanda:",
+        "detail": "Oanda request timed out after 10000ms",
+        "open_trade_ids": []
+      },
+      {
+        "timestamp": "2026-09-22T06:52:43.936Z",
+        "message": "\u274c Failed to sync with Oanda:",
+        "detail": "Oanda request timed out after 10000ms",
+        "open_trade_ids": []
+      },
+      {
+        "timestamp": "2026-09-24T19:47:15.664Z",
+        "message": "\u274c Failed to sync with Oanda:",
+        "detail": "Oanda request timed out after 10000ms",
+        "open_trade_ids": []
+      },
+      {
+        "timestamp": "2026-09-24T19:47:15.677Z",
+        "message": "\u274c Price fetch error:",
+        "detail": "Oanda request exceeded 10000ms deadline",
+        "open_trade_ids": []
+      },
+      {
+        "timestamp": "2026-09-25T00:28:06.634Z",
+        "message": "\u274c Price fetch error:",
+        "detail": "Oanda request exceeded 10000ms deadline",
+        "open_trade_ids": [
+          "3425"
+        ]
+      }
+    ],
+    "boot_times_utc": [
+      "2026-09-21T17:02:17.554Z",
+      "2026-09-21T20:23:44.696Z",
+      "2026-09-21T20:25:01.705Z",
+      "2026-09-23T17:02:24.273Z",
+      "2026-09-24T17:02:25.408Z"
+    ],
+    "trading_disabled_decisions": [
+      {
+        "decision_id": 482,
+        "timestamp": "2026-09-23T17:02:24.271000+00:00",
+        "instrument": "EUR_USD"
+      },
+      {
+        "decision_id": 483,
+        "timestamp": "2026-09-23T17:02:24.313000+00:00",
+        "instrument": "AUD_USD"
+      },
+      {
+        "decision_id": 484,
+        "timestamp": "2026-09-23T17:02:24.346000+00:00",
+        "instrument": "GBP_USD"
+      }
+    ],
+    "interpretation": "All three trading-disabled decisions occurred during the 2026-09-23T17:02:24Z boot, after the 17:00:23.699Z config save and before the next 17:02:25.519Z config save. The restart coincides with the scheduled maintenance time. Logs alone do not prove backup completion. The three ~17:00 UTC shared scan gaps (Sep21,23,24) and the Sep21 20:21-20:23 gap all end at boots; no larger scan gap observed. Five price fetch deadline and three broker synchronization timeout records are real errors, distinct from ordinary unchanged price events. Only the Sep25 00:28:06.634Z price fetch error occurred while a post-review trade was open (3425); broker stop and target had already been attached.",
+    "warnings_interpretation": "Nine externally-closed trade warnings correspond to expected broker stop/target fills. Ten S3 warnings are two per boot about absent reporting configuration, not broker trading failures."
+  },
+  "price_bound_reproduction": {
+    "brokerTradeId": "3435",
+    "passed": true,
+    "method": "real OandaClient.placeMarketOrder, stubbed _request",
+    "intendedPriceBound": 0.700765,
+    "serializedPriceBound": "0.70076",
+    "intendedWorstFillRiskAud": 0.19255452832100214,
+    "serializedWorstFillRiskAud": 0.19372152546232319,
+    "riskBudgetAud": 0.1925872,
+    "excessAud": 0.001134325462323199,
+    "intendedAdverseDeviationPips": 1.4999999999998348,
+    "serializedAdverseDeviationPips": 1.5499999999990521,
+    "networkRequests": 0,
+    "actualFillRiskBreachObserved": false
+  }
+}

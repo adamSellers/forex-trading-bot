@@ -1,6 +1,7 @@
 const { createStrategyDefinition } = require("./strategyContract");
 const { evaluateIntradayEntryFreshness } = require("../runtime/marketDataFreshness");
 const { resolveTimedExitReason } = require("../runtime/exitPolicy");
+const { evaluateReentryPolicy, FADE_ENTRY_TYPE } = require("../runtime/intradayReentryPolicy");
 const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 const {
     calculateADX,
@@ -154,7 +155,7 @@ function resultBase({ currentPrice, candle, atrValue, instrument }) {
                 ? atrValue / pipValue
                 : 0,
         currentPrice,
-        rsiVal: 0,
+        rsiVal: null,
         adxVal: 0,
         pdiVal: 0,
         mdiVal: 0,
@@ -200,6 +201,8 @@ async function evaluateIntradayMomentumEntry({
     config = {},
     marketContext = null,
     nowMs = Date.now(),
+    latestClosedTrade = null,
+    reentryHistoryAvailable = true,
 }) {
     const resolved = { ...DEFAULT_INTRADAY_MOMENTUM_CONFIG, ...config };
     const m15 = marketContext?.timeframes?.["15m"]?.candles || [];
@@ -430,20 +433,91 @@ async function evaluateIntradayMomentumEntry({
     const bearishCandle = currentM15.close < currentM15.open;
     const longBreakout = direction > 0 && bullishCandle && currentM15.close > breakoutHigh;
     const shortBreakout = direction < 0 && bearishCandle && currentM15.close < breakoutLow;
-    const longPullback =
+    // Retain the old interpretation as evidence, not as an alternative entry
+    // rule. Historical candles now use the EMA available at their own close.
+    const legacyLongPullback =
         direction > 0 &&
         bullishCandle &&
         Math.min(...pullbackWindow.map((candle) => candle.low)) <= m15Fast &&
         Math.min(...pullbackWindow.map((candle) => candle.close)) > m15Slow &&
         currentM15.close > resumptionHigh;
-    const shortPullback =
+    const legacyShortPullback =
         direction < 0 &&
         bearishCandle &&
         Math.max(...pullbackWindow.map((candle) => candle.high)) >= m15Fast &&
         Math.max(...pullbackWindow.map((candle) => candle.close)) < m15Slow &&
         currentM15.close < resumptionLow;
+    const pullbackStartIndex = m15.length - pullbackWindow.length - 1;
+    const pullbackEvidence = pullbackWindow.map((candle, index) => {
+        const candleIndex = pullbackStartIndex + index;
+        const fastEma = m15FastSeries[candleIndex];
+        const slowEma = m15SlowSeries[candleIndex];
+        return {
+            time: candle.time,
+            high: candle.high,
+            low: candle.low,
+            close: candle.close,
+            fastEma,
+            slowEma,
+            longTouch: Number.isFinite(fastEma) && candle.low <= fastEma,
+            shortTouch: Number.isFinite(fastEma) && candle.high >= fastEma,
+            longStructure: Number.isFinite(slowEma) && candle.close > slowEma,
+            shortStructure: Number.isFinite(slowEma) && candle.close < slowEma,
+        };
+    });
+    const evaluatePullbackSequence = (side) => {
+        const long = side === "long";
+        const touchIndices = pullbackEvidence.flatMap((candle, index) =>
+            candle[`${side}Touch`] ? [index] : []);
+        const latestTouchIndex = touchIndices.length
+            ? touchIndices[touchIndices.length - 1]
+            : null;
+        // Keep the existing two-bar confirmation, extending it back to the
+        // latest touch when that touch is older than the confirmation window.
+        const resumptionStartIndex = latestTouchIndex === null
+            ? Math.max(0, pullbackEvidence.length - 2)
+            : Math.min(latestTouchIndex, Math.max(0, pullbackEvidence.length - 2));
+        const sequence = pullbackEvidence.slice(resumptionStartIndex);
+        const boundary = long
+            ? Math.max(...sequence.map((candle) => candle.high))
+            : Math.min(...sequence.map((candle) => candle.low));
+        const structureHeld = pullbackEvidence.every((candle) => candle[`${side}Structure`]);
+        const resumed = long ? currentM15.close > boundary : currentM15.close < boundary;
+        return {
+            touchTimes: touchIndices.map((index) => pullbackEvidence[index].time),
+            latestTouchTime: latestTouchIndex === null ? null : pullbackEvidence[latestTouchIndex].time,
+            resumptionStartTime: pullbackEvidence[resumptionStartIndex]?.time || null,
+            resumptionBoundary: boundary,
+            structureHeld,
+            resumed,
+            qualifies: (long ? direction > 0 && bullishCandle : direction < 0 && bearishCandle)
+                && latestTouchIndex !== null && structureHeld && resumed,
+        };
+    };
+    const longSequence = evaluatePullbackSequence("long");
+    const shortSequence = evaluatePullbackSequence("short");
+    const longPullback = longSequence.qualifies;
+    const shortPullback = shortSequence.qualifies;
     const isBreakout = longBreakout || shortBreakout;
     const isPullback = longPullback || shortPullback;
+    context.m15.pullbackWindow = pullbackWindow.map(({ time, high, low }) => ({ time, high, low }));
+    context.m15.pullbackSequence = {
+        definition: "bar-aligned-pullback-resumption-v1",
+        bars: pullbackEvidence,
+        long: longSequence,
+        short: shortSequence,
+        legacy: {
+            longPullback: legacyLongPullback,
+            shortPullback: legacyShortPullback,
+            fastEmaAtSignal: m15Fast,
+            slowEmaAtSignal: m15Slow,
+            resumptionHigh,
+            resumptionLow,
+        },
+    };
+    context.m15.triggerCombination = isBreakout && isPullback
+        ? "breakout_and_pullback"
+        : isBreakout ? "breakout_only" : isPullback ? "pullback_only" : "none";
     context.m15.trigger = {
         breakoutHigh,
         breakoutLow,
@@ -490,30 +564,50 @@ async function evaluateIntradayMomentumEntry({
         );
     }
 
+    const originalSide = direction > 0 ? "BUY" : "SELL";
+    const originalEntryType = isPullback ? "M15_PULLBACK_RESUMPTION" : "M15_RANGE_BREAKOUT";
+    const reentry = evaluateReentryPolicy({
+        originalSide, latestClosedTrade,
+        pullbackWindow: context.m15.pullbackWindow,
+        signalFastEma: m15Fast,
+        signalCandleTime: currentM15.time,
+        historyAvailable: reentryHistoryAvailable,
+    });
+    context.reentry = { ...reentry, originalEntryType };
+    if (!reentry.allowed) {
+        return hold(base, `INTRADAY_MOMENTUM_${reentry.classification}`,
+            reentry.classification === "FADE_ALREADY_TAKEN"
+                ? "HOLD: this target episode already filled a fade; wait for a fresh pullback"
+                : reentry.classification === "WAIT_FOR_FRESH_PULLBACK"
+                  ? "HOLD: same-direction continuation after breakeven needs a fresh post-exit pullback"
+                  : reentry.classification === "WAIT_FOR_POST_EXIT_SIGNAL"
+                    ? "HOLD: wait for a new M15 signal to complete after the protected exit"
+                  : "HOLD: protected-exit evidence is unavailable", context);
+    }
+    const isFade = reentry.classification === "POST_TP_FADE";
+    const side = reentry.executedSide;
+    const executionDirection = side === "BUY" ? 1 : -1;
+    const entryType = isFade ? FADE_ENTRY_TYPE : originalEntryType;
     const targetRiskMultiple = Math.max(
         1,
         finite(resolved.intradayTargetRiskMultiple, 1.5)
     );
     const stopDistance = stopPips * pipValue;
-    const stopLossPrice = price - direction * stopDistance;
-    const takeProfitPrice = price + direction * stopDistance * targetRiskMultiple;
-    const side = direction > 0 ? "BUY" : "SELL";
-    const entryType = isPullback
-        ? "M15_PULLBACK_RESUMPTION"
-        : "M15_RANGE_BREAKOUT";
+    const stopLossPrice = price - executionDirection * stopDistance;
+    const takeProfitPrice = price + executionDirection * stopDistance * targetRiskMultiple;
 
     return {
         ...base,
         signalType: side,
         reason:
-            `${side}: ${entryType === "M15_PULLBACK_RESUMPTION" ? "M15 pullback resumption" : `${breakoutBars}-bar M15 breakout`} | ` +
+            `${side}: ${isFade ? `fade of ${originalSide} re-entry after TP without a fresh pullback` : entryType === "M15_PULLBACK_RESUMPTION" ? "M15 pullback resumption" : `${breakoutBars}-bar M15 breakout`} | ` +
             `H1 ADX ${adx.toFixed(1)} | RSI ${rsi.toFixed(1)} | cost/stop ${(costToStopRatio * 100).toFixed(1)}%`,
         reasonCode:
-            direction > 0
+            isFade ? "INTRADAY_MOMENTUM_POST_TP_FADE" : direction > 0
                 ? "INTRADAY_MOMENTUM_LONG_ENTRY"
                 : "INTRADAY_MOMENTUM_SHORT_ENTRY",
         signalClass: "ACTIONABLE",
-        intent: direction > 0 ? "ENTER_LONG" : "ENTER_SHORT",
+        intent: executionDirection > 0 ? "ENTER_LONG" : "ENTER_SHORT",
         entryType,
         currentDir: direction,
         htfContext: {
@@ -537,8 +631,8 @@ const intradayMomentumStrategy = createStrategyDefinition({
     key: "intraday_momentum",
     label: "M15 Intraday Momentum",
     description:
-        "Completed-M15 pullback and breakout entries aligned with a liquid-session H1 trend regime.",
-    version: "1.1.3",
+        "Completed-M15 trend entries with fresh protected-exit continuations and a defined post-target countertrend fade.",
+    version: "1.2.0",
     runtimeStatus: "live_ready",
     requiredData: {
         timeframes: ["15m", "1h"],

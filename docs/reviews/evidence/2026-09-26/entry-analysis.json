@@ -1,0 +1,868 @@
+{
+  "start_ms": 1789986900000,
+  "end_ms": 1790369100000,
+  "new_week": {
+    "summary": {
+      "trades": 10,
+      "wins": 2,
+      "losses": 7,
+      "flat": 1,
+      "pnl_aud": -0.5369,
+      "price_r": -3.236448860927155
+    },
+    "by_pair": {
+      "AUD_USD": {
+        "trades": 4,
+        "wins": 1,
+        "losses": 3,
+        "flat": 0,
+        "pnl_aud": -0.2048,
+        "price_r": -1.472727792587044
+      },
+      "EUR_USD": {
+        "trades": 4,
+        "wins": 1,
+        "losses": 2,
+        "flat": 1,
+        "pnl_aud": 0.0408,
+        "price_r": 0.23474917715363447
+      },
+      "USD_JPY": {
+        "trades": 2,
+        "wins": 0,
+        "losses": 2,
+        "flat": 0,
+        "pnl_aud": -0.3729,
+        "price_r": -1.998470245493746
+      }
+    },
+    "by_side": {
+      "SELL": {
+        "trades": 9,
+        "wins": 2,
+        "losses": 6,
+        "flat": 1,
+        "pnl_aud": -0.349,
+        "price_r": -2.236187618716498
+      },
+      "BUY": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "flat": 0,
+        "pnl_aud": -0.1879,
+        "price_r": -1.000261242210657
+      }
+    },
+    "by_trigger": {
+      "both": {
+        "trades": 5,
+        "wins": 2,
+        "losses": 2,
+        "flat": 1,
+        "pnl_aud": 0.1843,
+        "price_r": 1.0301483759820043
+      },
+      "pullback_only": {
+        "trades": 5,
+        "wins": 0,
+        "losses": 5,
+        "flat": 0,
+        "pnl_aud": -0.7212,
+        "price_r": -4.26659723690916
+      }
+    },
+    "by_exit": {
+      "STOP_LOSS": {
+        "trades": 6,
+        "wins": 0,
+        "losses": 6,
+        "flat": 0,
+        "pnl_aud": -1.0203,
+        "price_r": -6.014027271109912
+      },
+      "BREAKEVEN_STOP": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 0,
+        "flat": 1,
+        "pnl_aud": 0.0,
+        "price_r": 0.0
+      },
+      "TAKE_PROFIT": {
+        "trades": 2,
+        "wins": 2,
+        "losses": 0,
+        "flat": 0,
+        "pnl_aud": 0.5303,
+        "price_r": 3.0457054015981706
+      },
+      "SESSION_CLOSE": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "flat": 0,
+        "pnl_aud": -0.0469,
+        "price_r": -0.2681269914154137
+      }
+    },
+    "by_session": {
+      "New York": {
+        "trades": 3,
+        "wins": 0,
+        "losses": 3,
+        "flat": 0,
+        "pnl_aud": -0.3938,
+        "price_r": -2.2723971206188183
+      },
+      "London + New York": {
+        "trades": 4,
+        "wins": 1,
+        "losses": 2,
+        "flat": 1,
+        "pnl_aud": -0.1002,
+        "price_r": -0.4973850736416088
+      },
+      "Tokyo": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "flat": 0,
+        "pnl_aud": 0.2585,
+        "price_r": 1.5333333333332717
+      },
+      "Sydney": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "flat": 0,
+        "pnl_aud": -0.1615,
+        "price_r": -1.0
+      },
+      "Sydney + Tokyo": {
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "flat": 0,
+        "pnl_aud": -0.1399,
+        "price_r": -1.0
+      }
+    },
+    "trades": [
+      {
+        "broker_trade_id": "3347",
+        "instrument": "AUD_USD",
+        "side": "SELL",
+        "entry_time": 1790079365123,
+        "exit_time": 1790084614122,
+        "entry_utc": "2026-09-22T12:16:05.123000+00:00",
+        "exit_utc": "2026-09-22T13:43:34.122000+00:00",
+        "pnl_aud": -0.1619,
+        "exit_reason": "STOP_LOSS",
+        "price_r": -1.0060611259203156,
+        "holding_minutes": 87.48331666666667,
+        "initial_stop_pips": 6.162647417997658,
+        "trigger_combination": "both",
+        "signal_candle_close_utc": "2026-09-22T12:15:00+00:00",
+        "entry_delay_minutes": 1.0853833333333334,
+        "sessions": [
+          "New York"
+        ],
+        "h1_adx": 26.931243349058885,
+        "h1_di_spread": 21.43693956908003,
+        "h1_close_distance_to_ema20_atr": 1.2247995998603054,
+        "h1_ema20_ema50_spread_atr": 0.49223381973299474,
+        "rsi": 44.3,
+        "body_ratio": 0.37931034482763903,
+        "range_atr": 1.1764424456322322,
+        "signal_distance_ema20_atr": 0.6462384409358548,
+        "signal_distance_ema50_atr": 1.1547236703013344,
+        "signal_distance_breakout_level_atr": 0.1825514139775124,
+        "cost_to_stop_ratio": 0.14604113118197745,
+        "final_spread_pips": 0.7000000000001451,
+        "same_pair_previous": {
+          "broker_trade_id": "3307",
+          "side": "SELL",
+          "exit_reason": "STOP_LOSS",
+          "pnl_aud": -0.1623,
+          "gap_minutes": 9074.991133333333
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 0.40566980883874976,
+          "maxAdverseR": 0.9087003717989076,
+          "observations": 503,
+          "firstObservedAt": 1790079370402,
+          "lastObservedAt": 1790084610550,
+          "confirmedBrokerClosedAt": 1790084614122,
+          "excludedAfterClose": 0
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 26.388,
+          "first_sample_lag_seconds": 5.279,
+          "last_sample_to_exit_seconds": 3.572
+        }
+      },
+      {
+        "broker_trade_id": "3357",
+        "instrument": "EUR_USD",
+        "side": "SELL",
+        "entry_time": 1790088369339,
+        "exit_time": 1790099557202,
+        "entry_utc": "2026-09-22T14:46:09.339000+00:00",
+        "exit_utc": "2026-09-22T17:52:37.202000+00:00",
+        "pnl_aud": 0.0,
+        "exit_reason": "BREAKEVEN_STOP",
+        "price_r": -0.0,
+        "holding_minutes": 186.46438333333333,
+        "initial_stop_pips": 7.826552094047923,
+        "trigger_combination": "both",
+        "signal_candle_close_utc": "2026-09-22T14:45:00+00:00",
+        "entry_delay_minutes": 1.15565,
+        "sessions": [
+          "London",
+          "New York"
+        ],
+        "h1_adx": 21.71356569707012,
+        "h1_di_spread": 15.839395021207839,
+        "h1_close_distance_to_ema20_atr": 1.7391164379549526,
+        "h1_ema20_ema50_spread_atr": 1.0765145855953253,
+        "rsi": 32.94,
+        "body_ratio": 0.7610619469026775,
+        "range_atr": 1.8047538469391848,
+        "signal_distance_ema20_atr": 2.3568056943738,
+        "signal_distance_ema50_atr": 3.055731553959936,
+        "signal_distance_breakout_level_atr": 0.7825923761061274,
+        "cost_to_stop_ratio": 0.1405472022394046,
+        "final_spread_pips": 0.8999999999992349,
+        "same_pair_previous": {
+          "broker_trade_id": "3229",
+          "side": "SELL",
+          "exit_reason": "STOP_LOSS",
+          "pnl_aud": -0.1682,
+          "gap_minutes": 11555.7022
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 1.2649248201554033,
+          "maxAdverseR": 0.5877428457286242,
+          "observations": 1072,
+          "firstObservedAt": 1790088371030,
+          "lastObservedAt": 1790099551652,
+          "confirmedBrokerClosedAt": 1790099557202,
+          "excludedAfterClose": 1
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 40.878,
+          "first_sample_lag_seconds": 1.691,
+          "last_sample_to_exit_seconds": 5.55
+        }
+      },
+      {
+        "broker_trade_id": "3369",
+        "instrument": "AUD_USD",
+        "side": "SELL",
+        "entry_time": 1790146985361,
+        "exit_time": 1790149016767,
+        "entry_utc": "2026-09-23T07:03:05.361000+00:00",
+        "exit_utc": "2026-09-23T07:36:56.767000+00:00",
+        "pnl_aud": 0.2585,
+        "exit_reason": "TAKE_PROFIT",
+        "price_r": 1.5333333333332717,
+        "holding_minutes": 33.856766666666665,
+        "initial_stop_pips": 6.000000000000449,
+        "trigger_combination": "both",
+        "signal_candle_close_utc": "2026-09-23T07:00:00+00:00",
+        "entry_delay_minutes": 3.08935,
+        "sessions": [
+          "Tokyo"
+        ],
+        "h1_adx": 29.73569340205518,
+        "h1_di_spread": 14.819135344991997,
+        "h1_close_distance_to_ema20_atr": 3.510132956064777,
+        "h1_ema20_ema50_spread_atr": 1.3877547111225192,
+        "rsi": 32.86,
+        "body_ratio": 0.9107142857142964,
+        "range_atr": 1.4584368929426046,
+        "signal_distance_ema20_atr": 2.0310064603997007,
+        "signal_distance_ema50_atr": 3.106353591935619,
+        "signal_distance_breakout_level_atr": 0.4427397710718673,
+        "cost_to_stop_ratio": 0.1333333333332483,
+        "final_spread_pips": 0.6999999999990348,
+        "same_pair_previous": {
+          "broker_trade_id": "3347",
+          "side": "SELL",
+          "exit_reason": "STOP_LOSS",
+          "pnl_aud": -0.1619,
+          "gap_minutes": 1039.52065
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 1.4,
+          "maxAdverseR": 0.33333333333327164,
+          "observations": 195,
+          "firstObservedAt": 1790146985361,
+          "lastObservedAt": 1790149015257,
+          "confirmedBrokerClosedAt": 1790149016767,
+          "excludedAfterClose": 0
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 24.374,
+          "first_sample_lag_seconds": 0.0,
+          "last_sample_to_exit_seconds": 1.51
+        }
+      },
+      {
+        "broker_trade_id": "3381",
+        "instrument": "EUR_USD",
+        "side": "SELL",
+        "entry_time": 1790172069843,
+        "exit_time": 1790173632880,
+        "entry_utc": "2026-09-23T14:01:09.843000+00:00",
+        "exit_utc": "2026-09-23T14:27:12.880000+00:00",
+        "pnl_aud": 0.2718,
+        "exit_reason": "TAKE_PROFIT",
+        "price_r": 1.512372068264899,
+        "holding_minutes": 26.050616666666667,
+        "initial_stop_pips": 8.992496149180518,
+        "trigger_combination": "both",
+        "signal_candle_close_utc": "2026-09-23T14:00:00+00:00",
+        "entry_delay_minutes": 1.16405,
+        "sessions": [
+          "London",
+          "New York"
+        ],
+        "h1_adx": 45.57751794903777,
+        "h1_di_spread": 24.373281328858937,
+        "h1_close_distance_to_ema20_atr": 3.9437638481154114,
+        "h1_ema20_ema50_spread_atr": 2.5746065279451447,
+        "rsi": 38.67,
+        "body_ratio": 0.6084337349397341,
+        "range_atr": 2.3074794423891323,
+        "signal_distance_ema20_atr": 1.7744641377281687,
+        "signal_distance_ema50_atr": 3.065625031228263,
+        "signal_distance_breakout_level_atr": 0.4170143570582323,
+        "cost_to_stop_ratio": 0.12232421140367651,
+        "final_spread_pips": 0.8000000000008002,
+        "same_pair_previous": {
+          "broker_trade_id": "3357",
+          "side": "SELL",
+          "exit_reason": "BREAKEVEN_STOP",
+          "pnl_aud": 0.0,
+          "gap_minutes": 1208.5440166666667
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 1.4456497711353764,
+          "maxAdverseR": 0.43369493134078574,
+          "observations": 156,
+          "firstObservedAt": 1790172077481,
+          "lastObservedAt": 1790173628181,
+          "confirmedBrokerClosedAt": 1790173632880,
+          "excludedAfterClose": 1
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 16.746,
+          "first_sample_lag_seconds": 7.638,
+          "last_sample_to_exit_seconds": 4.699
+        }
+      },
+      {
+        "broker_trade_id": "3393",
+        "instrument": "EUR_USD",
+        "side": "SELL",
+        "entry_time": 1790173869856,
+        "exit_time": 1790175194930,
+        "entry_utc": "2026-09-23T14:31:09.856000+00:00",
+        "exit_utc": "2026-09-23T14:53:14.930000+00:00",
+        "pnl_aud": -0.1841,
+        "exit_reason": "STOP_LOSS",
+        "price_r": -1.0094958996958507,
+        "holding_minutes": 22.084566666666667,
+        "initial_stop_pips": 9.707815557202792,
+        "trigger_combination": "both",
+        "signal_candle_close_utc": "2026-09-23T14:30:00+00:00",
+        "entry_delay_minutes": 1.1642666666666666,
+        "sessions": [
+          "London",
+          "New York"
+        ],
+        "h1_adx": 45.57751794903777,
+        "h1_di_spread": 24.373281328858937,
+        "h1_close_distance_to_ema20_atr": 3.653168007621182,
+        "h1_ema20_ema50_spread_atr": 2.3848969061868153,
+        "rsi": 32.36,
+        "body_ratio": 0.9210526315788666,
+        "range_atr": 1.9571859279818045,
+        "signal_distance_ema20_atr": 2.8711179805685827,
+        "signal_distance_ema50_atr": 4.234494617001946,
+        "signal_distance_breakout_level_atr": 0.9013356247283836,
+        "cost_to_stop_ratio": 0.12361174281989487,
+        "final_spread_pips": 0.8999999999992349,
+        "same_pair_previous": {
+          "broker_trade_id": "3381",
+          "side": "SELL",
+          "exit_reason": "TAKE_PROFIT",
+          "pnl_aud": 0.2718,
+          "gap_minutes": 3.9496
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 0,
+          "maxAdverseR": 0.854981221171104,
+          "observations": 132,
+          "firstObservedAt": 1790173877909,
+          "lastObservedAt": 1790175188611,
+          "confirmedBrokerClosedAt": 1790175194930,
+          "excludedAfterClose": 1
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 16.124,
+          "first_sample_lag_seconds": 8.053,
+          "last_sample_to_exit_seconds": 6.319
+        }
+      },
+      {
+        "broker_trade_id": "3403",
+        "instrument": "USD_JPY",
+        "side": "BUY",
+        "entry_time": 1790177470814,
+        "exit_time": 1790181418898,
+        "entry_utc": "2026-09-23T15:31:10.814000+00:00",
+        "exit_utc": "2026-09-23T16:36:58.898000+00:00",
+        "pnl_aud": -0.1879,
+        "exit_reason": "STOP_LOSS",
+        "price_r": -1.000261242210657,
+        "holding_minutes": 65.8014,
+        "initial_stop_pips": 14.796134625080981,
+        "trigger_combination": "pullback_only",
+        "signal_candle_close_utc": "2026-09-23T15:30:00+00:00",
+        "entry_delay_minutes": 1.1802333333333332,
+        "sessions": [
+          "London",
+          "New York"
+        ],
+        "h1_adx": 23.72806366637787,
+        "h1_di_spread": 23.46982310822242,
+        "h1_close_distance_to_ema20_atr": 3.5246018849176,
+        "h1_ema20_ema50_spread_atr": 2.219114280925917,
+        "rsi": 67.74,
+        "body_ratio": 0.6333333333331754,
+        "range_atr": 0.7603337145182169,
+        "signal_distance_ema20_atr": 2.228153939079506,
+        "signal_distance_ema50_atr": 3.802503713616898,
+        "signal_distance_breakout_level_atr": -0.2027556572048578,
+        "cost_to_stop_ratio": 0.08110226288207067,
+        "final_spread_pips": 0.8000000000009777,
+        "same_pair_previous": {
+          "broker_trade_id": "3337",
+          "side": "BUY",
+          "exit_reason": "STOP_LOSS",
+          "pnl_aud": -0.1871,
+          "gap_minutes": 7350.411
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 0.2230312229254595,
+          "maxAdverseR": 0.9597101107696817,
+          "observations": 394,
+          "firstObservedAt": 1790177478561,
+          "lastObservedAt": 1790181406538,
+          "confirmedBrokerClosedAt": 1790181418898,
+          "excludedAfterClose": 1
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 15.322,
+          "first_sample_lag_seconds": 7.747,
+          "last_sample_to_exit_seconds": 12.36
+        }
+      },
+      {
+        "broker_trade_id": "3413",
+        "instrument": "EUR_USD",
+        "side": "SELL",
+        "entry_time": 1790188231378,
+        "exit_time": 1790196304804,
+        "entry_utc": "2026-09-23T18:30:31.378000+00:00",
+        "exit_utc": "2026-09-23T20:45:04.804000+00:00",
+        "pnl_aud": -0.0469,
+        "exit_reason": "SESSION_CLOSE",
+        "price_r": -0.2681269914154137,
+        "holding_minutes": 134.5571,
+        "initial_stop_pips": 10.069855279197792,
+        "trigger_combination": "pullback_only",
+        "signal_candle_close_utc": "2026-09-23T18:30:00+00:00",
+        "entry_delay_minutes": 0.5229666666666667,
+        "sessions": [
+          "New York"
+        ],
+        "h1_adx": 52.49040251298446,
+        "h1_di_spread": 27.129983862330715,
+        "h1_close_distance_to_ema20_atr": 2.731118037945916,
+        "h1_ema20_ema50_spread_atr": 2.7437569777504676,
+        "rsi": 41.5,
+        "body_ratio": 0.770833333333237,
+        "range_atr": 1.1916755174020246,
+        "signal_distance_ema20_atr": 1.078629155957492,
+        "signal_distance_ema50_atr": 2.635494026337675,
+        "signal_distance_breakout_level_atr": -1.4399412501940672,
+        "cost_to_stop_ratio": 0.10923692242865525,
+        "final_spread_pips": 1.0999999999983245,
+        "same_pair_previous": {
+          "broker_trade_id": "3393",
+          "side": "SELL",
+          "exit_reason": "STOP_LOSS",
+          "pnl_aud": -0.1841,
+          "gap_minutes": 217.27413333333334
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 0,
+          "maxAdverseR": 0.8838260087395581,
+          "observations": 720,
+          "firstObservedAt": 1790188236378,
+          "lastObservedAt": 1790196299120,
+          "confirmedBrokerClosedAt": 1790196304804,
+          "excludedAfterClose": 0
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 45.043,
+          "first_sample_lag_seconds": 5.0,
+          "last_sample_to_exit_seconds": 5.684
+        }
+      },
+      {
+        "broker_trade_id": "3425",
+        "instrument": "AUD_USD",
+        "side": "SELL",
+        "entry_time": 1790290408578,
+        "exit_time": 1790298500491,
+        "entry_utc": "2026-09-24T22:53:28.578000+00:00",
+        "exit_utc": "2026-09-25T01:08:20.491000+00:00",
+        "pnl_aud": -0.1615,
+        "exit_reason": "STOP_LOSS",
+        "price_r": -1.0,
+        "holding_minutes": 134.86521666666667,
+        "initial_stop_pips": 6.000000000000449,
+        "trigger_combination": "pullback_only",
+        "signal_candle_close_utc": "2026-09-24T22:45:00+00:00",
+        "entry_delay_minutes": 8.4763,
+        "sessions": [
+          "Sydney"
+        ],
+        "h1_adx": 54.24927019967147,
+        "h1_di_spread": 13.505157240380688,
+        "h1_close_distance_to_ema20_atr": 3.4272330961400597,
+        "h1_ema20_ema50_spread_atr": 5.905769875243622,
+        "rsi": 41.62,
+        "body_ratio": 0.709677419355012,
+        "range_atr": 0.803536097610316,
+        "signal_distance_ema20_atr": 0.8582842105355387,
+        "signal_distance_ema50_atr": 2.2278877691400165,
+        "signal_distance_breakout_level_atr": -0.648012981943896,
+        "cost_to_stop_ratio": 0.15000000000002414,
+        "final_spread_pips": 0.7000000000012553,
+        "same_pair_previous": {
+          "broker_trade_id": "3369",
+          "side": "SELL",
+          "exit_reason": "TAKE_PROFIT",
+          "pnl_aud": 0.2585,
+          "gap_minutes": 2356.5301833333333
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 0.8833333333333179,
+          "maxAdverseR": 0.9500000000000463,
+          "observations": 597,
+          "firstObservedAt": 1790290409133,
+          "lastObservedAt": 1790298488612,
+          "confirmedBrokerClosedAt": 1790298500491,
+          "excludedAfterClose": 1
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 102.865,
+          "first_sample_lag_seconds": 0.555,
+          "last_sample_to_exit_seconds": 11.879
+        }
+      },
+      {
+        "broker_trade_id": "3435",
+        "instrument": "AUD_USD",
+        "side": "SELL",
+        "entry_time": 1790305528599,
+        "exit_time": 1790311101233,
+        "entry_utc": "2026-09-25T03:05:28.599000+00:00",
+        "exit_utc": "2026-09-25T04:38:21.233000+00:00",
+        "pnl_aud": -0.1399,
+        "exit_reason": "STOP_LOSS",
+        "price_r": -1.0,
+        "holding_minutes": 92.87723333333334,
+        "initial_stop_pips": 6.000000000000449,
+        "trigger_combination": "pullback_only",
+        "signal_candle_close_utc": "2026-09-25T03:00:00+00:00",
+        "entry_delay_minutes": 5.47665,
+        "sessions": [
+          "Sydney",
+          "Tokyo"
+        ],
+        "h1_adx": 49.79956232800562,
+        "h1_di_spread": 12.226255771363633,
+        "h1_close_distance_to_ema20_atr": 2.7408170057625636,
+        "h1_ema20_ema50_spread_atr": 6.413339133313996,
+        "rsi": 44.35,
+        "body_ratio": 0.6750000000000556,
+        "range_atr": 1.1686557691291712,
+        "signal_distance_ema20_atr": 0.6028366982848167,
+        "signal_distance_ema50_atr": 1.5380693118792592,
+        "signal_distance_breakout_level_atr": -0.6719770672492086,
+        "cost_to_stop_ratio": 0.15000000000002414,
+        "final_spread_pips": 0.7000000000001451,
+        "same_pair_previous": {
+          "broker_trade_id": "3425",
+          "side": "SELL",
+          "exit_reason": "STOP_LOSS",
+          "pnl_aud": -0.1615,
+          "gap_minutes": 117.13513333333333
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 0,
+          "maxAdverseR": 0.9666666666666358,
+          "observations": 440,
+          "firstObservedAt": 1790305530643,
+          "lastObservedAt": 1790311057492,
+          "confirmedBrokerClosedAt": 1790311101233,
+          "excludedAfterClose": 1
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 3,
+        "pricing_rejections_before_fill": {
+          "COST_TO_STOP_TOO_HIGH": 2
+        },
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 52.401,
+          "first_sample_lag_seconds": 2.044,
+          "last_sample_to_exit_seconds": 43.741
+        }
+      },
+      {
+        "broker_trade_id": "3445",
+        "instrument": "USD_JPY",
+        "side": "SELL",
+        "entry_time": 1790352933881,
+        "exit_time": 1790357848759,
+        "entry_utc": "2026-09-25T16:15:33.881000+00:00",
+        "exit_utc": "2026-09-25T17:37:28.759000+00:00",
+        "pnl_aud": -0.185,
+        "exit_reason": "STOP_LOSS",
+        "price_r": -0.9982090032830889,
+        "holding_minutes": 81.91463333333333,
+        "initial_stop_pips": 25.044855253534593,
+        "trigger_combination": "pullback_only",
+        "signal_candle_close_utc": "2026-09-25T16:15:00+00:00",
+        "entry_delay_minutes": 0.5646833333333333,
+        "sessions": [
+          "New York"
+        ],
+        "h1_adx": 41.55770582738521,
+        "h1_di_spread": 28.321621706702746,
+        "h1_close_distance_to_ema20_atr": 3.7504704119995624,
+        "h1_ema20_ema50_spread_atr": 0.8436207903617416,
+        "rsi": 36.41,
+        "body_ratio": 0.36574074074063107,
+        "range_atr": 1.0780657235457796,
+        "signal_distance_ema20_atr": 1.5044229620853635,
+        "signal_distance_ema50_atr": 3.2215443211647026,
+        "signal_distance_breakout_level_atr": -0.43921196144467145,
+        "cost_to_stop_ratio": 0.05589970418385493,
+        "final_spread_pips": 0.9999999999990905,
+        "same_pair_previous": {
+          "broker_trade_id": "3403",
+          "side": "BUY",
+          "exit_reason": "STOP_LOSS",
+          "pnl_aud": -0.1879,
+          "gap_minutes": 2858.58305
+        },
+        "excursion": {
+          "version": 2,
+          "lifetimeStatus": "VERIFIED",
+          "maxFavorableR": 0.13974926045961883,
+          "maxAdverseR": 0.9862304952437482,
+          "observations": 492,
+          "firstObservedAt": 1790352935502,
+          "lastObservedAt": 1790357846871,
+          "confirmedBrokerClosedAt": 1790357848759,
+          "excludedAfterClose": 0
+        },
+        "has_legacy_excursion": false,
+        "decision_attempt_count": 1,
+        "pricing_rejections_before_fill": {},
+        "excursion_validation": {
+          "all_samples_inside_lifetime": true,
+          "sample_times_strictly_increasing": true,
+          "count_matches": true,
+          "mfe_matches": true,
+          "mae_matches": true,
+          "max_between_sample_gap_seconds": 16.463,
+          "first_sample_lag_seconds": 1.621,
+          "last_sample_to_exit_seconds": 1.888
+        }
+      }
+    ]
+  },
+  "previous_review": {
+    "summary": {
+      "trades": 15,
+      "wins": 4,
+      "losses": 9,
+      "flat": 2,
+      "pnl_aud": -0.7324,
+      "price_r": -4.18737072975819
+    },
+    "by_trigger": {
+      "pullback_only": {
+        "trades": 9,
+        "wins": 3,
+        "losses": 5,
+        "flat": 1,
+        "pnl_aud": -0.3214,
+        "price_r": -1.730927120482998
+      },
+      "both": {
+        "trades": 4,
+        "wins": 0,
+        "losses": 3,
+        "flat": 1,
+        "pnl_aud": -0.4987,
+        "price_r": -3.002888417867765
+      },
+      "breakout_only": {
+        "trades": 2,
+        "wins": 1,
+        "losses": 1,
+        "flat": 0,
+        "pnl_aud": 0.0877,
+        "price_r": 0.5464448085925725
+      }
+    }
+  },
+  "combined_same_baseline_period": {
+    "summary": {
+      "trades": 25,
+      "wins": 6,
+      "losses": 16,
+      "flat": 3,
+      "pnl_aud": -1.2693,
+      "price_r": -7.423819590685346
+    },
+    "by_trigger": {
+      "pullback_only": {
+        "trades": 14,
+        "wins": 3,
+        "losses": 10,
+        "flat": 1,
+        "pnl_aud": -1.0426,
+        "price_r": -5.997524357392157
+      },
+      "both": {
+        "trades": 9,
+        "wins": 2,
+        "losses": 5,
+        "flat": 2,
+        "pnl_aud": -0.3144,
+        "price_r": -1.9727400418857606
+      },
+      "breakout_only": {
+        "trades": 2,
+        "wins": 1,
+        "losses": 1,
+        "flat": 0,
+        "pnl_aud": 0.0877,
+        "price_r": 0.5464448085925725
+      }
+    }
+  },
+  "warnings": [
+    "All MFE/MAE are sampled, not tick-complete extrema.",
+    "Same-pair previous reflects observed tape, not state after alternative entry exclusions.",
+    "Indicator splits are descriptive; no threshold selected or candidate P&L forecast."
+  ]
+}

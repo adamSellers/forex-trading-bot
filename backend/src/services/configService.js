@@ -61,11 +61,11 @@ class ConfigService extends EventEmitter {
                 nextConfig = normalizeTradingConfig(fileConfig);
                 delete nextConfig.tradingMode;
                 if (
-                    ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2"].includes(fileConfig.liveReleaseVersion) &&
-                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v3.3"
+                    ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2", "m15-intraday-v3.3"].includes(fileConfig.liveReleaseVersion) &&
+                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v4"
                 ) {
-                    // These maintenance releases preserve the saved strategy
-                    // and risk parameters; only execution identities change.
+                    // The integrated entry release changes code-defined rules,
+                    // while preserving the saved numerical and operational settings.
                     nextConfig = {
                         ...nextConfig,
                         liveReleaseVersion: DEFAULT_CONFIG.liveReleaseVersion,
@@ -74,7 +74,7 @@ class ConfigService extends EventEmitter {
                     };
                     needsSave = true;
                     logger.info(
-                        `Applied maintenance release ${DEFAULT_CONFIG.liveReleaseVersion}; existing configuration values were preserved`
+                        `Applied integrated release ${DEFAULT_CONFIG.liveReleaseVersion}; existing configuration values were preserved`
                     );
                 } else if (
                     fileConfig.liveReleaseVersion !==

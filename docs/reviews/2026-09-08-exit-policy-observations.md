@@ -1,6 +1,14 @@
 # September 8 exit-policy observations and follow-up
 
-Status: read-only production investigation and local documentation updates only. Production revision `8e4fb99` was verified over SSH. No strategy, funding, risk, notification, broker or deployment changes were made.
+September 8 investigation status: read-only production investigation and local documentation updates only. Production revision `8e4fb99` was verified over SSH. No strategy, funding, risk, notification, broker or deployment changes were made in that investigation. The historical observations below are preserved; the [September 26 review](2026-09-26-follow-up-trading-review.md) and [current status and decisions](2026-09-26-status-and-decisions.md) record the later evidence and open choices.
+
+## September 26 follow-up
+
+Read-only inspection verified deployed `5889b66`, including the excursion measurement correction: all ten newly closed trades have v2 `VERIFIED` samples without legacy aggregates. Trading remains `m15-intraday-v3.3` / strategy `1.1.3`, in the same run with unchanged numerical settings. Those ten trades lost **A$0.5369**, taking the unchanged v3.3 cohort to **25 trades / −A$1.2693**. None of the new trades reached the six-hour exit; one closed under the separate session rule. This does not establish a better time-stop duration.
+
+The prespecified 2R sensitivity was slightly worse in the new interval after preserving breakeven and the one-position limit. EUR/USD 3381 would have hit breakeven before later reaching 2R; that later continuation cannot count as a winning 2R exit. The current recommendation is therefore to **retain 1.5R** and prioritize local implementation/validation of the specified fresh post-exit pullback candidate. A repeat after target lost this week without fresh post-exit touch evidence, while a successful repeat did have it. The September 7 winning counterexample rejected by the candidate still matters. Neither the target sensitivity nor omitting an observed losing repeat establishes alternative live returns.
+
+Pullback entry quality is a separate research priority: all five new pullback-only entries lost, but trigger type and market conditions are confounded. No new entry filter, target, stop, time limit, capital level or risk setting has been approved or implemented by this documentation update. The separate serialized-price risk defect is reproduced but remains unfixed; actual fills stayed within their budgets, so it does not explain these losses. The [decision record](2026-09-26-status-and-decisions.md) preserves these distinctions and next steps.
 
 ## User-requested take-profit review
 

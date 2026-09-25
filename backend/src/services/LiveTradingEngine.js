@@ -8,6 +8,10 @@ const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/q
 const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 const { appendExcursionSample, finalizeSampledExcursion } = require("../runtime/sampledExcursion");
 const {
+    FADE_ENTRY_TYPE, INTEGRATED_STRATEGY_VERSION, isFadeTrade,
+    latestClosedTradeForInstrument, evaluateReentryPolicy, sameReentryDecision,
+} = require("../runtime/intradayReentryPolicy");
+const {
     computeConfigHash,
     normalizeTradingConfig,
 } = require("../config/tradingConfig");
@@ -779,6 +783,19 @@ class LiveTradingEngine extends EventEmitter {
             ? this.getOpenTradeByInstrument(symbol, { ownerRunId: runId })
             : this.getOpenTradeByInstrument(symbol);
 
+        // A fade's exit belongs to its persisted stop/target/time policy. The
+        // originating trend remains valid and must not close it on the next scan.
+        const existingTrade = this.getOpenTradeByInstrument(symbol);
+        if (["BUY", "SELL"].includes(signalType) && existingTrade &&
+            (isFadeTrade(existingTrade) || entryType === FADE_ENTRY_TYPE)) {
+            await this.reportEntryRejection(signal, config, decisionId, {
+                rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                reason: "Existing position retains its exit policy during a fade episode",
+                context: { openPositions: this.openTrades.size },
+            });
+            return;
+        }
+
         if (signalType === "BUY") {
             // Signal reversal: Close existing SHORT position before opening LONG
             if (ownedTrade && ownedTrade.side === "SELL") {
@@ -955,6 +972,29 @@ class LiveTradingEngine extends EventEmitter {
             return indicators.includes("adx");
         } catch (error) {
             return true;
+        }
+    }
+
+    async validateReentryDecision(signal) {
+        if (signal.strategyVersion !== INTEGRATED_STRATEGY_VERSION) return;
+        const prior = signal.strategyContext?.reentry;
+        if (!prior || !this.tradeRepository?.getAllTrades) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                "Entry is missing its protected-exit decision or durable history", { phase: "REENTRY_REVALIDATION" });
+        }
+        const history = await this.tradeRepository.getAllTrades({ mode: "live" });
+        const current = evaluateReentryPolicy({
+            originalSide: prior.originalSide,
+            latestClosedTrade: latestClosedTradeForInstrument(history, signal.symbol),
+            pullbackWindow: prior.pullbackWindow,
+            signalFastEma: prior.signalFastEma,
+            signalCandleTime: prior.signalCandleTime,
+        });
+        if (!sameReentryDecision(prior, current) || signal.signal !== current.executedSide ||
+            (signal.entryType === FADE_ENTRY_TYPE) !== (current.classification === "POST_TP_FADE")) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                "Protected-exit episode changed; await the next ordinary signal scan",
+                { phase: "REENTRY_REVALIDATION", priorReentry: prior, currentReentry: current });
         }
     }
 
@@ -1563,10 +1603,10 @@ class LiveTradingEngine extends EventEmitter {
         const pipValue = oandaClient.getPipValue(instrument);
         const side = signal?.signal === "SELL" ? "SELL" : "BUY";
         const stopDistance = stopLossPips * pipValue;
-        const stopLossPrice =
+        const stopLossPrice = Number(oandaClient.formatPrice(instrument,
             side === "SELL"
                 ? currentPrice + stopDistance
-                : currentPrice - stopDistance;
+                : currentPrice - stopDistance, instrumentMetadata));
         const sizing = calculateCanonicalPositionSize({
             config,
             signal: { ...(signal || {}), entryType },
@@ -1983,9 +2023,12 @@ class LiveTradingEngine extends EventEmitter {
 
         // Bound against the original decision, avoiding a second full deviation
         // allowance after the final quote has already moved.
-        const priceBound = isSell
+        const originalPriceBound = isSell
             ? referencePrice - maxDeviationPips * pipValue
             : referencePrice + maxDeviationPips * pipValue;
+        const priceBound = Number(oandaClient.formatPriceBound(
+            signal.symbol, originalPriceBound, signal.signal, instrumentMetadata
+        ));
         const result = {
             finalQuote,
             priceBound,
@@ -2273,14 +2316,39 @@ class LiveTradingEngine extends EventEmitter {
             entryPrice: fillPrice,
             pipValue: oandaClient.getPipValue(signal.symbol),
         });
-        const desiredStop = toFiniteNumber(
+        const alignedStop = toFiniteNumber(
             fillAlignedPlan?.stopLossPrice,
             stopLossPrice
         );
-        const desiredTakeProfit = toFiniteNumber(
+        const alignedTakeProfit = toFiniteNumber(
             fillAlignedPlan?.takeProfitPrice,
             toFiniteNumber(context.plannedTakeProfitPrice, null)
         );
+        let desiredStop = Number.isFinite(alignedStop)
+            ? Number(oandaClient.formatPrice(signal.symbol, alignedStop, context.instrumentMetadata))
+            : null;
+        const desiredTakeProfit = Number.isFinite(alignedTakeProfit)
+            ? Number(oandaClient.formatPrice(signal.symbol, alignedTakeProfit, context.instrumentMetadata))
+            : null;
+        const units = Math.abs(
+            toFiniteNumber(opened?.units ?? fillTransaction?.units, intent.units)
+        );
+        const quoteToAudRate = toFiniteNumber(context.quoteToAudRate, null);
+        const riskBudgetAud = toFiniteNumber(context.riskBudgetAud, null);
+        // A favourable fill can round an ATR half-tick differently from the
+        // attached stop. Alignment must preserve the same saved cash budget.
+        // Round toward the fill only if nearest-price rounding exceeds it.
+        if (Number.isFinite(desiredStop) && riskBudgetAud > 0 && units > 0 && quoteToAudRate > 0 &&
+            Math.abs(fillPrice - desiredStop) * units * quoteToAudRate > riskBudgetAud) {
+            const maximumDistance = riskBudgetAud / (units * quoteToAudRate);
+            const isSell = intent.side === "SELL";
+            desiredStop = Number(oandaClient.formatPriceBound(signal.symbol,
+                fillPrice + (isSell ? maximumDistance : -maximumDistance),
+                isSell ? "BUY" : "SELL", context.instrumentMetadata));
+            if (isSell ? desiredStop <= fillPrice : desiredStop >= fillPrice) {
+                throw new Error("Broker-precision stop cannot preserve the entry risk budget");
+            }
+        }
         let fillAlignmentConfirmed = false;
         if (Number.isFinite(desiredStop)) {
             try {
@@ -2331,9 +2399,6 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
 
-        const units = Math.abs(
-            toFiniteNumber(opened?.units ?? fillTransaction?.units, intent.units)
-        );
         const marginUsed = toFiniteNumber(opened?.initialMarginRequired, 0);
         let takeProfit = null;
         let takeProfitPrice = fillAlignmentConfirmed
@@ -2372,7 +2437,6 @@ class LiveTradingEngine extends EventEmitter {
                 Date.now()
             );
         const baseToAudRate = toFiniteNumber(context.baseToAudRate, null);
-        const quoteToAudRate = toFiniteNumber(context.quoteToAudRate, null);
         if (!Number.isFinite(baseToAudRate) || !Number.isFinite(quoteToAudRate)) {
             throw new Error(
                 `Missing AUD conversion snapshot for recovered ${signal.symbol} fill`
@@ -2390,7 +2454,7 @@ class LiveTradingEngine extends EventEmitter {
             quoteToAudRate,
             instrumentMetadata: context.instrumentMetadata,
             orderIntentId: intent.intentId,
-            initialRiskAud: Math.abs(fillPrice - (fillAlignedPlan?.stopLossPrice ?? stopLossPrice)) * units * quoteToAudRate,
+            initialRiskAud: Math.abs(fillPrice - (desiredStop ?? stopLossPrice)) * units * quoteToAudRate,
             entryTelemetry: {
                 requestedPrice: intent.referencePrice,
                 executablePrice: context.finalQuote?.finalQuote ?? null,
@@ -2709,6 +2773,7 @@ class LiveTradingEngine extends EventEmitter {
             const block = await this.getBrokerEntryBlockReason();
             if (block) throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 block, { phase: "RECONCILIATION" });
+            await this.validateReentryDecision(signal);
             if (this.openTrades.size >= config.maxOpenPositions ||
                 this.getOpenTradeByInstrument(symbol)) {
                 throw entryPolicyRejection(ENTRY_REJECTION_CODES.MAX_POSITIONS,
@@ -2765,29 +2830,17 @@ class LiveTradingEngine extends EventEmitter {
                 pipValue: oandaClient.getPipValue(symbol),
             });
             if (executablePlan) {
-                plannedStopLossPrice = Number(
-                    oandaClient.formatPrice
-                        ? oandaClient.formatPrice(
-                              symbol,
-                              executablePlan.stopLossPrice,
-                              instrumentMetadata
-                          )
-                        : executablePlan.stopLossPrice.toFixed(5)
-                );
-                plannedTakeProfitPrice = Number.isFinite(
-                    executablePlan.takeProfitPrice
-                )
-                    ? Number(
-                          oandaClient.formatPrice
-                              ? oandaClient.formatPrice(
-                                    symbol,
-                                    executablePlan.takeProfitPrice,
-                                    instrumentMetadata
-                                )
-                              : executablePlan.takeProfitPrice.toFixed(5)
-                      )
-                    : null;
+                plannedStopLossPrice = executablePlan.stopLossPrice;
+                plannedTakeProfitPrice = executablePlan.takeProfitPrice;
             }
+            // Persist and size against the exact protection prices serialized
+            // to OANDA, including fallback plans and sub-tick ATR distances.
+            plannedStopLossPrice = Number(oandaClient.formatPrice(
+                symbol, plannedStopLossPrice, instrumentMetadata
+            ));
+            plannedTakeProfitPrice = Number.isFinite(plannedTakeProfitPrice)
+                ? Number(oandaClient.formatPrice(symbol, plannedTakeProfitPrice, instrumentMetadata))
+                : null;
             const { baseToAudRate, quoteToAudRate } =
                 this.resolveAudConversionSnapshot(
                     symbol,

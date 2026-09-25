@@ -1,5 +1,7 @@
 # M15 Intraday Live Release — 2026-08-10
 
+> **Historical release record.** The body records the August 10 design and is not the current deployed specification. September 26 inspection verified `5889b66`, release `m15-intraday-v3.3` / strategy `1.1.3`, including the excursion measurement correction. Use the [operator guide](USER_GUIDE.md) for current behavior and the [current status and decisions](docs/reviews/2026-09-26-status-and-decisions.md) for review findings and pending proposals. In particular, v3.3 permits multiple attempts for one completed-candle setup after eligible confirmed local pricing rejections, while retaining suppression after submission, uncertainty or a fill; the historical one-actionable-event statement below no longer describes attempt counts. The six-hour time stop described here was connected to live monitoring in the September 6 remediation.
+
 ## Outcome
 
 The single live strategy is `intraday_momentum` version `1.0.0`, currently released as `m15-intraday-v2`. It replaces the low-frequency daily carry breakout with a completed-M15 intraday decision loop. There is still one live runtime, no simulated execution path, no strategy selector and no promotion workflow.

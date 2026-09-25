@@ -481,8 +481,9 @@ const AnalyticsDashboard = () => {
           <Chip label={`${rawCounts.uniqueActionableSignals || 0} distinct actionable signals`} />
         </Stack>
         <Box component="table" sx={{ width: '100%', textAlign: 'left', '& th, & td': { p: 0.75 } }}>
-          <thead><tr><th>Raw trigger</th><th>Trades</th><th>Net AUD</th><th>Net mean R</th><th>Wins / losses / flat</th></tr></thead>
-          <tbody>{(analytics.triggerPerformance || []).map((row) => <tr key={row.trigger}>
+          <thead><tr><th>Entry class</th><th>Raw trigger</th><th>Trades</th><th>Net AUD</th><th>Net mean R</th><th>Wins / losses / flat</th></tr></thead>
+          <tbody>{(analytics.triggerPerformance || []).map((row) => <tr key={`${row.entryClass || 'TREND'}:${row.trigger}`}>
+            <td>{row.entryClass === 'POST_TP_FADE' ? 'Post-TP fade' : 'Trend'}</td>
             <td>{row.trigger.replaceAll('_', ' ')}</td><td>{row.trades}</td><td>{formatSignedMoney(row.totalPnLAud)}</td>
             <td>{row.avgR == null ? 'Unknown' : row.avgR.toFixed(3)}</td><td>{row.wins} / {row.losses} / {row.flat}</td>
           </tr>)}</tbody>

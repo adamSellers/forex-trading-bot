@@ -1,6 +1,6 @@
 # Forex Trading Bot - Project History
 
-This document records completed and deployed features, serving as a historical reference.
+This document records completed and deployed features and dated review milestones, serving as a historical reference. Earlier entries preserve what was known at the time; the current-state summary and later verification milestones take precedence for deployment status and open decisions.
 
 **Document purposes:**
 
@@ -25,7 +25,24 @@ When a feature is **fully completed in code** or **deployed to production**:
 
 ## Current Repository State
 
-The current product has one live OANDA runtime and one strategy. Production `intraday_momentum` `1.1.3` / `m15-intraday-v3.3` was verified at user-deployed revision `5c250a7` on September 21. The [eight-day trading review](docs/reviews/2026-09-21-eight-day-trading-review.md) confirms the entry-reconsideration correction is deployed and records current performance and permitted re-entry behaviour. The resulting [excursion-measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) is complete locally and not deployed. Simulated runtimes, alternate strategy modules, strategy switching, forecasting services and offline runtime replay tooling are retired. Runtime identity remains for broker ownership and cohort analytics; retained review scripts analyze observations only.
+The product has one live OANDA runtime and one strategy. Last read-only production verification remains clean `5889b66` / `m15-intraday-v3.3` / strategy `1.1.3`, including the deployed excursion correction. The user has since authorized the [integrated v4 release](docs/reviews/2026-09-26-integrated-release-specification.md), now implemented locally with 834 tests across 41 backend suites passing. **It has not been published or deployed.** The [status register](docs/reviews/2026-09-26-status-and-decisions.md) separates these states. Simulated runtimes, strategy switching and offline runtime replay remain retired; retained analysis scripts classify observed evidence only.
+
+### 2026-09-26 — Integrated release implementation and local validation (not deployed)
+
+After discussion of the complete review and the user's post-TP fade proposal, the user approved a specification followed by implementation. Local **m15-intraday-v4 / strategy 1.2.0 / intraday-risk-v4** combines bar-aligned ordinary pullbacks, protected-exit freshness across both triggers, one opposite-direction fade per normal TP episode without freshness, exact serialized-price sizing, and existing scalar RSI/decision attribution.
+
+The fade preserves its original TP anchor and consumed state through durable trade/intent evidence; its exit cannot recursively arm another fade. Execution rechecks the episode after broker reconciliation, and fade positions retain their stop/target/time exit policy without signal-reversal closure. Numerical thresholds, 1.5R target, stops, breakeven, risk/capital limits and capacity remain unchanged. Prior open-trade ownership, saved settings and active cooldown deadlines are preserved across the new cohort.
+
+The research is mixed: the structural candidate excludes five actual fills whose net was +A$0.0315, including two target winners. Four conditional fade examples give two targets and two stops; one original losing trade also loses when faded. These findings support only an explicit live experiment, not validated positive expectancy. The precision mismatch is a separate demonstrated defect, with no excess-risk actual fills observed. The [specification](docs/reviews/2026-09-26-integrated-release-specification.md) records exact contracts, retained research and final acceptance results. Production was not changed; Git publication, builds and deployment remain user-managed.
+
+### 2026-09-26 — Follow-up trading review and measurement deployment verification
+### 2026-09-26 — Follow-up trading review and measurement deployment verification
+
+The [follow-up review](docs/reviews/2026-09-26-follow-up-trading-review.md) reconciled every entry and exit since the September 21 cutoff with OANDA: **10 trades, 2 positive / 7 negative / 1 flat, −A$0.5369 (−0.5563%), profit factor 0.497**, closing balance A$95.9687. The unchanged v3.3 run now contains **25 trades, −A$1.2693**. The **35 trades since the September 6 review total −A$0.7871**, including an earlier ten-trade profit of A$0.4822 from different releases; that reference cohort is not a controlled strategy comparison. The new interval spans 4 days 10 hours 10 minutes, not seven elapsed days.
+
+At clean production revision `5889b66`, all ten new excursion records were version 2 / VERIFIED, and independent checks reproduced 4,701 retained observations and excluded six post-close observations. This verifies the deployed measurement correction in the inspected sample, not complete tick coverage or an exact deployment date. At capture the bot was enabled and flat, under its intended loss cooldown until September 27 03:37:28 AEST. No live settings, orders, source, process, publication or deployment changed during the review or this documentation update.
+
+The recommendation is to retain the **1.5R target**, prioritize the specified **fresh post-exit pullback condition across both trigger branches** for local implementation and orchestration validation, and research **pullback-only entry quality**. The new sample screens out one failed quick repeat while retaining a successful repeat, but the earlier winning counterexample remains. The 2R conditional sensitivity was slightly worse in this batch; no candidate is an established profitable replacement, implemented rule or approved new live default. A separate reproduced serialization defect allows small worst-case order-risk expansion after broker precision rounding; **actual fill risks remained below budget**. A proposed execution correction must preserve existing limits and validate the engine-to-client serialization path. The [status and decision record](docs/reviews/2026-09-26-status-and-decisions.md) tracks these distinct next steps.
 
 ### 2026-09-21 — Excursion correction and target/re-entry evaluation (local)
 

@@ -1,5 +1,7 @@
 # Live-Only Rebuild — 2026-08-04
 
+> **Historical rebuild record.** The body preserves the August 4 `carry_trend` design, which was replaced by the M15 `intraday_momentum` strategy. Its instruments, sizing, signals and exits are not current trading instructions. September 26 inspection verified `5889b66`, release `m15-intraday-v3.3` / strategy `1.1.3`, including the excursion measurement correction. Read the [operator guide](USER_GUIDE.md) for current behavior and the [current status and decisions](docs/reviews/2026-09-26-status-and-decisions.md) for performance, evidence limits and pending proposals. The single live execution path and versioned improvement workflow remain applicable.
+
 ## Outcome
 
 The application has been rebuilt around a single live OANDA execution path. The previous simulated runtimes, alternate strategies, forecasting sidecar, offline replay tools, strategy switching and related dashboard surfaces were removed from the runnable product.

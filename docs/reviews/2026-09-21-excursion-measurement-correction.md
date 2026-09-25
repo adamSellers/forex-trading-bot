@@ -1,6 +1,6 @@
 # Excursion measurement correction — 21 September 2026
 
-**Implemented and validated locally; not published or deployed.** The user requested the measurement correction first, followed by target evaluation and re-entry rule work. Production was last verified at `5c250a7`, `m15-intraday-v3.3` / strategy `1.1.3`. The separate [target and re-entry evaluation](2026-09-21-target-and-reentry-evaluation.md) specifies and measures candidates without changing live strategy settings.
+**Deployed and verified in production as of September 26 at `5889b66`.** The [follow-up review](2026-09-26-follow-up-trading-review.md) confirms ten closed trades with v2 `VERIFIED` excursion records and no legacy aggregates. Trading remains `m15-intraday-v3.3` / strategy `1.1.3`, run `live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3`, with unchanged settings. This supersedes the September 21 local-only delivery status retained below. The user requested the measurement correction first, followed by target evaluation and re-entry rule work. The separate [target and re-entry evaluation](2026-09-21-target-and-reentry-evaluation.md) preserves the initial candidate study; the [current status and decisions](2026-09-26-status-and-decisions.md) records the latest priorities without adopting a new live strategy rule.
 
 ## Observed problem
 
@@ -28,7 +28,7 @@ Samples remain in the payload after close for auditability. There is no arbitrar
 
 This is a measurement-format correction (`sampledExcursion.version = 2`), not a behavioral trading release. Strategy/release/config identity and historical run attribution remain unchanged. Future strategy changes require their own behavioral release identity.
 
-## Verification
+## Local verification — September 21
 
 **All 744 backend tests across 40 suites passed on Node 20.20.2 with the matching SQLite binding.** The initial sandboxed full run passed 734 tests; its ten API/Socket.IO tests could not open a loopback listener (`EPERM`). Those ten passed when rerun with permission to create the isolated local listener. No assertion failure remained.
 
@@ -45,8 +45,10 @@ Additional engine and reconciliation tests cover malformed series, timestamp par
 
 The old review's third [historical observation test](evidence/2026-09-21/reentry-review.test.js) intentionally asserts the defect on `5c250a7`; it is not a passing regression test for the corrected source. The new backend lifecycle suite is the regression contract.
 
-## Delivery and remaining limits
+## Delivery record and remaining limits
 
-Source and documentation are local only. User-managed Git publication, builds and the existing one-command deployment remain outstanding. No production source, process, runtime setting, account, trade or reporting schedule was changed. No frontend build was run under the repository's standing workflow.
+**At the September 21 implementation checkpoint**, source and documentation were local only; user-managed Git publication, builds and the existing one-command deployment were outstanding. That implementation pass changed no production source, process, runtime setting, account, trade or reporting schedule and ran no frontend build under the repository's standing workflow. This is a historical delivery record, not the current deployment state.
 
-After deployment, the first newly opened and broker-closed trade with v2 samples can establish production operation of the new format. Existing v1 closed trades remain unverified; a live upgrade of an already-open v1 trade retains partial legacy coverage and stays outside verified averages. Polling gaps and historical exact extrema remain unavailable. These limitations must carry into any later target or re-entry evaluation.
+**September 26 production verification:** the deployed correction at `5889b66` produced ten closed v2 `VERIFIED` records without legacy aggregates. Independent review reproduced counts, extrema, strict ordering and broker-lifetime boundaries for **4,701 retained observations**, with six post-close observations excluded across six trades. This establishes operation of the corrected lifetime filter in that sample. The longest retained-sample interval was 102.865 seconds; a target trade's sampled MFE can still be below its actual target fill. No code, settings or production state changed during that read-only review.
+
+Existing v1 closed trades remain unverified; a live upgrade of an already-open v1 trade retains partial legacy coverage and stays outside verified averages. Polling gaps and historical exact extrema remain unavailable. These limitations still apply to target and re-entry evaluations. The new ten trades lost A$0.5369, taking the unchanged v3.3 run to 25 trades / −A$1.2693; corrected measurement is not evidence of profitable strategy performance. The latest review recommends retaining 1.5R, prioritizing the specified fresh post-exit pullback candidate and researching pullback entry quality. No new strategy default is implemented. The separately reproduced serialized-price risk mismatch remains an unfixed execution issue; actual fill risks stayed within budget. See the [decision record](2026-09-26-status-and-decisions.md) for scope and outstanding work.

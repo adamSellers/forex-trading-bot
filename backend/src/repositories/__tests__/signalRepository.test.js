@@ -58,6 +58,44 @@ describe('SignalRepository', () => {
         }
     });
 
+    test('generated RSI survives signal persistence and both dashboard reads, including zero and unknown', async () => {
+        const SignalGenerator = require('../../services/signalGenerator');
+        const generator = new SignalGenerator();
+        const database = await createTestDb();
+        mockTestDbInstance = database;
+        try {
+            await database.schema.alterTable('signals', (table) => table.text('message'));
+            const rsiValues = [32.36, 0, null];
+            const signals = rsiValues.map((rsiVal, index) => ({
+                ...generator.buildSignal('EUR_USD', {
+                    signalType: 'HOLD', rsiVal,
+                    signalCandleTime: 1790173800000,
+                }, { version: '1.2.0' }, 1.13888),
+                timestamp: 1000 + index,
+            }));
+            await repository.saveBatch(signals);
+            const full = await repository.getSignalsSince(0);
+            const compact = await repository.getSignalsSinceCompact(0);
+            expect(full.map((row) => row.rsi)).toEqual([null, 0, 32.36]);
+            expect(compact.map((row) => row.rsi)).toEqual([null, 0, 32.36]);
+            expect(full.map((row) => row.decisionContext.rsi)).toEqual([null, 0, 32.36]);
+        } finally {
+            generator.stop();
+            await destroyTestDb(database);
+            mockTestDbInstance = null;
+        }
+    });
+
+    test('legacy-column fallback also preserves a valid zero RSI', async () => {
+        const mockInsert = jest.fn()
+            .mockRejectedValueOnce(new Error('table signals has no column named reason_code'))
+            .mockResolvedValueOnce([1]);
+        mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+        await repository.save({ symbol: 'EUR_USD', signal: 'HOLD', trend: { rsi: 0 } });
+        expect(mockInsert).toHaveBeenNthCalledWith(1, expect.objectContaining({ rsi: 0 }));
+        expect(mockInsert).toHaveBeenNthCalledWith(2, expect.objectContaining({ rsi: 0 }));
+    });
+
     // Retention methods delete/update via batched whereIn-id-subquery chains:
     // db('signals').whereIn('id', db('signals').select('id').where(...).limit(n)).del()
     // The mock builder below records the chain and returns per-batch results

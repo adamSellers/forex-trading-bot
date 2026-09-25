@@ -1,6 +1,6 @@
 # September 7 — Startup timeout and locale incident
 
-Status: **correction deployed by the user at `788a725`; verified healthy by read-only SSH at 13:56 AEST on September 7**. The user had deployed commit `8d45be3` before the original investigation below. The running release remains `m15-intraday-v3`, strategy `1.1.0`, with direct API access and no operator login requirement.
+Status: **correction deployed by the user at `788a725`; verified healthy by read-only SSH at 13:56 AEST on September 7**. The user had deployed commit `8d45be3` before the original investigation below. At that inspection the release was `m15-intraday-v3`, strategy `1.1.0`, with direct API access and no operator login requirement. This is a dated incident record; see the [September 26 status and decisions](2026-09-26-status-and-decisions.md) for the latest verified release.
 
 ## Production evidence
 

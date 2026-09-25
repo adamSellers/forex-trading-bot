@@ -1,0 +1,244 @@
+{
+  "release": "m15-intraday-v4",
+  "strategy_version": "1.2.0",
+  "node_version": "22.23.1",
+  "recorded_at_utc": "2026-09-25T21:42:37.299867+00:00",
+  "passed_tests": 834,
+  "passed_suites": 41,
+  "execution_note": "Full suite: 823 passed; ten API/socket tests were blocked by sandbox localhost EPERM. Those ten passed in the isolated permitted localhost rerun. Final analytics suite (73 tests, replacing original 72) also passed after its attribution change. This record merges the latest result for each suite; it is not a claim of one all-green single invocation.",
+  "frontend_validation": "Changed analytics JSX parsed with installed Babel parser. No frontend build run; no ESLint script/tool installed.",
+  "research_validation": "Both retained Python investigations reproduced their results, including strict post-TP signal-completion assertions in the fade study.",
+  "delivery": "Local source and documentation only; no commits, publication, builds, production restart or deployment.",
+  "suites": {
+    "backend/src/services/__tests__/analyticsService.test.js": {
+      "status": "passed",
+      "tests": 73,
+      "passed": 73
+    },
+    "backend/src/repositories/__tests__/tradeRepository.test.js": {
+      "status": "passed",
+      "tests": 37,
+      "passed": 37
+    },
+    "backend/src/services/__tests__/OandaDataService.test.js": {
+      "status": "passed",
+      "tests": 40,
+      "passed": 40
+    },
+    "backend/__tests__/privateNetworkAccess.test.js": {
+      "status": "passed",
+      "tests": 10,
+      "passed": 10
+    },
+    "backend/src/services/__tests__/operationalHealthService.test.js": {
+      "status": "passed",
+      "tests": 16,
+      "passed": 16
+    },
+    "backend/src/repositories/__tests__/entryDecisionRepository.test.js": {
+      "status": "passed",
+      "tests": 8,
+      "passed": 8
+    },
+    "backend/src/runtime/__tests__/releaseCooldownIntegration.test.js": {
+      "status": "passed",
+      "tests": 8,
+      "passed": 8
+    },
+    "backend/src/routes/__tests__/tradingRoutes.test.js": {
+      "status": "passed",
+      "tests": 15,
+      "passed": 15
+    },
+    "backend/src/routes/__tests__/pricingHealthRoutes.test.js": {
+      "status": "passed",
+      "tests": 11,
+      "passed": 11
+    },
+    "backend/src/services/__tests__/tradeReconciliationService.test.js": {
+      "status": "passed",
+      "tests": 14,
+      "passed": 14
+    },
+    "backend/src/repositories/__tests__/strategyRunRepository.test.js": {
+      "status": "passed",
+      "tests": 11,
+      "passed": 11
+    },
+    "backend/src/runtime/__tests__/engineSupervisor.test.js": {
+      "status": "passed",
+      "tests": 12,
+      "passed": 12
+    },
+    "backend/src/repositories/__tests__/brokerLifecycleRepository.test.js": {
+      "status": "passed",
+      "tests": 4,
+      "passed": 4
+    },
+    "backend/src/runtime/__tests__/portfolioRiskPolicy.test.js": {
+      "status": "passed",
+      "tests": 7,
+      "passed": 7
+    },
+    "backend/src/runtime/__tests__/currencyConversion.test.js": {
+      "status": "passed",
+      "tests": 17,
+      "passed": 17
+    },
+    "backend/src/maintenance/__tests__/checkpointWal.test.js": {
+      "status": "passed",
+      "tests": 10,
+      "passed": 10
+    },
+    "backend/src/runtime/__tests__/exitPolicy.test.js": {
+      "status": "passed",
+      "tests": 6,
+      "passed": 6
+    },
+    "backend/src/repositories/__tests__/portfolioRepository.test.js": {
+      "status": "passed",
+      "tests": 5,
+      "passed": 5
+    },
+    "backend/src/services/__tests__/s3ReportScheduler.test.js": {
+      "status": "passed",
+      "tests": 6,
+      "passed": 6
+    },
+    "backend/src/runtime/__tests__/executionPolicy.test.js": {
+      "status": "passed",
+      "tests": 6,
+      "passed": 6
+    },
+    "backend/src/runtime/__tests__/engineStartupReconsideration.test.js": {
+      "status": "passed",
+      "tests": 2,
+      "passed": 2
+    },
+    "backend/src/runtime/__tests__/marketDataFreshness.test.js": {
+      "status": "passed",
+      "tests": 16,
+      "passed": 16
+    },
+    "backend/src/runtime/__tests__/marketContextService.test.js": {
+      "status": "passed",
+      "tests": 8,
+      "passed": 8
+    },
+    "backend/src/services/__tests__/emailService.test.js": {
+      "status": "passed",
+      "tests": 2,
+      "passed": 2
+    },
+    "backend/src/strategies/__tests__/expectedEdge.test.js": {
+      "status": "passed",
+      "tests": 3,
+      "passed": 3
+    },
+    "backend/src/config/__tests__/tradingConfig.test.js": {
+      "status": "passed",
+      "tests": 4,
+      "passed": 4
+    },
+    "backend/src/middleware/__tests__/validation.test.js": {
+      "status": "passed",
+      "tests": 3,
+      "passed": 3
+    },
+    "backend/src/middleware/__tests__/corsPolicy.test.js": {
+      "status": "passed",
+      "tests": 3,
+      "passed": 3
+    },
+    "backend/src/runtime/__tests__/quoteMath.test.js": {
+      "status": "passed",
+      "tests": 7,
+      "passed": 7
+    },
+    "backend/src/services/__tests__/configService.test.js": {
+      "status": "passed",
+      "tests": 23,
+      "passed": 23
+    },
+    "backend/src/services/__tests__/LiveTradingEngine.test.js": {
+      "status": "passed",
+      "tests": 231,
+      "passed": 231
+    },
+    "backend/src/runtime/__tests__/setupRetryIntegration.test.js": {
+      "status": "passed",
+      "tests": 21,
+      "passed": 21
+    },
+    "backend/src/repositories/__tests__/signalRepository.test.js": {
+      "status": "passed",
+      "tests": 20,
+      "passed": 20
+    },
+    "backend/src/strategies/__tests__/intradayMomentum.test.js": {
+      "status": "passed",
+      "tests": 66,
+      "passed": 66
+    },
+    "backend/src/services/__tests__/sampledExcursionIntegration.test.js": {
+      "status": "passed",
+      "tests": 10,
+      "passed": 10
+    },
+    "backend/src/services/__tests__/Oandaclient.test.js": {
+      "status": "passed",
+      "tests": 56,
+      "passed": 56
+    },
+    "backend/src/services/__tests__/signalGenerator.test.js": {
+      "status": "passed",
+      "tests": 11,
+      "passed": 11
+    },
+    "backend/src/runtime/__tests__/runtimeCoordinator.test.js": {
+      "status": "passed",
+      "tests": 5,
+      "passed": 5
+    },
+    "backend/src/runtime/__tests__/intradayReentryPolicy.test.js": {
+      "status": "passed",
+      "tests": 13,
+      "passed": 13
+    },
+    "backend/src/runtime/__tests__/liveReadinessV2.test.js": {
+      "status": "passed",
+      "tests": 11,
+      "passed": 11
+    },
+    "backend/src/strategies/__tests__/registry.test.js": {
+      "status": "passed",
+      "tests": 3,
+      "passed": 3
+    }
+  },
+  "source_and_test_sha256": {
+    "backend/src/repositories/__tests__/signalRepository.test.js": "c9f40526fd1ceb96b06ec28959f9a6f7a95554badfcf6ef9342b375cf7c37b1e",
+    "backend/src/repositories/signalRepository.js": "cf9a7f1a0d78f71d174ebf04ddbef030286ca00ad847d85a447bfba3d7adc3f8",
+    "backend/src/runtime/__tests__/liveReadinessV2.test.js": "1b1a7dc39ce9b8eba0168b3b608a75d355cac4f03c576758a8a0f191eb28dbc1",
+    "backend/src/runtime/__tests__/setupRetryIntegration.test.js": "9a0fc64f5e7941c86f665bdce38ec678f4cc8244615e8d986930f0ea38e9a84b",
+    "backend/src/runtime/runtimeCoordinator.js": "c05cb291039749dbfa5ff783d16452075a1d88b9062e943de8f8cb1ed2d1d433",
+    "backend/src/services/LiveTradingEngine.js": "80e2aee42340b66cef46d9fccdcd282e60db72495e45a86852a3967313f0e0c2",
+    "backend/src/services/Oandaclient.js": "6ca5dcb487a7776033e92e67b7426102b3133fd6b9c8b346bde777b2d8495893",
+    "backend/src/services/__tests__/LiveTradingEngine.test.js": "4a4fa2dee599ec1cd5ee62534c04bed37770add87fa1b913e7eb43ef890574e4",
+    "backend/src/services/__tests__/Oandaclient.test.js": "8b853058be257ee0641b274f637b2731f05725c2d4caa3e0b8a665686bb182ce",
+    "backend/src/services/__tests__/analyticsService.test.js": "929f95b511d5002a166491be470577d7b6233c0343b016367dca1483f916165b",
+    "backend/src/services/__tests__/configService.test.js": "ad75a8cbf0efbf55b0254636528a220e0ebb271410dbd8879f0476cc06eb5e7b",
+    "backend/src/services/__tests__/sampledExcursionIntegration.test.js": "f68c70e9a849d06d462d80264c3ad0ffbea69050e6ec8c75976245dffb4b88f9",
+    "backend/src/services/__tests__/signalGenerator.test.js": "233aafd9a3ffc3d410f862778fbf2e7b919b9250a321842b50cfdb1c877c466e",
+    "backend/src/services/analyticsService.js": "55f93613ccd3610ec87962208f13b53c91deef3b6e254c252b4981282bde55c3",
+    "backend/src/services/configService.js": "2f9c74c698ef3fabbdf90b5a891ffa61170fcd95447175025a8bf73533a26464",
+    "backend/src/services/signalGenerator.js": "07788fc5b9eec6200bbdfc299ea0226137fd7b9039f6297028351aac45c7a78a",
+    "backend/src/strategies/__tests__/intradayMomentum.test.js": "ad66874da414c0d7894cc701320fab906569cdd96bebdd33ad50060a0e3034d2",
+    "backend/src/strategies/__tests__/registry.test.js": "e423ca4f2b7a975ee191744d36c1b9190684aa0ce9d24a26c0bbb5eff78a2720",
+    "backend/src/strategies/intradayMomentum.js": "e113e961fd679b7c08f9306afbda776a990ff5bc4a16cb1db6253ea32f12646c",
+    "frontend/src/components/AnalyticsDashboard.jsx": "dfe24f1a0da5fa0df5e70951a4f9f6043b73ac6a68a30983795bca2892c41f32",
+    "shared/tradingConfigDefaults.json": "af62dfe31b8fd62a99e04f80052c2a4db7c7f83f0f35a18f2a10cb91ea2ad180",
+    "backend/src/runtime/intradayReentryPolicy.js": "bdd06d3c4d0b1a54628739384097a845dfcae548b7e5926be809726b93ba51df",
+    "backend/src/runtime/__tests__/intradayReentryPolicy.test.js": "54b5d0fce4802e760e48b722eee5790643fb204a1ff653c08134a69d57b335d1"
+  }
+}

@@ -1,6 +1,7 @@
 const {
     evaluateIntradayMomentumEntry,
     getActivePairSessions,
+    emaSeries,
 } = require("../intradayMomentum");
 
 function buildCandles({
@@ -186,7 +187,7 @@ describe("intradayMomentum", () => {
 });
 
 // Oscillating M15 prices inside an H1 trend exercise the production thresholds.
-// The pullback keeps the existing definition: prior candles versus current EMAs.
+// The pullback crosses its contemporaneous EMA and confirms a later resumption.
 function defaultEntryFixture({ pullback = false, direction = 1, nowMs = Date.parse("2026-08-10T10:00:00Z") } = {}) {
     const amplitude = pullback ? 0.0001 : 0.0003;
     const phase = pullback ? 1.4 : 2.8;
@@ -306,5 +307,285 @@ describe("intradayMomentum deployed defaults and data gates", () => {
         fixture.marketContext.session.tradeable = tradeable;
         expect((await evaluateIntradayMomentumEntry(fixture)).reasonCode)
             .toBe("INTRADAY_MOMENTUM_NOT_TRADEABLE");
+    });
+});
+
+function mirrorFixture(fixture, direction) {
+    if (direction < 0) {
+        [...fixture.m15, ...fixture.h1].forEach((candle) => {
+            const { open, close, high, low } = candle;
+            Object.assign(candle, { open: 2.4 - open, close: 2.4 - close,
+                high: 2.4 - low, low: 2.4 - high });
+        });
+    }
+    fixture.currentPrice = fixture.m15[fixture.m15.length - 1].close;
+    return fixture;
+}
+
+describe("intradayMomentum bar-aligned pullback sequence", () => {
+    test.each([1, -1])("does not turn EMA movement into a historical touch in direction %s", async (direction) => {
+        const fixture = defaultEntryFixture({ pullback: true });
+        const fast = emaSeries(fixture.m15.map((candle) => candle.close), 20);
+        const signalEma = fast[fast.length - 1];
+        fixture.m15.slice(-5, -1).forEach((candle, offset) => {
+            const ownEma = fast[fast.length - 5 + offset];
+            // A valid lower wick above its own EMA, below the later signal EMA.
+            candle.low = (ownEma + Math.min(signalEma, candle.open, candle.close)) / 2;
+            expect(candle.low).toBeGreaterThan(ownEma);
+            expect(candle.low).toBeLessThanOrEqual(Math.min(candle.open, candle.close));
+        });
+        const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
+        const side = direction > 0 ? "long" : "short";
+        const evidence = result.strategyContext.m15;
+        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(evidence.pullbackSequence.legacy[`${side}Pullback`]).toBe(true);
+        expect(evidence.pullbackSequence[side].touchTimes).toEqual([]);
+        expect(evidence.triggerCombination).toBe("none");
+    });
+
+    test.each([1, -1])("requires resumption past an older touch's intervening extreme in direction %s", async (direction) => {
+        const fixture = defaultEntryFixture({ pullback: true });
+        const fast = emaSeries(fixture.m15.map((candle) => candle.close), 20);
+        fixture.m15.slice(-4, -1).forEach((candle, offset) => {
+            const ownEma = fast[fast.length - 4 + offset];
+            candle.low = (ownEma + Math.min(candle.open, candle.close)) / 2;
+        });
+        const touch = fixture.m15[fixture.m15.length - 5];
+        touch.low = fast[fast.length - 5] - 0.000001;
+        const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
+        const side = direction > 0 ? "long" : "short";
+        const sequence = result.strategyContext.m15.pullbackSequence;
+        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(sequence.legacy[`${side}Pullback`]).toBe(true);
+        expect(sequence[side].touchTimes).toEqual([touch.time]);
+        expect(sequence[side].resumptionStartTime).toBe(touch.time);
+        expect(sequence[side].resumed).toBe(false);
+    });
+
+    test.each([1, -1])("retains a valid old touch when its full sequence resumes in direction %s", async (direction) => {
+        const fixture = defaultEntryFixture({ pullback: true });
+        const fast = emaSeries(fixture.m15.map((candle) => candle.close), 20);
+        fixture.m15.slice(-4, -1).forEach((candle, offset) => {
+            const ownEma = fast[fast.length - 4 + offset];
+            candle.low = (ownEma + Math.min(candle.open, candle.close)) / 2;
+        });
+        const touch = fixture.m15[fixture.m15.length - 5];
+        touch.low = fast[fast.length - 5] - 0.000001;
+        const signal = fixture.m15[fixture.m15.length - 1];
+        signal.close = touch.high + 0.000001;
+        signal.high = signal.close + 0.00001;
+        fixture.config = permissiveConfig(direction);
+        const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
+        const side = direction > 0 ? "long" : "short";
+        expect(result.signalType).toBe(direction > 0 ? "BUY" : "SELL");
+        expect(result.strategyContext.m15.pullbackSequence[side].latestTouchTime).toBe(touch.time);
+        expect(result.strategyContext.m15.pullbackSequence[side].resumed).toBe(true);
+        expect(result.strategyContext.m15.trigger[`${side}Pullback`]).toBe(true);
+    });
+
+    test.each([1, -1])("uses each close's own EMA50 for structural integrity in direction %s", async (direction) => {
+        const fixture = defaultEntryFixture({ pullback: true });
+        const slow = emaSeries(fixture.m15.map((candle) => candle.close), 50);
+        const bar = fixture.m15[fixture.m15.length - 5];
+        bar.close = slow[slow.length - 6] + 0.000001;
+        bar.open = bar.close + 0.000003;
+        bar.high = bar.open + 0.000005;
+        bar.low = bar.close - 0.000005;
+        fixture.config = permissiveConfig(direction);
+        const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
+        const side = direction > 0 ? "long" : "short";
+        const evidence = result.strategyContext.m15;
+        expect(evidence.pullbackSequence.legacy[`${side}Pullback`]).toBe(false);
+        expect(evidence.pullbackSequence[side].structureHeld).toBe(true);
+        expect(evidence.trigger[`${side}Pullback`]).toBe(true);
+        expect(result.signalType).toBe(direction > 0 ? "BUY" : "SELL");
+        expect(evidence.pullbackWindow).toEqual(fixture.m15.slice(-5, -1)
+            .map(({ time, high, low }) => ({ time, high, low })));
+    });
+
+    test.each([1, -1])("rejects a pullback that closes through its own EMA50 in direction %s", async (direction) => {
+        const fixture = defaultEntryFixture({ pullback: true });
+        const slow = emaSeries(fixture.m15.map((candle) => candle.close), 50);
+        const bar = fixture.m15[fixture.m15.length - 5];
+        bar.close = slow[slow.length - 6] - 0.000001;
+        bar.open = bar.close + 0.000003;
+        bar.high = bar.open + 0.000005;
+        bar.low = bar.close - 0.000005;
+        fixture.config = permissiveConfig(direction);
+        const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
+        const side = direction > 0 ? "long" : "short";
+        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(result.strategyContext.m15.pullbackSequence[side].structureHeld).toBe(false);
+    });
+
+    test("does not report a fabricated RSI before sufficient history is available", async () => {
+        const fixture = defaultEntryFixture();
+        fixture.marketContext.timeframes["15m"].candles = fixture.m15.slice(-10);
+        const result = await evaluateIntradayMomentumEntry(fixture);
+        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_WARMUP");
+        expect(result.rsiVal).toBeNull();
+    });
+});
+
+function reentryFixture({ direction = 1, trigger = "pullback_only" } = {}) {
+    const fixture = defaultEntryFixture({ pullback: trigger !== "breakout_only" });
+    if (trigger === "breakout_and_pullback") {
+        // Extend the valid pullback's resumption through the eight-bar high;
+        // the real default RSI and range checks must still accept this candle.
+        const signal = fixture.m15[fixture.m15.length - 1];
+        signal.close = Math.max(...fixture.m15.slice(-9, -1).map((bar) => bar.high)) + 0.000001;
+        signal.high = signal.close + 0.00003;
+    }
+    return mirrorFixture(fixture, direction);
+}
+
+function closedTradeForFixture(fixture, { direction = 1, reason = "TAKE_PROFIT", closedAt } = {}) {
+    const brokerClosedAt = closedAt ?? fixture.nowMs - 14 * 60_000;
+    return {
+        id: "normal-closed-1", oandaTradeId: "broker-1", instrument: fixture.instrument,
+        side: direction > 0 ? "BUY" : "SELL", exitReason: reason,
+        // Default close is inside the signal candle. No prior completed bar
+        // can supply the post-exit touch, regardless of trigger combination.
+        brokerClosedAt,
+        isOpen: false, mode: "live", entryType: "M15_PULLBACK_RESUMPTION",
+        brokerReconciliationPayload: {
+            close: { trade: { id: "broker-1", state: "CLOSED", closeTime: new Date(brokerClosedAt).toISOString() } },
+        },
+    };
+}
+
+describe("intradayMomentum integrated protected-exit and fade decisions", () => {
+    test.each([1, -1].flatMap((direction) => ["breakout_only", "pullback_only", "breakout_and_pullback"]
+        .map((trigger) => ({ direction, trigger }))))(
+        "fades stale post-TP $trigger in original direction $direction with mirrored protection", async ({ direction, trigger }) => {
+            const fixture = reentryFixture({ direction, trigger });
+            const original = await evaluateIntradayMomentumEntry(fixture);
+            expect(original.signalType).toBe(direction > 0 ? "BUY" : "SELL");
+            expect(original.strategyContext.m15.triggerCombination).toBe(trigger);
+            const latestClosedTrade = closedTradeForFixture(fixture, { direction });
+            const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade });
+            expect(result).toMatchObject({
+                signalType: direction > 0 ? "SELL" : "BUY",
+                intent: direction > 0 ? "ENTER_SHORT" : "ENTER_LONG",
+                signalClass: "ACTIONABLE", entryType: "M15_POST_TP_FADE",
+                reasonCode: "INTRADAY_MOMENTUM_POST_TP_FADE",
+                currentDir: direction,
+                htfContext: { direction, longAllowed: direction > 0, shortAllowed: direction < 0 },
+            });
+            expect(result.strategyContext.h1).toEqual(original.strategyContext.h1);
+            expect(result.strategyContext.m15).toEqual(original.strategyContext.m15);
+            expect(result.strategyContext.reentry).toMatchObject({
+                classification: "POST_TP_FADE", allowed: true, freshTouch: false,
+                originalSide: original.signalType, executedSide: result.signalType,
+                originalEntryType: original.entryType,
+                anchor: { tradeId: latestClosedTrade.id, closedAt: latestClosedTrade.brokerClosedAt },
+            });
+            const distance = original.tradePlan.stopPips * 0.0001;
+            expect(result.tradePlan).toMatchObject({ stopPips: original.tradePlan.stopPips,
+                targetRiskMultiple: 1.5, timeStopHours: 6 });
+            expect(result.tradePlan.stopLossPrice).toBeCloseTo(fixture.currentPrice + direction * distance, 10);
+            expect(result.tradePlan.takeProfitPrice).toBeCloseTo(fixture.currentPrice - direction * distance * 1.5, 10);
+        }
+    );
+
+    test.each([1, -1].flatMap((direction) => ["TAKE_PROFIT", "BREAKEVEN_STOP"]
+        .map((reason) => ({ direction, reason }))))(
+        "$reason allows a fresh default pullback in direction $direction at the exact broker-close boundary", async ({ direction, reason }) => {
+            const fixture = reentryFixture({ direction });
+            const original = await evaluateIntradayMomentumEntry(fixture);
+            const { fastEma, pullbackWindow } = original.strategyContext.m15;
+            const touch = pullbackWindow.filter((bar) => direction > 0 ? bar.low <= fastEma : bar.high >= fastEma).slice(-1)[0];
+            expect(touch).toBeDefined();
+            const latestClosedTrade = closedTradeForFixture(fixture, {
+                direction, reason, closedAt: Date.parse(touch.time),
+            });
+            const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade });
+            expect(result.signalType).toBe(original.signalType);
+            expect(result.entryType).toBe(original.entryType);
+            expect(result.tradePlan).toEqual(original.tradePlan);
+            expect(result.strategyContext.reentry).toMatchObject({
+                classification: "FRESH_CONTINUATION", freshTouch: true,
+                freshTouchTimes: expect.arrayContaining([touch.time]),
+            });
+        }
+    );
+
+    test.each([1, -1].flatMap((direction) => ["breakout_only", "pullback_only", "breakout_and_pullback"]
+        .map((trigger) => ({ direction, trigger }))))(
+        "breakeven without freshness waits for $trigger in direction $direction", async ({ direction, trigger }) => {
+            const fixture = reentryFixture({ direction, trigger });
+            const result = await evaluateIntradayMomentumEntry({ ...fixture,
+                latestClosedTrade: closedTradeForFixture(fixture, { direction, reason: "BREAKEVEN_STOP" }),
+            });
+            expect(result.signalType).toBe("HOLD");
+            expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_WAIT_FOR_FRESH_PULLBACK");
+            expect(result.tradePlan).toBeNull();
+            expect(result.strategyContext.m15.triggerCombination).toBe(trigger);
+            expect(result.strategyContext.reentry).toMatchObject({
+                classification: "WAIT_FOR_FRESH_PULLBACK", allowed: false, freshTouch: false,
+            });
+        }
+    );
+
+    test.each([1, -1])("a touch candle straddling the TP cannot authorize normal continuation in direction %s", async (direction) => {
+        const fixture = reentryFixture({ direction });
+        const original = await evaluateIntradayMomentumEntry(fixture);
+        const { fastEma, pullbackWindow } = original.strategyContext.m15;
+        const latestTouch = pullbackWindow.filter((bar) => direction > 0 ? bar.low <= fastEma : bar.high >= fastEma).slice(-1)[0];
+        const result = await evaluateIntradayMomentumEntry({ ...fixture,
+            latestClosedTrade: closedTradeForFixture(fixture, {
+                direction, closedAt: Date.parse(latestTouch.time) + 1,
+            }),
+        });
+        expect(result.entryType).toBe("M15_POST_TP_FADE");
+        expect(result.strategyContext.reentry.freshTouchTimes).toEqual([]);
+        expect(result.signalType).not.toBe(original.signalType);
+    });
+
+    test.each([1, -1].flatMap((direction) => ["STOP_LOSS", "SESSION_CLOSE", "TIME_STOP", "OPPOSITE_TP"]
+        .map((reason) => ({ direction, reason }))))(
+        "$reason retains a normal qualifying entry in direction $direction", async ({ direction, reason }) => {
+            const fixture = reentryFixture({ direction });
+            const original = await evaluateIntradayMomentumEntry(fixture);
+            const latestClosedTrade = closedTradeForFixture(fixture, {
+                direction: reason === "OPPOSITE_TP" ? -direction : direction,
+                reason: reason === "OPPOSITE_TP" ? "TAKE_PROFIT" : reason,
+            });
+            const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade });
+            expect(result.signalType).toBe(original.signalType);
+            expect(result.entryType).toBe(original.entryType);
+            expect(result.tradePlan).toEqual(original.tradePlan);
+            expect(result.strategyContext.reentry.classification).toBe("NORMAL");
+        }
+    );
+
+    test.each([1, -1])("unavailable durable history does not grant a first entry in direction %s", async (direction) => {
+        const fixture = reentryFixture({ direction });
+        const result = await evaluateIntradayMomentumEntry({ ...fixture,
+            latestClosedTrade: null, reentryHistoryAvailable: false,
+        });
+        expect(result.signalType).toBe("HOLD");
+        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_HISTORY_UNAVAILABLE");
+        expect(result.strategyContext.reentry.allowed).toBe(false);
+    });
+
+    test.each([1, -1])("failed revised normal entry cannot be revived as a fade in direction %s", async (direction) => {
+        const fixture = defaultEntryFixture({ pullback: true });
+        const fast = emaSeries(fixture.m15.map((candle) => candle.close), 20);
+        const signalEma = fast[fast.length - 1];
+        fixture.m15.slice(-5, -1).forEach((candle, offset) => {
+            const ownEma = fast[fast.length - 5 + offset];
+            candle.low = (ownEma + Math.min(signalEma, candle.open, candle.close)) / 2;
+        });
+        mirrorFixture(fixture, direction);
+        const result = await evaluateIntradayMomentumEntry({ ...fixture,
+            latestClosedTrade: closedTradeForFixture(fixture, { direction }),
+        });
+        const side = direction > 0 ? "long" : "short";
+        expect(result.signalType).toBe("HOLD");
+        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(result.strategyContext.m15.pullbackSequence.legacy[`${side}Pullback`]).toBe(true);
+        expect(result.strategyContext.m15.triggerCombination).toBe("none");
+        expect(result.strategyContext.reentry).toBeUndefined();
     });
 });

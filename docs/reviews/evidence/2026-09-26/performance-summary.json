@@ -1,0 +1,117 @@
+{
+  "start_utc": "2026-09-21T10:35:00+00:00",
+  "end_utc": "2026-09-25T20:45:00+00:00",
+  "trades": 10,
+  "wins": 2,
+  "losses": 7,
+  "flat": 1,
+  "net_aud": -0.5369,
+  "gross_gains": 0.5303,
+  "gross_losses": 1.0672,
+  "profit_factor": 0.4969077961019491,
+  "opening_balance": 96.5056,
+  "closing_balance": 95.9687,
+  "return_pct": -0.5563407719344784,
+  "net_cash_r": -3.2890623911673473,
+  "price_r": -3.236448860927155,
+  "mean_cash_r": -0.3289062391167347,
+  "realized_max_drawdown_aud": 0.9052999999999969,
+  "realized_max_drawdown_pct": 0.9345128723909376,
+  "median_hold_minutes": 84.69897499999999,
+  "max_hold_minutes": 186.46438333333333,
+  "half_spread_cost_aud": 0.1723,
+  "since_sep6_count": 35,
+  "since_sep6_net_aud": -0.7871,
+  "same_run_count": 25,
+  "same_run_net": -1.2692999999999999,
+  "instrument": {
+    "AUD_USD": {
+      "count": 4,
+      "net_aud": -0.20479999999999998,
+      "price_r": -1.472727792587044
+    },
+    "EUR_USD": {
+      "count": 4,
+      "net_aud": 0.040799999999999975,
+      "price_r": 0.23474917715363447
+    },
+    "USD_JPY": {
+      "count": 2,
+      "net_aud": -0.3729,
+      "price_r": -1.998470245493746
+    }
+  },
+  "side": {
+    "BUY": {
+      "count": 1,
+      "net_aud": -0.1879,
+      "price_r": -1.000261242210657
+    },
+    "SELL": {
+      "count": 9,
+      "net_aud": -0.349,
+      "price_r": -2.236187618716498
+    }
+  },
+  "trigger": {
+    "BOTH": {
+      "count": 5,
+      "net_aud": 0.1843,
+      "price_r": 1.0301483759820043
+    },
+    "PULLBACK": {
+      "count": 5,
+      "net_aud": -0.7212000000000001,
+      "price_r": -4.26659723690916
+    }
+  },
+  "exit_reason": {
+    "BREAKEVEN_STOP": {
+      "count": 1,
+      "net_aud": 0.0,
+      "price_r": 0.0
+    },
+    "SESSION_CLOSE": {
+      "count": 1,
+      "net_aud": -0.0469,
+      "price_r": -0.2681269914154137
+    },
+    "STOP_LOSS": {
+      "count": 6,
+      "net_aud": -1.0203,
+      "price_r": -6.014027271109912
+    },
+    "TAKE_PROFIT": {
+      "count": 2,
+      "net_aud": 0.5303,
+      "price_r": 3.0457054015981706
+    }
+  },
+  "sessions": {
+    "London+New York": {
+      "count": 4,
+      "net_aud": -0.10020000000000004,
+      "price_r": -0.4973850736416088
+    },
+    "New York": {
+      "count": 3,
+      "net_aud": -0.3938,
+      "price_r": -2.2723971206188183
+    },
+    "Sydney": {
+      "count": 1,
+      "net_aud": -0.1615,
+      "price_r": -1.0
+    },
+    "Sydney+Tokyo": {
+      "count": 1,
+      "net_aud": -0.1399,
+      "price_r": -1.0
+    },
+    "Tokyo": {
+      "count": 1,
+      "net_aud": 0.2585,
+      "price_r": 1.5333333333332717
+    }
+  }
+}

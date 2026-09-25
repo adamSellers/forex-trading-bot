@@ -59,6 +59,8 @@ jest.mock('../Oandaclient', () => ({
         ],
     }),
     getExecutableQuote: jest.fn((...args) => jest.requireActual('../Oandaclient').getExecutableQuote(...args)),
+    formatPrice: jest.fn((...args) => jest.requireActual('../Oandaclient').formatPrice(...args)),
+    formatPriceBound: jest.fn((...args) => jest.requireActual('../Oandaclient').formatPriceBound(...args)),
     getCandles: jest.fn().mockResolvedValue({
         instrument: 'AUD_USD',
         granularity: 'M15',
@@ -75,21 +77,21 @@ jest.mock('../Oandaclient', () => ({
         trade: { id: `ti-${intentId}` },
     })),
     findOrderIntent: jest.fn().mockResolvedValue({ status: 'AMBIGUOUS' }),
-    placeMarketOrder: jest.fn().mockResolvedValue({
+    placeMarketOrder: jest.fn(async (_instrument, units) => ({
         orderFillTransaction: {
             id: '501',
             instrument: 'AUD_USD',
-            units: '795',
+            units: String(units),
             price: '1.16571',
             pl: '0.00',
             tradeOpened: {
                 tradeID: '489',
-                units: '795',
+                units: String(units),
                 price: '1.16571',
                 initialMarginRequired: '46.17',
             },
         },
-    }),
+    })),
     closeTrade: jest.fn().mockResolvedValue({
         orderFillTransaction: {
             id: '502',
@@ -1444,19 +1446,19 @@ describe('LiveTradingEngine', () => {
                 },
             });
 
-            oandaClient.placeMarketOrder.mockResolvedValue({
+            oandaClient.placeMarketOrder.mockImplementation(async (_instrument, units) => ({
                 orderFillTransaction: {
                     id: '501',
                     price: '1.16571',
-                    units: '795',
+                    units: String(units),
                     tradeOpened: {
                         tradeID: '489',
-                        units: '795',
+                        units: String(units),
                         price: '1.16571',
                         initialMarginRequired: '46.17',
                     },
                 },
-            });
+            }));
         });
 
         test('should execute entry and save trade to database', async () => {
@@ -2712,7 +2714,7 @@ describe('LiveTradingEngine', () => {
 
             const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
             expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(market.symbol, expect.any(Number),
-                expect.objectContaining({ priceBound: signal.entryReferencePrice + (market.side === 'SELL' ? -1 : 1) * 1.5 * market.pip }));
+                expect.objectContaining({ priceBound: Number((signal.entryReferencePrice + (market.side === 'SELL' ? -1 : 1) * 1.5 * market.pip).toFixed(market.precision)) }));
             expect(intent).toMatchObject({ referencePrice: signal.currentPrice,
                 contextPayload: { entryReferencePrice: signal.entryReferencePrice,
                     finalQuote: { entryReferencePrice: signal.entryReferencePrice } } });
@@ -2939,7 +2941,7 @@ describe('LiveTradingEngine', () => {
                 } else {
                     await operation;
                     expect(oandaClient.placeMarketOrder).toHaveBeenCalledWith(market.symbol, expect.any(Number),
-                        expect.objectContaining({ priceBound: signal.currentPrice + (market.side === 'SELL' ? -1 : 1) * 1.5 * market.pip }));
+                        expect.objectContaining({ priceBound: Number((signal.currentPrice + (market.side === 'SELL' ? -1 : 1) * 1.5 * market.pip).toFixed(market.precision)) }));
                 }
             }
         );
@@ -2957,6 +2959,146 @@ describe('LiveTradingEngine', () => {
             expect(executable.ask).not.toBe(Number(executable.ask.toFixed(market.precision)));
             await expect(engine.getFinalEntryQuote(signal, mockConfigService.get(), null, 200))
                 .rejects.toThrow('Final execution cost exceeds entry policy');
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        async function useRealOrderSerializer({ fillAtBound = true, fillPrice = null } = {}) {
+            // Exercise both real serializers while replacing only the HTTP
+            // boundary. Never initialize the client or use broker credentials.
+            const client = Object.create(jest.requireActual('../Oandaclient'));
+            client.apiKey = undefined;
+            client.accountId = 'isolated-test';
+            const requests = [];
+            client._request = jest.fn(async (method, endpoint, body) => {
+                requests.push({ method, endpoint, body });
+                if (method === 'POST') {
+                    const order = body.order;
+                    const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+                    const quote = intent.contextPayload.finalQuote;
+                    const fill = fillPrice !== null ? String(fillPrice)
+                        : fillAtBound ? order.priceBound : String(quote.finalQuote);
+                    return { orderFillTransaction: {
+                        id: '501', time: new Date(Date.now()).toISOString(), price: fill,
+                        units: order.units, tradeOpened: { tradeID: '489',
+                            units: order.units, price: fill, initialMarginRequired: '1' },
+                    } };
+                }
+                if (method === 'PUT' && endpoint.endsWith('/trades/489/orders')) {
+                    return {
+                        stopLossOrderTransaction: { tradeID: '489', price: body.stopLoss.price },
+                        takeProfitOrderTransaction: { tradeID: '489', price: body.takeProfit.price },
+                    };
+                }
+                throw new Error(`Unexpected isolated broker request: ${method} ${endpoint}`);
+            });
+            oandaClient.placeMarketOrder.mockImplementation((...args) => client.placeMarketOrder(...args));
+            oandaClient.modifyTrade.mockImplementation((...args) => client.modifyTrade(...args));
+            return requests;
+        }
+
+        test.each(cases)('$symbol $side sizes and persists the exact serialized bound and protections', async (market) => {
+            // Odd half-pip spread makes the decision midpoint a half-tick; a
+            // sub-tick stop distance also exercises protective-price rounding.
+            const signal = await prepareQuoteCase(market, { cachedSpread: 0.5, stopPips: 6.13 });
+            const requests = await useRealOrderSerializer();
+
+            await engine.processSignal(signal);
+
+            expect(requests).toHaveLength(2);
+            const order = requests[0].body.order;
+            const protection = requests[1].body;
+            const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+            const context = intent.contextPayload;
+            const expectedBound = market.bid + (market.side === 'BUY' ? 1.7 : -1.2) * market.pip;
+            expect(order.priceBound).toBe(expectedBound.toFixed(market.precision));
+            const deviation = (market.side === 'BUY' ? 1 : -1) * (Number(order.priceBound) - signal.currentPrice) / market.pip;
+            expect(deviation).toBeLessThanOrEqual(1.5);
+            expect(intent.priceBound).toBe(Number(order.priceBound));
+            expect(intent.requestPayload).toMatchObject({ priceBound: Number(order.priceBound),
+                stopLossPrice: Number(order.stopLossOnFill.price), takeProfitPrice: Number(order.takeProfitOnFill.price) });
+            const serializedRisk = Math.abs(Number(order.priceBound) - Number(order.stopLossOnFill.price)) * intent.units * context.quoteToAudRate;
+            expect(context.worstFillRiskAud).toBe(serializedRisk);
+            expect(serializedRisk).toBeLessThanOrEqual(context.riskBudgetAud);
+            const trade = [...engine.openTrades.values()][0];
+            expect(trade.stopLossPrice).toBe(Number(protection.stopLoss.price));
+            expect(trade.takeProfitPrice).toBe(Number(protection.takeProfit.price));
+            const risk = Math.abs(trade.entryPrice - trade.stopLossPrice) * trade.units * context.quoteToAudRate;
+            expect(trade.brokerReconciliationPayload.liveRuntime.initialRiskAud).toBe(risk);
+            expect(risk).toBeLessThanOrEqual(context.riskBudgetAud);
+        });
+
+        test('retained 3435 SELL fixture no longer permits 1.55-pip deviation or excess serialized risk', async () => {
+            const market = { symbol: 'AUD_USD', side: 'SELL', bid: 0.70091, pip: 0.0001, precision: 5 };
+            const signal = await prepareQuoteCase(market, { cachedSpread: 0.1, stopPips: 6 });
+            signal.entryReferencePrice = 0.700915;
+            const quoteToAudRate = 1.44073721153;
+            const pricing = { prices: [{ instrument: market.symbol, tradeable: true,
+                time: new Date(Date.now()).toISOString(),
+                bids: [{ price: '0.70099', liquidity: 1000000 }],
+                asks: [{ price: '0.70106', liquidity: 1000000 }],
+            }], homeConversions: [
+                { currency: 'AUD', accountGain: '1', accountLoss: '1', positionValue: '1' },
+                { currency: 'USD', accountGain: String(quoteToAudRate), accountLoss: String(quoteToAudRate), positionValue: String(quoteToAudRate) },
+            ] };
+            oandaClient.getPricing.mockResolvedValue(pricing);
+            oandaClient.getAccountSummary.mockResolvedValue({ account: {
+                currency: 'AUD', balance: '96.2936', NAV: '96.2936',
+                marginAvailable: '96.2936', marginUsed: '0',
+            } });
+            const requests = await useRealOrderSerializer({ fillAtBound: false });
+
+            await engine.processSignal(signal);
+
+            const order = requests[0].body.order;
+            const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+            expect(order.priceBound).toBe('0.70077');
+            expect(order.stopLossOnFill.price).toBe('0.70159');
+            expect(intent.contextPayload.riskBudgetAud).toBeCloseTo(0.1925872, 10);
+            expect(intent.contextPayload.worstFillRiskAud).toBeLessThanOrEqual(0.1925872);
+            expect((signal.entryReferencePrice - Number(order.priceBound)) / market.pip).toBeCloseTo(1.45, 10);
+            expect(intent.units).toBe(163);
+            expect(intent.priceBound).toBe(0.70077);
+        });
+
+        test.each([
+            { side: 'BUY', bid: 0.69986, stopPips: 6.05, fillPrice: 0.7, expectedStop: '0.69940', expectedUnits: 238 },
+            { side: 'SELL', bid: 0.70017, stopPips: 6.05, fillPrice: 0.70003, expectedStop: '0.70063', expectedUnits: 238 },
+        ])('$side favourable fill cannot expand cash risk through half-tick stop alignment', async (testCase) => {
+            const market = { ...testCase, symbol: 'AUD_USD', pip: 0.0001, precision: 5 };
+            const signal = await prepareQuoteCase(market, { cachedSpread: 0,
+                finalSpread: 0.1, deviation: 1.5, stopPips: testCase.stopPips });
+            const pricing = await oandaClient.getPricing([market.symbol]);
+            Object.assign(pricing.homeConversions.find((row) => row.currency === 'USD'),
+                { accountGain: '1.4', accountLoss: '1.4', positionValue: '1.4' });
+            engine.getConversionRate.mockImplementation(async (from, to) => ({ AUD: 1, USD: 1.4 })[from] / ({ AUD: 1, USD: 1.4 })[to]);
+            oandaClient.getAccountSummary.mockResolvedValue({ account: {
+                currency: 'AUD', balance: '100', NAV: '100', marginAvailable: '100', marginUsed: '0',
+            } });
+            const requests = await useRealOrderSerializer({ fillPrice: testCase.fillPrice });
+
+            await engine.processSignal(signal);
+
+            const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+            const trade = [...engine.openTrades.values()][0];
+            expect(intent.units).toBe(testCase.expectedUnits);
+            expect(requests[1].body.stopLoss.price).toBe(testCase.expectedStop);
+            expect(trade.stopLossPrice).toBe(Number(testCase.expectedStop));
+            expect(trade.brokerReconciliationPayload.liveRuntime.initialRiskAud).toBeLessThanOrEqual(intent.contextPayload.riskBudgetAud);
+            expect(Math.abs(trade.entryPrice - trade.stopLossPrice) / market.pip).toBeGreaterThanOrEqual(6 - 1e-10);
+        });
+
+        test.each(['BUY', 'SELL'])('%s cash budget too small for one protected unit rejects before broker submission', async (side) => {
+            const signal = await prepareQuoteCase({ symbol: 'AUD_USD', bid: 0.7, pip: 0.0001, precision: 5, side },
+                { cachedSpread: 0.5, stopPips: 6 });
+            oandaClient.getAccountSummary.mockResolvedValue({ account: {
+                currency: 'AUD', balance: '100', NAV: '100', marginAvailable: '0.1', marginUsed: '0',
+            } });
+            const requests = await useRealOrderSerializer();
+
+            await engine.processSignal(signal);
+
+            expect(requests).toHaveLength(0);
+            expect(mockEntryDecisionRepository.decisions.at(-1)).toMatchObject({ outcome: 'REJECTED' });
             expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
         });
 

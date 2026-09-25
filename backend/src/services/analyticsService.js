@@ -7,6 +7,7 @@ const {
 } = require("./analyticsStatistics");
 
 const { getActivePairSessions } = require("../strategies/intradayMomentum");
+const { isFadeTrade } = require("../runtime/intradayReentryPolicy");
 
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
@@ -1930,10 +1931,16 @@ class AnalyticsService {
         const groups = new Map();
         for (const trade of trades) {
             const trigger = getTriggerCohort(trade);
-            if (!groups.has(trigger)) groups.set(trigger, []);
-            groups.get(trigger).push(trade);
+            // A fade retains its originating trend's raw trigger evidence. Keep
+            // its outcome separate without rewriting that historical meaning.
+            const entryClass = isFadeTrade(trade) ? "POST_TP_FADE" : "TREND";
+            const key = `${entryClass}:${trigger}`;
+            if (!groups.has(key)) groups.set(key, { entryClass, trigger, trades: [] });
+            groups.get(key).trades.push(trade);
         }
-        return Array.from(groups, ([trigger, group]) => ({ trigger, ...this.calculateCohortExpectancy(group).summary }));
+        return Array.from(groups.values(), ({ entryClass, trigger, trades: group }) => ({
+            entryClass, trigger, ...this.calculateCohortExpectancy(group).summary,
+        }));
     }
 
     calculateExcursionCoverage(trades) {
