@@ -96,6 +96,38 @@ function lossCooldown() {
 }
 
 describe("live-only trading routes", () => {
+    test.each(["/health", "/system/health"])("%s reports one position per pair without an account-wide count cap", async (path) => {
+        const { req, config } = liveContext();
+        // A historical count field must not resurrect a retired current limit.
+        config.maxOpenPositions = 1;
+        const res = response();
+
+        const fetch = jest.spyOn(global, "fetch").mockRejectedValue(new Error("No broker access in route tests"));
+        try {
+            await handler("get", path)(req, res);
+        } finally {
+            fetch.mockRestore();
+        }
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body.config).toEqual(expect.objectContaining({
+            maxOpenPositions: null,
+            positionPolicy: { scope: "PER_INSTRUMENT", maxPerInstrument: 1 },
+        }));
+    });
+
+    test("current configuration exposes the position policy without changing the saved snapshot", () => {
+        const { req, config } = liveContext();
+        const snapshot = JSON.stringify(config);
+        const res = response();
+
+        handler("get", "/config")(req, res);
+
+        expect(res.body.positionPolicy).toEqual({ scope: "PER_INSTRUMENT", maxPerInstrument: 1 });
+        expect(JSON.stringify(config)).toBe(snapshot);
+        expect(config).not.toHaveProperty("positionPolicy");
+    });
+
     test("analytics distinguishes current run from genuinely all-live history", async () => {
         const AnalyticsService = require("../../services/analyticsService");
         const get = jest.spyOn(AnalyticsService.prototype, "getAnalytics").mockResolvedValue({});
@@ -193,7 +225,7 @@ describe("live-only trading routes", () => {
     });
 
     test.each([
-        ["invalid risk configuration", "LIVE_RISK_LIMIT", ({ config }) => { config.maxOpenPositions = 2; }],
+        ["invalid risk configuration", "LIVE_RISK_LIMIT", ({ config }) => { config.riskPerTrade = 0.005; }],
         ["missing runtime", "NO_ACTIVE_LIVE_RUNTIME", ({ liveSelection }) => { liveSelection.liveRun = null; }],
         ["unresolved broker intent", "BROKER_LIFECYCLE_UNRESOLVED", ({ tradingEngine }) => {
             tradingEngine.getStatus = () => ({ pendingOrderIntents: 1 });

@@ -103,7 +103,16 @@ const TradingConfig = () => {
                 <Stack spacing={1.5}>
                   <Value label="Risk per trade">{pct(config.riskPerTrade)}</Value>
                   <Value label="Capital ceiling">A${Number(config.maxCapitalAtRisk).toFixed(2)}</Value>
-                  <Value label="Open positions">{config.maxOpenPositions}</Value>
+                  <Value label="Open positions">
+                    {config.positionPolicy?.scope === 'PER_INSTRUMENT' && config.positionPolicy.maxPerInstrument === 1
+                      ? 'One per pair'
+                      : config.maxOpenPositions != null ? `${config.maxOpenPositions} across the account` : 'Unavailable'}
+                  </Value>
+                  {config.positionPolicy?.scope === 'PER_INSTRUMENT' && (
+                    <Typography variant="body2" color="text.secondary">
+                      No account-wide position-count cap. Each pair can enter independently, subject to the portfolio risk checks.
+                    </Typography>
+                  )}
                   <Value label="Daily loss stop">{pct(config.maxDailyLossPctNav)}</Value>
                   <Value label="Drawdown stop">{pct(config.maxDrawdownPctNav)}</Value>
                 </Stack>

@@ -1,5 +1,7 @@
 # Integrated entry and execution release — 26 September 2026
 
+> **September 28 deployment and capacity addendum:** Read-only inspection verified user-deployed v4 at clean `aed750f`, strategy 1.2.0 / `intraday-risk-v4`. The implementation and original 834-test validation below remain the September 26 record. The user subsequently requested removal of the account-wide position cap. The separate [v4.1 pair capacity release](2026-09-28-pair-capacity-release.md) supersedes this document's one-position preservation rule with one position per pair and unchanged portfolio/risk checks. V4.1 is implemented and locally validated with latest passing results covering 850 tests across 41 backend suites plus changed JSX syntax checks; publication/build/deployment remain pending. No historical study or test result below is rewritten by that decision.
+
 ## Authorization and delivery state
 
 The user authorized preparation of this integrated specification and local implementation on September 26, following the complete [performance review](2026-09-26-follow-up-trading-review.md) and discussion of fading failed-freshness post-target re-entry signals. This is one live `intraday_momentum` strategy, release **m15-intraday-v4**, strategy **1.2.0**, execution policy **intraday-risk-v4**. It combines entry-quality research, protected-exit freshness, an explicit countertrend experiment, exact serialized-price sizing and review telemetry. Publication, builds and deployment remain user-managed; the last verified production release remains v3.3.

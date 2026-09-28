@@ -632,7 +632,7 @@ const intradayMomentumStrategy = createStrategyDefinition({
     label: "M15 Intraday Momentum",
     description:
         "Completed-M15 trend entries with fresh protected-exit continuations and a defined post-target countertrend fade.",
-    version: "1.2.0",
+    version: "1.2.1",
     runtimeStatus: "live_ready",
     requiredData: {
         timeframes: ["15m", "1h"],

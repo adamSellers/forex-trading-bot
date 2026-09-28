@@ -9,7 +9,7 @@ const NUMERIC_KEYS = new Set([
     "minAdx",
     "riskPerTrade",
     "maxCapitalAtRisk",
-    "maxOpenPositions",
+    "maxOpenPositions", // Retained for historical snapshots; retired from active config.
     "maxPortfolioExposure",
     "maxAggregateStopRiskPctNav",
     "maxNetCurrencyExposurePctNav",

@@ -9,6 +9,8 @@ const {
 const { createMockSignal, createSellSignal } = require('../../../__tests__/fixtures/mockSignals');
 const { createMockTrade } = require('../../../__tests__/fixtures/mockTrades');
 const { ENTRY_REJECTION_CODES } = require('../../constants/entryDecisionCodes');
+const { cloneDefaultConfig } = require('../../config/tradingConfig');
+const { evaluateReentryPolicy } = require('../../runtime/intradayReentryPolicy');
 const {
     CONSECUTIVE_LOSS_COOLDOWN_MS,
 } = require('../../runtime/portfolioRiskPolicy');
@@ -470,19 +472,18 @@ describe('LiveTradingEngine', () => {
             expect(result.reason).toContain('Spread too wide');
         });
 
-        test('should reject when max positions reached', async () => {
+        test('an obsolete global position setting does not block a different instrument', async () => {
             const signal = createMockSignal();
-            const config = mockConfigService.get();
+            const config = { ...mockConfigService.get(), maxOpenPositions: 1 };
 
-            // Add 2 open trades
-            engine.openTrades.set('trade1', createMockTrade());
-            engine.openTrades.set('trade2', createMockTrade({ instrument: 'EUR_USD' }));
+            engine.openTrades.set('trade1', createMockTrade({ instrument: 'EUR_USD', units: 10 }));
 
             const result = await engine.validateEntry(signal, config);
 
-            expect(result.valid).toBe(false);
-            expect(result.code).toBe(ENTRY_REJECTION_CODES.MAX_POSITIONS);
-            expect(result.reason).toContain('Max positions reached');
+            expect(result.valid).toBe(true);
+            expect(engine.getStatus()).toMatchObject({
+                maxPositions: null, positionPolicy: { scope: 'PER_INSTRUMENT', maxPerInstrument: 1 },
+            });
         });
 
         test('should reject when already in position for instrument', async () => {
@@ -3115,6 +3116,201 @@ describe('LiveTradingEngine', () => {
                 }
             }
         );
+    });
+
+    describe('per-instrument capacity through broker lifecycle orchestration', () => {
+        const rates = { AUD: 1, USD: 1.5, EUR: 1.65, GBP: 1.95 };
+        const mids = { AUD_USD: 2 / 3, EUR_USD: 1.1, GBP_USD: 1.3 };
+        let brokerTrades;
+
+        const quote = (instrument) => ({
+            instrument, tradeable: true, time: new Date(Date.now()).toISOString(),
+            bids: [{ price: (mids[instrument] - 0.000025).toFixed(5), liquidity: 1000000 }],
+            asks: [{ price: (mids[instrument] + 0.000025).toFixed(5), liquidity: 1000000 }],
+        });
+
+        function signalFor(symbol, { originalSide = 'BUY', latestClosedTrade = null, runId = 'capacity-release', strategyVersion = '1.2.1' } = {}) {
+            const reentry = evaluateReentryPolicy({ originalSide, latestClosedTrade,
+                signalFastEma: mids[symbol], signalCandleTime: Date.now() - 900000,
+                pullbackWindow: [{ time: new Date(Date.now() - 1800000).toISOString(),
+                    low: mids[symbol] - 0.001, high: mids[symbol] + 0.001 }],
+            });
+            return createMockSignal({ symbol, signal: reentry.executedSide,
+                currentPrice: Number(mids[symbol].toFixed(5)),
+                entryType: reentry.classification === 'POST_TP_FADE' ? 'M15_POST_TP_FADE' : 'M15_RANGE_BREAKOUT',
+                strategy: 'intraday_momentum', strategyVersion, runId, mode: 'live',
+                configHash: 'capacity-test', strategyContext: { reentry },
+                tradePlan: { stopPips: 30, targetRiskMultiple: 1.5 },
+            });
+        }
+
+        beforeEach(async () => {
+            jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-28T13:00:00Z'));
+            // Retain the actual current numerical risk policy. The obsolete
+            // saved count proves it cannot silently reintroduce a global gate.
+            Object.assign(mockConfigService.config, cloneDefaultConfig(), {
+                enableTrading: true, assets: Object.keys(mids), maxOpenPositions: 1,
+            });
+            brokerTrades = new Map();
+            engine.brokerLifecycleRepository = createMockBrokerLifecycleRepository();
+            engine.getConversionRate = jest.fn(async (from, to) => rates[from] / rates[to]);
+            mockDataService.getCurrentPrice.mockImplementation((instrument) => {
+                if (!mids[instrument]) return null;
+                const pricing = quote(instrument);
+                const bid = Number(pricing.bids[0].price);
+                const ask = Number(pricing.asks[0].price);
+                return { instrument, price: (bid + ask) / 2, bid, ask,
+                    spread: (ask - bid) / 0.0001, tradeable: true,
+                    timestamp: Date.now(), fetchedAt: Date.now(),
+                };
+            });
+            oandaClient.getAccountSummary.mockImplementation(async () => {
+                const used = [...brokerTrades.values()].reduce((sum, trade) =>
+                    sum + Math.abs(Number(trade.currentUnits)) * rates[trade.instrument.split('_')[0]] * 0.05, 0);
+                return { account: { currency: 'AUD', balance: '100', NAV: '100',
+                    marginUsed: String(used), marginAvailable: String(100 - used),
+                    openTradeCount: brokerTrades.size } };
+            });
+            oandaClient.getPricing.mockImplementation(async (instruments) => ({
+                prices: instruments.map(quote), homeConversions: Object.entries(rates).map(([currency, rate]) => ({
+                    currency, positionValue: String(rate), accountGain: String(rate), accountLoss: String(rate),
+                })),
+            }));
+            oandaClient.getInstrumentMetadata.mockImplementation(async (name) => ({
+                name, displayPrecision: 5, pipLocation: -4, marginRate: '0.05',
+            }));
+            oandaClient.getOpenTrades.mockImplementation(async () => ({
+                trades: JSON.parse(JSON.stringify([...brokerTrades.values()])),
+            }));
+            oandaClient.placeMarketOrder.mockImplementation(async (instrument, units, options) => {
+                const id = String(brokerTrades.size + 1);
+                const pricing = quote(instrument);
+                const price = units < 0 ? pricing.bids[0].price : pricing.asks[0].price;
+                brokerTrades.set(id, { id, instrument, price, state: 'OPEN',
+                    initialUnits: String(units), currentUnits: String(units),
+                    openTime: new Date(Date.now()).toISOString(),
+                    stopLossOrder: { state: 'PENDING', price: String(options.stopLossPrice) },
+                    takeProfitOrder: { state: 'PENDING', price: String(options.takeProfitPrice) },
+                });
+                return { orderFillTransaction: { id: `fill-${id}`, instrument, price, units: String(units),
+                    time: new Date(Date.now()).toISOString(),
+                    tradeOpened: { tradeID: id, units: String(units), price, initialMarginRequired: '1' },
+                } };
+            });
+            oandaClient.modifyTrade.mockImplementation(async (id, options) => {
+                const trade = brokerTrades.get(id);
+                trade.stopLossOrder.price = String(options.stopLossPrice);
+                trade.takeProfitOrder.price = String(options.takeProfitPrice);
+                return { stopLossOrderTransaction: { tradeID: id, price: trade.stopLossOrder.price },
+                    takeProfitOrderTransaction: { tradeID: id, price: trade.takeProfitOrder.price } };
+            });
+            await engine.start();
+            oandaClient.getOpenTrades.mockClear();
+        });
+
+        test('queued signals fill different instruments and refuse a duplicate pair', async () => {
+            const pending = [];
+            const processQueue = engine.processQueue.bind(engine);
+            jest.spyOn(engine, 'processQueue').mockImplementation(() => {
+                const operation = processQueue(); pending.push(operation); return operation;
+            });
+            await Promise.all([
+                engine.handleSignal(signalFor('AUD_USD')),
+                engine.handleSignal(signalFor('EUR_USD')),
+                engine.handleSignal(signalFor('AUD_USD')),
+            ]);
+            await Promise.all(pending);
+
+            expect([...engine.openTrades.values()].map((trade) => trade.instrument)).toEqual(['AUD_USD', 'EUR_USD']);
+            expect(brokerTrades.size).toBe(2);
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(2);
+            expect(oandaClient.getOpenTrades).toHaveBeenCalledTimes(2);
+            expect(mockEntryDecisionRepository.decisions.map((decision) => decision.outcome)).toEqual(['FILLED', 'FILLED', 'REJECTED']);
+            expect(mockEntryDecisionRepository.decisions.at(-1).rejectionCode).toBe('ALREADY_IN_POSITION');
+            expect(engine.stats.errors).toBe(0);
+        });
+
+        test('concurrent execution rechecks pair ownership after each serialized broker snapshot', async () => {
+            const results = await Promise.allSettled([
+                engine.executeEntry(signalFor('AUD_USD'), mockConfigService.get()),
+                engine.executeEntry(signalFor('EUR_USD'), mockConfigService.get()),
+                engine.executeEntry(signalFor('AUD_USD'), mockConfigService.get()),
+            ]);
+            expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled', 'rejected']);
+            expect(results[2].reason).toMatchObject({ entryRejectionCode: 'ALREADY_IN_POSITION',
+                entryRejectionContext: { phase: 'RECONCILIATION', openPositions: 2 } });
+            expect(oandaClient.getOpenTrades).toHaveBeenCalledTimes(3);
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(2);
+            expect(engine.openTrades.size).toBe(2);
+        });
+
+        test('existing aggregate stop-risk limits still reject an additional otherwise valid pair', async () => {
+            await engine.processSignal(signalFor('AUD_USD'));
+            await engine.processSignal(signalFor('EUR_USD'));
+            await engine.processSignal(signalFor('GBP_USD'));
+
+            expect(oandaClient.placeMarketOrder).toHaveBeenCalledTimes(2);
+            expect(mockEntryDecisionRepository.decisions.at(-1)).toMatchObject({
+                outcome: 'REJECTED', rejectionCode: 'EXPOSURE_LIMIT',
+                rejectionReason: expect.stringContaining('AGGREGATE_STOP_RISK'),
+            });
+            expect(engine.openTrades.size).toBe(2);
+        });
+
+        test('normal and fade positions coexist across pairs and retain ownership through restart', async () => {
+            const parent = createMockTrade({ id: 'prior-normal-tp', oandaTradeId: 'prior-broker-tp',
+                instrument: 'EUR_USD', side: 'BUY', entryType: 'M15_RANGE_BREAKOUT', isOpen: false,
+                ownerRunId: 'prior-release', runId: 'prior-release', exitTime: Date.now() - 180000,
+                brokerClosedAt: Date.now() - 180000, exitReason: 'TAKE_PROFIT', pnlAud: 0.2,
+            });
+            parent.brokerReconciliationPayload = { close: { trade: { id: parent.oandaTradeId,
+                state: 'CLOSED', closeTime: new Date(parent.brokerClosedAt).toISOString() } } };
+            mockTradeRepository.trades.push(parent);
+            await engine.processSignal(signalFor('AUD_USD', { strategyVersion: '1.2.0' }));
+            await engine.processSignal(signalFor('EUR_USD', { latestClosedTrade: parent }));
+            expect(engine.openTrades.size).toBe(2);
+            const owned = [...engine.openTrades.values()].map((trade) => ({ id: trade.id,
+                ownerRunId: trade.ownerRunId, entryType: trade.entryType, stopLossPrice: trade.stopLossPrice,
+                ownerExitPolicy: trade.brokerReconciliationPayload.liveRuntime.ownerExitPolicy,
+            }));
+            expect(owned.map((trade) => trade.entryType)).toEqual(['M15_RANGE_BREAKOUT', 'M15_POST_TP_FADE']);
+
+            const lifecycle = engine.brokerLifecycleRepository;
+            engine.stop();
+            engine = new LiveTradingEngine().init(mockConfigService, mockDataService, mockTradeRepository,
+                mockSignalGenerator, null, mockEntryDecisionRepository, lifecycle);
+            engine.getConversionRate = jest.fn(async (from, to) => rates[from] / rates[to]);
+            await engine.start();
+            expect([...engine.openTrades.values()].map((trade) => ({ id: trade.id,
+                ownerRunId: trade.ownerRunId, entryType: trade.entryType, stopLossPrice: trade.stopLossPrice,
+                ownerExitPolicy: trade.brokerReconciliationPayload.liveRuntime.ownerExitPolicy,
+            }))).toEqual(owned);
+
+            await engine.processSignal(signalFor('EUR_USD', { originalSide: 'BUY', runId: 'new-release' }));
+            expect(mockEntryDecisionRepository.decisions.at(-1).rejectionCode).toBe('ALREADY_IN_POSITION');
+
+            // The default aggregate budget allows two fully risked entries.
+            // A broker-confirmed move to breakeven releases risk for another
+            // instrument without changing any numerical limit or position cap.
+            const audTrade = engine.getOpenTradeByInstrument('AUD_USD');
+            brokerTrades.get(audTrade.oandaTradeId).stopLossOrder.price = String(audTrade.entryPrice);
+            await engine.syncWithOanda({ throwOnError: true });
+            expect(audTrade.stopLossPrice).toBe(audTrade.entryPrice);
+            await engine.processSignal(signalFor('GBP_USD', { runId: 'new-release' }));
+            expect(engine.openTrades.size).toBe(3);
+            expect(engine.getOpenTradeByInstrument('GBP_USD').ownerRunId).toBe('new-release');
+            expect(oandaClient.closeTrade).not.toHaveBeenCalled();
+        });
+
+        test.each(['1.2.0', '1.2.1'])('strategy %s still requires a valid protected-exit decision', async (strategyVersion) => {
+            const signal = signalFor('AUD_USD', { strategyVersion });
+            delete signal.strategyContext.reentry;
+            await expect(engine.executeEntry(signal, mockConfigService.get())).rejects.toMatchObject({
+                entryRejectionCode: 'INVALID_SIGNAL',
+                entryRejectionContext: { phase: 'REENTRY_REVALIDATION' },
+            });
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
     });
 
     describe('Live lifecycle safety regressions', () => {

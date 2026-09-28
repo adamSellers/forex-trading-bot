@@ -1,0 +1,255 @@
+{
+  "recordedAt": "2026-09-28T04:51:24.454042+00:00",
+  "release": "m15-intraday-v4.1",
+  "strategyVersion": "1.2.1",
+  "executionPolicyVersion": "intraday-risk-v4.1",
+  "runtime": "Node 22.23.1",
+  "scope": "Local isolated tests; broker/SMTP mocked. No production mutation or manual orders.",
+  "result": {
+    "passed": true,
+    "suites": 41,
+    "tests": 850,
+    "method": "Latest passing result for every suite, combining the full run with the final engine and localhost-authorized API reruns; not one all-green invocation."
+  },
+  "initialRun": {
+    "passedTests": 838,
+    "failedTests": 12,
+    "passedSuites": 39,
+    "failedSuites": 2,
+    "resolvedFailures": [
+      "10 API/Socket.IO tests required localhost listener permission; all passed in an isolated authorized rerun.",
+      "Two new engine tests initially assumed more aggregate stop-risk headroom than the retained 0.5% NAV policy. Fixtures/expectations corrected without changing risk limits; final entire engine suite passed."
+    ]
+  },
+  "finalReruns": {
+    "privateNetworkAccess": 10,
+    "LiveTradingEngine": 237
+  },
+  "otherChecks": {
+    "frontendJsxParsing": [
+      "SystemHealth.jsx",
+      "TradingConfig.jsx",
+      "TradingDashboard.jsx"
+    ],
+    "historicalV4ConfigHash": "49808daa3caffd0405c4",
+    "historicalV4ConfigHashPreserved": true
+  },
+  "coverage": [
+    "Different-pair queued and concurrent entries pass serialized reconciliation and broker-shaped execution.",
+    "Same-pair entry is rejected after reconciliation and duplicate signals do not fill.",
+    "Retained aggregate stop risk rejects a third fully risked position; broker-confirmed breakeven can free risk for another pair.",
+    "Normal and fade positions coexist on different pairs; restart preserves ownership/protection.",
+    "Strategy 1.2.0 and 1.2.1 retain protected-exit revalidation.",
+    "v3 through v4 upgrades preserve retained settings and enabled/disabled state, remove only the retired capacity field, and persist over restart.",
+    "Active cooldown keeps its deadline across release/restart; historical config snapshots/hash retain prior capacity semantics.",
+    "API reports explicit one-per-pair policy without changing stored config; other activation risk checks remain."
+  ],
+  "suiteResults": [
+    {
+      "path": "__tests__/privateNetworkAccess.test.js",
+      "passedTests": 10,
+      "status": "passed"
+    },
+    {
+      "path": "src/config/__tests__/tradingConfig.test.js",
+      "passedTests": 5,
+      "status": "passed"
+    },
+    {
+      "path": "src/maintenance/__tests__/checkpointWal.test.js",
+      "passedTests": 10,
+      "status": "passed"
+    },
+    {
+      "path": "src/middleware/__tests__/corsPolicy.test.js",
+      "passedTests": 3,
+      "status": "passed"
+    },
+    {
+      "path": "src/middleware/__tests__/validation.test.js",
+      "passedTests": 3,
+      "status": "passed"
+    },
+    {
+      "path": "src/repositories/__tests__/brokerLifecycleRepository.test.js",
+      "passedTests": 4,
+      "status": "passed"
+    },
+    {
+      "path": "src/repositories/__tests__/entryDecisionRepository.test.js",
+      "passedTests": 8,
+      "status": "passed"
+    },
+    {
+      "path": "src/repositories/__tests__/portfolioRepository.test.js",
+      "passedTests": 5,
+      "status": "passed"
+    },
+    {
+      "path": "src/repositories/__tests__/signalRepository.test.js",
+      "passedTests": 20,
+      "status": "passed"
+    },
+    {
+      "path": "src/repositories/__tests__/strategyRunRepository.test.js",
+      "passedTests": 11,
+      "status": "passed"
+    },
+    {
+      "path": "src/repositories/__tests__/tradeRepository.test.js",
+      "passedTests": 37,
+      "status": "passed"
+    },
+    {
+      "path": "src/routes/__tests__/pricingHealthRoutes.test.js",
+      "passedTests": 11,
+      "status": "passed"
+    },
+    {
+      "path": "src/routes/__tests__/tradingRoutes.test.js",
+      "passedTests": 18,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/currencyConversion.test.js",
+      "passedTests": 17,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/engineStartupReconsideration.test.js",
+      "passedTests": 2,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/engineSupervisor.test.js",
+      "passedTests": 12,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/executionPolicy.test.js",
+      "passedTests": 6,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/exitPolicy.test.js",
+      "passedTests": 6,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/intradayReentryPolicy.test.js",
+      "passedTests": 13,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/liveReadinessV2.test.js",
+      "passedTests": 14,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/marketContextService.test.js",
+      "passedTests": 8,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/marketDataFreshness.test.js",
+      "passedTests": 16,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/portfolioRiskPolicy.test.js",
+      "passedTests": 7,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/quoteMath.test.js",
+      "passedTests": 7,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/releaseCooldownIntegration.test.js",
+      "passedTests": 8,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/runtimeCoordinator.test.js",
+      "passedTests": 5,
+      "status": "passed"
+    },
+    {
+      "path": "src/runtime/__tests__/setupRetryIntegration.test.js",
+      "passedTests": 21,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/LiveTradingEngine.test.js",
+      "passedTests": 237,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/OandaDataService.test.js",
+      "passedTests": 40,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/Oandaclient.test.js",
+      "passedTests": 56,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/analyticsService.test.js",
+      "passedTests": 73,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/configService.test.js",
+      "passedTests": 26,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/emailService.test.js",
+      "passedTests": 2,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/operationalHealthService.test.js",
+      "passedTests": 16,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/s3ReportScheduler.test.js",
+      "passedTests": 6,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/sampledExcursionIntegration.test.js",
+      "passedTests": 10,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/signalGenerator.test.js",
+      "passedTests": 11,
+      "status": "passed"
+    },
+    {
+      "path": "src/services/__tests__/tradeReconciliationService.test.js",
+      "passedTests": 14,
+      "status": "passed"
+    },
+    {
+      "path": "src/strategies/__tests__/expectedEdge.test.js",
+      "passedTests": 3,
+      "status": "passed"
+    },
+    {
+      "path": "src/strategies/__tests__/intradayMomentum.test.js",
+      "passedTests": 66,
+      "status": "passed"
+    },
+    {
+      "path": "src/strategies/__tests__/registry.test.js",
+      "passedTests": 3,
+      "status": "passed"
+    }
+  ],
+  "delivery": "Local implementation only; publication, builds and deployment remain user-managed."
+}

@@ -2,7 +2,6 @@ const { computeConfigHash } = require("../config/tradingConfig");
 const { getStrategyDefinition } = require("../strategies");
 
 const LIVE_RISK_LIMITS = Object.freeze({
-    maxOpenPositions: 1,
     maxRiskPerTrade: 0.0025,
     maxCapitalAtRisk: 100,
     maxPortfolioExposure: 0.3,
@@ -21,11 +20,6 @@ function finite(value, fallback = Infinity) {
 
 function getLiveRiskChecks(config = {}) {
     return [
-        {
-            key: "maxOpenPositions",
-            actual: Math.floor(finite(config.maxOpenPositions)),
-            max: LIVE_RISK_LIMITS.maxOpenPositions,
-        },
         {
             key: "riskPerTrade",
             actual: finite(config.riskPerTrade),

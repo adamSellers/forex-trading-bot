@@ -10,7 +10,6 @@ function readyConfig(overrides = {}) {
         referenceCurrency: "AUD",
         accountCurrency: "AUD",
         portfolioRiskEnforcement: true,
-        maxOpenPositions: 1,
         riskPerTrade: 0.0025,
         maxCapitalAtRisk: 100,
         maxPortfolioExposure: 0.3,
@@ -49,7 +48,7 @@ describe("liveReadiness", () => {
                 activationAllowed: true,
                 status: "PASS",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.2.0",
+                strategyVersion: "1.2.1",
             })
         );
         expect(readiness).not.toHaveProperty("activationOptions");
@@ -75,19 +74,13 @@ describe("liveReadiness", () => {
         );
     });
 
-    test("limits the installation to one simultaneous live position", () => {
-        expect(
-            getLiveRiskLimitViolations(
-                readyConfig({ maxOpenPositions: 2 })
-            )
-        ).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    key: "maxOpenPositions",
-                    max: 1,
-                }),
-            ])
-        );
+    test.each([undefined, 1, 2, 4])("does not impose a global position-count ceiling (%s)", (maxOpenPositions) => {
+        const config = readyConfig({ maxOpenPositions });
+        expect(getLiveRiskLimitViolations(config)).toEqual([]);
+        const readiness = evaluateLiveReadiness({ config, liveSelection: readySelection(config) });
+        expect(readiness.passed).toBe(true);
+        expect(readiness.riskLimits).not.toHaveProperty("maxOpenPositions");
+        expect(readiness.riskChecks.some((check) => check.key === "maxOpenPositions")).toBe(false);
     });
 
     test("reports an active loss cooldown as a bounded entry block", () => {
@@ -141,7 +134,7 @@ describe("liveReadiness", () => {
     );
 
     test("a cooldown cannot conceal another activation blocker", () => {
-        const config = readyConfig({ maxOpenPositions: 2 });
+        const config = readyConfig({ riskPerTrade: 0.005 });
         const readiness = evaluateLiveReadiness({
             config,
             liveSelection: readySelection(config),

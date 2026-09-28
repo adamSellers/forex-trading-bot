@@ -3,9 +3,23 @@ const {
     computeConfigHash,
     materializeStrategyConfig,
     normalizeTradingConfig,
+    cloneDefaultConfig,
 } = require("../tradingConfig");
 
 describe("tradingConfig", () => {
+    test("retains the deployed v4 snapshot hash and old capacity semantics", () => {
+        const historical = {
+            ...cloneDefaultConfig(),
+            liveReleaseVersion: "m15-intraday-v4",
+            executionPolicyVersion: "intraday-risk-v4",
+            maxOpenPositions: 1,
+        };
+        expect(normalizeTradingConfig(historical).maxOpenPositions).toBe(1);
+        // Captured from v4 before this change; normalizing history must not
+        // rewrite its capacity policy or silently change experiment identity.
+        expect(computeConfigHash(historical)).toBe("49808daa3caffd0405c4");
+        expect(computeConfigHash(cloneDefaultConfig())).not.toBe(computeConfigHash(historical));
+    });
     test("uses AUD as the immutable reference and account currency", () => {
         const config = normalizeTradingConfig({
             referenceCurrency: "USD",

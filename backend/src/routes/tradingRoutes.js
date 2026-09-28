@@ -12,6 +12,7 @@ const { buildOperationalHealth } = require("../services/operationalHealthService
 const { buildOandaApiError } = require("../utils/oandaErrors");
 const { performance } = require("node:perf_hooks");
 const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
+const POSITION_POLICY = require("../constants/positionPolicy");
 
 const OANDA_API_KEY = process.env.OANDA_API_KEY;
 const OANDA_ACCOUNT_ID = process.env.OANDA_ACCOUNT_ID;
@@ -243,7 +244,8 @@ router.get("/health", (req, res) => {
             strategyLabel: strategy.label,
             strategyVersion: strategy.version,
             timeframe: config.timeframe || "15m",
-            maxOpenPositions: config.maxOpenPositions || 1,
+            maxOpenPositions: null,
+            positionPolicy: POSITION_POLICY,
             riskPerTrade: config.riskPerTrade || 0,
         },
     });
@@ -318,6 +320,8 @@ router.get("/system/health", async (req, res) => {
                 strategy: config.strategy,
                 timeframe: config.timeframe,
                 assets: config.assets || [],
+                maxOpenPositions: null,
+                positionPolicy: POSITION_POLICY,
             },
             liveReadiness,
             entryRisk: liveReadiness.entryRisk,
@@ -765,7 +769,7 @@ router.get("/runtime/runs/:runId/equity", async (req, res) => {
 router.get("/config", (req, res) => {
     const service = req.app.locals.configService;
     if (!requireService(res, service, "Config service")) return;
-    res.json(service.get());
+    res.json({ ...service.get(), positionPolicy: POSITION_POLICY });
 });
 
 router.post("/config", (req, res) => {

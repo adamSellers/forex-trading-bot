@@ -61,11 +61,11 @@ class ConfigService extends EventEmitter {
                 nextConfig = normalizeTradingConfig(fileConfig);
                 delete nextConfig.tradingMode;
                 if (
-                    ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2", "m15-intraday-v3.3"].includes(fileConfig.liveReleaseVersion) &&
-                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v4"
+                    ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2", "m15-intraday-v3.3", "m15-intraday-v4"].includes(fileConfig.liveReleaseVersion) &&
+                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v4.1"
                 ) {
-                    // The integrated entry release changes code-defined rules,
-                    // while preserving the saved numerical and operational settings.
+                    // Preserve saved entry/exit/risk settings and enabled intent.
+                    // The retired account-wide position limit is removed below.
                     nextConfig = {
                         ...nextConfig,
                         liveReleaseVersion: DEFAULT_CONFIG.liveReleaseVersion,
@@ -74,7 +74,7 @@ class ConfigService extends EventEmitter {
                     };
                     needsSave = true;
                     logger.info(
-                        `Applied integrated release ${DEFAULT_CONFIG.liveReleaseVersion}; existing configuration values were preserved`
+                        `Applied live release ${DEFAULT_CONFIG.liveReleaseVersion}; retained configuration values were preserved`
                     );
                 } else if (
                     fileConfig.liveReleaseVersion !==
@@ -98,6 +98,13 @@ class ConfigService extends EventEmitter {
                 }
                 if (fileConfig.enforceConfigFreeze !== true) needsSave = true;
                 logger.info(`📋 Config loaded from ${this.configPath}`);
+            }
+
+            // Remove only from the active configuration. Historical run/exit
+            // snapshots retain the old field and its original hash semantics.
+            if (Object.prototype.hasOwnProperty.call(nextConfig, "maxOpenPositions")) {
+                delete nextConfig.maxOpenPositions;
+                needsSave = true;
             }
 
             if (this.persistenceFault) {

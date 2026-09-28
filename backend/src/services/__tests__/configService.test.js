@@ -19,16 +19,16 @@ describe("ConfigService governance", () => {
         fs.rmSync(directory, { recursive: true, force: true });
     });
 
-    test("identifies the integrated release without increasing numerical risk defaults", () => {
+    test("identifies per-pair capacity without increasing the retained risk defaults", () => {
         expect(ConfigService.DEFAULT_CONFIG).toMatchObject({
-            liveReleaseVersion: "m15-intraday-v4",
-            executionPolicyVersion: "intraday-risk-v4",
+            liveReleaseVersion: "m15-intraday-v4.1",
+            executionPolicyVersion: "intraday-risk-v4.1",
             pricingModelVersion: "broker-liquidity-v3.1",
             riskPerTrade: 0.0025,
             maxCapitalAtRisk: 100,
-            maxOpenPositions: 1,
             intradayTargetRiskMultiple: 1.5,
         });
+        expect(ConfigService.DEFAULT_CONFIG).not.toHaveProperty("maxOpenPositions");
     });
 
     test("migrates the deployed strategy release without disabling live trading", () => {
@@ -64,6 +64,8 @@ describe("ConfigService governance", () => {
         ["m15-intraday-v3.2", "intraday-risk-v3.2", "broker-liquidity-v3.1", true],
         ["m15-intraday-v3.3", "intraday-risk-v3.3", "broker-liquidity-v3.1", false],
         ["m15-intraday-v3.3", "intraday-risk-v3.3", "broker-liquidity-v3.1", true],
+        ["m15-intraday-v4", "intraday-risk-v4", "broker-liquidity-v3.1", false],
+        ["m15-intraday-v4", "intraday-risk-v4", "broker-liquidity-v3.1", true],
     ])("integrated upgrade from %s preserves settings (%s/%s, enabled=%s) across restart", (liveReleaseVersion, executionPolicyVersion, pricingModelVersion, enableTrading) => {
         const prior = {
             ...ConfigService.DEFAULT_CONFIG,
@@ -71,6 +73,7 @@ describe("ConfigService governance", () => {
             executionPolicyVersion,
             pricingModelVersion,
             enableTrading,
+            maxOpenPositions: 1,
             assets: ["EUR_USD", "USD_JPY"],
             riskPerTrade: 0.001,
             maxCapitalAtRisk: 75,
@@ -94,10 +97,11 @@ describe("ConfigService governance", () => {
             executionPolicyVersion: ConfigService.DEFAULT_CONFIG.executionPolicyVersion,
             pricingModelVersion: ConfigService.DEFAULT_CONFIG.pricingModelVersion,
         };
+        delete expected.maxOpenPositions;
 
         const service = new ConfigService(configPath).init();
         const { configHash, ...loaded } = service.get();
-        // Exact equality covers every saved numeric, boolean and other setting;
+        // Exact equality covers every retained numeric, boolean and other setting;
         // the deliberately nondefault values expose an accidental defaults reset.
         expect(loaded).toEqual(expected);
         expect(configHash).not.toBe(ConfigService.computeConfigHash(prior));
@@ -108,6 +112,18 @@ describe("ConfigService governance", () => {
         restarted.init();
         expect(restarted.get()).toEqual(service.get());
         expect(save).not.toHaveBeenCalled();
+    });
+
+    test("removes a stale account-wide cap even on an already-current release", () => {
+        fs.writeFileSync(configPath, JSON.stringify({
+            ...ConfigService.DEFAULT_CONFIG, enableTrading: true, maxOpenPositions: 1,
+        }));
+        const service = new ConfigService(configPath).init();
+        expect(service.get()).not.toHaveProperty("maxOpenPositions");
+        expect(service.get().enableTrading).toBe(true);
+        expect(JSON.parse(fs.readFileSync(configPath, "utf8")))
+            .not.toHaveProperty("maxOpenPositions");
+        expect(() => service.update({ maxOpenPositions: 1 })).toThrow("freeze active");
     });
 
     test("older releases retain the existing strategy-default migration", () => {
@@ -144,7 +160,7 @@ describe("ConfigService governance", () => {
         const service = new ConfigService(configPath).init();
         // A reviewed release may change defaults; simulate an unsafe persisted
         // release value without creating an API path around the freeze.
-        service.config.maxOpenPositions = 2;
+        service.config.riskPerTrade = 0.005;
 
         expect(() =>
             service.update(
@@ -155,7 +171,7 @@ describe("ConfigService governance", () => {
             )
         ).toThrow("release caps");
 
-        service.config.maxOpenPositions = 1;
+        service.config.riskPerTrade = ConfigService.DEFAULT_CONFIG.riskPerTrade;
 
         const activated = service.update(
             {

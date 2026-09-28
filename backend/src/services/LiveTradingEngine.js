@@ -4,11 +4,12 @@ const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
 const oandaClient = require("./Oandaclient");
 const emailService = require("./emailService");
+const positionPolicy = require("../constants/positionPolicy");
 const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
 const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 const { appendExcursionSample, finalizeSampledExcursion } = require("../runtime/sampledExcursion");
 const {
-    FADE_ENTRY_TYPE, INTEGRATED_STRATEGY_VERSION, isFadeTrade,
+    FADE_ENTRY_TYPE, INTEGRATED_STRATEGY_VERSIONS, isFadeTrade,
     latestClosedTradeForInstrument, evaluateReentryPolicy, sameReentryDecision,
 } = require("../runtime/intradayReentryPolicy");
 const {
@@ -66,7 +67,7 @@ function entryPolicyRejection(code, reason, context = {}) {
  *
  * Responsibilities:
  * - Listen for signals from SignalGenerator
- * - Validate entry conditions (trading enabled, max positions, margin, etc.)
+ * - Validate entry conditions (trading enabled, instrument ownership, margin, etc.)
  * - Calculate position size based on risk parameters
  * - Execute trades via Oanda API
  * - Manage stop loss, take profit, and trailing stops
@@ -976,7 +977,7 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async validateReentryDecision(signal) {
-        if (signal.strategyVersion !== INTEGRATED_STRATEGY_VERSION) return;
+        if (!INTEGRATED_STRATEGY_VERSIONS.includes(signal.strategyVersion)) return;
         const prior = signal.strategyContext?.reentry;
         if (!prior || !this.tradeRepository?.getAllTrades) {
             throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
@@ -1099,21 +1100,7 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
-        // 4. Check max open positions
-        const openCount = this.openTrades.size;
-        if (openCount >= config.maxOpenPositions) {
-            return {
-                valid: false,
-                code: ENTRY_REJECTION_CODES.MAX_POSITIONS,
-                reason: `Max positions reached (${openCount}/${config.maxOpenPositions})`,
-                context: {
-                    ...baseContext,
-                    openPositions: openCount,
-                },
-            };
-        }
-
-        // 5. Not already in a position for this instrument
+        // One managed position per instrument; portfolio risk governs the account.
         if (this.getOpenTradeByInstrument(signal.symbol)) {
             return {
                 valid: false,
@@ -2774,10 +2761,9 @@ class LiveTradingEngine extends EventEmitter {
             if (block) throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 block, { phase: "RECONCILIATION" });
             await this.validateReentryDecision(signal);
-            if (this.openTrades.size >= config.maxOpenPositions ||
-                this.getOpenTradeByInstrument(symbol)) {
-                throw entryPolicyRejection(ENTRY_REJECTION_CODES.MAX_POSITIONS,
-                    "Broker reconciliation found existing position capacity in use",
+            if (this.getOpenTradeByInstrument(symbol)) {
+                throw entryPolicyRejection(ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                    "Broker reconciliation found an existing position for this instrument",
                     { phase: "RECONCILIATION", openPositions: this.openTrades.size });
             }
             let units = await this.calculatePositionSize(
@@ -4271,7 +4257,8 @@ class LiveTradingEngine extends EventEmitter {
             brokerSyncAgeMs: this.lastBrokerReconciledAt ? Date.now() - this.lastBrokerReconciledAt : null,
             protectionPendingTrades: trades.filter((trade) => /STOP_UPDATE|PROTECTION/.test(trade.reconciliationStatus || "") || trade.brokerReconciliationPayload?.stopUpdate).map((trade) => trade.id),
             overdueTrades: trades.filter((trade) => resolveTimedExitReason({ trade, policy: this.getOwnerExitPolicy(trade, config), now: Date.now() })).map((trade) => trade.id),
-            maxPositions: config.maxOpenPositions,
+            maxPositions: null,
+            positionPolicy,
             entryRisk: this.entryRiskState,
             stats: this.stats,
             openTrades: Array.from(this.openTrades.values()).map((t) => ({

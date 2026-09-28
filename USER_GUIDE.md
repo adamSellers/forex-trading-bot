@@ -14,18 +14,18 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-Read-only production checks on September 26 verified clean commit `5889b66`, with the [excursion measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) deployed. Release v3.3 / strategy 1.1.3, the existing run/config and numerical trading rules remain unchanged, including the [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md). This table describes the last verified deployed release; the [current status and decisions](docs/reviews/2026-09-26-status-and-decisions.md) separate deployed behavior from the authorized local v4 implementation.
+Read-only inspection on September 28 verified clean user-deployed commit `aed750f`, release v4 / strategy 1.2.0 / execution policy `intraday-risk-v4`. Dashboard/API and OANDA were online, quotes and candles fresh, entries enabled and the account flat. This table describes that deployed release. Local v4.1 removes the global position cap as requested by the user; it is implemented and locally validated (latest passing results: 850 tests across 41 backend suites plus changed JSX syntax checks), with publication/build/deployment pending. See the [pair capacity release](docs/reviews/2026-09-28-pair-capacity-release.md) and [current status](docs/reviews/2026-09-26-status-and-decisions.md).
 
 | Setting | Value |
 | --- | --- |
-| Release | `m15-intraday-v3.3` |
-| Strategy | `intraday_momentum` `1.1.3` |
+| Release | `m15-intraday-v4` |
+| Strategy | `intraday_momentum` `1.2.0` |
 | Decision candles | completed M15 with completed H1 regime context |
 | Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
-| Entry | eight-bar breakout or four-bar pullback resumption with H1 EMA/ADX and M15 RSI alignment |
+| Entry | breakout or bar-aligned pullback/resumption; protected-exit freshness and one post-TP fade per episode |
 | Entry risk | 0.25% × min(80% available margin, A$100) |
 | Capital cap | A$100 |
-| Concurrent positions | 1 |
+| Concurrent positions | 1 globally in deployed v4; local v4.1 changes this to one per pair |
 | Consecutive-loss control | 24-hour entry cooldown after three losses; the next streak starts at zero after expiry |
 | Initial stop | max(1.25 M15 ATR, 6 pips) |
 | Take profit | 1.5R broker order; breakeven at 1R |
@@ -34,9 +34,15 @@ Read-only production checks on September 26 verified clean commit `5889b66`, wit
 
 **Time Stop** means the position reached six hours from its original broker entry time. The bot requests a market close whether the trade is profitable, losing or near flat; it does not require a reversal or a stop/target price to be reached. The clock survives restarts and an entry pause. Execution occurs when the running monitor and broker can process the close, so the recorded duration may exceed six hours. The rule was documented with the August 10 strategy but was not connected to live position monitoring until the September 6 remediation. **Session Close** is the separate New York rollover-window exit. See [the September 8 example and rationale](docs/reviews/2026-09-08-exit-policy-observations.md).
 
-## Local v4 release awaiting rollout
+## Local v4.1: one position per pair
 
-The user authorized the [integrated release](docs/reviews/2026-09-26-integrated-release-specification.md), now implemented locally as **m15-intraday-v4 / strategy 1.2.0**. Local validation passed: 834 tests across 41 backend suites; the changed analytics JSX also passed syntax validation; it has not been published or deployed. The table above remains the last verified production state.
+The user explicitly requested that a qualifying setup on one pair should not be blocked merely because another pair is held. Local **m15-intraday-v4.1 / strategy 1.2.1** removes the account-wide count cap and retains one position per pair. Strategy, quote, broker, per-trade sizing, margin, aggregate exposure and loss checks still apply. Available margin can reduce later position sizes, and the unchanged aggregate stop-risk ceiling of 0.5% of NAV can still reject an additional full-risk pair. Broker-confirmed stop movement to breakeven can release stop-risk capacity; the regression tests demonstrate admission of a third pair in that case. This increases potential concurrent exposure within the existing portfolio limits; it does not establish better returns.
+
+The dashboard/API describe the policy as “one per pair”. Saved settings and enabled intent survive migration except the retired global count field; historical snapshots remain unchanged. Active cooldown expiry and existing trades' owner exit policies carry forward. Validation and delivery state are recorded in the [release contract](docs/reviews/2026-09-28-pair-capacity-release.md). No production settings were changed during local implementation.
+
+## Deployed v4 entry and execution rules
+
+The user-authorized [integrated release](docs/reviews/2026-09-26-integrated-release-specification.md) is verified deployed as **m15-intraday-v4 / strategy 1.2.0**. Its original local validation passed 834 tests across 41 backend suites plus analytics JSX parsing. Those results do not substitute for v4.1 validation.
 
 Normal pullbacks now use each prior candle's own EMA20 touch and EMA50 integrity, then require the signal to clear the structure from the latest touch while retaining the two-bar confirmation. The independent breakout branch remains. For a same-direction repeat after TP or breakeven, both branches need a prior completed candle that started at or after the broker exit and touched the new signal's EMA20. The new signal must complete after the exit; an already-completed candle cannot be reused as a fade.
 
@@ -82,11 +88,11 @@ The dashboard win-rate card is explicitly current-run closed trades; the 24-hour
 
 Trades capture sampled favorable/adverse excursions using executable exit bids/asks. The deployed September 21 measurement correction keeps new version 2 samples provisional until the matching broker close establishes their lifetime. The close removes observations outside that lifetime and recomputes extrema. The September 26 review independently verified all ten new trades' version 2 records. The dashboard reports verified coverage separately from unverified samples; averages use verified closed-trade samples only. Older aggregates and partial legacy history remain available but excluded from these averages because their timing cannot be repaired. Polling still misses movements between observations; verified does not mean tick-complete or exact historical extrema.
 
-S3 reports use the same analytics calculation and immutable completed UTC days and Sunday-to-Sunday weeks, wait for post-boundary broker reconciliation, retry failed uploads, and persist successful checkpoints. A first-time scheduler starts with the latest completed periods; it catches up subsequent missed periods. Reports are snapshots of reconciled records available at generation, so later broker corrections require a separately identified corrected export, not overwriting history.
+S3 uploads remained unconfigured at the September 28 check. When configured, S3 reports use the same analytics calculation and immutable completed UTC days and Sunday-to-Sunday weeks, wait for post-boundary broker reconciliation, retry failed uploads, and persist successful checkpoints. A first-time scheduler starts with the latest completed periods; it catches up subsequent missed periods. Reports are snapshots of reconciled records available at generation, so later broker corrections require a separately identified corrected export, not overwriting history.
 
 ## Strategy semantics retained
 
-No numeric ADX, RSI, EMA-period, pullback-window or target threshold was optimized. Last verified production v3.3 compares prior candles against the signal's EMA values; local v4 changes ordinary pullbacks to each bar's EMA and receives its own cohort. The separate post-exit freshness test retains its signal-EMA reference. Both breakout and pullback can be true. Breakeven moves the stop to the entry fill price at 1R; v3.1 quote-dependent management requires a validated bid and ask and uses the exit bid for a BUY and ask for a SELL. Missing executable pricing defers that adjustment; timed exits and existing close/protection retries remain independent. Financing, execution costs, slippage and quote polling mean it is not a guarantee of zero net loss.
+No numeric ADX, RSI, EMA-period, pullback-window or target threshold was optimized. Deployed v4 uses each prior candle's own EMA for ordinary pullbacks; v4.1 retains that rule in a distinct capacity-policy cohort. The separate post-exit freshness test retains its signal-EMA reference. Both breakout and pullback can be true. Breakeven moves the stop to the entry fill price at 1R; v3.1 quote-dependent management requires a validated bid and ask and uses the exit bid for a BUY and ask for a SELL. Missing executable pricing defers that adjustment; timed exits and existing close/protection retries remain independent. Financing, execution costs, slippage and quote polling mean it is not a guarantee of zero net loss.
 
 ## Live controls
 
@@ -120,11 +126,11 @@ Changes go directly to a versioned live release. Use actual OANDA outcomes as th
 
 The design target is roughly 5–15 trades per week, not a quota. A quiet day is possible, but repeated weeks with materially lower cadence should trigger a review of the decision funnel rather than arbitrary filter removal.
 
-## Current review and decision points — September 26
+## Current review and decision points — September 28
 
 The [follow-up review](docs/reviews/2026-09-26-follow-up-trading-review.md) checked every trade from September 21 20:35 to September 26 06:45 AEST, end excluded: ten closed trades, two positive, seven negative and one flat, net **−A$0.5369**. The unchanged v3.3 run now has 25 closed trades and **−A$1.2693** net. The new interval is four days, ten hours and ten minutes, not seven elapsed days; earlier releases remain separate cohorts.
 
-The review itself changed no live setting. The subsequent authorized integrated implementation is described above and in the [release specification](docs/reviews/2026-09-26-integrated-release-specification.md). It retains 1.5R and existing risk/capital limits while combining entry changes, precision correctness and attribution. Actual reviewed fill risks remained within budget. Research sensitivities are not alternative live returns, and the new code has not been deployed. See the [status and decision record](docs/reviews/2026-09-26-status-and-decisions.md) for remaining verification, rollout and operational work.
+The review itself changed no live setting. The subsequent authorized integrated implementation is described above and in the [release specification](docs/reviews/2026-09-26-integrated-release-specification.md). It retains 1.5R and existing risk/capital limits while combining entry changes, precision correctness and attribution. Actual reviewed fill risks remained within budget. Research sensitivities are not alternative live returns. V4 deployment was verified September 28; the separately requested v4.1 capacity change remains local. See the [status and decision record](docs/reviews/2026-09-26-status-and-decisions.md) for remaining verification, rollout and operational work.
 
 ## Incident rule
 

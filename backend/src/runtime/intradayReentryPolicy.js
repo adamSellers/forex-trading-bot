@@ -3,6 +3,7 @@
 const FADE_ENTRY_TYPE = "M15_POST_TP_FADE";
 const REENTRY_POLICY_VERSION = 1;
 const INTEGRATED_STRATEGY_VERSION = "1.2.0";
+const INTEGRATED_STRATEGY_VERSIONS = Object.freeze([INTEGRATED_STRATEGY_VERSION, "1.2.1"]);
 const TradeReconciliationService = require("../services/tradeReconciliationService");
 const reconciliation = new TradeReconciliationService();
 
@@ -133,7 +134,7 @@ function sameReentryDecision(prior, current) {
 }
 
 module.exports = {
-    FADE_ENTRY_TYPE, REENTRY_POLICY_VERSION, INTEGRATED_STRATEGY_VERSION,
+    FADE_ENTRY_TYPE, REENTRY_POLICY_VERSION, INTEGRATED_STRATEGY_VERSION, INTEGRATED_STRATEGY_VERSIONS,
     evaluateReentryPolicy, latestClosedTradeForInstrument, sameReentryDecision, isFadeTrade,
     confirmedCloseTime,
 };

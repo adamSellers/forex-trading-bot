@@ -266,6 +266,10 @@ const SystemHealth = () => {
   // Engine stats
   const engineStats = engineStatus?.stats || {};
   const engineOpenTrades = engineStatus?.openPositions || 0;
+  const positionPolicy = health.config?.positionPolicy || engineStatus?.positionPolicy;
+  const positionCapacity = positionPolicy?.scope === 'PER_INSTRUMENT' && positionPolicy.maxPerInstrument === 1
+    ? 'One per pair · no account-wide count cap'
+    : health.config?.maxOpenPositions != null ? `Account maximum: ${health.config.maxOpenPositions}` : 'Position limit unavailable';
   const entryRisk = health.entryRisk || engineStatus?.entryRisk || null;
   const lossCooldownActive = entryRisk?.cooldownActive === true;
 
@@ -518,7 +522,7 @@ const SystemHealth = () => {
                     <MetricItem
                       title="Open Positions"
                       value={engineOpenTrades}
-                      subValue={`Max: ${health.config?.maxOpenPositions || 2}`}
+                      subValue={positionCapacity}
                       icon={<Router fontSize="small" />}
                       color="info"
                     />

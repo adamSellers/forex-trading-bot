@@ -1,5 +1,22 @@
 # Current status and decision points — 26 September 2026
 
+## September 28 checkpoint — deployed v4, local v4.1
+
+Read-only inspection verified clean user-deployed `aed750f27cd0ed24219b2965c443ba45ac05499a`, **m15-intraday-v4 / strategy 1.2.0 / intraday-risk-v4**. Dashboard/API and OANDA were online, prices/candles fresh, entries enabled, account flat and repeated readiness checks passing. Active run: `live_3c068476-9fad-4079-bb82-c24889350374`; config: `49808daa3caffd0405c4`; no v4 fills at the 14:35–14:37 AEST snapshot. S3 uploads remained unconfigured. Earlier pending-v4-deployment statements below describe the September 26 checkpoint and are superseded by this observation.
+
+The user then explicitly requested removal of the global position-count cap so valid setups on different pairs may enter concurrently. The [September 28 release record](2026-09-28-pair-capacity-release.md) specifies local **m15-intraday-v4.1 / strategy 1.2.1 / intraday-risk-v4.1**: one position per pair, no account-wide count cap, and unchanged per-trade sizing, portfolio/margin/loss limits, broker safety and strategy rules. The retired setting is removed from active configuration/readiness; API/UI report the explicit per-pair policy. Saved settings/enabled intent survive except that field; historical snapshots, active cooldown expiry and prior ownership remain intact.
+
+**V4.1 is implemented and locally validated; it is not deployed.** Latest passing results cover 850 tests across 41 backend suites, assembled from the full run and targeted reruns, plus changed JSX syntax checks. The release record links the retained validation evidence. The 0.5%-of-NAV aggregate stop-risk limit remains unchanged and can still reject additional full-risk pairs. Publication, builds and rollout remain user-managed through the normal GitHub-to-bot deployment. No production mutation or test orders occurred during this work.
+
+| Decision / finding | Current state | Remaining work |
+| --- | --- | --- |
+| V4 integrated rules and precision/RSI changes | Deployment verified September 28; original local validation was 834 tests across 41 backend suites | Review natural live trades and fade episodes; no established positive expectancy |
+| Global position cap | Explicit user decision removes it in local v4.1; same-pair exclusion and all existing portfolio/risk limits remain | Local validation complete; user-managed publication/build/deployment and live observation remain |
+| System tab capacity display | Deployed “Max: 2” is an inaccurate fallback; actual v4 cap is one | V4.1 reports “one per pair” with matching API policy |
+| Reporting/recovery/delivery | S3 unconfigured; independent restore and email-delivery checks still outstanding | Separate operational follow-ups; no new destination or notification selected |
+
+## September 26 record (historical checkpoint)
+
 This handoff separates the [September 26 performance review](2026-09-26-follow-up-trading-review.md), last verified production state and the subsequently authorized [integrated v4 implementation](2026-09-26-integrated-release-specification.md). The user first requested documentation while reading the review, then discussed the complete package and explicitly authorized its specification and implementation.
 
 **Local source now implements m15-intraday-v4 / strategy 1.2.0 / intraday-risk-v4. Local validation passed: 834 tests across 41 backend suites; the changed analytics JSX also passed syntax validation; it has not been published or deployed.** The specification records exact behavior and final acceptance results. Production remains last verified at v3.3 below.
