@@ -8,6 +8,7 @@ const {
 
 const { getActivePairSessions } = require("../strategies/intradayMomentum");
 const { isFadeTrade } = require("../runtime/intradayReentryPolicy");
+const { SELL_RETEST_ENTRY_TYPE } = require("../runtime/intradaySellRetestPolicy");
 
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
@@ -1931,9 +1932,10 @@ class AnalyticsService {
         const groups = new Map();
         for (const trade of trades) {
             const trigger = getTriggerCohort(trade);
-            // A fade retains its originating trend's raw trigger evidence. Keep
-            // its outcome separate without rewriting that historical meaning.
-            const entryClass = isFadeTrade(trade) ? "POST_TP_FADE" : "TREND";
+            // Fades and break/retest entries retain raw breakout/pullback flags
+            // as evidence. Neither outcome belongs to the legacy trend cohort.
+            const entryClass = isFadeTrade(trade) ? "POST_TP_FADE"
+                : trade.entryType === SELL_RETEST_ENTRY_TYPE ? "SELL_RETEST" : "TREND";
             const key = `${entryClass}:${trigger}`;
             if (!groups.has(key)) groups.set(key, { entryClass, trigger, trades: [] });
             groups.get(key).trades.push(trade);

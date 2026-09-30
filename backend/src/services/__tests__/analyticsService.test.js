@@ -1096,6 +1096,36 @@ describe('AnalyticsService', () => {
             expect(overall).toMatchObject({ trades: 4, totalPnLAud: 0.05, wins: 2, losses: 2 });
             expect(JSON.stringify(trades)).toBe(original);
         });
+        test.each(['dashboard', 'full'])('SELL retest results remain a distinct entry class in %s analytics and reports', async (profile) => {
+            const trade = (id, entryType, pnlAud, flags) => createClosedTrade({ id, entryType, pnlAud,
+                side: 'SELL', brokerReconciliationPayload: { liveRuntime: { initialRiskAud: 0.2,
+                    entryTelemetry: { strategyContext: { m15: { trigger: flags } } } } } });
+            const both = { shortPullback: true, shortBreakout: true, longPullback: false, longBreakout: false };
+            const neither = { shortPullback: false, shortBreakout: false, longPullback: false, longBreakout: false };
+            const trades = [
+                trade('old-trend', 'M15_PULLBACK_RESUMPTION', -0.2, both),
+                trade('old-fade', 'M15_POST_TP_FADE', 0.1, both),
+                trade('new-retest-overlap', 'M15_BREAK_RETEST_REJECTION', 0.3, both),
+                trade('new-retest-independent', 'M15_BREAK_RETEST_REJECTION', -0.1, neither),
+            ];
+            const originalPayloads = trades.map((row) => JSON.stringify(row.brokerReconciliationPayload));
+            mockTradeRepo.getTradesSince.mockResolvedValue(trades);
+
+            const result = await service.getAnalytics('all', { profile, timeBasis: 'realized' });
+
+            expect(result.triggerPerformance).toEqual([
+                expect.objectContaining({ entryClass: 'TREND', trigger: 'BOTH', trades: 1, totalPnLAud: -0.2 }),
+                expect.objectContaining({ entryClass: 'POST_TP_FADE', trigger: 'BOTH', trades: 1, totalPnLAud: 0.1 }),
+                expect.objectContaining({ entryClass: 'SELL_RETEST', trigger: 'BOTH', trades: 1, totalPnLAud: 0.3, avgR: 1.5 }),
+                expect.objectContaining({ entryClass: 'SELL_RETEST', trigger: 'NEITHER', trades: 1, totalPnLAud: -0.1, avgR: -0.5 }),
+            ]);
+            expect(result.sidePerformance.byEntryType).toContainEqual(expect.objectContaining({
+                entryType: 'M15_BREAK_RETEST_REJECTION', sellTrades: 2, sellPnLAud: 0.2,
+            }));
+            expect(result.triggerPerformance.reduce((sum, group) => sum + group.trades, 0)).toBe(result.summary.totalTrades);
+            expect(result.triggerPerformance.reduce((sum, group) => sum + group.totalPnLAud, 0)).toBeCloseTo(result.summary.totalPnLAud, 10);
+            expect(trades.map((row) => JSON.stringify(row.brokerReconciliationPayload))).toEqual(originalPayloads);
+        });
         test('positive commissions and fees are added back to derive gross P/L', () => {
             const result = service.calculateSummary([createClosedTrade({ pnlAud: 0.55, swapAud: -0.1, commissionAud: 0.3,
                 brokerReconciliationPayload: { closeCosts: { guaranteedExecutionFee: 0.05 } } })]);

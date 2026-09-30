@@ -1,5 +1,17 @@
 # September 6 remediation register
 
+## October 1 SELL candidate — authorized implementation and deployment
+
+The user approved the new SELL candidate for live OANDA trading and explicitly authorized deployment. [v5 / strategy 1.3.0](2026-10-01-sell-retest-release.md) requires distinct break/retest/rejection candles, ask-based structural stops and durable pattern evidence. It disables SELL fades that would bypass the candidate, preserves BUY logic and numerical risk, and records a distinct analytics class. The release record tracks correctness tests and actual delivery separately. The earlier research-only and chart-local statements below describe their original checkpoints.
+
+## October 1 SELL entry and exit study — research complete
+
+The user requested examination of recent SELL setups, exit conditions and wider stops. The [dated study](2026-10-01-sell-entry-and-exit-study.md) reconciles 29 September SELL trades with OANDA and examines all 13 since the prior review cutoff, including winning controls. Wider initial stops rescue some losses on the retained quote paths, but scaling target/breakeven as well creates new losses; earlier controls and later-entry capacity conflicts prevent a blanket strategy-return claim. Verification covers 102,732 S5 candles, 29 matching baseline exit classifications, 928 scenario calculations and independent sizing/aggregate checks. Exact historical broker fills/timing are not reproduced. No trading behavior, cash-risk limits, orders or deployment changed; the separate chart correction below remains local. Research is not approval to tune the strategy.
+
+## October 1 chart correction — implemented locally
+
+User-approved correction of the [demonstrated chart defect](2026-10-01-audusd-sell-loss.md): completed candles and their EMA/SuperTrend values remain unchanged by quote updates; the latest midpoint appears separately at broker event time on a numeric time axis. Completed closes use explicit display-only end times, and historical tooltips expose the original high/low. Obsolete candle responses cannot overwrite a new selection or newer poll. The [implementation record](2026-10-01-chart-correction.md) tracks targeted regression/browser checks and delivery. SELL entry setups, backend timestamp contracts, strategy and risk remain unchanged. Publication/build/deployment remain pending and user-managed.
+
 ## September 28 checkpoint — deployed v4, local v4.1
 
 Read-only inspection verified clean user-deployed `aed750f27cd0ed24219b2965c443ba45ac05499a`, **m15-intraday-v4 / strategy 1.2.0 / intraday-risk-v4**. Dashboard/API and OANDA were online, prices/candles fresh, entries enabled, account flat and repeated readiness checks passing. Active run: `live_3c068476-9fad-4079-bb82-c24889350374`; config: `49808daa3caffd0405c4`; no v4 fills at the 14:35–14:37 AEST snapshot. S3 uploads remained unconfigured. Earlier pending-v4-deployment statements below describe the September 26 checkpoint and are superseded by this observation.

@@ -4,6 +4,7 @@ const { confirmedCloseTime, isFadeTrade } = require("./intradayReentryPolicy");
 
 const LOSS_RESET_POLICY_VERSION = 1;
 const LOSS_RESET_STRATEGY_VERSION = "1.2.2";
+const LOSS_RESET_STRATEGY_VERSIONS = Object.freeze([LOSS_RESET_STRATEGY_VERSION, "1.3.0"]);
 const HOUR_MS = 60 * 60_000;
 
 function finite(value, fallback = null) {
@@ -215,7 +216,7 @@ function sameLossResetDecision(prior, current) {
 }
 
 module.exports = {
-    LOSS_RESET_POLICY_VERSION, LOSS_RESET_STRATEGY_VERSION,
+    LOSS_RESET_POLICY_VERSION, LOSS_RESET_STRATEGY_VERSION, LOSS_RESET_STRATEGY_VERSIONS,
     emaSeries, evaluateH1Regime, calculateH1RegimeHistory,
     selectLossResetAnchor, lossResetPredicateSignature, lossResetStateKey,
     advanceLossResetState, evaluateLossResetPolicy, sameLossResetDecision,

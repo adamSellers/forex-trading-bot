@@ -1,5 +1,75 @@
 const OandaDataService = require("../OandaDataService");
 
+describe("OandaDataService completed M15 historical ask candles", () => {
+    const completed = {
+        time: "2026-09-30T13:30:00.000000000Z",
+        complete: true,
+        volume: 247,
+        mid: { o: "0.69636", h: "0.69656", l: "0.69568", c: "0.69578" },
+        bid: { o: "0.69630", h: "0.69650", l: "0.69561", c: "0.69572" },
+        ask: { o: "0.69642", h: "0.69662", l: "0.69575", c: "0.69584" },
+    };
+
+    test("requests broker midpoint/bid/ask M15 data and retains independent completed ask OHLC", async () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.oandaRequest = jest.fn().mockResolvedValue({ candles: [
+            completed,
+            { ...completed, time: "2026-09-30T13:45:00.000000000Z", complete: false },
+        ] });
+
+        const result = await service.fetchCandles("AUD_USD", "M15", 500);
+
+        expect(service.oandaRequest).toHaveBeenCalledWith(
+            "/v3/instruments/AUD_USD/candles?granularity=M15&count=500&price=MBA"
+        );
+        expect(result).toEqual([{
+            time: completed.time,
+            open: 0.69636, high: 0.69656, low: 0.69568, close: 0.69578, volume: 247,
+            ask: { open: 0.69642, high: 0.69662, low: 0.69575, close: 0.69584 },
+        }]);
+        expect(service.getCandles("AUD_USD", "15m")).toBe(result);
+    });
+
+    test.each([
+        undefined,
+        null,
+        {},
+        { o: "0.69642", h: "", l: "0.69575", c: "0.69584" },
+        { o: "0.69642", h: "0.69662bad", l: "0.69575", c: "0.69584" },
+        { o: "0.69642", h: "0.69662", l: "0", c: "0.69584" },
+        { o: "0.69642", h: "0.69600", l: "0.69575", c: "0.69584" },
+        { o: "0.69642", h: "0.69662", l: "0.69630", c: "0.69584" },
+    ])("keeps valid midpoint history when broker ask is unavailable or malformed: %p", async (ask) => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.priceCache.AUD_USD = { bid: 0.69559, ask: 0.69568, spread: 0.9 };
+        service.oandaRequest = jest.fn().mockResolvedValue({ candles: [{ ...completed, ask }] });
+        const failure = jest.spyOn(service, "logFailureThrottled");
+
+        const result = await service.fetchCandles("AUD_USD", "M15");
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({ time: completed.time, high: 0.69656, close: 0.69578, ask: null });
+        expect(service.getCandles("AUD_USD", "15m")).toBe(result);
+        expect(service.candleCacheUpdatedAt.AUD_USD_M15).toEqual(expect.any(Number));
+        expect(failure).not.toHaveBeenCalled();
+    });
+
+    test("keeps H1 and other existing candle requests and shapes midpoint-only", async () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.oandaRequest = jest.fn().mockResolvedValue({ candles: [completed] });
+        for (const granularity of ["H1", "H4"]) {
+            const result = await service.fetchCandles("AUD_USD", granularity, 100);
+            expect(service.oandaRequest).toHaveBeenLastCalledWith(
+                `/v3/instruments/AUD_USD/candles?granularity=${granularity}&count=100&price=M`
+            );
+            expect(result[0]).toEqual({
+                time: completed.time,
+                open: 0.69636, high: 0.69656, low: 0.69568, close: 0.69578, volume: 247,
+            });
+        }
+    });
+});
+
 describe("OandaDataService required granularities", () => {
     let service;
 

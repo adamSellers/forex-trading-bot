@@ -1,5 +1,7 @@
 # Forex Trading Bot
 
+**October 1 authorized release:** [v5 SELL break/retest candidate](docs/reviews/2026-10-01-sell-retest-release.md) implements strategy **1.3.0 / intraday-risk-v5**. SELL entries now require distinct completed break, retest and rejection candles, with an ask-based structural stop. BUY entry rules and numerical risk limits remain unchanged; BUY-to-SELL fades are disabled. The user explicitly authorized local commits, GitHub publication, builds and standard deployment. Implementation is complete; final validation and actual delivery are tracked in the release record. This supersedes older current-state and pending-release summaries below.
+
 **September 30 deployment verified:** [v4.2 H1 loss-reset release](docs/reviews/2026-09-30-loss-reset-release.md) is live at `c6b6c77` / strategy 1.2.2. After an initial stop, the same pair/direction requires completed H1 nonqualification followed by later requalification. Breakeven does not arm this requirement. The deployment passed 906 backend tests, build, backup and health checks; enabled intent and the existing cooldown were preserved. Earlier pending-release statements below are historical checkpoints.
 
 This repository runs one automated strategy against one live OANDA account. It has no simulated execution mode, strategy selector, or alternate runtime.
@@ -18,20 +20,13 @@ The user then requested removal of the global position-count cap. Local **v4.1 /
 
 ## Strategy and release state
 
-The September 28 verified deployed v4 retains the approved [entry-rejection and reconsideration correction](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md). Recognized local pricing declines can be reconsidered on a later regular scan while preserving the original decision-price bound; expected rejections are counted separately from unexpected errors. The following normal-signal prerequisites apply to deployed v4 and local v4.1. They qualify the original trend signal; the post-TP branch described below may execute the opposite direction:
+V5 retains the existing H1 regime, M15 trend/RSI, sessions, pricing, loss reset and protected-exit checks. BUY entries keep their eight-bar breakout or bar-aligned pullback/resumption. Normal SELL entries require a bearish break below the prior eight-bar low, a distinct later retest closing below that frozen level, then a later bearish close below the retest low. A close at/above the level cancels; another retouch updates the retest and cannot confirm on the same candle.
 
-- the completed H1 close, 20/50 EMAs and ADX define a directional regime;
-- M15 trend and RSI confirm that direction;
-- an eight-bar breakout or four-bar pullback resumption occurs; v4 measures each pullback candle against its own EMAs and requires clearance from the latest touch;
-- the pair is in a liquid, daylight-saving-aware Sydney, Tokyo, London or New York session;
-- spread plus expected slippage is no more than 15% of the planned stop;
-- the live account, portfolio, price-freshness and execution checks pass.
+The SELL stop is above the maximum retest-episode ask high plus a price tick, with the existing six-pip minimum. The exact submitted stop stays fixed after the fill; units fit the existing cash-risk budget and actual fill determines the 1.5R target and +1R breakeven. BUY stops remain max(1.25 M15 ATR, six pips). Missing ask evidence prevents a new SELL until broker evidence recovers. BUY-to-SELL fades are disabled; SELL-to-BUY fades and existing exits remain.
 
-Deployed v4 and local v4.1 require a fully post-exit EMA20 touch before repeating direction after TP or breakeven, across both triggers. An otherwise-valid same-direction signal after a normal TP without that touch may take one opposite-direction fade. After breakeven it waits. A fade cannot arm another fade, and normal signals do not close an open fade. Original direction, executed direction and episode evidence are persisted. See the [exact specification](docs/reviews/2026-09-26-integrated-release-specification.md) for anchor and retry semantics.
+Position size remains 0.25% of min(80% available margin, A$100), with one position per pair, 0.5%-of-NAV aggregate stop risk and existing margin checks. Three consecutive losses pause entries for 24 hours. Six-hour and New York rollover exits remain. Durable evidence and final broker reconciliation prevent stale, changed or already-filled patterns from opening another SELL. The [release contract](docs/reviews/2026-10-01-sell-retest-release.md) defines interaction with prior positions, retries and historical cohorts.
 
-Every entry requests broker-side stop-loss and take-profit protection; the engine verifies it and attempts an emergency close when required protection cannot be confirmed. The initial stop is the greater of 1.25 M15 ATR or six pips, the target is 1.5R, breakeven activates at 1R, and a six-hour time stop plus a narrow pre-rollover exit window keep positions intraday. Position size uses 0.25% of the smaller of 80% of available margin and A$100, with unchanged per-trade sizing in v4.1. Deployed v4 still has a global one-position cap; local v4.1 removes it and retains one position per pair. The existing 0.5%-of-NAV aggregate stop-risk ceiling and margin checks can still reject a different-pair entry. Three consecutive losses pause entries for 24 hours; expiry begins a fresh streak without deleting trade history.
-
-This is an experimental live strategy. The structural candidate excludes five historical fills including two winners, net +A$0.0315; the four conditional fade examples produce two targets and two stops. Neither establishes positive expectancy. Exact serialized-price sizing fixes a demonstrated precision mismatch without raising risk. The target remains 1.5R for normal and fade entries. The design target is approximately 5–15 trades per week across four liquid major pairs, but observed live cadence—not a forced quota—is the source of truth.
+This is a live experimental candidate; its profitability is unproven. Correctness tests validate implementation, while versioned actual OANDA outcomes provide performance evidence. Trade cadence is observed, never forced to reach a quota.
 
 ## Runtime
 
@@ -64,6 +59,6 @@ After publishing the reviewed changes to `main`, deploy from your local checkout
 ./scripts/deploy.sh
 ```
 
-The command handles SSH, pause and broker checks, tests, build, backup, migration, restart, health and restoration of the previous trading state through readiness. See [the short deployment guide](scripts/DEPLOYMENT_README.md). Builds and deployment remain user-managed.
+The command handles SSH, pause and broker checks, tests, build, backup, migration, restart, health and restoration of the previous trading state through readiness. See [the short deployment guide](scripts/DEPLOYMENT_README.md). The user explicitly authorized publication/build/deployment for the October 1 v5 release.
 
 See [USER_GUIDE.md](USER_GUIDE.md) for the operator surface and [M15_INTRADAY_RELEASE_2026-08-10.md](M15_INTRADAY_RELEASE_2026-08-10.md) for the original August design. The user guide and status register describe current behavior and decision points.

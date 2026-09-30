@@ -21,8 +21,8 @@ describe("ConfigService governance", () => {
 
     test("identifies per-pair capacity without increasing the retained risk defaults", () => {
         expect(ConfigService.DEFAULT_CONFIG).toMatchObject({
-            liveReleaseVersion: "m15-intraday-v4.2",
-            executionPolicyVersion: "intraday-risk-v4.2",
+            liveReleaseVersion: "m15-intraday-v5",
+            executionPolicyVersion: "intraday-risk-v5",
             pricingModelVersion: "broker-liquidity-v3.1",
             riskPerTrade: 0.0025,
             maxCapitalAtRisk: 100,
@@ -68,6 +68,8 @@ describe("ConfigService governance", () => {
         ["m15-intraday-v4", "intraday-risk-v4", "broker-liquidity-v3.1", true],
         ["m15-intraday-v4.1", "intraday-risk-v4.1", "broker-liquidity-v3.1", false],
         ["m15-intraday-v4.1", "intraday-risk-v4.1", "broker-liquidity-v3.1", true],
+        ["m15-intraday-v4.2", "intraday-risk-v4.2", "broker-liquidity-v3.1", false],
+        ["m15-intraday-v4.2", "intraday-risk-v4.2", "broker-liquidity-v3.1", true],
     ])("integrated upgrade from %s preserves settings (%s/%s, enabled=%s) across restart", (liveReleaseVersion, executionPolicyVersion, pricingModelVersion, enableTrading) => {
         const prior = {
             ...ConfigService.DEFAULT_CONFIG,

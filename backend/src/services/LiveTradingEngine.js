@@ -13,8 +13,10 @@ const {
     latestClosedTradeForInstrument, evaluateReentryPolicy, sameReentryDecision,
 } = require("../runtime/intradayReentryPolicy");
 const { resolveLossResetEvidence } = require("../runtime/intradayLossResetEvidence");
+const { resolveSellRetestEvidence } = require("../runtime/intradaySellRetestEvidence");
+const { SELL_RETEST_STRATEGY_VERSION, SELL_RETEST_ENTRY_TYPE } = require("../runtime/intradaySellRetestPolicy");
 const {
-    LOSS_RESET_STRATEGY_VERSION, sameLossResetDecision,
+    LOSS_RESET_STRATEGY_VERSIONS, sameLossResetDecision,
 } = require("../runtime/intradayLossResetPolicy");
 const {
     computeConfigHash,
@@ -1004,7 +1006,7 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async validateLossResetDecision(signal, config) {
-        if (signal.strategyVersion !== LOSS_RESET_STRATEGY_VERSION || signal.entryType === FADE_ENTRY_TYPE) return;
+        if (!LOSS_RESET_STRATEGY_VERSIONS.includes(signal.strategyVersion) || signal.entryType === FADE_ENTRY_TYPE) return;
         const prior = signal.strategyContext?.lossReset;
         let history = null;
         try {
@@ -1029,6 +1031,49 @@ class LiveTradingEngine extends EventEmitter {
                 "Stop-loss reset evidence changed or is unavailable; await the next ordinary signal scan",
                 { phase: "LOSS_RESET_REVALIDATION", priorLossReset: prior || null, currentLossReset: current });
         }
+    }
+
+    async validateSellRetestDecision(signal, config) {
+        if (!this.requiresSellRetestEntry(signal, config)) return;
+        const prior = signal.strategyContext?.sellRetest;
+        let history = null;
+        try {
+            history = this.tradeRepository?.getAllTrades
+                ? await this.tradeRepository.getAllTrades({ mode: "live" }) : null;
+        } catch (_error) {
+            // Missing durable fill history cannot authorize reuse of a setup.
+        }
+        const metadata = await this.getInstrumentMetadataForTrading(signal.symbol, config);
+        const current = await resolveSellRetestEvidence({
+            instrument: signal.symbol,
+            candles: this.dataService?.getCandles?.(signal.symbol, "15m") || [],
+            breakoutBars: config.intradayBreakoutBars,
+            displayPrecision: Number(metadata.displayPrecision),
+            trades: history,
+            historyAvailable: Array.isArray(history),
+            nowMs: Date.now(),
+        }, this.brokerLifecycleRepository);
+        const signature = (decision) => JSON.stringify({
+            version: decision?.version, instrument: decision?.instrument,
+            patternId: decision?.patternId, breakout: decision?.breakout,
+            retest: decision?.retest, confirmation: decision?.confirmation,
+            structuralStopLossPrice: decision?.structuralStopLossPrice,
+        });
+        if (signal.strategyVersion !== SELL_RETEST_STRATEGY_VERSION ||
+            signal.entryType !== SELL_RETEST_ENTRY_TYPE || prior?.ready !== true ||
+            current.ready !== true || signature(prior) !== signature(current) ||
+            signal.strategyContext?.signalCandleCloseTime !== current.confirmation?.closedAt ||
+            signal.tradePlan?.stopPriceMode !== "STRUCTURAL" ||
+            signal.tradePlan?.structuralStopLossPrice !== current.structuralStopLossPrice) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                "SELL break/retest evidence changed, was already traded or is unavailable",
+                { phase: "SELL_RETEST_REVALIDATION", priorSellRetest: prior || null, currentSellRetest: current });
+        }
+    }
+
+    requiresSellRetestEntry(signal, config = {}) {
+        return signal.signal === "SELL" && (signal.strategyVersion === SELL_RETEST_STRATEGY_VERSION ||
+            config.liveReleaseVersion === "m15-intraday-v5" || config.executionPolicyVersion === "intraday-risk-v5");
     }
 
     // ==================== ENTRY VALIDATION ====================
@@ -1080,6 +1125,25 @@ class LiveTradingEngine extends EventEmitter {
                 reason: `Instrument ${signal.symbol} not in active list`,
                 context: baseContext,
             };
+        }
+
+        if (this.requiresSellRetestEntry(signal, config) &&
+            (signal.strategyVersion !== SELL_RETEST_STRATEGY_VERSION || signal.entryType !== SELL_RETEST_ENTRY_TYPE)) {
+            return { valid: false, code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                reason: "Current SELL policy requires the versioned break/retest/rejection candidate",
+                context: baseContext };
+        }
+        if (this.hasStructuralStopContract(signal) &&
+            (signal.tradePlan?.stopPriceMode !== "STRUCTURAL" ||
+            (signal.strategyVersion === SELL_RETEST_STRATEGY_VERSION && signal.signal === "SELL" &&
+                signal.entryType !== SELL_RETEST_ENTRY_TYPE) ||
+            !resolveCanonicalTradePlan({
+            signal, config, entryPrice: signal.currentPrice,
+            pipValue: oandaClient.getPipValue(signal.symbol),
+        }))) {
+            return { valid: false, code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                reason: "Structural SELL entry requires a valid absolute stop above entry and a risk target",
+                context: { ...baseContext, stopPriceMode: signal.tradePlan?.stopPriceMode ?? null } };
         }
 
         // 3. Live price must be available and fresh
@@ -1622,10 +1686,12 @@ class LiveTradingEngine extends EventEmitter {
         const pipValue = oandaClient.getPipValue(instrument);
         const side = signal?.signal === "SELL" ? "SELL" : "BUY";
         const stopDistance = stopLossPips * pipValue;
-        const stopLossPrice = Number(oandaClient.formatPrice(instrument,
-            side === "SELL"
-                ? currentPrice + stopDistance
-                : currentPrice - stopDistance, instrumentMetadata));
+        const stopLossPrice = this.hasStructuralStopContract(signal)
+            ? this.resolveStopLoss(signal, config, currentPrice, instrumentMetadata).stopLossPrice
+            : Number(oandaClient.formatPrice(instrument,
+                side === "SELL"
+                    ? currentPrice + stopDistance
+                    : currentPrice - stopDistance, instrumentMetadata));
         const sizing = calculateCanonicalPositionSize({
             config,
             signal: { ...(signal || {}), entryType },
@@ -1716,7 +1782,14 @@ class LiveTradingEngine extends EventEmitter {
         };
     }
 
-    resolveStopLoss(signal, config, entryPrice = null) {
+    hasStructuralStopContract(signal) {
+        return signal?.tradePlan?.stopPriceMode != null ||
+            signal?.tradePlan?.structuralStopLossPrice != null ||
+            signal?.entryType === SELL_RETEST_ENTRY_TYPE ||
+            (signal?.strategyVersion === SELL_RETEST_STRATEGY_VERSION && signal?.signal === "SELL");
+    }
+
+    resolveStopLoss(signal, config, entryPrice = null, instrumentMetadata = null) {
         const referencePrice = Number.isFinite(entryPrice)
             ? entryPrice
             : toFiniteNumber(signal?.currentPrice, null);
@@ -1727,7 +1800,14 @@ class LiveTradingEngine extends EventEmitter {
             entryPrice: referencePrice,
             pipValue,
         });
-        if (!canonicalPlan) {
+        if (!canonicalPlan || (this.hasStructuralStopContract(signal) &&
+            canonicalPlan.stopPriceMode !== "STRUCTURAL")) {
+            if (this.hasStructuralStopContract(signal)) {
+                throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                    "Structural SELL stop is missing, invalid or no longer above entry",
+                    { phase: "STOP_RESOLUTION", entryPrice: referencePrice,
+                        structuralStopLossPrice: signal.tradePlan?.structuralStopLossPrice ?? null });
+            }
             return {
                 ...this.calculateStopLoss(signal, config, entryPrice),
                 source: "GLOBAL_CONFIG",
@@ -1741,10 +1821,14 @@ class LiveTradingEngine extends EventEmitter {
         return {
             stopLossPips: canonicalPlan.stopLossPips,
             stopLossPrice: Number(
-                oandaClient.formatPrice
+                canonicalPlan.stopPriceMode === "STRUCTURAL"
+                    ? oandaClient.formatPriceBound(signal.symbol, canonicalPlan.stopLossPrice,
+                        "SELL", instrumentMetadata)
+                    : oandaClient.formatPrice
                     ? oandaClient.formatPrice(
                           signal.symbol,
-                          canonicalPlan.stopLossPrice
+                          canonicalPlan.stopLossPrice,
+                          instrumentMetadata
                       )
                     : canonicalPlan.stopLossPrice.toFixed(5)
             ),
@@ -1791,6 +1875,10 @@ class LiveTradingEngine extends EventEmitter {
         return {
             initialStopLossPrice: stopLossPrice,
             initialStopDistance,
+            ...(signal.tradePlan?.stopPriceMode === "STRUCTURAL" ? {
+                stopPriceMode: "STRUCTURAL",
+                structuralStopLossPrice: signal.tradePlan.structuralStopLossPrice,
+            } : {}),
             atrDistance,
             // Position management must remain owned by the run that opened the
             // trade. A later strategy/config selection cannot rewrite its exit
@@ -2002,7 +2090,8 @@ class LiveTradingEngine extends EventEmitter {
         const deviationPips = Math.abs(quote.worstPrice - referencePrice) / pipValue;
         const spreadPips = quote.spread / pipValue;
         const spreadError = priceDistanceError(quote.bid, quote.ask, pipValue);
-        const stop = this.resolveStopLoss(signal, config);
+        const stop = this.resolveStopLoss(signal, config,
+            this.hasStructuralStopContract(signal) ? finalQuote : null, instrumentMetadata);
         const costToStopRatio = (spreadPips + Math.max(0, toFiniteNumber(config.expectedSlippagePips, 0.2))) / stop.stopLossPips;
         const configuredDeviation = Number(config.maxEntryDeviationPips);
         const maxDeviationPips =
@@ -2334,7 +2423,13 @@ class LiveTradingEngine extends EventEmitter {
             config,
             entryPrice: fillPrice,
             pipValue: oandaClient.getPipValue(signal.symbol),
+            ...(this.hasStructuralStopContract(signal)
+                ? { submittedStopLossPrice: stopLossPrice } : {}),
         });
+        if (this.hasStructuralStopContract(signal) &&
+            (!Number.isFinite(stopLossPrice) || !fillAlignedPlan)) {
+            throw new Error("Recovered structural entry is missing a valid submitted absolute stop");
+        }
         const alignedStop = toFiniteNumber(
             fillAlignedPlan?.stopLossPrice,
             stopLossPrice
@@ -2357,7 +2452,8 @@ class LiveTradingEngine extends EventEmitter {
         // A favourable fill can round an ATR half-tick differently from the
         // attached stop. Alignment must preserve the same saved cash budget.
         // Round toward the fill only if nearest-price rounding exceeds it.
-        if (Number.isFinite(desiredStop) && riskBudgetAud > 0 && units > 0 && quoteToAudRate > 0 &&
+        if (!this.hasStructuralStopContract(signal) &&
+            Number.isFinite(desiredStop) && riskBudgetAud > 0 && units > 0 && quoteToAudRate > 0 &&
             Math.abs(fillPrice - desiredStop) * units * quoteToAudRate > riskBudgetAud) {
             const maximumDistance = riskBudgetAud / (units * quoteToAudRate);
             const isSell = intent.side === "SELL";
@@ -2792,6 +2888,7 @@ class LiveTradingEngine extends EventEmitter {
             const block = await this.getBrokerEntryBlockReason();
             if (block) throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 block, { phase: "RECONCILIATION" });
+            await this.validateSellRetestDecision(signal, config);
             await this.validateReentryDecision(signal);
             await this.validateLossResetDecision(signal, config);
             if (this.getOpenTradeByInstrument(symbol)) {
@@ -2848,15 +2945,25 @@ class LiveTradingEngine extends EventEmitter {
                 entryPrice: finalQuote.finalQuote,
                 pipValue: oandaClient.getPipValue(symbol),
             });
+            if (this.hasStructuralStopContract(signal) &&
+                (!executablePlan || executablePlan.stopPriceMode !== "STRUCTURAL")) {
+                throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                    "Final quote invalidated the structural SELL stop",
+                    { phase: "FINAL_STOP_RESOLUTION", entryPrice: finalQuote.finalQuote });
+            }
             if (executablePlan) {
                 plannedStopLossPrice = executablePlan.stopLossPrice;
                 plannedTakeProfitPrice = executablePlan.takeProfitPrice;
             }
             // Persist and size against the exact protection prices serialized
             // to OANDA, including fallback plans and sub-tick ATR distances.
-            plannedStopLossPrice = Number(oandaClient.formatPrice(
-                symbol, plannedStopLossPrice, instrumentMetadata
-            ));
+            plannedStopLossPrice = Number(this.hasStructuralStopContract(signal)
+                ? oandaClient.formatPriceBound(symbol, plannedStopLossPrice, "SELL", instrumentMetadata)
+                : oandaClient.formatPrice(symbol, plannedStopLossPrice, instrumentMetadata));
+            if (this.hasStructuralStopContract(signal)) {
+                plannedTakeProfitPrice = finalQuote.finalQuote -
+                    (plannedStopLossPrice - finalQuote.finalQuote) * executablePlan.targetRiskMultiple;
+            }
             plannedTakeProfitPrice = Number.isFinite(plannedTakeProfitPrice)
                 ? Number(oandaClient.formatPrice(symbol, plannedTakeProfitPrice, instrumentMetadata))
                 : null;

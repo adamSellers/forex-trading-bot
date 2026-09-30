@@ -1,5 +1,13 @@
 # Live Trading Operator Guide
 
+## October 1: SELL break, retest and rejection
+
+The authorized [v5 release](docs/reviews/2026-10-01-sell-retest-release.md), strategy **1.3.0**, replaces normal SELL triggers with three distinct completed M15 candles: a bearish break below the previous eight-bar low, a later retest that closes below that frozen level, then a later bearish close below the retest low. A close back at/above the level cancels it; another retouch requires another later confirmation. Existing H1/M15 qualification and trading checks still apply.
+
+The SELL stop sits above the maximum **ask high** during the retest episode, plus one price tick. The existing six-pip minimum may put it farther away. Position size adjusts within the same cash-risk allowance; the absolute stop stays fixed after the fill, and 1.5R target/+1R breakeven are measured from the actual fill. BUY entries keep their existing stops. BUY-to-SELL fades are disabled; SELL-to-BUY fades and position exits remain unchanged.
+
+The dashboard can show a valid bearish trend while the SELL entry is still waiting for its retest and rejection. Analytics labels the new entries **SELL break/retest** separately from prior trend/fade trades. Versioned real OANDA outcomes will determine whether this candidate improves results. Implementation is complete; final checks and deployment status are in the linked release record. Older dated sections retain historical context.
+
 ## September 30: reset after an initial stop
 
 The authorized [v4.2 release](docs/reviews/2026-09-30-loss-reset-release.md), strategy 1.2.2, adds a condition for repeating a normal trade after a full initial stop-loss. On the same pair and side, the H1 regime must stop qualifying on a completed hourly candle, then qualify again on a later hourly candle before another valid M15 breakout or pullback may enter. The condition is symmetric for buys and sells. A neutral H1 phase is enough; missing data does not prove a reset.
@@ -20,35 +28,37 @@ The application now has one job: run `intraday_momentum` against the configured 
 
 The configuration page is intentionally read-only. Strategy parameters and risk limits belong to the deployed release so production cannot drift through dashboard edits.
 
+**Chart correction implemented locally on October 1; deployment pending:** Market Overview keeps completed midpoint candle closes and their indicators separate from the **Latest quote** point. The quote uses its broker event time, while each completed close is plotted at its candle's end time. Hover a historical point to see the completed interval and original high/low; the line itself still represents closes and does not show every intrabar excursion. The trend badge uses completed chart candles. See the [correction record](docs/reviews/2026-10-01-chart-correction.md) for verification and delivery status.
+
 ## Current deployed release
 
-Read-only inspection on September 28 verified clean user-deployed commit `aed750f`, release v4 / strategy 1.2.0 / execution policy `intraday-risk-v4`. Dashboard/API and OANDA were online, quotes and candles fresh, entries enabled and the account flat. This table describes that deployed release. Local v4.1 removes the global position cap as requested by the user; it is implemented and locally validated (latest passing results: 850 tests across 41 backend suites plus changed JSX syntax checks), with publication/build/deployment pending. See the [pair capacity release](docs/reviews/2026-09-28-pair-capacity-release.md) and [current status](docs/reviews/2026-09-26-status-and-decisions.md).
+The following table describes the authorized v5 candidate. See the [release record](docs/reviews/2026-10-01-sell-retest-release.md) for actual deployment verification; the preceding deployed release was v4.2 / strategy 1.2.2.
 
 | Setting | Value |
 | --- | --- |
-| Release | `m15-intraday-v4` |
-| Strategy | `intraday_momentum` `1.2.0` |
+| Release | `m15-intraday-v5` |
+| Strategy | `intraday_momentum` `1.3.0` |
 | Decision candles | completed M15 with completed H1 regime context |
 | Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
-| Entry | breakout or bar-aligned pullback/resumption; protected-exit freshness and one post-TP fade per episode |
+| Entry | BUY: existing breakout/pullback; SELL: break/retest/rejection; existing freshness/H1 reset; SELL-to-BUY fades only |
 | Entry risk | 0.25% × min(80% available margin, A$100) |
 | Capital cap | A$100 |
-| Concurrent positions | 1 globally in deployed v4; local v4.1 changes this to one per pair |
+| Concurrent positions | one per pair, subject to portfolio risk and margin |
 | Consecutive-loss control | 24-hour entry cooldown after three losses; the next streak starts at zero after expiry |
-| Initial stop | max(1.25 M15 ATR, 6 pips) |
+| Initial stop | BUY: max(1.25 M15 ATR, 6 pips); SELL: above retest ask high + tick, retaining six-pip minimum |
 | Take profit | 1.5R broker order; breakeven at 1R |
 | Time controls | six-hour time stop and pre-rollover close window |
 | New-install trading state | disabled; deployment requires paused/flat, restore always starts paused |
 
 **Time Stop** means the position reached six hours from its original broker entry time. The bot requests a market close whether the trade is profitable, losing or near flat; it does not require a reversal or a stop/target price to be reached. The clock survives restarts and an entry pause. Execution occurs when the running monitor and broker can process the close, so the recorded duration may exceed six hours. The rule was documented with the August 10 strategy but was not connected to live position monitoring until the September 6 remediation. **Session Close** is the separate New York rollover-window exit. See [the September 8 example and rationale](docs/reviews/2026-09-08-exit-policy-observations.md).
 
-## Local v4.1: one position per pair
+## Historical v4.1: one position per pair
 
 The user explicitly requested that a qualifying setup on one pair should not be blocked merely because another pair is held. Local **m15-intraday-v4.1 / strategy 1.2.1** removes the account-wide count cap and retains one position per pair. Strategy, quote, broker, per-trade sizing, margin, aggregate exposure and loss checks still apply. Available margin can reduce later position sizes, and the unchanged aggregate stop-risk ceiling of 0.5% of NAV can still reject an additional full-risk pair. Broker-confirmed stop movement to breakeven can release stop-risk capacity; the regression tests demonstrate admission of a third pair in that case. This increases potential concurrent exposure within the existing portfolio limits; it does not establish better returns.
 
 The dashboard/API describe the policy as “one per pair”. Saved settings and enabled intent survive migration except the retired global count field; historical snapshots remain unchanged. Active cooldown expiry and existing trades' owner exit policies carry forward. Validation and delivery state are recorded in the [release contract](docs/reviews/2026-09-28-pair-capacity-release.md). No production settings were changed during local implementation.
 
-## Deployed v4 entry and execution rules
+## Historical v4 entry and execution rules (SELL entry rules superseded above)
 
 The user-authorized [integrated release](docs/reviews/2026-09-26-integrated-release-specification.md) is verified deployed as **m15-intraday-v4 / strategy 1.2.0**. Its original local validation passed 834 tests across 41 backend suites plus analytics JSX parsing. Those results do not substitute for v4.1 validation.
 

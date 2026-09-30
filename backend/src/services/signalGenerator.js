@@ -153,6 +153,7 @@ class SignalGenerator extends EventEmitter {
                 reentryHistoryAvailable: options.reentryHistoryAvailable,
                 lossResetDecisions: options.lossResetDecisions,
                 lossResetTrades: options.lossResetTrades,
+                sellRetestDecision: options.sellRetestDecision,
                 ownedOpenTrade: options.ownedOpenTrade,
                 nowMs:
                     options.nowMs ??

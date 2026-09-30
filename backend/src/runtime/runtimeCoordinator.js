@@ -13,6 +13,7 @@ const { isCanonicalStrategyKey } = require("../strategies");
 const { evaluateRunLossCooldown } = require("./portfolioRiskPolicy");
 const { latestClosedTradeForInstrument } = require("./intradayReentryPolicy");
 const { resolveLossResetEvidence } = require("./intradayLossResetEvidence");
+const { resolveSellRetestEvidence } = require("./intradaySellRetestEvidence");
 
 function createRunId() {
     return `live_${uuidv4()}`;
@@ -400,6 +401,15 @@ class RuntimeCoordinator extends EventEmitter {
                 }, this.brokerLifecycleRepository);
             }
 
+            const sellRetestDecision = await resolveSellRetestEvidence({
+                instrument,
+                candles: context?.timeframes?.["15m"]?.candles || [],
+                breakoutBars: session.generator.config.intradayBreakoutBars,
+                trades: tradeHistory,
+                historyAvailable: Array.isArray(tradeHistory),
+                nowMs: sharedContext.generatedAt,
+            }, this.brokerLifecycleRepository);
+
             let signal = await session.generator.generateSignal(
                 instrument,
                 candles,
@@ -407,6 +417,8 @@ class RuntimeCoordinator extends EventEmitter {
                 {
                     marketContext: context, nowMs: sharedContext.generatedAt,
                     lossResetDecisions,
+                    lossResetTrades: tradeHistory,
+                    sellRetestDecision,
                     ownedOpenTrade: ownedOpenTrade ? {
                         side: ownedOpenTrade.side, ownerRunId: ownedOpenTrade.ownerRunId,
                         isOpen: true, entryType: ownedOpenTrade.entryType,

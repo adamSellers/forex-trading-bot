@@ -1,5 +1,7 @@
 # Forex Trading Bot - Project History
 
+**October 1 authorized release:** [v5 SELL break/retest candidate](docs/reviews/2026-10-01-sell-retest-release.md) implements strategy **1.3.0 / intraday-risk-v5**. SELL entries now require distinct completed break, retest and rejection candles, with an ask-based structural stop. BUY entry rules and numerical risk limits remain unchanged; BUY-to-SELL fades are disabled. The user explicitly authorized local commits, GitHub publication, builds and standard deployment. Implementation is complete; final validation and actual delivery are tracked in the release record. This supersedes older current-state and pending-release summaries below.
+
 **September 30 deployment complete:** v4.2 / strategy 1.2.2 deployed at clean `c6b6c77` through local GitHub publication and `./scripts/deploy.sh`. All 906 backend tests passed locally and during deployment; build, backup and health verification passed. Enabled intent and the original cooldown were preserved. [Delivery evidence and exact behavior](docs/reviews/2026-09-30-loss-reset-release.md).
 
 This document records completed and deployed features and dated review milestones, serving as a historical reference. Earlier entries preserve what was known at the time; the current-state summary and later verification milestones take precedence for deployment status and open decisions.

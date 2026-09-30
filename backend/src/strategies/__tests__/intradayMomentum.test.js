@@ -3,6 +3,7 @@ const {
     getActivePairSessions,
     emaSeries,
 } = require("../intradayMomentum");
+const { sellRetestFixture } = require("./fixtures/intradaySellRetestFixture");
 
 function buildCandles({
     direction = 1,
@@ -99,7 +100,7 @@ describe("intradayMomentum", () => {
         expect(result.strategyContext.activeSessions).toContain("London");
     });
 
-    test("supports a symmetric short breakout with broker-side protection", async () => {
+    test("a short breakout only arms the new SELL setup", async () => {
         const h1 = buildCandles({
             direction: -1,
             minutes: 60,
@@ -122,13 +123,12 @@ describe("intradayMomentum", () => {
 
         expect(result).toEqual(
             expect.objectContaining({
-                signalType: "SELL",
-                intent: "ENTER_SHORT",
-                reasonCode: "INTRADAY_MOMENTUM_SHORT_ENTRY",
+                signalType: "HOLD",
+                intent: "WAIT",
+                reasonCode: "INTRADAY_MOMENTUM_SELL_WAIT_FOR_RETEST",
             })
         );
-        expect(result.tradePlan.stopLossPrice).toBeGreaterThan(currentPrice);
-        expect(result.tradePlan.takeProfitPrice).toBeLessThan(currentPrice);
+        expect(result.tradePlan).toBeNull();
     });
 
     test("fails closed outside the configured pair sessions", async () => {
@@ -217,20 +217,26 @@ function defaultEntryFixture({ pullback = false, direction = 1, nowMs = Date.par
 }
 
 describe("intradayMomentum deployed defaults and data gates", () => {
-    test.each([1, -1])("production default breakout works in direction %s", async (direction) => {
+    test.each([1, -1])("production default breakout enters BUY or waits for SELL retest in direction %s", async (direction) => {
         const fixture = defaultEntryFixture({ direction });
         const result = await evaluateIntradayMomentumEntry(fixture);
-        expect(result.signalType).toBe(direction > 0 ? "BUY" : "SELL");
+        expect(result.signalType).toBe(direction > 0 ? "BUY" : "HOLD");
+        if (direction < 0) {
+            expect(result.reasonCode).toMatch(/^INTRADAY_MOMENTUM_SELL_/);
+            expect(result.strategyContext.m15.trigger.shortBreakout).toBe(true);
+            expect(result.tradePlan).toBeNull();
+            return;
+        }
         expect(result.entryType).toBe("M15_RANGE_BREAKOUT");
         expect(result.tradePlan.stopPips).toBe(6);
         expect(result.tradePlan.targetRiskMultiple).toBe(1.5);
         expect(result.strategyContext.costs.costToStopRatio).toBeCloseTo(0.1);
     });
 
-    test.each([1, -1])("production default pullback works in direction %s", async (direction) => {
+    test.each([1, -1])("production default pullback enters BUY or waits for SELL retest in direction %s", async (direction) => {
         const result = await evaluateIntradayMomentumEntry(defaultEntryFixture({ pullback: true, direction }));
-        expect(result.signalType).toBe(direction > 0 ? "BUY" : "SELL");
-        expect(result.entryType).toBe("M15_PULLBACK_RESUMPTION");
+        expect(result.signalType).toBe(direction > 0 ? "BUY" : "HOLD");
+        expect(result.entryType).toBe(direction > 0 ? "M15_PULLBACK_RESUMPTION" : null);
         expect(result.strategyContext.m15.trigger.longBreakout).toBe(false);
         expect(result.strategyContext.m15.trigger.shortBreakout).toBe(false);
     });
@@ -255,8 +261,9 @@ describe("intradayMomentum deployed defaults and data gates", () => {
             const result = await evaluateIntradayMomentumEntry(fixture);
             if (spread === 0.7) {
                 expect(result.strategyContext.costs.costToStopRatio).toBeGreaterThan(0.15);
-                expect(result.signalType).toBe(direction > 0 ? 'BUY' : 'SELL');
-                expect(result.tradePlan.stopPips).toBe(6);
+                expect(result.signalType).toBe(direction > 0 ? 'BUY' : 'HOLD');
+                expect(result.strategyContext.costs.stopPips).toBe(6);
+                if (direction < 0) expect(result.reasonCode).toMatch(/^INTRADAY_MOMENTUM_SELL_/);
             } else {
                 expect(result.signalType).toBe('HOLD');
                 expect(result.reasonCode).toBe('INTRADAY_MOMENTUM_COST_TOO_HIGH');
@@ -337,7 +344,9 @@ describe("intradayMomentum bar-aligned pullback sequence", () => {
         const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
         const side = direction > 0 ? "long" : "short";
         const evidence = result.strategyContext.m15;
-        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(result.reasonCode).toBe(direction < 0
+            ? `INTRADAY_MOMENTUM_SELL_${result.strategyContext.sellRetest.classification}`
+            : "INTRADAY_MOMENTUM_NO_TRIGGER");
         expect(evidence.pullbackSequence.legacy[`${side}Pullback`]).toBe(true);
         expect(evidence.pullbackSequence[side].touchTimes).toEqual([]);
         expect(evidence.triggerCombination).toBe("none");
@@ -355,7 +364,9 @@ describe("intradayMomentum bar-aligned pullback sequence", () => {
         const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
         const side = direction > 0 ? "long" : "short";
         const sequence = result.strategyContext.m15.pullbackSequence;
-        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(result.reasonCode).toBe(direction < 0
+            ? `INTRADAY_MOMENTUM_SELL_${result.strategyContext.sellRetest.classification}`
+            : "INTRADAY_MOMENTUM_NO_TRIGGER");
         expect(sequence.legacy[`${side}Pullback`]).toBe(true);
         expect(sequence[side].touchTimes).toEqual([touch.time]);
         expect(sequence[side].resumptionStartTime).toBe(touch.time);
@@ -377,7 +388,7 @@ describe("intradayMomentum bar-aligned pullback sequence", () => {
         fixture.config = permissiveConfig(direction);
         const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
         const side = direction > 0 ? "long" : "short";
-        expect(result.signalType).toBe(direction > 0 ? "BUY" : "SELL");
+        expect(result.signalType).toBe(direction > 0 ? "BUY" : "HOLD");
         expect(result.strategyContext.m15.pullbackSequence[side].latestTouchTime).toBe(touch.time);
         expect(result.strategyContext.m15.pullbackSequence[side].resumed).toBe(true);
         expect(result.strategyContext.m15.trigger[`${side}Pullback`]).toBe(true);
@@ -398,7 +409,7 @@ describe("intradayMomentum bar-aligned pullback sequence", () => {
         expect(evidence.pullbackSequence.legacy[`${side}Pullback`]).toBe(false);
         expect(evidence.pullbackSequence[side].structureHeld).toBe(true);
         expect(evidence.trigger[`${side}Pullback`]).toBe(true);
-        expect(result.signalType).toBe(direction > 0 ? "BUY" : "SELL");
+        expect(result.signalType).toBe(direction > 0 ? "BUY" : "HOLD");
         expect(evidence.pullbackWindow).toEqual(fixture.m15.slice(-5, -1)
             .map(({ time, high, low }) => ({ time, high, low })));
     });
@@ -414,7 +425,9 @@ describe("intradayMomentum bar-aligned pullback sequence", () => {
         fixture.config = permissiveConfig(direction);
         const result = await evaluateIntradayMomentumEntry(mirrorFixture(fixture, direction));
         const side = direction > 0 ? "long" : "short";
-        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(result.reasonCode).toBe(direction < 0
+            ? `INTRADAY_MOMENTUM_SELL_${result.strategyContext.sellRetest.classification}`
+            : "INTRADAY_MOMENTUM_NO_TRIGGER");
         expect(result.strategyContext.m15.pullbackSequence[side].structureHeld).toBe(false);
     });
 
@@ -457,13 +470,20 @@ function closedTradeForFixture(fixture, { direction = 1, reason = "TAKE_PROFIT",
 describe("intradayMomentum integrated protected-exit and fade decisions", () => {
     test.each([1, -1].flatMap((direction) => ["breakout_only", "pullback_only", "breakout_and_pullback"]
         .map((trigger) => ({ direction, trigger }))))(
-        "fades stale post-TP $trigger in original direction $direction with mirrored protection", async ({ direction, trigger }) => {
+        "retains SELL-to-BUY fades and blocks BUY-to-SELL fades for $trigger direction $direction", async ({ direction, trigger }) => {
             const fixture = reentryFixture({ direction, trigger });
             const original = await evaluateIntradayMomentumEntry(fixture);
-            expect(original.signalType).toBe(direction > 0 ? "BUY" : "SELL");
+            expect(original.signalType).toBe(direction > 0 ? "BUY" : "HOLD");
             expect(original.strategyContext.m15.triggerCombination).toBe(trigger);
             const latestClosedTrade = closedTradeForFixture(fixture, { direction });
             const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade });
+            if (direction > 0) {
+                expect(result).toMatchObject({ signalType: "HOLD", tradePlan: null,
+                    reasonCode: "INTRADAY_MOMENTUM_SELL_RETEST_REQUIRED" });
+                expect(result.strategyContext.reentry).toMatchObject({
+                    classification: "POST_TP_FADE", originalSide: "BUY", executedSide: "SELL" });
+                return;
+            }
             expect(result).toMatchObject({
                 signalType: direction > 0 ? "SELL" : "BUY",
                 intent: direction > 0 ? "ENTER_SHORT" : "ENTER_LONG",
@@ -476,12 +496,12 @@ describe("intradayMomentum integrated protected-exit and fade decisions", () => 
             expect(result.strategyContext.m15).toEqual(original.strategyContext.m15);
             expect(result.strategyContext.reentry).toMatchObject({
                 classification: "POST_TP_FADE", allowed: true, freshTouch: false,
-                originalSide: original.signalType, executedSide: result.signalType,
-                originalEntryType: original.entryType,
+                originalSide: "SELL", executedSide: result.signalType,
+                originalEntryType: trigger === "breakout_only" ? "M15_RANGE_BREAKOUT" : "M15_PULLBACK_RESUMPTION",
                 anchor: { tradeId: latestClosedTrade.id, closedAt: latestClosedTrade.brokerClosedAt },
             });
-            const distance = original.tradePlan.stopPips * 0.0001;
-            expect(result.tradePlan).toMatchObject({ stopPips: original.tradePlan.stopPips,
+            const distance = original.strategyContext.costs.stopPips * 0.0001;
+            expect(result.tradePlan).toMatchObject({ stopPips: original.strategyContext.costs.stopPips,
                 targetRiskMultiple: 1.5, timeStopHours: 6 });
             expect(result.tradePlan.stopLossPrice).toBeCloseTo(fixture.currentPrice + direction * distance, 10);
             expect(result.tradePlan.takeProfitPrice).toBeCloseTo(fixture.currentPrice - direction * distance * 1.5, 10);
@@ -537,7 +557,7 @@ describe("intradayMomentum integrated protected-exit and fade decisions", () => 
                 direction, closedAt: Date.parse(latestTouch.time) + 1,
             }),
         });
-        expect(result.entryType).toBe("M15_POST_TP_FADE");
+        expect(result.entryType).toBe(direction < 0 ? "M15_POST_TP_FADE" : null);
         expect(result.strategyContext.reentry.freshTouchTimes).toEqual([]);
         expect(result.signalType).not.toBe(original.signalType);
     });
@@ -593,11 +613,11 @@ describe("intradayMomentum integrated protected-exit and fade decisions", () => 
         expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_LOSS_RESET_EVIDENCE_UNAVAILABLE");
     });
 
-    test("a fade keeps its existing policy when its actual side has a stopped normal trade", async () => {
-        const fixture = reentryFixture();
-        const latestClosedTrade = closedTradeForFixture(fixture);
+    test("a BUY fade keeps its existing policy when its actual side has a stopped normal trade", async () => {
+        const fixture = reentryFixture({ direction: -1 });
+        const latestClosedTrade = closedTradeForFixture(fixture, { direction: -1 });
         const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade,
-            lossResetDecisions: { SELL: { version: 1, instrument: fixture.instrument, side: "SELL",
+            lossResetDecisions: { BUY: { version: 1, instrument: fixture.instrument, side: "BUY",
                 allowed: false, classification: "WAIT_FOR_H1_RESET" } } });
         expect(result.entryType).toBe("M15_POST_TP_FADE");
         expect(result.strategyContext.lossReset).toMatchObject({ allowed: true, classification: "FADE_NOT_SUBJECT_TO_LOSS_RESET" });
@@ -646,9 +666,97 @@ describe("intradayMomentum integrated protected-exit and fade decisions", () => 
         });
         const side = direction > 0 ? "long" : "short";
         expect(result.signalType).toBe("HOLD");
-        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_NO_TRIGGER");
+        expect(result.reasonCode).toBe(direction < 0
+            ? `INTRADAY_MOMENTUM_SELL_${result.strategyContext.sellRetest.classification}`
+            : "INTRADAY_MOMENTUM_NO_TRIGGER");
         expect(result.strategyContext.m15.pullbackSequence.legacy[`${side}Pullback`]).toBe(true);
         expect(result.strategyContext.m15.triggerCombination).toBe("none");
         expect(result.strategyContext.reentry).toBeUndefined();
+    });
+});
+
+describe("intradayMomentum SELL structural candidate", () => {
+    test("production defaults allow the complete candidate with structural risk and unchanged exits", async () => {
+        const fixture = sellRetestFixture();
+        const result = await evaluateIntradayMomentumEntry(fixture);
+        expect(result).toMatchObject({ signalType: "SELL", intent: "ENTER_SHORT",
+            entryType: "M15_BREAK_RETEST_REJECTION", reasonCode: "INTRADAY_MOMENTUM_SHORT_ENTRY",
+            tradePlan: { stopPriceMode: "STRUCTURAL", targetRiskMultiple: 1.5, timeStopHours: 6 } });
+        expect(result.strategyContext.h1.shortRegime).toBe(true);
+        expect(result.rsiVal).toBeGreaterThanOrEqual(28);
+        expect(result.rsiVal).toBeLessThanOrEqual(48);
+        const expectedStop = Number((fixture.m15.at(-2).ask.high + 0.00001).toFixed(5));
+        expect(result.tradePlan.stopLossPrice).toBe(expectedStop);
+        expect(result.tradePlan.structuralStopLossPrice).toBe(expectedStop);
+        expect(result.tradePlan.stopPips).toBeCloseTo((expectedStop - fixture.currentPrice) / 0.0001, 9);
+        expect(result.tradePlan.takeProfitPrice).toBeCloseTo(fixture.currentPrice - (expectedStop - fixture.currentPrice) * 1.5, 10);
+    });
+
+    test.each(["missing ask", "unconfirmed retest", "consumed pattern"])("%s cannot become an actionable normal SELL", async (kind) => {
+        const fixture = sellRetestFixture();
+        if (kind === "missing ask") fixture.m15.at(-2).ask = null;
+        if (kind === "unconfirmed retest") fixture.m15.at(-1).close = fixture.m15.at(-2).low;
+        if (kind === "consumed pattern") {
+            const prior = await evaluateIntradayMomentumEntry(fixture);
+            fixture.latestClosedTrade = { ...closedTradeForFixture(fixture, { direction: -1, reason: "TIME_STOP" }),
+                brokerReconciliationPayload: { liveRuntime: { entryTelemetry: { strategyContext: prior.strategyContext } } } };
+        }
+        const result = await evaluateIntradayMomentumEntry(fixture);
+        expect(result.signalType).toBe("HOLD");
+        expect(result.tradePlan).toBeNull();
+    });
+
+    test("a valid candidate still respects H1 initial-stop reset", async () => {
+        const fixture = sellRetestFixture();
+        const latestClosedTrade = closedTradeForFixture(fixture, { direction: -1, reason: "STOP_LOSS" });
+        const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade });
+        expect(result).toMatchObject({ signalType: "HOLD", tradePlan: null,
+            reasonCode: "INTRADAY_MOMENTUM_WAIT_FOR_H1_RESET" });
+        expect(result.strategyContext.sellRetest.ready).toBe(true);
+    });
+
+    test.each(["BREAKEVEN_STOP", "TAKE_PROFIT"])("a valid candidate retains the protected-exit %s policy", async (reason) => {
+        const fixture = sellRetestFixture();
+        const latestClosedTrade = closedTradeForFixture(fixture, { direction: -1, reason });
+        const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade });
+        if (reason === "BREAKEVEN_STOP") {
+            expect(result).toMatchObject({ signalType: "HOLD", reasonCode: "INTRADAY_MOMENTUM_WAIT_FOR_FRESH_PULLBACK" });
+        } else {
+            // The same old qualifying short trigger still supplies the existing
+            // once-per-target BUY fade, with the existing ATR stop contract.
+            expect(result).toMatchObject({ signalType: "BUY", entryType: "M15_POST_TP_FADE" });
+            expect(result.tradePlan.stopPriceMode).toBeUndefined();
+        }
+    });
+
+    test("structural stops retain the existing spread-to-stop cost guard", async () => {
+        const fixture = sellRetestFixture();
+        fixture.marketContext.session.spreadPips = 2;
+        const result = await evaluateIntradayMomentumEntry(fixture);
+        expect(result).toMatchObject({ signalType: "HOLD", tradePlan: null,
+            reasonCode: "INTRADAY_MOMENTUM_COST_TOO_HIGH" });
+    });
+
+    test("a structural distance below six pips uses the existing outward floor for costs and target", async () => {
+        const fixture = sellRetestFixture({ scale: 0.00007 });
+        fixture.marketContext.session.spreadPips = 0.6;
+        const result = await evaluateIntradayMomentumEntry(fixture);
+        expect(result).toMatchObject({ signalType: "SELL", tradePlan: { stopPips: 6,
+            stopPriceMode: "STRUCTURAL", targetRiskMultiple: 1.5 } });
+        expect(result.tradePlan.structuralStopLossPrice).toBeLessThan(result.tradePlan.stopLossPrice);
+        expect(result.tradePlan.stopLossPrice).toBeCloseTo(fixture.currentPrice + 0.0006, 10);
+        expect(result.tradePlan.takeProfitPrice).toBeCloseTo(fixture.currentPrice - 0.0009, 10);
+        expect(result.strategyContext.costs.costToStopRatio).toBeCloseTo(0.8 / 6, 10);
+    });
+
+    test("the prior qualified normal SELL still closes a long while waiting for the new entry pattern", async () => {
+        const fixture = defaultEntryFixture({ direction: -1 });
+        const result = await evaluateIntradayMomentumEntry({ ...fixture,
+            ownedOpenTrade: { isOpen: true, side: "BUY", entryType: "M15_RANGE_BREAKOUT" } });
+        expect(result).toMatchObject({ signalType: "SELL", intent: "EXIT_LONG_ONLY", entryType: "EXIT_ONLY",
+            tradePlan: null, reasonCode: "INTRADAY_MOMENTUM_SELL_RETEST_EXIT_ONLY" });
+        const fade = await evaluateIntradayMomentumEntry({ ...fixture,
+            ownedOpenTrade: { isOpen: true, side: "BUY", entryType: "M15_POST_TP_FADE" } });
+        expect(fade.signalType).toBe("HOLD");
     });
 });

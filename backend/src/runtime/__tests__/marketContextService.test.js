@@ -1,4 +1,5 @@
 const MarketContextService = require("../marketContextService");
+const OandaDataService = require("../../services/OandaDataService");
 
 function candles(count, start = 0.65) {
     return Array.from({ length: count }, (_, index) => ({
@@ -63,6 +64,42 @@ describe("live MarketContextService", () => {
         expect(context.peers.EUR_USD).toEqual(
             expect.objectContaining({ instrument: "EUR_USD" })
         );
+    });
+
+    test("carries historical ask OHLC and unavailable ask through broker fetch, cache and run context", async () => {
+        const dataService = new OandaDataService(["AUD_USD"]);
+        dataService.priceCache.AUD_USD = { price: 0.695645, spread: 0.9, tradeable: true };
+        dataService.oandaRequest = jest.fn().mockResolvedValue({ candles: [
+            {
+                time: "2026-09-30T13:15:00.000000000Z", complete: true, volume: 89,
+                mid: { o: "0.69653", h: "0.69684", l: "0.69619", c: "0.69633" },
+                ask: { o: "0.69660", h: "0.69690", l: "0.69626", c: "0.69640" },
+            },
+            {
+                time: "2026-09-30T13:30:00.000000000Z", complete: true, volume: 92,
+                mid: { o: "0.69636", h: "0.69656", l: "0.69568", c: "0.69578" },
+            },
+            {
+                time: "2026-09-30T13:45:00.000000000Z", complete: false, volume: 2,
+                mid: { o: "0.69572", h: "0.69578", l: "0.69568", c: "0.69575" },
+                ask: { o: "0.69578", h: "0.69584", l: "0.69574", c: "0.69581" },
+            },
+        ] });
+        const fetched = await dataService.fetchCandles("AUD_USD", "M15");
+        const service = new MarketContextService();
+        const shared = service.buildSharedContext([run], dataService);
+        const context = service.createInstrumentContext(shared, run, "AUD_USD");
+
+        expect(context.timeframes["15m"].candles).toBe(fetched);
+        expect(context.timeframes["15m"].candles).toHaveLength(2);
+        expect(context.timeframes["15m"].candles[0]).toMatchObject({
+            high: 0.69684,
+            ask: { open: 0.69660, high: 0.69690, low: 0.69626, close: 0.69640 },
+        });
+        expect(context.timeframes["15m"].candles[1]).toMatchObject({
+            high: 0.69656, close: 0.69578, ask: null,
+        });
+        expect(context.session.spreadPips).toBe(0.9);
     });
 
     test("returns configured timeframes while recovering an unknown owner run", () => {

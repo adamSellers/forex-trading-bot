@@ -37,6 +37,7 @@ function resolveCanonicalTradePlan({
     config = {},
     entryPrice = signal.currentPrice,
     pipValue,
+    submittedStopLossPrice = null,
 } = {}) {
     const entry = toFiniteNumber(entryPrice, null);
     const pip = toFiniteNumber(pipValue, null);
@@ -49,6 +50,32 @@ function resolveCanonicalTradePlan({
         0,
         toFiniteNumber(config.minStopLossPips, 15)
     );
+    // Structural stops identify an absolute invalidation price. A final quote
+    // must not translate that price as it does a distance/ATR plan. Once the
+    // order is submitted even the minimum floor belongs to the saved order,
+    // not to a later fill or recovery quote.
+    const structural = signal?.tradePlan?.stopPriceMode === "STRUCTURAL";
+    if (structural || signal?.tradePlan?.stopPriceMode != null ||
+        signal?.tradePlan?.structuralStopLossPrice != null) {
+        const anchor = toFiniteNumber(signal?.tradePlan?.structuralStopLossPrice, null);
+        const submitted = toFiniteNumber(submittedStopLossPrice, null);
+        const targetRiskMultiple = toFiniteNumber(signal?.tradePlan?.targetRiskMultiple, null);
+        if (!structural || side !== "SELL" || !(anchor > 0) ||
+            !(targetRiskMultiple > 0) ||
+            (submittedStopLossPrice !== null && (!Number.isFinite(submitted) || submitted < anchor)) ||
+            !isDirectionValid(side, entry, submitted ?? anchor, "stop")) return null;
+        const stopLossPrice = submitted ?? Math.max(anchor, entry + minimumPips * pip);
+        const stopDistance = stopLossPrice - entry;
+        return {
+            ...signal.tradePlan,
+            stopLossPrice,
+            stopLossPips: stopDistance / pip,
+            stopDistance,
+            takeProfitPrice: entry - stopDistance * targetRiskMultiple,
+            source: "SIGNAL_STRUCTURAL_STOP",
+            floored: submitted === null && stopLossPrice > anchor,
+        };
+    }
     const plannedStopPips = toFiniteNumber(
         signal?.tradePlan?.stopPips,
         null

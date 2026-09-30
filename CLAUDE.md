@@ -1,5 +1,7 @@
 # Forex Trading Bot — repository instructions
 
+**October 1 authorized release:** [v5 SELL break/retest candidate](docs/reviews/2026-10-01-sell-retest-release.md) implements strategy **1.3.0 / intraday-risk-v5**. SELL entries now require distinct completed break, retest and rejection candles, with an ask-based structural stop. BUY entry rules and numerical risk limits remain unchanged; BUY-to-SELL fades are disabled. The user explicitly authorized local commits, GitHub publication, builds and standard deployment. Implementation is complete; final validation and actual delivery are tracked in the release record. This supersedes older current-state and pending-release summaries below.
+
 **September 30 deployment verified:** v4.2 / strategy 1.2.2 / intraday-risk-v4.2 is running at clean `c6b6c77`, published locally through GitHub and deployed with the standard command. Verification at 14:10 AEST confirmed healthy services, enabled intent, flat/resolved broker state and the original cooldown ending 22:13:58 AEST. All 906 backend tests passed locally and during deployment; builds and backup verification passed. The [release record](docs/reviews/2026-09-30-loss-reset-release.md) is authoritative; earlier implementation/pending-delivery statements below describe prior checkpoints.
 
 ## Authoritative current state
@@ -46,7 +48,7 @@ The user approved implementation of the review findings and requested documentat
 
 The workflow is strictly one way: local development → local commits and publication to GitHub → deployment from GitHub to the bot. Never stage, commit or push source from the production machine, reverse-sync its code into GitHub, or edit deployed source as a hotfix. Diagnose there when authorized, implement locally, and use the same deployment path for every release. This is also the user's standing rule for all projects.
 
-The user manages Git publication, builds and deployments. Do not run `git add`, `git commit`, `git push`, frontend/production builds, deployment scripts or production restarts. The user-facing deployment is one command after Git publication: `./scripts/deploy.sh` from the local checkout (`./scripts/update.sh` on the Pi). Keep setup, staging and checks in the scripts; do not turn normal deployment into a manual runbook. Read-only SSH is authorized at `adam@img.oakroad:/opt/forex-trading-bot`; never edit deployed source directly.
+Except for explicitly authorized releases (including the October 1 v5 request above), the user manages Git publication, builds and deployments. Do not run `git add`, `git commit`, `git push`, frontend/production builds, deployment scripts or production restarts. The user-facing deployment is one command after Git publication: `./scripts/deploy.sh` from the local checkout (`./scripts/update.sh` on the Pi). Keep setup, staging and checks in the scripts; do not turn normal deployment into a manual runbook. Read-only SSH is authorized at `adam@img.oakroad:/opt/forex-trading-bot`; never edit deployed source directly.
 
 Backend tests, isolated fault reproductions, syntax/lint checks, dependency installation needed for local tests and local source/documentation edits are appropriate. Use Node >=20 <23 (pinned `.nvmrc`); native SQLite must match Node's ABI. Never point a test at the production database or load broker credentials into a test process.
 

@@ -4,6 +4,51 @@ const {
 } = require("../executionPolicy");
 
 describe("canonical execution policy", () => {
+    const structuralSignal = {
+        signal: "SELL", currentPrice: 0.7, atrPips: 50,
+        tradePlan: { stopPriceMode: "STRUCTURAL", structuralStopLossPrice: 0.701,
+            stopPips: 1, stopLossPrice: 0.8, targetRiskMultiple: 1.5 },
+    };
+
+    test("structural SELL preserves its absolute anchor across quote movement", () => {
+        const plan = resolveCanonicalTradePlan({ signal: structuralSignal,
+            config: { minStopLossPips: 6 }, entryPrice: 0.6998, pipValue: 0.0001 });
+        expect(plan).toMatchObject({ stopPriceMode: "STRUCTURAL", stopLossPrice: 0.701,
+            structuralStopLossPrice: 0.701, source: "SIGNAL_STRUCTURAL_STOP", floored: false });
+        expect(plan.stopLossPips).toBeCloseTo(12);
+        expect(plan.takeProfitPrice).toBeCloseTo(0.698);
+    });
+
+    test("minimum floor may widen before submission but fill recovery preserves the submitted stop", () => {
+        const signal = { ...structuralSignal, tradePlan: { ...structuralSignal.tradePlan, structuralStopLossPrice: 0.7003 } };
+        const before = resolveCanonicalTradePlan({ signal, config: { minStopLossPips: 6 }, pipValue: 0.0001 });
+        expect(before.stopLossPrice).toBeCloseTo(0.7006);
+        expect(before.floored).toBe(true);
+        const filled = resolveCanonicalTradePlan({ signal, config: { minStopLossPips: 6 },
+            entryPrice: 0.7001, pipValue: 0.0001, submittedStopLossPrice: before.stopLossPrice });
+        expect(filled.stopLossPrice).toBe(before.stopLossPrice);
+        expect(filled.stopLossPips).toBeCloseTo(5);
+        expect(filled.takeProfitPrice).toBeCloseTo(0.69935);
+    });
+
+    test.each([
+        { structuralStopLossPrice: undefined }, { structuralStopLossPrice: null },
+        { structuralStopLossPrice: 0 }, { structuralStopLossPrice: 0.6999 },
+        { structuralStopLossPrice: 0.7 }, { structuralStopLossPrice: "invalid" },
+        { stopPriceMode: "ATR" }, { stopPriceMode: undefined }, { targetRiskMultiple: null },
+    ])("invalid structural contract never falls back to ATR: %j", (change) => {
+        expect(resolveCanonicalTradePlan({ signal: { ...structuralSignal,
+            tradePlan: { ...structuralSignal.tradePlan, ...change } },
+            config: { minStopLossPips: 6 }, pipValue: 0.0001 })).toBeNull();
+    });
+
+    test("structural mode is SELL-only and recovered stop cannot move inside its anchor", () => {
+        expect(resolveCanonicalTradePlan({ signal: { ...structuralSignal, signal: "BUY" },
+            pipValue: 0.0001 })).toBeNull();
+        expect(resolveCanonicalTradePlan({ signal: structuralSignal, pipValue: 0.0001,
+            submittedStopLossPrice: 0.7009 })).toBeNull();
+    });
+
     test("uses the same ATR fallback and minimum stop floor", () => {
         const plan = resolveCanonicalTradePlan({
             signal: {

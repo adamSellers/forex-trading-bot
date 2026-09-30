@@ -3,7 +3,7 @@
 const FADE_ENTRY_TYPE = "M15_POST_TP_FADE";
 const REENTRY_POLICY_VERSION = 1;
 const INTEGRATED_STRATEGY_VERSION = "1.2.0";
-const INTEGRATED_STRATEGY_VERSIONS = Object.freeze([INTEGRATED_STRATEGY_VERSION, "1.2.1", "1.2.2"]);
+const INTEGRATED_STRATEGY_VERSIONS = Object.freeze([INTEGRATED_STRATEGY_VERSION, "1.2.1", "1.2.2", "1.3.0"]);
 const TradeReconciliationService = require("../services/tradeReconciliationService");
 const reconciliation = new TradeReconciliationService();
 

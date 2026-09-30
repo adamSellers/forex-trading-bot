@@ -2576,6 +2576,10 @@ describe('LiveTradingEngine', () => {
         async function prepareQuoteCase(market, { cachedSpread = 1.2, finalSpread = cachedSpread, deviation = null, stopPips = 20 } = {}) {
             jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-10T13:00:00Z'));
             Object.assign(mockConfigService.config, require('../../../../shared/tradingConfigDefaults.json'), { enableTrading: true });
+            // This matrix covers the unchanged distance-plan execution
+            // contract; current candidate cases opt into v5 below.
+            Object.assign(mockConfigService.config, { liveReleaseVersion: 'm15-intraday-v4.2',
+                executionPolicyVersion: 'intraday-risk-v4.2' });
             const price = (value) => value.toFixed(market.precision);
             const makeQuote = (bid, ask) => ({
                 instrument: market.symbol, tradeable: true, time: new Date(Date.now()).toISOString(),
@@ -2997,6 +3001,173 @@ describe('LiveTradingEngine', () => {
             return requests;
         }
 
+        async function prepareCandidateEntry() {
+            const signal = await prepareQuoteCase({ symbol: 'AUD_USD', bid: 0.7,
+                pip: 0.0001, precision: 5, side: 'SELL' }, { cachedSpread: 0.5 });
+            Object.assign(mockConfigService.config, { liveReleaseVersion: 'm15-intraday-v5',
+                executionPolicyVersion: 'intraday-risk-v5' });
+            const shapes = [
+                ...Array.from({ length: 8 }, () => [0.7015, 0.7017, 0.7012, 0.7014]),
+                [0.7014, 0.7015, 0.7008, 0.7009],
+                [0.7009, 0.7013, 0.7008, 0.7011],
+                [0.7011, 0.70115, 0.6999, 0.7],
+            ];
+            const candles = shapes.map(([open, high, low, close], index) => ({
+                time: new Date(Date.now() - (shapes.length - index) * 900000).toISOString(),
+                open, high, low, close, complete: true,
+                ask: { open: open + 0.00005, high: high + 0.00005,
+                    low: low + 0.00005, close: close + 0.00005 },
+            }));
+            engine.dataService.getCandles = jest.fn((symbol, timeframe) => timeframe === '15m' ? candles : []);
+            const { resolveSellRetestEvidence } = require('../../runtime/intradaySellRetestEvidence');
+            const { resolveLossResetEvidence } = require('../../runtime/intradayLossResetEvidence');
+            const sellRetest = await resolveSellRetestEvidence({ instrument: signal.symbol,
+                candles, breakoutBars: 8, displayPrecision: 5, nowMs: Date.now(),
+                trades: [], historyAvailable: true }, engine.brokerLifecycleRepository);
+            expect(sellRetest.ready).toBe(true);
+            signal.strategyVersion = '1.3.0';
+            signal.entryType = 'M15_BREAK_RETEST_REJECTION';
+            signal.tradePlan = { stopPriceMode: 'STRUCTURAL',
+                structuralStopLossPrice: sellRetest.structuralStopLossPrice,
+                targetRiskMultiple: 1.5 };
+            signal.strategyContext = { sellRetest,
+                signalCandleCloseTime: Date.now(),
+                reentry: evaluateReentryPolicy({ originalSide: 'SELL', signalFastEma: 0.701,
+                    pullbackWindow: [], signalCandleTime: candles.at(-1).time }),
+                lossReset: await resolveLossResetEvidence({ instrument: signal.symbol, side: 'SELL',
+                    trades: [], historyAvailable: true, h1Candles: [], config: mockConfigService.get(),
+                    nowMs: Date.now(), signalCandleCloseTime: Date.now() }, engine.brokerLifecycleRepository),
+            };
+            return { signal, candles };
+        }
+
+        test('current candidate passes durable evidence and all entry gates, then manages BE from actual structural risk', async () => {
+            const { signal } = await prepareCandidateEntry();
+            const requests = await useRealOrderSerializer();
+
+            await engine.processSignal(signal);
+
+            const trade = [...engine.openTrades.values()][0];
+            expect(trade).toBeDefined();
+            const initial = trade.brokerReconciliationPayload.liveRuntime;
+            expect(initial.entryTelemetry.strategyContext.sellRetest.patternId).toBe(signal.strategyContext.sellRetest.patternId);
+            expect(initial.ownerExitPolicy).toBeDefined();
+            const config = engine.getOwnerExitConfig(trade, { enableBreakeven: false });
+            await engine.updateBreakevenStop(trade,
+                trade.entryPrice - initial.initialStopDistance * 0.9, config);
+            expect(requests).toHaveLength(2);
+            oandaClient.modifyTrade.mockImplementation(async (_id, options) => ({
+                stopLossOrderTransaction: { tradeID: '489', price: String(options.stopLossPrice) },
+            }));
+            await engine.updateBreakevenStop(trade,
+                trade.entryPrice - initial.initialStopDistance * 1.01, config);
+            expect(trade.breakevenHit).toBe(true);
+            expect(trade.stopLossPrice).toBe(trade.entryPrice);
+            expect(trade.brokerReconciliationPayload.liveRuntime.initialStopDistance).toBe(initial.initialStopDistance);
+        });
+
+        test.each(['missing evidence', 'missing history', 'stale candles', 'changed persisted anchor', 'already traded'])(
+            'current candidate rejects %s after broker reconciliation before submission', async (failure) => {
+                const { signal, candles } = await prepareCandidateEntry();
+                const sync = engine._syncWithOanda.bind(engine);
+                jest.spyOn(engine, '_syncWithOanda').mockImplementation(async (...args) => {
+                    await sync(...args);
+                    if (failure === 'missing evidence') delete signal.strategyContext.sellRetest;
+                    if (failure === 'missing history') mockTradeRepository.getAllTrades.mockResolvedValue(null);
+                    if (failure === 'stale candles') engine.dataService.getCandles.mockReturnValue(candles.slice(0, -1));
+                    if (failure === 'changed persisted anchor') {
+                        for (const [key, state] of engine.brokerLifecycleRepository.state) {
+                            if (key.startsWith('intraday-sell-retest:')) state.retest.askHigh += 0.0001;
+                        }
+                    }
+                    if (failure === 'already traded') {
+                        const previous = { id: 'prior-candidate', oandaTradeId: '100',
+                            instrument: signal.symbol, side: 'SELL', mode: 'live', isOpen: false,
+                            exitReason: 'TIME_STOP', exitTime: Date.now() - 1000,
+                            profitLoss: 0.01, brokerReconciliationPayload: { liveRuntime: {
+                                entryTelemetry: { strategyContext: { sellRetest: signal.strategyContext.sellRetest } },
+                            } } };
+                        await mockTradeRepository.save(previous);
+                        signal.strategyContext.reentry = evaluateReentryPolicy({
+                            ...signal.strategyContext.reentry, latestClosedTrade: previous });
+                    }
+                });
+
+                await expect(engine.processSignal(signal)).rejects.toMatchObject({ entryRejectionCode: 'INVALID_SIGNAL' });
+
+                expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                expect(mockEntryDecisionRepository.decisions.at(-1)).toMatchObject({
+                    outcome: 'REJECTED', rejectionCode: 'INVALID_SIGNAL' });
+                if (!['missing history'].includes(failure)) {
+                    expect(mockEntryDecisionRepository.decisions.at(-1).rejectionContext.phase).toBe('SELL_RETEST_REVALIDATION');
+                }
+            }
+        );
+
+        test.each(['M15_RANGE_BREAKOUT', 'M15_PULLBACK_RESUMPTION', 'M15_POST_TP_FADE'])(
+            'new strategy SELL cannot bypass candidate using %s', async (entryType) => {
+                const signal = await prepareQuoteCase({ symbol: 'AUD_USD', bid: 0.7,
+                    pip: 0.0001, precision: 5, side: 'SELL' }, { cachedSpread: 0.5 });
+                signal.strategyVersion = '1.3.0';
+                signal.entryType = entryType;
+
+                await engine.processSignal(signal);
+
+                expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                expect(mockEntryDecisionRepository.decisions.at(-1)).toMatchObject({ rejectionCode: 'INVALID_SIGNAL' });
+            }
+        );
+
+        test.each([undefined, '1.2.2', 'unknown'])(
+            'v5 config rejects a SELL with missing or mismatched strategy version %s', async (strategyVersion) => {
+                const { signal } = await prepareCandidateEntry();
+                signal.strategyVersion = strategyVersion;
+
+                await engine.processSignal(signal);
+
+                expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+                expect(mockEntryDecisionRepository.decisions.at(-1)).toMatchObject({ rejectionCode: 'INVALID_SIGNAL' });
+            }
+        );
+
+        test('queued candidate confirmation must belong to the signal candle', async () => {
+            const { signal } = await prepareCandidateEntry();
+            signal.strategyContext.signalCandleCloseTime -= 900000;
+
+            await expect(engine.processSignal(signal)).rejects.toMatchObject({
+                entryRejectionCode: 'INVALID_SIGNAL', entryRejectionContext: { phase: 'SELL_RETEST_REVALIDATION' } });
+
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+        });
+
+        test('a lost structural alignment response retries the same absolute protection and filled-entry target', async () => {
+            const { signal } = await prepareCandidateEntry();
+            const requests = await useRealOrderSerializer();
+            const modify = oandaClient.modifyTrade.getMockImplementation();
+            oandaClient.modifyTrade.mockRejectedValueOnce(new Error('response lost')).mockImplementation(modify);
+            oandaClient.getTrade.mockImplementation(async () => ({ trade: {
+                id: '489', state: 'OPEN', stopLossOrder: { state: 'PENDING',
+                    price: requests[0].body.order.stopLossOnFill.price },
+            } }));
+
+            await engine.processSignal(signal);
+
+            const trade = [...engine.openTrades.values()][0];
+            const runtime = trade.brokerReconciliationPayload.liveRuntime;
+            const pending = trade.brokerReconciliationPayload.stopUpdate;
+            expect(pending.desiredPrice).toBe(Number(requests[0].body.order.stopLossOnFill.price));
+            expect(pending.desiredPrice).toBe(runtime.initialStopLossPrice);
+            expect(pending.desiredTakeProfitPrice).toBe(Number((trade.entryPrice - runtime.initialStopDistance * 1.5).toFixed(5)));
+            Date.now.mockReturnValue(pending.nextRetryAt + 1);
+
+            await engine.retryPendingStopUpdate(trade);
+
+            expect(trade.stopLossPrice).toBe(runtime.initialStopLossPrice);
+            expect(trade.takeProfitPrice).toBe(pending.desiredTakeProfitPrice);
+            expect(trade.brokerReconciliationPayload.stopUpdate).toBeNull();
+            expect(requests.at(-1).body.stopLoss.price).toBe(requests[0].body.order.stopLossOnFill.price);
+        });
+
         test.each(cases)('$symbol $side sizes and persists the exact serialized bound and protections', async (market) => {
             // Odd half-pip spread makes the decision midpoint a half-tick; a
             // sub-tick stop distance also exercises protective-price rounding.
@@ -3026,6 +3197,99 @@ describe('LiveTradingEngine', () => {
             const risk = Math.abs(trade.entryPrice - trade.stopLossPrice) * trade.units * context.quoteToAudRate;
             expect(trade.brokerReconciliationPayload.liveRuntime.initialRiskAud).toBe(risk);
             expect(risk).toBeLessThanOrEqual(context.riskBudgetAud);
+        });
+
+        test.each(markets.flatMap((market) => ['adverse', 'improved', 'quote'].map((fill) => ({ ...market, fill }))))(
+            '$symbol structural SELL keeps its absolute stop with $fill fill and final quote movement', async (market) => {
+                const signal = await prepareQuoteCase({ ...market, side: 'SELL' },
+                    { cachedSpread: 0.5, finalSpread: 0.5, deviation: 1, stopPips: 6 });
+                const anchor = market.bid + 9.13 * market.pip;
+                signal.entryType = 'M15_BREAK_RETEST_REJECTION';
+                signal.tradePlan = { stopPriceMode: 'STRUCTURAL', structuralStopLossPrice: anchor,
+                    stopPips: 99, targetRiskMultiple: 1.5 };
+                const requests = await useRealOrderSerializer({
+                    fillAtBound: market.fill === 'adverse',
+                    fillPrice: market.fill === 'improved'
+                        ? Number((market.bid + 0.2 * market.pip).toFixed(market.precision)) : null,
+                });
+
+                await engine.processSignal(signal);
+
+                expect(requests).toHaveLength(2);
+                const submitted = Number(requests[0].body.order.stopLossOnFill.price);
+                const expectedStop = Number((market.bid + 9.2 * market.pip).toFixed(market.precision));
+                expect(submitted).toBe(expectedStop);
+                expect(submitted).toBeGreaterThanOrEqual(anchor);
+                expect(requests[1].body.stopLoss.price).toBe(requests[0].body.order.stopLossOnFill.price);
+                const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+                const trade = [...engine.openTrades.values()][0];
+                const distance = submitted - trade.entryPrice;
+                expect(trade.stopLossPrice).toBe(submitted);
+                expect(trade.takeProfitPrice).toBe(Number((trade.entryPrice - distance * 1.5).toFixed(market.precision)));
+                expect(trade.brokerReconciliationPayload.liveRuntime).toMatchObject({
+                    stopPriceMode: 'STRUCTURAL', structuralStopLossPrice: anchor,
+                    initialStopLossPrice: submitted, initialStopDistance: distance,
+                });
+                expect(intent.contextPayload.worstFillRiskAud).toBeLessThanOrEqual(intent.contextPayload.riskBudgetAud);
+                expect(trade.brokerReconciliationPayload.liveRuntime.initialRiskAud).toBeLessThanOrEqual(intent.contextPayload.riskBudgetAud);
+                // Recovery reconstructs the same owner stop and initial-R
+                // distance without translating the absolute invalidation level.
+                engine.openTrades.clear();
+                const recovered = await engine.buildEntryTradeFromFill(intent,
+                    trade.brokerReconciliationPayload.entryFill, { recovered: true });
+                expect(recovered.stopLossPrice).toBe(submitted);
+                expect(recovered.brokerReconciliationPayload.liveRuntime.initialStopDistance).toBe(distance);
+            }
+        );
+
+        test('structural minimum floor is applied at final quote and remains fixed after an improved fill', async () => {
+            const market = { symbol: 'AUD_USD', bid: 0.7, pip: 0.0001, precision: 5, side: 'SELL' };
+            const signal = await prepareQuoteCase(market, { cachedSpread: 0.5, finalSpread: 0.5, deviation: 1 });
+            signal.entryType = 'M15_BREAK_RETEST_REJECTION';
+            signal.tradePlan = { stopPriceMode: 'STRUCTURAL', structuralStopLossPrice: 0.7003, targetRiskMultiple: 1.5 };
+            const requests = await useRealOrderSerializer({ fillPrice: 0.7001 });
+
+            await engine.processSignal(signal);
+
+            const intent = [...engine.brokerLifecycleRepository.intents.values()][0];
+            const finalQuote = intent.contextPayload.finalQuote.finalQuote;
+            const stop = Number(requests[0].body.order.stopLossOnFill.price);
+            expect(stop).toBe(Number(oandaClient.formatPriceBound(market.symbol, finalQuote + 6 * market.pip, 'SELL')));
+            expect(stop).toBeGreaterThan(0.7003);
+            expect(requests[1].body.stopLoss.price).toBe(requests[0].body.order.stopLossOnFill.price);
+            expect(stop - [...engine.openTrades.values()][0].entryPrice).toBeLessThan(6 * market.pip);
+        });
+
+        test.each([
+            null,
+            { stopPriceMode: 'STRUCTURAL', targetRiskMultiple: 1.5 },
+            { stopPriceMode: 'STRUCTURAL', structuralStopLossPrice: 0.6999, targetRiskMultiple: 1.5 },
+            { stopPriceMode: 'STRUCTURAL', structuralStopLossPrice: 'bad', targetRiskMultiple: 1.5 },
+            { stopPips: 6, targetRiskMultiple: 1.5 },
+        ])('candidate missing or invalid structural plan is rejected without broker submission: %j', async (tradePlan) => {
+            const signal = await prepareQuoteCase({ symbol: 'AUD_USD', bid: 0.7, pip: 0.0001, precision: 5, side: 'SELL' },
+                { cachedSpread: 0.5 });
+            signal.entryType = 'M15_BREAK_RETEST_REJECTION';
+            signal.tradePlan = tradePlan;
+
+            await engine.processSignal(signal);
+
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.decisions.at(-1)).toMatchObject({
+                outcome: 'REJECTED', rejectionCode: 'INVALID_SIGNAL' });
+        });
+
+        test('final quote crossing the structural anchor is rejected rather than converted into an ATR stop', async () => {
+            const market = { symbol: 'AUD_USD', bid: 0.7, pip: 0.0001, precision: 5, side: 'SELL' };
+            const signal = await prepareQuoteCase(market, { cachedSpread: 0.2, finalSpread: 0.2, deviation: -1 });
+            signal.entryType = 'M15_BREAK_RETEST_REJECTION';
+            signal.tradePlan = { stopPriceMode: 'STRUCTURAL', structuralStopLossPrice: 0.70005, targetRiskMultiple: 1.5 };
+
+            await expect(engine.processSignal(signal)).rejects.toMatchObject({ entryRejectionCode: 'INVALID_SIGNAL' });
+
+            expect(oandaClient.placeMarketOrder).not.toHaveBeenCalled();
+            expect(mockEntryDecisionRepository.decisions.at(-1)).toMatchObject({
+                outcome: 'REJECTED', rejectionCode: 'INVALID_SIGNAL' });
         });
 
         test('retained 3435 SELL fixture no longer permits 1.55-pip deviation or excess serialized risk', async () => {
@@ -3258,6 +3522,10 @@ describe('LiveTradingEngine', () => {
         });
 
         test('normal and fade positions coexist across pairs and retain ownership through restart', async () => {
+            // Seed positions owned by the earlier release. v5 no longer opens
+            // a BUY-to-SELL fade, but must retain ownership of one already open.
+            Object.assign(mockConfigService.config, { liveReleaseVersion: 'm15-intraday-v4.2',
+                executionPolicyVersion: 'intraday-risk-v4.2' });
             const parent = createMockTrade({ id: 'prior-normal-tp', oandaTradeId: 'prior-broker-tp',
                 instrument: 'EUR_USD', side: 'BUY', entryType: 'M15_RANGE_BREAKOUT', isOpen: false,
                 ownerRunId: 'prior-release', runId: 'prior-release', exitTime: Date.now() - 180000,
@@ -3276,6 +3544,8 @@ describe('LiveTradingEngine', () => {
             expect(owned.map((trade) => trade.entryType)).toEqual(['M15_RANGE_BREAKOUT', 'M15_POST_TP_FADE']);
 
             const lifecycle = engine.brokerLifecycleRepository;
+            Object.assign(mockConfigService.config, { liveReleaseVersion: 'm15-intraday-v5',
+                executionPolicyVersion: 'intraday-risk-v5' });
             engine.stop();
             engine = new LiveTradingEngine().init(mockConfigService, mockDataService, mockTradeRepository,
                 mockSignalGenerator, null, mockEntryDecisionRepository, lifecycle);

@@ -34,7 +34,7 @@ const liveEngines = [];
 // Deterministic completed candles use the existing default breakout fixture,
 // with larger ranges so a 1.3-pip spread passes strategy cost checks before
 // reaching the separate 1.2-pip execution limit. No indicator is mocked.
-function candles(closeTime = startTime) {
+function candles(closeTime = startTime, direction = 1) {
     const scale = 10;
     const price = (value) => 1.3 + (value - 1.1) * scale;
     let previousClose = 1.1;
@@ -56,23 +56,22 @@ function candles(closeTime = startTime) {
             high: price(close + 0.00054), low: price(close - 0.00054),
         };
     });
-    return { m15, h1, reference: m15.at(-1).close };
-}
-
-async function fixture({ direction = 1 } = {}) {
-    let now = startTime;
-    jest.spyOn(Date, 'now').mockImplementation(() => now);
-    const history = candles();
     if (direction < 0) {
-        for (const series of [history.m15, history.h1]) {
+        for (const series of [m15, h1]) {
             for (const bar of series) {
                 const { high, low } = bar;
                 Object.assign(bar, { open: 2.6 - bar.open, close: 2.6 - bar.close,
                     high: 2.6 - low, low: 2.6 - high });
             }
         }
-        history.reference = history.m15.at(-1).close;
     }
+    return { m15, h1, reference: m15.at(-1).close };
+}
+
+async function fixture({ direction = 1 } = {}) {
+    let now = startTime;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const history = candles(startTime, direction);
     const originalMid = Number(history.reference.toFixed(5));
     let spread = 1.3;
     let displacementPips = 0;
@@ -497,7 +496,8 @@ describe('durable same-direction loss reset through live orchestration', () => {
             configHash: run.configHash, tradePlan: { stopPips: 20,
                 stopLossPrice: state.history.reference + 0.002,
                 takeProfitPrice: state.history.reference - 0.003, targetRiskMultiple: 1.5 },
-        }, state.configService.get());
+        }, { ...state.configService.get(), liveReleaseVersion: 'm15-intraday-v4.2',
+            executionPolicyVersion: 'intraday-risk-v4.2' });
         expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
         const owned = state.tradeRepository.trades.find((trade) => trade.isOpen);
         const broker = copy(state.brokerTrades.get(owned.oandaTradeId));
@@ -541,7 +541,7 @@ describe('integrated protected-exit fade lifecycle', () => {
     beforeEach(() => jest.clearAllMocks());
     afterEach(() => { liveEngines.splice(0).forEach((engine) => engine.stop()); jest.restoreAllMocks(); });
 
-    function addParent(state, { side = 'BUY', exitReason = 'TAKE_PROFIT' } = {}) {
+    function addParent(state, { side = 'SELL', exitReason = 'TAKE_PROFIT' } = {}) {
         const trade = { id: 'normal-parent', oandaTradeId: 'prior-3381', instrument: pair,
             mode: 'live', side, isOpen: false, exitReason, pnlAud: 0.2,
             entryType: 'M15_RANGE_BREAKOUT', brokerClosedAt: startTime - 180_000,
@@ -554,12 +554,12 @@ describe('integrated protected-exit fade lifecycle', () => {
         return trade;
     }
 
-    test.each([1, -1])('a post-TP fade survives price rejection and restart with correct executable side/protection (direction=%s)', async (direction) => {
-        const state = await fixture({ direction });
-        addParent(state, { side: direction > 0 ? 'BUY' : 'SELL' });
+    test('a SELL-to-BUY post-TP fade survives price rejection and restart with correct executable side/protection', async () => {
+        const state = await fixture({ direction: -1 });
+        addParent(state);
         let runtime = await state.boot();
         const first = await runtime.cycle();
-        expect(first).toMatchObject({ signal: direction > 0 ? 'SELL' : 'BUY',
+        expect(first).toMatchObject({ signal: 'BUY',
             entryType: 'M15_POST_TP_FADE', reasonCode: 'INTRADAY_MOMENTUM_POST_TP_FADE' });
         expect(first.setupId).toContain('normal-parent');
         expect(first.strategyContext.reentry).toMatchObject({ classification: 'POST_TP_FADE', freshTouch: false });
@@ -574,15 +574,16 @@ describe('integrated protected-exit fade lifecycle', () => {
         expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
         const [instrument, units, options] = oanda.placeMarketOrder.mock.calls[0];
         expect(instrument).toBe(pair);
-        expect(Math.sign(units)).toBe(-direction);
+        expect(Math.sign(units)).toBe(1);
         const filled = state.tradeRepository.trades.find((trade) => trade.isOpen);
         expect(filled.side).toBe(retry.signal);
-        expect(Math.sign(filled.stopLossPrice - filled.entryPrice)).toBe(direction);
-        expect(Math.sign(filled.takeProfitPrice - filled.entryPrice)).toBe(-direction);
+        expect(filled.stopLossPrice).toBeLessThan(filled.entryPrice);
+        expect(filled.takeProfitPrice).toBeGreaterThan(filled.entryPrice);
         expect(options.stopLossPrice).toBeGreaterThan(0);
         const recorded = filled.brokerReconciliationPayload.liveRuntime.entryTelemetry.strategyContext;
         expect(recorded.reentry.anchor.tradeId).toBe('normal-parent');
-        expect(recorded.reentry.originalSide).toBe(direction > 0 ? 'BUY' : 'SELL');
+        expect(recorded.reentry.originalSide).toBe('SELL');
+        expect(recorded.reentry.executedSide).toBe('BUY');
         expect(state.entryDecisionRepository.decisions.at(-1).rsi).toBeCloseTo(recorded.m15.rsi);
         expect(filled.brokerReconciliationPayload.liveRuntime.ownerExitPolicy.config).toMatchObject({
             enableBreakeven: true, breakevenTriggerRiskMultiple: 1, timeStopHours: 6,
@@ -593,7 +594,7 @@ describe('integrated protected-exit fade lifecycle', () => {
     });
 
     test.each(['TAKE_PROFIT', 'STOP_LOSS'])('broker-confirmed fade %s keeps the original consumed episode through restart', async (exitReason) => {
-        const state = await fixture();
+        const state = await fixture({ direction: -1 });
         addParent(state);
         state.setQuote(1);
         let runtime = await state.boot();
@@ -623,11 +624,11 @@ describe('integrated protected-exit fade lifecycle', () => {
     });
 
     test('the next ordinary trend signal does not close a fade through signal reversal', async () => {
-        const state = await fixture(); addParent(state); state.setQuote(1);
+        const state = await fixture({ direction: -1 }); addParent(state); state.setQuote(1);
         const runtime = await state.boot();
         const fade = await runtime.cycle();
         const close = jest.spyOn(runtime.engine, 'executeExit');
-        await runtime.engine.processSignal({ ...fade, signal: 'BUY', intent: 'ENTER_LONG',
+        await runtime.engine.processSignal({ ...fade, signal: 'SELL', intent: 'ENTER_SHORT',
             entryType: 'M15_RANGE_BREAKOUT', entryAttemptId: 'later-normal' });
         expect(close).not.toHaveBeenCalled();
         expect(runtime.engine.openTrades.size).toBe(1);
@@ -636,11 +637,24 @@ describe('integrated protected-exit fade lifecycle', () => {
     });
 
     test('a fade signal cannot close an existing normal position to make room', async () => {
-        const state = await fixture(); state.setQuote(1);
+        const state = await fixture({ direction: -1 }); state.setQuote(1);
         const runtime = await state.boot();
-        const normal = await runtime.cycle();
+        await state.dataService.fetchAllPrices();
+        const run = runtime.coordinator.getActiveLiveSession().run;
+        // Seed a broker-owned normal short from the previous entry policy. Its
+        // ownership/exit contract survives a release that changes new SELLs.
+        const normal = { symbol: pair, signal: 'SELL', signalClass: 'ACTIONABLE',
+            intent: 'ENTER_SHORT', currentPrice: state.history.reference, strength: 50,
+            atr: 0.0016, atrPips: 16, entryType: 'M15_RANGE_BREAKOUT',
+            strategy: 'intraday_momentum', mode: 'live', runId: run.runId, selectionId: run.selectionId,
+            configHash: run.configHash, tradePlan: { stopPips: 20,
+                stopLossPrice: state.history.reference + 0.002,
+                takeProfitPrice: state.history.reference - 0.003, targetRiskMultiple: 1.5 },
+        };
+        await runtime.engine.executeEntry(normal, { ...state.configService.get(),
+            liveReleaseVersion: 'm15-intraday-v4.2', executionPolicyVersion: 'intraday-risk-v4.2' });
         const close = jest.spyOn(runtime.engine, 'executeExit');
-        await runtime.engine.processSignal({ ...normal, signal: 'SELL', intent: 'ENTER_SHORT',
+        await runtime.engine.processSignal({ ...normal, signal: 'BUY', intent: 'ENTER_LONG',
             entryType: 'M15_POST_TP_FADE', entryAttemptId: 'later-fade' });
         expect(close).not.toHaveBeenCalled();
         expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
@@ -648,7 +662,7 @@ describe('integrated protected-exit fade lifecycle', () => {
     });
 
     test('an anchor discovered during final broker reconciliation invalidates the queued fade', async () => {
-        const state = await fixture(); const parent = addParent(state); state.setQuote(1);
+        const state = await fixture({ direction: -1 }); const parent = addParent(state); state.setQuote(1);
         const runtime = await state.boot();
         const sync = runtime.engine._syncWithOanda.bind(runtime.engine);
         jest.spyOn(runtime.engine, '_syncWithOanda').mockImplementation(async (options) => {
@@ -668,7 +682,7 @@ describe('integrated protected-exit fade lifecycle', () => {
     });
 
     test('breakeven without a fresh touch is a persisted HOLD, while ordinary entries remain possible', async () => {
-        const state = await fixture(); addParent(state, { exitReason: 'BREAKEVEN_STOP' }); state.setQuote(1);
+        const state = await fixture(); addParent(state, { side: 'BUY', exitReason: 'BREAKEVEN_STOP' }); state.setQuote(1);
         const runtime = await state.boot();
         const signal = await runtime.cycle();
         expect(signal).toMatchObject({ signal: 'HOLD', reasonCode: 'INTRADAY_MOMENTUM_WAIT_FOR_FRESH_PULLBACK' });
@@ -681,7 +695,7 @@ describe('integrated protected-exit fade lifecycle', () => {
     });
 
     test('a TP cannot repurpose the already-completed signal candle; a later completion can fade', async () => {
-        const state = await fixture(); const parent = addParent(state); state.setQuote(1);
+        const state = await fixture({ direction: -1 }); const parent = addParent(state); state.setQuote(1);
         parent.brokerClosedAt = startTime;
         parent.exitTime = startTime;
         parent.brokerReconciliationPayload.close.trade.closeTime = new Date(startTime).toISOString();
@@ -689,11 +703,32 @@ describe('integrated protected-exit fade lifecycle', () => {
         expect(await runtime.cycle()).toMatchObject({ signal: 'HOLD', reasonCode: 'INTRADAY_MOMENTUM_WAIT_FOR_POST_EXIT_SIGNAL' });
         expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
         state.advance(900_000);
-        const next = candles(startTime + 900_000);
+        const next = candles(startTime + 900_000, -1);
         state.dataService.candleCache[`${pair}_M15`] = next.m15;
         state.dataService.candleCache[`${pair}_H1`] = next.h1;
         // The only post-exit bar is now the signal itself; no prior bar qualifies.
-        expect(await runtime.cycle()).toMatchObject({ signal: 'SELL', entryType: 'M15_POST_TP_FADE' });
+        expect(await runtime.cycle()).toMatchObject({ signal: 'BUY', entryType: 'M15_POST_TP_FADE' });
         expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
+    });
+
+    test('a BUY-to-SELL post-TP fade waits for the SELL retest policy without submitting an order', async () => {
+        const state = await fixture(); addParent(state, { side: 'BUY' }); state.setQuote(1);
+        let runtime = await state.boot();
+        const signal = await runtime.cycle();
+        expect(signal).toMatchObject({ signal: 'HOLD',
+            reasonCode: 'INTRADAY_MOMENTUM_SELL_RETEST_REQUIRED', strategyContext: {
+                reentry: { classification: 'POST_TP_FADE', originalSide: 'BUY', executedSide: 'SELL',
+                    anchor: { tradeId: 'normal-parent', side: 'BUY' } },
+            } });
+        expect(runtime.coordinator.signalRepository.saveBatch).toHaveBeenCalledWith([signal]);
+        expect(state.entryDecisionRepository.decisions).toHaveLength(0);
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+        runtime.engine.stop();
+        state.advance();
+        runtime = await state.boot();
+        expect(await runtime.cycle()).toMatchObject({ signal: 'HOLD',
+            reasonCode: 'INTRADAY_MOMENTUM_SELL_RETEST_REQUIRED' });
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+        expect(state.intents.size).toBe(0);
     });
 });

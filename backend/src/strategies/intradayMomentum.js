@@ -4,8 +4,12 @@ const { resolveTimedExitReason } = require("../runtime/exitPolicy");
 const { evaluateReentryPolicy, FADE_ENTRY_TYPE, isFadeTrade } = require("../runtime/intradayReentryPolicy");
 const {
     emaSeries, evaluateH1Regime, evaluateLossResetPolicy,
-    LOSS_RESET_POLICY_VERSION, LOSS_RESET_STRATEGY_VERSION,
+    LOSS_RESET_POLICY_VERSION,
 } = require("../runtime/intradayLossResetPolicy");
+const {
+    evaluateIntradaySellRetest, consumedSellRetestPatternIds,
+    SELL_RETEST_STRATEGY_VERSION, SELL_RETEST_ENTRY_TYPE,
+} = require("../runtime/intradaySellRetestPolicy");
 const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 const {
     calculateADX,
@@ -192,6 +196,7 @@ async function evaluateIntradayMomentumEntry({
     lossResetDecisions = null,
     lossResetTrades = null,
     ownedOpenTrade = null,
+    sellRetestDecision = null,
 }) {
     const resolved = { ...DEFAULT_INTRADAY_MOMENTUM_CONFIG, ...config };
     const m15 = marketContext?.timeframes?.["15m"]?.candles || [];
@@ -514,11 +519,21 @@ async function evaluateIntradayMomentumEntry({
         longPullback,
         shortPullback,
     };
-    if (!isBreakout && !isPullback) {
+    const sellRetest = sellRetestDecision || evaluateIntradaySellRetest({
+        instrument, candles: m15, breakoutBars, nowMs,
+        displayPrecision: marketContext?.instrumentMetadata?.displayPrecision,
+        consumedPatternIds: consumedSellRetestPatternIds(
+            lossResetTrades || (latestClosedTrade ? [latestClosedTrade] : []), instrument),
+    });
+    context.sellRetest = sellRetest;
+    const candidateReady = direction < 0 && sellRetest.ready === true;
+    const legacyTrigger = isBreakout || isPullback;
+    if (!legacyTrigger && !candidateReady) {
         return hold(
             base,
-            "INTRADAY_MOMENTUM_NO_TRIGGER",
-            "HOLD: no fresh M15 breakout or pullback resumption",
+            direction < 0 ? `INTRADAY_MOMENTUM_SELL_${sellRetest.classification}` : "INTRADAY_MOMENTUM_NO_TRIGGER",
+            direction < 0 ? "HOLD: waiting for a completed bearish break, distinct retest and later rejection"
+                : "HOLD: no fresh M15 breakout or pullback resumption",
             context
         );
     }
@@ -526,34 +541,16 @@ async function evaluateIntradayMomentumEntry({
     const pipValue = getPipValue(instrument);
     const stopAtr = Math.max(0.5, finite(resolved.intradayStopAtr, 1.25));
     const minimumStopPips = Math.max(1, finite(resolved.minStopLossPips, 6));
-    const stopPips = Math.max((atrValue * stopAtr) / pipValue, minimumStopPips);
+    const legacyStopPips = Math.max((atrValue * stopAtr) / pipValue, minimumStopPips);
     const totalCostPips = Number.isFinite(spreadPips)
         ? spreadPips + expectedSlippagePips
         : null;
-    const costToStopRatio = Number.isFinite(totalCostPips)
-        ? totalCostPips / stopPips
-        : null;
-    context.costs.stopPips = stopPips;
-    context.costs.costToStopRatio = costToStopRatio;
     const maxCostToStopRatio = Math.max(
         0,
         finite(resolved.intradayMaxCostToStopRatio, 0.15)
     );
-    if (
-        !Number.isFinite(costToStopRatio) ||
-        exceedsQuoteLimit(costToStopRatio, maxCostToStopRatio,
-            priceDistanceError(price, price, pipValue) / stopPips)
-    ) {
-        return hold(
-            base,
-            "INTRADAY_MOMENTUM_COST_TOO_HIGH",
-            "HOLD: spread and expected slippage are too large for the M15 stop",
-            context
-        );
-    }
-
     const originalSide = direction > 0 ? "BUY" : "SELL";
-    const originalEntryType = isPullback ? "M15_PULLBACK_RESUMPTION" : "M15_RANGE_BREAKOUT";
+    const legacyEntryType = isPullback ? "M15_PULLBACK_RESUMPTION" : "M15_RANGE_BREAKOUT";
     const reentry = evaluateReentryPolicy({
         originalSide, latestClosedTrade,
         pullbackWindow: context.m15.pullbackWindow,
@@ -561,7 +558,37 @@ async function evaluateIntradayMomentumEntry({
         signalCandleTime: currentM15.time,
         historyAvailable: reentryHistoryAvailable,
     });
+    const isFade = reentry.classification === "POST_TP_FADE";
+    const side = reentry.executedSide;
+    if (isFade && !legacyTrigger) {
+        return hold(base, "INTRADAY_MOMENTUM_NO_TRIGGER",
+            "HOLD: the existing post-target BUY fade requires its original qualifying SELL trigger", context);
+    }
+    const structuralSell = side === "SELL" && !isFade && candidateReady;
+    const originalEntryType = structuralSell ? SELL_RETEST_ENTRY_TYPE : legacyEntryType;
     context.reentry = { ...reentry, originalEntryType };
+    const structuralStop = finite(sellRetest.structuralStopLossPrice);
+    // Keep the existing minimum distance while retaining the retest as an
+    // absolute lower bound on the SELL stop. A crossed structure is invalid;
+    // the distance floor must never make it eligible again.
+    const stopPips = structuralSell
+        ? structuralStop > price ? Math.max((structuralStop - price) / pipValue, minimumStopPips) : null
+        : legacyStopPips;
+    const costToStopRatio = Number.isFinite(totalCostPips) && stopPips > 0
+        ? totalCostPips / stopPips : null;
+    context.costs.stopPips = stopPips;
+    context.costs.costToStopRatio = costToStopRatio;
+    const costAllowed = Number.isFinite(costToStopRatio) && !exceedsQuoteLimit(
+        costToStopRatio, maxCostToStopRatio, priceDistanceError(price, price, pipValue) / stopPips);
+    const legacyCostRatio = totalCostPips / legacyStopPips;
+    const existingLongExit = side === "SELL" && !isFade && legacyTrigger && reentry.allowed &&
+        Number.isFinite(totalCostPips) && !exceedsQuoteLimit(legacyCostRatio, maxCostToStopRatio,
+            priceDistanceError(price, price, pipValue) / legacyStopPips) &&
+        ownedOpenTrade?.isOpen === true && ownedOpenTrade.side === "BUY" && !isFadeTrade(ownedOpenTrade);
+    if (!costAllowed && !existingLongExit) {
+        return hold(base, "INTRADAY_MOMENTUM_COST_TOO_HIGH",
+            "HOLD: spread and expected slippage are too large for the M15 stop", context);
+    }
     if (!reentry.allowed) {
         return hold(base, `INTRADAY_MOMENTUM_${reentry.classification}`,
             reentry.classification === "FADE_ALREADY_TAKEN"
@@ -572,8 +599,10 @@ async function evaluateIntradayMomentumEntry({
                     ? "HOLD: wait for a new M15 signal to complete after the protected exit"
                   : "HOLD: protected-exit evidence is unavailable", context);
     }
-    const isFade = reentry.classification === "POST_TP_FADE";
-    const side = reentry.executedSide;
+    if (isFade && side === "SELL") {
+        return hold(base, "INTRADAY_MOMENTUM_SELL_RETEST_REQUIRED",
+            "HOLD: SELL entries require a bearish break, retest and later rejection; BUY-to-SELL fades are disabled", context);
+    }
     const lossReset = isFade
         ? { version: LOSS_RESET_POLICY_VERSION, instrument, side, allowed: true, classification: "FADE_NOT_SUBJECT_TO_LOSS_RESET" }
         : lossResetDecisions !== null
@@ -607,6 +636,16 @@ async function evaluateIntradayMomentumEntry({
         }
         return blocked;
     }
+    if (side === "SELL" && (!structuralSell || !costAllowed)) {
+        const blocked = hold(base, `INTRADAY_MOMENTUM_SELL_${sellRetest.classification}`,
+            "HOLD: waiting for a completed bearish break, distinct retest and later rejection", context);
+        if (existingLongExit) {
+            return { ...blocked, signalType: "SELL", entryType: "EXIT_ONLY", signalClass: "ACTIONABLE",
+                intent: "EXIT_LONG_ONLY", reasonCode: "INTRADAY_MOMENTUM_SELL_RETEST_EXIT_ONLY",
+                reason: "EXIT: qualifying normal reversal closes the long; the SELL entry requires its own completed retest" };
+        }
+        return blocked;
+    }
     const executionDirection = side === "BUY" ? 1 : -1;
     const entryType = isFade ? FADE_ENTRY_TYPE : originalEntryType;
     const targetRiskMultiple = Math.max(
@@ -614,14 +653,15 @@ async function evaluateIntradayMomentumEntry({
         finite(resolved.intradayTargetRiskMultiple, 1.5)
     );
     const stopDistance = stopPips * pipValue;
-    const stopLossPrice = price - executionDirection * stopDistance;
+    const stopLossPrice = structuralSell ? Math.max(structuralStop, price + stopDistance)
+        : price - executionDirection * stopDistance;
     const takeProfitPrice = price + executionDirection * stopDistance * targetRiskMultiple;
 
     return {
         ...base,
         signalType: side,
         reason:
-            `${side}: ${isFade ? `fade of ${originalSide} re-entry after TP without a fresh pullback` : entryType === "M15_PULLBACK_RESUMPTION" ? "M15 pullback resumption" : `${breakoutBars}-bar M15 breakout`} | ` +
+            `${side}: ${isFade ? `fade of ${originalSide} re-entry after TP without a fresh pullback` : structuralSell ? "M15 break, retest and rejection" : entryType === "M15_PULLBACK_RESUMPTION" ? "M15 pullback resumption" : `${breakoutBars}-bar M15 breakout`} | ` +
             `H1 ADX ${adx.toFixed(1)} | RSI ${rsi.toFixed(1)} | cost/stop ${(costToStopRatio * 100).toFixed(1)}%`,
         reasonCode:
             isFade ? "INTRADAY_MOMENTUM_POST_TP_FADE" : direction > 0
@@ -638,6 +678,7 @@ async function evaluateIntradayMomentumEntry({
             shortAllowed: direction < 0,
         },
         tradePlan: {
+            ...(structuralSell ? { stopPriceMode: "STRUCTURAL", structuralStopLossPrice: structuralStop } : {}),
             stopLossPrice,
             stopPips,
             takeProfitPrice,
@@ -652,8 +693,8 @@ const intradayMomentumStrategy = createStrategyDefinition({
     key: "intraday_momentum",
     label: "M15 Intraday Momentum",
     description:
-        "Completed-M15 trend entries with an H1 reset after initial stops, protected-exit freshness and a post-target countertrend fade.",
-    version: LOSS_RESET_STRATEGY_VERSION,
+        "M15 break-retest-rejection SELLs with structural stops; existing BUY rules, protected exits and H1 loss reset.",
+    version: SELL_RETEST_STRATEGY_VERSION,
     runtimeStatus: "live_ready",
     requiredData: {
         timeframes: ["15m", "1h"],
