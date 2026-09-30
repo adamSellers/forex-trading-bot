@@ -1,5 +1,7 @@
 # Deploy
 
+**Latest verified deployment:** September 30 v4.2 / strategy 1.2.2, clean `c6b6c77`. Standard deployment exited 0 after target tests/build, verified backup and health checks; enabled intent and the active cooldown were preserved. See the [delivery record](../docs/reviews/2026-09-30-loss-reset-release.md).
+
 Develop and commit locally, publish to GitHub, then deploy from GitHub to the bot. The bot only consumes published source; never commit, push or make source hotfixes on it.
 
 **September 30:** read-only inspection verified clean deployed v4.1 at `6722838`. The user explicitly authorized publication/build/deployment of the [v4.2 H1 reset release](../docs/reviews/2026-09-30-loss-reset-release.md) through the command below. Its release record separates local validation, publication and verified production delivery. Saved enabled intent/settings and active cooldown deadlines are preserved. This specific authorization supersedes the earlier user-managed restriction for this release.

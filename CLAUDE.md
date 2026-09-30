@@ -1,5 +1,7 @@
 # Forex Trading Bot — repository instructions
 
+**September 30 deployment verified:** v4.2 / strategy 1.2.2 / intraday-risk-v4.2 is running at clean `c6b6c77`, published locally through GitHub and deployed with the standard command. Verification at 14:10 AEST confirmed healthy services, enabled intent, flat/resolved broker state and the original cooldown ending 22:13:58 AEST. All 906 backend tests passed locally and during deployment; builds and backup verification passed. The [release record](docs/reviews/2026-09-30-loss-reset-release.md) is authoritative; earlier implementation/pending-delivery statements below describe prior checkpoints.
+
 ## Authoritative current state
 
 **September 30 authorized work:** the user subsequently requested implementation and deployment of the [H1 loss-reset requirement](docs/reviews/2026-09-30-loss-reset-release.md), **v4.2 / strategy 1.2.2**. For this specific release the user authorizes local commits, GitHub publication, builds and the existing deployment command, superseding the standing user-managed restriction below. Preserve the one-way workflow. Only normal initial stops arm the new same-pair/same-direction H1 nonmatching-then-matching requirement; breakeven does not. The linked release record tracks implementation, validation and actual delivery separately.

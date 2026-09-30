@@ -1,5 +1,7 @@
 # Forex Trading Bot
 
+**September 30 deployment verified:** [v4.2 H1 loss-reset release](docs/reviews/2026-09-30-loss-reset-release.md) is live at `c6b6c77` / strategy 1.2.2. After an initial stop, the same pair/direction requires completed H1 nonqualification followed by later requalification. Breakeven does not arm this requirement. The deployment passed 906 backend tests, build, backup and health checks; enabled intent and the existing cooldown were preserved. Earlier pending-release statements below are historical checkpoints.
+
 This repository runs one automated strategy against one live OANDA account. It has no simulated execution mode, strategy selector, or alternate runtime.
 
 **Authorized September 30 release:** [v4.2 / strategy 1.2.2](docs/reviews/2026-09-30-loss-reset-release.md) adds an H1 reset after a normal initial stop: that pair/direction must stop qualifying on a completed hourly candle, then qualify again on a later hourly candle before another normal M15 entry. Breakeven does not arm this requirement. Validation/publication/deployment progress is recorded in the release record; existing targets, exits and numerical risk limits remain unchanged.

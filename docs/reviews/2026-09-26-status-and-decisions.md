@@ -1,5 +1,7 @@
 # Current status and decision points — 26 September 2026
 
+**September 30 delivery verified:** [v4.2 / strategy 1.2.2](2026-09-30-loss-reset-release.md) is deployed at clean `c6b6c77`. At 14:10 AEST the bot was healthy, enabled and flat, with no pending/uncertain broker exposure and its original cooldown ending 22:13:58 AEST. All 906 backend tests, build, backup and health checks passed. This supersedes earlier pending implementation/publication/deployment checkpoints below.
+
 ## September 30 authorized reset release
 
 The user subsequently authorized implementation, GitHub publication and deployment of the [v4.2 H1 loss-reset requirement](2026-09-30-loss-reset-release.md). This changes normal same-pair/same-side re-entry after an initial stop only: completed H1 nonqualification followed by later renewed qualification, then a valid M15 trigger. Breakeven outcomes and existing TP/BE/fade policies retain their treatment. Source, numerical risk limits and historical records remain governed by the existing one-way workflow. See the release record for live completion state.

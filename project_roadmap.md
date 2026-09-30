@@ -1,5 +1,7 @@
 # Live Strategy Roadmap
 
+**Latest delivery — September 30:** [v4.2](docs/reviews/2026-09-30-loss-reset-release.md) is deployed at clean `c6b6c77` / strategy 1.2.2. Verification confirmed healthy enabled operation, flat/resolved broker state, durable reset observations on the first ordinary scan and unchanged cooldown expiry. The user-authorized deployment is complete; the implementation/pending statements below retain earlier checkpoints.
+
 There is one production path and one active strategy. Planned work must improve real execution quality, risk control or the evidence obtained from actual live decisions. September 30 read-only inspection verified user-deployed v4.1 at clean revision `6722838`. The user then authorized implementation, GitHub publication and deployment of the [v4.2 H1 loss-reset requirement](docs/reviews/2026-09-30-loss-reset-release.md). The release record separates verification from actual delivery; earlier pending deployment notes below are historical checkpoints.
 
 ## September 30 loss-reset release

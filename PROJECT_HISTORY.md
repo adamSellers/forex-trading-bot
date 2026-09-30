@@ -1,5 +1,7 @@
 # Forex Trading Bot - Project History
 
+**September 30 deployment complete:** v4.2 / strategy 1.2.2 deployed at clean `c6b6c77` through local GitHub publication and `./scripts/deploy.sh`. All 906 backend tests passed locally and during deployment; build, backup and health verification passed. Enabled intent and the original cooldown were preserved. [Delivery evidence and exact behavior](docs/reviews/2026-09-30-loss-reset-release.md).
+
 This document records completed and deployed features and dated review milestones, serving as a historical reference. Earlier entries preserve what was known at the time; the current-state summary and later verification milestones take precedence for deployment status and open decisions.
 
 **Document purposes:**

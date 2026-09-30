@@ -6,7 +6,7 @@ On September 30 the user explicitly requested implementation and deployment of t
 
 The [preceding review](2026-09-30-repeated-usdjpy-review.md) found repeated normal sells after initial stops, each valid under v4.1. This is an authorized strategy experiment, not a duplicate-order repair or a demonstrated improvement in expectancy. The final breakout 3475 remains a valid setup and its protected breakeven outcome is acceptable. The new rule must not classify that outcome as another failed initial-stop setup.
 
-Release identity: **m15-intraday-v4.2 / strategy 1.2.2 / intraday-risk-v4.2**. Implementation and delivery are in progress; verified results will be recorded below.
+Release identity: **m15-intraday-v4.2 / strategy 1.2.2 / intraday-risk-v4.2**. Deployed September 30 at clean revision `c6b6c7714564fef4f9abd03727378aad2ab41a0d`; verification is recorded below.
 
 ## Exact behavior
 
@@ -48,3 +48,14 @@ Local validation completed on Node 22.23.1:
 The pre-deployment read-only snapshot at 2026-09-30 03:54:07 UTC verified clean revision `672283897ebd0c26e4924757826c4d2dcd87f329`, enabled intent, no open positions/pending entries/uncertain exposure, and an active cooldown ending at **2026-09-30 22:13:58.006 AEST** (`1790770438006`).
 
 At this pre-publication checkpoint, v4.2 is implemented and validated; publication and deployment are the next authorized steps. The existing deployment command will stage dependencies/tests/build, pause entries, require a flat reconciled broker, back up, fast-forward to the published revision, migrate/restart and verify health before restoring the previous enabled intent. Deployment must retain any already-active cooldown deadline. Final revision and verification results will be appended here.
+
+
+## Completed deployment — September 30, 14:10 AEST
+
+Published local commit `c6b6c7714564fef4f9abd03727378aad2ab41a0d` to GitHub and deployed it with `./scripts/deploy.sh`. The command exited **0** after all 906 tests in 44 suites passed again on the target, the frontend built, the source/database backup passed verification, migrations reported up to date, and operational health passed. It restored the previous enabled intent. No direct production source changes or manual test orders were used.
+
+Read-only verification at **2026-09-30 14:10:33 AEST** confirmed clean source at that revision, v4.2 / strategy 1.2.2 / intraday-risk-v4.2, all five health services healthy, active position monitoring and broker reconciliation, no open positions or pending orders, no uncertain broker state, and zero runtime errors. The bot is enabled; new entries remain subject to the unchanged cooldown ending **September 30 at 22:13:58.006 AEST**. The new run explicitly carries that original deadline from v4.1. Readiness reports only the expected consecutive-loss cooldown.
+
+The first ordinary scan populated durable H1 reset evidence through the completed 14:00 AEST bar for the three sides with prior initial-stop anchors. USD/JPY SELL has no newly armed initial-stop anchor because its most recent normal sell closed at breakeven. No trades were opened to validate deployment. The [sanitized verification record](evidence/2026-09-30/loss-reset-deployment.json) retains revision, configuration, run/cooldown linkage, service status and reset-state observations. This records correct delivery and operation, not demonstrated profitability.
+
+This verification addendum is a documentation-only follow-up to the deployed code revision above; it does not change the running strategy.
