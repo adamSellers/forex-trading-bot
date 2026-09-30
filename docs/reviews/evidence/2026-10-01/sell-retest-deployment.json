@@ -1,0 +1,46 @@
+{
+  "checkedAt": 1790806644077.6116,
+  "revision": "73cf4b59b1bc0c3082e477121820f3aa31be9227",
+  "checks": {
+    "published_revision": true,
+    "source_clean": true,
+    "v5_strategy_active": true,
+    "running_enabled": true,
+    "operational_health": true,
+    "readiness_passed": true,
+    "risk_limits_unchanged": true,
+    "broker_resolved": true,
+    "broker_flat": true,
+    "balance_unchanged_from_preflight": true,
+    "no_engine_errors": true,
+    "AUD_USD_ask_candles": true,
+    "EUR_USD_ask_candles": true,
+    "GBP_USD_ask_candles": true,
+    "USD_JPY_ask_candles": true,
+    "durable_patterns_all_four_pairs": true
+  },
+  "allPassed": true,
+  "laterVerification": {
+    "checkedAt": 1790806721470.9275,
+    "checks": {
+      "new_live_cohort": true,
+      "ordinary_scan_all_four_pairs": true,
+      "served_frontend_matches_build": true,
+      "still_enabled_no_errors": true
+    },
+    "allPassed": true
+  },
+  "validation": {
+    "backendTests": 1004,
+    "backendSuites": 47,
+    "frontendComponentTests": 11,
+    "frontendRefreshScenarios": 4,
+    "deploymentWorkflowTests": 27,
+    "productionFrontendBuild": "passed",
+    "deploymentBackendTests": 1004,
+    "deploymentExitCode": 0
+  },
+  "backup": "20261001_081154",
+  "workflow": "local commits -> GitHub main -> scripts/deploy.sh",
+  "manualTestOrders": 0
+}

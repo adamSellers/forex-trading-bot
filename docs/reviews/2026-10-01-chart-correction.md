@@ -25,4 +25,4 @@ node --test frontend/src/components/__tests__/livePriceChart.test.cjs frontend/s
 node scripts/tests/frontend_refresh_contract.test.cjs
 ```
 
-**Implemented and verified locally; not deployed.** No production build, publication, deployment, restart or trading-state change occurred; the existing user-managed delivery workflow remains in effect. The temporary browser preview used Vite development serving, not a frontend release build.
+**Deployed with the user-authorized v5 release at `73cf4b5` on October 1.** The earlier local preview used Vite development serving; the subsequent release passed frontend production builds locally and during deployment. Read-only verification confirmed the server serves the matching build, including this correction. The [v5 delivery record](2026-10-01-sell-retest-release.md) records backup, health and restored enabled intent; the chart itself introduces no trading-behavior change.

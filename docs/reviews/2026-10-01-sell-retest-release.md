@@ -40,6 +40,24 @@ The pre-deployment read-only snapshot shows **A$95.4408**, flat, on v4.2. Doubli
 
 ## Validation and delivery
 
-Local validation passed on Node 22.23.1: **1,004 tests across all 47 backend suites**, 11 frontend component tests (including eight chart regressions), four refresh-contract scenarios and 27 deployment workflow tests. The production frontend build and whitespace checks passed. Tests use isolated databases and mocked broker transport; no live test order was placed. Actual deployed revision and runtime verification will be recorded after delivery. The standard `./scripts/deploy.sh` must consume the published GitHub revision; no production source editing or reverse synchronization is authorized.
+Local validation passed on Node 22.23.1: **1,004 tests across all 47 backend suites**, 11 frontend component tests (including eight chart regressions), four refresh-contract scenarios and 27 deployment workflow tests. The production frontend build and whitespace checks passed. Tests use isolated databases and mocked broker transport; no live test order was placed. Deployment and runtime verification are recorded below. The standard `./scripts/deploy.sh` must consume the published GitHub revision; no production source editing or reverse synchronization is authorized.
 
 Correctness coverage includes distinct-bar eligibility; cancellation/retouches; ask availability/recovery; price precision; durable cache/restart/concurrency/consumption; actual coordinator → indicators → signal → broker reconciliation → sizing → intent → protection flow; invalid or stale candidate evidence; absolute-stop fill/recovery; unchanged BUY/reversal/fade/loss-reset behavior; saved settings migration and analytics attribution. Independent reviews found and corrected a six-pip cost-floor mismatch and an empty-startup-state recovery defect before delivery.
+
+
+## Completed deployment — October 1
+
+Local commits `c2cbac9` (chart correction and retained research) and **`73cf4b59b1bc0c3082e477121820f3aa31be9227`** (v5 SELL logic) were published to GitHub main. `./scripts/deploy.sh` exited **0** after all **1,004 tests / 47 suites** passed again on the target, the frontend built, the source and SQLite backup `20261001_081154` passed verification, migrations reported up to date, and operational health passed. The command restored the previous **enabled** trading intent. No direct production source edit or manual test order occurred.
+
+Read-only verification at **2026-10-01 08:18:41 AEST** confirmed:
+
+- Clean deployed source at `73cf4b5`, active v5 / strategy 1.3.0 / intraday-risk-v5 in a new live cohort.
+- Operational health and readiness pass; engine running and entries enabled; zero engine errors.
+- Broker flat and resolved, with zero pending intents/orders; balance unchanged from the A$95.4408 preflight snapshot.
+- All explicitly checked risk, cost, target, breakeven and time settings unchanged.
+- Ten recent completed M15 candles for each of the four pairs carry broker ask OHLC; durable candidate state exists for all four, and the ordinary scan reports strategy 1.3.0 for all four.
+- The served frontend matches the built release and includes the chart correction and candidate analytics label.
+
+The [verification record](evidence/2026-10-01/sell-retest-deployment.json) retains pass/fail checks and validation counts without exporting raw account, signal or runtime payloads. This establishes delivery and functioning evidence collection; candidate profitability still requires actual live outcomes. The existing package lockfiles were unchanged; npm reported three high-severity findings with development dependencies and two after production pruning. Dependency remediation is separate from this strategy release.
+
+This delivery addendum is a documentation-only follow-up to deployed code `73cf4b5`; it does not change the running strategy.

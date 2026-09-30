@@ -6,7 +6,7 @@ The authorized [v5 release](docs/reviews/2026-10-01-sell-retest-release.md), str
 
 The SELL stop sits above the maximum **ask high** during the retest episode, plus one price tick. The existing six-pip minimum may put it farther away. Position size adjusts within the same cash-risk allowance; the absolute stop stays fixed after the fill, and 1.5R target/+1R breakeven are measured from the actual fill. BUY entries keep their existing stops. BUY-to-SELL fades are disabled; SELL-to-BUY fades and position exits remain unchanged.
 
-The dashboard can show a valid bearish trend while the SELL entry is still waiting for its retest and rejection. Analytics labels the new entries **SELL break/retest** separately from prior trend/fade trades. Versioned real OANDA outcomes will determine whether this candidate improves results. Implementation is complete; final checks and deployment status are in the linked release record. Older dated sections retain historical context.
+The dashboard can show a valid bearish trend while the SELL entry is still waiting for its retest and rejection. Analytics labels the new entries **SELL break/retest** separately from prior trend/fade trades. Versioned real OANDA outcomes will determine whether this candidate improves results. Deployment is verified at `73cf4b5`; entries are enabled and the linked release record retains the checks. Older dated sections retain historical context.
 
 ## September 30: reset after an initial stop
 
@@ -28,11 +28,11 @@ The application now has one job: run `intraday_momentum` against the configured 
 
 The configuration page is intentionally read-only. Strategy parameters and risk limits belong to the deployed release so production cannot drift through dashboard edits.
 
-**Chart correction implemented locally on October 1; deployment pending:** Market Overview keeps completed midpoint candle closes and their indicators separate from the **Latest quote** point. The quote uses its broker event time, while each completed close is plotted at its candle's end time. Hover a historical point to see the completed interval and original high/low; the line itself still represents closes and does not show every intrabar excursion. The trend badge uses completed chart candles. See the [correction record](docs/reviews/2026-10-01-chart-correction.md) for verification and delivery status.
+**Chart correction deployed with v5 on October 1:** Market Overview keeps completed midpoint candle closes and their indicators separate from the **Latest quote** point. The quote uses its broker event time, while each completed close is plotted at its candle's end time. Hover a historical point to see the completed interval and original high/low; the line itself still represents closes and does not show every intrabar excursion. The trend badge uses completed chart candles. See the [correction record](docs/reviews/2026-10-01-chart-correction.md) for verification and delivery status.
 
 ## Current deployed release
 
-The following table describes the authorized v5 candidate. See the [release record](docs/reviews/2026-10-01-sell-retest-release.md) for actual deployment verification; the preceding deployed release was v4.2 / strategy 1.2.2.
+The following table describes v5 / strategy 1.3.0, verified deployed at `73cf4b5` on October 1. See the [release record](docs/reviews/2026-10-01-sell-retest-release.md) for delivery evidence.
 
 | Setting | Value |
 | --- | --- |
