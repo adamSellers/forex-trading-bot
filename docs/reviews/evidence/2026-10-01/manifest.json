@@ -1,0 +1,26 @@
+{
+  "capturedAt": "2026-09-30T20:33:40.943126+00:00",
+  "sources": [
+    {
+      "file": "broker.json",
+      "sha256": "bd252e81faea4fb786da057946f1f430ba1a8a1fdbe0565971d19567d5d38f1b"
+    },
+    {
+      "file": "trades.json",
+      "sha256": "f1b1e691be11b5b7d68efbcf7c42a91195f0cd11b639ce8353fdf0eed70817b3"
+    },
+    {
+      "file": "decisions.json",
+      "sha256": "62abfef77db4ef8fd720782f248c166c1458a4a41b5641805b677cec40f8143a"
+    },
+    {
+      "file": "engine-status.json",
+      "sha256": "ae05dbcefe52f6a2c3d75eecf919ed2ed5de552859ccf5a91b3fd78dbc2a2ad6"
+    },
+    {
+      "file": "sell-audit-tests.json",
+      "sha256": "84a05aa7cd9b018c0d9d9cc86a72d4344027d8db36ca0fcceb87f9284aa115cc"
+    }
+  ],
+  "note": "Raw captures remain temporary; sanitized reduced records are retained. Hashes identify captures, not independent provenance. Broker requests and production SQLite queries were read-only."
+}

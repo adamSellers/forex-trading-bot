@@ -1,0 +1,4847 @@
+{
+  "method": "independent_saved_output_arithmetic_and_capacity_audit_v1",
+  "limitations": [
+    "Does not certify hypothetical execution fills or the S5 replay implementation.",
+    "Capacity conflicts assume the held trade was entered; competing hypothetical earlier holds are not resolved.",
+    "Counterfactual signal, cooldown, H1 reset and new-entry regeneration are not simulated.",
+    "Conditional individual-trade sums are not portfolio returns."
+  ],
+  "source_sha256": {
+    "exit_inputs.json": "c8240e720880aad478fdc6df0f1c7aff1388d963546a408e373218b7dd37c6f3",
+    "exit_results.json": "666848715ac69f1615a40d9a6f1efaa0adde4731574a4bc86f345e70c6471ee2",
+    "market.json.gz": "5fca5eb4dd92c25aa2aef6eda70d1d1e971d2e29bb51be53c979bcccf25c9760",
+    "signal_inputs.json.gz": "a1fb4aa00ee49b95c8c800d4db6330e785cc3172d075f5ae5e4168ec64b6ff32",
+    "crosscheck_inputs.json": "666e9198513e8eb43812b0241985799ec54ca5a55c300740035ebfd918136662"
+  },
+  "raw_api_snapshot_sha256": "05b729315389a1fe73794e539da8741656d4a2b0437a33ebb83a913abe3d7fd4",
+  "checks": {
+    "actual_broker_api_reconciliations": 29,
+    "size_and_outcome_rows": 928,
+    "aggregates": 288,
+    "nominal_risk_ratio_min": 0.9870888246008787,
+    "nominal_risk_ratio_max": 1.0,
+    "baseline_class_matches": 29
+  },
+  "actual_summary": [
+    {
+      "cohort": "recent",
+      "count": 13,
+      "actual_net_aud": -0.8769,
+      "positive": 2,
+      "negative": 10,
+      "zero": 1,
+      "exit_counts": {
+        "STOP_LOSS": 8,
+        "BREAKEVEN_STOP": 2,
+        "TAKE_PROFIT": 2,
+        "SESSION_CLOSE": 1
+      }
+    },
+    {
+      "cohort": "earlier",
+      "count": 16,
+      "actual_net_aud": 0.0735,
+      "positive": 7,
+      "negative": 8,
+      "zero": 1,
+      "exit_counts": {
+        "TAKE_PROFIT": 5,
+        "TIME_STOP": 1,
+        "STOP_LOSS": 8,
+        "SESSION_CLOSE": 1,
+        "BREAKEVEN_STOP": 1
+      }
+    },
+    {
+      "cohort": "all",
+      "count": 29,
+      "actual_net_aud": -0.8034,
+      "positive": 9,
+      "negative": 18,
+      "zero": 2,
+      "exit_counts": {
+        "TAKE_PROFIT": 7,
+        "TIME_STOP": 1,
+        "STOP_LOSS": 16,
+        "SESSION_CLOSE": 2,
+        "BREAKEVEN_STOP": 3
+      }
+    }
+  ],
+  "actual_reconciliations": [
+    {
+      "id": "3073",
+      "primary": false,
+      "net_aud": 0.2637,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3085",
+      "primary": false,
+      "net_aud": 0.2693,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3097",
+      "primary": false,
+      "net_aud": 0.2694,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3109",
+      "primary": false,
+      "net_aud": 0.0219,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3121",
+      "primary": false,
+      "net_aud": 0.2784,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3133",
+      "primary": false,
+      "net_aud": -0.1926,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3143",
+      "primary": false,
+      "net_aud": -0.1814,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3153",
+      "primary": false,
+      "net_aud": -0.1812,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3163",
+      "primary": false,
+      "net_aud": 0.115,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3185",
+      "primary": false,
+      "net_aud": -0.1577,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3195",
+      "primary": false,
+      "net_aud": 0.2297,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3207",
+      "primary": false,
+      "net_aud": -0.1604,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3229",
+      "primary": false,
+      "net_aud": -0.1682,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3239",
+      "primary": false,
+      "net_aud": 0,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3251",
+      "primary": false,
+      "net_aud": -0.1701,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3307",
+      "primary": false,
+      "net_aud": -0.1623,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3347",
+      "primary": true,
+      "net_aud": -0.1619,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3357",
+      "primary": true,
+      "net_aud": 0,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3369",
+      "primary": true,
+      "net_aud": 0.2585,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3381",
+      "primary": true,
+      "net_aud": 0.2718,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3393",
+      "primary": true,
+      "net_aud": -0.1841,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3413",
+      "primary": true,
+      "net_aud": -0.0469,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3425",
+      "primary": true,
+      "net_aud": -0.1615,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3435",
+      "primary": true,
+      "net_aud": -0.1399,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3445",
+      "primary": true,
+      "net_aud": -0.185,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3455",
+      "primary": true,
+      "net_aud": -0.1794,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3465",
+      "primary": true,
+      "net_aud": -0.1716,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3475",
+      "primary": true,
+      "net_aud": -0.0011,
+      "broker_and_api_match": true
+    },
+    {
+      "id": "3487",
+      "primary": true,
+      "net_aud": -0.1758,
+      "broker_and_api_match": true
+    }
+  ],
+  "all_table_poll_0": [
+    {
+      "id": "3073",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": 0.2637,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 136,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.21074920197198732,
+            "high": 0.21074920197198732
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 113,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.17510779281496006,
+            "high": 0.17510779281496006
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 85,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.1317182512324921,
+            "high": 0.1317182512324921
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 136,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.26223906381741896,
+            "high": 0.26223906381741896
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 113,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.26266168922242594,
+            "high": 0.26266168922242594
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 85,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.26268810331022935,
+            "high": 0.26268810331022935
+          }
+        }
+      ]
+    },
+    {
+      "id": "3085",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": 0.2693,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 124,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.21198864434449935,
+            "high": 0.21198864434449935
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 103,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.1760873416732535,
+            "high": 0.1760873416732535
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 77,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13163810979456814,
+            "high": 0.13163810979456814
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 124,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2633467179743521,
+            "high": 0.2633467179743521
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 103,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 77,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.26259767263144834,
+            "high": 0.26259767263144834
+          }
+        }
+      ]
+    },
+    {
+      "id": "3097",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": 0.2694,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 90,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2141598144384081,
+            "high": 0.2141598144384081
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 75,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.17846651203200675,
+            "high": 0.17846651203200675
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 56,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13325499565056503,
+            "high": 0.13325499565056503
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 90,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2673031757990539,
+            "high": 0.2673031757990539
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 75,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2676997680480007,
+            "high": 0.2676997680480007
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 56,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2665099913011161,
+            "high": 0.2665099913011161
+          }
+        }
+      ]
+    },
+    {
+      "id": "3109",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": 0.0219,
+      "actual_exit": "TIME_STOP",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 70,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.015541322576485866,
+            "high": 0.015541322576485866
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 58,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.012877095849088289,
+            "high": 0.012877095849088289
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 44,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.009768831333791115,
+            "high": 0.009768831333791115
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 70,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.015541322576485866,
+            "high": 0.015541322576485866
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 58,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.012877095849088289,
+            "high": 0.012877095849088289
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 44,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.009768831333791115,
+            "high": 0.009768831333791115
+          }
+        }
+      ]
+    },
+    {
+      "id": "3121",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": 0.2784,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 84,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2196836296915728,
+            "high": 0.2196836296915728
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 70,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.183069691409644,
+            "high": 0.183069691409644
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 53,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13860990921015903,
+            "high": 0.13860990921015903
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 84,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.27516686722458467,
+            "high": 0.27516686722458467
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 70,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2755417539646816,
+            "high": 0.2755417539646816
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 53,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.27816596114529313,
+            "high": 0.27816596114529313
+          }
+        }
+      ]
+    },
+    {
+      "id": "3133",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1926,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 90,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18792945625690102,
+            "high": -0.18792945625690102
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 75,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1880662316981289,
+            "high": -0.1880662316981289
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 56,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1868899629035111,
+            "high": -0.1868899629035111
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 90,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18792945625690102,
+            "high": -0.18792945625690102
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 75,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1880662316981289,
+            "high": -0.1880662316981289
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 56,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1868899629035111,
+            "high": -0.1868899629035111
+          }
+        }
+      ]
+    },
+    {
+      "id": "3143",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1814,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 79,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17953993946639657,
+            "high": -0.17953993946639657
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 66,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18011494918558685,
+            "high": -0.18011494918558685
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 50,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18163005415999825,
+            "high": -0.18163005415999825
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 79,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17953993946639657,
+            "high": -0.17953993946639657
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 66,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18011494918558685,
+            "high": -0.18011494918558685
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 50,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18163005415999825,
+            "high": -0.18163005415999825
+          }
+        }
+      ]
+    },
+    {
+      "id": "3153",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1812,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 85,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18061852574907317,
+            "high": -0.18061852574907317
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 71,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18065500512816363,
+            "high": -0.18065500512816363
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 53,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17980685956417708,
+            "high": -0.17980685956417708
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 85,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18061852574907317,
+            "high": -0.18061852574907317
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 71,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18065500512816363,
+            "high": -0.18065500512816363
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 53,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17980685956417708,
+            "high": -0.17980685956417708
+          }
+        }
+      ]
+    },
+    {
+      "id": "3163",
+      "primary": false,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": 0.115,
+      "actual_exit": "SESSION_CLOSE",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 122,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.08604727241741605,
+            "high": 0.08604727241741605
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 102,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.07194116218505277,
+            "high": 0.07194116218505277
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 77,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.054308524394598656,
+            "high": 0.054308524394598656
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 122,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.08604727241741605,
+            "high": 0.08604727241741605
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 102,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.07194116218505277,
+            "high": 0.07194116218505277
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 77,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.054308524394598656,
+            "high": 0.054308524394598656
+          }
+        }
+      ]
+    },
+    {
+      "id": "3185",
+      "primary": false,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1577,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 107,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.15649409754701796,
+            "high": -0.15649409754701796
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 89,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.15636531853297678,
+            "high": -0.15636531853297678
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.15654009005203026,
+            "high": -0.15654009005203026
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 107,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.15649409754701796,
+            "high": -0.15649409754701796
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 89,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.15636531853297678,
+            "high": -0.15636531853297678
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.15654009005203026,
+            "high": -0.15654009005203026
+          }
+        }
+      ]
+    },
+    {
+      "id": "3195",
+      "primary": false,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": 0.2297,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 147,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.1832371534258674,
+            "high": 0.1832371534258674
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 122,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.15207437223099202,
+            "high": 0.15207437223099202
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 92,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.11467903479714152,
+            "high": 0.11467903479714152
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 147,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.228028457596634,
+            "high": 0.228028457596634
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 122,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.22811155834647864,
+            "high": 0.22811155834647864
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 92,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.22935806959428304,
+            "high": 0.22935806959428304
+          }
+        }
+      ]
+    },
+    {
+      "id": "3207",
+      "primary": false,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1604,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 151,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.1885053782841442,
+            "high": 0.1885053782841442
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 126,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.15729587856822627,
+            "high": 0.15729587856822627
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 94,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.11734771893185135,
+            "high": 0.11734771893185135
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 151,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.23458447075360064,
+            "high": 0.23458447075360064
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 126,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.23594381785232973,
+            "high": 0.23594381785232973
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 94,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2346954378637027,
+            "high": 0.2346954378637027
+          }
+        }
+      ]
+    },
+    {
+      "id": "3229",
+      "primary": false,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": -0.1682,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 126,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16818423546429684,
+            "high": -0.16818423546429684
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 104,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16687783984939258,
+            "high": -0.16687783984939258
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 79,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16826943517828838,
+            "high": -0.16826943517828838
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 126,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16818423546429684,
+            "high": -0.16818423546429684
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 104,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16687783984939258,
+            "high": -0.16687783984939258
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 79,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16826943517828838,
+            "high": -0.16826943517828838
+          }
+        }
+      ]
+    },
+    {
+      "id": "3239",
+      "primary": false,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": 0,
+      "actual_exit": "BREAKEVEN_STOP",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 152,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 127,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 95,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 152,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.11419412869390985,
+            "high": -0.11203952249212397
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 127,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.09541219963241152,
+            "high": -0.09361196945065621
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 95,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.07137133043369366,
+            "high": -0.07002470155757748
+          }
+        }
+      ]
+    },
+    {
+      "id": "3251",
+      "primary": false,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1701,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 160,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17025341470606126,
+            "high": -0.17025341470606126
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 133,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16982778116931704,
+            "high": -0.16982778116931704
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 100,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.170253414706077,
+            "high": -0.170253414706077
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 160,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17025341470606126,
+            "high": -0.17025341470606126
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 133,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16982778116931704,
+            "high": -0.16982778116931704
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 100,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.170253414706077,
+            "high": -0.170253414706077
+          }
+        }
+      ]
+    },
+    {
+      "id": "3307",
+      "primary": false,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1623,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 152,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16160680564312813,
+            "high": -0.16160680564312813
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 127,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16203208671060604,
+            "high": -0.16203208671060604
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 95,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.08888374310371629,
+            "high": -0.08888374310371629
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 152,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16160680564312813,
+            "high": -0.16160680564312813
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 127,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16203208671060604,
+            "high": -0.16203208671060604
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 95,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.08888374310371629,
+            "high": -0.08888374310371629
+          }
+        }
+      ]
+    },
+    {
+      "id": "3347",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1619,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 146,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16177274057172134,
+            "high": -0.16177274057172134
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 122,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.15628574352849192,
+            "high": 0.15628574352849192
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 92,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.11785482298869883,
+            "high": 0.11785482298869883
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 146,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16177274057172134,
+            "high": -0.16177274057172134
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 122,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 92,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.07057314499124395,
+            "high": -0.06926623489881942
+          }
+        }
+      ]
+    },
+    {
+      "id": "3357",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": 0,
+      "actual_exit": "BREAKEVEN_STOP",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 127,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 106,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 80,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 127,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17698392264391222,
+            "high": -0.17698392264391222
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 106,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17635823627106234,
+            "high": -0.17635823627106234
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 80,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17746740756838147,
+            "high": -0.17746740756838147
+          }
+        }
+      ]
+    },
+    {
+      "id": "3369",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": 0.2585,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 160,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.20100956123678665,
+            "high": 0.20100956123678665
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 134,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.16834550753580882,
+            "high": 0.16834550753580882
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 100,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.12563097577299165,
+            "high": 0.12563097577299165
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 160,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2501452317613334,
+            "high": 0.2501452317613334
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 134,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2525182613037236,
+            "high": 0.2525182613037236
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 100,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2512619515459833,
+            "high": 0.2512619515459833
+          }
+        }
+      ]
+    },
+    {
+      "id": "3381",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": 0.2718,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 113,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.21430730582806937,
+            "high": 0.21430730582806937
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 94,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.17827333405166834,
+            "high": 0.17827333405166834
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 71,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.1346532629539197,
+            "high": 0.1346532629539197
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 113,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 94,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 71,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2693065259078394,
+            "high": 0.2693065259078394
+          }
+        }
+      ]
+    },
+    {
+      "id": "3393",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": -0.1841,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 105,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1823446679561907,
+            "high": -0.1823446679561907
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 87,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18230161136400538,
+            "high": -0.18230161136400538
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 65,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13350527701466694,
+            "high": 0.13350527701466694
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 105,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1823446679561907,
+            "high": -0.1823446679561907
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 87,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18230161136400538,
+            "high": -0.18230161136400538
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 65,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.014630715289272728,
+            "high": 0.014630715289272728
+          }
+        }
+      ]
+    },
+    {
+      "id": "3413",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": -0.0469,
+      "actual_exit": "SESSION_CLOSE",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 96,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.04132992368248825,
+            "high": -0.04132992368248825
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 80,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.03444160306874021,
+            "high": -0.03444160306874021
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 60,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.025831202301555157,
+            "high": -0.025831202301555157
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 96,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.04132992368248825,
+            "high": -0.04132992368248825
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 80,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.03444160306874021,
+            "high": -0.03444160306874021
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 60,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.025831202301555157,
+            "high": -0.025831202301555157
+          }
+        }
+      ]
+    },
+    {
+      "id": "3425",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1615,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 149,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.12236530238995519,
+            "high": -0.12236530238995519
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 124,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.10183421138492915,
+            "high": -0.10183421138492915
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 93,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.07637565853869686,
+            "high": -0.07637565853869686
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 149,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.12236530238995519,
+            "high": -0.12236530238995519
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 124,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.10183421138492915,
+            "high": -0.10183421138492915
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 93,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.07637565853869686,
+            "high": -0.07637565853869686
+          }
+        }
+      ]
+    },
+    {
+      "id": "3435",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1399,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 129,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.13939132521553277,
+            "high": -0.13939132521553277
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 108,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071785,
+            "high": -0.14003965696071785
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071352,
+            "high": -0.14003965696071352
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 129,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.13939132521553277,
+            "high": -0.13939132521553277
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 108,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071785,
+            "high": -0.14003965696071785
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071352,
+            "high": -0.14003965696071352
+          }
+        }
+      ]
+    },
+    {
+      "id": "3445",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.185,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 64,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.09527802237632638,
+            "high": -0.09527802237632638
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 54,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.08039083138002538,
+            "high": -0.08039083138002538
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 40,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.059548763985203985,
+            "high": -0.059548763985203985
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 64,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.09527802237632638,
+            "high": -0.09527802237632638
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 54,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.08039083138002538,
+            "high": -0.08039083138002538
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 40,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.059548763985203985,
+            "high": -0.059548763985203985
+          }
+        }
+      ]
+    },
+    {
+      "id": "3455",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1794,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 80,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17842074645529718,
+            "high": -0.17842074645529718
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17894389370570452,
+            "high": -0.17894389370570452
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 50,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1780536255778024,
+            "high": -0.1780536255778024
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 80,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17842074645529718,
+            "high": -0.17842074645529718
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17894389370570452,
+            "high": -0.17894389370570452
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 50,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1780536255778024,
+            "high": -0.1780536255778024
+          }
+        }
+      ]
+    },
+    {
+      "id": "3465",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1716,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16980336506242588,
+            "high": -0.16980336506242588
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16866823016202848,
+            "high": -0.16866823016202848
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 51,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1708744197668512,
+            "high": -0.1708744197668512
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16980336506242588,
+            "high": -0.16980336506242588
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16866823016202848,
+            "high": -0.16866823016202848
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 51,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1708744197668512,
+            "high": -0.1708744197668512
+          }
+        }
+      ]
+    },
+    {
+      "id": "3475",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.0011,
+      "actual_exit": "BREAKEVEN_STOP",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 98,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 82,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 61,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 98,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17537845202242944,
+            "high": -0.17537845202242944
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 82,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17609428243883468,
+            "high": -0.17609428243883468
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 61,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17466262160599863,
+            "high": -0.17466262160599863
+          }
+        }
+      ]
+    },
+    {
+      "id": "3487",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1758,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 117,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.16317836977378375,
+            "high": 0.16317836977378375
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 96,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13388994442977128,
+            "high": 0.13388994442977128
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 73,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.10181214524347192,
+            "high": 0.10181214524347192
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 117,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.16317836977378375,
+            "high": 0.16317836977378375
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 96,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13388994442977128,
+            "high": 0.13388994442977128
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 73,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.10181214524347192,
+            "high": 0.10181214524347192
+          }
+        }
+      ]
+    }
+  ],
+  "recent_table_poll_0": [
+    {
+      "id": "3347",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1619,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 146,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16177274057172134,
+            "high": -0.16177274057172134
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 122,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.15628574352849192,
+            "high": 0.15628574352849192
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 92,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.11785482298869883,
+            "high": 0.11785482298869883
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 146,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16177274057172134,
+            "high": -0.16177274057172134
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 122,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 92,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.07057314499124395,
+            "high": -0.06926623489881942
+          }
+        }
+      ]
+    },
+    {
+      "id": "3357",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": 0,
+      "actual_exit": "BREAKEVEN_STOP",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 127,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 106,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 80,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 127,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17698392264391222,
+            "high": -0.17698392264391222
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 106,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17635823627106234,
+            "high": -0.17635823627106234
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 80,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17746740756838147,
+            "high": -0.17746740756838147
+          }
+        }
+      ]
+    },
+    {
+      "id": "3369",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": 0.2585,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 160,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.20100956123678665,
+            "high": 0.20100956123678665
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 134,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.16834550753580882,
+            "high": 0.16834550753580882
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 100,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.12563097577299165,
+            "high": 0.12563097577299165
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 160,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2501452317613334,
+            "high": 0.2501452317613334
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 134,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2525182613037236,
+            "high": 0.2525182613037236
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 100,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2512619515459833,
+            "high": 0.2512619515459833
+          }
+        }
+      ]
+    },
+    {
+      "id": "3381",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": 0.2718,
+      "actual_exit": "TAKE_PROFIT",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 113,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.21430730582806937,
+            "high": 0.21430730582806937
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 94,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.17827333405166834,
+            "high": 0.17827333405166834
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 71,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.1346532629539197,
+            "high": 0.1346532629539197
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 113,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 94,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 71,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.2693065259078394,
+            "high": 0.2693065259078394
+          }
+        }
+      ]
+    },
+    {
+      "id": "3393",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": -0.1841,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 105,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1823446679561907,
+            "high": -0.1823446679561907
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 87,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18230161136400538,
+            "high": -0.18230161136400538
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 65,
+          "kinds": [
+            "TAKE_PROFIT"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13350527701466694,
+            "high": 0.13350527701466694
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 105,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1823446679561907,
+            "high": -0.1823446679561907
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 87,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.18230161136400538,
+            "high": -0.18230161136400538
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 65,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.014630715289272728,
+            "high": 0.014630715289272728
+          }
+        }
+      ]
+    },
+    {
+      "id": "3413",
+      "primary": true,
+      "instrument": "EUR_USD",
+      "actual_pnl_aud": -0.0469,
+      "actual_exit": "SESSION_CLOSE",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 96,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.04132992368248825,
+            "high": -0.04132992368248825
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 80,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.03444160306874021,
+            "high": -0.03444160306874021
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 60,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.025831202301555157,
+            "high": -0.025831202301555157
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 96,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.04132992368248825,
+            "high": -0.04132992368248825
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 80,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.03444160306874021,
+            "high": -0.03444160306874021
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 60,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.025831202301555157,
+            "high": -0.025831202301555157
+          }
+        }
+      ]
+    },
+    {
+      "id": "3425",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1615,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 149,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.12236530238995519,
+            "high": -0.12236530238995519
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 124,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.10183421138492915,
+            "high": -0.10183421138492915
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 93,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.07637565853869686,
+            "high": -0.07637565853869686
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 149,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.12236530238995519,
+            "high": -0.12236530238995519
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 124,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.10183421138492915,
+            "high": -0.10183421138492915
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 93,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.07637565853869686,
+            "high": -0.07637565853869686
+          }
+        }
+      ]
+    },
+    {
+      "id": "3435",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1399,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 129,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.13939132521553277,
+            "high": -0.13939132521553277
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 108,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071785,
+            "high": -0.14003965696071785
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071352,
+            "high": -0.14003965696071352
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 129,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.13939132521553277,
+            "high": -0.13939132521553277
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 108,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071785,
+            "high": -0.14003965696071785
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.14003965696071352,
+            "high": -0.14003965696071352
+          }
+        }
+      ]
+    },
+    {
+      "id": "3445",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.185,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 64,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.09527802237632638,
+            "high": -0.09527802237632638
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 54,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.08039083138002538,
+            "high": -0.08039083138002538
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 40,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.059548763985203985,
+            "high": -0.059548763985203985
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 64,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.09527802237632638,
+            "high": -0.09527802237632638
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 54,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.08039083138002538,
+            "high": -0.08039083138002538
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 40,
+          "kinds": [
+            "SESSION_CLOSE"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.059548763985203985,
+            "high": -0.059548763985203985
+          }
+        }
+      ]
+    },
+    {
+      "id": "3455",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1794,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 80,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17842074645529718,
+            "high": -0.17842074645529718
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17894389370570452,
+            "high": -0.17894389370570452
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 50,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1780536255778024,
+            "high": -0.1780536255778024
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 80,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17842074645529718,
+            "high": -0.17842074645529718
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17894389370570452,
+            "high": -0.17894389370570452
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 50,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1780536255778024,
+            "high": -0.1780536255778024
+          }
+        }
+      ]
+    },
+    {
+      "id": "3465",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.1716,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16980336506242588,
+            "high": -0.16980336506242588
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16866823016202848,
+            "high": -0.16866823016202848
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 51,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1708744197668512,
+            "high": -0.1708744197668512
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 81,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16980336506242588,
+            "high": -0.16980336506242588
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 67,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.16866823016202848,
+            "high": -0.16866823016202848
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 51,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.1708744197668512,
+            "high": -0.1708744197668512
+          }
+        }
+      ]
+    },
+    {
+      "id": "3475",
+      "primary": true,
+      "instrument": "USD_JPY",
+      "actual_pnl_aud": -0.0011,
+      "actual_exit": "BREAKEVEN_STOP",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 98,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 82,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 61,
+          "kinds": [
+            "BREAKEVEN_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.0,
+            "high": 0.0
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 98,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17537845202242944,
+            "high": -0.17537845202242944
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 82,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17609428243883468,
+            "high": -0.17609428243883468
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 61,
+          "kinds": [
+            "STOP_LOSS"
+          ],
+          "cash_proxy_aud": {
+            "low": -0.17466262160599863,
+            "high": -0.17466262160599863
+          }
+        }
+      ]
+    },
+    {
+      "id": "3487",
+      "primary": true,
+      "instrument": "AUD_USD",
+      "actual_pnl_aud": -0.1758,
+      "actual_exit": "STOP_LOSS",
+      "comparisons": [
+        {
+          "family": "fixed",
+          "multiplier": 1.25,
+          "units": 117,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.16317836977378375,
+            "high": 0.16317836977378375
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 1.5,
+          "units": 96,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13388994442977128,
+            "high": 0.13388994442977128
+          }
+        },
+        {
+          "family": "fixed",
+          "multiplier": 2,
+          "units": 73,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.10181214524347192,
+            "high": 0.10181214524347192
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.25,
+          "units": 117,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.16317836977378375,
+            "high": 0.16317836977378375
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 1.5,
+          "units": 96,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.13388994442977128,
+            "high": 0.13388994442977128
+          }
+        },
+        {
+          "family": "scaled",
+          "multiplier": 2,
+          "units": 73,
+          "kinds": [
+            "TIME_STOP"
+          ],
+          "cash_proxy_aud": {
+            "low": 0.10181214524347192,
+            "high": 0.10181214524347192
+          }
+        }
+      ]
+    }
+  ],
+  "all_phase_differences": [],
+  "recent_phase_differences": [],
+  "observed_entry_capacity_conflicts": [
+    {
+      "held_id": "3073",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3085",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788760845236,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788761970000,
+      "model_latest_exit": 1788761975000
+    },
+    {
+      "held_id": "3073",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3085",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788760845236,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788761970000,
+      "model_latest_exit": 1788761975000
+    },
+    {
+      "held_id": "3073",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3085",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788760845236,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788762120000,
+      "model_latest_exit": 1788762125000
+    },
+    {
+      "held_id": "3073",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3085",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788760845236,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788762120000,
+      "model_latest_exit": 1788762125000
+    },
+    {
+      "held_id": "3073",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3085",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788760845236,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788762290000,
+      "model_latest_exit": 1788762295000
+    },
+    {
+      "held_id": "3073",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3085",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788760845236,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788762290000,
+      "model_latest_exit": 1788762295000
+    },
+    {
+      "held_id": "3085",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3097",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788768045781,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788768210000,
+      "model_latest_exit": 1788768215000
+    },
+    {
+      "held_id": "3085",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3097",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788768045781,
+      "following_release": "m15-intraday-v3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788768210000,
+      "model_latest_exit": 1788768215000
+    },
+    {
+      "held_id": "3121",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3133",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788934551544,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788934950000,
+      "model_latest_exit": 1788934955000
+    },
+    {
+      "held_id": "3121",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3133",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788934551544,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788934950000,
+      "model_latest_exit": 1788934955000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966265000,
+      "model_latest_exit": 1788966270000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966265000,
+      "model_latest_exit": 1788966270000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966325000,
+      "model_latest_exit": 1788966330000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966325000,
+      "model_latest_exit": 1788966330000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966265000,
+      "model_latest_exit": 1788966270000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966265000,
+      "model_latest_exit": 1788966270000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966325000,
+      "model_latest_exit": 1788966330000
+    },
+    {
+      "held_id": "3143",
+      "held_instrument": "USD_JPY",
+      "primary": false,
+      "following_id": "3153",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1788959751358,
+      "following_release": "m15-intraday-v3.1",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1788966325000,
+      "model_latest_exit": 1788966330000
+    },
+    {
+      "held_id": "3195",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3207",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789369226746,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789373520000,
+      "model_latest_exit": 1789373525000
+    },
+    {
+      "held_id": "3195",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3207",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789369226746,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789373520000,
+      "model_latest_exit": 1789373525000
+    },
+    {
+      "held_id": "3195",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3207",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789369226746,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789374870000,
+      "model_latest_exit": 1789374875000
+    },
+    {
+      "held_id": "3195",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3207",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789369226746,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789374870000,
+      "model_latest_exit": 1789374875000
+    },
+    {
+      "held_id": "3207",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3217",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1789389031920,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789389315000,
+      "model_latest_exit": 1789389320000
+    },
+    {
+      "held_id": "3207",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3217",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1789389031920,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789389315000,
+      "model_latest_exit": 1789389320000
+    },
+    {
+      "held_id": "3207",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3217",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1789389031920,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789389525000,
+      "model_latest_exit": 1789389530000
+    },
+    {
+      "held_id": "3207",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3217",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1789389031920,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789389525000,
+      "model_latest_exit": 1789389530000
+    },
+    {
+      "held_id": "3239",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3251",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789455507970,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789466005000,
+      "model_latest_exit": 1789466008106
+    },
+    {
+      "held_id": "3239",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3251",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789455507970,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789466005000,
+      "model_latest_exit": 1789466008106
+    },
+    {
+      "held_id": "3239",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3251",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789455507970,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789466005000,
+      "model_latest_exit": 1789466008106
+    },
+    {
+      "held_id": "3239",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3251",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789455507970,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789466005000,
+      "model_latest_exit": 1789466008106
+    },
+    {
+      "held_id": "3239",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3251",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789455507970,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789466005000,
+      "model_latest_exit": 1789466008106
+    },
+    {
+      "held_id": "3239",
+      "held_instrument": "AUD_USD",
+      "primary": false,
+      "following_id": "3251",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1789455507970,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1789466005000,
+      "model_latest_exit": 1789466008106
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790091905000,
+      "model_latest_exit": 1790091910000
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790091905000,
+      "model_latest_exit": 1790091910000
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790091905000,
+      "model_latest_exit": 1790091910000
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790091905000,
+      "model_latest_exit": 1790091910000
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790099555000,
+      "model_latest_exit": 1790099560000
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790099555000,
+      "model_latest_exit": 1790099560000
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790100965000,
+      "model_latest_exit": 1790100965123
+    },
+    {
+      "held_id": "3347",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3357",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790088369339,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790100965000,
+      "model_latest_exit": 1790100965123
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3393",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790173869856,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790175215000,
+      "model_latest_exit": 1790175220000
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3393",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790173869856,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790175215000,
+      "model_latest_exit": 1790175220000
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3393",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790173869856,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790175215000,
+      "model_latest_exit": 1790175220000
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3393",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790173869856,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790175215000,
+      "model_latest_exit": 1790175220000
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3403",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1790177470814,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790183025000,
+      "model_latest_exit": 1790183030000
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3393",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790173869856,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790183025000,
+      "model_latest_exit": 1790183030000
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3403",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1790177470814,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790183025000,
+      "model_latest_exit": 1790183030000
+    },
+    {
+      "held_id": "3381",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3393",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790173869856,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790183025000,
+      "model_latest_exit": 1790183030000
+    },
+    {
+      "held_id": "3393",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3403",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1790177470814,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790182965000,
+      "model_latest_exit": 1790182970000
+    },
+    {
+      "held_id": "3393",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3403",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1790177470814,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790182965000,
+      "model_latest_exit": 1790182970000
+    },
+    {
+      "held_id": "3393",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3413",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790188231378,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790195465000,
+      "model_latest_exit": 1790195469856
+    },
+    {
+      "held_id": "3393",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3403",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1790177470814,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790195465000,
+      "model_latest_exit": 1790195469856
+    },
+    {
+      "held_id": "3393",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3413",
+      "following_instrument": "EUR_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790188231378,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790195465000,
+      "model_latest_exit": 1790195469856
+    },
+    {
+      "held_id": "3393",
+      "held_instrument": "EUR_USD",
+      "primary": true,
+      "following_id": "3403",
+      "following_instrument": "USD_JPY",
+      "following_side": "BUY",
+      "following_entry_time": 1790177470814,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790195465000,
+      "model_latest_exit": 1790195469856
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.25,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.25,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.25,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 1.5,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3425",
+      "held_instrument": "AUD_USD",
+      "primary": true,
+      "following_id": "3435",
+      "following_instrument": "AUD_USD",
+      "following_side": "SELL",
+      "following_entry_time": 1790305528599,
+      "following_release": "m15-intraday-v3.3",
+      "capacity": "one_globally",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790312005000,
+      "model_latest_exit": 1790312008578
+    },
+    {
+      "held_id": "3455",
+      "held_instrument": "USD_JPY",
+      "primary": true,
+      "following_id": "3465",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1790603134863,
+      "following_release": "m15-intraday-v4.1",
+      "capacity": "one_per_pair",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790606315000,
+      "model_latest_exit": 1790606320000
+    },
+    {
+      "held_id": "3455",
+      "held_instrument": "USD_JPY",
+      "primary": true,
+      "following_id": "3465",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1790603134863,
+      "following_release": "m15-intraday-v4.1",
+      "capacity": "one_per_pair",
+      "family": "fixed",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790606315000,
+      "model_latest_exit": 1790606320000
+    },
+    {
+      "held_id": "3455",
+      "held_instrument": "USD_JPY",
+      "primary": true,
+      "following_id": "3465",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1790603134863,
+      "following_release": "m15-intraday-v4.1",
+      "capacity": "one_per_pair",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_0",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790606315000,
+      "model_latest_exit": 1790606320000
+    },
+    {
+      "held_id": "3455",
+      "held_instrument": "USD_JPY",
+      "primary": true,
+      "following_id": "3465",
+      "following_instrument": "USD_JPY",
+      "following_side": "SELL",
+      "following_entry_time": 1790603134863,
+      "following_release": "m15-intraday-v4.1",
+      "capacity": "one_per_pair",
+      "family": "scaled",
+      "multiplier": 2,
+      "mode": "poll_5",
+      "certainty_within_model": "definite",
+      "model_earliest_exit": 1790606315000,
+      "model_latest_exit": 1790606320000
+    }
+  ]
+}

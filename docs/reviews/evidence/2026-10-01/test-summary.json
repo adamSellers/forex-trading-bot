@@ -1,0 +1,17 @@
+{
+  "numFailedTests": 0,
+  "numPassedTests": 323,
+  "numTotalTests": 323,
+  "numFailedTestSuites": 0,
+  "numPassedTestSuites": 5,
+  "numTotalTestSuites": 5,
+  "success": true,
+  "nodeVersion": "22.23.1",
+  "suites": [
+    "LiveTradingEngine.test.js",
+    "Oandaclient.test.js",
+    "sampledExcursionIntegration.test.js",
+    "tradeReconciliationService.test.js",
+    "executionPolicy.test.js"
+  ]
+}

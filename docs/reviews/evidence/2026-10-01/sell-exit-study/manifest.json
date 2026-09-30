@@ -1,0 +1,29 @@
+{
+  "createdAt": "2026-09-30T21:11:24.775385+00:00",
+  "deployed_revision_readonly": "c6b6c7714564fef4f9abd03727378aad2ab41a0d",
+  "scope": "29 closed SELL entries since 2026-09-06; primary13 after 2026-09-21T10:35:00Z",
+  "raw_capture_sha256": {
+    "trades.json": "05b729315389a1fe73794e539da8741656d4a2b0437a33ebb83a913abe3d7fd4",
+    "broker.json": "54f4b7e778e9a6b9a515afbe0db45d6827f986186fadb31500edf84e846a647c",
+    "earlier-broker.json": "de941ab60ef83624b512f4a4a603e70f779b4b928ebe6ac090ce02ce1c4d1b05",
+    "signals.json": "77e8e4ef453daf80d432e999294a4f5eaa9c1ae00ce421a44bc63eca06abc13c",
+    "earlier-signals.json": "2f46b8f637b38e2f46cedd0908e29fe31b7406347d5d64eeae9e5c1b80442d66"
+  },
+  "acquisition": {
+    "trade_api": "GET /api/trades?limit=100 on local production API, read only",
+    "broker": "OANDA live closed-trade details and transactions 3072\u20133495; credentials decrypted only on authorized host, not exported",
+    "candles": "BA S5, smooth=false; each observed entry floored to S5 through its original policy deadline rounded down plus 10 seconds; quiet event buckets may be absent",
+    "signals": "SQLite mode=ro plus PRAGMA query_only; each pair from observed entry through saved policy deadline",
+    "data_sanitization": "Broker accountID/userID/clientExtensions/clientOrderID/requestID/lastTransactionID removed; selected trade/entry fields; reduced decision contexts"
+  },
+  "verification": {
+    "scenario_count": 928,
+    "baseline_exit_class_matches": 29,
+    "baseline_exit_class_total": 29,
+    "s5_candle_count": 102732,
+    "warning": "Exit-class agreement is not exact fill/time reproduction. Historical candle quote stream differs from actual executable account prices.",
+    "independent_sizing_outcome_checks": 928,
+    "independent_aggregate_checks": 288
+  },
+  "runtime_changes": "None in this research; prior chart correction remains local and separate."
+}

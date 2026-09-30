@@ -1,12 +1,12 @@
 // frontend/src/components/dashboard/LivePriceChart.jsx - Forex Version
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Typography, Box, ToggleButtonGroup, ToggleButton, FormControl, 
   Select, MenuItem, Grid, CircularProgress, Alert, useTheme, alpha
 } from '@mui/material';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, Legend
+  ResponsiveContainer, Legend, ReferenceDot
 } from 'recharts';
 import { tradingAPI } from '../../config/api';
 import { calculateEMA } from '../../utils/indicators';
@@ -75,17 +75,21 @@ const TIMEFRAME_MAP = {
 };
 
 const useChartData = (instrument, timeframe) => {
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [snapshot, setSnapshot] = useState({
+        instrument, timeframe, data: [], loading: true, error: null,
+    });
 
-    const fetchData = useCallback(async (isBackground = false) => {
-        try {
-            if (!isBackground) setLoading(true);
-            const response = await tradingAPI.getCandles(instrument, timeframe, 100);
-            
-            if (response?.candles?.length > 0) {
-                const candles = response.candles;
+    useEffect(() => {
+        let disposed = false;
+        let requestSequence = 0;
+        setSnapshot({ instrument, timeframe, data: [], loading: true, error: null });
+
+        const fetchData = async () => {
+            const sequence = ++requestSequence;
+            try {
+                const response = await tradingAPI.getCandles(instrument, timeframe, 100);
+                if (disposed || sequence !== requestSequence) return;
+                const candles = response?.candles || [];
                 const closes = candles.map(c => c.close);
                 
                 // Indicators
@@ -95,27 +99,33 @@ const useChartData = (instrument, timeframe) => {
 
                 const processed = candles.map((c, i) => ({
                     ...c,
-                    time: new Date(c.time).getTime(), // Oanda uses ISO timestamp
+                    time: new Date(c.time).getTime(), // Retain the broker's candle start.
+                    closeTime: new Date(c.time).getTime() + TIMEFRAME_MAP[timeframe].minutes * 60000,
                     fastMA: fastMA[i],
                     slowMA: slowMA[i],
                     stValue: stData[i]?.value,
                     stDir: stData[i]?.direction // 1 (Green) or -1 (Red)
                 }));
                 
-                setData(processed);
-                setError(null);
+                setSnapshot({ instrument, timeframe, data: processed, loading: false, error: null });
+            } catch (err) {
+                if (disposed || sequence !== requestSequence) return;
+                setSnapshot(prev => ({ ...prev, loading: false, error: err.message }));
             }
-        } catch (err) { setError(err.message); } 
-        finally { setLoading(false); }
+        };
+        fetchData();
+        const interval = setInterval(fetchData, 60000);
+        return () => {
+            disposed = true;
+            clearInterval(interval);
+        };
     }, [instrument, timeframe]);
 
-    useEffect(() => { setData([]); fetchData(false); }, [fetchData]);
-    useEffect(() => { 
-        const interval = setInterval(() => fetchData(true), 60000); 
-        return () => clearInterval(interval);
-    }, [fetchData]);
-
-    return { data, setData, loading, error };
+    // Effects run after render: never combine a previous selection's candles
+    // with the newly selected instrument's quote while its request starts.
+    return snapshot.instrument === instrument && snapshot.timeframe === timeframe
+        ? snapshot
+        : { data: [], loading: true, error: null };
 };
 
 const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
@@ -131,37 +141,32 @@ const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
       if (assets.length > 0 && !assets.includes(selectedAsset)) setSelectedAsset(assets[0]);
   }, [assets, selectedAsset]);
   
-  const { data: chartData, setData: setChartData, loading, error } = useChartData(selectedAsset, timeframe);
+  const { data: chartData, loading, error } = useChartData(selectedAsset, timeframe);
 
-  // Live Candle Update (Ticker)
-  useEffect(() => {
-    const livePrice = prices[selectedAsset]?.mid || prices[selectedAsset]?.price;
-    if (livePrice && chartData.length > 0) {
-      setChartData(prev => {
-        const newData = [...prev];
-        const last = { ...newData[newData.length - 1] };
-        last.close = livePrice;
-        last.high = Math.max(last.high, livePrice);
-        last.low = Math.min(last.low, livePrice);
-        
-        newData[newData.length - 1] = last;
-        return newData;
-      });
-    }
-  }, [prices, selectedAsset, chartData.length, setChartData]);
+  // A quote is a separate observation, not a replacement completed candle.
+  // timestamp is normalized broker event time; fetchedAt is receipt time.
+  const liveQuote = useMemo(() => {
+    const quote = prices[selectedAsset];
+    const price = Number(quote?.mid ?? quote?.price);
+    const time = quote?.timestamp;
+    return Number.isFinite(price) && price > 0 && Number.isFinite(time) && time > 0
+      ? { price, time }
+      : null;
+  }, [prices, selectedAsset]);
 
   const stats = useMemo(() => {
     if (!chartData.length) return null;
     const last = chartData[chartData.length - 1];
     const first = chartData[0];
-    const change = last.close - first.close;
+    const current = liveQuote?.price ?? last.close;
+    const change = current - first.close;
     return {
-        current: last.close,
+        current,
         change: change,
         pct: (change / first.close) * 100,
         trend: last.stDir === 1 ? 'BULLISH' : 'BEARISH'
     };
-  }, [chartData]);
+  }, [chartData, liveQuote]);
 
   // --- TOOLTIP RENDERER ---
   const CustomTooltip = ({ active, payload }) => {
@@ -175,14 +180,17 @@ const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
             boxShadow: theme.shadows[4], minWidth: 160
         }}>
           <Typography variant="caption" color="text.secondary">
-            {new Date(d.time).toLocaleString()}
+            Completed candle: {new Date(d.time).toLocaleString()} – {new Date(d.closeTime).toLocaleTimeString()}
           </Typography>
+          <Typography variant="caption" display="block" color="text.secondary">Midpoint close</Typography>
           <Typography variant="h6" color="primary.main" fontWeight="bold" fontFamily="monospace">
             {formatPrice(d.close, selectedAsset)}
           </Typography>
           
           <Box mt={1} pt={1} borderTop={1} borderColor="divider">
              <Grid container spacing={1} sx={{ fontSize: 11 }}>
+                 <Grid item xs={6}>High: {formatPrice(d.high, selectedAsset)}</Grid>
+                 <Grid item xs={6}>Low: {formatPrice(d.low, selectedAsset)}</Grid>
                  <Grid item xs={6} color="#8884d8">EMA(20): {formatPrice(d.fastMA, selectedAsset)}</Grid>
                  <Grid item xs={6} color="#82ca9d">EMA(50): {formatPrice(d.slowMA, selectedAsset)}</Grid>
                  <Grid item xs={12} sx={{ 
@@ -220,6 +228,10 @@ const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
                     </Box>
                     <Typography variant="caption" fontWeight="bold" sx={{ color: stats.change >= 0 ? 'success.main' : 'error.main' }}>
                          {stats.change >= 0 ? '+' : ''}{stats.pct.toFixed(3)}%
+                    </Typography>
+                    <Typography variant="caption" display="block" color="text.secondary"
+                        title={liveQuote ? new Date(liveQuote.time).toLocaleString() : undefined}>
+                        {liveQuote ? `Latest quote · ${new Date(liveQuote.time).toLocaleTimeString()}` : 'Last completed candle'}
                     </Typography>
                 </Box>
                 
@@ -281,7 +293,7 @@ const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
             <Alert severity="error">{error}</Alert>
         ) : (
             <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
+                <LineChart data={chartData} margin={{ top: 10, right: 12, left: 5, bottom: 0 }}>
                     <defs>
                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.1}/>
@@ -290,7 +302,10 @@ const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke={alpha(theme.palette.divider, 0.1)} vertical={false} />
                     <XAxis 
-                        dataKey="time" 
+                        dataKey="closeTime"
+                        type="number"
+                        scale="time"
+                        domain={['dataMin', 'dataMax']}
                         tickFormatter={(t) => {
                             const d = new Date(t);
                             return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
@@ -320,7 +335,7 @@ const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
                         stroke={theme.palette.primary.main} 
                         strokeWidth={2} 
                         dot={false} 
-                        name="Price"
+                        name="Midpoint close"
                         activeDot={{ r: 4 }}
                         animationDuration={500}
                     />
@@ -348,6 +363,23 @@ const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
                         connectNulls={false}
                         name="ST (Bear)" 
                     />
+
+                    {liveQuote && (
+                        <ReferenceDot
+                            x={liveQuote.time}
+                            y={liveQuote.price}
+                            r={4}
+                            isFront
+                            ifOverflow="extendDomain"
+                            label={{ value: 'Latest quote', position: 'insideTopRight', fontSize: 10, fill: theme.palette.text.secondary }}
+                            shape={({ cx, cy }) => (
+                                <circle cx={cx} cy={cy} r={4} fill={theme.palette.primary.main}
+                                    stroke={theme.palette.background.paper} strokeWidth={1.5}>
+                                    <title>{`Latest midpoint: ${formatPrice(liveQuote.price, selectedAsset)} · ${new Date(liveQuote.time).toLocaleString()}`}</title>
+                                </circle>
+                            )}
+                        />
+                    )}
 
                 </LineChart>
             </ResponsiveContainer>

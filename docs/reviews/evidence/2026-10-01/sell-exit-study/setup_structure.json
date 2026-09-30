@@ -1,0 +1,781 @@
+{
+  "summary": {
+    "count": 13,
+    "stop_inside_prior4_midpoint_range_count": 11,
+    "stop_below_m15_ema20_count": 9,
+    "stop_below_m15_ema50_count": 11,
+    "stop_below_prior4_high_count": 11,
+    "stop_below_prior8_high_count": 12
+  },
+  "initial_stop_losses": {
+    "count": 8,
+    "stop_inside_prior4_midpoint_range_count": 6,
+    "stop_below_m15_ema20_count": 4,
+    "stop_below_m15_ema50_count": 6,
+    "stop_below_prior4_high_count": 6,
+    "stop_below_prior8_high_count": 7
+  },
+  "target_winners": {
+    "count": 2,
+    "stop_inside_prior4_midpoint_range_count": 2,
+    "stop_below_m15_ema20_count": 2,
+    "stop_below_m15_ema50_count": 2,
+    "stop_below_prior4_high_count": 2,
+    "stop_below_prior8_high_count": 2
+  },
+  "trades": [
+    {
+      "broker_trade_id": "3347",
+      "instrument": "AUD_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.1619,
+      "entry": 0.71095,
+      "initial_stop": 0.71157,
+      "initial_stop_order_id": "3353",
+      "initial_stop_order_time": "2026-09-22T12:16:05.359703949Z",
+      "actual_initial_risk_pips": 6.200000000000649,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-22T11:00:00.000000000Z",
+          "high": 0.71162,
+          "low": 0.71102
+        },
+        {
+          "time": "2026-09-22T11:15:00.000000000Z",
+          "high": 0.71138,
+          "low": 0.7111
+        },
+        {
+          "time": "2026-09-22T11:30:00.000000000Z",
+          "high": 0.71128,
+          "low": 0.71101
+        },
+        {
+          "time": "2026-09-22T11:45:00.000000000Z",
+          "high": 0.7114,
+          "low": 0.71112
+        }
+      ],
+      "prior4_low": 0.71101,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 0.7112386031727556,
+      "stop_below_m15_ema20": false,
+      "m15_ema20_above_stop_pips": -3.3139682724447894,
+      "entry_to_m15_ema20_pips": 2.88603172755586,
+      "entry_to_m15_ema20_original_risk_multiple": 0.4654889883154125,
+      "m15_ema50": 0.7114892923876227,
+      "stop_below_m15_ema50": false,
+      "m15_ema50_above_stop_pips": -0.8070761237732871,
+      "entry_to_m15_ema50_pips": 5.392923876227362,
+      "entry_to_m15_ema50_original_risk_multiple": 0.8698264316494835,
+      "prior4_high": 0.71162,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 0.49999999999994493,
+      "entry_to_prior4_high_pips": 6.700000000000594,
+      "entry_to_prior4_high_original_risk_multiple": 1.0806451612903052,
+      "prior8_high": 0.71202,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 4.499999999999504,
+      "entry_to_prior8_high_pips": 10.700000000000154,
+      "entry_to_prior8_high_original_risk_multiple": 1.7258064516127474
+    },
+    {
+      "broker_trade_id": "3357",
+      "instrument": "EUR_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "BREAKEVEN_STOP",
+      "pnl_aud": 0,
+      "entry": 1.14399,
+      "initial_stop": 1.14477,
+      "initial_stop_order_id": "3363",
+      "initial_stop_order_time": "2026-09-22T14:46:09.578897711Z",
+      "actual_initial_risk_pips": 7.800000000000029,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-22T13:30:00.000000000Z",
+          "high": 1.14598,
+          "low": 1.14521
+        },
+        {
+          "time": "2026-09-22T13:45:00.000000000Z",
+          "high": 1.14594,
+          "low": 1.14532
+        },
+        {
+          "time": "2026-09-22T14:00:00.000000000Z",
+          "high": 1.14552,
+          "low": 1.145
+        },
+        {
+          "time": "2026-09-22T14:15:00.000000000Z",
+          "high": 1.14515,
+          "low": 1.14461
+        }
+      ],
+      "prior4_low": 1.14461,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 1.145595653003405,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 8.256530034049803,
+      "entry_to_m15_ema20_pips": 16.056530034049832,
+      "entry_to_m15_ema20_original_risk_multiple": 2.0585294915448427,
+      "m15_ema50": 1.1460332673753992,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 12.632673753991686,
+      "entry_to_m15_ema50_pips": 20.432673753991715,
+      "entry_to_m15_ema50_original_risk_multiple": 2.6195735582040562,
+      "prior4_high": 1.14598,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 12.099999999999334,
+      "entry_to_prior4_high_pips": 19.899999999999363,
+      "entry_to_prior4_high_original_risk_multiple": 2.55128205128196,
+      "prior8_high": 1.14662,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 18.499999999999073,
+      "entry_to_prior8_high_pips": 26.299999999999102,
+      "entry_to_prior8_high_original_risk_multiple": 3.371794871794744
+    },
+    {
+      "broker_trade_id": "3369",
+      "instrument": "AUD_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "TAKE_PROFIT",
+      "pnl_aud": 0.2585,
+      "entry": 0.70918,
+      "initial_stop": 0.70978,
+      "initial_stop_order_id": "3375",
+      "initial_stop_order_time": "2026-09-23T07:03:05.597884669Z",
+      "actual_initial_risk_pips": 5.999999999999339,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-23T05:45:00.000000000Z",
+          "high": 0.71016,
+          "low": 0.70972
+        },
+        {
+          "time": "2026-09-23T06:00:00.000000000Z",
+          "high": 0.71033,
+          "low": 0.70972
+        },
+        {
+          "time": "2026-09-23T06:15:00.000000000Z",
+          "high": 0.71006,
+          "low": 0.70962
+        },
+        {
+          "time": "2026-09-23T06:30:00.000000000Z",
+          "high": 0.71007,
+          "low": 0.70966
+        }
+      ],
+      "prior4_low": 0.70962,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 0.7102298511017704,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 4.498511017704265,
+      "entry_to_m15_ema20_pips": 10.498511017703605,
+      "entry_to_m15_ema20_original_risk_multiple": 1.749751836284127,
+      "m15_ema50": 0.7106427550790176,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 8.627550790176741,
+      "entry_to_m15_ema50_pips": 14.62755079017608,
+      "entry_to_m15_ema50_original_risk_multiple": 2.4379251316962818,
+      "prior4_high": 0.71033,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 5.5000000000005045,
+      "entry_to_prior4_high_pips": 11.499999999999844,
+      "entry_to_prior4_high_original_risk_multiple": 1.9166666666668517,
+      "prior8_high": 0.71057,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 7.900000000000684,
+      "entry_to_prior8_high_pips": 13.900000000000023,
+      "entry_to_prior8_high_original_risk_multiple": 2.3166666666669258
+    },
+    {
+      "broker_trade_id": "3381",
+      "instrument": "EUR_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "TAKE_PROFIT",
+      "pnl_aud": 0.2718,
+      "entry": 1.13997,
+      "initial_stop": 1.14087,
+      "initial_stop_order_id": "3387",
+      "initial_stop_order_time": "2026-09-23T14:01:10.085287713Z",
+      "actual_initial_risk_pips": 9.00000000000123,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-23T12:45:00.000000000Z",
+          "high": 1.14085,
+          "low": 1.14
+        },
+        {
+          "time": "2026-09-23T13:00:00.000000000Z",
+          "high": 1.14088,
+          "low": 1.14002
+        },
+        {
+          "time": "2026-09-23T13:15:00.000000000Z",
+          "high": 1.14148,
+          "low": 1.14003
+        },
+        {
+          "time": "2026-09-23T13:30:00.000000000Z",
+          "high": 1.1416,
+          "low": 1.14079
+        }
+      ],
+      "prior4_low": 1.14,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 1.1409765489540304,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 1.0654895403039433,
+      "entry_to_m15_ema20_pips": 10.065489540305173,
+      "entry_to_m15_ema20_original_risk_multiple": 1.118387726700422,
+      "m15_ema50": 1.1419054097030523,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 10.354097030522702,
+      "entry_to_m15_ema50_pips": 19.35409703052393,
+      "entry_to_m15_ema50_original_risk_multiple": 2.1504552256134764,
+      "prior4_high": 1.1416,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 7.299999999998974,
+      "entry_to_prior4_high_pips": 16.300000000000203,
+      "entry_to_prior4_high_original_risk_multiple": 1.8111111111108864,
+      "prior8_high": 1.1416,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 7.299999999998974,
+      "entry_to_prior8_high_pips": 16.300000000000203,
+      "entry_to_prior8_high_original_risk_multiple": 1.8111111111108864
+    },
+    {
+      "broker_trade_id": "3393",
+      "instrument": "EUR_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.1841,
+      "entry": 1.13879,
+      "initial_stop": 1.13976,
+      "initial_stop_order_id": "3399",
+      "initial_stop_order_time": "2026-09-23T14:31:10.090938686Z",
+      "actual_initial_risk_pips": 9.700000000001374,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-23T13:15:00.000000000Z",
+          "high": 1.14148,
+          "low": 1.14003
+        },
+        {
+          "time": "2026-09-23T13:30:00.000000000Z",
+          "high": 1.1416,
+          "low": 1.14079
+        },
+        {
+          "time": "2026-09-23T13:45:00.000000000Z",
+          "high": 1.14076,
+          "low": 1.1391
+        },
+        {
+          "time": "2026-09-23T14:00:00.000000000Z",
+          "high": 1.14036,
+          "low": 1.13964
+        }
+      ],
+      "prior4_low": 1.1391,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 1.1406297827038663,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 8.697827038661732,
+      "entry_to_m15_ema20_pips": 18.397827038663106,
+      "entry_to_m15_ema20_original_risk_multiple": 1.8966831998619071,
+      "m15_ema50": 1.1416886154175858,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 19.286154175857106,
+      "entry_to_m15_ema50_pips": 28.98615417585848,
+      "entry_to_m15_ema50_original_risk_multiple": 2.988263317098389,
+      "prior4_high": 1.1416,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 18.399999999998418,
+      "entry_to_prior4_high_pips": 28.099999999999792,
+      "entry_to_prior4_high_original_risk_multiple": 2.8969072164944136,
+      "prior8_high": 1.1416,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 18.399999999998418,
+      "entry_to_prior8_high_pips": 28.099999999999792,
+      "entry_to_prior8_high_original_risk_multiple": 2.8969072164944136
+    },
+    {
+      "broker_trade_id": "3413",
+      "instrument": "EUR_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "SESSION_CLOSE",
+      "pnl_aud": -0.0469,
+      "entry": 1.13803,
+      "initial_stop": 1.13904,
+      "initial_stop_order_id": "3419",
+      "initial_stop_order_time": "2026-09-23T18:30:31.616170151Z",
+      "actual_initial_risk_pips": 10.099999999999554,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-23T17:15:00.000000000Z",
+          "high": 1.13757,
+          "low": 1.13702
+        },
+        {
+          "time": "2026-09-23T17:30:00.000000000Z",
+          "high": 1.13862,
+          "low": 1.13724
+        },
+        {
+          "time": "2026-09-23T17:45:00.000000000Z",
+          "high": 1.1393,
+          "low": 1.13842
+        },
+        {
+          "time": "2026-09-23T18:00:00.000000000Z",
+          "high": 1.1394,
+          "low": 1.13884
+        }
+      ],
+      "prior4_low": 1.13702,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 1.1390489311600331,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 0.08931160033087693,
+      "entry_to_m15_ema20_pips": 10.18931160033043,
+      "entry_to_m15_ema20_original_risk_multiple": 1.0088427327060279,
+      "m15_ema50": 1.1403031234747527,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 12.631234747526587,
+      "entry_to_m15_ema50_pips": 22.73123474752614,
+      "entry_to_m15_ema50_original_risk_multiple": 2.250617301735361,
+      "prior4_high": 1.1394,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 3.5999999999991594,
+      "entry_to_prior4_high_pips": 13.699999999998713,
+      "entry_to_prior4_high_original_risk_multiple": 1.356435643564289,
+      "prior8_high": 1.13956,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 5.199999999998539,
+      "entry_to_prior8_high_pips": 15.299999999998093,
+      "entry_to_prior8_high_original_risk_multiple": 1.514851485148393
+    },
+    {
+      "broker_trade_id": "3425",
+      "instrument": "AUD_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.1615,
+      "entry": 0.70097,
+      "initial_stop": 0.70157,
+      "initial_stop_order_id": "3431",
+      "initial_stop_order_time": "2026-09-24T22:53:28.812697291Z",
+      "actual_initial_risk_pips": 6.000000000000449,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-24T21:30:00.000000000Z",
+          "high": 0.70132,
+          "low": 0.70114
+        },
+        {
+          "time": "2026-09-24T21:45:00.000000000Z",
+          "high": 0.70126,
+          "low": 0.7011
+        },
+        {
+          "time": "2026-09-24T22:00:00.000000000Z",
+          "high": 0.70138,
+          "low": 0.70118
+        },
+        {
+          "time": "2026-09-24T22:15:00.000000000Z",
+          "high": 0.70129,
+          "low": 0.7012
+        }
+      ],
+      "prior4_low": 0.7011,
+      "stop_inside_prior4_midpoint_range": false,
+      "m15_ema20": 0.7013411215340011,
+      "stop_below_m15_ema20": false,
+      "m15_ema20_above_stop_pips": -2.2887846599894957,
+      "entry_to_m15_ema20_pips": 3.7112153400109538,
+      "entry_to_m15_ema20_original_risk_multiple": 0.6185358900017793,
+      "m15_ema50": 0.7018695073830375,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 2.995073830375228,
+      "entry_to_m15_ema50_pips": 8.995073830375677,
+      "entry_to_m15_ema50_original_risk_multiple": 1.4991789717291673,
+      "prior4_high": 0.70138,
+      "stop_below_prior4_high": false,
+      "prior4_high_above_stop_pips": -1.9000000000002348,
+      "entry_to_prior4_high_pips": 4.100000000000215,
+      "entry_to_prior4_high_original_risk_multiple": 0.6833333333333179,
+      "prior8_high": 0.70156,
+      "stop_below_prior8_high": false,
+      "prior8_high_above_stop_pips": -0.10000000000065512,
+      "entry_to_prior8_high_pips": 5.899999999999794,
+      "entry_to_prior8_high_original_risk_multiple": 0.9833333333332254
+    },
+    {
+      "broker_trade_id": "3435",
+      "instrument": "AUD_USD",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.1399,
+      "entry": 0.70099,
+      "initial_stop": 0.70159,
+      "initial_stop_order_id": "3441",
+      "initial_stop_order_time": "2026-09-25T03:05:28.838378127Z",
+      "actual_initial_risk_pips": 6.000000000000449,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-25T01:45:00.000000000Z",
+          "high": 0.70136,
+          "low": 0.70108
+        },
+        {
+          "time": "2026-09-25T02:00:00.000000000Z",
+          "high": 0.70144,
+          "low": 0.70122
+        },
+        {
+          "time": "2026-09-25T02:15:00.000000000Z",
+          "high": 0.70144,
+          "low": 0.70125
+        },
+        {
+          "time": "2026-09-25T02:30:00.000000000Z",
+          "high": 0.70137,
+          "low": 0.70106
+        }
+      ],
+      "prior4_low": 0.70106,
+      "stop_inside_prior4_midpoint_range": false,
+      "m15_ema20": 0.7011563350780303,
+      "stop_below_m15_ema20": false,
+      "m15_ema20_above_stop_pips": -4.336649219697231,
+      "entry_to_m15_ema20_pips": 1.6633507803032188,
+      "entry_to_m15_ema20_original_risk_multiple": 0.2772251300505157,
+      "m15_ema50": 0.7014764404977096,
+      "stop_below_m15_ema50": false,
+      "m15_ema50_above_stop_pips": -1.1355950229041678,
+      "entry_to_m15_ema50_pips": 4.864404977096282,
+      "entry_to_m15_ema50_original_risk_multiple": 0.8107341628493195,
+      "prior4_high": 0.70144,
+      "stop_below_prior4_high": false,
+      "prior4_high_above_stop_pips": -1.500000000000945,
+      "entry_to_prior4_high_pips": 4.499999999999504,
+      "entry_to_prior4_high_original_risk_multiple": 0.7499999999998612,
+      "prior8_high": 0.70164,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 0.49999999999994493,
+      "entry_to_prior8_high_pips": 6.500000000000394,
+      "entry_to_prior8_high_original_risk_multiple": 1.083333333333318
+    },
+    {
+      "broker_trade_id": "3445",
+      "instrument": "USD_JPY",
+      "release": "m15-intraday-v3.3",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.185,
+      "entry": 157.125,
+      "initial_stop": 157.375,
+      "initial_stop_order_id": "3451",
+      "initial_stop_order_time": "2026-09-25T16:15:34.111013966Z",
+      "actual_initial_risk_pips": 25.0,
+      "prior4_source": "retained_2026-09-26_OANDA_M15_midpoint_candles",
+      "prior4_bars": [
+        {
+          "time": "2026-09-25T15:00:00.000000000Z",
+          "high": 157.44,
+          "low": 157.134
+        },
+        {
+          "time": "2026-09-25T15:15:00.000000000Z",
+          "high": 157.417,
+          "low": 157.296
+        },
+        {
+          "time": "2026-09-25T15:30:00.000000000Z",
+          "high": 157.378,
+          "low": 157.246
+        },
+        {
+          "time": "2026-09-25T15:45:00.000000000Z",
+          "high": 157.448,
+          "low": 157.172
+        }
+      ],
+      "prior4_low": 157.134,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 157.3994244426042,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 2.442444260418597,
+      "entry_to_m15_ema20_pips": 27.442444260418597,
+      "entry_to_m15_ema20_original_risk_multiple": 1.0976977704167439,
+      "m15_ema50": 157.74346488973134,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 36.84648897313423,
+      "entry_to_m15_ema50_pips": 61.84648897313423,
+      "entry_to_m15_ema50_original_risk_multiple": 2.473859558925369,
+      "prior4_high": 157.448,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 7.30000000000075,
+      "entry_to_prior4_high_pips": 32.30000000000075,
+      "entry_to_prior4_high_original_risk_multiple": 1.29200000000003,
+      "prior8_high": 157.472,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 9.700000000000841,
+      "entry_to_prior8_high_pips": 34.70000000000084,
+      "entry_to_prior8_high_original_risk_multiple": 1.3880000000000337
+    },
+    {
+      "broker_trade_id": "3455",
+      "instrument": "USD_JPY",
+      "release": "m15-intraday-v4.1",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.1794,
+      "entry": 156.884,
+      "initial_stop": 157.078,
+      "initial_stop_order_id": "3461",
+      "initial_stop_order_time": "2026-09-28T11:30:35.009395395Z",
+      "actual_initial_risk_pips": 19.400000000001683,
+      "prior4_source": "recorded_entry_pullback_window",
+      "prior4_bars": [
+        {
+          "time": "2026-09-28T10:15:00.000000000Z",
+          "high": 157.15,
+          "low": 157.034
+        },
+        {
+          "time": "2026-09-28T10:30:00.000000000Z",
+          "high": 157.129,
+          "low": 157.048
+        },
+        {
+          "time": "2026-09-28T10:45:00.000000000Z",
+          "high": 157.132,
+          "low": 157.011
+        },
+        {
+          "time": "2026-09-28T11:00:00.000000000Z",
+          "high": 157.112,
+          "low": 156.993
+        }
+      ],
+      "prior4_low": 156.993,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 157.13915998580066,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 6.115998580065707,
+      "entry_to_m15_ema20_pips": 25.51599858006739,
+      "entry_to_m15_ema20_original_risk_multiple": 1.3152576587662461,
+      "m15_ema50": 157.331875864133,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 25.387586413299346,
+      "entry_to_m15_ema50_pips": 44.78758641330103,
+      "entry_to_m15_ema50_original_risk_multiple": 2.308638474912224,
+      "prior4_high": 157.15,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 7.200000000000273,
+      "entry_to_prior4_high_pips": 26.600000000001955,
+      "entry_to_prior4_high_original_risk_multiple": 1.3711340206185385,
+      "prior8_high": 157.15,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 7.200000000000273,
+      "entry_to_prior8_high_pips": 26.600000000001955,
+      "entry_to_prior8_high_original_risk_multiple": 1.3711340206185385
+    },
+    {
+      "broker_trade_id": "3465",
+      "instrument": "USD_JPY",
+      "release": "m15-intraday-v4.1",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.1716,
+      "entry": 157.061,
+      "initial_stop": 157.244,
+      "initial_stop_order_id": "3471",
+      "initial_stop_order_time": "2026-09-28T13:45:35.093920193Z",
+      "actual_initial_risk_pips": 18.299999999999272,
+      "prior4_source": "recorded_entry_pullback_window",
+      "prior4_bars": [
+        {
+          "time": "2026-09-28T12:30:00.000000000Z",
+          "high": 157.22,
+          "low": 157.045
+        },
+        {
+          "time": "2026-09-28T12:45:00.000000000Z",
+          "high": 157.246,
+          "low": 157.132
+        },
+        {
+          "time": "2026-09-28T13:00:00.000000000Z",
+          "high": 157.258,
+          "low": 157.16
+        },
+        {
+          "time": "2026-09-28T13:15:00.000000000Z",
+          "high": 157.224,
+          "low": 157.136
+        }
+      ],
+      "prior4_low": 157.045,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 157.11300088612074,
+      "stop_below_m15_ema20": false,
+      "m15_ema20_above_stop_pips": -13.099911387925545,
+      "entry_to_m15_ema20_pips": 5.200088612073728,
+      "entry_to_m15_ema20_original_risk_multiple": 0.28415784765431334,
+      "m15_ema50": 157.25772447955882,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 1.3724479558817393,
+      "entry_to_m15_ema50_pips": 19.67244795588101,
+      "entry_to_m15_ema50_original_risk_multiple": 1.0749971560591145,
+      "prior4_high": 157.258,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 1.4000000000010004,
+      "entry_to_prior4_high_pips": 19.700000000000273,
+      "entry_to_prior4_high_original_risk_multiple": 1.076502732240495,
+      "prior8_high": 157.258,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 1.4000000000010004,
+      "entry_to_prior8_high_pips": 19.700000000000273,
+      "entry_to_prior8_high_original_risk_multiple": 1.076502732240495
+    },
+    {
+      "broker_trade_id": "3475",
+      "instrument": "USD_JPY",
+      "release": "m15-intraday-v4.1",
+      "exit_reason": "BREAKEVEN_STOP",
+      "pnl_aud": -0.0011,
+      "entry": 157.171,
+      "initial_stop": 157.327,
+      "initial_stop_order_id": "3481",
+      "initial_stop_order_time": "2026-09-29T12:00:12.673225862Z",
+      "actual_initial_risk_pips": 15.600000000000591,
+      "prior4_source": "recorded_entry_pullback_window",
+      "prior4_bars": [
+        {
+          "time": "2026-09-29T10:45:00.000000000Z",
+          "high": 157.418,
+          "low": 157.196
+        },
+        {
+          "time": "2026-09-29T11:00:00.000000000Z",
+          "high": 157.31,
+          "low": 157.198
+        },
+        {
+          "time": "2026-09-29T11:15:00.000000000Z",
+          "high": 157.296,
+          "low": 157.19
+        },
+        {
+          "time": "2026-09-29T11:30:00.000000000Z",
+          "high": 157.321,
+          "low": 157.229
+        }
+      ],
+      "prior4_low": 157.19,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 157.36248341084885,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 3.5483410848854646,
+      "entry_to_m15_ema20_pips": 19.148341084886056,
+      "entry_to_m15_ema20_original_risk_multiple": 1.2274577618516238,
+      "m15_ema50": 157.37864417320495,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 5.164417320494863,
+      "entry_to_m15_ema50_pips": 20.764417320495454,
+      "entry_to_m15_ema50_original_risk_multiple": 1.3310523923394018,
+      "prior4_high": 157.418,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 9.100000000000819,
+      "entry_to_prior4_high_pips": 24.70000000000141,
+      "entry_to_prior4_high_original_risk_multiple": 1.5833333333333637,
+      "prior8_high": 157.716,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 38.900000000001,
+      "entry_to_prior8_high_pips": 54.50000000000159,
+      "entry_to_prior8_high_original_risk_multiple": 3.4935897435897134
+    },
+    {
+      "broker_trade_id": "3487",
+      "instrument": "AUD_USD",
+      "release": "m15-intraday-v4.2",
+      "exit_reason": "STOP_LOSS",
+      "pnl_aud": -0.1758,
+      "entry": 0.69559,
+      "initial_stop": 0.6964,
+      "initial_stop_order_id": "3493",
+      "initial_stop_order_time": "2026-09-30T13:45:51.365075440Z",
+      "actual_initial_risk_pips": 8.099999999999774,
+      "prior4_source": "recorded_entry_pullback_window",
+      "prior4_bars": [
+        {
+          "time": "2026-09-30T12:30:00.000000000Z",
+          "high": 0.69878,
+          "low": 0.69677
+        },
+        {
+          "time": "2026-09-30T12:45:00.000000000Z",
+          "high": 0.69814,
+          "low": 0.69714
+        },
+        {
+          "time": "2026-09-30T13:00:00.000000000Z",
+          "high": 0.69738,
+          "low": 0.69644
+        },
+        {
+          "time": "2026-09-30T13:15:00.000000000Z",
+          "high": 0.69684,
+          "low": 0.69619
+        }
+      ],
+      "prior4_low": 0.69619,
+      "stop_inside_prior4_midpoint_range": true,
+      "m15_ema20": 0.6969515813660312,
+      "stop_below_m15_ema20": true,
+      "m15_ema20_above_stop_pips": 5.51581366031173,
+      "entry_to_m15_ema20_pips": 13.615813660311504,
+      "entry_to_m15_ema20_original_risk_multiple": 1.6809646494212203,
+      "m15_ema50": 0.6973183339503602,
+      "stop_below_m15_ema50": true,
+      "m15_ema50_above_stop_pips": 9.183339503602284,
+      "entry_to_m15_ema50_pips": 17.283339503602058,
+      "entry_to_m15_ema50_original_risk_multiple": 2.1337456177287084,
+      "prior4_high": 0.69878,
+      "stop_below_prior4_high": true,
+      "prior4_high_above_stop_pips": 23.799999999999375,
+      "entry_to_prior4_high_pips": 31.89999999999915,
+      "entry_to_prior4_high_original_risk_multiple": 3.9382716049382767,
+      "prior8_high": 0.69878,
+      "stop_below_prior8_high": true,
+      "prior8_high_above_stop_pips": 23.799999999999375,
+      "entry_to_prior8_high_pips": 31.89999999999915,
+      "entry_to_prior8_high_original_risk_multiple": 3.9382716049382767
+    }
+  ],
+  "source_sha256": {
+    "setup_inputs.json": "6373a80a80f9409a2dfbee96c0392e406457fe674983cb8ab798938af6c19236",
+    "market.json.gz": "5fca5eb4dd92c25aa2aef6eda70d1d1e971d2e29bb51be53c979bcccf25c9760",
+    "broker-evidence.json": "160e82db3a11828822828b32e0706884ae81d33d24a3d0bc982335f3c68748b2"
+  },
+  "limitations": [
+    "EMA and preceding highs are recorded midpoint levels; a SELL protective stop triggers on ask.",
+    "No spread buffer, stop precision candidate or structural stop rule was selected or tested.",
+    "Below a preceding high describes geometry, not probability of a normal bounce or proof of invalidation.",
+    "Initial stops below prior structure occur in both losses and the two target winners.",
+    "Factor-widening and structural-stop policies are different experiments; neither result implies the other."
+  ]
+}

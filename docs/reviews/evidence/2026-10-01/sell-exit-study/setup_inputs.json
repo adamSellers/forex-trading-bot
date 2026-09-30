@@ -1,0 +1,3666 @@
+{
+  "source": "Read-only current local API trade capture; selected fields only",
+  "source_sha256": "05b729315389a1fe73794e539da8741656d4a2b0437a33ebb83a913abe3d7fd4",
+  "earlier_start_utc": "2026-09-06T00:00:00+00:00",
+  "primary_start_utc": "2026-09-21T10:35:00+00:00",
+  "trades": [
+    {
+      "oandaTradeId": "3073",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1788759945301,
+      "exitTime": 1788760716059,
+      "entryPrice": 155.99,
+      "exitPrice": 155.814,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2637,
+      "pnlPips": 17.600000000001614,
+      "units": 170,
+      "isOpen": false,
+      "release": "m15-intraday-v3",
+      "initialStopDistance": 0.11733986243700656,
+      "initialStopLossPrice": 156.10733986243702,
+      "initialRiskAud": 0.17918227151623348,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 155.99,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.9999999999990905
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788759900000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 156.051,
+          "fastEma": 156.12983313656386,
+          "slowEma": 156.56115208499904,
+          "adx": 37.181400541786545,
+          "pdi": 12.513637012073211,
+          "mdi": 23.985870837884807,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 155.998,
+          "fastEma": 156.08691840903037,
+          "slowEma": 156.10931348336214,
+          "atr": 0.0938718899496127,
+          "rsi": 43.24,
+          "bodyRatio": 0.444444444444655,
+          "rangeAtr": 0.9587534676068886,
+          "trigger": {
+            "breakoutHigh": 156.176,
+            "breakoutLow": 156.02,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.8000000000009777,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.0000000000009777,
+          "stopPips": 11.733986243701587,
+          "costToStopRatio": 0.08522253045402575
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 77
+      }
+    },
+    {
+      "oandaTradeId": "3085",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1788760845236,
+      "exitTime": 1788762290773,
+      "entryPrice": 155.827,
+      "exitPrice": 155.63,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2693,
+      "pnlPips": 19.700000000000273,
+      "units": 155,
+      "isOpen": false,
+      "release": "m15-intraday-v3",
+      "initialStopDistance": 0.1293155865486426,
+      "initialStopLossPrice": 155.95631558654864,
+      "initialRiskAud": 0.1802013058615188,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 155.827,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.9999999999990905
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788760800000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 155.804,
+          "fastEma": 156.09880140927208,
+          "slowEma": 156.53145984626363,
+          "adx": 37.55655937090237,
+          "pdi": 11.49048676141676,
+          "mdi": 28.430340602248744,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 155.804,
+          "fastEma": 156.05997379864655,
+          "slowEma": 156.0973404054928,
+          "atr": 0.10345246923892466,
+          "rsi": 33.97,
+          "bodyRatio": 0.8552631578947811,
+          "rangeAtr": 2.2039106623294957,
+          "trigger": {
+            "breakoutHigh": 156.176,
+            "breakoutLow": 155.962,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9999999999990905,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1999999999990905,
+          "stopPips": 12.931558654865583,
+          "costToStopRatio": 0.09279623841381121
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 145
+      }
+    },
+    {
+      "oandaTradeId": "3097",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1788768045781,
+      "exitTime": 1788768456168,
+      "entryPrice": 155.537,
+      "exitPrice": 155.267,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2694,
+      "pnlPips": 27.000000000001023,
+      "units": 113,
+      "isOpen": false,
+      "release": "m15-intraday-v3",
+      "initialStopDistance": 0.17977924273677104,
+      "initialStopLossPrice": 155.71677924273678,
+      "initialRiskAud": 0.18265681347452617,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 155.53699999999998,
+        "entrySlippagePips": -2.8421709430404007e-12,
+        "finalSpreadPips": 1.0000000000019327
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788768000000,
+        "activeSessions": [
+          "London"
+        ],
+        "h1": {
+          "close": 155.55,
+          "fastEma": 156.0269916298123,
+          "slowEma": 156.46812421807653,
+          "adx": 39.453962285818434,
+          "pdi": 9.400969203141987,
+          "mdi": 29.3860601034143,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 155.55,
+          "fastEma": 155.8831536845015,
+          "slowEma": 156.00120908653705,
+          "atr": 0.1438233941894067,
+          "rsi": 34.85,
+          "bodyRatio": 0.8561872909698816,
+          "rangeAtr": 2.078938559927474,
+          "trigger": {
+            "breakoutHigh": 156.015,
+            "breakoutLow": 155.534,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.7999999999981355,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9999999999981355,
+          "stopPips": 17.97792427367584,
+          "costToStopRatio": 0.055623774178556566
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 43
+      }
+    },
+    {
+      "oandaTradeId": "3109",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1788791445834,
+      "exitTime": 1788813051157,
+      "entryPrice": 154.397,
+      "exitPrice": 154.369,
+      "exitReason": "TIME_STOP",
+      "pnlAud": 0.0219,
+      "pnlPips": 2.7999999999991587,
+      "units": 88,
+      "isOpen": false,
+      "release": "m15-intraday-v3",
+      "initialStopDistance": 0.23308017897900868,
+      "initialStopLossPrice": 154.630080178979,
+      "initialRiskAud": 0.18583271505134596,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 154.397,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 1.0000000000019327
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788791400000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 154.512,
+          "fastEma": 155.36481898725657,
+          "slowEma": 156.06087644339084,
+          "adx": 49.86043405200842,
+          "pdi": 8.148808843152668,
+          "mdi": 41.97532354302911,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 154.362,
+          "fastEma": 154.60362369790843,
+          "slowEma": 155.03985451524113,
+          "atr": 0.18646414318320848,
+          "rsi": 38.15,
+          "bodyRatio": 0.7974683544303319,
+          "rangeAtr": 0.8473478991871062,
+          "trigger": {
+            "breakoutHigh": 154.807,
+            "breakoutLow": 154.248,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 1.1000000000024102,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.3000000000024101,
+          "stopPips": 23.30801789790106,
+          "costToStopRatio": 0.05577479842760367
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 1747
+      }
+    },
+    {
+      "oandaTradeId": "3121",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1788919251451,
+      "exitTime": 1788933510217,
+      "entryPrice": 153.558,
+      "exitPrice": 153.264,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2784,
+      "pnlPips": 29.399999999998272,
+      "units": 106,
+      "isOpen": false,
+      "release": "m15-intraday-v3.1",
+      "initialStopDistance": 0.19556490385048164,
+      "initialStopLossPrice": 153.75356490385047,
+      "initialRiskAud": 0.1887703375197101,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 153.55799999999996,
+        "entrySlippagePips": -2.8421709430404007e-12,
+        "finalSpreadPips": 1.0000000000019327
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788919200000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 153.552,
+          "fastEma": 153.86912269682983,
+          "slowEma": 154.40094786046907,
+          "adx": 35.80275281373807,
+          "pdi": 14.34145892513184,
+          "mdi": 34.041222568144725,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 153.552,
+          "fastEma": 153.68503984869,
+          "slowEma": 153.82453230994892,
+          "atr": 0.15645192308038788,
+          "rsi": 42.62,
+          "bodyRatio": 0.9285714285714286,
+          "rangeAtr": 1.0738123040755776,
+          "trigger": {
+            "breakoutHigh": 153.832,
+            "breakoutLow": 153.251,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9000000000014552,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1000000000014551,
+          "stopPips": 19.556490385048487,
+          "costToStopRatio": 0.056247311165935863
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 1420
+      }
+    },
+    {
+      "oandaTradeId": "3133",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1788934551544,
+      "exitTime": 1788935461435,
+      "entryPrice": 153.058,
+      "exitPrice": 153.245,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1926,
+      "pnlPips": -18.700000000001182,
+      "units": 113,
+      "isOpen": false,
+      "release": "m15-intraday-v3.1",
+      "initialStopDistance": 0.1827917855457315,
+      "initialStopLossPrice": 153.24079178554572,
+      "initialRiskAud": 0.18834323397574193,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 153.05799999999996,
+        "entrySlippagePips": -2.8421709430404007e-12,
+        "finalSpreadPips": 0.9000000000071395
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788934500000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 153.306,
+          "fastEma": 153.72207622839025,
+          "slowEma": 154.25707117868438,
+          "adx": 38.53830263099162,
+          "pdi": 11.536236292808935,
+          "mdi": 33.598077177510355,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 153.092,
+          "fastEma": 153.43367680874874,
+          "slowEma": 153.62016320272355,
+          "atr": 0.14623342843658768,
+          "rsi": 32.55,
+          "bodyRatio": 0.8693877551019996,
+          "rangeAtr": 1.6754035149100384,
+          "trigger": {
+            "breakoutHigh": 153.488,
+            "breakoutLow": 153.238,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.899999999998613,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.099999999998613,
+          "stopPips": 18.27917855457346,
+          "costToStopRatio": 0.060177758902814175
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 91
+      }
+    },
+    {
+      "oandaTradeId": "3143",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_RANGE_BREAKOUT",
+      "entryTime": 1788955251060,
+      "exitTime": 1788956856617,
+      "entryPrice": 153.21,
+      "exitPrice": 153.409,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1814,
+      "pnlPips": -19.899999999998386,
+      "units": 100,
+      "isOpen": false,
+      "release": "m15-intraday-v3.1",
+      "initialStopDistance": 0.19923905668508723,
+      "initialStopLossPrice": 153.4092390566851,
+      "initialRiskAud": 0.18184824450502365,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 153.21,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.7000000000005002
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788955200000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 153.232,
+          "fastEma": 153.58952870627994,
+          "slowEma": 154.07974718857878,
+          "adx": 39.16514592129721,
+          "pdi": 13.616062587248551,
+          "mdi": 31.178927208493175,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 153.232,
+          "fastEma": 153.44371779375624,
+          "slowEma": 153.5093203844616,
+          "atr": 0.1593912453480703,
+          "rsi": 41.32,
+          "bodyRatio": 0.7709497206704115,
+          "rangeAtr": 1.1230227833976147,
+          "trigger": {
+            "breakoutHigh": 153.73,
+            "breakoutLow": 153.3,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.7000000000005002,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000005002,
+          "stopPips": 19.92390566850879,
+          "costToStopRatio": 0.0451718661478616
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 162
+      }
+    },
+    {
+      "oandaTradeId": "3153",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1788959751358,
+      "exitTime": 1788961350781,
+      "entryPrice": 153.268,
+      "exitPrice": 153.454,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1812,
+      "pnlPips": -18.600000000000705,
+      "units": 107,
+      "isOpen": false,
+      "release": "m15-intraday-v3.1",
+      "initialStopDistance": 0.18619797242922687,
+      "initialStopLossPrice": 153.45419797242923,
+      "initialRiskAud": 0.18169633681932462,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 153.272,
+        "entrySlippagePips": 0.39999999999906777,
+        "finalSpreadPips": 1.0000000000019327
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1788959700000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 153.332,
+          "fastEma": 153.56500216282473,
+          "slowEma": 154.05042376936342,
+          "adx": 39.16815032335166,
+          "pdi": 12.751524268545765,
+          "mdi": 29.19925231091809,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 153.264,
+          "fastEma": 153.40187910911163,
+          "slowEma": 153.4785655359801,
+          "atr": 0.14895837794338246,
+          "rsi": 43.51,
+          "bodyRatio": 0.6603773584903586,
+          "rangeAtr": 0.7116081784960928,
+          "trigger": {
+            "breakoutHigh": 153.584,
+            "breakoutLow": 153.194,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.899999999998613,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.099999999998613,
+          "stopPips": 18.619797242922807,
+          "costToStopRatio": 0.059076905384494005
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 161
+      }
+    },
+    {
+      "oandaTradeId": "3163",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789064258833,
+      "exitTime": 1789073103045,
+      "entryPrice": 1.16132,
+      "exitPrice": 1.16078,
+      "exitReason": "SESSION_CLOSE",
+      "pnlAud": 0.115,
+      "pnlPips": 5.39999999999985,
+      "units": 154,
+      "isOpen": false,
+      "release": "m15-intraday-v3.2",
+      "initialStopDistance": 0.000775371880316511,
+      "initialStopLossPrice": 1.1620953718803164,
+      "initialRiskAud": 0.16847057121732056,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 1.16132,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.9000000000014553
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789064100000,
+        "activeSessions": [
+          "New York"
+        ],
+        "h1": {
+          "close": 1.16196,
+          "fastEma": 1.1627480838394137,
+          "slowEma": 1.162925186245271,
+          "adx": 24.10397286314313,
+          "pdi": 13.228034320929728,
+          "mdi": 29.053797247330618,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 1.16134,
+          "fastEma": 1.1621222417967485,
+          "slowEma": 1.1624916231878404,
+          "atr": 0.0006202975042531458,
+          "rsi": 39.56,
+          "bodyRatio": 0.8823529411763553,
+          "rangeAtr": 1.0962481637238755,
+          "trigger": {
+            "breakoutHigh": 1.16288,
+            "breakoutLow": 1.16166,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.8999999999992347,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.0999999999992347,
+          "stopPips": 7.753718803164322,
+          "costToStopRatio": 0.14186740942298817
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 823
+      }
+    },
+    {
+      "oandaTradeId": "3175",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789092939863,
+      "exitTime": 1789096436553,
+      "entryPrice": 154.474,
+      "exitPrice": 154.328,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1803,
+      "pnlPips": -14.599999999998658,
+      "units": 135,
+      "isOpen": false,
+      "release": "m15-intraday-v3.2",
+      "initialStopDistance": 0.14374441262378923,
+      "initialStopLossPrice": 154.3302555873762,
+      "initialRiskAud": 0.17722955707343443,
+      "entryTelemetry": {
+        "entryReferencePrice": null,
+        "executablePrice": 154.475,
+        "entrySlippagePips": -0.10000000000047748,
+        "finalSpreadPips": 1.2000000000000455
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789092900000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 154.349,
+          "fastEma": 154.1654016050579,
+          "slowEma": 154.00333782758045,
+          "adx": 32.157252542318346,
+          "pdi": 27.932134192970526,
+          "mdi": 13.913501722854335,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 154.442,
+          "fastEma": 154.41032999305705,
+          "slowEma": 154.30419027230235,
+          "atr": 0.11499553009902831,
+          "rsi": 53.53,
+          "bodyRatio": 0.5802469135801884,
+          "rangeAtr": 1.4087504084767466,
+          "trigger": {
+            "breakoutHigh": 154.601,
+            "breakoutLow": 154.208,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 1.2000000000000455,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.4000000000000454,
+          "stopPips": 14.37444126237854,
+          "costToStopRatio": 0.0973950899687622
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 350
+      }
+    },
+    {
+      "oandaTradeId": "3185",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789343611727,
+      "exitTime": 1789345452900,
+      "entryPrice": 153.485,
+      "exitPrice": 153.612,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1577,
+      "pnlPips": -12.699999999998113,
+      "units": 135,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.127223019285708,
+      "initialStopLossPrice": 153.61222301928572,
+      "initialRiskAud": 0.15798524450090182,
+      "entryTelemetry": {
+        "entryReferencePrice": 153.47050000000002,
+        "executablePrice": 153.485,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 1.2000000000000455
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789343100000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 153.687,
+          "fastEma": 153.79070193322775,
+          "slowEma": 153.89630658589812,
+          "adx": 26.590421789766793,
+          "pdi": 17.105472809735442,
+          "mdi": 22.96774348987411,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 153.49,
+          "fastEma": 153.6173042386455,
+          "slowEma": 153.71352492772604,
+          "atr": 0.10177841542857538,
+          "rsi": 38.27,
+          "bodyRatio": 0.84,
+          "rangeAtr": 1.4737898931553965,
+          "trigger": {
+            "breakoutHigh": 153.794,
+            "breakoutLow": 153.396,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.899999999998613,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.099999999998613,
+          "stopPips": 12.722301928571921,
+          "costToStopRatio": 0.08646234039833764
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 184
+      }
+    },
+    {
+      "oandaTradeId": "3195",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789357406559,
+      "exitTime": 1789368647965,
+      "entryPrice": 0.71475,
+      "exitPrice": 0.71385,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2297,
+      "pnlPips": 9.000000000000119,
+      "units": 184,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.71535,
+      "initialRiskAud": 0.15599546829928046,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.714755,
+        "executablePrice": 0.71475,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.7000000000001451
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789356600000,
+        "activeSessions": [
+          "Sydney",
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 0.71523,
+          "fastEma": 0.7164093113855197,
+          "slowEma": 0.7175767532545773,
+          "adx": 39.29668853859033,
+          "pdi": 13.082461816308255,
+          "mdi": 33.90948252915601,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.71499,
+          "fastEma": 0.715309676912611,
+          "slowEma": 0.7159683071356864,
+          "atr": 0.0003988823636124556,
+          "rsi": 40.73,
+          "bodyRatio": 0.7586206896551329,
+          "rangeAtr": 0.7270313918460667,
+          "trigger": {
+            "breakoutHigh": 0.71569,
+            "breakoutLow": 0.71408,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6,
+          "costToStopRatio": 0.15000000000002414
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 901
+      }
+    },
+    {
+      "oandaTradeId": "3207",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789369226746,
+      "exitTime": 1789370188334,
+      "entryPrice": 0.71368,
+      "exitPrice": 0.71428,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1604,
+      "pnlPips": -6.00000000000045,
+      "units": 189,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.71428,
+      "initialRiskAud": 0.16047244869822122,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.713715,
+        "executablePrice": 0.71369,
+        "entrySlippagePips": 0.10000000000065513,
+        "finalSpreadPips": 0.6999999999990348
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789369200000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 0.71376,
+          "fastEma": 0.7158007824367023,
+          "slowEma": 0.7171352044457571,
+          "adx": 41.916166566249856,
+          "pdi": 10.118732887003024,
+          "mdi": 37.00126975282764,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.71376,
+          "fastEma": 0.714713469647944,
+          "slowEma": 0.7153820478837463,
+          "atr": 0.0003682444330164592,
+          "rsi": 28.97,
+          "bodyRatio": 0.6250000000000385,
+          "rangeAtr": 1.9552230405825917,
+          "trigger": {
+            "breakoutHigh": 0.71515,
+            "breakoutLow": 0.71395,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6,
+          "costToStopRatio": 0.15000000000002414
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 89
+      }
+    },
+    {
+      "oandaTradeId": "3217",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789389031920,
+      "exitTime": 1789393700698,
+      "entryPrice": 154.706,
+      "exitPrice": 154.909,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2808,
+      "pnlPips": 20.300000000000296,
+      "units": 154,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.13448078333371427,
+      "initialStopLossPrice": 154.57151921666627,
+      "initialRiskAud": 0.18977541625034494,
+      "entryTelemetry": {
+        "entryReferencePrice": 154.697,
+        "executablePrice": 154.709,
+        "entrySlippagePips": -0.30000000000143245,
+        "finalSpreadPips": 1.099999999999568
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789389000000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 154.58,
+          "fastEma": 154.140511199497,
+          "slowEma": 154.01845672328164,
+          "adx": 26.130597889563642,
+          "pdi": 29.32714701780349,
+          "mdi": 13.063272372998588,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 154.68,
+          "fastEma": 154.50015897091882,
+          "slowEma": 154.2752597780504,
+          "atr": 0.10758462666698274,
+          "rsi": 67.8,
+          "bodyRatio": 0.5297297297297945,
+          "rangeAtr": 1.7195765392452487,
+          "trigger": {
+            "breakoutHigh": 154.696,
+            "breakoutLow": 154.478,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9999999999990905,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1999999999990905,
+          "stopPips": 13.448078333372843,
+          "costToStopRatio": 0.08923207987427931
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 468
+      }
+    },
+    {
+      "oandaTradeId": "3229",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_RANGE_BREAKOUT",
+      "entryTime": 1789394431135,
+      "exitTime": 1789395027207,
+      "entryPrice": 1.15254,
+      "exitPrice": 1.15329,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1682,
+      "pnlPips": -7.500000000000285,
+      "units": 158,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0007542140951204424,
+      "initialStopLossPrice": 1.1532942140951203,
+      "initialRiskAud": 0.16921490638588785,
+      "entryTelemetry": {
+        "entryReferencePrice": 1.152585,
+        "executablePrice": 1.15255,
+        "entrySlippagePips": 0.10000000000065513,
+        "finalSpreadPips": 0.8000000000008002
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789394400000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 1.15254,
+          "fastEma": 1.1561639211896095,
+          "slowEma": 1.1585636295861115,
+          "adx": 58.90665755281552,
+          "pdi": 8.05587360061638,
+          "mdi": 39.95997232505995,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 1.15254,
+          "fastEma": 1.154027700980181,
+          "slowEma": 1.1553110380381655,
+          "atr": 0.0006033712760963237,
+          "rsi": 28.09,
+          "bodyRatio": 0.7394957983193058,
+          "rangeAtr": 1.9722516585460557,
+          "trigger": {
+            "breakoutHigh": 1.15522,
+            "breakoutLow": 1.15294,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9000000000014552,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1000000000014551,
+          "stopPips": 7.542140951204046,
+          "costToStopRatio": 0.1458471814725033
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 61
+      }
+    },
+    {
+      "oandaTradeId": "3239",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789444408106,
+      "exitTime": 1789452850197,
+      "entryPrice": 0.71248,
+      "exitPrice": 0.71248,
+      "exitReason": "BREAKEVEN_STOP",
+      "pnlAud": 0,
+      "pnlPips": 0,
+      "units": 191,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.71308,
+      "initialRiskAud": 0.16244596758096197,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.712515,
+        "executablePrice": 0.71248,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.7000000000001451
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789443900000,
+        "activeSessions": [
+          "Sydney",
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 0.71326,
+          "fastEma": 0.7138454086337234,
+          "slowEma": 0.7151112640434183,
+          "adx": 32.95566683488106,
+          "pdi": 17.08984356882161,
+          "mdi": 32.62146170519127,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.71253,
+          "fastEma": 0.7131919999131162,
+          "slowEma": 0.7134805438108501,
+          "atr": 0.00033483693732793383,
+          "rsi": 33.78,
+          "bodyRatio": 0.5,
+          "rangeAtr": 1.0154196329511176,
+          "trigger": {
+            "breakoutHigh": 0.71342,
+            "breakoutLow": 0.71259,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6,
+          "costToStopRatio": 0.15000000000002414
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 728
+      }
+    },
+    {
+      "oandaTradeId": "3251",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789455507970,
+      "exitTime": 1789457372060,
+      "entryPrice": 0.71184,
+      "exitPrice": 0.71244,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1701,
+      "pnlPips": -5.99999999999934,
+      "units": 200,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.7124400000000001,
+      "initialRiskAud": 0.17025341470609276,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.711905,
+        "executablePrice": 0.7118400000000001,
+        "entrySlippagePips": 1.1102230246251565e-12,
+        "finalSpreadPips": 0.6999999999990348
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789454700000,
+        "activeSessions": [
+          "Sydney",
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 0.71212,
+          "fastEma": 0.7134092601035209,
+          "slowEma": 0.7147783416882689,
+          "adx": 34.66407164842136,
+          "pdi": 14.57176806775343,
+          "mdi": 35.37383046146649,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.7119,
+          "fastEma": 0.7124469559365381,
+          "slowEma": 0.7129637632461334,
+          "atr": 0.0003457105712212931,
+          "rsi": 35.75,
+          "bodyRatio": 0.8888888888887861,
+          "rangeAtr": 1.0413335025546184,
+          "trigger": {
+            "breakoutHigh": 0.71245,
+            "breakoutLow": 0.71175,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6,
+          "costToStopRatio": 0.15000000000002414
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 168
+      }
+    },
+    {
+      "oandaTradeId": "3261",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789473633222,
+      "exitTime": 1789475802126,
+      "entryPrice": 154.918,
+      "exitPrice": 154.918,
+      "exitReason": "BREAKEVEN_STOP",
+      "pnlAud": 0,
+      "pnlPips": 0,
+      "units": 127,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.15057587905380387,
+      "initialStopLossPrice": 154.7674241209462,
+      "initialRiskAud": 0.17490621132104583,
+      "entryTelemetry": {
+        "entryReferencePrice": 154.918,
+        "executablePrice": 154.918,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.8000000000009777
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789473600000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 154.9,
+          "fastEma": 154.68983564020607,
+          "slowEma": 154.4256642061097,
+          "adx": 23.42787487966865,
+          "pdi": 27.45879512554522,
+          "mdi": 16.699829038508522,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 154.9,
+          "fastEma": 154.85818371479323,
+          "slowEma": 154.77235569264437,
+          "atr": 0.1204607032430438,
+          "rsi": 53.74,
+          "bodyRatio": 0.7086614173229668,
+          "rangeAtr": 1.05428572622346,
+          "trigger": {
+            "breakoutHigh": 154.992,
+            "breakoutLow": 154.698,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.8000000000009777,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.0000000000009777,
+          "stopPips": 15.057587905380473,
+          "costToStopRatio": 0.06641169928974157
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 218
+      }
+    },
+    {
+      "oandaTradeId": "3273",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789479033286,
+      "exitTime": 1789480650103,
+      "entryPrice": 155.065,
+      "exitPrice": 154.911,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1829,
+      "pnlPips": -15.399999999999636,
+      "units": 130,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.15387259330452707,
+      "initialStopLossPrice": 154.91112740669547,
+      "initialRiskAud": 0.18279301090551806,
+      "entryTelemetry": {
+        "entryReferencePrice": 155.06,
+        "executablePrice": 155.066,
+        "entrySlippagePips": -0.10000000000047748,
+        "finalSpreadPips": 0.8000000000009777
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789479000000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 154.97,
+          "fastEma": 154.71651796018642,
+          "slowEma": 154.44701070814736,
+          "adx": 24.177909284104256,
+          "pdi": 31.109857557333594,
+          "mdi": 15.347604268731178,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 155.063,
+          "fastEma": 154.9212357301352,
+          "slowEma": 154.82008191972847,
+          "atr": 0.12309807464362171,
+          "rsi": 62.07,
+          "bodyRatio": 0.6971830985914957,
+          "rangeAtr": 1.1535517546565752,
+          "trigger": {
+            "breakoutHigh": 155.088,
+            "breakoutLow": 154.698,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9999999999990905,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1999999999990905,
+          "stopPips": 15.387259330452713,
+          "costToStopRatio": 0.07798659749785246
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 163
+      }
+    },
+    {
+      "oandaTradeId": "3283",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789484432990,
+      "exitTime": 1789505109036,
+      "entryPrice": 155.091,
+      "exitPrice": 155.132,
+      "exitReason": "SESSION_CLOSE",
+      "pnlAud": 0.0429,
+      "pnlPips": 4.099999999999682,
+      "units": 117,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.15682947189117158,
+      "initialStopLossPrice": 154.93417052810884,
+      "initialRiskAud": 0.16760759009210988,
+      "entryTelemetry": {
+        "entryReferencePrice": 155.0995,
+        "executablePrice": 155.091,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.7000000000005002
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789484400000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 155.087,
+          "fastEma": 154.77485030300974,
+          "slowEma": 154.4923409118414,
+          "adx": 25.97129409725408,
+          "pdi": 28.91662149565279,
+          "mdi": 13.328238088572629,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 155.087,
+          "fastEma": 154.96470435444888,
+          "slowEma": 154.8616601447746,
+          "atr": 0.12546357751294404,
+          "rsi": 62.22,
+          "bodyRatio": 0.5480769230768863,
+          "rangeAtr": 0.8289258290060743,
+          "trigger": {
+            "breakoutHigh": 155.166,
+            "breakoutLow": 154.833,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9000000000014552,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1000000000014551,
+          "stopPips": 15.682947189118003,
+          "costToStopRatio": 0.07013987783907842
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 2031
+      }
+    },
+    {
+      "oandaTradeId": "3295",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_RANGE_BREAKOUT",
+      "entryTime": 1789514733185,
+      "exitTime": 1789515462138,
+      "entryPrice": 155.145,
+      "exitPrice": 155.275,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2559,
+      "pnlPips": 12.999999999999545,
+      "units": 220,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.08436861139460916,
+      "initialStopLossPrice": 155.0606313886054,
+      "initialRiskAud": 0.16951921050043658,
+      "entryTelemetry": {
+        "entryReferencePrice": 155.14249999999998,
+        "executablePrice": 155.145,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 1.0000000000019327
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789514100000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 155.122,
+          "fastEma": 154.96270330086423,
+          "slowEma": 154.66290915182688,
+          "adx": 32.66067715669853,
+          "pdi": 25.459328232107353,
+          "mdi": 12.23772695680207,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 155.186,
+          "fastEma": 155.11665922838716,
+          "slowEma": 155.05216409178902,
+          "atr": 0.06749488911568205,
+          "rsi": 59.8,
+          "bodyRatio": 0.7032967032965626,
+          "rangeAtr": 1.3482502333478885,
+          "trigger": {
+            "breakoutHigh": 155.177,
+            "breakoutLow": 155.023,
+            "longBreakout": true,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.899999999998613,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.099999999998613,
+          "stopPips": 8.436861139460255,
+          "costToStopRatio": 0.13038024234555376
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 74
+      }
+    },
+    {
+      "oandaTradeId": "3307",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789517908196,
+      "exitTime": 1789534865655,
+      "entryPrice": 0.71243,
+      "exitPrice": 0.71303,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1623,
+      "pnlPips": -6.00000000000045,
+      "units": 191,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.71303,
+      "initialRiskAud": 0.16245736777809797,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.712465,
+        "executablePrice": 0.71243,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.7000000000001451
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789517700000,
+        "activeSessions": [
+          "Sydney",
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 0.71253,
+          "fastEma": 0.7129881005391482,
+          "slowEma": 0.713804992678092,
+          "adx": 23.40875981747941,
+          "pdi": 11.546814780381453,
+          "mdi": 21.56841494721476,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.71237,
+          "fastEma": 0.7128249403023691,
+          "slowEma": 0.7128866560806704,
+          "atr": 0.0002561755324794531,
+          "rsi": 35.72,
+          "bodyRatio": 0.36170212765960463,
+          "rangeAtr": 1.834679508425214,
+          "trigger": {
+            "breakoutHigh": 0.71333,
+            "breakoutLow": 0.71244,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6,
+          "costToStopRatio": 0.15000000000002414
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 1379
+      }
+    },
+    {
+      "oandaTradeId": "3317",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789565433717,
+      "exitTime": 1789568433377,
+      "entryPrice": 155.292,
+      "exitPrice": 155.173,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.176,
+      "pnlPips": -11.899999999999977,
+      "units": 162,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.11865726822631473,
+      "initialStopLossPrice": 155.1733427317737,
+      "initialRiskAud": 0.17536697518469432,
+      "entryTelemetry": {
+        "entryReferencePrice": 155.285,
+        "executablePrice": 155.288,
+        "entrySlippagePips": 0.39999999999906777,
+        "finalSpreadPips": 0.9000000000014552
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789565400000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 155.222,
+          "fastEma": 155.11439068981443,
+          "slowEma": 154.88595194991433,
+          "adx": 23.60509743612426,
+          "pdi": 21.658019464454565,
+          "mdi": 20.926222933670104,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 155.296,
+          "fastEma": 155.14090001209686,
+          "slowEma": 155.14026225384174,
+          "atr": 0.09492581458105766,
+          "rsi": 64.35,
+          "bodyRatio": 0.7884615384615911,
+          "rangeAtr": 1.0955923892670822,
+          "trigger": {
+            "breakoutHigh": 155.274,
+            "breakoutLow": 154.944,
+            "longBreakout": true,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9999999999990905,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1999999999990905,
+          "stopPips": 11.865726822632206,
+          "costToStopRatio": 0.10113160516305324
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 301
+      }
+    },
+    {
+      "oandaTradeId": "3327",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789607552114,
+      "exitTime": 1789608606993,
+      "entryPrice": 156.206,
+      "exitPrice": 156.052,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.177,
+      "pnlPips": -15.399999999999636,
+      "units": 126,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.15335571923807834,
+      "initialStopLossPrice": 156.0526442807619,
+      "initialRiskAud": 0.17617737845846673,
+      "entryTelemetry": {
+        "entryReferencePrice": 156.20749999999998,
+        "executablePrice": 156.208,
+        "entrySlippagePips": -0.20000000000095497,
+        "finalSpreadPips": 0.899999999998613
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789606800000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 156.208,
+          "fastEma": 155.64390339721825,
+          "slowEma": 155.22928213720158,
+          "adx": 28.096683858692035,
+          "pdi": 34.6519006749598,
+          "mdi": 19.86044967586003,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 156.208,
+          "fastEma": 156.07508917668858,
+          "slowEma": 155.80406691580114,
+          "atr": 0.1226845753904716,
+          "rsi": 60.67,
+          "bodyRatio": 0.6905829596411984,
+          "rangeAtr": 1.8176694119066306,
+          "trigger": {
+            "breakoutHigh": 156.29,
+            "breakoutLow": 155.876,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 1.0000000000019327,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.2000000000019326,
+          "stopPips": 15.33557192380895,
+          "costToStopRatio": 0.07824944553511536
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 106
+      }
+    },
+    {
+      "oandaTradeId": "3337",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1789733729507,
+      "exitTime": 1789736446154,
+      "entryPrice": 157.905,
+      "exitPrice": 157.674,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1871,
+      "pnlPips": -23.099999999999454,
+      "units": 90,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.23132601108582662,
+      "initialStopLossPrice": 157.67367398891417,
+      "initialRiskAud": 0.18714430943878302,
+      "entryTelemetry": {
+        "entryReferencePrice": 157.89749999999998,
+        "executablePrice": 157.905,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 1.2000000000000455
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1789733700000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 157.834,
+          "fastEma": 156.91867850685415,
+          "slowEma": 156.25052306663744,
+          "adx": 29.340290585525633,
+          "pdi": 32.30667125568062,
+          "mdi": 14.690747869509293,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 157.898,
+          "fastEma": 157.69967646383682,
+          "slowEma": 157.24064227254695,
+          "atr": 0.18506080886865917,
+          "rsi": 63.73,
+          "bodyRatio": 0.39393939393939914,
+          "rangeAtr": 0.8915988264003286,
+          "trigger": {
+            "breakoutHigh": 158.012,
+            "breakoutLow": 157.679,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 1.099999999999568,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.299999999999568,
+          "stopPips": 23.132601108582396,
+          "costToStopRatio": 0.05619774420945929
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 1,
+        "lifetimeStatus": null,
+        "maxFavorableR": null,
+        "maxAdverseR": null,
+        "observations": 273
+      }
+    },
+    {
+      "oandaTradeId": "3347",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790079365123,
+      "exitTime": 1790084614122,
+      "entryPrice": 0.71095,
+      "exitPrice": 0.71157,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1619,
+      "pnlPips": -6.20000000000065,
+      "units": 184,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006162647417997658,
+      "initialStopLossPrice": 0.7115662647417997,
+      "initialRiskAud": 0.16108505342245422,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.710965,
+        "executablePrice": 0.71093,
+        "entrySlippagePips": -0.20000000000020005,
+        "finalSpreadPips": 0.7000000000001451
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790079300000,
+        "activeSessions": [
+          "New York"
+        ],
+        "h1": {
+          "close": 0.71114,
+          "fastEma": 0.7117438406473315,
+          "slowEma": 0.7119865177255899,
+          "adx": 26.931243349058885,
+          "pdi": 10.459158242670298,
+          "mdi": 31.89609781175033,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.71092,
+          "fastEma": 0.7112386031727556,
+          "slowEma": 0.7114892923876227,
+          "atr": 0.0004930117934398533,
+          "rsi": 44.3,
+          "bodyRatio": 0.37931034482763903,
+          "rangeAtr": 1.1764424456322322,
+          "trigger": {
+            "breakoutHigh": 0.71202,
+            "breakoutLow": 0.71101,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6.1626474179981665,
+          "costToStopRatio": 0.14604113118197745
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0.40566980883874976,
+        "maxAdverseR": 0.9087003717989076,
+        "observations": 503
+      }
+    },
+    {
+      "oandaTradeId": "3357",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790088369339,
+      "exitTime": 1790099557202,
+      "entryPrice": 1.14399,
+      "exitPrice": 1.14399,
+      "exitReason": "BREAKEVEN_STOP",
+      "pnlAud": 0,
+      "pnlPips": 0,
+      "units": 160,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0007826552094047923,
+      "initialStopLossPrice": 1.1447726552094049,
+      "initialRiskAud": 0.1780715269653291,
+      "entryTelemetry": {
+        "entryReferencePrice": 1.144075,
+        "executablePrice": 1.14399,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.8999999999992349
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790088300000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 1.14536,
+          "fastEma": 1.1464489028319413,
+          "slowEma": 1.1471229346306744,
+          "adx": 21.71356569707012,
+          "pdi": 11.439863697312038,
+          "mdi": 27.279258718519877,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 1.14412,
+          "fastEma": 1.145595653003405,
+          "slowEma": 1.1460332673753992,
+          "atr": 0.0006261241675237461,
+          "rsi": 32.94,
+          "bodyRatio": 0.7610619469026775,
+          "rangeAtr": 1.8047538469391848,
+          "trigger": {
+            "breakoutHigh": 1.14662,
+            "breakoutLow": 1.14461,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.8999999999992347,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.0999999999992347,
+          "stopPips": 7.826552094046826,
+          "costToStopRatio": 0.1405472022394046
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 1.2649248201554033,
+        "maxAdverseR": 0.5877428457286242,
+        "observations": 1072
+      }
+    },
+    {
+      "oandaTradeId": "3369",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790146985361,
+      "exitTime": 1790149016767,
+      "entryPrice": 0.70918,
+      "exitPrice": 0.70826,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2585,
+      "pnlPips": 9.200000000000319,
+      "units": 201,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.7097800000000001,
+      "initialRiskAud": 0.17174642687999664,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.70926,
+        "executablePrice": 0.7091800000000001,
+        "entrySlippagePips": 1.1102230246251565e-12,
+        "finalSpreadPips": 0.6999999999990348
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790146800000,
+        "activeSessions": [
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 0.70945,
+          "fastEma": 0.7107977953450768,
+          "slowEma": 0.711330655314534,
+          "adx": 29.73569340205518,
+          "pdi": 12.513741167451192,
+          "mdi": 27.33287651244319,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.70945,
+          "fastEma": 0.7102298511017704,
+          "slowEma": 0.7106427550790176,
+          "atr": 0.0003839727332117367,
+          "rsi": 32.86,
+          "bodyRatio": 0.9107142857142964,
+          "rangeAtr": 1.4584368929426046,
+          "trigger": {
+            "breakoutHigh": 0.71057,
+            "breakoutLow": 0.70962,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.5999999999994898,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.7999999999994898,
+          "stopPips": 6,
+          "costToStopRatio": 0.1333333333332483
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 1.4,
+        "maxAdverseR": 0.33333333333327164,
+        "observations": 195
+      }
+    },
+    {
+      "oandaTradeId": "3381",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790172069843,
+      "exitTime": 1790173632880,
+      "entryPrice": 1.13997,
+      "exitPrice": 1.13861,
+      "exitReason": "TAKE_PROFIT",
+      "pnlAud": 0.2718,
+      "pnlPips": 13.60000000000028,
+      "units": 142,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0008992496149180518,
+      "initialStopLossPrice": 1.140869249614918,
+      "initialRiskAud": 0.18301588753828057,
+      "entryTelemetry": {
+        "entryReferencePrice": 1.140075,
+        "executablePrice": 1.13997,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.8000000000008002
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790172000000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 1.1397,
+          "fastEma": 1.1425371424973967,
+          "slowEma": 1.144389313640453,
+          "adx": 45.57751794903777,
+          "pdi": 6.767425731874001,
+          "mdi": 31.140707060732936,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 1.1397,
+          "fastEma": 1.1409765489540304,
+          "slowEma": 1.1419054097030523,
+          "atr": 0.0007193996919345265,
+          "rsi": 38.67,
+          "bodyRatio": 0.6084337349397341,
+          "rangeAtr": 2.3074794423891323,
+          "trigger": {
+            "breakoutHigh": 1.1416,
+            "breakoutLow": 1.14,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.8999999999992347,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.0999999999992347,
+          "stopPips": 8.992496149181582,
+          "costToStopRatio": 0.12232421140367651
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 1.4456497711353764,
+        "maxAdverseR": 0.43369493134078574,
+        "observations": 156
+      }
+    },
+    {
+      "oandaTradeId": "3393",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790173869856,
+      "exitTime": 1790175194930,
+      "entryPrice": 1.13879,
+      "exitPrice": 1.13977,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1841,
+      "pnlPips": -9.799999999999809,
+      "units": 131,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0009707815557202792,
+      "initialStopLossPrice": 1.1397607815557202,
+      "initialRiskAud": 0.1825203156008831,
+      "entryTelemetry": {
+        "entryReferencePrice": 1.13888,
+        "executablePrice": 1.13879,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.8999999999992349
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790173800000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 1.1397,
+          "fastEma": 1.1425371424973967,
+          "slowEma": 1.144389313640453,
+          "adx": 45.57751794903777,
+          "pdi": 6.767425731874001,
+          "mdi": 31.140707060732936,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 1.1384,
+          "fastEma": 1.1406297827038663,
+          "slowEma": 1.1416886154175858,
+          "atr": 0.0007766252445762,
+          "rsi": 32.36,
+          "bodyRatio": 0.9210526315788666,
+          "rangeAtr": 1.9571859279818045,
+          "trigger": {
+            "breakoutHigh": 1.1416,
+            "breakoutLow": 1.1391,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9999999999998899,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1999999999998898,
+          "stopPips": 9.7078155572025,
+          "costToStopRatio": 0.12361174281989487
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0,
+        "maxAdverseR": 0.854981221171104,
+        "observations": 132
+      }
+    },
+    {
+      "oandaTradeId": "3403",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "signal": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790177470814,
+      "exitTime": 1790181418898,
+      "entryPrice": 158.361,
+      "exitPrice": 158.213,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1879,
+      "pnlPips": -14.799999999999613,
+      "units": 140,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.1479613462508098,
+      "initialStopLossPrice": 158.21303865374918,
+      "initialRiskAud": 0.1877424278521489,
+      "entryTelemetry": {
+        "entryReferencePrice": 158.348,
+        "executablePrice": 158.359,
+        "entrySlippagePips": 0.1999999999981128,
+        "finalSpreadPips": 0.8000000000009777
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790177400000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 158.186,
+          "fastEma": 157.76879612808753,
+          "slowEma": 157.50612161889535,
+          "adx": 23.72806366637787,
+          "pdi": 32.69487565220749,
+          "mdi": 9.225052543985074,
+          "longStructure": true,
+          "shortStructure": false,
+          "longRegime": true,
+          "shortRegime": false
+        },
+        "m15": {
+          "close": 158.344,
+          "fastEma": 158.08025547481577,
+          "slowEma": 157.8939011451276,
+          "atr": 0.11836907700065838,
+          "rsi": 67.74,
+          "bodyRatio": 0.6333333333331754,
+          "rangeAtr": 0.7603337145182169,
+          "trigger": {
+            "breakoutHigh": 158.368,
+            "breakoutLow": 157.768,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": true,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 1.0000000000019327,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.2000000000019326,
+          "stopPips": 14.796134625082296,
+          "costToStopRatio": 0.08110226288207067
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0.2230312229254595,
+        "maxAdverseR": 0.9597101107696817,
+        "observations": 394
+      }
+    },
+    {
+      "oandaTradeId": "3413",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790188231378,
+      "exitTime": 1790196304804,
+      "entryPrice": 1.13803,
+      "exitPrice": 1.1383,
+      "exitReason": "SESSION_CLOSE",
+      "pnlAud": -0.0469,
+      "pnlPips": -2.699999999999925,
+      "units": 121,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0010069855279197792,
+      "initialStopLossPrice": 1.1390369855279199,
+      "initialRiskAud": 0.17485607073660428,
+      "entryTelemetry": {
+        "entryReferencePrice": 1.138085,
+        "executablePrice": 1.13803,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 1.0999999999983245
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790188200000,
+        "activeSessions": [
+          "New York"
+        ],
+        "h1": {
+          "close": 1.1392,
+          "fastEma": 1.1414001570714016,
+          "slowEma": 1.1436104959263804,
+          "adx": 52.49040251298446,
+          "pdi": 4.087844459597348,
+          "mdi": 31.217828321928064,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 1.13818,
+          "fastEma": 1.1390489311600331,
+          "slowEma": 1.1403031234747527,
+          "atr": 0.0008055884223357805,
+          "rsi": 41.5,
+          "bodyRatio": 0.770833333333237,
+          "rangeAtr": 1.1916755174020246,
+          "trigger": {
+            "breakoutHigh": 1.13956,
+            "breakoutLow": 1.13702,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.9000000000014552,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.1000000000014551,
+          "stopPips": 10.069855279197256,
+          "costToStopRatio": 0.10923692242865525
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0,
+        "maxAdverseR": 0.8838260087395581,
+        "observations": 720
+      }
+    },
+    {
+      "oandaTradeId": "3425",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790290408578,
+      "exitTime": 1790298500491,
+      "entryPrice": 0.70097,
+      "exitPrice": 0.70157,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1615,
+      "pnlPips": -6.00000000000045,
+      "units": 187,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.70157,
+      "initialRiskAud": 0.16165532707114452,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.701005,
+        "executablePrice": 0.7009699999999999,
+        "entrySlippagePips": -1.1102230246251565e-12,
+        "finalSpreadPips": 0.7000000000012553
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790289900000,
+        "activeSessions": [
+          "Sydney"
+        ],
+        "h1": {
+          "close": 0.70118,
+          "fastEma": 0.7025022085018493,
+          "slowEma": 0.7047806234564105,
+          "adx": 54.24927019967147,
+          "pdi": 10.124482086008262,
+          "mdi": 23.62963932638895,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.70101,
+          "fastEma": 0.7013411215340011,
+          "slowEma": 0.7018695073830375,
+          "atr": 0.00038579474017638905,
+          "rsi": 41.62,
+          "bodyRatio": 0.709677419355012,
+          "rangeAtr": 0.803536097610316,
+          "trigger": {
+            "breakoutHigh": 0.70156,
+            "breakoutLow": 0.70076,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6,
+          "costToStopRatio": 0.15000000000002414
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0.8833333333333179,
+        "maxAdverseR": 0.9500000000000463,
+        "observations": 597
+      }
+    },
+    {
+      "oandaTradeId": "3435",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790305528599,
+      "exitTime": 1790311101233,
+      "entryPrice": 0.70099,
+      "exitPrice": 0.70159,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1399,
+      "pnlPips": -6.00000000000045,
+      "units": 162,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.0006000000000000449,
+      "initialStopLossPrice": 0.70159,
+      "initialRiskAud": 0.14003965696072648,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.700915,
+        "executablePrice": 0.70099,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.7000000000001451
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790305200000,
+        "activeSessions": [
+          "Sydney",
+          "Tokyo"
+        ],
+        "h1": {
+          "close": 0.70095,
+          "fastEma": 0.7018881092630226,
+          "slowEma": 0.70408322584148,
+          "adx": 49.79956232800562,
+          "pdi": 11.968830116356656,
+          "mdi": 24.19508588772029,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.70095,
+          "fastEma": 0.7011563350780303,
+          "slowEma": 0.7014764404977096,
+          "atr": 0.0003422735852303349,
+          "rsi": 44.35,
+          "bodyRatio": 0.6750000000000556,
+          "rangeAtr": 1.1686557691291712,
+          "trigger": {
+            "breakoutHigh": 0.70164,
+            "breakoutLow": 0.70072,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.700000000000145,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.9000000000001449,
+          "stopPips": 6,
+          "costToStopRatio": 0.15000000000002414
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0,
+        "maxAdverseR": 0.9666666666666358,
+        "observations": 440
+      }
+    },
+    {
+      "oandaTradeId": "3445",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790352933881,
+      "exitTime": 1790357848759,
+      "entryPrice": 157.125,
+      "exitPrice": 157.375,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.185,
+      "pnlPips": -25,
+      "units": 81,
+      "isOpen": false,
+      "release": "m15-intraday-v3.3",
+      "initialStopDistance": 0.2504485525353459,
+      "initialStopLossPrice": 157.37544855253535,
+      "initialRiskAud": 0.18528425660001593,
+      "entryTelemetry": {
+        "entryReferencePrice": 157.134,
+        "executablePrice": 157.126,
+        "entrySlippagePips": 0.10000000000047748,
+        "finalSpreadPips": 0.9999999999990905
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790352900000,
+        "activeSessions": [
+          "New York"
+        ],
+        "h1": {
+          "close": 157.176,
+          "fastEma": 157.92743990880953,
+          "slowEma": 158.0964667934774,
+          "adx": 41.55770582738521,
+          "pdi": 6.058534735664213,
+          "mdi": 34.38015644236696,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 157.098,
+          "fastEma": 157.3994244426042,
+          "slowEma": 157.74346488973134,
+          "atr": 0.20035884202827625,
+          "rsi": 36.41,
+          "bodyRatio": 0.36574074074063107,
+          "rangeAtr": 1.0780657235457796,
+          "trigger": {
+            "breakoutHigh": 157.472,
+            "breakoutLow": 157.01,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 1.2000000000000455,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.4000000000000454,
+          "stopPips": 25.044855253534532,
+          "costToStopRatio": 0.05589970418385493
+        },
+        "reentry": null,
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0.13974926045961883,
+        "maxAdverseR": 0.9862304952437482,
+        "observations": 492
+      }
+    },
+    {
+      "oandaTradeId": "3455",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_RANGE_BREAKOUT",
+      "entryTime": 1790595034773,
+      "exitTime": 1790598541624,
+      "entryPrice": 156.884,
+      "exitPrice": 157.078,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1794,
+      "pnlPips": -19.400000000001683,
+      "units": 101,
+      "isOpen": false,
+      "release": "m15-intraday-v4.1",
+      "initialStopDistance": 0.19400000000001683,
+      "initialStopLossPrice": 157.078,
+      "initialRiskAud": 0.1798333442151616,
+      "entryTelemetry": {
+        "entryReferencePrice": 156.88549999999998,
+        "executablePrice": 156.884,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 1.0000000000019327
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790595000000,
+        "activeSessions": [
+          "London"
+        ],
+        "h1": {
+          "close": 157.031,
+          "fastEma": 157.4443642173695,
+          "slowEma": 157.72120135738248,
+          "adx": 34.85451727356229,
+          "pdi": 12.258965303320787,
+          "mdi": 35.88340918345606,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 156.884,
+          "fastEma": 157.13915998580066,
+          "slowEma": 157.331875864133,
+          "atr": 0.15497071294773243,
+          "rsi": 36.47,
+          "bodyRatio": 0.9509803921570417,
+          "rangeAtr": 1.3163777601564186,
+          "pullbackWindow": [
+            {
+              "time": "2026-09-28T10:15:00.000000000Z",
+              "high": 157.15,
+              "low": 157.034
+            },
+            {
+              "time": "2026-09-28T10:30:00.000000000Z",
+              "high": 157.129,
+              "low": 157.048
+            },
+            {
+              "time": "2026-09-28T10:45:00.000000000Z",
+              "high": 157.132,
+              "low": 157.011
+            },
+            {
+              "time": "2026-09-28T11:00:00.000000000Z",
+              "high": 157.112,
+              "low": 156.993
+            }
+          ],
+          "pullbackSequence": {
+            "definition": "bar-aligned-pullback-resumption-v1",
+            "bars": [
+              {
+                "time": "2026-09-28T10:15:00.000000000Z",
+                "high": 157.15,
+                "low": 157.034,
+                "close": 157.077,
+                "fastEma": 157.1982057626821,
+                "slowEma": 157.38526535224867,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-28T10:30:00.000000000Z",
+                "high": 157.129,
+                "low": 157.048,
+                "close": 157.117,
+                "fastEma": 157.19047188052193,
+                "slowEma": 157.37474514235655,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-28T10:45:00.000000000Z",
+                "high": 157.132,
+                "low": 157.011,
+                "close": 157.031,
+                "fastEma": 157.17528408237698,
+                "slowEma": 157.36126494069552,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-28T11:00:00.000000000Z",
+                "high": 157.112,
+                "low": 156.993,
+                "close": 157.078,
+                "fastEma": 157.16601893167442,
+                "slowEma": 157.35015651164863,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              }
+            ],
+            "long": {
+              "touchTimes": [
+                "2026-09-28T10:15:00.000000000Z",
+                "2026-09-28T10:30:00.000000000Z",
+                "2026-09-28T10:45:00.000000000Z",
+                "2026-09-28T11:00:00.000000000Z"
+              ],
+              "latestTouchTime": "2026-09-28T11:00:00.000000000Z",
+              "resumptionStartTime": "2026-09-28T10:45:00.000000000Z",
+              "resumptionBoundary": 157.132,
+              "structureHeld": false,
+              "resumed": false,
+              "qualifies": false
+            },
+            "short": {
+              "touchTimes": [],
+              "latestTouchTime": null,
+              "resumptionStartTime": "2026-09-28T10:45:00.000000000Z",
+              "resumptionBoundary": 156.993,
+              "structureHeld": true,
+              "resumed": true,
+              "qualifies": false
+            },
+            "legacy": {
+              "longPullback": false,
+              "shortPullback": true,
+              "fastEmaAtSignal": 157.13915998580066,
+              "slowEmaAtSignal": 157.331875864133,
+              "resumptionHigh": 157.132,
+              "resumptionLow": 156.993
+            }
+          },
+          "triggerCombination": "breakout_only",
+          "trigger": {
+            "breakoutHigh": 157.15,
+            "breakoutLow": 156.95,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 1.099999999999568,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.299999999999568,
+          "stopPips": 19.371339118466555,
+          "costToStopRatio": 0.06710945443933133
+        },
+        "reentry": {
+          "version": 1,
+          "originalSide": "SELL",
+          "executedSide": "SELL",
+          "latestClosedTradeId": "ce072278-767b-472b-906e-3d352b47dfea",
+          "anchor": {
+            "tradeId": "ce072278-767b-472b-906e-3d352b47dfea",
+            "brokerTradeId": "3445",
+            "side": "SELL",
+            "exitReason": "STOP_LOSS",
+            "closedAt": 1790357848759
+          },
+          "fadeConsumed": false,
+          "freshTouch": false,
+          "freshTouchTimes": [],
+          "signalFastEma": 157.13915998580066,
+          "signalCandleTime": "2026-09-28T11:15:00.000000000Z",
+          "pullbackWindow": [
+            {
+              "time": "2026-09-28T10:15:00.000000000Z",
+              "high": 157.15,
+              "low": 157.034
+            },
+            {
+              "time": "2026-09-28T10:30:00.000000000Z",
+              "high": 157.129,
+              "low": 157.048
+            },
+            {
+              "time": "2026-09-28T10:45:00.000000000Z",
+              "high": 157.132,
+              "low": 157.011
+            },
+            {
+              "time": "2026-09-28T11:00:00.000000000Z",
+              "high": 157.112,
+              "low": 156.993
+            }
+          ],
+          "classification": "NORMAL",
+          "allowed": true,
+          "originalEntryType": "M15_RANGE_BREAKOUT"
+        },
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0.11340206185561573,
+        "maxAdverseR": 0.9123711340206473,
+        "observations": 350
+      }
+    },
+    {
+      "oandaTradeId": "3465",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "entryTime": 1790603134863,
+      "exitTime": 1790605611444,
+      "entryPrice": 157.061,
+      "exitPrice": 157.245,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1716,
+      "pnlPips": -18.39999999999975,
+      "units": 102,
+      "isOpen": false,
+      "release": "m15-intraday-v4.1",
+      "initialStopDistance": 0.18299999999999272,
+      "initialStopLossPrice": 157.244,
+      "initialRiskAud": 0.1708744197668512,
+      "entryTelemetry": {
+        "entryReferencePrice": 157.05349999999999,
+        "executablePrice": 157.06,
+        "entrySlippagePips": -0.10000000000047748,
+        "finalSpreadPips": 1.099999999999568
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790603100000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 157.163,
+          "fastEma": 157.37677887181496,
+          "slowEma": 157.67104515883585,
+          "adx": 36.43151375916331,
+          "pdi": 13.658332636392874,
+          "mdi": 32.62731160437553,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 157.05,
+          "fastEma": 157.11300088612074,
+          "slowEma": 157.25772447955882,
+          "atr": 0.1465037536942545,
+          "rsi": 44.86,
+          "bodyRatio": 0.7236842105262813,
+          "rangeAtr": 1.0375160783743649,
+          "pullbackWindow": [
+            {
+              "time": "2026-09-28T12:30:00.000000000Z",
+              "high": 157.22,
+              "low": 157.045
+            },
+            {
+              "time": "2026-09-28T12:45:00.000000000Z",
+              "high": 157.246,
+              "low": 157.132
+            },
+            {
+              "time": "2026-09-28T13:00:00.000000000Z",
+              "high": 157.258,
+              "low": 157.16
+            },
+            {
+              "time": "2026-09-28T13:15:00.000000000Z",
+              "high": 157.224,
+              "low": 157.136
+            }
+          ],
+          "pullbackSequence": {
+            "definition": "bar-aligned-pullback-resumption-v1",
+            "bars": [
+              {
+                "time": "2026-09-28T12:30:00.000000000Z",
+                "high": 157.22,
+                "low": 157.045,
+                "close": 157.188,
+                "fastEma": 157.10166542102684,
+                "slowEma": 157.2783451121445,
+                "longTouch": true,
+                "shortTouch": true,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-28T12:45:00.000000000Z",
+                "high": 157.246,
+                "low": 157.132,
+                "close": 157.163,
+                "fastEma": 157.10750680950048,
+                "slowEma": 157.27382177441336,
+                "longTouch": false,
+                "shortTouch": true,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-28T13:00:00.000000000Z",
+                "high": 157.258,
+                "low": 157.16,
+                "close": 157.188,
+                "fastEma": 157.1151728276433,
+                "slowEma": 157.27045621463245,
+                "longTouch": false,
+                "shortTouch": true,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-28T13:15:00.000000000Z",
+                "high": 157.224,
+                "low": 157.136,
+                "close": 157.162,
+                "fastEma": 157.11963255834397,
+                "slowEma": 157.2662030297449,
+                "longTouch": false,
+                "shortTouch": true,
+                "longStructure": false,
+                "shortStructure": true
+              }
+            ],
+            "long": {
+              "touchTimes": [
+                "2026-09-28T12:30:00.000000000Z"
+              ],
+              "latestTouchTime": "2026-09-28T12:30:00.000000000Z",
+              "resumptionStartTime": "2026-09-28T12:30:00.000000000Z",
+              "resumptionBoundary": 157.258,
+              "structureHeld": false,
+              "resumed": false,
+              "qualifies": false
+            },
+            "short": {
+              "touchTimes": [
+                "2026-09-28T12:30:00.000000000Z",
+                "2026-09-28T12:45:00.000000000Z",
+                "2026-09-28T13:00:00.000000000Z",
+                "2026-09-28T13:15:00.000000000Z"
+              ],
+              "latestTouchTime": "2026-09-28T13:15:00.000000000Z",
+              "resumptionStartTime": "2026-09-28T13:00:00.000000000Z",
+              "resumptionBoundary": 157.136,
+              "structureHeld": true,
+              "resumed": true,
+              "qualifies": true
+            },
+            "legacy": {
+              "longPullback": false,
+              "shortPullback": true,
+              "fastEmaAtSignal": 157.11300088612074,
+              "slowEmaAtSignal": 157.25772447955882,
+              "resumptionHigh": 157.258,
+              "resumptionLow": 157.136
+            }
+          },
+          "triggerCombination": "pullback_only",
+          "trigger": {
+            "breakoutHigh": 157.258,
+            "breakoutLow": 156.85,
+            "longBreakout": false,
+            "shortBreakout": false,
+            "longPullback": false,
+            "shortPullback": true
+          }
+        },
+        "costs": {
+          "spreadPips": 0.699999999997658,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 0.899999999997658,
+          "stopPips": 18.312969211781812,
+          "costToStopRatio": 0.049145498449188404
+        },
+        "reentry": {
+          "version": 1,
+          "originalSide": "SELL",
+          "executedSide": "SELL",
+          "latestClosedTradeId": "ab4bd75e-94cf-40aa-8d84-206de3247a93",
+          "anchor": {
+            "tradeId": "ab4bd75e-94cf-40aa-8d84-206de3247a93",
+            "brokerTradeId": "3455",
+            "side": "SELL",
+            "exitReason": "STOP_LOSS",
+            "closedAt": 1790598541624
+          },
+          "fadeConsumed": false,
+          "freshTouch": false,
+          "freshTouchTimes": [],
+          "signalFastEma": 157.11300088612074,
+          "signalCandleTime": "2026-09-28T13:30:00.000000000Z",
+          "pullbackWindow": [
+            {
+              "time": "2026-09-28T12:30:00.000000000Z",
+              "high": 157.22,
+              "low": 157.045
+            },
+            {
+              "time": "2026-09-28T12:45:00.000000000Z",
+              "high": 157.246,
+              "low": 157.132
+            },
+            {
+              "time": "2026-09-28T13:00:00.000000000Z",
+              "high": 157.258,
+              "low": 157.16
+            },
+            {
+              "time": "2026-09-28T13:15:00.000000000Z",
+              "high": 157.224,
+              "low": 157.136
+            }
+          ],
+          "classification": "NORMAL",
+          "allowed": true,
+          "originalEntryType": "M15_PULLBACK_RESUMPTION"
+        },
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0.04371584699459068,
+        "maxAdverseR": 0.9289617486338484,
+        "observations": 247
+      }
+    },
+    {
+      "oandaTradeId": "3475",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_RANGE_BREAKOUT",
+      "entryTime": 1790683212435,
+      "exitTime": 1790684038006,
+      "entryPrice": 157.171,
+      "exitPrice": 157.172,
+      "exitReason": "BREAKEVEN_STOP",
+      "pnlAud": -0.0011,
+      "pnlPips": -0.10000000000047748,
+      "units": 123,
+      "isOpen": false,
+      "release": "m15-intraday-v4.1",
+      "initialStopDistance": 0.1560000000000059,
+      "initialStopLossPrice": 157.327,
+      "initialRiskAud": 0.17609188223110267,
+      "entryTelemetry": {
+        "entryReferencePrice": 157.175,
+        "executablePrice": 157.173,
+        "entrySlippagePips": 0.20000000000095497,
+        "finalSpreadPips": 0.9999999999990905
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790683200000,
+        "activeSessions": [
+          "London",
+          "New York"
+        ],
+        "h1": {
+          "close": 157.164,
+          "fastEma": 157.38258915624064,
+          "slowEma": 157.5000396974626,
+          "adx": 24.480380173309342,
+          "pdi": 15.255994120094087,
+          "mdi": 21.58180036318543,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 157.164,
+          "fastEma": 157.36248341084885,
+          "slowEma": 157.37864417320495,
+          "atr": 0.12514314926226175,
+          "rsi": 38.9,
+          "bodyRatio": 0.5977011494254394,
+          "rangeAtr": 1.3904077132926183,
+          "pullbackWindow": [
+            {
+              "time": "2026-09-29T10:45:00.000000000Z",
+              "high": 157.418,
+              "low": 157.196
+            },
+            {
+              "time": "2026-09-29T11:00:00.000000000Z",
+              "high": 157.31,
+              "low": 157.198
+            },
+            {
+              "time": "2026-09-29T11:15:00.000000000Z",
+              "high": 157.296,
+              "low": 157.19
+            },
+            {
+              "time": "2026-09-29T11:30:00.000000000Z",
+              "high": 157.321,
+              "low": 157.229
+            }
+          ],
+          "pullbackSequence": {
+            "definition": "bar-aligned-pullback-resumption-v1",
+            "bars": [
+              {
+                "time": "2026-09-29T10:45:00.000000000Z",
+                "high": 157.418,
+                "low": 157.196,
+                "close": 157.204,
+                "fastEma": 157.42615641550705,
+                "slowEma": 157.40356314003037,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-29T11:00:00.000000000Z",
+                "high": 157.31,
+                "low": 157.198,
+                "close": 157.242,
+                "fastEma": 157.4086177092683,
+                "slowEma": 157.3972273306174,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-29T11:15:00.000000000Z",
+                "high": 157.296,
+                "low": 157.19,
+                "close": 157.27,
+                "fastEma": 157.39541602267133,
+                "slowEma": 157.39223802353436,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-29T11:30:00.000000000Z",
+                "high": 157.321,
+                "low": 157.229,
+                "close": 157.269,
+                "fastEma": 157.38337640146455,
+                "slowEma": 157.38740515986635,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              }
+            ],
+            "long": {
+              "touchTimes": [
+                "2026-09-29T10:45:00.000000000Z",
+                "2026-09-29T11:00:00.000000000Z",
+                "2026-09-29T11:15:00.000000000Z",
+                "2026-09-29T11:30:00.000000000Z"
+              ],
+              "latestTouchTime": "2026-09-29T11:30:00.000000000Z",
+              "resumptionStartTime": "2026-09-29T11:15:00.000000000Z",
+              "resumptionBoundary": 157.321,
+              "structureHeld": false,
+              "resumed": false,
+              "qualifies": false
+            },
+            "short": {
+              "touchTimes": [],
+              "latestTouchTime": null,
+              "resumptionStartTime": "2026-09-29T11:15:00.000000000Z",
+              "resumptionBoundary": 157.19,
+              "structureHeld": true,
+              "resumed": true,
+              "qualifies": false
+            },
+            "legacy": {
+              "longPullback": false,
+              "shortPullback": true,
+              "fastEmaAtSignal": 157.36248341084885,
+              "slowEmaAtSignal": 157.37864417320495,
+              "resumptionHigh": 157.321,
+              "resumptionLow": 157.19
+            }
+          },
+          "triggerCombination": "breakout_only",
+          "trigger": {
+            "breakoutHigh": 157.716,
+            "breakoutLow": 157.19,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 1.0000000000019327,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.2000000000019326,
+          "stopPips": 15.64289365778272,
+          "costToStopRatio": 0.07671214969903624
+        },
+        "reentry": {
+          "version": 1,
+          "originalSide": "SELL",
+          "executedSide": "SELL",
+          "latestClosedTradeId": "f0cbbcf7-866c-4434-a4d3-d61367de2968",
+          "anchor": {
+            "tradeId": "f0cbbcf7-866c-4434-a4d3-d61367de2968",
+            "brokerTradeId": "3465",
+            "side": "SELL",
+            "exitReason": "STOP_LOSS",
+            "closedAt": 1790605611444
+          },
+          "fadeConsumed": false,
+          "freshTouch": false,
+          "freshTouchTimes": [],
+          "signalFastEma": 157.36248341084885,
+          "signalCandleTime": "2026-09-29T11:45:00.000000000Z",
+          "pullbackWindow": [
+            {
+              "time": "2026-09-29T10:45:00.000000000Z",
+              "high": 157.418,
+              "low": 157.196
+            },
+            {
+              "time": "2026-09-29T11:00:00.000000000Z",
+              "high": 157.31,
+              "low": 157.198
+            },
+            {
+              "time": "2026-09-29T11:15:00.000000000Z",
+              "high": 157.296,
+              "low": 157.19
+            },
+            {
+              "time": "2026-09-29T11:30:00.000000000Z",
+              "high": 157.321,
+              "low": 157.229
+            }
+          ],
+          "classification": "NORMAL",
+          "allowed": true,
+          "originalEntryType": "M15_RANGE_BREAKOUT"
+        },
+        "lossReset": null
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 1.1410256410255804,
+        "maxAdverseR": 0.07692307692307693,
+        "observations": 83
+      }
+    },
+    {
+      "oandaTradeId": "3487",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "signal": "SELL",
+      "entryType": "M15_RANGE_BREAKOUT",
+      "entryTime": 1790775951138,
+      "exitTime": 1790779834656,
+      "entryPrice": 0.69559,
+      "exitPrice": 0.69642,
+      "exitReason": "STOP_LOSS",
+      "pnlAud": -0.1758,
+      "pnlPips": -8.299999999999974,
+      "units": 146,
+      "isOpen": false,
+      "release": "m15-intraday-v4.2",
+      "initialStopDistance": 0.0008099999999999774,
+      "initialStopLossPrice": 0.6964,
+      "initialRiskAud": 0.17170174401912655,
+      "entryTelemetry": {
+        "entryReferencePrice": 0.6956450000000001,
+        "executablePrice": 0.69559,
+        "entrySlippagePips": 0,
+        "finalSpreadPips": 0.8999999999992349
+      },
+      "strategyContext": {
+        "signalCandleCloseTime": 1790775900000,
+        "activeSessions": [
+          "New York"
+        ],
+        "h1": {
+          "close": 0.6972,
+          "fastEma": 0.6977459997283008,
+          "slowEma": 0.6990872034188342,
+          "adx": 22.949974999775456,
+          "pdi": 19.55514634264751,
+          "mdi": 20.628507059077734,
+          "longStructure": false,
+          "shortStructure": true,
+          "longRegime": false,
+          "shortRegime": true
+        },
+        "m15": {
+          "close": 0.69578,
+          "fastEma": 0.6969515813660312,
+          "slowEma": 0.6973183339503602,
+          "atr": 0.0006486277282675686,
+          "rsi": 35.94,
+          "bodyRatio": 0.6590909090909435,
+          "rangeAtr": 1.3567104236360656,
+          "pullbackWindow": [
+            {
+              "time": "2026-09-30T12:30:00.000000000Z",
+              "high": 0.69878,
+              "low": 0.69677
+            },
+            {
+              "time": "2026-09-30T12:45:00.000000000Z",
+              "high": 0.69814,
+              "low": 0.69714
+            },
+            {
+              "time": "2026-09-30T13:00:00.000000000Z",
+              "high": 0.69738,
+              "low": 0.69644
+            },
+            {
+              "time": "2026-09-30T13:15:00.000000000Z",
+              "high": 0.69684,
+              "low": 0.69619
+            }
+          ],
+          "pullbackSequence": {
+            "definition": "bar-aligned-pullback-resumption-v1",
+            "bars": [
+              {
+                "time": "2026-09-30T12:30:00.000000000Z",
+                "high": 0.69878,
+                "low": 0.69677,
+                "close": 0.69798,
+                "fastEma": 0.6972209216906494,
+                "slowEma": 0.697471150278962,
+                "longTouch": true,
+                "shortTouch": true,
+                "longStructure": true,
+                "shortStructure": false
+              },
+              {
+                "time": "2026-09-30T12:45:00.000000000Z",
+                "high": 0.69814,
+                "low": 0.69714,
+                "close": 0.6972,
+                "fastEma": 0.6972189291486828,
+                "slowEma": 0.697460516934689,
+                "longTouch": true,
+                "shortTouch": true,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-30T13:00:00.000000000Z",
+                "high": 0.69738,
+                "low": 0.69644,
+                "close": 0.69653,
+                "fastEma": 0.6971533168488082,
+                "slowEma": 0.6974240260745052,
+                "longTouch": true,
+                "shortTouch": true,
+                "longStructure": false,
+                "shortStructure": true
+              },
+              {
+                "time": "2026-09-30T13:15:00.000000000Z",
+                "high": 0.69684,
+                "low": 0.69619,
+                "close": 0.69633,
+                "fastEma": 0.6970749057203502,
+                "slowEma": 0.6973811230911913,
+                "longTouch": true,
+                "shortTouch": false,
+                "longStructure": false,
+                "shortStructure": true
+              }
+            ],
+            "long": {
+              "touchTimes": [
+                "2026-09-30T12:30:00.000000000Z",
+                "2026-09-30T12:45:00.000000000Z",
+                "2026-09-30T13:00:00.000000000Z",
+                "2026-09-30T13:15:00.000000000Z"
+              ],
+              "latestTouchTime": "2026-09-30T13:15:00.000000000Z",
+              "resumptionStartTime": "2026-09-30T13:00:00.000000000Z",
+              "resumptionBoundary": 0.69738,
+              "structureHeld": false,
+              "resumed": false,
+              "qualifies": false
+            },
+            "short": {
+              "touchTimes": [
+                "2026-09-30T12:30:00.000000000Z",
+                "2026-09-30T12:45:00.000000000Z",
+                "2026-09-30T13:00:00.000000000Z"
+              ],
+              "latestTouchTime": "2026-09-30T13:00:00.000000000Z",
+              "resumptionStartTime": "2026-09-30T13:00:00.000000000Z",
+              "resumptionBoundary": 0.69619,
+              "structureHeld": false,
+              "resumed": true,
+              "qualifies": false
+            },
+            "legacy": {
+              "longPullback": false,
+              "shortPullback": false,
+              "fastEmaAtSignal": 0.6969515813660312,
+              "slowEmaAtSignal": 0.6973183339503602,
+              "resumptionHigh": 0.69738,
+              "resumptionLow": 0.69619
+            }
+          },
+          "triggerCombination": "breakout_only",
+          "trigger": {
+            "breakoutHigh": 0.69878,
+            "breakoutLow": 0.69619,
+            "longBreakout": false,
+            "shortBreakout": true,
+            "longPullback": false,
+            "shortPullback": false
+          }
+        },
+        "costs": {
+          "spreadPips": 0.900000000000345,
+          "expectedSlippagePips": 0.2,
+          "totalCostPips": 1.100000000000345,
+          "stopPips": 8.107846603344607,
+          "costToStopRatio": 0.13567104236365038
+        },
+        "reentry": {
+          "version": 1,
+          "originalSide": "SELL",
+          "executedSide": "SELL",
+          "latestClosedTradeId": "078a691e-39f4-4a2e-8a64-3f6cfd8a333b",
+          "anchor": {
+            "tradeId": "078a691e-39f4-4a2e-8a64-3f6cfd8a333b",
+            "brokerTradeId": "3435",
+            "side": "SELL",
+            "exitReason": "STOP_LOSS",
+            "closedAt": 1790311101233
+          },
+          "fadeConsumed": false,
+          "freshTouch": false,
+          "freshTouchTimes": [],
+          "signalFastEma": 0.6969515813660312,
+          "signalCandleTime": "2026-09-30T13:30:00.000000000Z",
+          "pullbackWindow": [
+            {
+              "time": "2026-09-30T12:30:00.000000000Z",
+              "high": 0.69878,
+              "low": 0.69677
+            },
+            {
+              "time": "2026-09-30T12:45:00.000000000Z",
+              "high": 0.69814,
+              "low": 0.69714
+            },
+            {
+              "time": "2026-09-30T13:00:00.000000000Z",
+              "high": 0.69738,
+              "low": 0.69644
+            },
+            {
+              "time": "2026-09-30T13:15:00.000000000Z",
+              "high": 0.69684,
+              "low": 0.69619
+            }
+          ],
+          "classification": "NORMAL",
+          "allowed": true,
+          "originalEntryType": "M15_RANGE_BREAKOUT"
+        },
+        "lossReset": {
+          "version": 1,
+          "instrument": "AUD_USD",
+          "side": "SELL",
+          "anchor": {
+            "tradeId": "078a691e-39f4-4a2e-8a64-3f6cfd8a333b",
+            "brokerTradeId": "3435",
+            "instrument": "AUD_USD",
+            "side": "SELL",
+            "exitReason": "STOP_LOSS",
+            "closedAt": 1790311101233,
+            "armed": true
+          },
+          "predicateSignature": "96ff2004eb190d692f26",
+          "classification": "H1_RESET_REARMED",
+          "allowed": true,
+          "state": {
+            "version": 1,
+            "anchor": {
+              "tradeId": "078a691e-39f4-4a2e-8a64-3f6cfd8a333b",
+              "brokerTradeId": "3435",
+              "instrument": "AUD_USD",
+              "side": "SELL",
+              "exitReason": "STOP_LOSS",
+              "closedAt": 1790311101233,
+              "armed": true
+            },
+            "predicateSignature": "96ff2004eb190d692f26",
+            "resetAt": 1790316000000,
+            "rearmedAt": 1790546400000,
+            "lastObservedCloseAt": 1790773200000
+          }
+        }
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorableR": 0.5185185185186404,
+        "maxAdverseR": 0.9382716049382767,
+        "observations": 387
+      }
+    }
+  ]
+}
