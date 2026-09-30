@@ -2,7 +2,7 @@
 
 Develop and commit locally, publish to GitHub, then deploy from GitHub to the bot. The bot only consumes published source; never commit, push or make source hotfixes on it.
 
-**Last verified deployment: September 26, 2026.** Read-only inspection confirmed clean revision `5889b66`, including the excursion measurement correction, with release `m15-intraday-v3.3` / strategy `1.1.3` and the existing run/config unchanged. The subsequently authorized [integrated v4 release](../docs/reviews/2026-09-26-integrated-release-specification.md) is implemented and validated locally, but has not been published or deployed. The [current status and decisions](../docs/reviews/2026-09-26-status-and-decisions.md) distinguish these states. Git publication, builds and deployment remain user-managed through the same command below; saved enabled intent/settings and active cooldown deadlines are preserved.
+**September 30:** read-only inspection verified clean deployed v4.1 at `6722838`. The user explicitly authorized publication/build/deployment of the [v4.2 H1 reset release](../docs/reviews/2026-09-30-loss-reset-release.md) through the command below. Its release record separates local validation, publication and verified production delivery. Saved enabled intent/settings and active cooldown deadlines are preserved. This specific authorization supersedes the earlier user-managed restriction for this release.
 
 After publishing the reviewed changes to `main`, run this from your local checkout:
 

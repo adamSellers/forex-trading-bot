@@ -12,6 +12,10 @@ const {
     FADE_ENTRY_TYPE, INTEGRATED_STRATEGY_VERSIONS, isFadeTrade,
     latestClosedTradeForInstrument, evaluateReentryPolicy, sameReentryDecision,
 } = require("../runtime/intradayReentryPolicy");
+const { resolveLossResetEvidence } = require("../runtime/intradayLossResetEvidence");
+const {
+    LOSS_RESET_STRATEGY_VERSION, sameLossResetDecision,
+} = require("../runtime/intradayLossResetPolicy");
 const {
     computeConfigHash,
     normalizeTradingConfig,
@@ -996,6 +1000,34 @@ class LiveTradingEngine extends EventEmitter {
             throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                 "Protected-exit episode changed; await the next ordinary signal scan",
                 { phase: "REENTRY_REVALIDATION", priorReentry: prior, currentReentry: current });
+        }
+    }
+
+    async validateLossResetDecision(signal, config) {
+        if (signal.strategyVersion !== LOSS_RESET_STRATEGY_VERSION || signal.entryType === FADE_ENTRY_TYPE) return;
+        const prior = signal.strategyContext?.lossReset;
+        let history = null;
+        try {
+            history = this.tradeRepository?.getAllTrades
+                ? await this.tradeRepository.getAllTrades({ mode: "live" }) : null;
+        } catch (_error) {
+            // The shared policy rejects unavailable history without affecting
+            // broker-owned stops or the independent management loop.
+        }
+        const current = await resolveLossResetEvidence({
+            instrument: signal.symbol,
+            side: signal.signal,
+            trades: history,
+            historyAvailable: Array.isArray(history),
+            h1Candles: this.dataService?.getCandles?.(signal.symbol, "1h") || [],
+            config,
+            nowMs: Date.now(),
+            signalCandleCloseTime: signal.strategyContext?.signalCandleCloseTime,
+        }, this.brokerLifecycleRepository);
+        if (!prior || !current.allowed || !sameLossResetDecision(prior, current)) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                "Stop-loss reset evidence changed or is unavailable; await the next ordinary signal scan",
+                { phase: "LOSS_RESET_REVALIDATION", priorLossReset: prior || null, currentLossReset: current });
         }
     }
 
@@ -2761,6 +2793,7 @@ class LiveTradingEngine extends EventEmitter {
             if (block) throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 block, { phase: "RECONCILIATION" });
             await this.validateReentryDecision(signal);
+            await this.validateLossResetDecision(signal, config);
             if (this.getOpenTradeByInstrument(symbol)) {
                 throw entryPolicyRejection(ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
                     "Broker reconciliation found an existing position for this instrument",

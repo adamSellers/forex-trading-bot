@@ -2,6 +2,10 @@
 
 This repository runs one automated strategy against one live OANDA account. It has no simulated execution mode, strategy selector, or alternate runtime.
 
+**Authorized September 30 release:** [v4.2 / strategy 1.2.2](docs/reviews/2026-09-30-loss-reset-release.md) adds an H1 reset after a normal initial stop: that pair/direction must stop qualifying on a completed hourly candle, then qualify again on a later hourly candle before another normal M15 entry. Breakeven does not arm this requirement. Validation/publication/deployment progress is recorded in the release record; existing targets, exits and numerical risk limits remain unchanged.
+
+**September 30 observation:** user-deployed v4.1 / strategy 1.2.1 is verified at clean `6722838`; earlier pending-deployment statements below are historical. The [repeated USD/JPY review](docs/reviews/2026-09-30-repeated-usdjpy-review.md) verifies two full stops and one breakeven scratch in the new cohort and explains why ordinary stop-losses leave subsequent same-direction signals eligible. No new strategy rule was introduced by that review.
+
 See the [September 26 follow-up trading review](docs/reviews/2026-09-26-follow-up-trading-review.md) for the next ten trades (−A$0.5369), broker verification and the updated target/re-entry evaluation. The [September 21 review](docs/reviews/2026-09-21-eight-day-trading-review.md), [September 6 production review](docs/reviews/2026-09-06-production-review.md) and [remediation register](docs/reviews/2026-09-06-remediation.md) retain earlier evidence and approved corrections.
 
 Read-only inspection on September 26 verified the [excursion measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) deployed at `5889b66`; all ten new trades have verified version 2 samples. It removes post-close observations and separates unverified legacy data. The [target and re-entry study](docs/reviews/2026-09-21-target-and-reentry-evaluation.md) and its September 26 follow-up preserve the candidate rules and counterexamples reviewed before implementation.

@@ -73,6 +73,7 @@ const runtimeCoordinator = new RuntimeCoordinator({
     entryDecisionRepository,
     strategyRunRepository,
     tradeRepository,
+    brokerLifecycleRepository,
     configService,
     pollIntervalMs: 60000,
 });

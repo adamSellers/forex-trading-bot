@@ -12,6 +12,12 @@ This document records completed and deployed features and dated review milestone
 
 ---
 
+## September 30 checkpoint — initial-stop H1 reset
+
+Read-only inspection verified clean user-deployed v4.1 at `6722838`. The [trade review](docs/reviews/2026-09-30-repeated-usdjpy-review.md) reconciles three current-release sells: two full stops and one broker-protected breakeven scratch. The latter remains an acceptable setup outcome; a tiny negative fill does not make it an initial stop for the new rule.
+
+The user explicitly authorized implementation and deployment of **m15-intraday-v4.2 / strategy 1.2.2 / intraday-risk-v4.2**. A normal initial stop now arms a same-pair/same-direction requirement for completed H1 nonqualification followed by later requalification, using the existing directional predicate. Shared signal/execution checks and durable per-stop evidence preserve this through restart and release changes. Both normal triggers are covered, BUY and SELL are mirrored, and existing exits, TP/BE freshness, fades and numerical risk settings remain unchanged. The [release record](docs/reviews/2026-09-30-loss-reset-release.md) records the exact contract, limitations, test results and delivery status.
+
 ## How to Use This Document
 
 When a feature is **fully completed in code** or **deployed to production**:

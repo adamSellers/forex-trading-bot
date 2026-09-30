@@ -151,6 +151,9 @@ class SignalGenerator extends EventEmitter {
                 marketContext: options.marketContext || null,
                 latestClosedTrade: options.latestClosedTrade,
                 reentryHistoryAvailable: options.reentryHistoryAvailable,
+                lossResetDecisions: options.lossResetDecisions,
+                lossResetTrades: options.lossResetTrades,
+                ownedOpenTrade: options.ownedOpenTrade,
                 nowMs:
                     options.nowMs ??
                     candleTimeMs(candles[candles.length - 1]?.time),

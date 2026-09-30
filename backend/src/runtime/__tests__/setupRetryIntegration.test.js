@@ -16,7 +16,7 @@ jest.mock('../../services/Oandaclient', () => {
         formatPriceBound: client.formatPriceBound.bind(client),
         buildClientExtensions: client.buildClientExtensions.bind(client),
         initialize: jest.fn(async () => ({})),
-        getAccountSummary: jest.fn(), getOpenTrades: jest.fn(), getPricing: jest.fn(), getTrade: jest.fn(),
+        getAccountSummary: jest.fn(), getOpenTrades: jest.fn(), getPricing: jest.fn(), getTrade: jest.fn(), closeTrade: jest.fn(),
         getInstrumentMetadata: jest.fn(), placeMarketOrder: jest.fn(), modifyTrade: jest.fn(),
         findOrderIntent: jest.fn(async () => ({ status: 'AMBIGUOUS' })),
     };
@@ -150,7 +150,8 @@ async function fixture({ direction = 1 } = {}) {
     dataService.oandaRequest = jest.fn(async () => ({ prices: dataService.getPricingInstruments().map(quote), homeConversions }));
     const boot = async () => {
         const coordinator = new RuntimeCoordinator({ configService, dataService, strategyRunRepository,
-            tradeRepository, entryDecisionRepository, signalRepository: { saveBatch: jest.fn(async () => {}) } });
+            tradeRepository, entryDecisionRepository, brokerLifecycleRepository,
+            signalRepository: { saveBatch: jest.fn(async () => {}) } });
         await coordinator.ensureLiveSelectionInitialized();
         const engine = new LiveTradingEngine().init(configService, dataService, tradeRepository,
             coordinator, null, entryDecisionRepository, brokerLifecycleRepository);
@@ -173,7 +174,8 @@ async function fixture({ direction = 1 } = {}) {
         return { coordinator, engine, cycle, drain };
     };
     return { boot, fill, intents, history, configService, tradeRepository, entryDecisionRepository,
-        dataService, brokerTrades, advance: (ms = 60_000) => { now += ms; },
+        dataService, brokerTrades, brokerLifecycleRepository, persistedState,
+        advance: (ms = 60_000) => { now += ms; },
         setQuote: (nextSpread, displacement = displacementPips) => { spread = nextSpread; displacementPips = displacement; } };
 }
 
@@ -341,6 +343,198 @@ describe('reconsidering a locally rejected setup through the live orchestration'
     });
 });
 
+describe('durable same-direction loss reset through live orchestration', () => {
+    beforeEach(() => jest.clearAllMocks());
+    afterEach(() => { liveEngines.splice(0).forEach((engine) => engine.stop()); jest.restoreAllMocks(); });
+
+    function addClosed(state, overrides = {}) {
+        const trade = {
+            id: 'prior-normal-stop', oandaTradeId: 'broker-normal-stop', instrument: pair,
+            mode: 'live', side: 'BUY', isOpen: false, exitReason: 'STOP_LOSS', pnlAud: -0.1,
+            entryType: 'M15_RANGE_BREAKOUT', activeStopType: 'INITIAL_STOP', breakevenHit: false,
+            entryTime: startTime - 4 * 3_600_000, exitTime: startTime - 90 * 60_000,
+            brokerClosedAt: startTime - 90 * 60_000,
+            ownerRunId: 'older-release', runId: 'older-release', ...overrides,
+        };
+        trade.brokerReconciliationPayload = { close: { trade: {
+            id: trade.oandaTradeId, state: 'CLOSED', closeTime: new Date(trade.brokerClosedAt).toISOString(),
+        } } };
+        state.tradeRepository.trades.push(trade);
+        return trade;
+    }
+
+    function makeNeutral(bar) {
+        bar.close -= 0.035;
+        bar.low = Math.min(bar.low, bar.close - 0.001);
+    }
+
+    test('a same-side initial stop from an older release blocks a new valid M15 setup', async () => {
+        const state = await fixture(); addClosed(state); state.setQuote(1);
+        const runtime = await state.boot();
+        const signal = await runtime.cycle();
+        expect(signal).toMatchObject({ signal: 'HOLD', reasonCode: 'INTRADAY_MOMENTUM_WAIT_FOR_H1_RESET' });
+        expect(signal.strategyContext.lossReset.anchor).toMatchObject({ brokerTradeId: 'broker-normal-stop', side: 'BUY' });
+        expect(runtime.coordinator.signalRepository.saveBatch).toHaveBeenCalledWith([signal]);
+        expect([...state.persistedState.keys()].some((key) => key.startsWith('intraday-loss-reset:'))).toBe(true);
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+    });
+
+    test.each([{ side: 'SELL' }, { instrument: 'USD_JPY' }])('a stop in another side or pair does not block a healthy normal entry: %j', async (prior) => {
+        const state = await fixture(); addClosed(state, prior); state.setQuote(1);
+        const runtime = await state.boot();
+        const signal = await runtime.cycle();
+        expect(signal).toMatchObject({ signal: 'BUY', strategyContext: {
+            lossReset: { allowed: true, classification: 'NO_LOSS_RESET_REQUIRED' },
+        } });
+        expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
+    });
+
+    test('actual completed neutral and later qualifying H1 bars permit the next valid M15 entry', async () => {
+        const state = await fixture(); addClosed(state); state.setQuote(1);
+        makeNeutral(state.history.h1.at(-2));
+        const runtime = await state.boot();
+        const signal = await runtime.cycle();
+        expect(signal).toMatchObject({ signal: 'BUY', strategyContext: { lossReset: {
+            allowed: true, classification: 'H1_RESET_REARMED',
+            state: { resetAt: startTime - 3_600_000, rearmedAt: startTime },
+        } } });
+        expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
+        const trade = state.tradeRepository.trades.find((candidate) => candidate.isOpen);
+        expect(trade.brokerReconciliationPayload.liveRuntime.entryTelemetry.strategyContext.lossReset)
+            .toMatchObject({ allowed: true, classification: 'H1_RESET_REARMED' });
+    });
+
+    test('a HOLD persists neutral proof through restart after that bar leaves the H1 cache', async () => {
+        const state = await fixture(); addClosed(state, {
+            brokerClosedAt: startTime - 30 * 60_000, exitTime: startTime - 30 * 60_000,
+        }); state.setQuote(1);
+        makeNeutral(state.history.h1.at(-1));
+        let runtime = await state.boot();
+        expect((await runtime.cycle()).signal).toBe('HOLD');
+        const proof = [...state.persistedState.entries()].find(([key]) => key.startsWith('intraday-loss-reset:'))[1];
+        expect(proof).toMatchObject({ resetAt: startTime, rearmedAt: null });
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+        runtime.engine.stop();
+        const elapsed = 7 * 24 * 3_600_000;
+        state.advance(elapsed);
+        const next = candles(startTime + elapsed);
+        expect(Date.parse(next.h1[0].time)).toBeGreaterThan(startTime);
+        state.dataService.candleCache[`${pair}_M15`] = next.m15;
+        state.dataService.candleCache[`${pair}_H1`] = next.h1;
+        runtime = await state.boot();
+        const signal = await runtime.cycle();
+        expect(signal).toMatchObject({ signal: 'BUY', strategyContext: { lossReset: {
+            allowed: true, classification: 'H1_RESET_REARMED', state: { resetAt: startTime },
+        } } });
+        expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
+    });
+
+    test.each(['getState', 'setState'])('failure to %s required proof cannot authorize an otherwise rearmed entry', async (method) => {
+        const state = await fixture(); addClosed(state); state.setQuote(1);
+        makeNeutral(state.history.h1.at(-2));
+        const original = state.brokerLifecycleRepository[method].getMockImplementation();
+        state.brokerLifecycleRepository[method].mockImplementation(async (key, ...args) => {
+            if (key.startsWith('intraday-loss-reset:')) throw new Error('state storage unavailable');
+            return original(key, ...args);
+        });
+        const runtime = await state.boot();
+        const signal = await runtime.cycle();
+        expect(signal).toMatchObject({ signal: 'HOLD', strategyContext: { lossReset: {
+            allowed: false, classification: 'LOSS_RESET_EVIDENCE_UNAVAILABLE',
+        } } });
+        expect(runtime.engine.isRunning).toBe(true);
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+    });
+
+    test('a same-side stop discovered at execution invalidates a queued signal even when the latest opposite-side close is unchanged', async () => {
+        const state = await fixture(); state.setQuote(1);
+        addClosed(state, { id: 'latest-opposite-close', oandaTradeId: 'latest-opposite-broker', side: 'SELL',
+            exitReason: 'SESSION_CLOSE', brokerClosedAt: startTime - 60_000, exitTime: startTime - 60_000 });
+        const runtime = await state.boot();
+        const sync = runtime.engine._syncWithOanda.bind(runtime.engine);
+        jest.spyOn(runtime.engine, '_syncWithOanda').mockImplementation(async (options) => {
+            await sync(options);
+            addClosed(state, { brokerClosedAt: startTime - 120_000, exitTime: startTime - 120_000 });
+        });
+        const signal = await runtime.cycle();
+        expect(signal.strategyContext.lossReset).toMatchObject({ allowed: true, anchor: null });
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+        expect(state.entryDecisionRepository.decisions.at(-1)).toMatchObject({
+            rejectionCode: 'INVALID_SIGNAL', canReconsider: false,
+            rejectionContext: { phase: 'LOSS_RESET_REVALIDATION' },
+        });
+    });
+
+    test('execution cannot borrow persisted H1 requalification from after the queued M15 signal', async () => {
+        const state = await fixture(); addClosed(state); state.setQuote(1);
+        makeNeutral(state.history.h1.at(-2));
+        const runtime = await state.boot();
+        const execute = runtime.engine._executeEntry.bind(runtime.engine);
+        jest.spyOn(runtime.engine, '_executeEntry').mockImplementation((signal, ...args) => execute({
+            ...signal, strategyContext: { ...signal.strategyContext, signalCandleCloseTime: startTime - 3_600_000 },
+        }, ...args));
+        const signal = await runtime.cycle();
+        expect(signal.strategyContext.lossReset.allowed).toBe(true);
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+        expect(state.entryDecisionRepository.decisions.at(-1)).toMatchObject({
+            rejectionCode: 'INVALID_SIGNAL', rejectionContext: { phase: 'LOSS_RESET_REVALIDATION' },
+        });
+    });
+
+    test.each([
+        { fade: false, unavailable: false },
+        { fade: false, unavailable: true },
+        { fade: true, unavailable: false },
+    ])('loss-reset denial preserves owned normal reversal exits and fade protection: %j', async ({ fade, unavailable }) => {
+        const state = await fixture(); state.setQuote(1);
+        const runtime = await state.boot();
+        await state.dataService.fetchAllPrices();
+        const run = runtime.coordinator.getActiveLiveSession().run;
+        await runtime.engine.executeEntry({ symbol: pair, signal: 'SELL', signalClass: 'ACTIONABLE',
+            intent: 'ENTER_SHORT', currentPrice: state.history.reference, strength: 50,
+            atr: 0.0016, atrPips: 16, entryType: fade ? 'M15_POST_TP_FADE' : 'M15_RANGE_BREAKOUT',
+            strategy: 'intraday_momentum', mode: 'live', runId: run.runId, selectionId: run.selectionId,
+            configHash: run.configHash, tradePlan: { stopPips: 20,
+                stopLossPrice: state.history.reference + 0.002,
+                takeProfitPrice: state.history.reference - 0.003, targetRiskMultiple: 1.5 },
+        }, state.configService.get());
+        expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
+        const owned = state.tradeRepository.trades.find((trade) => trade.isOpen);
+        const broker = copy(state.brokerTrades.get(owned.oandaTradeId));
+        addClosed(state);
+        if (unavailable) {
+            const getState = state.brokerLifecycleRepository.getState.getMockImplementation();
+            state.brokerLifecycleRepository.getState.mockImplementation(async (key) => {
+                if (key.startsWith('intraday-loss-reset:')) throw new Error('loss proof read unavailable');
+                return getState(key);
+            });
+        }
+        oanda.closeTrade.mockImplementation(async (id) => {
+            state.brokerTrades.delete(id);
+            return { orderFillTransaction: { id: 'normal-reversal-close', time: String(Date.now() / 1000),
+                price: String(state.history.reference), tradesClosed: [{ tradeID: id, realizedPL: '0' }] } };
+        });
+        oanda.getTrade.mockResolvedValue({ trade: { ...broker, state: 'CLOSED', currentUnits: '0',
+            closeTime: new Date(Date.now()).toISOString(), averageClosePrice: String(state.history.reference),
+            realizedPL: '0', financing: '0', stopLossOrder: { ...broker.stopLossOrder, state: 'CANCELLED' },
+            takeProfitOrder: { ...broker.takeProfitOrder, state: 'CANCELLED' },
+        } });
+        const signal = await runtime.cycle();
+        expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
+        if (fade) {
+            expect(signal.signal).toBe('HOLD');
+            expect(oanda.closeTrade).not.toHaveBeenCalled();
+            expect(runtime.engine.openTrades.size).toBe(1);
+        } else {
+            expect(signal).toMatchObject({ signal: 'BUY', entryType: 'EXIT_ONLY', intent: 'EXIT_SHORT_ONLY' });
+            expect(oanda.closeTrade).toHaveBeenCalledWith(owned.oandaTradeId);
+            expect(runtime.engine.openTrades.size).toBe(0);
+            expect(state.tradeRepository.trades.find((trade) => trade.id === owned.id))
+                .toMatchObject({ isOpen: false, exitReason: 'SIGNAL_REVERSAL' });
+        }
+    });
+});
+
 // These cases use real indicators, coordinator, signal generator, execution and
 // persistence orchestration. Only the broker transport and durable stores are fixtures.
 describe('integrated protected-exit fade lifecycle', () => {
@@ -480,7 +674,7 @@ describe('integrated protected-exit fade lifecycle', () => {
         expect(signal).toMatchObject({ signal: 'HOLD', reasonCode: 'INTRADAY_MOMENTUM_WAIT_FOR_FRESH_PULLBACK' });
         expect(runtime.coordinator.signalRepository.saveBatch).toHaveBeenCalledWith([signal]);
         expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
-        state.tradeRepository.trades[0].exitReason = 'STOP_LOSS';
+        state.tradeRepository.trades[0].exitReason = 'SESSION_CLOSE';
         state.advance();
         expect((await runtime.cycle()).signal).toBe('BUY');
         expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);

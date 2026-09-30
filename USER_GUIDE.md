@@ -1,5 +1,13 @@
 # Live Trading Operator Guide
 
+## September 30: reset after an initial stop
+
+The authorized [v4.2 release](docs/reviews/2026-09-30-loss-reset-release.md), strategy 1.2.2, adds a condition for repeating a normal trade after a full initial stop-loss. On the same pair and side, the H1 regime must stop qualifying on a completed hourly candle, then qualify again on a later hourly candle before another valid M15 breakout or pullback may enter. The condition is symmetric for buys and sells. A neutral H1 phase is enough; missing data does not prove a reset.
+
+Breakeven exits, including tiny negative fills at the moved stop, do not arm this additional requirement. The existing TP/breakeven freshness and post-TP fade rules still apply. Position sizing, stops, 1.5R targets, +1R breakeven, one position per pair and all numerical risk limits are unchanged. The separate three-negative-P&L cooldown retains its existing behavior.
+
+The dashboard signal reason distinguishes waiting for an H1 reset, waiting for renewed H1 qualification and unavailable reset evidence. A restart or release change does not erase an unfinished reset requirement. The release record distinguishes implementation/testing from actual deployment. Older version-specific sections below remain historical context.
+
 The application now has one job: run `intraday_momentum` against the configured live OANDA account.
 
 ## What the dashboard means

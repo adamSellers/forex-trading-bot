@@ -61,8 +61,8 @@ class ConfigService extends EventEmitter {
                 nextConfig = normalizeTradingConfig(fileConfig);
                 delete nextConfig.tradingMode;
                 if (
-                    ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2", "m15-intraday-v3.3", "m15-intraday-v4"].includes(fileConfig.liveReleaseVersion) &&
-                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v4.1"
+                    ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2", "m15-intraday-v3.3", "m15-intraday-v4", "m15-intraday-v4.1"].includes(fileConfig.liveReleaseVersion) &&
+                    DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v4.2"
                 ) {
                     // Preserve saved entry/exit/risk settings and enabled intent.
                     // The retired account-wide position limit is removed below.

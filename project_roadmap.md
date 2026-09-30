@@ -1,6 +1,12 @@
 # Live Strategy Roadmap
 
-There is one production path and one active strategy. Planned work must improve real execution quality, risk control or the evidence obtained from actual live decisions. The [status and decision register](docs/reviews/2026-09-26-status-and-decisions.md) separates verified deployed v4 from the user-authorized local [v4.1 pair capacity release](docs/reviews/2026-09-28-pair-capacity-release.md). V4.1 is implemented and locally validated; user-managed publication/build/deployment remain pending.
+There is one production path and one active strategy. Planned work must improve real execution quality, risk control or the evidence obtained from actual live decisions. September 30 read-only inspection verified user-deployed v4.1 at clean revision `6722838`. The user then authorized implementation, GitHub publication and deployment of the [v4.2 H1 loss-reset requirement](docs/reviews/2026-09-30-loss-reset-release.md). The release record separates verification from actual delivery; earlier pending deployment notes below are historical checkpoints.
+
+## September 30 loss-reset release
+
+After a normal initial stop, require a completed H1 candle that no longer qualifies in the stopped direction, then a later completed H1 candle that qualifies again, before another normal same-pair/same-side entry. Use the existing complete directional predicate, with no new thresholds; neutral is enough and a full opposite trend is unnecessary. Breakeven exits do not arm this requirement. Persist broker-anchored proof across restart and revalidate before execution. Preserve normal position management, protected-exit freshness, fades, targets, numerical risk limits, saved enabled intent and active cooldown expiry.
+
+Retained evaluated observations block repeat sell 3465 while retaining breakouts 3455 and 3475. This is a conditional policy check, not an alternative portfolio replay or evidence of improved profitability. The [broker-backed diagnostic](docs/reviews/2026-09-30-repeated-usdjpy-review.md) retains the two full losses and breakeven distinction.
 
 ## Verified baseline — September 28
 
@@ -46,7 +52,7 @@ Local identity is **m15-intraday-v4.1 / strategy 1.2.1 / intraday-risk-v4.1**. R
 - S3 destination/reporting remains an unresolved operational choice; incomplete configuration was documented previously and S3 warnings persist. No new notifications or destinations are selected by this review.
 - An independent recovery drill and delivery checks remain outstanding; neither was performed in the latest review. Preserve the existing recovery and single-command deployment workflow.
 
-The [remediation register](docs/reviews/2026-09-06-remediation.md) retains finding → change → rationale → verification history. The user manages Git publication, builds and deployment; `./scripts/deploy.sh` performs its own tests, build, backup and health checks after publication. Develop and test locally, publish to GitHub, then deploy from GitHub. No direct production source edits or new manual deployment gates.
+The [remediation register](docs/reviews/2026-09-06-remediation.md) retains finding → change → rationale → verification history. The user normally manages Git publication, builds and deployment; the specific September 30 v4.2 request authorizes the agent to complete these steps. `./scripts/deploy.sh` performs its own tests, build, backup and health checks after publication. Develop and test locally, publish to GitHub, then deploy from GitHub. No direct production source edits or new manual deployment gates.
 
 ## Permanent constraints
 

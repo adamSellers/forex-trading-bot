@@ -542,7 +542,7 @@ describe("intradayMomentum integrated protected-exit and fade decisions", () => 
         expect(result.signalType).not.toBe(original.signalType);
     });
 
-    test.each([1, -1].flatMap((direction) => ["STOP_LOSS", "SESSION_CLOSE", "TIME_STOP", "OPPOSITE_TP"]
+    test.each([1, -1].flatMap((direction) => ["SESSION_CLOSE", "TIME_STOP", "OPPOSITE_TP"]
         .map((reason) => ({ direction, reason }))))(
         "$reason retains a normal qualifying entry in direction $direction", async ({ direction, reason }) => {
             const fixture = reentryFixture({ direction });
@@ -556,6 +556,69 @@ describe("intradayMomentum integrated protected-exit and fade decisions", () => 
             expect(result.entryType).toBe(original.entryType);
             expect(result.tradePlan).toEqual(original.tradePlan);
             expect(result.strategyContext.reentry.classification).toBe("NORMAL");
+        }
+    );
+
+    test.each([1, -1].flatMap((direction) => ["breakout_only", "pullback_only", "breakout_and_pullback"]
+        .map((trigger) => ({ direction, trigger }))))(
+        "initial stop blocks $trigger without an H1 reset in direction $direction", async ({ direction, trigger }) => {
+            const fixture = reentryFixture({ direction, trigger });
+            const latestClosedTrade = closedTradeForFixture(fixture, { direction, reason: "STOP_LOSS" });
+            const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade });
+            expect(result.signalType).toBe("HOLD");
+            expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_WAIT_FOR_H1_RESET");
+            expect(result.tradePlan).toBeNull();
+            expect(result.strategyContext.reentry.classification).toBe("NORMAL");
+            expect(result.strategyContext.m15.triggerCombination).toBe(trigger);
+            expect(result.strategyContext.lossReset).toMatchObject({
+                allowed: false, side: direction > 0 ? "BUY" : "SELL",
+                anchor: { tradeId: latestClosedTrade.id, armed: true },
+            });
+        }
+    );
+
+    test.each([1, -1])("opposite normal close does not erase the stopped direction %s", async (direction) => {
+        const fixture = reentryFixture({ direction });
+        const stop = closedTradeForFixture(fixture, { direction, reason: "STOP_LOSS", closedAt: fixture.nowMs - 45 * 60_000 });
+        const opposite = { ...closedTradeForFixture(fixture, { direction: -direction, reason: "SESSION_CLOSE" }), id: "opposite-close" };
+        const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade: opposite,
+            lossResetTrades: [stop, opposite] });
+        expect(result.signalType).toBe("HOLD");
+        expect(result.strategyContext.lossReset.anchor.tradeId).toBe(stop.id);
+    });
+
+    test("missing supplied loss evidence cannot silently become a normal entry", async () => {
+        const result = await evaluateIntradayMomentumEntry({ ...reentryFixture(), lossResetDecisions: {} });
+        expect(result.signalType).toBe("HOLD");
+        expect(result.reasonCode).toBe("INTRADAY_MOMENTUM_LOSS_RESET_EVIDENCE_UNAVAILABLE");
+    });
+
+    test("a fade keeps its existing policy when its actual side has a stopped normal trade", async () => {
+        const fixture = reentryFixture();
+        const latestClosedTrade = closedTradeForFixture(fixture);
+        const result = await evaluateIntradayMomentumEntry({ ...fixture, latestClosedTrade,
+            lossResetDecisions: { SELL: { version: 1, instrument: fixture.instrument, side: "SELL",
+                allowed: false, classification: "WAIT_FOR_H1_RESET" } } });
+        expect(result.entryType).toBe("M15_POST_TP_FADE");
+        expect(result.strategyContext.lossReset).toMatchObject({ allowed: true, classification: "FADE_NOT_SUBJECT_TO_LOSS_RESET" });
+    });
+
+    test.each([1, -1].flatMap((direction) => [false, true].map((missingEvidence) => ({ direction, missingEvidence }))))(
+        "loss reset preserves only the existing opposite normal exit direction $direction, missing=$missingEvidence", async ({ direction, missingEvidence }) => {
+            const fixture = reentryFixture({ direction });
+            const latestClosedTrade = closedTradeForFixture(fixture, { direction, reason: "STOP_LOSS" });
+            const ownedOpenTrade = { isOpen: true, side: direction > 0 ? "SELL" : "BUY", entryType: "M15_RANGE_BREAKOUT" };
+            const args = { ...fixture, latestClosedTrade, ownedOpenTrade,
+                ...(missingEvidence ? { lossResetDecisions: {} } : {}) };
+            const result = await evaluateIntradayMomentumEntry(args);
+            expect(result).toMatchObject({ signalType: direction > 0 ? "BUY" : "SELL",
+                entryType: "EXIT_ONLY", intent: direction > 0 ? "EXIT_SHORT_ONLY" : "EXIT_LONG_ONLY",
+                tradePlan: null, reasonCode: "INTRADAY_MOMENTUM_LOSS_RESET_EXIT_ONLY" });
+            expect(result.strategyContext.lossReset.allowed).toBe(false);
+            for (const trade of [null, { ...ownedOpenTrade, side: direction > 0 ? "BUY" : "SELL" },
+                { ...ownedOpenTrade, isOpen: false }, { ...ownedOpenTrade, entryType: "M15_POST_TP_FADE" }]) {
+                expect((await evaluateIntradayMomentumEntry({ ...args, ownedOpenTrade: trade })).signalType).toBe("HOLD");
+            }
         }
     );
 

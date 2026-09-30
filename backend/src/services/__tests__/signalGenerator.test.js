@@ -37,7 +37,7 @@ describe("live SignalGenerator", () => {
                 symbol: "AUD_USD",
                 signal: "HOLD",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.2.1",
+                strategyVersion: "1.2.2",
                 timeframe: "15m",
             })
         );
@@ -90,15 +90,18 @@ describe("live SignalGenerator", () => {
     test("passes durable pair history to the strategy without changing its meaning", async () => {
         const strategy = require("../../strategies").getStrategyDefinition("intraday_momentum");
         const latestClosedTrade = { id: "normal-tp-1", exitTime: 1788760000000 };
+        const lossResetDecisions = { SELL: { allowed: false, classification: "WAIT_FOR_H1_RESET" } };
+        const lossResetTrades = [latestClosedTrade];
+        const ownedOpenTrade = { side: "BUY", isOpen: true, entryType: "M15_RANGE_BREAKOUT" };
         const evaluate = jest.spyOn(strategy, "evaluateEntry").mockReturnValue({
             signalType: "HOLD", signalCandleTime: 1788760800000,
         });
         try {
             await generator.generateSignal("AUD_USD", [{}, {}], 0.65, {
-                latestClosedTrade, reentryHistoryAvailable: false, nowMs: 1788760800000,
+                latestClosedTrade, reentryHistoryAvailable: false, lossResetDecisions, lossResetTrades, ownedOpenTrade, nowMs: 1788760800000,
             });
             expect(evaluate).toHaveBeenCalledWith(expect.objectContaining({
-                latestClosedTrade, reentryHistoryAvailable: false,
+                latestClosedTrade, reentryHistoryAvailable: false, lossResetDecisions, lossResetTrades, ownedOpenTrade,
             }));
         } finally {
             evaluate.mockRestore();

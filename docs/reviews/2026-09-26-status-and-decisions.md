@@ -1,5 +1,15 @@
 # Current status and decision points — 26 September 2026
 
+## September 30 authorized reset release
+
+The user subsequently authorized implementation, GitHub publication and deployment of the [v4.2 H1 loss-reset requirement](2026-09-30-loss-reset-release.md). This changes normal same-pair/same-side re-entry after an initial stop only: completed H1 nonqualification followed by later renewed qualification, then a valid M15 trigger. Breakeven outcomes and existing TP/BE/fade policies retain their treatment. Source, numerical risk limits and historical records remain governed by the existing one-way workflow. See the release record for live completion state.
+
+## September 30 checkpoint — v4.1 deployment verified
+
+Read-only inspection verified clean user-deployed `672283897ebd0c26e4924757826c4d2dcd87f329`, **m15-intraday-v4.1 / strategy 1.2.1**. This supersedes the pending-deployment statements in the historical September 28 checkpoint below. The [repeated USD/JPY review](2026-09-30-repeated-usdjpy-review.md) directly verifies four consecutive sells with OANDA: one old-release initial stop, two v4.1 initial stops and one v4.1 breakeven scratch. The three current-release trades total −A$0.3521. At the September 30 06:46 AEST API snapshot the bot was enabled and flat, with entries in cooldown until September 30 22:13:58 AEST; subsequent broker balance/NAV was A$95.6166.
+
+The re-entry policy deliberately leaves ordinary stop-loss repeats eligible; only TP/breakeven exits receive the added freshness check. Distinct completed candles and single-submission intents rule out a demonstrated duplicate-order explanation for these trades. Applying the existing freshness predicate after stop-losses would still pass all three new entries. No loss-specific invalidation rule has been selected or implemented. This review changed local documentation/evidence only; production and runtime behavior were unchanged.
+
 ## September 28 checkpoint — deployed v4, local v4.1
 
 Read-only inspection verified clean user-deployed `aed750f27cd0ed24219b2965c443ba45ac05499a`, **m15-intraday-v4 / strategy 1.2.0 / intraday-risk-v4**. Dashboard/API and OANDA were online, prices/candles fresh, entries enabled, account flat and repeated readiness checks passing. Active run: `live_3c068476-9fad-4079-bb82-c24889350374`; config: `49808daa3caffd0405c4`; no v4 fills at the 14:35–14:37 AEST snapshot. S3 uploads remained unconfigured. Earlier pending-v4-deployment statements below describe the September 26 checkpoint and are superseded by this observation.

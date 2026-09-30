@@ -12,6 +12,7 @@ const { RUNTIME_MODES, RUN_STATUSES } = require("./runtimeConstants");
 const { isCanonicalStrategyKey } = require("../strategies");
 const { evaluateRunLossCooldown } = require("./portfolioRiskPolicy");
 const { latestClosedTradeForInstrument } = require("./intradayReentryPolicy");
+const { resolveLossResetEvidence } = require("./intradayLossResetEvidence");
 
 function createRunId() {
     return `live_${uuidv4()}`;
@@ -73,6 +74,7 @@ class RuntimeCoordinator extends EventEmitter {
         this.entryDecisionRepository = options.entryDecisionRepository || null;
         this.strategyRunRepository = options.strategyRunRepository || null;
         this.tradeRepository = options.tradeRepository || null;
+        this.brokerLifecycleRepository = options.brokerLifecycleRepository || null;
         this.configService = options.configService || null;
         this.marketContextService =
             options.marketContextService || new MarketContextService();
@@ -93,6 +95,7 @@ class RuntimeCoordinator extends EventEmitter {
         entryDecisionRepository = null,
         strategyRunRepository = null,
         tradeRepository = null,
+        brokerLifecycleRepository = null,
         configService = null,
     } = {}) {
         this.dataService = dataService || this.dataService;
@@ -101,6 +104,7 @@ class RuntimeCoordinator extends EventEmitter {
         this.strategyRunRepository =
             strategyRunRepository || this.strategyRunRepository;
         this.tradeRepository = tradeRepository || this.tradeRepository;
+        this.brokerLifecycleRepository = brokerLifecycleRepository || this.brokerLifecycleRepository;
         this.configService = configService || this.configService;
         return this;
     }
@@ -362,8 +366,14 @@ class RuntimeCoordinator extends EventEmitter {
     async evaluateRunSession(session, sharedContext) {
         const signals = [];
         const assets = this.getRunAssets(session);
-        const tradeHistory = this.tradeRepository?.getAllTrades
-            ? await this.tradeRepository.getAllTrades({ mode: RUNTIME_MODES.LIVE }) : null;
+        let tradeHistory = null;
+        try {
+            tradeHistory = this.tradeRepository?.getAllTrades
+                ? await this.tradeRepository.getAllTrades({ mode: RUNTIME_MODES.LIVE }) : null;
+        } catch (_error) {
+            // History failure prevents entries while allowing ordinary scans
+            // and the independent position-management loop to continue.
+        }
         for (const instrument of assets) {
             const context = this.marketContextService.createInstrumentContext(
                 sharedContext,
@@ -373,6 +383,22 @@ class RuntimeCoordinator extends EventEmitter {
             const timeframe = session.generator.config.timeframe || "4h";
             const candles = context?.timeframes?.[timeframe]?.candles || [];
             const currentPrice = context?.price?.price;
+            const ownedOpenTrade = Array.isArray(tradeHistory)
+                ? tradeHistory.find((trade) => trade.isOpen === true && trade.instrument === instrument &&
+                    (trade.ownerRunId || trade.runId) === session.run.runId) || null : null;
+            const signalStart = Date.parse(context?.timeframes?.["15m"]?.candles?.at(-1)?.time);
+            const lossResetDecisions = {};
+            for (const side of ["BUY", "SELL"]) {
+                lossResetDecisions[side] = await resolveLossResetEvidence({
+                    instrument, side, trades: tradeHistory,
+                    historyAvailable: Array.isArray(tradeHistory),
+                    h1Candles: context?.timeframes?.["1h"]?.candles || [],
+                    config: session.generator.config,
+                    observeThroughNow: true,
+                    nowMs: sharedContext.generatedAt,
+                    signalCandleCloseTime: Number.isFinite(signalStart) ? signalStart + 900_000 : null,
+                }, this.brokerLifecycleRepository);
+            }
 
             let signal = await session.generator.generateSignal(
                 instrument,
@@ -380,6 +406,11 @@ class RuntimeCoordinator extends EventEmitter {
                 currentPrice,
                 {
                     marketContext: context, nowMs: sharedContext.generatedAt,
+                    lossResetDecisions,
+                    ownedOpenTrade: ownedOpenTrade ? {
+                        side: ownedOpenTrade.side, ownerRunId: ownedOpenTrade.ownerRunId,
+                        isOpen: true, entryType: ownedOpenTrade.entryType,
+                    } : null,
                     reentryHistoryAvailable: Array.isArray(tradeHistory),
                     latestClosedTrade: Array.isArray(tradeHistory)
                         ? latestClosedTradeForInstrument(tradeHistory, instrument, sharedContext.generatedAt)

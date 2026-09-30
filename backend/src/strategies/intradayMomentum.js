@@ -1,7 +1,11 @@
 const { createStrategyDefinition } = require("./strategyContract");
 const { evaluateIntradayEntryFreshness } = require("../runtime/marketDataFreshness");
 const { resolveTimedExitReason } = require("../runtime/exitPolicy");
-const { evaluateReentryPolicy, FADE_ENTRY_TYPE } = require("../runtime/intradayReentryPolicy");
+const { evaluateReentryPolicy, FADE_ENTRY_TYPE, isFadeTrade } = require("../runtime/intradayReentryPolicy");
+const {
+    emaSeries, evaluateH1Regime, evaluateLossResetPolicy,
+    LOSS_RESET_POLICY_VERSION, LOSS_RESET_STRATEGY_VERSION,
+} = require("../runtime/intradayLossResetPolicy");
 const { priceDistanceError, exceedsQuoteLimit } = require("../runtime/quoteMath");
 const {
     calculateADX,
@@ -91,24 +95,6 @@ function finite(value, fallback = null) {
 
 function integer(value, fallback, minimum = 1) {
     return Math.max(minimum, Math.floor(finite(value, fallback)));
-}
-
-function emaSeries(values = [], period = 20) {
-    const resolvedPeriod = integer(period, 20, 2);
-    if (values.length < resolvedPeriod) return [];
-
-    const results = Array(values.length).fill(null);
-    let current =
-        values
-            .slice(0, resolvedPeriod)
-            .reduce((sum, value) => sum + value, 0) / resolvedPeriod;
-    results[resolvedPeriod - 1] = current;
-    const multiplier = 2 / (resolvedPeriod + 1);
-    for (let index = resolvedPeriod; index < values.length; index += 1) {
-        current = values[index] * multiplier + current * (1 - multiplier);
-        results[index] = current;
-    }
-    return results;
 }
 
 function zonedClock(timestamp, timeZone) {
@@ -203,6 +189,9 @@ async function evaluateIntradayMomentumEntry({
     nowMs = Date.now(),
     latestClosedTrade = null,
     reentryHistoryAvailable = true,
+    lossResetDecisions = null,
+    lossResetTrades = null,
+    ownedOpenTrade = null,
 }) {
     const resolved = { ...DEFAULT_INTRADAY_MOMENTUM_CONFIG, ...config };
     const m15 = marketContext?.timeframes?.["15m"]?.candles || [];
@@ -282,10 +271,9 @@ async function evaluateIntradayMomentumEntry({
     const rsiResults = calculateRSI(m15Closes, rsiPeriod);
     const rsi = finite(rsiResults[rsiResults.length - 1], 50);
     const minimumAdx = Math.max(0, finite(resolved.intradayMinAdx, 20));
-    const longStructure = currentH1.close > h1Fast && h1Fast > h1Slow && pdi > mdi;
-    const shortStructure = currentH1.close < h1Fast && h1Fast < h1Slow && mdi > pdi;
-    const longRegime = longStructure && adx >= minimumAdx;
-    const shortRegime = shortStructure && adx >= minimumAdx;
+    const { longStructure, shortStructure, longRegime, shortRegime } = evaluateH1Regime({
+        close: currentH1.close, fastEma: h1Fast, slowEma: h1Slow, adx, pdi, mdi, minimumAdx,
+    });
     const direction = longRegime ? 1 : shortRegime ? -1 : 0;
     const observedSpread = finite(marketContext?.session?.spreadPips, null);
     const spreadPips = Number.isFinite(observedSpread) && observedSpread >= 0 ? observedSpread : null;
@@ -586,6 +574,39 @@ async function evaluateIntradayMomentumEntry({
     }
     const isFade = reentry.classification === "POST_TP_FADE";
     const side = reentry.executedSide;
+    const lossReset = isFade
+        ? { version: LOSS_RESET_POLICY_VERSION, instrument, side, allowed: true, classification: "FADE_NOT_SUBJECT_TO_LOSS_RESET" }
+        : lossResetDecisions !== null
+            ? lossResetDecisions?.[side]
+            : evaluateLossResetPolicy({
+                instrument, side, trades: lossResetTrades || (latestClosedTrade ? [latestClosedTrade] : []),
+                historyAvailable: reentryHistoryAvailable, h1Candles: h1,
+                config: resolved, nowMs, signalCandleCloseTime: signalCloseTime,
+            });
+    context.lossReset = lossReset || {
+        version: LOSS_RESET_POLICY_VERSION, instrument, side, allowed: false,
+        classification: "LOSS_RESET_EVIDENCE_UNAVAILABLE",
+    };
+    if (context.lossReset.allowed !== true || context.lossReset.side !== side ||
+        context.lossReset.instrument !== instrument || context.lossReset.version !== LOSS_RESET_POLICY_VERSION) {
+        const blocked = hold(base, `INTRADAY_MOMENTUM_${context.lossReset.classification}`,
+            context.lossReset.classification === "WAIT_FOR_H1_RESET"
+                ? "HOLD: the stopped direction needs a completed H1 regime interruption"
+                : context.lossReset.classification === "WAIT_FOR_H1_REQUALIFICATION"
+                    ? "HOLD: wait for a later completed H1 bar to qualify the stopped direction again"
+                    : "HOLD: stop-loss re-entry evidence is unavailable", context);
+        // This policy restricts new entries. A fully qualifying normal reversal
+        // still closes its run's opposite position under the existing exit rule.
+        // The coordinator supplies only an owned trade; fades keep their exits.
+        if (ownedOpenTrade?.isOpen === true && ["BUY", "SELL"].includes(ownedOpenTrade.side) &&
+            ownedOpenTrade.side !== side && !isFadeTrade(ownedOpenTrade)) {
+            return { ...blocked, signalType: side, entryType: "EXIT_ONLY", signalClass: "ACTIONABLE",
+                intent: side === "BUY" ? "EXIT_SHORT_ONLY" : "EXIT_LONG_ONLY",
+                reasonCode: "INTRADAY_MOMENTUM_LOSS_RESET_EXIT_ONLY",
+                reason: "EXIT: qualifying normal reversal closes the opposite position; stop-loss reset blocks the new entry" };
+        }
+        return blocked;
+    }
     const executionDirection = side === "BUY" ? 1 : -1;
     const entryType = isFade ? FADE_ENTRY_TYPE : originalEntryType;
     const targetRiskMultiple = Math.max(
@@ -631,8 +652,8 @@ const intradayMomentumStrategy = createStrategyDefinition({
     key: "intraday_momentum",
     label: "M15 Intraday Momentum",
     description:
-        "Completed-M15 trend entries with fresh protected-exit continuations and a defined post-target countertrend fade.",
-    version: "1.2.1",
+        "Completed-M15 trend entries with an H1 reset after initial stops, protected-exit freshness and a post-target countertrend fade.",
+    version: LOSS_RESET_STRATEGY_VERSION,
     runtimeStatus: "live_ready",
     requiredData: {
         timeframes: ["15m", "1h"],
