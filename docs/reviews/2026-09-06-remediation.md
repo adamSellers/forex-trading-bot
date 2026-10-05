@@ -1,5 +1,9 @@
 # September 6 remediation register
 
+## October 6 measurement correction — implementation underway
+
+The user requested implementation and deployment of the profitability plan. [A1–A3](2026-10-06-analytics-measurement-release.md) correct persisted entry attribution, bootstrap availability and observed expectancy without changing v5 trading behaviour or risk. Targeted integration tests pass; full validation and delivery are recorded separately in the release record. Offline research is authorized under the plan; a complete portfolio replay and selected live strategy change remain pending.
+
 ## October 1 SELL candidate — deployed
 
 The user approved the new SELL candidate for live OANDA trading and explicitly authorized deployment. [v5 / strategy 1.3.0](2026-10-01-sell-retest-release.md) requires distinct break/retest/rejection candles, ask-based structural stops and durable pattern evidence. It disables SELL fades that would bypass the candidate, preserves BUY logic and numerical risk, and records a distinct analytics class. The release is deployed at clean `73cf4b5`, enabled and healthy, with 1,004 backend tests passing locally and during deployment. The release record retains validation and live verification separately. The earlier research-only and chart-local statements below describe their original checkpoints.

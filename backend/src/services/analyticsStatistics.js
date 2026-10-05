@@ -35,7 +35,22 @@ function percentile(sorted, probability) {
 }
 
 function bootstrapMeanInterval(values = [], options = {}) {
-    if (!values.length) return { lower: 0, upper: 0, samples: 0 };
+    const observations = values.length;
+    const method = "iid_empirical_percentile_bootstrap";
+    const unavailable = (status, reason) => ({
+        lower: null, upper: null, samples: 0, observations, status, reason, method,
+    });
+    if (!observations) {
+        return unavailable("EMPTY_SAMPLE", "No observations are available.");
+    }
+    if (observations === 1) {
+        return unavailable("SINGLE_OBSERVATION", "One observation cannot estimate uncertainty in the mean.");
+    }
+    // Resampling a constant empirical distribution produces a zero-width
+    // interval mechanically; it cannot quantify unobserved variation.
+    if (values.every((value) => value === values[0])) {
+        return unavailable("NO_OBSERVED_VARIATION", "All observed values are identical; empirical resampling cannot estimate unobserved variation.");
+    }
     const samples = Math.max(100, Number(options.samples) || 2000);
     const confidence = Math.min(
         0.999,
@@ -56,6 +71,10 @@ function bootstrapMeanInterval(values = [], options = {}) {
         lower: percentile(estimates, tail),
         upper: percentile(estimates, 1 - tail),
         samples,
+        observations,
+        status: "AVAILABLE",
+        reason: null,
+        method,
     };
 }
 

@@ -128,6 +128,7 @@ class SignalRepository {
         return {
             ...row,
             symbol: row.instrument,
+            entryType: row.entry_type,
             reasonCode: row.reason_code,
             signalClass: row.signal_class,
             intent: row.intent,

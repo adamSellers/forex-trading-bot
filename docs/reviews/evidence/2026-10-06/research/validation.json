@@ -1,0 +1,39 @@
+{
+  "artifacts": {
+    "inputAuditSha256": "8db580ed02566cfd846f3c475555d723492bf9b3ea89d81e1e31585df495474c",
+    "orchestrationSpikeSha256": "44d7bd1de57799ad6243e91c611d63691daf520699ae36f75373bd058d67873e"
+  },
+  "delivery": "Local implementation and tests only; publication/deployment not performed by this research task",
+  "implementation": {
+    "R1": "Input manifest/coverage audit and protocol/trial-ledger tooling implemented; H1/conversion/future evaluation protocol still pending",
+    "R2": "Fixed-clock real-orchestration feasibility spike implemented; complete historical/portfolio replay pending"
+  },
+  "pending": [
+    "Causal historical adapter and verified H1/conversion coverage",
+    "Real SQLite repository parity",
+    "Full BUY/SELL concurrent portfolio and dynamic account state",
+    "Loss/reentry/cooldown/restart feedback across historical opportunities",
+    "Historical execution costs, fine-quote BE timing and event-order uncertainty",
+    "Frozen baseline report, registered candidate studies and genuinely future untouched evidence"
+  ],
+  "schemaVersion": 1,
+  "sources": {
+    "backend/research/README.md": "745cdce89d924ab3160b19f0768034fc91fbd1c6a3eb3ee39ffbb54f87e546e9",
+    "backend/research/__tests__/orchestrationSpike.test.js": "68ac6bb9535c3553e7f4b70f56723ffdd19380918af0585ab6b715496e7d580c",
+    "backend/research/audit_inputs.py": "8a3287a0ef4527e409734f39ee376c67f908d96f151e0d1c7de5606c8456c0a5",
+    "backend/research/protocol.py": "6c9047d003e2318971fd39a9f452419836e25cc6bf850c6c93a65341126dde1c",
+    "backend/research/run_spike.cjs": "f901b28127a01ba3b0cc395831266668ea556758f0a792d6146aa8e74ce8018f",
+    "backend/research/test_research_tools.py": "83af7a784123d0c543fea223c0e18c7d20f228106a0af52e68fc3739785a48ac"
+  },
+  "status": "COMPLETED_FOUNDATION_AND_ARCHITECTURE_SPIKE; HISTORICAL_EVALUATOR_PENDING",
+  "validation": {
+    "historicalCandles": 1147442,
+    "historicalInstruments": 7,
+    "inputAuditRerun": "Identical output bytes and SHA256 on second complete archive audit; duplicate artifact removed",
+    "networkAttempts": 0,
+    "node": "3 Jest architecture scenarios passed on Node22.16.0; identical-run ledger equality is asserted in first scenario",
+    "python": "6 standard-library unit tests passed",
+    "structuralInputProblems": 0,
+    "testsNeedIgnoredArchive": false
+  }
+}

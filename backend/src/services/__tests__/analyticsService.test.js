@@ -203,6 +203,39 @@ describe('AnalyticsService', () => {
     });
 
     describe('calculateSummary', () => {
+        test('keeps the observed singleton result and Wilson interval without a false expectancy interval', () => {
+            const trade = createClosedTrade({ pnlAud: -0.1787, pnlPips: -14.5,
+                brokerReconciliationPayload: JSON.stringify({ liveRuntime: { initialRiskAud: 0.17829655 } }) });
+            const summary = service.calculateSummary([trade]);
+            expect(summary).toMatchObject({ totalTrades: 1, totalPnLAud: -0.1787, avgPnLAud: -0.1787,
+                winRate95: { lower: 0, upper: 79.3 },
+                expectancy95Aud: { lower: null, upper: null, observations: 1, samples: 0, status: 'SINGLE_OBSERVATION' },
+                netR: { observations: 1, mean: -1.0023, lower95: null, upper95: null,
+                    intervalStatus: 'SINGLE_OBSERVATION', intervalSamples: 0, missingRiskTrades: 0 } });
+        });
+
+        test('AUD and R interval availability use their respective observed distributions', () => {
+            const summary = service.calculateSummary([
+                createClosedTrade({ pnlAud: -0.2, brokerReconciliationPayload: { liveRuntime: { initialRiskAud: 0.2 } } }),
+                createClosedTrade({ pnlAud: -0.2, brokerReconciliationPayload: { liveRuntime: { initialRiskAud: 0.4 } } }),
+            ]);
+            expect(summary.expectancy95Aud).toMatchObject({ lower: null, upper: null,
+                samples: 0, observations: 2, status: 'NO_OBSERVED_VARIATION' });
+            expect(summary.netR).toMatchObject({ observations: 2, mean: -0.75,
+                intervalStatus: 'AVAILABLE', intervalSamples: 500, lower95: -1, upper95: -0.5 });
+        });
+
+        test('missing original risk reduces only R coverage, not realized net AUD totals', () => {
+            const summary = service.calculateSummary([
+                createClosedTrade({ pnlAud: 0.3, brokerReconciliationPayload: { liveRuntime: { initialRiskAud: 0.2 } } }),
+                createClosedTrade({ pnlAud: -0.1, brokerReconciliationPayload: {} }),
+            ]);
+            expect(summary).toMatchObject({ totalTrades: 2, totalPnLAud: 0.2, avgPnLAud: 0.1,
+                expectancy95Aud: { status: 'AVAILABLE', samples: 500, observations: 2 },
+                netR: { observations: 1, missingRiskTrades: 1, mean: 1.5,
+                    lower95: null, upper95: null, intervalStatus: 'SINGLE_OBSERVATION' } });
+        });
+
         test('should calculate correct win rate', () => {
             const trades = [
                 createClosedTrade({ pnlAud: 5.00 }),
@@ -1051,7 +1084,9 @@ describe('AnalyticsService', () => {
             expect(result.rates.closeRatePct).toBeNull();
         });
         test('empty sample has no zero-width confidence interval', () => {
-            expect(service.calculateSummary([]).expectancy95Aud).toEqual({ lower: null, upper: null, samples: 0 });
+            expect(service.calculateSummary([]).expectancy95Aud).toMatchObject({
+                lower: null, upper: null, samples: 0, observations: 0, status: 'EMPTY_SAMPLE',
+            });
         });
         test('net financing loss counts as a loss even with zero price pips', () => {
             const trade = createClosedTrade({ pnlAud: -0.05, pnlPips: 0,
@@ -1221,6 +1256,99 @@ describe('AnalyticsService', () => {
     });
 
     describe('calculateCohortExpectancy', () => {
+        test('realized win/loss/flat weighting reconciles the direct ledger mean', () => {
+            const trades = [
+                createClosedTrade({ pnlAud: 3, pnlPips: 30 }),
+                createClosedTrade({ pnlAud: -1, pnlPips: -10 }),
+                createClosedTrade({ pnlAud: 0, pnlPips: 0, exitReason: 'BREAKEVEN_STOP' }),
+            ];
+            const { summary } = service.calculateCohortExpectancy(trades);
+            expect(summary).toMatchObject({ trades: 3, wins: 1, losses: 1, flat: 1,
+                netExpectancyAud: 0.6667, netExpectancyPips: 6.67,
+                expectedEdge: null, expectedEdgeDeprecated: true });
+            for (const [basis, expectedMean] of [['aud', 2 / 3], ['pips', 20 / 3]]) {
+                const observed = summary.observedExpectancy[basis];
+                expect(observed).toMatchObject({ observations: 3, missingObservations: 0, wins: 1, losses: 1, flat: 1 });
+                expect(observed.mean).toBeCloseTo(expectedMean, 12);
+                expect(observed.winProbability * observed.meanWin +
+                    observed.lossProbability * observed.meanLoss).toBeCloseTo(observed.mean, 12);
+            }
+        });
+
+        test('net AUD and executable pip outcome signs have independent denominators', () => {
+            const { summary } = service.calculateCohortExpectancy([
+                createClosedTrade({ pnlAud: -0.05, pnlPips: 4, swapAud: -0.09 }),
+                createClosedTrade({ pnlAud: 0.3, pnlPips: 30 }),
+                createClosedTrade({ pnlAud: -0.1, pnlPips: -10 }),
+                createClosedTrade({ pnlAud: 0, pnlPips: 0 }),
+            ]);
+            expect(summary).toMatchObject({ wins: 1, losses: 2, flat: 1,
+                pipWins: 2, pipLosses: 1, pipFlat: 1, avgWinPips: 17, avgLossPips: 10,
+                netExpectancyAud: 0.0375, netExpectancyPips: 6 });
+            expect(summary.observedExpectancy.aud).toMatchObject({ basis: 'REALIZED_NET_AUD',
+                meanWin: 0.3, winProbability: 0.25, lossProbability: 0.5, flatProbability: 0.25 });
+            expect(summary.observedExpectancy.aud.meanLoss).toBeCloseTo(-0.075, 12);
+            expect(summary.observedExpectancy.pips).toMatchObject({ basis: 'EXECUTABLE_PRICE_PIPS',
+                meanWin: 17, meanLoss: -10, winProbability: 0.5, lossProbability: 0.25, flatProbability: 0.25 });
+        });
+
+        test('a financing-only loss is a net AUD loss and a flat price movement', () => {
+            const { summary } = service.calculateCohortExpectancy([
+                createClosedTrade({ pnlAud: -0.05, pnlPips: 0, swapAud: -0.05 }),
+            ]);
+            expect(summary.observedExpectancy.aud).toMatchObject({ observations: 1,
+                wins: 0, losses: 1, flat: 0, mean: -0.05, meanWin: null, meanLoss: -0.05 });
+            expect(summary.observedExpectancy.pips).toMatchObject({ observations: 1,
+                wins: 0, losses: 0, flat: 1, mean: 0, meanWin: null, meanLoss: null });
+        });
+
+        test('all-flat and empty observed samples do not manufacture winning or losing payoffs', () => {
+            const flat = service.calculateCohortExpectancy([
+                createClosedTrade({ pnlAud: 0, pnlPips: 0 }),
+                createClosedTrade({ pnlAud: 0, pnlPips: 0 }),
+            ]).summary;
+            for (const observed of Object.values(flat.observedExpectancy)) {
+                expect(observed).toMatchObject({ observations: 2, wins: 0, losses: 0, flat: 2,
+                    mean: 0, meanWin: null, meanLoss: null, flatProbability: 1 });
+            }
+            const empty = service.calculateCohortExpectancy([]).summary;
+            for (const observed of Object.values(empty.observedExpectancy)) {
+                expect(observed).toMatchObject({ observations: 0, mean: null,
+                    meanWin: null, meanLoss: null, winProbability: null, lossProbability: null, flatProbability: null });
+            }
+        });
+
+        test('missing pip evidence is uncovered rather than counted as flat in observed distributions', () => {
+            const trades = [null, undefined, '', ' ', NaN].map((pnlPips) => createClosedTrade({ pnlAud: 0.1, pnlPips }));
+            trades.push(createClosedTrade({ pnlAud: 0.1, pnlPips: '3' }));
+            const { summary } = service.calculateCohortExpectancy(trades);
+            expect(summary.netExpectancyPips).toBe(0.5); // Retained legacy denominator: all six closed trades.
+            expect(summary.observedExpectancy.pips).toMatchObject({ observations: 1,
+                missingObservations: 5, wins: 1, losses: 0, flat: 0, mean: 3 });
+            expect(summary.observedExpectancy.aud).toMatchObject({ observations: 6, missingObservations: 0 });
+        });
+
+        test.each(['full', 'dashboard'])('unavailable intervals and retrospective metadata survive %s analytics/report JSON', async (profile) => {
+            mockTradeRepo.getTradesSince.mockResolvedValue([
+                createClosedTrade({ pnlAud: -0.1787, pnlPips: -14.5,
+                    brokerReconciliationPayload: JSON.stringify({ liveRuntime: { initialRiskAud: 0.17829655 } }) }),
+            ]);
+            const analytics = await service.getAnalytics('all', { mode: 'live', profile, timeBasis: 'realized' });
+            // S3 reports embed this analytics object as JSON; nulls must remain
+            // null, not become zero-money values or absent keys.
+            const report = JSON.parse(JSON.stringify({ schemaVersion: 2, analytics }));
+            expect(report.analytics.summary.expectancy95Aud).toMatchObject({ lower: null, upper: null,
+                samples: 0, status: 'SINGLE_OBSERVATION', observations: 1 });
+            expect(report.analytics.summary.netR).toMatchObject({ lower95: null, upper95: null,
+                intervalStatus: 'SINGLE_OBSERVATION', mean: -1.0023 });
+            expect(report.analytics.cohortExpectancy.summary).toMatchObject({ expectedEdge: null,
+                expectedEdgeDeprecated: true, netExpectancyAud: -0.1787,
+                observedExpectancy: { aud: { basis: 'REALIZED_NET_AUD', mean: -0.1787 },
+                    pips: { basis: 'EXECUTABLE_PRICE_PIPS', mean: -14.5 } } });
+            expect(report.analytics.triggerPerformance[0].expectedEdge).toBeNull();
+            expect(report.analytics.triggerPerformance[0].expectedEdgeDeprecated).toBe(true);
+        });
+
         test('groups net expectancy by side, instrument, session, entry type, and combined cohort', () => {
             const entryTime = Date.UTC(2026, 0, 1, 13, 0, 0);
             const stopMetadata = {
@@ -1280,8 +1408,11 @@ describe('AnalyticsService', () => {
                         totalPnLPips: 20,
                         netExpectancyPips: 10,
                         avgR: 0.5,
-                        expectedEdge: expect.objectContaining({
-                            edgeVerdict: 'POSITIVE_EXPECTANCY',
+                        expectedEdge: null,
+                        expectedEdgeDeprecated: true,
+                        observedExpectancy: expect.objectContaining({
+                            aud: expect.objectContaining({ basis: 'REALIZED_NET_AUD', mean: 1 }),
+                            pips: expect.objectContaining({ basis: 'EXECUTABLE_PRICE_PIPS', mean: 10 }),
                         }),
                     }),
                     expect.objectContaining({

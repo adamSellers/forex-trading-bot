@@ -1,6 +1,5 @@
 // backend/src/services/analyticsService.js - Forex Analytics Service
 const logger = require("../utils/logger");
-const { calculateExpectedEdge } = require("../strategies/expectedEdge");
 const {
     bootstrapMeanInterval,
     wilsonInterval,
@@ -671,6 +670,7 @@ class AnalyticsService {
      */
     calculateSummary(trades, options = {}) {
         if (!trades.length) {
+            const emptyInterval = bootstrapMeanInterval([]);
             return {
                 totalTrades: 0,
                 winningTrades: 0,
@@ -690,8 +690,11 @@ class AnalyticsService {
                 avgHoldingTimeMs: 0,
                 sharpeRatio: 0,
                 winRate95: { lower: 0, upper: 100 },
-                expectancy95Aud: { lower: null, upper: null, samples: 0 },
-                netR: { observations: 0, mean: null, lower95: null, upper95: null },
+                expectancy95Aud: emptyInterval,
+                netR: { observations: 0, mean: null, lower95: null, upper95: null,
+                    missingRiskTrades: 0, intervalStatus: emptyInterval.status,
+                    intervalReason: emptyInterval.reason, intervalMethod: emptyInterval.method,
+                    intervalSamples: emptyInterval.samples },
                 maxDrawdownAud: 0,
                 longestLosingStreak: 0,
                 statisticalSampleAdequate: false,
@@ -774,10 +777,14 @@ class AnalyticsService {
             const risk = this.getInitialRiskAud(trade);
             return risk ? Number(trade.pnlAud) / risk : null;
         }).filter((value) => value !== null && Number.isFinite(value));
-        const netR95 = riskReturns.length ? bootstrapMeanInterval(riskReturns, { samples: 500, seed: 0x41d5 }) : null;
+        const netR95 = bootstrapMeanInterval(riskReturns, { samples: 500, seed: 0x41d5 });
         return {
             netR: { observations: riskReturns.length, mean: riskReturns.length ? roundTo(riskReturns.reduce((sum, value) => sum + value, 0) / riskReturns.length, 4) : null,
-                lower95: netR95 ? roundTo(netR95.lower, 4) : null, upper95: netR95 ? roundTo(netR95.upper, 4) : null },
+                lower95: netR95.lower === null ? null : roundTo(netR95.lower, 4),
+                upper95: netR95.upper === null ? null : roundTo(netR95.upper, 4),
+                missingRiskTrades: trades.length - riskReturns.length,
+                intervalStatus: netR95.status, intervalReason: netR95.reason,
+                intervalMethod: netR95.method, intervalSamples: netR95.samples },
             totalTrades: trades.length,
             winningTrades: winners.length,
             losingTrades: losers.length,
@@ -810,8 +817,9 @@ class AnalyticsService {
                 upper: roundTo(winRateInterval.upper * 100, 1),
             },
             expectancy95Aud: {
-                lower: roundTo(expectancyInterval.lower, 4),
-                upper: roundTo(expectancyInterval.upper, 4),
+                ...expectancyInterval,
+                lower: expectancyInterval.lower === null ? null : roundTo(expectancyInterval.lower, 4),
+                upper: expectancyInterval.upper === null ? null : roundTo(expectancyInterval.upper, 4),
                 samples: expectancyInterval.samples,
             },
             maxDrawdownAud: roundTo(calculateMaxDrawdownAud(trades), 2),
@@ -1976,6 +1984,11 @@ class AnalyticsService {
             wins: 0,
             losses: 0,
             flat: 0,
+            pipWins: 0,
+            pipLosses: 0,
+            pipFlat: 0,
+            pipObservations: 0,
+            observedPips: { total: 0, positive: 0, negative: 0 },
             totalPnLAud: 0,
             totalPnLPips: 0,
             grossWinPips: 0,
@@ -1993,6 +2006,9 @@ class AnalyticsService {
         const addTrade = (bucket, trade) => {
             const pnlAud = toFiniteNumber(trade.pnlAud);
             const pnlPips = toFiniteNumber(trade.pnlPips);
+            const hasObservedPips = (typeof trade.pnlPips === "number" ||
+                (typeof trade.pnlPips === "string" && trade.pnlPips.trim() !== "")) &&
+                Number.isFinite(Number(trade.pnlPips));
             const initialRiskAud = this.getInitialRiskAud(trade);
 
             bucket.trades++;
@@ -2000,6 +2016,15 @@ class AnalyticsService {
             bucket.totalPnLPips += pnlPips;
             bucket.grossWinPips += Math.max(0, pnlPips);
             bucket.grossLossPips += Math.max(0, -pnlPips);
+            if (hasObservedPips) {
+                bucket.pipObservations++;
+                bucket.observedPips.total += pnlPips;
+                bucket.observedPips.positive += Math.max(0, pnlPips);
+                bucket.observedPips.negative += Math.max(0, -pnlPips);
+                if (pnlPips > 0) bucket.pipWins++;
+                else if (pnlPips < 0) bucket.pipLosses++;
+                else bucket.pipFlat++;
+            }
 
             if (pnlAud > 0) {
                 bucket.wins++;
@@ -2028,25 +2053,36 @@ class AnalyticsService {
         };
 
         const finalizeBucket = (bucket) => {
+            const { observedPips, ...bucketMetrics } = bucket;
             const tradesCount = bucket.trades;
             const avgWinPips =
-                bucket.wins > 0 ? bucket.grossWinPips / bucket.wins : 0;
+                bucket.pipWins > 0 ? bucket.grossWinPips / bucket.pipWins : 0;
             const avgLossPips =
-                bucket.losses > 0 ? bucket.grossLossPips / bucket.losses : 0;
-            const winRate = tradesCount > 0 ? bucket.wins / tradesCount : 0;
-            const expectedEdge =
-                tradesCount > 0
-                    ? calculateExpectedEdge({
-                          targetPips: avgWinPips,
-                          stopPips: avgLossPips,
-                          winProbability: winRate,
-                          spreadPips: 0,
-                          slippagePips: 0,
-                      })
-                    : null;
+                bucket.pipLosses > 0 ? bucket.grossLossPips / bucket.pipLosses : 0;
+            const observedOutcome = ({ basis, observations = tradesCount, wins, losses, flat, total, positive, negative }) => ({
+                basis, observations, missingObservations: tradesCount - observations, wins, losses, flat,
+                mean: observations > 0 ? total / observations : null,
+                meanWin: wins > 0 ? positive / wins : null,
+                meanLoss: losses > 0 ? -negative / losses : null,
+                winProbability: observations > 0 ? wins / observations : null,
+                lossProbability: observations > 0 ? losses / observations : null,
+                flatProbability: observations > 0 ? flat / observations : null,
+            });
+            // These are realized observations, not a prospective binary-payoff
+            // model. AUD outcomes include costs; price pips have their own signs
+            // and denominators. Flat outcomes contribute zero, not a loss.
+            const observedExpectancy = {
+                aud: observedOutcome({ basis: "REALIZED_NET_AUD", wins: bucket.wins,
+                    losses: bucket.losses, flat: bucket.flat, total: bucket.totalPnLAud,
+                    positive: bucket.grossWinAud, negative: bucket.grossLossAud }),
+                pips: observedOutcome({ basis: "EXECUTABLE_PRICE_PIPS", wins: bucket.pipWins,
+                    observations: bucket.pipObservations, losses: bucket.pipLosses,
+                    flat: bucket.pipFlat, total: observedPips.total,
+                    positive: observedPips.positive, negative: observedPips.negative }),
+            };
 
             return {
-                ...bucket,
+                ...bucketMetrics,
                 winRatePct:
                     tradesCount > 0
                         ? roundTo((bucket.wins / tradesCount) * 100, 1)
@@ -2099,7 +2135,12 @@ class AnalyticsService {
                         : bucket.grossWinAud > 0
                         ? 999
                         : 0,
-                expectedEdge,
+                observedExpectancy,
+                // Compatibility marker: the prior retrospective forecast was
+                // incorrect for flats and cost-driven AUD/pip sign differences.
+                // Retain its key as null; prospective helpers keep their contract.
+                expectedEdge: null,
+                expectedEdgeDeprecated: true,
             };
         };
 

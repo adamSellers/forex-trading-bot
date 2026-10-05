@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Reduced dated observations supporting the profitability implementation plan; not a test fixture or current readiness assertion.",
+  "capturedAtUtc": "2026-10-05T22:58:39.929Z",
+  "capturedAtSydney": "2026-10-06T09:58:39.929000+11:00",
+  "source": {
+    "method": "Read-only SSH and bot API GETs during the preceding project review",
+    "endpoints": [
+      "/api/runtime/runs",
+      "/api/runtime/runs/live_8f6557a3-2661-4643-acd0-e524414f2173/trades?limit=1000",
+      "/api/health",
+      "/api/account",
+      "/api/engine/status",
+      "/api/analytics?scope=current&period=all"
+    ],
+    "rawCaptures": "Temporary local captures, not committed; hashes identify the original inputs. No direct fresh OANDA trade-detail crosscheck was performed for this snapshot.",
+    "sha256": {
+      "runs": "1604b22d10968ca544b5341ef5126a2c5bdc030566a5a35fcf705df6111a6330",
+      "trades": "b4df3ea293d2a9f58519294364a3033fe0fad23376e6747c0d1b1bf7d49f6ff9",
+      "status": "d4c86a07088931c736541960aca96dc8084b9a4fce8e03363d829a18285ee606",
+      "analytics": "c31f5d45a5531aca0a9fcd4d932fb5f7fdbd965778dcf888f5fba47a548a7b15"
+    }
+  },
+  "baseline": {
+    "deployedRevision": "73cf4b59b1bc0c3082e477121820f3aa31be9227",
+    "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+    "configHash": "07ea89df6b94cef9e5cc",
+    "strategy": "intraday_momentum",
+    "strategyVersion": "1.3.0",
+    "releaseVersion": "m15-intraday-v5",
+    "executionPolicyVersion": "intraday-risk-v5",
+    "pricingModelVersion": "broker-liquidity-v3.1"
+  },
+  "observedAccount": {
+    "balance": 95.2621,
+    "currency": "AUD",
+    "marginUsed": 0,
+    "openTrades": 0,
+    "pendingOrders": 0,
+    "unrealizedPL": 0
+  },
+  "observedEngine": {
+    "isRunning": true,
+    "tradingEnabled": true,
+    "openPositions": 0,
+    "quarantinedBrokerPositions": 0,
+    "pendingOrderIntentCount": 0,
+    "brokerStateUncertain": false
+  },
+  "tradeSummary": {
+    "totalTrades": 1,
+    "openTradeCount": 0,
+    "closedTradeCount": 1,
+    "winningTrades": 0,
+    "losingTrades": 1,
+    "flatTrades": 0,
+    "realizedPnlAud": -0.1787,
+    "realizedPnlPips": -14.500000000001023
+  },
+  "trades": [
+    {
+      "oandaTradeId": "3497",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "entryType": "M15_PULLBACK_RESUMPTION",
+      "units": 134,
+      "entryTime": 1790838943205,
+      "exitTime": 1790840848837,
+      "entryPrice": 158.348,
+      "exitPrice": 158.203,
+      "stopLossPrice": 158.203,
+      "takeProfitPrice": 158.565,
+      "pnlAud": -0.1787,
+      "pnlPips": -14.500000000001023,
+      "exitReason": "STOP_LOSS",
+      "breakevenHit": false,
+      "activeStopType": "INITIAL_STOP",
+      "reconciliationStatus": "RECONCILED",
+      "brokerExitReason": "STOP_LOSS_ORDER_FILLED"
+    }
+  ],
+  "analyticsObservations": {
+    "netR": {
+      "observations": 1,
+      "mean": -1.0023,
+      "lower95": -1.0023,
+      "upper95": -1.0023
+    },
+    "expectancy95Aud": {
+      "lower": -0.1787,
+      "upper": -0.1787,
+      "samples": 500
+    },
+    "sampleNotice": "Descriptive results; sample size alone does not establish a profitable edge. Pair, side and trigger groups may overlap or be confounded.",
+    "entryFunnel": {
+      "rawStrategyObservations": 28936,
+      "uniqueStrategyDecisions": 1203,
+      "setupCandidates": 0,
+      "strategyFiltered": 1199,
+      "generatedSignals": 2,
+      "trackedDecisions": 2,
+      "telemetryCoveragePct": 100,
+      "validatedEntries": 1,
+      "sizedEntries": 1,
+      "submittedOrders": 1,
+      "filledTrades": 1,
+      "rejectedEntries": 1,
+      "closedTrades": 1
+    },
+    "rejectionBreakdown": {
+      "totalRejected": 1,
+      "breakdown": [
+        {
+          "rejectionCode": "ALREADY_IN_POSITION",
+          "count": 1,
+          "instruments": [
+            "USD_JPY"
+          ],
+          "avgSpreadPips": 0.6,
+          "avgPriceAgeMs": 3712,
+          "avgProjectedExposure": 0
+        }
+      ]
+    },
+    "splitCohorts": [
+      {
+        "instrument": "USD_JPY",
+        "side": "BUY",
+        "cohortType": "ENTER_LONG",
+        "expectedSignals": 2,
+        "trackedDecisions": 0,
+        "filledTrades": 0,
+        "rejectedEntries": 0
+      },
+      {
+        "instrument": "USD_JPY",
+        "side": "BUY",
+        "cohortType": "M15_PULLBACK_RESUMPTION",
+        "expectedSignals": 0,
+        "trackedDecisions": 2,
+        "filledTrades": 1,
+        "rejectedEntries": 1
+      }
+    ],
+    "interpretation": "Two actionable attempts correspond to one fill and one same-pair-position rejection; persisted entry-type mapping splits their cohort keys. Singleton bootstrap bounds are mechanically degenerate. These measurements do not establish expected future returns."
+  }
+}

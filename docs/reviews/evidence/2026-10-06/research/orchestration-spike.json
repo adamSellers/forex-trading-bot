@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "OFFLINE_ORCHESTRATION_ARCHITECTURE_SPIKE",
+  "status": "PASSED_3_SYNTHETIC_SCENARIOS",
+  "strategyVersion": "1.3.0",
+  "sources": {
+    "backend/src/runtime/runtimeCoordinator.js": "0d584df156d62bfaf596b734ad3326e53cc7cb0aed6d1e1b5e43de6a67b52998",
+    "backend/src/services/signalGenerator.js": "047013280ba60fd3f4ad679d2c0f4629fa554e4ea22ae3d8f6c1c388fb68cb3a",
+    "backend/src/services/LiveTradingEngine.js": "47b8759c64ec9a840b6e9b9fa0010057eaa97c42375f02f6f8cf7c63f439ffeb",
+    "backend/src/strategies/intradayMomentum.js": "1fb2199ffdfa9d0704e87006125efbee57e0a355e1911707d1cadbe7187dab59",
+    "backend/src/runtime/intradaySellRetestPolicy.js": "d1572c9d2297ed0fc89247131b8978489a6d342ee627852d58484d8543328224",
+    "backend/src/runtime/intradaySellRetestEvidence.js": "a8a94cf6d2c3dbe429ff8bb237c6ab517594b6b435bbbbe96605e39375d7b4bd",
+    "backend/src/runtime/executionPolicy.js": "3e40b09e19f803ed9d93d388f7cd97bbcfd502c64d60d1f2718c84527d019ea8",
+    "backend/src/runtime/exitPolicy.js": "4144e76270e763f0a1875ee6e6e37449d3e140960398a7194e4f2183238ebcd7",
+    "backend/research/__tests__/orchestrationSpike.test.js": "68ac6bb9535c3553e7f4b70f56723ffdd19380918af0585ab6b715496e7d580c"
+  },
+  "scenarios": [
+    {
+      "scenario": "uninterrupted",
+      "events": [
+        {
+          "time": 1789129800000,
+          "signal": "HOLD",
+          "reasonCode": "INTRADAY_MOMENTUM_CANDLE_QUALITY",
+          "entryType": null,
+          "submittedOrders": 0
+        },
+        {
+          "time": 1789130700000,
+          "signal": "HOLD",
+          "reasonCode": "INTRADAY_MOMENTUM_CANDLE_QUALITY",
+          "entryType": null,
+          "submittedOrders": 0
+        },
+        {
+          "time": 1789131600000,
+          "signal": "SELL",
+          "reasonCode": "INTRADAY_MOMENTUM_SHORT_ENTRY",
+          "entryType": "M15_BREAK_RETEST_REJECTION",
+          "submittedOrders": 1
+        }
+      ],
+      "trade": {
+        "instrument": "GBP_USD",
+        "side": "SELL",
+        "entryType": "M15_BREAK_RETEST_REJECTION",
+        "units": 170,
+        "entryTime": 1789131600000,
+        "exitTime": 1789153200000,
+        "entryPrice": 1.29777,
+        "stopLossPrice": 1.29842,
+        "takeProfitPrice": 1.2968,
+        "exitPrice": 1.29781,
+        "exitReason": "TIME_STOP",
+        "pnlAud": -0.01019999999995358
+      },
+      "completedIntents": 1,
+      "repositoryKind": "IN_MEMORY_TEST_DOUBLES",
+      "networkAttempts": 0
+    },
+    {
+      "scenario": "restart",
+      "events": [
+        {
+          "time": 1789129800000,
+          "signal": "HOLD",
+          "reasonCode": "INTRADAY_MOMENTUM_CANDLE_QUALITY",
+          "entryType": null,
+          "submittedOrders": 0
+        },
+        {
+          "time": 1789130700000,
+          "signal": "HOLD",
+          "reasonCode": "INTRADAY_MOMENTUM_CANDLE_QUALITY",
+          "entryType": null,
+          "submittedOrders": 0
+        },
+        {
+          "time": 1789131600000,
+          "signal": "SELL",
+          "reasonCode": "INTRADAY_MOMENTUM_SHORT_ENTRY",
+          "entryType": "M15_BREAK_RETEST_REJECTION",
+          "submittedOrders": 1
+        }
+      ],
+      "trade": {
+        "instrument": "GBP_USD",
+        "side": "SELL",
+        "entryType": "M15_BREAK_RETEST_REJECTION",
+        "units": 170,
+        "entryTime": 1789131600000,
+        "exitTime": 1789153200000,
+        "entryPrice": 1.29777,
+        "stopLossPrice": 1.29842,
+        "takeProfitPrice": 1.2968,
+        "exitPrice": 1.29781,
+        "exitReason": "TIME_STOP",
+        "pnlAud": -0.01019999999995358
+      },
+      "completedIntents": 1,
+      "repositoryKind": "IN_MEMORY_TEST_DOUBLES",
+      "networkAttempts": 0
+    },
+    {
+      "scenario": "missing-ask-recovery",
+      "events": [
+        {
+          "time": 1789129800000,
+          "signal": "HOLD",
+          "reasonCode": "INTRADAY_MOMENTUM_CANDLE_QUALITY",
+          "entryType": null,
+          "submittedOrders": 0
+        },
+        {
+          "time": 1789130700000,
+          "signal": "HOLD",
+          "reasonCode": "INTRADAY_MOMENTUM_CANDLE_QUALITY",
+          "entryType": null,
+          "submittedOrders": 0
+        },
+        {
+          "time": 1789131600000,
+          "signal": "HOLD",
+          "reasonCode": "INTRADAY_MOMENTUM_SELL_ASK_EVIDENCE_UNAVAILABLE",
+          "entryType": null,
+          "submittedOrders": 0
+        },
+        {
+          "time": 1789131660000,
+          "signal": "SELL",
+          "reasonCode": "INTRADAY_MOMENTUM_SHORT_ENTRY",
+          "entryType": "M15_BREAK_RETEST_REJECTION",
+          "submittedOrders": 1
+        }
+      ],
+      "trade": {
+        "instrument": "GBP_USD",
+        "side": "SELL",
+        "entryType": "M15_BREAK_RETEST_REJECTION",
+        "units": 170,
+        "entryTime": 1789131660000,
+        "exitTime": 1789153260000,
+        "entryPrice": 1.29777,
+        "stopLossPrice": 1.29842,
+        "takeProfitPrice": 1.2968,
+        "exitPrice": 1.29781,
+        "exitReason": "TIME_STOP",
+        "pnlAud": -0.01019999999995358
+      },
+      "completedIntents": 1,
+      "repositoryKind": "IN_MEMORY_TEST_DOUBLES",
+      "networkAttempts": 0
+    }
+  ],
+  "limits": [
+    "Synthetic fixture observations, not a historical strategy/portfolio return.",
+    "Repositories use in-memory test doubles; real SQLite parity and full state replay remain pending.",
+    "Single pair SELL path only; BUY, concurrent pairs, dynamic NAV/margin, slippage, BE timing, alternative exits and statistical evaluation remain pending.",
+    "This confirms existing Jest seams can control clocks and execute production orchestration without live dependencies; it does not establish exact broker replay or profitability."
+  ]
+}

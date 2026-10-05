@@ -1,5 +1,9 @@
 # Live Trading Operator Guide
 
+## October 6 analytics correction
+
+The [measurement release](docs/reviews/2026-10-06-analytics-measurement-release.md) corrects saved signal entry attribution and observed expectancy. A single closed trade or identical observed results retain their actual P&L and mean, but have no empirical bootstrap interval. Available intervals assume independent trades. Cohort observed AUD and pip distributions include flats and keep their signs/denominators separate; missing risk/pip coverage is explicit. These corrections retain strategy 1.3.0 and its current live cohort. The release record tracks delivery status.
+
 ## October 1: SELL break, retest and rejection
 
 The authorized [v5 release](docs/reviews/2026-10-01-sell-retest-release.md), strategy **1.3.0**, replaces normal SELL triggers with three distinct completed M15 candles: a bearish break below the previous eight-bar low, a later retest that closes below that frozen level, then a later bearish close below the retest low. A close back at/above the level cancels it; another retouch requires another later confirmation. Existing H1/M15 qualification and trading checks still apply.
@@ -135,7 +139,7 @@ The old strategy-selection endpoint returns HTTP 405. The active strategy can ch
 
 ## How strategy improvement works
 
-Changes go directly to a versioned live release. Use actual OANDA outcomes as the evidence:
+The [October 6 implementation plan](docs/reviews/2026-10-06-profitability-implementation-plan.md) adds isolated offline data audits and chronological research before selecting a versioned live change. Historical models must disclose missing paths, execution assumptions and reused evaluation periods. Actual OANDA outcomes remain the live evidence:
 
 1. Record the completed M15 trigger, H1 regime, pair session, spread/cost ratio, requested units, actual fill, initial stop and rejection reason.
 2. For every closed trade, review realized P&L, spread, slippage, maximum favorable/adverse movement, holding time and exit reason.

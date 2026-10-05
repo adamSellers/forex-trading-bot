@@ -34,6 +34,7 @@ import {
 import { analyticsAPI, runtimeAPI, strategiesAPI } from '../config/api';
 import EquityChart from './analytics/EquityChart';
 import PairPerformance from './analytics/PairPerformance';
+import { formatExpectancyInference } from '../utils/analyticsInference';
 import {
   ExitAnalysisWidget,
   KPICard,
@@ -427,8 +428,8 @@ const AnalyticsDashboard = () => {
       </Stack>
 
       <Alert severity="info" sx={{ mb: 2 }}>
-        {analytics.sampleNotice} {hasClosedTrades ? <>Net expectancy: {formatSignedMoney(summary.avgPnLAud)} per trade;
-        95% bootstrap interval {formatSignedMoney(summary.expectancy95Aud?.lower)} to {formatSignedMoney(summary.expectancy95Aud?.upper)}.</> : 'No closed trades in this scope and period; win rate, expectancy and confidence intervals are unavailable.'}
+        {analytics.sampleNotice} {hasClosedTrades ? <>Observed net expectancy: {formatSignedMoney(summary.avgPnLAud)} per trade.{' '}
+        {formatExpectancyInference(summary, formatSignedMoney)}</> : 'No closed trades in this scope and period; win rate, expectancy and confidence intervals are unavailable.'}
         {analytics.interval && ` Period ${new Date(analytics.interval.start).toLocaleDateString('en-AU')} to ${new Date(analytics.interval.endExclusive).toLocaleString('en-AU')} (end excluded; ${analytics.interval.timeBasis === 'realized' ? 'close time' : 'entry time'}).`}
       </Alert>
       <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)', xl: 'repeat(5, 1fr)' }} gap={2} mb={2}>

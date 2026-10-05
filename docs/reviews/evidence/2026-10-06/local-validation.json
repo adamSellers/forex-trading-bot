@@ -1,0 +1,33 @@
+{
+  "artifactKind": "ANALYTICS_LOCAL_RELEASE_VALIDATION",
+  "backend": {
+    "numFailedTests": 0,
+    "numPassedTestSuites": 50,
+    "numPassedTests": 1037,
+    "numTotalTestSuites": 50,
+    "numTotalTests": 1037,
+    "success": true
+  },
+  "frontend": {
+    "build": "vite production build passed",
+    "passed": 16,
+    "tests": 16
+  },
+  "limits": [
+    "Initial sandboxed run could not bind TCP in ten existing API tests; complete rerun with local TCP binding passed.",
+    "Research spike uses synthetic observations; profitability and complete historical replay are not validated."
+  ],
+  "node": "22.16.0",
+  "schemaVersion": 1,
+  "sources": {
+    "backend/src/repositories/signalRepository.js": "7f2be981e49c3c9053f8395de4189fd4bce1fe809bac358074f43eb51209eb35",
+    "backend/src/services/__tests__/analyticsService.test.js": "96e63dbd5046d6120aa83751ac13b4c92ccd4523cbf50f95d6f4e372ac5c7e02",
+    "backend/src/services/__tests__/analyticsStatistics.test.js": "363c9f61c8f17274706613ceadb72b0c318930c5b9c3f23148e67cab81df5d4c",
+    "backend/src/services/__tests__/persistedCohortAnalyticsIntegration.test.js": "9ffd2c09adee694e86c345a1b229c4a3ddad3d114a0a3a24fd6d2199ffd9baeb",
+    "backend/src/services/analyticsService.js": "7c5254a84ef4dd31fd4d34565158d55641f9520c9a60bb0f95eb9231e474bdf1",
+    "backend/src/services/analyticsStatistics.js": "47b7008991f4c12de9500ee44dbed5d240cfeaa3b0cdb01d613228a8925b90ea",
+    "frontend/src/components/AnalyticsDashboard.jsx": "06f74ca95af08591d6a2f2c94e7cbeb76677b2ed68fcb88e8d9069f6adad3720",
+    "frontend/src/components/__tests__/analyticsInference.test.cjs": "59b5e454249d43db89c2da8593f80b9c67f48cc42e50c32a157efb2c01d5bd33",
+    "frontend/src/utils/analyticsInference.js": "15400f306f84682b2cc445fc082616e2c3334504de462088503581df135784aa"
+  }
+}
