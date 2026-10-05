@@ -174,9 +174,9 @@ Implementation has started under the subsequent user authorization. Update each 
 
 | Package | State | Evidence to retain |
 | --- | --- | --- |
-| A1 persisted cohorts | Locally validated; publication/deployment pending | [Persisted checks and delivery](2026-10-06-analytics-measurement-release.md) |
-| A2 uncertainty | Locally validated; publication/deployment pending | [API/UI/report contract](2026-10-06-analytics-measurement-release.md) |
-| A3 observed expectancy | Locally validated; publication/deployment pending | [Arithmetic and compatibility](2026-10-06-analytics-measurement-release.md) |
+| A1 persisted cohorts | Deployed and verified at 810c7f9 | [Persisted checks and delivery](2026-10-06-analytics-measurement-release.md) |
+| A2 uncertainty | Deployed and verified at 810c7f9 | [API/UI/report contract](2026-10-06-analytics-measurement-release.md) |
+| A3 observed expectancy | Deployed and verified at 810c7f9 | [Arithmetic and compatibility](2026-10-06-analytics-measurement-release.md) |
 | R1 inputs/protocol | Audit/protocol tooling complete; H1/conversion/future freeze pending | [Research foundation](../../backend/research/README.md) |
 | R2 replay | Architecture spike complete; full evaluator pending | [Spike and limits](evidence/2026-10-06/research/validation.json) |
 | R3 v5 baseline | Planned | Baseline ledgers, assumptions/accounting |

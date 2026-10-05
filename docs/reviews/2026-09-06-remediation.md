@@ -1,8 +1,8 @@
 # September 6 remediation register
 
-## October 6 measurement correction — implementation underway
+## October 6 measurement correction — deployed
 
-The user requested implementation and deployment of the profitability plan. [A1–A3](2026-10-06-analytics-measurement-release.md) correct persisted entry attribution, bootstrap availability and observed expectancy without changing v5 trading behaviour or risk. Targeted integration tests pass; full validation and delivery are recorded separately in the release record. Offline research is authorized under the plan; a complete portfolio replay and selected live strategy change remain pending.
+The user requested implementation and deployment of the profitability plan. [A1–A3](2026-10-06-analytics-measurement-release.md) correct persisted entry attribution, bootstrap availability and observed expectancy without changing v5 trading behaviour or risk. All 1,037 backend tests passed locally and on the target; frontend checks/builds, verified backup and live verification passed. Revision `810c7f9` retains the enabled v5 run/config, original loss state and A$95.2621 flat/resolved account. The release record preserves validation and delivery evidence. Offline research is authorized under the plan; a complete portfolio replay and selected live strategy change remain pending.
 
 ## October 1 SELL candidate — deployed
 

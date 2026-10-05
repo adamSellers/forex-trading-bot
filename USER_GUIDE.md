@@ -2,7 +2,7 @@
 
 ## October 6 analytics correction
 
-The [measurement release](docs/reviews/2026-10-06-analytics-measurement-release.md) corrects saved signal entry attribution and observed expectancy. A single closed trade or identical observed results retain their actual P&L and mean, but have no empirical bootstrap interval. Available intervals assume independent trades. Cohort observed AUD and pip distributions include flats and keep their signs/denominators separate; missing risk/pip coverage is explicit. These corrections retain strategy 1.3.0 and its current live cohort. The release record tracks delivery status.
+The [measurement release](docs/reviews/2026-10-06-analytics-measurement-release.md) corrects saved signal entry attribution and observed expectancy. A single closed trade or identical observed results retain their actual P&L and mean, but have no empirical bootstrap interval. Available intervals assume independent trades. Cohort observed AUD and pip distributions include flats and keep their signs/denominators separate; missing risk/pip coverage is explicit. Deployed at `810c7f9` on October 6, these corrections retain strategy 1.3.0 and its current live cohort. The release record retains verification evidence.
 
 ## October 1: SELL break, retest and rejection
 
@@ -36,7 +36,7 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-The following table describes v5 / strategy 1.3.0, verified deployed at `73cf4b5` on October 1. See the [release record](docs/reviews/2026-10-01-sell-retest-release.md) for delivery evidence.
+The following table describes v5 / strategy 1.3.0, retained by the October 6 [measurement release](docs/reviews/2026-10-06-analytics-measurement-release.md) deployed at `810c7f9`. The [October 1 strategy release](docs/reviews/2026-10-01-sell-retest-release.md) records its original behaviour and delivery.
 
 | Setting | Value |
 | --- | --- |
