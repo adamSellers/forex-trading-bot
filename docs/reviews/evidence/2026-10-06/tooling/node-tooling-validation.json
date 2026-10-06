@@ -213,7 +213,10 @@
     "Older source archives preserve their original tooling; database-only recovery into reviewed current code preserves the language policy."
   ],
   "delivery": {
-    "publication": "PENDING",
-    "deployment": "PENDING"
+    "publication": "COMPLETED",
+    "toolingRevision": "ed18345cabb101a981aaba96ec2145a7ac94a93d",
+    "nativeCorrectionAndDeployedRevision": "9b3785bd814b33d8a01d573ebdd40512f7a6dde8",
+    "deployment": "COMPLETED",
+    "verification": "docs/reviews/evidence/2026-10-06/tooling/deployment-verification.json"
   }
 }

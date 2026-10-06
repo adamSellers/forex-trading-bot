@@ -1,0 +1,715 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "NODE_TOOLING_POST_DEPLOYMENT_VERIFICATION",
+  "capturedAtUtc": "2026-10-06T04:27:44.804Z",
+  "publishedAndDeployedRevision": "9b3785bd814b33d8a01d573ebdd40512f7a6dde8",
+  "command": "./scripts/deploy.sh",
+  "exitCode": 0,
+  "deploymentLogSha256": "0303b12527992929e9b26c1615b2a5f452c504794f3cd3c7580869368ddb6a06",
+  "deployment": {
+    "backendTests": 1229,
+    "backendSuites": 65,
+    "frontendBuild": "PASSED",
+    "backup": "20261006_152309",
+    "sourceArchive": "forex_backup_20261006_152309.tar.gz",
+    "verifiedDatabaseSnapshot": "trading_20261006_152309.db",
+    "previousEnabledIntentRestored": true
+  },
+  "checks": {
+    "expectedRevision": true,
+    "cleanCheckout": true,
+    "healthyEnabledRunning": true,
+    "nativeNodeBinaryLoaded": true,
+    "pythonFallbackDisabled": true,
+    "noProjectPythonFilesOutsideGitAndDependencies": true,
+    "unchangedHealthConfiguration": true,
+    "unchangedRunAndConfigIdentity": true,
+    "preservedLossAndCooldownState": true,
+    "flatResolvedBroker": true
+  },
+  "before": {
+    "capturedAtUtc": "2026-10-06T04:18:16.806Z",
+    "revision": "810c7f91b02ea1b8d5298ed2fedabdefcd3e5c6c",
+    "checkoutStatus": "",
+    "node": "v22.16.0",
+    "nativeInstallForcedCommand": null,
+    "trackedPythonFiles": [
+      "backend/research/audit_inputs.py",
+      "backend/research/protocol.py",
+      "backend/research/test_research_tools.py",
+      "docs/reviews/evidence/2026-09-21/evaluation/analyze.py",
+      "docs/reviews/evidence/2026-09-21/evaluation/prepare_inputs.py",
+      "docs/reviews/evidence/2026-09-21/evaluation/test_analyze.py",
+      "docs/reviews/evidence/2026-09-26/analyze_entries.py",
+      "docs/reviews/evidence/2026-09-26/analyze_performance.py",
+      "docs/reviews/evidence/2026-09-26/candidate_analysis.py",
+      "docs/reviews/evidence/2026-09-26/integrated-release/fade-analysis.py",
+      "docs/reviews/evidence/2026-09-26/integrated-release/pullback-analysis.py",
+      "docs/reviews/evidence/2026-09-26/prepare_inputs.py",
+      "docs/reviews/evidence/2026-10-01/sell-exit-study/build_report.py",
+      "docs/reviews/evidence/2026-10-01/sell-exit-study/crosscheck.py",
+      "docs/reviews/evidence/2026-10-01/sell-exit-study/exit_analysis.py",
+      "docs/reviews/evidence/2026-10-01/sell-exit-study/setup_analysis.py",
+      "docs/reviews/evidence/2026-10-01/sell-exit-study/setup_structure.py",
+      "docs/reviews/evidence/2026-10-01/verify_audusd.py",
+      "scripts/restore-safety.py",
+      "scripts/restore-stage.py",
+      "scripts/tests/deployment_test.py",
+      "scripts/tests/restore_test.py"
+    ],
+    "health": {
+      "status": "ok",
+      "runtime": "live_only",
+      "services": {
+        "api": true,
+        "oanda": true,
+        "dataService": true,
+        "signalGenerator": true,
+        "tradingEngine": true
+      },
+      "config": {
+        "enableTrading": true,
+        "assets": [
+          "AUD_USD",
+          "EUR_USD",
+          "GBP_USD",
+          "USD_JPY"
+        ],
+        "strategy": "intraday_momentum",
+        "strategyLabel": "M15 Intraday Momentum",
+        "strategyVersion": "1.3.0",
+        "timeframe": "15m",
+        "maxOpenPositions": null,
+        "positionPolicy": {
+          "scope": "PER_INSTRUMENT",
+          "maxPerInstrument": 1
+        },
+        "riskPerTrade": 0.0025
+      }
+    },
+    "system": {
+      "status": "healthy",
+      "degradedReasons": [],
+      "operationalHealth": {
+        "status": "healthy",
+        "checkedAt": 1791260296797,
+        "market": {
+          "open": true,
+          "reason": null,
+          "reopenedAt": 1791234300000,
+          "sessions": [
+            {
+              "key": "sydney",
+              "label": "Sydney",
+              "timeZone": "Australia/Sydney",
+              "startHour": 8,
+              "endHour": 17,
+              "localTime": "15:18",
+              "active": true
+            },
+            {
+              "key": "tokyo",
+              "label": "Tokyo",
+              "timeZone": "Asia/Tokyo",
+              "startHour": 8,
+              "endHour": 17,
+              "localTime": "13:18",
+              "active": true
+            },
+            {
+              "key": "london",
+              "label": "London",
+              "timeZone": "Europe/London",
+              "startHour": 8,
+              "endHour": 17,
+              "localTime": "05:18",
+              "active": false
+            },
+            {
+              "key": "new_york",
+              "label": "New York",
+              "timeZone": "America/New_York",
+              "startHour": 8,
+              "endHour": 16,
+              "localTime": "00:18",
+              "active": false
+            }
+          ],
+          "pairs": [
+            {
+              "instrument": "AUD_USD",
+              "activeSessions": [
+                "Sydney",
+                "Tokyo"
+              ]
+            },
+            {
+              "instrument": "EUR_USD",
+              "activeSessions": []
+            },
+            {
+              "instrument": "GBP_USD",
+              "activeSessions": []
+            },
+            {
+              "instrument": "USD_JPY",
+              "activeSessions": [
+                "Tokyo"
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "entryState": "WATCHING",
+        "entriesExpected": true,
+        "entryBlockers": [],
+        "priceAvailability": [
+          {
+            "instrument": "AUD_USD",
+            "updatedAt": 1791260293711,
+            "fetchedAt": 1791260295710,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 1067,
+            "eventAgeMs": 3066,
+            "ageMs": 3066
+          },
+          {
+            "instrument": "EUR_USD",
+            "updatedAt": 1791260288671,
+            "fetchedAt": 1791260295710,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 1067,
+            "eventAgeMs": 8106,
+            "ageMs": 8106
+          },
+          {
+            "instrument": "GBP_USD",
+            "updatedAt": 1791260293030,
+            "fetchedAt": 1791260295710,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 1067,
+            "eventAgeMs": 3747,
+            "ageMs": 3747
+          },
+          {
+            "instrument": "USD_JPY",
+            "updatedAt": 1791260293513,
+            "fetchedAt": 1791260295710,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 1067,
+            "eventAgeMs": 3264,
+            "ageMs": 3264
+          }
+        ],
+        "unavailablePrices": [],
+        "cooldownActive": false,
+        "cooldownUntil": null,
+        "brokerSyncAgeMs": 1079,
+        "openPositions": 0
+      },
+      "liveSelection": {
+        "selectionId": "selection_88d5b25c-31cf-4576-b539-3e708d31cbbe",
+        "strategy": "intraday_momentum",
+        "configHash": "07ea89df6b94cef9e5cc",
+        "liveRun": {
+          "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+          "mode": "live",
+          "strategy": "intraday_momentum",
+          "status": "active",
+          "selectionId": "selection_88d5b25c-31cf-4576-b539-3e708d31cbbe",
+          "parentRunId": "live_2d7872d4-0983-47f9-9842-957231912a6b",
+          "configHash": "07ea89df6b94cef9e5cc",
+          "configSnapshot": {
+            "enableTrading": false,
+            "referenceCurrency": "AUD",
+            "accountCurrency": "AUD",
+            "configSchemaVersion": 4,
+            "liveReleaseVersion": "m15-intraday-v5",
+            "executionPolicyVersion": "intraday-risk-v5",
+            "pricingModelVersion": "broker-liquidity-v3.1",
+            "assets": [
+              "AUD_USD",
+              "EUR_USD",
+              "GBP_USD",
+              "USD_JPY"
+            ],
+            "strategy": "intraday_momentum",
+            "timeframe": "15m",
+            "signalCooldown": 60000,
+            "enableAdxFilter": false,
+            "minAdx": 0,
+            "enableShorting": true,
+            "enableHTFFilter": false,
+            "enableSessionFilter": false,
+            "activeSessions": [],
+            "positionSizeMethod": "RISK",
+            "riskPerTrade": 0.0025,
+            "maxCapitalAtRisk": 100,
+            "maxPortfolioExposure": 0.3,
+            "portfolioRiskEnforcement": true,
+            "maxAggregateStopRiskPctNav": 0.005,
+            "maxNetCurrencyExposurePctNav": 6,
+            "maxCorrelatedExposurePctNav": 6,
+            "maxDailyLossPctNav": 0.01,
+            "maxDrawdownPctNav": 0.05,
+            "maxConsecutiveLosses": 3,
+            "correlationThreshold": 0.7,
+            "minNavAud": 50,
+            "leverage": 20,
+            "maxLeverage": 30,
+            "marginBuffer": 0.2,
+            "maxSpreadPips": 1.2,
+            "expectedSlippagePips": 0.2,
+            "maxPriceAgeMs": 15000,
+            "maxEntryDeviationPips": 1.5,
+            "stopLossType": "ATR",
+            "stopLossPips": 10,
+            "stopLossAtrMultiplier": 1.25,
+            "minStopLossPips": 6,
+            "enableTakeProfit": true,
+            "timeStopHours": 6,
+            "enableBreakeven": true,
+            "breakevenTriggerPips": 0,
+            "breakevenTriggerRiskMultiple": 1,
+            "enableTrailingStops": false,
+            "trailingStopPips": 0,
+            "trailingStopActivationPips": 0,
+            "trailingStopActivationRiskMultiple": 0,
+            "trailingStopRiskMultiple": 0,
+            "sessionCloseTimeZone": "America/New_York",
+            "sessionCloseLocalHour": 16,
+            "sessionCloseLocalMinute": 45,
+            "sessionCloseWindowMinutes": 30,
+            "intradayFastEmaPeriod": 20,
+            "intradaySlowEmaPeriod": 50,
+            "intradayAdxPeriod": 14,
+            "intradayMinAdx": 20,
+            "intradayAtrPeriod": 14,
+            "intradayRsiPeriod": 14,
+            "intradayBreakoutBars": 8,
+            "intradayPullbackBars": 4,
+            "intradayStopAtr": 1.25,
+            "intradayTargetRiskMultiple": 1.5,
+            "intradayMinBodyRatio": 0.35,
+            "intradayMinRangeAtr": 0.35,
+            "intradayMaxRangeAtr": 2.5,
+            "intradayLongRsiMinimum": 52,
+            "intradayLongRsiMaximum": 72,
+            "intradayShortRsiMinimum": 28,
+            "intradayShortRsiMaximum": 48,
+            "intradayMaxCostToStopRatio": 0.15,
+            "enableEmailAlerts": true,
+            "alertEmail": "adam@sellers.life",
+            "logLevel": "info",
+            "enforceConfigFreeze": true
+          },
+          "startedAt": 1790806534590,
+          "stoppedAt": null,
+          "metadata": {
+            "entryEnabled": true,
+            "initiatedBy": "live-release-sync",
+            "releaseVersion": "m15-intraday-v5",
+            "entryCooldownCarryover": null
+          },
+          "latestSignalCount": 4
+        }
+      },
+      "entryRisk": {
+        "status": "READY",
+        "entryAllowed": true,
+        "cooldownActive": false,
+        "consecutiveLosses": 1,
+        "maxConsecutiveLosses": 3,
+        "cooldownDurationMs": 86400000,
+        "cooldownStartedAt": null,
+        "cooldownUntil": null,
+        "remainingMs": 0,
+        "lastLossAt": 1790840848837,
+        "lastCooldownUntil": null,
+        "streakResetAt": null,
+        "evaluatedAt": 1791260296777,
+        "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173"
+      }
+    },
+    "engine": {
+      "isRunning": true,
+      "tradingEnabled": true,
+      "openPositions": 0,
+      "pendingOrderIntents": [],
+      "quarantinedBrokerPositions": 0,
+      "protectionPendingTrades": [],
+      "brokerStateUncertain": false,
+      "entryRisk": {
+        "status": "READY",
+        "entryAllowed": true,
+        "cooldownActive": false,
+        "consecutiveLosses": 1,
+        "maxConsecutiveLosses": 3,
+        "cooldownDurationMs": 86400000,
+        "cooldownStartedAt": null,
+        "cooldownUntil": null,
+        "remainingMs": 0,
+        "lastLossAt": 1790840848837,
+        "lastCooldownUntil": null,
+        "streakResetAt": null,
+        "evaluatedAt": 1791260296555,
+        "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173"
+      }
+    },
+    "account": {
+      "balance": 95.2621,
+      "currency": "AUD",
+      "marginUsed": 0,
+      "marginAvailable": 95.2621,
+      "openTrades": 0,
+      "pendingOrders": 0,
+      "unrealizedPL": 0,
+      "pl": -53.6098
+    }
+  },
+  "after": {
+    "nativeDatabase": {
+      "package": "11.10.0",
+      "sqlite": "3.49.2",
+      "abi": "127"
+    },
+    "diskPythonFiles": [],
+    "capturedAtUtc": "2026-10-06T04:27:44.804Z",
+    "revision": "9b3785bd814b33d8a01d573ebdd40512f7a6dde8",
+    "checkoutStatus": "",
+    "node": "v22.16.0",
+    "nativeInstallForcedCommand": "/usr/bin/false",
+    "trackedPythonFiles": [],
+    "health": {
+      "status": "ok",
+      "runtime": "live_only",
+      "services": {
+        "api": true,
+        "oanda": true,
+        "dataService": true,
+        "signalGenerator": true,
+        "tradingEngine": true
+      },
+      "config": {
+        "enableTrading": true,
+        "assets": [
+          "AUD_USD",
+          "EUR_USD",
+          "GBP_USD",
+          "USD_JPY"
+        ],
+        "strategy": "intraday_momentum",
+        "strategyLabel": "M15 Intraday Momentum",
+        "strategyVersion": "1.3.0",
+        "timeframe": "15m",
+        "maxOpenPositions": null,
+        "positionPolicy": {
+          "scope": "PER_INSTRUMENT",
+          "maxPerInstrument": 1
+        },
+        "riskPerTrade": 0.0025
+      }
+    },
+    "system": {
+      "status": "healthy",
+      "degradedReasons": [],
+      "operationalHealth": {
+        "status": "healthy",
+        "checkedAt": 1791260864762,
+        "market": {
+          "open": true,
+          "reason": null,
+          "reopenedAt": 1791234300000,
+          "sessions": [
+            {
+              "key": "sydney",
+              "label": "Sydney",
+              "timeZone": "Australia/Sydney",
+              "startHour": 8,
+              "endHour": 17,
+              "localTime": "15:27",
+              "active": true
+            },
+            {
+              "key": "tokyo",
+              "label": "Tokyo",
+              "timeZone": "Asia/Tokyo",
+              "startHour": 8,
+              "endHour": 17,
+              "localTime": "13:27",
+              "active": true
+            },
+            {
+              "key": "london",
+              "label": "London",
+              "timeZone": "Europe/London",
+              "startHour": 8,
+              "endHour": 17,
+              "localTime": "05:27",
+              "active": false
+            },
+            {
+              "key": "new_york",
+              "label": "New York",
+              "timeZone": "America/New_York",
+              "startHour": 8,
+              "endHour": 16,
+              "localTime": "00:27",
+              "active": false
+            }
+          ],
+          "pairs": [
+            {
+              "instrument": "AUD_USD",
+              "activeSessions": [
+                "Sydney",
+                "Tokyo"
+              ]
+            },
+            {
+              "instrument": "EUR_USD",
+              "activeSessions": []
+            },
+            {
+              "instrument": "GBP_USD",
+              "activeSessions": []
+            },
+            {
+              "instrument": "USD_JPY",
+              "activeSessions": [
+                "Tokyo"
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "entryState": "WATCHING",
+        "entriesExpected": true,
+        "entryBlockers": [],
+        "priceAvailability": [
+          {
+            "instrument": "AUD_USD",
+            "updatedAt": 1791260856680,
+            "fetchedAt": 1791260859771,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 4971,
+            "eventAgeMs": 8062,
+            "ageMs": 8062
+          },
+          {
+            "instrument": "EUR_USD",
+            "updatedAt": 1791260858450,
+            "fetchedAt": 1791260859771,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 4971,
+            "eventAgeMs": 6292,
+            "ageMs": 6292
+          },
+          {
+            "instrument": "GBP_USD",
+            "updatedAt": 1791260859431,
+            "fetchedAt": 1791260859771,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 4971,
+            "eventAgeMs": 5311,
+            "ageMs": 5311
+          },
+          {
+            "instrument": "USD_JPY",
+            "updatedAt": 1791260859518,
+            "fetchedAt": 1791260859771,
+            "tradeable": true,
+            "available": true,
+            "reason": null,
+            "receiptAgeMs": 4971,
+            "eventAgeMs": 5224,
+            "ageMs": 5224
+          }
+        ],
+        "unavailablePrices": [],
+        "cooldownActive": false,
+        "cooldownUntil": null,
+        "brokerSyncAgeMs": 9519,
+        "openPositions": 0
+      },
+      "liveSelection": {
+        "selectionId": "selection_88d5b25c-31cf-4576-b539-3e708d31cbbe",
+        "strategy": "intraday_momentum",
+        "configHash": "07ea89df6b94cef9e5cc",
+        "liveRun": {
+          "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+          "mode": "live",
+          "strategy": "intraday_momentum",
+          "status": "active",
+          "selectionId": "selection_88d5b25c-31cf-4576-b539-3e708d31cbbe",
+          "parentRunId": "live_2d7872d4-0983-47f9-9842-957231912a6b",
+          "configHash": "07ea89df6b94cef9e5cc",
+          "configSnapshot": {
+            "enableTrading": false,
+            "referenceCurrency": "AUD",
+            "accountCurrency": "AUD",
+            "configSchemaVersion": 4,
+            "liveReleaseVersion": "m15-intraday-v5",
+            "executionPolicyVersion": "intraday-risk-v5",
+            "pricingModelVersion": "broker-liquidity-v3.1",
+            "assets": [
+              "AUD_USD",
+              "EUR_USD",
+              "GBP_USD",
+              "USD_JPY"
+            ],
+            "strategy": "intraday_momentum",
+            "timeframe": "15m",
+            "signalCooldown": 60000,
+            "enableAdxFilter": false,
+            "minAdx": 0,
+            "enableShorting": true,
+            "enableHTFFilter": false,
+            "enableSessionFilter": false,
+            "activeSessions": [],
+            "positionSizeMethod": "RISK",
+            "riskPerTrade": 0.0025,
+            "maxCapitalAtRisk": 100,
+            "maxPortfolioExposure": 0.3,
+            "portfolioRiskEnforcement": true,
+            "maxAggregateStopRiskPctNav": 0.005,
+            "maxNetCurrencyExposurePctNav": 6,
+            "maxCorrelatedExposurePctNav": 6,
+            "maxDailyLossPctNav": 0.01,
+            "maxDrawdownPctNav": 0.05,
+            "maxConsecutiveLosses": 3,
+            "correlationThreshold": 0.7,
+            "minNavAud": 50,
+            "leverage": 20,
+            "maxLeverage": 30,
+            "marginBuffer": 0.2,
+            "maxSpreadPips": 1.2,
+            "expectedSlippagePips": 0.2,
+            "maxPriceAgeMs": 15000,
+            "maxEntryDeviationPips": 1.5,
+            "stopLossType": "ATR",
+            "stopLossPips": 10,
+            "stopLossAtrMultiplier": 1.25,
+            "minStopLossPips": 6,
+            "enableTakeProfit": true,
+            "timeStopHours": 6,
+            "enableBreakeven": true,
+            "breakevenTriggerPips": 0,
+            "breakevenTriggerRiskMultiple": 1,
+            "enableTrailingStops": false,
+            "trailingStopPips": 0,
+            "trailingStopActivationPips": 0,
+            "trailingStopActivationRiskMultiple": 0,
+            "trailingStopRiskMultiple": 0,
+            "sessionCloseTimeZone": "America/New_York",
+            "sessionCloseLocalHour": 16,
+            "sessionCloseLocalMinute": 45,
+            "sessionCloseWindowMinutes": 30,
+            "intradayFastEmaPeriod": 20,
+            "intradaySlowEmaPeriod": 50,
+            "intradayAdxPeriod": 14,
+            "intradayMinAdx": 20,
+            "intradayAtrPeriod": 14,
+            "intradayRsiPeriod": 14,
+            "intradayBreakoutBars": 8,
+            "intradayPullbackBars": 4,
+            "intradayStopAtr": 1.25,
+            "intradayTargetRiskMultiple": 1.5,
+            "intradayMinBodyRatio": 0.35,
+            "intradayMinRangeAtr": 0.35,
+            "intradayMaxRangeAtr": 2.5,
+            "intradayLongRsiMinimum": 52,
+            "intradayLongRsiMaximum": 72,
+            "intradayShortRsiMinimum": 28,
+            "intradayShortRsiMaximum": 48,
+            "intradayMaxCostToStopRatio": 0.15,
+            "enableEmailAlerts": true,
+            "alertEmail": "adam@sellers.life",
+            "logLevel": "info",
+            "enforceConfigFreeze": true
+          },
+          "startedAt": 1790806534590,
+          "stoppedAt": null,
+          "metadata": {
+            "entryEnabled": true,
+            "initiatedBy": "live-release-sync",
+            "releaseVersion": "m15-intraday-v5",
+            "entryCooldownCarryover": null
+          },
+          "latestSignalCount": 4
+        }
+      },
+      "entryRisk": {
+        "status": "READY",
+        "entryAllowed": true,
+        "cooldownActive": false,
+        "consecutiveLosses": 1,
+        "maxConsecutiveLosses": 3,
+        "cooldownDurationMs": 86400000,
+        "cooldownStartedAt": null,
+        "cooldownUntil": null,
+        "remainingMs": 0,
+        "lastLossAt": 1790840848837,
+        "lastCooldownUntil": null,
+        "streakResetAt": null,
+        "evaluatedAt": 1791260864743,
+        "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173"
+      }
+    },
+    "engine": {
+      "isRunning": true,
+      "tradingEnabled": true,
+      "openPositions": 0,
+      "pendingOrderIntents": [],
+      "quarantinedBrokerPositions": 0,
+      "protectionPendingTrades": [],
+      "brokerStateUncertain": false,
+      "entryRisk": {
+        "status": "READY",
+        "entryAllowed": true,
+        "cooldownActive": false,
+        "consecutiveLosses": 1,
+        "maxConsecutiveLosses": 3,
+        "cooldownDurationMs": 86400000,
+        "cooldownStartedAt": null,
+        "cooldownUntil": null,
+        "remainingMs": 0,
+        "lastLossAt": 1790840848837,
+        "lastCooldownUntil": null,
+        "streakResetAt": null,
+        "evaluatedAt": 1791260864506,
+        "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173"
+      }
+    },
+    "account": {
+      "balance": 95.2621,
+      "currency": "AUD",
+      "marginUsed": 0,
+      "marginAvailable": 95.2621,
+      "openTrades": 0,
+      "pendingOrders": 0,
+      "unrealizedPL": 0,
+      "pl": -53.6098
+    }
+  },
+  "limits": [
+    "Read-only operational/API broker reconciliation capture; no new direct transaction-history audit or test orders.",
+    "Integration backup/restore cases and deployment backup are not a production restore drill.",
+    "Historical Git revisions and retained source archives preserve their original provenance.",
+    "Verification documentation is published separately; no additional runtime restart is required for that documentation."
+  ]
+}

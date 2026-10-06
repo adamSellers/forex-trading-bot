@@ -73,8 +73,9 @@ manifest pins 107 source files. Its coarse historical snapshot exactly matches
 the prior reviewed capture, with zero observed network attempts. These are
 contract and software checks, not a profitability result.
 
-Publication and production verification will be recorded after the local commit
-is published and the existing deployment command completes.
+Tooling `ed18345` and the native dependency correction `9b3785b` were committed
+locally and published to GitHub. The existing deployment command completed
+successfully at clean `9b3785b`.
 
 ### Observed native installation correction
 
@@ -99,3 +100,18 @@ The corrected dependency passes a fresh 1,229-test/65-suite backend regression,
 57 deployment/restore cases, 21 health scenarios and all backup regressions.
 The historical replay snapshot exactly matches the earlier native version,
 with zero observed network attempts; interpreter sentinels remain unused.
+
+### Production verification
+
+The [post-deployment capture](evidence/2026-10-06/tooling/deployment-verification.json)
+verifies clean `9b3785b`, Node 22.16.0/ABI127 with native SQLite 3.49.2, healthy
+enabled operation and zero current project Python files outside Git/dependencies.
+The target passed 1,229 backend tests across 65 suites, the frontend build,
+matched source/database backup and operational health checks. The same v5
+strategy 1.3.0, 0.25% risk, run/config identity and one-loss/no-active-cooldown
+state were preserved. The account was flat/resolved at A$95.2621 in this dated
+capture. No test order was submitted.
+
+This final documentation is a separate publication after deployment; it does not
+require another runtime restart. Future research and maintenance must use Node.js
+or shell under the permanently saved cross-project policy.
