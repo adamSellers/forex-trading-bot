@@ -177,8 +177,8 @@ Implementation has started under the subsequent user authorization. Update each 
 | A1 persisted cohorts | Deployed and verified at 810c7f9 | [Persisted checks and delivery](2026-10-06-analytics-measurement-release.md) |
 | A2 uncertainty | Deployed and verified at 810c7f9 | [API/UI/report contract](2026-10-06-analytics-measurement-release.md) |
 | A3 observed expectancy | Deployed and verified at 810c7f9 | [Arithmetic and compatibility](2026-10-06-analytics-measurement-release.md) |
-| R1 inputs/protocol | Audit/protocol tooling complete; H1/conversion/future freeze pending | [Research foundation](../../backend/research/README.md) |
-| R2 replay | Architecture spike complete; full evaluator pending | [Spike and limits](evidence/2026-10-06/research/validation.json) |
+| R1 inputs/protocol | Audit/protocol plus causal H1/AUD reconstruction implemented; retained broker parity/future freeze pending | [Research foundation](../../backend/research/README.md) |
+| R2 replay | Persisted causal core, stateful account model and clock checks implemented; finer paths/full feedback evaluator pending | [Persisted replay and limits](2026-10-06-persisted-replay-foundation.md) |
 | R3 v5 baseline | Planned | Baseline ledgers, assumptions/accounting |
 | S1 structural BUY | Planned | Separate specs and portfolio comparisons |
 | S2 indicator contribution | Planned | All ablation results |
@@ -189,4 +189,4 @@ Implementation has started under the subsequent user authorization. Update each 
 | V1 evidence decision | Planned | Supported/rejected/inconclusive findings |
 | L1 selected release | Conditional | User decision, release tests and delivery |
 
-The original planning pass created documentation and reduced baseline evidence only. A1–A3 are now implemented under the subsequent request; the linked release record distinguishes validation, publication and deployment. R1 and the R2 architecture spike proceed offline in parallel, with full replay and candidate selection still pending.
+The original planning pass created documentation and reduced baseline evidence only. A1–A3 are now deployed under the subsequent request; the linked release record distinguishes validation, publication and deployment. R1/R2 now provide an offline persisted causal core. Full replay, a performance baseline and candidate selection remain pending; this software foundation does not establish profitability.

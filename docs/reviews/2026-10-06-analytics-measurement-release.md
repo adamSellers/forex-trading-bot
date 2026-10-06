@@ -36,6 +36,11 @@ A documentation-only follow-up publishes this final verification and updates the
 
 ## Remaining research
 
+The subsequent [persisted replay foundation](2026-10-06-persisted-replay-foundation.md)
+implements causal inputs, complete clock control, isolated SQLite and a stateful
+account model. The following paragraphs retain this earlier release checkpoint;
+the newer record is authoritative for current research completion and limits.
+
 The [R1 input/protocol tooling and R2 orchestration spike](../../backend/research/README.md) are implemented offline. Six Python tests and three orchestration scenarios pass; the fixture covers causal SELL break/retest/confirmation, restart and missing-ask recovery, deterministic reduced ledgers, sizing/protection and timed management, with zero network attempts. A reproducible audit records 1,147,442 M15 bars across seven pairs with no observed structural input problems. Completion provenance and unobserved intervals remain explicitly limited. All previously inspected historical evaluation periods retain their development/retrospective classification.
 
 The [research validation](evidence/2026-10-06/research/validation.json) distinguishes this foundation from pending work: verified H1/conversion reconstruction, real SQLite replay, BUY/concurrent portfolio and dynamic account state, loss/reentry/cooldown feedback, fine-price/cost uncertainty, frozen v5 baseline and candidate comparisons. The spike controls `Date.now()` for its covered paths; complete calendar-clock and monotonic request-delay/budget checks remain pending. No future evaluation protocol or candidate has been selected. This release fixes evidence quality; it does not establish profitable trading or select new live strategy rules.

@@ -4,9 +4,12 @@ These tools inspect local evidence and test orchestration in an isolated process
 They do not start the application, fetch broker data, submit orders, change live
 settings, create a simulated product runtime or select a profitable strategy.
 
-R1 input auditing and protocol/ledger tooling are implemented. The R2 architecture
-spike passes; a complete historical v5 strategy/portfolio evaluator is **pending**.
-The smoke trace is a software fixture, not a historical return or expectancy.
+R1 input auditing and protocol/ledger tooling are implemented. R2 now includes a
+causal archive adapter, controlled wall/monotonic clocks, a stateful broker model
+and actual isolated SQLite orchestration. A complete historical v5 evaluator with
+intrabar uncertainty and full lifecycle feedback coverage is **pending**. The
+[persisted replay record](../../docs/reviews/2026-10-06-persisted-replay-foundation.md)
+separates software parity from profitability evidence.
 
 ## Audit existing inputs
 
@@ -38,8 +41,10 @@ can close at different events and do not prove a contemporaneous account spread.
 
 Every previously inspected 2020–August period and reviewed September/October
 result is development or retrospective robustness evidence. A historical file
-named `holdout` cannot become untouched evidence again. H1 aggregation alignment,
-historical conversion parity and finer executable quote coverage remain pending.
+named `holdout` cannot become untouched evidence again. The adapter reconstructs
+H1 from exactly four contiguous completed UTC quarters and derives matching-ended
+AUD conversion legs. Comparison with retained broker H1/homeConversions and
+finer executable quote coverage remain pending.
 
 ## Register experiments before evaluation
 
@@ -69,7 +74,58 @@ in the event ledger. Metadata cannot prove nobody inspected outcomes, and this
 tool grants no live entry permission or deployment approval. No candidate or
 future dates have been selected/frozen by this foundation release.
 
-## Run the architecture spike
+## Run the persisted coarse replay
+
+Use Node 22.16.0 for the checked-in manifest (the project supports Node >=20 <23):
+
+```sh
+node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07.json /absolute/path/new-replay.json
+```
+
+The manifest pins the local archive, all runtime source/configuration/migrations,
+the research harness and dependencies. Missing, changed or newly unpinned sources
+fail before historical evaluation. Its v5 identity must match the actual catalog
+and config. Output paths must be new; the launcher does not overwrite evidence.
+The ignored archive is needed only for this explicit command. Normal backend
+tests use synthetic observations and require no archive.
+
+The launcher uses a separate process, clears credential variables and inherited
+Node/dotenv preload settings, and does not import the server or dotenv. The Jest
+harness intercepts database and broker imports, uses migrated in-memory SQLite
+and a temporary config file, denies observed network transport calls, and keeps
+polling timers dormant. This is application/test isolation, not an OS network
+sandbox. There are no observed import-time network calls in its source closure.
+
+The actual coordinator, generator, strategy, queue, execution/risk, management,
+durable intents, reconciliation, repositories and analytics run unchanged. The
+broker model evolves balance, NAV, margin, exposure, whole-unit fills, price
+bounds and explicit costs. Broker-held protection acts only on supplied quotes;
+stops can gap and targets fill at threshold or better. Financing requires explicit
+timestamped events; missing historical charges remain unknown. Independent checks
+require complete cash evidence, unique/bidirectional trade ownership and matching
+local/broker results. Synthetic fixtures cover valid BUY/SELL, JPY/non-JPY,
+competing pairs, small-account rejection, pricing reconsideration, lost-response
+intent recovery, breakeven/gap/cost accounting and engine/coordinator restart
+equivalence with retained database/data caches. A cold process/file-database
+restart remains pending. Transport deadline tests run separately; the historical
+screen models zero-latency deliveries.
+
+The checked-in five-day July manifest is a **software/accounting screen**, using
+already inspected development data. It models completed M15 component closes,
+declared liquidity/tradeability, fixed 5% margin and explicit slippage. Independent
+bid/ask component closes do not prove a synchronous executable spread. Its
+quarter-hour management schedule does not reconstruct five-second price delivery
+or ten-second live management. It leaves positions open at the final observation;
+it neither forces a boundary close nor adds entries after the boundary. SQL-only
+`created_at`/`updated_at` audit fields are excluded from comparable snapshots;
+all explicit event, receipt, decision, intent and lifecycle times are retained.
+
+Do not score candidate profitability from this screen. Actual polling and
+intrabar path uncertainty, loss/reset/cooldown and protected-exit/fade feedback
+coverage, retained broker parity, cost sensitivities and the frozen R3 baseline
+remain to be completed. No candidate or live behaviour is selected here.
+
+## Run the earlier architecture spike
 
 Use the project-supported Node >=20 <23 (the repository pins v22.16.0):
 
@@ -96,7 +152,5 @@ slippage or ten-second price interpolation. The emitted artifact identifies thes
 limits and source hashes. It does not claim complete v5 replay, real SQLite
 parity, exact OANDA execution, statistical validation or profitability.
 
-The next R2 slice is a causal archive adapter plus actual isolated repository
-parity and explicit account/portfolio event state. BUY/concurrent-pair flows,
-loss/reentry/cooldown feedback, breakeven timing, fine-price uncertainty and full
-baseline reconstruction must be completed before evaluating candidate returns.
+The persisted replay above supersedes this spike's in-memory repositories and
+minimal broker model. Its original evidence remains an earlier software checkpoint.
