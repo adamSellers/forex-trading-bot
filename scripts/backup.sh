@@ -72,9 +72,8 @@ TRADING_PAUSED=false
 
 api_json_field() {
     local json="$1"
-    local expression="$2"
-    printf '%s' "$json" | python3 -c \
-        "import json,sys; data=json.load(sys.stdin); print($expression)"
+    local selector="$2"
+    printf '%s' "$json" | node "$SCRIPT_DIR/maintenance-tools.cjs" "$selector"
 }
 
 wait_for_api() {
@@ -197,8 +196,7 @@ quiesce_database() {
     fi
     health=$(forex_api_curl -sf --max-time 10 "$API_URL/health") || \
         fail "cannot inspect runtime health before database snapshot"
-    trading_enabled=$(api_json_field "$health" \
-        "str(bool((data.get('config') or {}).get('enableTrading'))).lower()") || \
+    trading_enabled=$(api_json_field "$health" backup-trading-enabled) || \
         fail "cannot parse live trading state before database snapshot"
     case "$trading_enabled" in
         true|false) ;;
@@ -215,7 +213,7 @@ quiesce_database() {
     # Pausing entries must be durable, and a flat broker summary alone cannot
     # exclude an unresolved in-flight submission. Keep management running when
     # the local lifecycle ledger still records uncertainty.
-    python3 "$SCRIPT_DIR/restore-safety.py" "$PROJECT_DIR" || \
+    node "$SCRIPT_DIR/restore-safety.cjs" "$PROJECT_DIR" || \
         fail "database snapshot deferred because pause or durable broker state is unresolved"
     forex_require_entry_queue_idle || \
         fail "database snapshot deferred because entry processing has not been verified idle"
@@ -223,15 +221,14 @@ quiesce_database() {
     # Broker truth is checked after pausing entries and inspecting the ledger.
     account=$(forex_api_curl -sf --max-time 20 "$API_URL/account") || \
         fail "cannot verify broker positions before database snapshot"
-    open_trades=$(api_json_field "$account" "int(data.get('openTrades', -1))") || \
+    open_trades=$(api_json_field "$account" account-open-trades) || \
         fail "cannot parse broker position count before database snapshot"
     [ "$open_trades" -eq 0 ] || \
         fail "database snapshot deferred because broker reports $open_trades open trade(s)"
     # Check pending broker orders directly as well. This also works during the
     # first upgrade when the old /account API has no pendingOrders field.
     broker=$(forex_broker_account_summary) || fail "cannot verify pending broker orders before snapshot"
-    printf '%s' "$broker" | python3 -c \
-        'import json,sys; a=json.load(sys.stdin).get("account",{}); sys.exit(0 if str(a.get("openTradeCount")) == "0" and str(a.get("pendingOrderCount")) == "0" else 1)' || \
+    printf '%s' "$broker" | node "$SCRIPT_DIR/maintenance-tools.cjs" broker-flat || \
         fail "database snapshot deferred because broker account is not confirmed flat with zero pending orders"
 
     log_info "Stopping $APP_NAME while the flat database is snapshotted"

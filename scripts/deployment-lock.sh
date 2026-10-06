@@ -19,20 +19,7 @@ forex_acquire_deployment_lock() {
         # checks the inherited descriptor itself, not a process-id claim or a
         # pathname string supplied by the caller. flock then proves that this
         # open file description can hold the exclusive maintenance lock.
-        if ! python3 - "$lock_file" <<'PY'
-import os
-import stat
-import sys
-
-try:
-    expected = os.stat(sys.argv[1])
-    inherited = os.fstat(9)
-    valid = stat.S_ISREG(expected.st_mode) and stat.S_ISREG(inherited.st_mode)
-    valid = valid and (expected.st_dev, expected.st_ino) == (inherited.st_dev, inherited.st_ino)
-except (OSError, ValueError):
-    valid = False
-sys.exit(0 if valid else 1)
-PY
+        if ! node "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/maintenance-tools.cjs" inherited-lock "$lock_file" 2>/dev/null
         then
             echo "Inherited maintenance lock does not match the expected lock file" >&2
             return 2

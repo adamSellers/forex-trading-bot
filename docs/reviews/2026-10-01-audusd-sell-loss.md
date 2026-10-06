@@ -1,5 +1,7 @@
 # AUD/USD SELL 3487 — 1 October 2026
 
+October 6 language-policy update: the original analysis scripts are retired from the current tree. The Git commands below inspect their preserved source; they do not rerun the study. Saved inputs, results and source hashes retain their historical provenance. Current tooling uses Node.js; see [the migration record](https://github.com/adamSellers/forex-trading-bot/blob/main/docs/reviews/2026-10-06-node-tooling.md).
+
 **The bot sold after a substantial fall, was stopped by a brief rebound, and was already out when the downward move resumed. The dashboard's M15 close-only line hides the rebound that triggered the stop. Direct OANDA records establish a real 8.3-pip loss, not an inverted SELL or P&L sign. This establishes the mechanics of this loss; it does not establish acceptable entry selection or strategy performance.**
 
 Read-only production inspection on October 1 verified clean deployed revision `c6b6c7714564fef4f9abd03727378aad2ab41a0d`, v4.2 / strategy 1.2.2. Broker capture completed at 06:33:40 AEST. All times below use Sydney/AEST (UTC+10). No source, trading configuration, orders, process state, Git publication or deployment was changed.
@@ -49,10 +51,10 @@ Independent source traces checked the actual orchestration: signed SELL submissi
 
 Using Node 22.23.1, **323/323 tests passed across five suites**: LiveTradingEngine, sampledExcursionIntegration, tradeReconciliationService, Oandaclient and executionPolicy. This validates their covered execution/lifecycle cases; it is not a strategy profitability test. Direct breakeven tests are predominantly BUY, a coverage gap separate from this trade's proven lack of a +1R touch. No frontend build or deployment was performed.
 
-The [sanitized evidence](evidence/2026-10-01/audusd-3487.json) retains broker trade/transactions, M1 bid/ask/mid prices, M15 candles, entry telemetry, lifetime samples, distinct signal-state observations, entry decisions and recent ledger rows. [Test summary](evidence/2026-10-01/test-summary.json) and [capture manifest](evidence/2026-10-01/manifest.json) distinguish sources and verification. Reproduce the numerical checks with:
+The [sanitized evidence](evidence/2026-10-01/audusd-3487.json) retains broker trade/transactions, M1 bid/ask/mid prices, M15 candles, entry telemetry, lifetime samples, distinct signal-state observations, entry decisions and recent ledger rows. [Test summary](evidence/2026-10-01/test-summary.json) and [capture manifest](evidence/2026-10-01/manifest.json) distinguish sources and verification. Inspect the original numerical-check source with:
 
 ```sh
-python3 docs/reviews/evidence/2026-10-01/verify_audusd.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/verify_audusd.py
 ```
 
 At the first runtime capture (about 06:32 AEST), trading was enabled, no positions were open and the current run recorded one loss. This is a dated observation, not a continuing state assertion. Read-only diagnosis did not pause or change live trading.

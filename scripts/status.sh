@@ -55,18 +55,7 @@ if pm2 list 2>/dev/null | grep -q "$APP_NAME.*online"; then
     echo -e "  PM2 Process:    ${GREEN}✅ Running${NC}"
     
     # Get memory from PM2
-    mem_info=$(pm2 jlist 2>/dev/null | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    for app in data:
-        if app.get('name') == '$APP_NAME':
-            mem = app.get('monit', {}).get('memory', 0)
-            cpu = app.get('monit', {}).get('cpu', 0)
-            print(f'  Resource Usage:  CPU: {cpu}% | Memory: {mem//1024//1024}MB')
-            break
-except: pass
-" 2>/dev/null)
+    mem_info=$(pm2 jlist 2>/dev/null | node "$SCRIPT_DIR/maintenance-tools.cjs" pm2-resources "$APP_NAME" 2>/dev/null)
     [ -n "$mem_info" ] && echo "$mem_info"
 else
     echo -e "  PM2 Process:    ${RED}❌ Not Running${NC}"
@@ -119,33 +108,7 @@ if forex_api_curl -sf "http://localhost:$PORT/api/runtime/live-selection" > /dev
     echo -e "${BLUE}🧠 Runtime Status:${NC}"
 
     runtime=$(forex_api_curl -s "http://localhost:$PORT/api/runtime/live-selection" 2>/dev/null)
-    runtime_info=$(echo "$runtime" | python3 -c "
-import sys, json
-
-def short(value):
-    value = str(value or '')
-    return value[:12] if value else 'n/a'
-
-try:
-    data = json.load(sys.stdin)
-    live = data.get('liveSelection') or {}
-    runs = data.get('runs') or []
-    live_run = live.get('liveRun') or {}
-    managing = [
-        run for run in runs
-        if run.get('mode') == 'live' and run.get('status') == 'managing_only'
-    ]
-
-    print(f\"  Strategy:       {live.get('strategy') or 'n/a'}\")
-    print(f\"  Selection ID:   {short(live.get('selectionId'))}\")
-    print(
-        f\"  Live Run:       {short(live_run.get('runId'))} \"
-        f\"({live_run.get('status') or 'unknown'})\"
-    )
-    print(f\"  Managing Only:  {len(managing)} live run(s)\")
-except Exception:
-    pass
-" 2>/dev/null)
+    runtime_info=$(echo "$runtime" | node "$SCRIPT_DIR/maintenance-tools.cjs" runtime-status 2>/dev/null)
     [ -n "$runtime_info" ] && echo "$runtime_info"
     echo ""
 fi

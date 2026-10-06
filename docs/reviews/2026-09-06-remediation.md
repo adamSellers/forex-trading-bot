@@ -116,7 +116,7 @@ npm test -- --runInBand
 cd ..
 bash scripts/tests/backup_test.sh
 bash scripts/tests/health_check_test.sh
-python3 scripts/tests/restore_test.py
+node --test scripts/tests/restore_test.cjs
 node scripts/tests/frontend_refresh_contract.test.cjs
 ```
 

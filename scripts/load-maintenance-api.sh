@@ -68,21 +68,13 @@ forex_broker_account_summary() (
 forex_require_entry_queue_idle() (
     set +x
     local api_url="${FOREX_API_URL:-http://localhost:3101/api}"
-    local queue
+    local queue helper_dir
+    helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     queue=$(forex_api_curl "$api_url/engine/stats") || {
         echo "Cannot verify that in-flight entry processing has drained" >&2
         exit 1
     }
-    printf '%s' "$queue" | python3 -c '
-import json,sys
-try:
-    queue=json.load(sys.stdin)
-    valid=isinstance(queue,dict) and queue.get("isProcessingQueue") is False
-    valid=valid and type(queue.get("queueLength")) is int and queue["queueLength"] == 0
-except (ValueError,TypeError):
-    valid=False
-sys.exit(0 if valid else 1)
-' || {
+    printf '%s' "$queue" | node "$helper_dir/maintenance-tools.cjs" queue-idle || {
         echo "Entry processing is busy or unverified; management remains running" >&2
         exit 1
     }
@@ -97,18 +89,18 @@ forex_require_paused_flat_running() (
     local api_url="${FOREX_API_URL:-http://localhost:3101/api}"
     local helper_dir health broker
     helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    python3 "$helper_dir/restore-safety.py" "$project" || exit 1
+    node "$helper_dir/restore-safety.cjs" "$project" || exit 1
     health=$(forex_api_curl "$api_url/health") || {
         echo "Cannot verify a running, paused API before cutover" >&2; exit 1;
     }
-    printf '%s' "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("config") or {}).get("enableTrading") is False else 1)' || {
+    printf '%s' "$health" | node "$helper_dir/maintenance-tools.cjs" entries-paused || {
         echo "Running API does not confirm paused entries" >&2; exit 1;
     }
     forex_require_entry_queue_idle || exit 1
     broker=$(forex_broker_account_summary) || {
         echo "Cannot verify broker state before cutover" >&2; exit 1;
     }
-    printf '%s' "$broker" | python3 -c 'import json,sys; a=json.load(sys.stdin).get("account",{}); sys.exit(0 if str(a.get("openTradeCount")) == "0" and str(a.get("pendingOrderCount")) == "0" else 1)' || {
+    printf '%s' "$broker" | node "$helper_dir/maintenance-tools.cjs" broker-flat || {
         echo "Broker has open trades, pending orders, or unknown state" >&2; exit 1;
     }
 )

@@ -1,5 +1,13 @@
 # Forex Trading Bot — repository instructions
 
+**Project language policy, October 6:** no Python for source, research, analysis,
+tooling, tests, deployment or maintenance. Use Node.js and the existing shell
+scripts. Preserve demonstrated contracts and safety checks when replacing tooling;
+historical evidence retains its original provenance. This is also saved in Adam's
+global `~/.codex/AGENTS.md` instructions and applies across projects.
+
+**October 6 tooling checkpoint:** active research and operations now use Node.js/shell under the permanent no-Python policy. Historical Python sources are retired to Git history; numerical evidence/provenance is retained. All 1,229 backend tests, 57 deployment/restore cases, 21 health scenarios and backup regressions pass. The [migration record](docs/reviews/2026-10-06-node-tooling.md) records scope, native-install fallback policy, archive compatibility and delivery.
+
 **October 6 offline replay checkpoint:** R1/R2 now include causal inputs, controlled clocks, a stateful broker model, migrated SQLite, orderly cold process recovery, persisted lifecycle feedback and explicit source/delivery/timer events. All **1,198 backend tests / 64 suites** pass; pinned historical software screens reproduce with zero observed network attempts. The [events and recovery record](docs/reviews/2026-10-06-replay-events-and-recovery.md) records scope and limits. Research remains offline; last verified production is `810c7f9`, v5 / 1.3.0. Retained broker parity, exhaustive historical path/cost/boundary coverage, crash races, R3 performance baseline and candidate selection remain pending. No strategy profitability or new live rules are claimed.
 
 **October 6 measurement release deployed:** A1–A3 are verified at clean `810c7f9`; 1,037 backend tests passed locally and on the target, plus 16 local frontend/deployment-contract checks and production builds. Backup and post-release checks passed; enabled v5 strategy/risk/run/config and loss state were preserved. The [release record](docs/reviews/2026-10-06-analytics-measurement-release.md) specifies attribution, uncertainty and observed-expectancy contracts. The user explicitly authorizes local tests/builds, commits, GitHub publication and the existing deployment command for this work, superseding older user-managed delivery restrictions. Strategy 1.3.0 and live risk rules remain unchanged. The [plan](docs/reviews/2026-10-06-profitability-implementation-plan.md) authorizes isolated offline research; the product continues to have one live runtime.

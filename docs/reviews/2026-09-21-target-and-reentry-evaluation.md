@@ -1,5 +1,7 @@
 # Target and re-entry evaluation — 21 September 2026
 
+October 6 language-policy update: the original analysis scripts are retired from the current tree. The Git commands below inspect their preserved source; they do not rerun the study. Saved inputs, results and source hashes retain their historical provenance. Current tooling uses Node.js; see [the migration record](https://github.com/adamSellers/forex-trading-bot/blob/main/docs/reviews/2026-10-06-node-tooling.md).
+
 **Historical study:** the results and September 21 decision below are retained as dated evidence. The [September 26 follow-up](#26-september-2026-follow-up) records the next sample and revised recommendation; see the [current status and decisions](2026-09-26-status-and-decisions.md) for outstanding work.
 
 **The stronger target is worth testing, but this evidence does not justify changing the live default. A rule requiring a fresh post-exit pullback is now precisely specified and checked against losing and winning repetitions; it also removes a legitimate winner.** This work follows the [eight-day review](2026-09-21-eight-day-trading-review.md). It changes no trading rules or configuration.
@@ -78,9 +80,9 @@ The next useful observation is whether new qualifying entries use pre-exit or fu
 
 The current study establishes that the reported pattern can be explained by legal repeated exposure, that a longer original hold would change the highlighted sequence, and that the same changes can remove profitable continuations. It does not establish an optimal target or a consistently beneficial re-entry gate.
 
-## Reproduction
+## Historical calculation sources
 
-Run `python3 docs/reviews/evidence/2026-09-21/evaluation/analyze.py`. The retained [inputs](evidence/2026-09-21/evaluation/inputs.json), [broker candles](evidence/2026-09-21/evaluation/market-data.json), [results](evidence/2026-09-21/evaluation/results.json) and [README](evidence/2026-09-21/evaluation/README.md) make the calculations reproducible without production access. The script validates the 25/15 entry counts, lack of actual position overlap, price-side R calculation and explicit ambiguity handling. No credentials, account identifiers, full operational export, production changes, replacement entries or simulated order records are retained in these artifacts. Conditional exit levels are retained explicitly as research assumptions.
+Inspect the preserved calculation source with `git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-09-21/evaluation/analyze.py`. The retained [inputs](evidence/2026-09-21/evaluation/inputs.json), [broker candles](evidence/2026-09-21/evaluation/market-data.json), [results](evidence/2026-09-21/evaluation/results.json) and [README](evidence/2026-09-21/evaluation/README.md) preserve the historical calculation evidence without production access. The original script checked the 25/15 entry counts, lack of actual position overlap, price-side R calculation and explicit ambiguity handling. No credentials, account identifiers, full operational export, production changes, replacement entries or simulated order records are retained in these artifacts. Conditional exit levels are retained explicitly as research assumptions.
 
 ## 26 September 2026 follow-up
 

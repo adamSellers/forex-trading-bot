@@ -44,24 +44,29 @@ cleanup() {
     exit "$status"
 }
 trap cleanup EXIT
+# The installed scripts path changes at cutover. Keep the current pause parser
+# outside the candidate so supported older source archives need no new helper.
+maintenance_helpers=$(mktemp -d "$stage/.restore-helpers.XXXXXX")
+maintenance_tools="$maintenance_helpers/maintenance-tools.cjs"
+cp "$SCRIPT_DIR/maintenance-tools.cjs" "$maintenance_tools"
 echo "Validating source archive and exact matching SQLite snapshot before changing the installation..."
-candidate=$(python3 "$SCRIPT_DIR/restore-stage.py" "$PROJECT_DIR" "$backup" "$stage")
+candidate=$(node "$SCRIPT_DIR/restore-stage.cjs" "$PROJECT_DIR" "$backup" "$stage")
 if [ "$verify_only" = true ]; then
     echo "Restore candidate passed archive, schema, snapshot broker-state and SQLite integrity validation. No service was stopped."
     exit 0
 fi
 require_paused_flat() {
     local health broker pid
-    python3 "$SCRIPT_DIR/restore-safety.py" "$PROJECT_DIR"
+    node "$SCRIPT_DIR/restore-safety.cjs" "$PROJECT_DIR"
     if health=$(forex_api_curl "$API_URL/health" 2>/dev/null); then
-        printf '%s' "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("config") or {}).get("enableTrading") is False else 1)' || fail "Running API does not confirm paused entries"
+        printf '%s' "$health" | node "$SCRIPT_DIR/maintenance-tools.cjs" entries-paused || fail "Running API does not confirm paused entries"
         forex_require_entry_queue_idle || fail "Entry processing has not been verified idle"
     else
         pid=$(pm2 pid "$APP_NAME" 2>/dev/null | tail -n 1 | tr -d '[:space:]')
         [ "$pid" = 0 ] || fail "API unavailable while PM2 may still be running; establish paused state first"
     fi
     broker=$(forex_broker_account_summary) || fail "Cannot verify broker state directly"
-    printf '%s' "$broker" | python3 -c 'import json,sys; a=json.load(sys.stdin).get("account",{}); sys.exit(0 if str(a.get("openTradeCount")) == "0" and str(a.get("pendingOrderCount")) == "0" else 1)' || fail "Broker has open trades, pending orders, or unknown state"
+    printf '%s' "$broker" | node "$SCRIPT_DIR/maintenance-tools.cjs" broker-flat || fail "Broker has open trades, pending orders, or unknown state"
 }
 require_paused_flat
 if [ "$confirmed" != true ]; then
@@ -74,8 +79,8 @@ if [ -f "$candidate/frontend/package.json" ]; then
     (cd "$candidate/frontend" && npm ci && NODE_OPTIONS="--max-old-space-size=2048" NODE_ENV=production npm run build)
 fi
 (cd "$candidate/backend" && DB_PATH="$candidate/backend/data/trading.db" NODE_ENV=production npm run db:migrate)
-python3 "$SCRIPT_DIR/restore-stage.py" --verify-db "$candidate/backend/data/trading.db"
-python3 -c 'import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_dev == os.stat(sys.argv[2]).st_dev else "Staging and installation must share a filesystem for atomic moves")' "$candidate" "$(dirname "$PROJECT_DIR")"
+node "$SCRIPT_DIR/restore-stage.cjs" --verify-db "$candidate/backend/data/trading.db"
+node "$SCRIPT_DIR/maintenance-tools.cjs" same-filesystem "$candidate" "$(dirname "$PROJECT_DIR")" "Staging and installation must share a filesystem for atomic moves"
 require_paused_flat
 [ ! -e "$rollback" ] || fail "Rollback directory already exists"
 echo "Cutover: preserving the entire original installation at $rollback"
@@ -90,7 +95,7 @@ for _attempt in $(seq 1 12); do
     sleep 5
 done
 health=$(forex_api_curl "$API_URL/health") || fail "Restored API failed to start"
-printf '%s' "$health" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("config") or {}).get("enableTrading") is False else 1)' || fail "Restored API did not remain paused"
+printf '%s' "$health" | node "$maintenance_tools" entries-paused || fail "Restored API did not remain paused"
 "$PROJECT_DIR/scripts/health-check.sh" || fail "Restored operational health failed"
 cutover=false
 echo "Restore completed and remains paused. Original installation/secrets preserved at $rollback"

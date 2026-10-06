@@ -1,5 +1,7 @@
 # SELL setup audit — 1 October 2026
 
+October 6 language-policy update: the original analysis scripts are retired from the current tree. The Git commands below inspect their preserved source; they do not rerun the study. Saved inputs, results and source hashes retain their historical provenance. Current tooling uses Node.js; see [the migration record](https://github.com/adamSellers/forex-trading-bot/blob/main/docs/reviews/2026-10-06-node-tooling.md).
+
 The current API capture contains **13 SELL entries after the September 21 10:35 UTC review cutoff**. There are ten negative results, two target winners and one exactly flat breakeven. Net is **−A$0.8769**. This is nine v3.3 trades, three v4.1 trades and one v4.2 trade; it is not thirteen trials of the current strategy. Sixteen earlier SELL entries from September 6 through the cutoff are retained as a separate reference cohort, net +A$0.0735.
 
 All 29 SELL entries have a SELL source signal and SELL execution, and all have a recorded H1 short regime. None is a post-target opposite-direction fade. Original/executed-side fields are explicitly recorded in the newer release; the older release predates that provenance field. M15 RSI, H1 ADX and directional indicators are available; H1 RSI is not an input retained by this strategy.
@@ -67,10 +69,10 @@ For latest AUD/USD 3487, the original stop was **0.69640**, below signal EMA20 *
 
 The prior highs and EMA levels are midpoint values; the SELL protective order triggers on ask. No ask-side buffer, structural definition, new threshold or candidate stop was invented here. The distances to highs are descriptive, not executable stop recommendations. Four-bar evidence comes from entry telemetry for v4.1/v4.2 and the retained September 26 OANDA M15 candles for the nine v3.3 trades. All four intervals are checked against the signal timestamp.
 
-Reproduce this supplement with `python3 docs/reviews/evidence/2026-10-01/sell-exit-study/setup_structure.py`; the exact broker stop-order IDs, prices, preceding bars, comparisons and source hashes are retained in [setup_structure.json](setup_structure.json). The script reads `setup_inputs.json`, the current `market.json.gz`, and the retained `2026-09-26/broker-evidence.json`; it makes no network calls.
+Inspect this supplement's original source with `git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/setup_structure.py`; the exact broker stop-order IDs, prices, preceding bars, comparisons and source hashes are retained in [setup_structure.json](setup_structure.json). The original script read `setup_inputs.json`, `market.json.gz`, and the retained `2026-09-26/broker-evidence.json` without network calls.
 
-## Reproduction and boundaries
+## Historical calculation sources and boundaries
 
-Run `python3 docs/reviews/evidence/2026-10-01/sell-exit-study/setup_analysis.py` to reproduce [setup_results.json](setup_results.json) from selected [setup_inputs.json](setup_inputs.json). The selected input retains the current API capture hash without account identifiers, credentials or full operational settings. Source preparation used the read-only capture at `/tmp/forex-sell-exit-study/trades.json`.
+Inspect the original [setup_results.json](setup_results.json) calculation with `git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/setup_analysis.py`. Its selected [setup_inputs.json](setup_inputs.json) retains the original API capture hash without account identifiers, credentials or full operational settings. Source preparation used the read-only capture at `/tmp/forex-sell-exit-study/trades.json`.
 
 The script checks the 29/13/16 SELL cohort counts, direction consistency and absence of fade entries. Earlier version-1 sampled excursion aggregates are deliberately suppressed because the prior audit demonstrated post-close contamination. This descriptive setup audit does not replay alternative orders, stops, capacity or cooldowns and cannot establish how wider stops change outcomes by itself. No trading code, thresholds, settings, orders or deployment were changed.

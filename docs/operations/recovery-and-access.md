@@ -70,13 +70,13 @@ npm test -- --runInBand
 cd ..
 bash scripts/tests/backup_test.sh
 bash scripts/tests/health_check_test.sh
-python3 scripts/tests/restore_test.py
-python3 scripts/tests/deployment_test.py
+node --test scripts/tests/restore_test.cjs
+node --test scripts/tests/deployment_test.cjs
 node scripts/tests/frontend_refresh_contract.test.cjs
 node --test frontend/src/components/__tests__/tradingActivation.test.cjs
 ```
 
-Deployment and restore tests use isolated fixtures and stub external operations; they perform no real deployments, broker requests or builds. A successful test is not a production restore drill. Build and deploy remain user-managed steps.
+Deployment and restore tests use isolated fixtures and stub external operations; they perform no real deployments, broker requests or builds. A successful test is not a production restore drill. The user's October 6 instruction requires Node.js tooling and no Python. Local development → GitHub → the existing deployment command remains the delivery path.
 
 ## Startup checkpoint and health diagnostics
 

@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-06T04:15:59.917Z",
+  "purpose": "NODE_TOOLING_LANGUAGE_POLICY_AND_CONTRACT_VALIDATION",
+  "sourceBaseRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+  "policyMemory": "/Users/adams/.codex/AGENTS.md",
+  "node": "v22.16.0",
+  "sourceRetirement": {
+    "projectOwnedPythonFilesRemoved": 22,
+    "activeFilesReplacedWithNode": 7,
+    "historicalSourcesRetired": 15,
+    "preservedSources": [
+      {
+        "path": "backend/research/audit_inputs.py",
+        "sha256": "8a3287a0ef4527e409734f39ee376c67f908d96f151e0d1c7de5606c8456c0a5",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "REPLACED_WITH_NODE"
+      },
+      {
+        "path": "backend/research/protocol.py",
+        "sha256": "6c9047d003e2318971fd39a9f452419836e25cc6bf850c6c93a65341126dde1c",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "REPLACED_WITH_NODE"
+      },
+      {
+        "path": "backend/research/test_research_tools.py",
+        "sha256": "83af7a784123d0c543fea223c0e18c7d20f228106a0af52e68fc3739785a48ac",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "REPLACED_WITH_NODE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-21/evaluation/analyze.py",
+        "sha256": "e22e9b5a3cea9dcc334a7c3c3b543e8d417c672e7539327b40f184f2e814fc6f",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-21/evaluation/prepare_inputs.py",
+        "sha256": "408b2bb9d78af19828fba0621b1bf82f4a377870e40120b24a3a4251b0c966bc",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-21/evaluation/test_analyze.py",
+        "sha256": "5d79a22db8899814097d2a90b48d359c94e8546262052493645c962ff73c1b16",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-26/analyze_entries.py",
+        "sha256": "a03343f2d245349697f269cbaa25cd4edaa67ebfda9d71a46a8cf54550e81708",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-26/analyze_performance.py",
+        "sha256": "b74198887f8f0b8e61d3f482ed6518cd72ac5177ee6889f6440ae6311b5dfd53",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-26/candidate_analysis.py",
+        "sha256": "50c29a7f0f21a4758d51e4b9b978b82d07e7891b6a51f182214152d3f9d769cd",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-26/integrated-release/fade-analysis.py",
+        "sha256": "e01d32eaef054ecc9503e6a3f16640d7bfc7c093ec1356e24fc4d3da4773a839",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-26/integrated-release/pullback-analysis.py",
+        "sha256": "afaac56c3fbda17da9c47a6db0a0d405328dccfca0b1c3482dbbea5ff9b111ab",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-09-26/prepare_inputs.py",
+        "sha256": "36c7042fddc7ccaf912809accde857a452147a674d1391e27b20f21f178caa79",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-10-01/sell-exit-study/build_report.py",
+        "sha256": "56e236a7b824d4cfdfe264cdd016bc4eb71740afc85e83aece29b7a6d31901aa",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-10-01/sell-exit-study/crosscheck.py",
+        "sha256": "2bc5b912b613191f602256ca805302806a9f37ab84e3673847e1004ecbbbd7f2",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-10-01/sell-exit-study/exit_analysis.py",
+        "sha256": "4ef95be5292746ba7f126e0720f77cbe582fbefc04057eb7180ece31f6e45138",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-10-01/sell-exit-study/setup_analysis.py",
+        "sha256": "621bbd1bbe3f63c9142be0899add9f437e97dc67d67dffdb5aed0d28f9e6a01d",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-10-01/sell-exit-study/setup_structure.py",
+        "sha256": "eff1d9fecc4dcb1dad0b7f690ee340c6d9333c109931b0ccb376ef020aa83750",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "docs/reviews/evidence/2026-10-01/verify_audusd.py",
+        "sha256": "054f15da47c59d4f6720ea25d6e29464e0d8979442c7e35ec799784723f9f200",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "RETIRED_HISTORICAL_SOURCE"
+      },
+      {
+        "path": "scripts/restore-safety.py",
+        "sha256": "143c4637ac6d3c81c03dc8128fe8052a0edc779d1ad4a52216d350047f8486a9",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "REPLACED_WITH_NODE"
+      },
+      {
+        "path": "scripts/restore-stage.py",
+        "sha256": "69274183f320f141c85b567f5df4d979986acd50c0f719c05592dc866ad35794",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "REPLACED_WITH_NODE"
+      },
+      {
+        "path": "scripts/tests/deployment_test.py",
+        "sha256": "788dda83e075bd99b1c4686e68488284d5524ba200a648dceca2a3e161e197e7",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "REPLACED_WITH_NODE"
+      },
+      {
+        "path": "scripts/tests/restore_test.py",
+        "sha256": "b81f8a7c6e25b2f9bd558c41b7318b93258e4a00f99f67b9d8611b6e5aa052dc",
+        "preservedGitRevision": "af2c14da80255b07b9415af6430a476da1ff9507",
+        "disposition": "REPLACED_WITH_NODE"
+      }
+    ],
+    "historicalReportsAndInputBytes": "UNCHANGED",
+    "currentAuthoredPythonFiles": 0,
+    "diskInventoryExcludingGitAndThirdPartyDependencies": 0,
+    "retiredGeneratedEnvironmentRemoved": true,
+    "cleanUnusedJulyWorktreeRemoved": {
+      "revision": "3fe441278351f56daf1fbcb5175770e696d0190c",
+      "revisionRetainedInMainHistory": true,
+      "localSettingsPreservedOutsideProject": true
+    }
+  },
+  "backendRegression": {
+    "tests": 1229,
+    "passed": 1229,
+    "suites": 65,
+    "passedSuites": 65,
+    "reportSha256": "bd63acc6dfc181548f1f5cab83712ae20613e60adaad0274a159c35a1fedb7d8",
+    "researchToolTests": 31
+  },
+  "operations": {
+    "deploymentAndRestoreCases": 57,
+    "failed": 0,
+    "healthScenarios": 21,
+    "backupRegression": "PASSED",
+    "interpreterSentinels": "NO_INVOCATIONS_OBSERVED",
+    "logs": {
+      "deploymentRestoreSha256": "85d722adae16307f940748ca3e05035df766c92e49230e874bfb9629526dc802",
+      "healthSha256": "168111590fa0c4d9e35ffefa3fa89a52d46bf46d6f686fc56c7d19a15ee11499",
+      "backupSha256": "e8f9b34cee09b70b6a2b48f2e01c69d5b638fcf4eeabe4a62bd7a175f98137f4"
+    },
+    "nativeInstallFinder": {
+      "node": "v22.16.0",
+      "forcedCommand": "/usr/bin/false",
+      "attempted": [
+        "/usr/bin/false",
+        ""
+      ],
+      "otherInterpreterProbes": 0,
+      "sourceBuildFinderRejected": true,
+      "note": "The finder attempts an invalid empty executable after false returns no path; no alternate interpreter is probed."
+    },
+    "syntaxCheckedFiles": 30
+  },
+  "inputAudit": {
+    "nodeReport": "docs/reviews/evidence/2026-10-06/research/input-audit-node.json",
+    "nodeReportSha256": "516a2e419d9548a5cb486692284b0eb84f0ea83075ef51c03e45849e235a4d82",
+    "priorReport": "docs/reviews/evidence/2026-10-06/research/input-audit.json",
+    "priorReportSha256": "8db580ed02566cfd846f3c475555d723492bf9b3ea89d81e1e31585df495474c",
+    "nonToolFieldsIdentical": true,
+    "instruments": 7,
+    "candles": 1147442,
+    "structuralProblems": 0
+  },
+  "offlineReplay": {
+    "manifest": "backend/research/manifests/v5-coarse-parity-2026-07-node.json",
+    "manifestSha256": "07b1f663ae34322e5e0d178180186a02df3f88e5f59c7df8923bc75d76565985",
+    "sourceFilesPinned": 107,
+    "artifactSha256": "2cca9e7c32c983a0f25cf9e6b45c598b1947ccc27c40e96052b062446d78f78c",
+    "snapshotIdenticalToPriorCapture": true,
+    "snapshotSha256": "e1eb040997bc1e3e2297f1e239fb39bf351740288d60d1c7bee57369c587a8f6",
+    "networkAttempts": 0,
+    "evaluationUse": "ALREADY_INSPECTED_DEVELOPMENT_DATA",
+    "profitabilityEstablished": false
+  },
+  "limits": [
+    "Integration fixtures are not a production restore drill.",
+    "GNU sparse tar formats are rejected before extraction; the existing backup producer does not request sparse encoding.",
+    "Prebuilt native SQLite modules remain supported; interpreter discovery/source-build fallback is disabled.",
+    "Older source archives preserve their original tooling; database-only recovery into reviewed current code preserves the language policy."
+  ],
+  "delivery": {
+    "publication": "PENDING",
+    "deployment": "PENDING"
+  }
+}

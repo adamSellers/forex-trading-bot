@@ -22,7 +22,9 @@ case "${HEALTH_TEST_CASE:-healthy}" in
   database_pending) printf 'ok\n1\n0\n' ;;
   database_quarantined) printf 'ok\n0\n1\n' ;;
   database_query_failed) printf 'ok\n'; exit 1 ;;
-  database_timeout) exec python3 -c 'import time; time.sleep(10)' ;;
+  database_trailing_space) printf 'ok\n0\n0 \n' ;;
+  database_extra_row) printf 'ok\n0\n0\n\n' ;;
+  database_timeout) exec node -e 'setTimeout(() => {}, 10000)' ;;
   *) printf 'ok\n0\n0\n' ;;
 esac
 MOCK
@@ -32,37 +34,27 @@ cat > "$workspace/bin/curl" <<'MOCK'
 [ "${HEALTH_TEST_CASE:-healthy}" != "unavailable" ] || exit 1
 [ "${HEALTH_TEST_CASE:-healthy}" != "malformed" ] || { printf 'not JSON\n'; exit 0; }
 [ "${HEALTH_TEST_CASE:-healthy}" != "invalid_shape" ] || { printf '[]\n'; exit 0; }
-python3 - <<'PY'
-import json,os,time
-case=os.environ.get("HEALTH_TEST_CASE", "healthy")
-health={"status":"healthy", "checkedAt":int(time.time()*1000), "issues":[], "entryState":"WATCHING"}
-data={"operationalHealth":health, "services":{"oanda":{"connected":True}},
-      "liveSelection":{"strategy":"intraday_momentum", "liveRun":{"runId":"fixture-live", "mode":"live", "status":"active"}},
-      "config":{"enableTrading":True}, "liveReadiness":{"passed":True,"status":"PASS"}}
-if case == "weekend": health["entryState"]="MARKET_CLOSED"
-if case == "cooldown":
-    health["entryState"]="COOLDOWN"
-    data["liveReadiness"]={"passed":False,"status":"COOLDOWN"}
-if case == "broker_offline": data["services"]["oanda"]["connected"]=False
-if case in ("quiet_prices", "pricing_delivery_failed"):
-    # Match the real parsing -> /system/health regression: event age is neutral;
-    # the operational result uses validated receipt age. The deployment check
-    # must still reject the same service when actual delivery expires.
-    expired=case == "pricing_delivery_failed"
-    data["services"]["dataService"]={"freshness":{"pricesFresh":not expired,
-        "oldestPriceAgeMs":80001, "oldestPriceReceiptAgeMs":20001 if expired else 0}}
-    if expired:
-        health["status"]="degraded"
-        health["issues"]=[{"code":"STALE_PRICE_DATA", "instrument":"EUR_USD",
-            "message":"EUR_USD: last validated pricing response 21 seconds ago (20-second delivery limit)"}]
-if case == "unprotected":
-    health["status"]="degraded"
-    health["issues"]=[{"message":"EUR_USD has no recorded protective stop"}]
-if case == "stale": health["checkedAt"]-=240000
-if case == "invalid_timestamp": health["checkedAt"]=float("nan")
-if case == "readiness_failed": data["liveReadiness"]={"passed":False,"status":"FAIL"}
-print(json.dumps(data))
-PY
+node - <<'JS'
+const scenario=process.env.HEALTH_TEST_CASE || 'healthy';
+const health={status:'healthy',checkedAt:Date.now(),issues:[],entryState:'WATCHING'};
+const data={operationalHealth:health,services:{oanda:{connected:true}},
+    liveSelection:{strategy:'intraday_momentum',liveRun:{runId:'fixture-live',mode:'live',status:'active'}},
+    config:{enableTrading:true},liveReadiness:{passed:true,status:'PASS'}};
+if(scenario==='weekend') health.entryState='MARKET_CLOSED';
+if(scenario==='cooldown'){health.entryState='COOLDOWN';data.liveReadiness={passed:false,status:'COOLDOWN'};}
+if(scenario==='broker_offline') data.services.oanda.connected=false;
+if(['quiet_prices','pricing_delivery_failed'].includes(scenario)){
+    // Old broker events remain healthy with current validated response receipts.
+    const expired=scenario==='pricing_delivery_failed';
+    data.services.dataService={freshness:{pricesFresh:!expired,oldestPriceAgeMs:80001,oldestPriceReceiptAgeMs:expired?20001:0}};
+    if(expired){health.status='degraded';health.issues=[{code:'STALE_PRICE_DATA',instrument:'EUR_USD',message:'EUR_USD: last validated pricing response 21 seconds ago (20-second delivery limit)'}];}
+}
+if(scenario==='unprotected'){health.status='degraded';health.issues=[{message:'EUR_USD has no recorded protective stop'}];}
+if(scenario==='stale') health.checkedAt-=240000;
+if(scenario==='invalid_timestamp') health.checkedAt='NONFINITE_TEST_TOKEN';
+if(scenario==='readiness_failed') data.liveReadiness={passed:false,status:'FAIL'};
+console.log(JSON.stringify(data).replace('"NONFINITE_TEST_TOKEN"','NaN'));
+JS
 MOCK
 chmod +x "$workspace/bin/pm2" "$workspace/bin/sqlite3" "$workspace/bin/curl"
 export PATH="$workspace/bin:$PATH"
@@ -97,7 +89,7 @@ for scenario in unavailable broker_offline pricing_delivery_failed unprotected s
     }
     grep -q 'Database: verification deferred' "$workspace/output"
 done
-for scenario in database_corrupt database_pending database_quarantined database_query_failed database_timeout; do
+for scenario in database_corrupt database_pending database_quarantined database_query_failed database_trailing_space database_extra_row database_timeout; do
     : > "$HEALTH_TEST_SQLITE_LOG"
     if HEALTH_TEST_CASE="$scenario" FOREX_HEALTH_DB_TIMEOUT_SECONDS=0.2 bash "$CHECK" > "$workspace/output"; then
         cat "$workspace/output"
@@ -109,8 +101,8 @@ for scenario in database_corrupt database_pending database_quarantined database_
         database_corrupt) grep -q 'Database: integrity could not be verified' "$workspace/output" ;;
         database_pending) grep -q '1 unresolved stale intent(s)' "$workspace/output" ;;
         database_quarantined) grep -q '1 quarantined position(s)' "$workspace/output" ;;
-        database_query_failed) grep -q 'Broker lifecycle: database state could not be verified' "$workspace/output" ;;
+        database_query_failed|database_trailing_space|database_extra_row) grep -q 'Broker lifecycle: database state could not be verified' "$workspace/output" ;;
         database_timeout) grep -q 'Database: verification timed out after 0.2 seconds' "$workspace/output" ;;
     esac
 done
-echo "Health check fixtures passed (19 scenarios)."
+echo "Health check fixtures passed (21 scenarios)."

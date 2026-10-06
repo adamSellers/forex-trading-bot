@@ -23,7 +23,7 @@ cutover=false
 completed=false
 
 json_enabled() {
-    python3 -c 'import json,sys; value=json.load(sys.stdin).get("config",{}).get("enableTrading"); sys.exit("Trading state is unavailable") if type(value) is not bool else print(str(value).lower())'
+    node "$SCRIPT_DIR/maintenance-tools.cjs" trading-enabled
 }
 read_enabled() { forex_api_curl "$API_URL/health" | json_enabled; }
 resume_previous_state() {
@@ -87,7 +87,7 @@ fi
 forex_require_paused_flat_running || fail "Waiting for a flat broker account and resolved orders. Management has been left running."
 
 # Artifacts can be moved into place only on the same filesystem.
-python3 -c 'import os,sys; sys.exit(0 if os.stat(sys.argv[1]).st_dev == os.stat(sys.argv[2]).st_dev else "Deployment staging and production must share a filesystem")' "$STAGE_DIR" "$PROJECT_DIR"
+node "$SCRIPT_DIR/maintenance-tools.cjs" same-filesystem "$STAGE_DIR" "$PROJECT_DIR" "Deployment staging and production must share a filesystem"
 log "Preparing release ${REVISION:0:7}: installing dependencies, testing and building..."
 (
     cd "$STAGE_DIR/backend"

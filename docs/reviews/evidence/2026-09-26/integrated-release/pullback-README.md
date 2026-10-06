@@ -1,5 +1,7 @@
 # Pullback sequence investigation and implementation evidence
 
+October 6 language-policy update: the original analysis scripts are retired from the current tree. The Git commands below inspect their preserved source; they do not rerun the study. Saved inputs, results and source hashes retain their historical provenance. Current tooling uses Node.js; see [the migration record](https://github.com/adamSellers/forex-trading-bot/blob/main/docs/reviews/2026-10-06-node-tooling.md).
+
 The authorized integrated release uses `bar-aligned-pullback-resumption-v1` as a **structural live experiment, not a validated profitability improvement**. The existing rule deliberately compared prior candles with the new signal's EMA values; this investigation does not reclassify that former definition as a software defect. The new definition asks whether a touch occurred against the indicator at that bar and whether the later signal clears the intervening structure.
 
 ## Frozen candidate
@@ -34,16 +36,16 @@ The latest full scan capture contains 288 distinct completed-candle observations
 
 For the available observations, original versus candidate trigger counts are **65 → 60**, with no newly qualifying trigger. Available attempted setups change **59 → 55**. These counts are not independent executed trades or counterfactual returns. Cost, position capacity, broker execution, cooldowns and dynamic risk state are not replayed. Earlier reduced scan evidence retains regime alone, so this study does not reconstruct earlier unfilled opportunities.
 
-## Reproduce and inspect
+## Inspect the historical source
 
-Python 3 standard library only, no network or broker access:
+The original calculation used the standard library and made no network or broker calls. Inspect its preserved source:
 
 ```sh
-python3 docs/reviews/evidence/2026-09-26/integrated-release/pullback-analysis.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-09-26/integrated-release/pullback-analysis.py
 ```
 
 - [pullback-results.json](pullback-results.json): every classified trade and available/unavailable trigger-stage observation, own-bar indicator values, old/new touches, structure and resumption boundaries, and cohort summaries.
 - [pullback-opportunities.json](pullback-opportunities.json): account-free reduced full-scan fixture. It stores the source capture hash, completed-candle contexts and grouped decision outcomes, not credentials, account identifiers or operational configuration.
-- [pullback-analysis.py](pullback-analysis.py): exact backward EMA recurrence from the saved signal-bar EMA, using the original completed candle closes. This avoids reseeding EMA from a shorter historical download. Original pullback/breakout flags and signal close values are asserted against retained live records. An optional `--extract-raw /path/to/production-evidence.json` regenerates the reduced opportunity fixture from a local raw capture.
+- [Retired pullback-analysis.py](https://github.com/adamSellers/forex-trading-bot/blob/af2c14da80255b07b9415af6430a476da1ff9507/docs/reviews/evidence/2026-09-26/integrated-release/pullback-analysis.py): the original backward EMA recurrence from the saved signal-bar EMA, using the original completed candle closes. It avoided reseeding EMA from a shorter historical download and asserted original flags and signal close values against retained live records. Its former extraction option reduced local raw captures. Recalculating the study requires a validated Node.js replacement.
 
 The runtime implementation is in `backend/src/strategies/intradayMomentum.js`; its dedicated suite passed **36 tests on Node 22.23.1** at handoff. Eleven added cases cover symmetric own-bar touch rejection, older-touch resumption rejection and healthy acceptance, own-EMA50 validity and invalidity, and unknown warmup RSI. Existing default-entry/cost/session/freshness checks remain passing. This focused result is separate from the integrated release's full orchestration and regression validation, recorded in the release specification.

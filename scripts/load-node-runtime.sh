@@ -5,6 +5,11 @@
 # working nvm runtime. Non-interactive deploy shells do not load nvm, so be
 # explicit here and keep deploy/restart commands away from /usr/bin/node.
 
+# Adam's project policy forbids Python, including native-install fallback.
+# node-gyp honors this forced command without probing Python interpreters.
+# Prebuilt native Node modules remain usable; source compilation fails closed.
+export NODE_GYP_FORCE_PYTHON=/usr/bin/false
+
 if [ -n "${FOREX_NODE_RUNTIME_LOADED:-}" ]; then
     return 0 2>/dev/null || exit 0
 fi

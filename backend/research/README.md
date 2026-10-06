@@ -19,23 +19,27 @@ separates software parity from profitability evidence.
 From the repository root:
 
 ```sh
-python3 backend/research/audit_inputs.py
-python3 -m unittest discover -s backend/research -p 'test_*.py' -v
+node --max-old-space-size=4096 backend/research/audit_inputs.cjs
+npm --prefix backend test -- --runInBand research/__tests__/researchTools.test.js
 ```
 
 The default archive is ignored local data:
 `backend/data/historical/research_M15_MBA_20200101_20260803.json`. It is required
 only for the audit command, not for the tests or deployment. Missing input files
-fail explicitly; the audit never downloads a replacement. The standard-library
-JSON reader holds the archive in memory; allow sufficient memory for the 307 MiB
+fail explicitly; the audit never downloads a replacement. The Node JSON reader
+holds the archive in memory; allow sufficient memory for the 307 MiB
 input and decoded objects. No credentials or application database are read.
 
-The reduced report is saved to
-`docs/reviews/evidence/2026-10-06/research/input-audit.json`. Use `--archive`,
+The Node audit defaults to
+`docs/reviews/evidence/2026-10-06/research/input-audit-node.json`. The earlier
+`input-audit.json` remains an immutable historical capture with its original tool
+provenance. Use `--archive`,
 `--baseline`, `--prior-results` and `--output` for another explicit capture. The
 report hashes its inputs and tool, records seconds/interval-start units, price
 components, completion flags, monthly counts, unobserved intervals, and earlier
-research assumptions. Identical inputs/tool reproduce identical output bytes.
+research assumptions. Tool metadata records the Node runtime version and current
+CJS source hash. Identical inputs/tool/runtime reproduce identical output bytes.
+An explicit `--output` retains the audit's existing user-directed rewrite behavior.
 
 Absent candles can reflect closures, holidays, quiet intervals or capture gaps.
 This audit does not diagnose availability or fill them with synthetic candles.
@@ -51,13 +55,13 @@ finer executable quote coverage remain pending.
 
 ## Register experiments before evaluation
 
-`protocol.py` validates explicit candidate specifications and appends a local
+`protocol.cjs` validates explicit candidate specifications and appends a local
 trial ledger:
 
 ```sh
-python3 backend/research/protocol.py validate /absolute/path/candidate.json
-python3 backend/research/protocol.py register /absolute/path/candidate.json --ledger /absolute/path/trials.json
-python3 backend/research/protocol.py result candidate-id --ledger /absolute/path/trials.json --artifact /absolute/path/result.json --status INCONCLUSIVE
+node backend/research/protocol.cjs validate /absolute/path/candidate.json
+node backend/research/protocol.cjs register /absolute/path/candidate.json --ledger /absolute/path/trials.json
+node backend/research/protocol.cjs result candidate-id --ledger /absolute/path/trials.json --artifact /absolute/path/result.json --status INCONCLUSIVE
 ```
 
 The specification fields are `schemaVersion: 1`, `candidateId`, `hypothesis`,
@@ -82,7 +86,7 @@ future dates have been selected/frozen by this foundation release.
 Use Node 22.16.0 for the checked-in manifest (the project supports Node >=20 <23):
 
 ```sh
-node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07-events.json /absolute/path/new-replay.json
+node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07-node.json /absolute/path/new-replay.json
 ```
 
 This manifest pins the current foundation's local archive, runtime
@@ -95,8 +99,9 @@ tests use synthetic observations and require no archive.
 
 The original `v5-coarse-parity-2026-07.json` and its emitted evidence remain an
 immutable earlier checkpoint. Its source hashes describe that earlier code;
-do not rewrite it to accept later sources. The `-events` manifest records the
-current implementation separately. This historical command still runs the
+do not rewrite it to accept later sources. The `-events` manifest retains the
+event/recovery checkpoint; the `-node` manifest pins the current Node tooling.
+This historical command still runs the
 quarter-hour coarse screen; its filename does not imply historical tick inputs
 or the fine schedule described below.
 

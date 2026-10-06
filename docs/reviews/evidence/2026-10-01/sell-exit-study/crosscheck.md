@@ -1,5 +1,7 @@
 # Independent arithmetic and capacity crosscheck — October 1, 2026
 
+October 6 language-policy update: the original analysis scripts are retired from the current tree. The Git commands below inspect their preserved source; they do not rerun the study. Saved inputs, results and source hashes retain their historical provenance. Current tooling uses Node.js; see [the migration record](https://github.com/adamSellers/forex-trading-bot/blob/main/docs/reviews/2026-10-06-node-tooling.md).
+
 Audit scope: saved research inputs and outputs, without importing the replay implementation or calling the broker. This validates arithmetic and observed-entry capacity conflicts. It does not validate hypothetical fills or turn a fixed-entry study into a strategy/portfolio backtest.
 
 ## Checks
@@ -68,8 +70,8 @@ Historical releases through v4 had one global position. v4.1/v4.2 have one per p
 | Earlier 16 | scaled | 1.5× | 3073→3085, 3143→3153, 3195→3207, 3207→3217, 3239→3251 |
 | Earlier 16 | scaled | 2× | 3073→3085, 3085→3097, 3121→3133, 3143→3153, 3195→3207, 3207→3217, 3239→3251 |
 
-## Reproduction and limits
+## Historical calculation sources and limits
 
-Run `python3 crosscheck.py` in this directory. Retained `crosscheck_inputs.json` contains the relevant minimal API fields including BUY entries, with a SHA-256 of the original raw snapshot. To regenerate that reduced input, pass the raw trades API JSON path as the first argument. `crosscheck.json` records full checks, original input hashes, all 29 tables, recent 13 tables and both poll-phase conflict lists.
+Inspect the preserved source with `git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/crosscheck.py`. Retained `crosscheck_inputs.json` contains the relevant minimal API fields including BUY entries, with a SHA-256 of the original raw snapshot. The original tool accepted a raw trades API JSON path as its first argument. `crosscheck.json` records full checks, original input hashes, all 29 tables, recent 13 tables and both poll-phase conflict lists.
 
 No counterfactual signal, cooldown, H1 reset or new-entry regeneration is attempted. Capacity alone is sufficient to reject a portfolio-return interpretation of summed fixed-fill scenarios. The arithmetic checks do not remove the replay's stated S5 aggregation, broker-trigger/fill and hypothetical polling limitations.

@@ -1,0 +1,77 @@
+# Node.js tooling and language policy
+
+The user requires no Python in any project. The instruction is saved permanently
+in `~/.codex/AGENTS.md` and recorded in this repository's `CLAUDE.md`. Research,
+analysis, tests, deployment and maintenance use the established Node.js/shell
+runtime. Trading strategy, risk settings and timestamp meanings remain unchanged.
+
+## Current tools
+
+The input audit and experiment protocol are ported to Node.js. Existing schema,
+coverage arithmetic, candidate validation and trial-ledger semantics are retained.
+Tool identity/runtime metadata truthfully identify the replacement. The Node audit
+uses a new default report path so the original historical audit is retained.
+Explicit output paths retain the prior caller-directed write behavior.
+
+The existing native SQLite dependency uses its Node prebuilt binary. Maintenance
+runtime loading forces node-gyp's interpreter command to `/usr/bin/false`, which
+disables its Python discovery/source-build fallback. If a suitable prebuilt binary
+is unavailable, dependency preparation fails before cutover. No Python installation
+is a recovery step. The forced-command behavior is verified against the bundled
+Node 22.16.0 npm source and its actual finder.
+
+Operational JSON, process-lock and filesystem checks use Node.js. Backup and
+restore retain their SQLite integrity/lifecycle checks, matched snapshots, bounded
+operations, archive path/link/credential restrictions, pause/broker preflights,
+atomic moves and recovery behavior. The one-command deployment workflow stays
+local development → GitHub → deployment from the published revision.
+
+Actual GNU, PAX and USTAR archives, including extended UTF-8 paths, are covered.
+GNU sparse tar encodings are unsupported by the Node parser and are rejected
+before extraction; they must not be accepted as ordinary file payloads. The current
+backup producer does not request sparse encoding. Database-only restore into
+current reviewed source remains available. This is a documented archive-format
+compatibility limit, not a claim of general parity with every retired parser format.
+
+## Historical sources and evidence
+
+Fifteen old one-off analysis/preparation scripts are retired from the current tree.
+Their exact sources remain in Git at
+[`af2c14da80255b07b9415af6430a476da1ff9507`](https://github.com/adamSellers/forex-trading-bot/tree/af2c14da80255b07b9415af6430a476da1ff9507/docs/reviews/evidence).
+Historical reports, raw/reduced observations, numerical results, manifests and
+original source hashes are retained. Their provenance is not relabelled as a
+Node.js calculation. Historical source inspection is distinct from rerunning a
+study; no current Python execution path is provided.
+
+Older source archives retain their original tooling. Use database-only recovery
+into current Node.js source to preserve the language policy. Current restore guards
+retain their invoking Node helper outside the candidate across cutover, so accepted
+older archives do not remove the guard while replacing the installation.
+
+Current offline evaluation continues through the Node.js research tools. Reusing
+an old study calculation requires a validated Node.js implementation, rather than
+executing retired code or treating a source archive as a current project tool.
+
+## Validation and delivery
+
+Validation records the converted research and operational scenarios, full backend
+regression, source inventory, input audit comparison and deployment state. A passed
+fixture is not a real restore drill or evidence of trading profitability.
+
+Independent integration review corrected the staged native dependency lookup,
+immutable verification of standalone WAL-format snapshots, streaming tar descriptor
+ownership and the helper's lifetime across source replacement. Snapshot bytes and
+sidecars remain unchanged during verification; live WAL uncertainty remains visible.
+
+The [retained validation](evidence/2026-10-06/tooling/node-tooling-validation.json)
+records 1,229 passing backend tests across 65 suites, including 31 converted
+research-tool tests; 57 deployment/restore cases; 21 health scenarios; and all
+backup regressions. Interpreter sentinels recorded no invocation. The full Node
+audit contains 7 instruments and 1,147,442 candles with zero structural problems;
+all non-tool fields exactly match the preserved audit. The new versioned replay
+manifest pins 107 source files. Its coarse historical snapshot exactly matches
+the prior reviewed capture, with zero observed network attempts. These are
+contract and software checks, not a profitability result.
+
+Publication and production verification will be recorded after the local commit
+is published and the existing deployment command completes.

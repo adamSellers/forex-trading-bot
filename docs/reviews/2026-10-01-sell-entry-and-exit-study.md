@@ -1,5 +1,7 @@
 # SELL entries, exits and wider stops — 1 October 2026
 
+October 6 language-policy update: the original analysis scripts are retired from the current tree. The Git commands below inspect their preserved source; they do not rerun the study. Saved inputs, results and source hashes retain their historical provenance. Current tooling uses Node.js; see [the migration record](https://github.com/adamSellers/forex-trading-bot/blob/main/docs/reviews/2026-10-06-node-tooling.md).
+
 **Wider stops change some of these outcomes; they do not rescue all the SELL losses.** In the recent sample, widening only the initial stop while retaining the original target and breakeven trigger turns three of eight full-stop losses into profitable exits at 2× width. Three still hit their doubled stops, and two still close at a loss under the time/session rules. Moving the target and breakeven trigger farther away with the stop is a different policy and can make results worse.
 
 This research changes no trading code, settings, positions or deployment. The separately completed chart correction remains local. Broker actuals below are facts; alternative results are **independent historical quote sensitivities**, not alternative account or portfolio P&L.
@@ -129,16 +131,16 @@ On the retained quote paths, widening the initial stop changes the latest AUD/US
 
 No strategy change, increased cash-risk setting, live order, publication or deployment occurred. The previous chart work is preserved separately.
 
-## Reproduction
+## Historical calculation sources
 
-Run from the repository root:
+Inspect the preserved source from the repository root:
 
 ```sh
-python3 docs/reviews/evidence/2026-10-01/sell-exit-study/setup_analysis.py
-python3 docs/reviews/evidence/2026-10-01/sell-exit-study/exit_analysis.py
-python3 docs/reviews/evidence/2026-10-01/sell-exit-study/setup_structure.py
-python3 docs/reviews/evidence/2026-10-01/sell-exit-study/crosscheck.py
-python3 docs/reviews/evidence/2026-10-01/sell-exit-study/build_report.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/setup_analysis.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/exit_analysis.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/setup_structure.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/crosscheck.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-10-01/sell-exit-study/build_report.py
 ```
 
 The [capture manifest](evidence/2026-10-01/sell-exit-study/manifest.json) records read-only production revision, acquisition bounds and raw-capture hashes. [Exit results](evidence/2026-10-01/sell-exit-study/exit_results.json) contain all **928** trade/family/width/BE-mode combinations, levels, units, risk, outcome bounds and subgroup sums. An [independent crosscheck](evidence/2026-10-01/sell-exit-study/crosscheck.md) recomputes all sizing/arithmetic, checks 288 aggregates and identifies incompatible later entries. Resized nominal stop risk is 98.7089%–100% of original risk after integer rounding; this is not a guarantee against execution gaps. The scripts use no broker credentials, network calls or runtime imports. Retained market/signal inputs are compressed JSON, and selected trade inputs omit operational credentials and account identifiers.

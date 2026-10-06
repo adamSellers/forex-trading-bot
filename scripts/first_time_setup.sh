@@ -172,7 +172,7 @@ if [ $attempt -lt $max_attempts ]; then
     
     # Show status
     echo ""
-    forex_api_curl -s http://localhost:3101/api/health | python3 -m json.tool 2>/dev/null || forex_api_curl -s http://localhost:3101/api/health
+    forex_api_curl -s http://localhost:3101/api/health | node "$SCRIPT_DIR/maintenance-tools.cjs" pretty-json 2>/dev/null || forex_api_curl -s http://localhost:3101/api/health
 else
     log_warn "Health check timed out - checking logs..."
     pm2 logs forex-backend --lines 30 --nostream

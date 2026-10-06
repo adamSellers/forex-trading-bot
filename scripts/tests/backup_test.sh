@@ -33,20 +33,14 @@ assert_contains() {
 }
 
 mkdir -p "$STUB_BIN"
+export TEST_FLOCK_BINARY="$(node "$REPO_ROOT/scripts/tests/test_helpers.cjs" flock-executable "$TEST_ROOT")"
 
 cat > "$STUB_BIN/flock" <<'EOF'
 #!/bin/bash
 [ "${STUB_FLOCK_FAIL:-0}" != 1 ] || exit 1
 # Exercise real descriptor inheritance and contention even on development
 # machines without the Linux flock executable.
-python3 - "$@" <<'PY'
-import fcntl
-import sys
-try:
-    fcntl.flock(int(sys.argv[-1]), fcntl.LOCK_EX | fcntl.LOCK_NB)
-except (OSError, ValueError):
-    sys.exit(1)
-PY
+exec "$TEST_FLOCK_BINARY" "$@"
 EOF
 
 cat > "$STUB_BIN/timeout" <<'EOF'
@@ -147,6 +141,7 @@ EOF
 chmod +x "$STUB_BIN"/*
 
 export PATH="$STUB_BIN:$PATH"
+export NODE_PATH="$REPO_ROOT/backend/node_modules"
 export CALL_LOG STUB_PM2_PID=1234
 export FOREX_NODE_RUNTIME_LOADED=1
 unset FOREX_OPERATOR_TOKEN
@@ -163,12 +158,7 @@ export MAINTENANCE_TEST_PROJECT="$PROJECT_DIR"
 reset_case() {
     rm -rf "$PROJECT_DIR" "$BACKUP_DIR"
     mkdir -p "$PROJECT_DIR/backend/data" "$BACKUP_DIR"
-    python3 - "$PROJECT_DIR/backend/data/trading.db" <<'PY'
-import sqlite3, sys
-connection = sqlite3.connect(sys.argv[1])
-connection.executescript("CREATE TABLE broker_order_intents(status TEXT); CREATE TABLE broker_position_quarantines(status TEXT);")
-connection.close()
-PY
+    node "$REPO_ROOT/scripts/tests/test_helpers.cjs" init-lifecycle-db "$PROJECT_DIR/backend/data/trading.db"
     printf '{"enableTrading":true}' > "$PROJECT_DIR/backend/data/trading_config.json"
     : > "$CALL_LOG"
     unset STUB_FLOCK_FAIL STUB_OPEN_TRADES STUB_SQLITE_BACKUP_FAIL STUB_SQLITE_INTEGRITY_FAIL
@@ -179,27 +169,27 @@ PY
 test_backup_restores_enabled_intent_without_clearing_loss_cooldown() {
     reset_case
     export STUB_ACTUAL_ACTIVATION=1
-    export STUB_LAST_LOSS_AT="$(python3 -c 'import time; print(int(time.time()*1000)-60000)')"
+    export STUB_LAST_LOSS_AT="$(node -e 'console.log(Date.now()-60000)')"
 
     bash "$BACKUP_SCRIPT" >/dev/null
 
     assert_file "$BACKUP_DIR/trading_20990101_000000.db"
     assert_no_file "$BACKUP_DIR/trading_20990101_000000.db.partial"
-    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | python3 -c \
-        'import json,sys; assert json.load(sys.stdin)["config"]["enableTrading"] is True'
-    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" readiness | python3 -c \
-        'import json,sys,os; r=json.load(sys.stdin); assert r["status"]=="COOLDOWN" and r["passed"] is False; assert r["entryRisk"]["entryAllowed"] is False; assert r["entryRisk"]["cooldownUntil"]==int(os.environ["STUB_LAST_LOSS_AT"])+86400000'
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | node -e \
+        'const a=require("node:assert/strict"),r=JSON.parse(require("node:fs").readFileSync(0,"utf8"));a.equal(r.config.enableTrading,true)'
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" readiness | node -e \
+        'const a=require("node:assert/strict"),r=JSON.parse(require("node:fs").readFileSync(0,"utf8"));a.equal(r.status,"COOLDOWN");a.equal(r.passed,false);a.equal(r.entryRisk.entryAllowed,false);a.equal(r.entryRisk.cooldownUntil,Number(process.env.STUB_LAST_LOSS_AT)+86400000)'
     export STUB_RISK_CLOCK_MS="$((STUB_LAST_LOSS_AT + 86400000))"
-    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" readiness | python3 -c \
-        'import json,sys; r=json.load(sys.stdin); assert r["passed"] is True and r["entryRisk"]["consecutiveLosses"]==0'
-    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | python3 -c \
-        'import json,sys; assert json.load(sys.stdin)["config"]["enableTrading"] is True'
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" readiness | node -e \
+        'const a=require("node:assert/strict"),r=JSON.parse(require("node:fs").readFileSync(0,"utf8"));a.equal(r.passed,true);a.equal(r.entryRisk.consecutiveLosses,0)'
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | node -e \
+        'const a=require("node:assert/strict"),r=JSON.parse(require("node:fs").readFileSync(0,"utf8"));a.equal(r.config.enableTrading,true)'
 }
 
 test_backup_preserves_operator_pause_during_and_after_cooldown() {
     reset_case
     export STUB_ACTUAL_ACTIVATION=1
-    export STUB_LAST_LOSS_AT="$(python3 -c 'import time; print(int(time.time()*1000)-60000)')"
+    export STUB_LAST_LOSS_AT="$(node -e 'console.log(Date.now()-60000)')"
     printf '{"enableTrading":false}' > "$PROJECT_DIR/backend/data/trading_config.json"
 
     bash "$BACKUP_SCRIPT" >/dev/null
@@ -207,8 +197,8 @@ test_backup_preserves_operator_pause_during_and_after_cooldown() {
     assert_file "$BACKUP_DIR/trading_20990101_000000.db"
     if grep -Fq '/trading/start' "$CALL_LOG"; then fail "backup overrode an operator pause"; fi
     export STUB_RISK_CLOCK_MS="$((STUB_LAST_LOSS_AT + 86400000))"
-    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | python3 -c \
-        'import json,sys; assert json.load(sys.stdin)["config"]["enableTrading"] is False'
+    "$MAINTENANCE_TEST_NODE" "$MAINTENANCE_TEST_API" health | node -e \
+        'const a=require("node:assert/strict"),r=JSON.parse(require("node:fs").readFileSync(0,"utf8"));a.equal(r.config.enableTrading,false)'
 }
 
 test_successful_safe_backup() {
@@ -291,13 +281,7 @@ test_open_trade_fails_closed_without_stopping_service() {
 
 test_ambiguous_intent_with_flat_broker_keeps_management_running() {
     reset_case
-    python3 - "$PROJECT_DIR/backend/data/trading.db" <<'PY'
-import sqlite3, sys
-connection = sqlite3.connect(sys.argv[1])
-connection.execute("INSERT INTO broker_order_intents VALUES('AMBIGUOUS')")
-connection.commit()
-connection.close()
-PY
+    node "$REPO_ROOT/scripts/tests/test_helpers.cjs" ambiguous-intent "$PROJECT_DIR/backend/data/trading.db"
     if bash "$BACKUP_SCRIPT" >/dev/null 2>&1; then
         fail "backup ignored an unresolved local intent while broker appeared flat"
     fi

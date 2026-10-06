@@ -1,5 +1,7 @@
 # Prespecified post-TP fade check
 
+October 6 language-policy update: the original analysis scripts are retired from the current tree. The Git commands below inspect their preserved source; they do not rerun the study. Saved inputs, results and source hashes retain their historical provenance. Current tooling uses Node.js; see [the migration record](https://github.com/adamSellers/forex-trading-bot/blob/main/docs/reviews/2026-10-06-node-tooling.md).
+
 Prepared locally on September 26, 2026 for the integrated release specification. No broker calls, orders, settings, builds or deployments were made by this investigation.
 
 ## Decision
@@ -29,12 +31,12 @@ Entry-boundary candles touch neither initial protection nor the +1R trigger, so 
 
 Each path resolves before its original deadline and before the retained M1 window ends. Candle timestamps mark intervals, not the exact instant of each high or low. The final opposite quote is a proxy for an unobserved fill; reverse-side liquidity/slippage, protection alignment, rounding-driven sizing, changing AUD conversion and alternative portfolio state are not replayed. Spreads are reflected by opposite entry/exit quote sides and must not be subtracted twice. No aggregate hypothetical AUD profit is reported. Changed position occupancy, opportunities, anchors, risk and cooldowns prevent interpreting this as an alternative live portfolio.
 
-## Reproduction
+## Historical calculation sources
 
-Run from the repository root:
+Inspect the preserved source from the repository root:
 
 ```sh
-python3 docs/reviews/evidence/2026-09-26/integrated-release/fade-analysis.py
+git show af2c14da80255b07b9415af6430a476da1ff9507:docs/reviews/evidence/2026-09-26/integrated-release/fade-analysis.py
 ```
 
-[The script](fade-analysis.py) reads only retained review evidence. [Results](fade-results.json) include source SHA-256 hashes, freshness checks, entry proxies, precise rounded levels, intervals and every retained M1 exit-side candle through the first terminal event. Assertions validate latest-closed-trade anchors, missing freshness, contiguous complete quote candles, boundary ambiguity, level ordering, deadline coverage and breakeven independence for these episodes.
+[The script](https://github.com/adamSellers/forex-trading-bot/blob/af2c14da80255b07b9415af6430a476da1ff9507/docs/reviews/evidence/2026-09-26/integrated-release/fade-analysis.py) reads only retained review evidence. [Results](fade-results.json) include source SHA-256 hashes, freshness checks, entry proxies, precise rounded levels, intervals and every retained M1 exit-side candle through the first terminal event. Assertions validate latest-closed-trade anchors, missing freshness, contiguous complete quote candles, boundary ambiguity, level ordering, deadline coverage and breakeven independence for these episodes.
