@@ -6,9 +6,12 @@ settings, create a simulated product runtime or select a profitable strategy.
 
 R1 input auditing and protocol/ledger tooling are implemented. R2 now includes a
 causal archive adapter, controlled wall/monotonic clocks, a stateful broker model
-and actual isolated SQLite orchestration. A complete historical v5 evaluator with
-intrabar uncertainty and full lifecycle feedback coverage is **pending**. The
-[persisted replay record](../../docs/reviews/2026-10-06-persisted-replay-foundation.md)
+and actual isolated SQLite orchestration. Persisted lifecycle feedback, orderly
+cold process restart, focused pricing requests and explicit fine event schedules
+have synthetic software tests. A complete historical v5 evaluator with retained
+broker parity, exhaustive intrabar uncertainty and a frozen profitability baseline
+is **pending**. The
+[events and recovery record](../../docs/reviews/2026-10-06-replay-events-and-recovery.md)
 separates software parity from profitability evidence.
 
 ## Audit existing inputs
@@ -79,15 +82,23 @@ future dates have been selected/frozen by this foundation release.
 Use Node 22.16.0 for the checked-in manifest (the project supports Node >=20 <23):
 
 ```sh
-node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07.json /absolute/path/new-replay.json
+node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07-events.json /absolute/path/new-replay.json
 ```
 
-The manifest pins the local archive, all runtime source/configuration/migrations,
-the research harness and dependencies. Missing, changed or newly unpinned sources
+This manifest pins the current foundation's local archive, runtime
+source/configuration/migrations, the research harness and dependencies.
+Missing, changed or newly unpinned sources
 fail before historical evaluation. Its v5 identity must match the actual catalog
 and config. Output paths must be new; the launcher does not overwrite evidence.
 The ignored archive is needed only for this explicit command. Normal backend
 tests use synthetic observations and require no archive.
+
+The original `v5-coarse-parity-2026-07.json` and its emitted evidence remain an
+immutable earlier checkpoint. Its source hashes describe that earlier code;
+do not rewrite it to accept later sources. The `-events` manifest records the
+current implementation separately. This historical command still runs the
+quarter-hour coarse screen; its filename does not imply historical tick inputs
+or the fine schedule described below.
 
 The launcher uses a separate process, clears credential variables and inherited
 Node/dotenv preload settings, and does not import the server or dotenv. The Jest
@@ -105,25 +116,104 @@ timestamped events; missing historical charges remain unknown. Independent check
 require complete cash evidence, unique/bidirectional trade ownership and matching
 local/broker results. Synthetic fixtures cover valid BUY/SELL, JPY/non-JPY,
 competing pairs, small-account rejection, pricing reconsideration, lost-response
-intent recovery, breakeven/gap/cost accounting and engine/coordinator restart
-equivalence with retained database/data caches. A cold process/file-database
-restart remains pending. Transport deadline tests run separately; the historical
-screen models zero-latency deliveries.
+intent recovery and breakeven/gap/cost accounting. Generated entries and actual
+persisted decisions also exercise normal-stop H1 reset/requalification, protected
+exit blocking and wholly post-exit touches, one post-target fade with its parent
+and original retry anchor, fade consumption, and the three-loss cooldown deadline
+across engine/coordinator restart. These are representative software fixtures,
+not a claim that every historical lifecycle path is covered.
+
+The cold restart test runs separate Node processes against file-backed SQLite.
+Fresh ConfigService, DataService, market caches, coordinator and engine recover
+the saved run, intent and protected trade. A validated checkpoint preserves the
+modeled external broker's cash, trades, protection, financing deduplication,
+transactions and next identifiers. The caller-owned config survives shutdown.
+After a repeated scan and financing delivery, a supplied gap stop settles with
+the same persisted/account results as an uninterrupted control. Process-local
+monotonic time deliberately restarts; comparison excludes that clock value while
+retaining explicit wall/event times. This proves an orderly cold process restart
+with an open protected trade. Arbitrary crashes during pending submissions,
+responses or protection writes remain outside this test's claim.
 
 The checked-in five-day July manifest is a **software/accounting screen**, using
 already inspected development data. It models completed M15 component closes,
 declared liquidity/tradeability, fixed 5% margin and explicit slippage. Independent
 bid/ask component closes do not prove a synchronous executable spread. Its
 quarter-hour management schedule does not reconstruct five-second price delivery
-or ten-second live management. It leaves positions open at the final observation;
+or ten-second live management. The coarse screen supplies zero-latency pricing
+responses at its scheduled observations. It leaves positions open at the final observation;
 it neither forces a boundary close nor adds entries after the boundary. SQL-only
 `created_at`/`updated_at` audit fields are excluded from comparable snapshots;
 all explicit event, receipt, decision, intent and lifecycle times are retained.
 
-Do not score candidate profitability from this screen. Actual polling and
-intrabar path uncertainty, loss/reset/cooldown and protected-exit/fade feedback
-coverage, retained broker parity, cost sensitivities and the frozen R3 baseline
+Do not score candidate profitability from this July screen or treat it as the
+frozen R3 baseline. Retained broker parity, historical executable point/delivery
+coverage, exhaustive intrabar outcomes, cost sensitivities and baseline evaluation
 remain to be completed. No candidate or live behaviour is selected here.
+
+## Exercise focused requests and fine schedules
+
+From `backend`, run the research suites with the supported Node runtime:
+
+```sh
+npm test -- --runInBand research/__tests__
+```
+
+`persistedReplay.cjs` exposes separate broker-price, candle-refresh, management
+and scan actions, plus pricing-request start/completion. Advancing the replay
+clock does not dispatch polling timers. Focused request fixtures exercise the
+actual DataService's in-flight poll suppression, response failure and
+post-response deadline with controlled monotonic time. A request can remain
+pending without creating a new receipt. An unchanged source event can be
+successfully received again; source event time, successful receipt time and
+request duration remain distinct. These tests do not reproduce HTTP
+AbortController cancellation or every transport race.
+
+`observedQuoteMarket.cjs`, `fineEventSchedule.cjs` and `runFineSchedule.cjs`
+separate broker-source quote/conversion events from local deliveries and timer
+requests. Every supplied point/delivery carries explicit provenance. Current
+fine orchestration tests use synthetic scenarios, not retained historical ticks.
+The default schedule follows the current application: price polls every five
+seconds, management every ten seconds, and candle refresh/scans every sixty
+seconds. Startup phases and tied-event ordering are explicitly declared modeling
+assumptions. The earlier five-minute scan assumption does not describe the
+current server. Equal millisecond timestamps do not prove real broker or
+event-loop ordering.
+
+Broker-held protection can act on a supplied source price before the application
+receives or manages it. Local delivery alone does not refresh the DataService
+cache: a response needs an actual pending poll with a matching explicit request
+start, and all rows of its declared packet must have arrived. Deliveries without
+an explicit request start, deliveries for a skipped poll and conflicting packet rows
+remain unresolved. Missing instrument rows pass through the actual DataService's
+partial-response path; source quotes and old cache rows do not replace them.
+Source event timestamps remain unchanged when receipt occurs later.
+
+Adapter `visible*Deliveries` counts applied envelope evidence, including unresolved
+packets. Actual DataService cache/receipt state and request logs establish whether
+the application accepted a response.
+
+Explicit source observations strictly before startup initialize the broker source
+book without creating local deliveries or replaying earlier protection callbacks.
+Equal-start events retain their declared tie order. This supports unchanged broker
+event timestamps received successfully at startup; earlier protection outcomes on
+pre-existing positions still require their own evidence.
+
+Engine-side direct broker pricing and conversion lookups use the current source
+view with zero modeled request latency, separately from these app-poll responses.
+The broker's fill/slippage model remains an explicit assumption. The focused
+request tests therefore do not establish historical entry-request latency or
+exact broker fills. Neither timer ticks nor clock progress interpolate quotes,
+conversion rates, successful responses or receipts between supplied observations.
+
+`intrabarUncertainty.cjs` is a post-outcome diagnostic. Retained BUY bid-component
+and SELL ask-component ranges can identify threshold contacts and conditional
+outcome witnesses. They do not establish the order of those contacts, a delivered
+management quote, a broker acknowledgement or realized P/L. Synthetic paths with
+the same OHLC can produce different breakeven outcomes at the management poll.
+The candidates are nonexhaustive; survival is unresolved. Numeric lower/upper
+net-AUD and net-R bounds remain `null` with `NOT_ESTABLISHED` status. This module
+neither supplies entry features nor a profitability interval.
 
 ## Run the earlier architecture spike
 

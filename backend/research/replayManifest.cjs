@@ -7,18 +7,20 @@ function replaySourcePaths(root) {
     const files = new Set(['.nvmrc', 'backend/package.json', 'backend/package-lock.json',
         'backend/jest.config.js', 'backend/__tests__/setup.js', 'shared/tradingConfigDefaults.json',
         'backend/src/strategies/__tests__/fixtures/intradaySellRetestFixture.js']);
-    function walk(directory, skipTests) {
+    function walk(directory, skipTests, includeJson = true) {
         for (const entry of fs.readdirSync(path.join(root, directory), { withFileTypes: true })) {
             const relative = `${directory}/${entry.name}`;
             if (entry.isDirectory()) {
-                if (!skipTests || entry.name !== '__tests__') walk(relative, skipTests);
-            } else if (entry.isFile() && /\.(?:js|cjs|json)$/.test(entry.name)) files.add(relative);
+                if (!skipTests || entry.name !== '__tests__') walk(relative, skipTests, includeJson);
+            } else if (entry.isFile() && (includeJson ? /\.(?:js|cjs|json)$/ : /\.(?:js|cjs)$/).test(entry.name)) files.add(relative);
         }
     }
     walk('backend/src', true);
     walk('backend/config', false);
     walk('backend/migrations', false);
-    walk('backend/research', false);
+    // Generated result/trial JSON is evidence/input, not executed source. Its
+    // own input manifest must pin it; writing an artifact cannot change code pins.
+    walk('backend/research', false, false);
     // Manifests pin source; they cannot include their own hash recursively.
     return [...files].filter((file) => !file.startsWith('backend/research/manifests/')).sort();
 }

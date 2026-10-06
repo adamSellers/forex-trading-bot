@@ -1,0 +1,1155 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-06T03:08:10.176Z",
+  "purpose": "OFFLINE_EVENT_AND_RECOVERY_SOFTWARE_VALIDATION_NOT_PROFITABILITY",
+  "sourceBaseRevision": "c9a5dac88bec8b14588784cb5884c2f9f7deb9c6",
+  "sourceManifest": "backend/research/manifests/v5-coarse-parity-2026-07-events.json",
+  "sourceFilesPinned": 104,
+  "manifestSha256": "540c744ef812b555aa22c3d1672e2541063cabab6e4636fa1e80945f4d4f506b",
+  "sourceHashes": {
+    ".nvmrc": "256a8e08ee35cb8ad36ae16385257192c3dbe7d80cfdeff9eaa886531b2f83bc",
+    "backend/__tests__/setup.js": "1b68603862a2c61fa60d3f274b013cad02dbda256ef18b9e407139572894efbe",
+    "backend/config/database.js": "fb3436f121cec242a584e61efc5fc336c61952c2c984fe5bc2632afeb4707fae",
+    "backend/jest.config.js": "d473b83c0843c056aa253001f361e203a0d17b48a00580ad3006fbb1b37e07c9",
+    "backend/migrations/001_create_forex_tables.js": "c1cc31ea4bac1acc48a275081f8ba9e8421d7d27bf47e59b17b0d0c03f4ae4c7",
+    "backend/migrations/002_create_backtest_results.js": "1a20fcf1dc6bda966737ca2b0935caffe798507251658c1c1ad4f674606b35a8",
+    "backend/migrations/003_add_strategy_telemetry_and_reconciliation.js": "145c1c1a895669ecb58ffc3d195e30280ea3d9200bcfe2ee82cb2a810c86faf5",
+    "backend/migrations/004_add_entry_decisions.js": "17e8c0404f14f2e21acffa36f9d169db1ac8885c2c10cfc7c862100e951bb974",
+    "backend/migrations/005_add_strategy_runs_and_runtime_identity.js": "14daddd6f384e63c3e5a3ce7ea0e49cd1791de8114358570720d048f9d2f763d",
+    "backend/migrations/006_drop_backtest_results.js": "932a5a40f5f2a02ec63f453d59b7b49ad92964090c279613519d0022fa3e76c5",
+    "backend/migrations/007_add_timesfm_context.js": "77b2fb3ba523bb5184173d5bb529ca60425fee98f86eb63ca5b12ccba029d3de",
+    "backend/migrations/008_add_runtime_performance_indexes.js": "6808dffef3f42357b9665bed1ea8acacc8c904b9736169e0f07e85ca70f8fcd3",
+    "backend/migrations/009_add_strategy_run_lineage.js": "e10e374e2666e3be39a861b30f5778024c42c21287f43e6c71060bc37eb3e772",
+    "backend/migrations/010_add_broker_lifecycle_outbox.js": "043cfc6d47feb2b8888b1b80c47166ecc9451c85f62d2b062d1373796342df44",
+    "backend/migrations/011_add_entry_reconsideration.js": "cb96b6da83c9456a6435501c1734842da8b1b0c8f3a5b1b35d1a14b99a5f4d67",
+    "backend/package-lock.json": "e1bbeebbc23262f599259edf9cf44f4ff2d7ad5cd925db867634884071e3d3fe",
+    "backend/package.json": "dedd56fc8c16867d9a2c43b03803de75bde168e0d54536ac00fc75ef95fd91ed",
+    "backend/research/__tests__/brokerCheckpoint.test.js": "8d5b56b3b552c2d13f72a341a0c6f28f937b00fa23d3650fa55b8099c08e4e27",
+    "backend/research/__tests__/coldRestart.test.js": "0060c2e19c3a07cd64e9ba8ff4b5618efcb54fbe150d2b4e6dda7f46f391bb94",
+    "backend/research/__tests__/fineEventSchedule.test.js": "ac333b50461dc2d9a23e2d42af2d601bc34d4c22d7970694c54598403549443d",
+    "backend/research/__tests__/fineOrchestration.test.js": "2bbeed27818780426cce26eb7beed042955645c1391a1848c7efb9016efab98b",
+    "backend/research/__tests__/focusedReplay.test.js": "b6c6d5494a083c0517835806e2c64d68b283f2d428441cb7ddf07a67aa8daf5d",
+    "backend/research/__tests__/historicalMarket.test.js": "7554dafcfa83efff3f203016f0ad91e8b5f7e743cf8aa156c92256a1e0f1b46e",
+    "backend/research/__tests__/intrabarUncertainty.test.js": "c359943e44566775166600b8c9c45e80a956f1d4921d5f72374d2a0302d5c6a0",
+    "backend/research/__tests__/observedQuoteMarket.test.js": "ea271ef76d98ee3e14c44290c4807265a6d36611361fa5d5c2fae70b8123c0cc",
+    "backend/research/__tests__/orchestrationSpike.test.js": "68ac6bb9535c3553e7f4b70f56723ffdd19380918af0585ab6b715496e7d580c",
+    "backend/research/__tests__/persistedLifecycle.test.js": "a3afe6c45164e5f7f82b1823f4d4f4b83fd35b9e81292412f2fbb982e475a388",
+    "backend/research/__tests__/persistedReplay.test.js": "e53754c10b4536dd6ab20f6f8a37b14f904f595ff7b70b18010ba6d7e1cb0fe7",
+    "backend/research/__tests__/replayAccounting.test.js": "eac6f5ba494bb7a3a3061ef0f4d9940d4375f5be8fd28d2f7d58285b9d9630fe",
+    "backend/research/__tests__/replayBroker.test.js": "3ed5470a88e13bc6b4bcc5e93344f2eb81834822db39f22adf665effa3f3b089",
+    "backend/research/__tests__/replayClock.test.js": "222c36c94ca97542603e021d951b9fa1d6794aed5dac03036facf30d7732eac1",
+    "backend/research/__tests__/replayManifest.test.js": "4b76e17528150408fafebdd2af1f0cf05a231579a26575974b0270387db95e53",
+    "backend/research/fineEventSchedule.cjs": "0e4a98b8cf28c0f93500d8ddf41212488f6e5e543709ce64ebb727aef851bd19",
+    "backend/research/fixtures/archiveFixtures.cjs": "3e5148f96bbbc6867e4234971f468059a9de959a47191243dd721c34138e16ac",
+    "backend/research/fixtures/causalFlows.cjs": "6f693b2b060e00d265cbd88903ff2a18e1238bf12b892212208dc6ff421a542b",
+    "backend/research/fixtures/lifecycleFlows.cjs": "7c74a4edcd40c71d21dfb8b09881253f0a900e32f801d2dfc58c2725210f2355",
+    "backend/research/historicalMarket.cjs": "310d18d7d5df0e47bf317a41e0f813334f17cb781f9bc342c90bba9c6e896696",
+    "backend/research/intrabarUncertainty.cjs": "08090d26433306e465f98394fd14666571d8bf6f6b9de332ae94dd9e4654cd95",
+    "backend/research/observedQuoteMarket.cjs": "c12bc30e3b22713d5ef5051ef3ea62ca7beaaa091c74e07fc1a070d33c8f8a5d",
+    "backend/research/persistedReplay.cjs": "ac96c7750f8a84a942afb5e7b471a200795f34bc075a56a1fc288bf789673c66",
+    "backend/research/replayAccounting.cjs": "318b166ae3a7ace1584c22706721735df805014ee4a04c929320886f94e10e57",
+    "backend/research/replayBroker.cjs": "f23b22e446f4213b4b4a31cc33d0e9819a577f49579d774805c4be1cdf5fce19",
+    "backend/research/replayClock.cjs": "92c63c134b57ebde279b57c874de19e69705a535fee375133567e729efd71150",
+    "backend/research/replayManifest.cjs": "efd975964dac4bde8a4d8c7645230ddb8a9d2f26d4600abe673e40f3840d9234",
+    "backend/research/runFineSchedule.cjs": "e5aa31989484875bec6393578f48041ef0b26611e7b07d93c1ba25f8d2f58f77",
+    "backend/research/run_replay.cjs": "0d1978bf83b00b48847117d64eb08fa7adfd78a196ee0bc4eb90564f18f365e2",
+    "backend/research/run_spike.cjs": "f901b28127a01ba3b0cc395831266668ea556758f0a792d6146aa8e74ce8018f",
+    "backend/research/testHarness.cjs": "3ab6f866e00d2e212a515caa998ebd41abc79b06c7616bd5e2de78ecb60c0ce0",
+    "backend/src/config/supertrendParams.js": "c1f693f59826fd00f0a1e82289c22052d1b9a4d78934a4fcd585c2e5a629121e",
+    "backend/src/config/tradingConfig.js": "807e13a69f337b0b3d18aae095bbe8906919c4f5a50b23a9ae43530a521645cb",
+    "backend/src/constants/entryDecisionCodes.js": "0a3f6304b7340873500457d5b648305b1b8a7e62183e9dd5821e72ba18a9b62a",
+    "backend/src/constants/positionPolicy.js": "1b5e527514562519669ed3918d313601d9c22d8035313472be7532543065d176",
+    "backend/src/maintenance/checkpointWal.js": "de092243fc78fa7c959e95eefc98207f94a282e91e2312a49e6586f01188a8e2",
+    "backend/src/maintenance/checkpointWalProcess.js": "62355d551b42e23470e522615a1c11d660ba231b74f3d4c5bd28da612e070630",
+    "backend/src/middleware/corsPolicy.js": "694136296a9462ee7b2fc0a65e992612618a459e86386c62ebba5534d962414a",
+    "backend/src/middleware/errorHandler.js": "511ea10abb4fc3b05b44451699d5751801a058c5467d34539d31e73faa6737dc",
+    "backend/src/middleware/validation.js": "b58f3812f43925135e3f94d368ccd2b7018afb41aa881c32dbf16f63b2fa894c",
+    "backend/src/repositories/brokerLifecycleRepository.js": "582c87437128781377053f26d858bfcf8bbacec2753c77a52a09a8de228856f5",
+    "backend/src/repositories/entryDecisionRepository.js": "fa852fc887d97150b199926acbf8f427e81bf6ac001f2016c30831cad9460dcd",
+    "backend/src/repositories/portfolioRepository.js": "97964ade682de739122e3bd0eaca1009bc31c855f5d06df262fd1abeb9fca9b1",
+    "backend/src/repositories/signalRepository.js": "7f2be981e49c3c9053f8395de4189fd4bce1fe809bac358074f43eb51209eb35",
+    "backend/src/repositories/strategyRunRepository.js": "8f70f18cbbb9f4a37c15c836b7bb8fb4ed74c13434adca3585e04534ef9264e8",
+    "backend/src/repositories/tradeRepository.js": "3c8dc990e74e085e2e9ea9953f78a01efacf8ce87205fa318133d8cb36edf2cf",
+    "backend/src/routes/tradingRoutes.js": "d61cb2da9b119fa06703fc3dfde3dd32dac868829af73e053615abc17808b17e",
+    "backend/src/runtime/currencyConversion.js": "65471c7cb51bd08d0557f050869343dc6f510127d2069378e345d16c4301205e",
+    "backend/src/runtime/engineSupervisor.js": "2b97c54308bb379c04e508551d539c1a5c94118d11b711e4c4db8a352b96ad87",
+    "backend/src/runtime/executionPolicy.js": "3e40b09e19f803ed9d93d388f7cd97bbcfd502c64d60d1f2718c84527d019ea8",
+    "backend/src/runtime/exitPolicy.js": "4144e76270e763f0a1875ee6e6e37449d3e140960398a7194e4f2183238ebcd7",
+    "backend/src/runtime/intradayLossResetEvidence.js": "adfbd959c3499760bb4f58c48f6a93bf26048f84278d7a9425c4615305b9ced7",
+    "backend/src/runtime/intradayLossResetPolicy.js": "67d698bcdd94b50a27339310bafedcc5bed6ac3631b8255ca31b32586ddad4b7",
+    "backend/src/runtime/intradayReentryPolicy.js": "68a67def4cbe37caac2ce76947bbd434c5192b6f78ac9a30e98494aaf4e3dd58",
+    "backend/src/runtime/intradaySellRetestEvidence.js": "a8a94cf6d2c3dbe429ff8bb237c6ab517594b6b435bbbbe96605e39375d7b4bd",
+    "backend/src/runtime/intradaySellRetestPolicy.js": "d1572c9d2297ed0fc89247131b8978489a6d342ee627852d58484d8543328224",
+    "backend/src/runtime/liveReadiness.js": "0915514fee179eb6e21dcbaaf3d66ad2babc5725d4f0921e97bf8130d96b0ba4",
+    "backend/src/runtime/marketContextService.js": "538ff76130f24f343a838f37c151e5c68f7372706533d4760bfa34116ff971dc",
+    "backend/src/runtime/marketDataFreshness.js": "a41a8275e7780195a5ef55d7ede96d8e104e5e4289fd66f01f019585807f528d",
+    "backend/src/runtime/portfolioRiskPolicy.js": "53ae4d851488e007efa4d7cefe718fea15e289a40c28c8d395acb64a7bb9c4bf",
+    "backend/src/runtime/quoteAvailability.js": "9bc92a939411b91e02a93a16ba658aa0b32a1069a0011b58225a69d5c337665f",
+    "backend/src/runtime/quoteMath.js": "9891627632f64d118df221915a8dac0d1c1d1c1aae85822270955d8c36381d84",
+    "backend/src/runtime/runtimeConstants.js": "beead5573398ceaf133d4937e4c863d0888e391e5e40dc0be6f01518b00e160b",
+    "backend/src/runtime/runtimeCoordinator.js": "0d584df156d62bfaf596b734ad3326e53cc7cb0aed6d1e1b5e43de6a67b52998",
+    "backend/src/runtime/sampledExcursion.js": "ca22c834d7eb6e932e09ba33307b461389773afbb90165ffc495c779c04dea66",
+    "backend/src/services/LiveTradingEngine.js": "47b8759c64ec9a840b6e9b9fa0010057eaa97c42375f02f6f8cf7c63f439ffeb",
+    "backend/src/services/OandaDataService.js": "58859df2d0f4eb7a7ee4e338f56845648746d6865b14dc0fc4dcd60c5aa3dbc9",
+    "backend/src/services/Oandaclient.js": "6ca5dcb487a7776033e92e67b7426102b3133fd6b9c8b346bde777b2d8495893",
+    "backend/src/services/analyticsService.js": "7c5254a84ef4dd31fd4d34565158d55641f9520c9a60bb0f95eb9231e474bdf1",
+    "backend/src/services/analyticsStatistics.js": "47b7008991f4c12de9500ee44dbed5d240cfeaa3b0cdb01d613228a8925b90ea",
+    "backend/src/services/configService.js": "1b7b9c538517ccc8ef564ef01719a6dab308a765f77646a941057675e7aa5b4d",
+    "backend/src/services/emailService.js": "a957f1a2c16965e13db139ccbf514d4ef83c12c95225c3facc98d58fd0f7ebcf",
+    "backend/src/services/operationalHealthService.js": "c55a870ce879d5e4d4e7c8bae3554343642346d118697cbfcc79c32ae5e13e9e",
+    "backend/src/services/s3ReportScheduler.js": "16e891e0bed5bb658429e9f54f8738051390bafd9630cbf32afa4ea917ded8d8",
+    "backend/src/services/signalGenerator.js": "047013280ba60fd3f4ad679d2c0f4629fa554e4ea22ae3d8f6c1c388fb68cb3a",
+    "backend/src/services/technicalIndicators.js": "657306c03805454d15a11f323d5d8a162c13123c18d802e8102ec2e8ae620d47",
+    "backend/src/services/tradeReconciliationService.js": "b6a03395599478472b389df328e4ae9150bc4b7a81808a47c3a6d555e835d16f",
+    "backend/src/strategies/__tests__/fixtures/intradaySellRetestFixture.js": "12f59e218ee0991adfc499fe031dc8a609999c38637301adf6cd77fc74bf64ee",
+    "backend/src/strategies/expectedEdge.js": "93356f86db00fc0f0509a8f0df9f3fb274271af80c4519525791c2cb88c820ec",
+    "backend/src/strategies/index.js": "b988ff4ff3d963eed79def3942b7d34fe2e6e6343476c0a3b78b1ba805f75e31",
+    "backend/src/strategies/intradayMomentum.js": "1fb2199ffdfa9d0704e87006125efbee57e0a355e1911707d1cadbe7187dab59",
+    "backend/src/strategies/strategyContract.js": "d44cb6b37145995e1f9d0cf6d0c42783175ac1e6f6efd4b136bfce09c6d2aadd",
+    "backend/src/utils/awsS3Utils.js": "2ee4ec20859bb5d4d652e2e2684d22277b3d1e352165fb400777193a54d64585",
+    "backend/src/utils/indicators.js": "a41821c4d32fc6dad1c28bf06ba5e905cb643065dfff11a59af1b6034f5b94bb",
+    "backend/src/utils/logger.js": "8907aab25a392d4b3b2741dd10cd26abce00a808019f814c8803fd160c4fa809",
+    "backend/src/utils/oandaErrors.js": "0d2ee14a4a58246225f0a82fdf738f0f31fbe987fedb4239859d6bf8dc0e25da",
+    "shared/tradingConfigDefaults.json": "76ce9951f1303c16c074a6043965e644a07caf8ce222bf44f14233be95598ba0"
+  },
+  "runtimeEnvironment": {
+    "nodeVersion": "22.16.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "icuVersion": "77.1",
+    "timezone": "Australia/Sydney",
+    "dependencies": {
+      "jest": "29.7.0",
+      "knex": "3.2.8",
+      "better-sqlite3": "9.6.0"
+    }
+  },
+  "backendRegression": {
+    "success": true,
+    "passedTests": 1198,
+    "totalTests": 1198,
+    "passedSuites": 64,
+    "totalSuites": 64,
+    "failedTests": 0,
+    "failedSuites": 0,
+    "reportLocalPath": "/private/tmp/forex-backend-event-replay-validation-20261006.json",
+    "reportSha256": "25ff4a0e0809872db83f2ff14cacae3a6f55b2936be65405afa9fbefa8e753cd",
+    "researchSuites": [
+      {
+        "file": "backend/research/__tests__/coldRestart.test.js",
+        "status": "passed",
+        "passedTests": 1,
+        "scenarios": [
+          {
+            "name": "distinct bot processes recover file SQLite and preserved external broker state identically to an uninterrupted control",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/fineOrchestration.test.js",
+        "status": "passed",
+        "passedTests": 8,
+        "scenarios": [
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 breakeven depends on the supplied price at the management poll (held=false)",
+            "status": "passed"
+          },
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 breakeven depends on the supplied price at the management poll (held=true)",
+            "status": "passed"
+          },
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 fine startup has no local quote receipt until its declared response completes",
+            "status": "passed"
+          },
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 partial poll marks an absent bridge unavailable while separately observed broker pricing supports valid entry",
+            "status": "passed"
+          },
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 an unchanged pre-start broker event supports a healthy current receipt without a fabricated startup receipt",
+            "status": "passed"
+          },
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 unmeasured delivery cannot invent a pricing response or successful receipt",
+            "status": "passed"
+          },
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 conversion_only delivery cannot invent a pricing response or successful receipt",
+            "status": "passed"
+          },
+          {
+            "name": "fine source/delivery schedule through unchanged persisted v5 a response attributed to a skipped poll remains unresolved while the actual older request can complete",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/persistedLifecycle.test.js",
+        "status": "passed",
+        "passedTests": 5,
+        "scenarios": [
+          {
+            "name": "persisted generated v5 lifecycle decisions a normal stop persists its H1 reset anchor, later requalification permits another generated BUY",
+            "status": "passed"
+          },
+          {
+            "name": "persisted generated v5 lifecycle decisions BREAKEVEN_STOP blocks an old BUY continuation then admits a wholly post-exit touch",
+            "status": "passed"
+          },
+          {
+            "name": "persisted generated v5 lifecycle decisions TAKE_PROFIT blocks an old BUY continuation then admits a wholly post-exit touch",
+            "status": "passed"
+          },
+          {
+            "name": "persisted generated v5 lifecycle decisions a generated SELL target permits one BUY fade, local retries and restart retain its parent and price anchor",
+            "status": "passed"
+          },
+          {
+            "name": "persisted generated v5 lifecycle decisions three generated normal losses arm the actual 24-hour cooldown without changing its deadline on restart",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/persistedReplay.test.js",
+        "status": "passed",
+        "passedTests": 8,
+        "scenarios": [
+          {
+            "name": "persisted chronological production-path replay SELL structural evidence, actual SQLite intent/trade and timed closure reproduce across restart",
+            "status": "passed"
+          },
+          {
+            "name": "persisted chronological production-path replay healthy EUR_USD BUY executes through causal M15/H1 and real conversion/sizing",
+            "status": "passed"
+          },
+          {
+            "name": "persisted chronological production-path replay healthy USD_JPY BUY executes through causal M15/H1 and real conversion/sizing",
+            "status": "passed"
+          },
+          {
+            "name": "persisted chronological production-path replay competing eligible pairs evolve account exposure and survive ownership restart without another fill",
+            "status": "passed"
+          },
+          {
+            "name": "persisted chronological production-path replay existing account constraints may reject another pair without becoming a count cap",
+            "status": "passed"
+          },
+          {
+            "name": "persisted chronological production-path replay local final-price decline can reconsider a healthy repeated event using its original anchor",
+            "status": "passed"
+          },
+          {
+            "name": "persisted chronological production-path replay broker-confirmed breakeven, gap stop and explicit lifetime costs reconcile after restart",
+            "status": "passed"
+          },
+          {
+            "name": "persisted chronological production-path replay a filled order with a lost response resolves from its durable intent without another order",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/focusedReplay.test.js",
+        "status": "passed",
+        "passedTests": 3,
+        "scenarios": [
+          {
+            "name": "separate observed replay actions through production orchestration pending price polls, exact request budget, stale-response failure and valid old-event recovery retain receipt meaning",
+            "status": "passed"
+          },
+          {
+            "name": "separate observed replay actions through production orchestration broker-held stop acts on a supplied source point before the app receives or manages it",
+            "status": "passed"
+          },
+          {
+            "name": "separate observed replay actions through production orchestration a request without a declared completion remains pending and cannot refresh receipt",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/replayClock.test.js",
+        "status": "passed",
+        "passedTests": 16,
+        "scenarios": [
+          {
+            "name": "research replay clock through production quote observations Date constructors, calendar methods and both monotonic consumers share one explicit timeline",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations sub-millisecond latency accumulates without making Date.now disagree with new Date",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations advancing observations leaves polling dormant and real asynchronous SQLite operations can settle",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations the actual DataService request accepts 0ms elapsed time including the exact deadline",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations the actual DataService request accepts 25ms elapsed time including the exact deadline",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations the actual request rejects late headers/body {\"headersMs\":26,\"bodyMs\":0} without dispatching abort or poll timers",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations the actual request rejects late headers/body {\"headersMs\":10,\"bodyMs\":16} without dispatching abort or poll timers",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations the actual engine final quote uses the same monotonic 25ms budget",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations the actual engine final quote uses the same monotonic 26ms budget",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations successful repeat delivery keeps the old broker event and refreshes only receipt time",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations installation preserves existing descriptors and restoration is safe to repeat",
+            "status": "passed"
+          },
+          {
+            "name": "research replay clock through production quote observations invalid or backwards observations cannot mutate either clock",
+            "status": "passed"
+          },
+          {
+            "name": "completed BUY research fixture with coherent H1 history EUR_USD pullback reaches the actual deployed-default strategy without replacing its signal",
+            "status": "passed"
+          },
+          {
+            "name": "completed BUY research fixture with coherent H1 history EUR_USD breakout reaches the actual deployed-default strategy without replacing its signal",
+            "status": "passed"
+          },
+          {
+            "name": "completed BUY research fixture with coherent H1 history USD_JPY pullback reaches the actual deployed-default strategy without replacing its signal",
+            "status": "passed"
+          },
+          {
+            "name": "completed BUY research fixture with coherent H1 history USD_JPY breakout reaches the actual deployed-default strategy without replacing its signal",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/orchestrationSpike.test.js",
+        "status": "passed",
+        "passedTests": 3,
+        "scenarios": [
+          {
+            "name": "offline chronological v5 architecture spike causal break/retest/confirmation, real sizing/protection and timed management are deterministic",
+            "status": "passed"
+          },
+          {
+            "name": "offline chronological v5 architecture spike restart between completed retest and confirmation preserves eligibility and exact protection",
+            "status": "passed"
+          },
+          {
+            "name": "offline chronological v5 architecture spike unavailable ask evidence cannot enter; a corrected observation can recover",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/replayManifest.test.js",
+        "status": "passed",
+        "passedTests": 3,
+        "scenarios": [
+          {
+            "name": "replay pins actual runtime transitive sources, migrations, configuration and harness",
+            "status": "passed"
+          },
+          {
+            "name": "missing transitive pin, stale content or newly unpinned source cannot claim parity",
+            "status": "passed"
+          },
+          {
+            "name": "writing research result JSON does not invalidate executed source provenance",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/brokerCheckpoint.test.js",
+        "status": "passed",
+        "passedTests": 23,
+        "scenarios": [
+          {
+            "name": "modeled external broker checkpoints JSON round-trip retains open trade protection, cash, intents and financing deduplication",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints a closed account checkpoint preserves realized settlement and original intent recovery",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints a terminal no-fill intent survives restart without creating exposure or resetting identifiers",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints checkpoint and restored state cannot mutate one another through shared references",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted version before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted future broker time before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted missing metadata before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted unknown precision before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted reset trade IDs before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted reset transaction IDs before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted duplicate transaction IDs before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted cash mismatch before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted missing financing amount before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted missing commission amount before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted changed entry price before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted changed units before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted foreign protection owner before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted changed protection price before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted lost intent owner before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted changed intent identity before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted lost financing dedupe before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted changed financing dedupe before restoring any account state",
+            "status": "passed"
+          },
+          {
+            "name": "modeled external broker checkpoints rejects corrupted future ledger time before restoring any account state",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/replayBroker.test.js",
+        "status": "passed",
+        "passedTests": 23,
+        "scenarios": [
+          {
+            "name": "ReplayBroker service and accounting contracts initializes a flat AUD account without inventing conversion or price observations",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker service and accounting contracts bid/ask entry and liquidation for 100 units count the spread once",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker service and accounting contracts bid/ask entry and liquidation for -100 units count the spread once",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker service and accounting contracts gain/loss conversion and margin are marked at the current explicit observations",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker service and accounting contracts slippage, commission and timestamped financing settle once and reconcile lifetime net costs",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker service and accounting contracts entry consumes normal liquidity while marking and closing use explicitly supplied closeout prices",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence normal depth gives VWAP and worst level; FOK bounds reject a violating level even if mean fits",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence whole units, explicit liquidity and available margin produce terminal no-fill outcomes",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence JPY and non-JPY precision and bounds use explicit broker metadata",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence missing conversion null remains unknown instead of becoming zero",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence missing conversion undefined remains unknown instead of becoming zero",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence missing conversion  remains unknown instead of becoming zero",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence unavailable quotes, unobserved tradeability and duplicate conversion rows cannot create a fill",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence an explicit non-tradeable observation preserves exposure and a later valid observation permits closing",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker order outcomes and unknown evidence persisted client intent recovery remains FILLED after closure and blocks resubmission",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points held stop for 100 units triggers on the executable exit side, including supplied gap and slippage",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points held stop for -100 units triggers on the executable exit side, including supplied gap and slippage",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points held target for 100 units closes at its threshold or better despite adverse slippage",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points held target for -100 units closes at its threshold or better despite adverse slippage",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points normal DEFAULT trigger uses bid rather than a worse closeout mark; a supplied override leaves market intact",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points only supplied points trigger protections; unavailable intrabar highs/lows and elapsed time provide no fill evidence",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points protection modification exposes confirmable broker prices and full close remains possible",
+            "status": "passed"
+          },
+          {
+            "name": "ReplayBroker protection only at supplied quote points identical chronological inputs produce identical IDs, transactions and ledger snapshots",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/observedQuoteMarket.test.js",
+        "status": "passed",
+        "passedTests": 9,
+        "scenarios": [
+          {
+            "name": "source protection evidence appears before delivery and future events cannot leak through local quotes",
+            "status": "passed"
+          },
+          {
+            "name": "an unchanged source event can have a healthy new explicit response without a fabricated receipt on cache reads",
+            "status": "passed"
+          },
+          {
+            "name": "controlled startup seeds only prior explicit broker sources and accepts a healthy current receipt of an old source event",
+            "status": "passed"
+          },
+          {
+            "name": "late older response updates local delivered evidence without rewinding broker source state",
+            "status": "passed"
+          },
+          {
+            "name": "home conversion evidence has independent source and delivery visibility and no M15/static fallback",
+            "status": "passed"
+          },
+          {
+            "name": "missing liquidity and invalid delivered quotes remain explicit supplied evidence without invented replacement",
+            "status": "passed"
+          },
+          {
+            "name": "input identity, explicit clock alignment and request-duration/provenance contracts are validated",
+            "status": "passed"
+          },
+          {
+            "name": "repeated advancement is deterministic and returned quote mutation does not change evidence",
+            "status": "passed"
+          },
+          {
+            "name": "event-controlled source protection uses old conversion at a tied price event until the later conversion event is applied",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/historicalMarket.test.js",
+        "status": "passed",
+        "passedTests": 24,
+        "scenarios": [
+          {
+            "name": "only explicit completed intervals ending by the clock are exposed, with source time distinct from query time",
+            "status": "passed"
+          },
+          {
+            "name": "four contiguous quarters aggregate each component at a completed UTC hour, including Sydney DST transition",
+            "status": "passed"
+          },
+          {
+            "name": "an absent quarter never becomes a filled H1 bar and the following full hour recovers",
+            "status": "passed"
+          },
+          {
+            "name": "an incomplete quarter never becomes a filled H1 bar and the following full hour recovers",
+            "status": "passed"
+          },
+          {
+            "name": "an unknown quarter never becomes a filled H1 bar and the following full hour recovers",
+            "status": "passed"
+          },
+          {
+            "name": "H1 keeps missing component evidence missing while preserving valid primary OHLC",
+            "status": "passed"
+          },
+          {
+            "name": "absent completion flags require explicit provenance, retain that distinction and never override incomplete flags",
+            "status": "passed"
+          },
+          {
+            "name": "explicit supplied H1 is causal, independently validated, and overrides reconstruction including explicit empty input",
+            "status": "passed"
+          },
+          {
+            "name": "bounded histories and monotonic cursors do not duplicate bars on repeated advance",
+            "status": "passed"
+          },
+          {
+            "name": "rejects ISO time without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects milliseconds time without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects fractional time without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects misaligned time without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects string price without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects nonfinite price without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects negative price without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects inconsistent bounds without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects conflicting primary without silently reinterpreting units or values",
+            "status": "passed"
+          },
+          {
+            "name": "rejects duplicate and nonchronological rows and invalid clock/history/pricing options",
+            "status": "passed"
+          },
+          {
+            "name": "coarse quote preserves component closes and leaves execution unobserved until caller declares assumptions",
+            "status": "passed"
+          },
+          {
+            "name": "missing, crossed, unknown instrument and nontradeable model quotes remain unavailable",
+            "status": "passed"
+          },
+          {
+            "name": "contemporaneous AUD conversions respect gain/loss direction for direct, cross and inverse JPY legs",
+            "status": "passed"
+          },
+          {
+            "name": "absent bridges, future bridges and incomparable completed intervals are explicit conversion gaps",
+            "status": "passed"
+          },
+          {
+            "name": "conversion evidence is unchanged when clock moves without a new completed component bar",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/fineEventSchedule.test.js",
+        "status": "passed",
+        "passedTests": 4,
+        "scenarios": [
+          {
+            "name": "live cadence defaults produce chronological source/delivery events and independent management/scan/poll requests",
+            "status": "passed"
+          },
+          {
+            "name": "exclusive boundary, repeated-source delivery and configurable timer phases preserve declared chronology",
+            "status": "passed"
+          },
+          {
+            "name": "ties are deterministic and five-minute scans are labelled an explicit override, not current live parity",
+            "status": "passed"
+          },
+          {
+            "name": "invalid schedule configuration is rejected without substituting a clock or rate",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/intrabarUncertainty.test.js",
+        "status": "passed",
+        "passedTests": 5,
+        "scenarios": [
+          {
+            "name": "M15 both-boundary and possible breakeven contacts are unresolved conditional outcomes without numeric bounds",
+            "status": "passed"
+          },
+          {
+            "name": "SELL contacts use actual ask evidence, never midpoint or a mirrored BUY result",
+            "status": "passed"
+          },
+          {
+            "name": "missing component and unknown activation timing remain explicit uncertainty",
+            "status": "passed"
+          },
+          {
+            "name": "explicit earlier breakeven activation supports only a conditional stop candidate, without inventing trigger acknowledgement",
+            "status": "passed"
+          },
+          {
+            "name": "normalized long-key candles are supported and invalid inputs fail explicitly",
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "file": "backend/research/__tests__/replayAccounting.test.js",
+        "status": "passed",
+        "passedTests": 29,
+        "scenarios": [
+          {
+            "name": "replay accounting evidence actual numeric and string zero establish a complete reconciled flat outcome",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence closed net and cash include lifetime costs plus entry costs and financing on still-open positions",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence an empty ledger and valid zero-balance account remain valid evidence",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL null cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL undefined cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL  cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL   cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL false cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL NaN cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL Infinity cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing/invalid local closed PnL invalid cannot match actual zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing broker realizedPL remains unknown instead of assumed zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing broker financing remains unknown instead of assumed zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence missing broker commission remains unknown instead of assumed zero",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown account balance cannot establish accounting identity",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown account NAV cannot establish accounting identity",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown account unrealizedPL cannot establish accounting identity",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown account marginUsed cannot establish accounting identity",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown account marginAvailable cannot establish accounting identity",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence duplicate local owners cannot disappear into a map and conceal extra recorded PnL",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence even a duplicate zero-valued owner violates the required one-to-one ownership",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence extra local closed trades absent from broker ledger cannot pass ownership or net totals",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence an extra zero-valued closed local owner still cannot pass ownership",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence duplicate broker identities and missing owners cannot pass accounting",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown owner ID null is missing evidence",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown owner ID undefined is missing evidence",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown owner ID  is missing evidence",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence unknown lifecycle state is not implicitly treated as a settled closed trade",
+            "status": "passed"
+          },
+          {
+            "name": "replay accounting evidence cash, NAV and margin faults fail their specific accounting checks",
+            "status": "passed"
+          }
+        ]
+      }
+    ]
+  },
+  "evidenceBoundaries": {
+    "coldRecovery": "Three distinct child processes with file SQLite/caller config/external broker checkpoint; orderly drained shutdown, fresh services/caches and monotonic zero. Completed intent/open BE/financing/gap closure equal uninterrupted control. Not arbitrary crash-window proof.",
+    "lifecycle": "Actual generated normal stop/reset/requalification, BE and TP post-exit touches, SELL TP -> BUY fade decline/retry/restart/consumption, and actual 24-hour cooldown deadline/expiry state.",
+    "fixtureLimits": "Explicit synthetic observations; independent H1 in loss-reset/SELL flows. Three-loss cooldown uses A$1000 NAV while actual A$100 sizing cap/risk stay fixed. Expiry verifies risk state, not subsequent fill.",
+    "fineEvents": "Explicit source/delivery/request-start envelopes, controlled tie order, real pending DataService polls and missing-row/deadline validation; no source/cache row fallback or interpolation.",
+    "cadenceMs": {
+      "PRICE_POLL": 5000,
+      "MANAGEMENT": 10000,
+      "CANDLE_REFRESH": 60000,
+      "SCAN": 60000
+    },
+    "timingLimits": "Phases/ties/serial dispatch are declared assumptions. Post-response monotonic deadline covered; HTTP auto-abort/races tested separately. Separate engine source pricing/conversion responses have zero modeled latency.",
+    "intrabar": "Two supplied paths fitting identical M15 OHLC yield open initial-stop vs closed breakeven-stop outcomes. Witnesses are nonexhaustive; numeric net AUD/R lower/upper bounds are null.",
+    "bootstrap": "Explicit prior source observations initialize only broker source state, not local receipt and not earlier protection outcomes. Equal-start events retain controlled tie order.",
+    "isolation": "Separate credential-cleared process with denied observed transports; application/test isolation, not an OS network sandbox."
+  },
+  "historicalScreen": {
+    "inputArchive": {
+      "path": "../../data/historical/research_M15_MBA_20200101_20260803.json",
+      "sha256": "fd30b7bc2f98f2d362c2be658338d944f9fade5c01dd142d1b91f470b0a75b5d"
+    },
+    "baselineIdentity": {
+      "executionPolicyVersion": "intraday-risk-v5",
+      "pricingModelVersion": "broker-liquidity-v3.1",
+      "releaseVersion": "m15-intraday-v5",
+      "strategy": "intraday_momentum",
+      "strategyVersion": "1.3.0"
+    },
+    "fromUtc": "2026-07-27T00:00:00Z",
+    "toUtcExclusive": "2026-08-01T00:00:00Z",
+    "warmupDays": 40,
+    "evaluationUse": "ALREADY_INSPECTED_DEVELOPMENT_DATA",
+    "observations": 480,
+    "tableCounts": {
+      "broker_order_intents": 0,
+      "broker_position_quarantines": 0,
+      "broker_runtime_state": 4,
+      "entry_decisions": 2,
+      "signals": 1920,
+      "strategy_runs": 1,
+      "trades": 0
+    },
+    "signalReasonCounts": {
+      "INTRADAY_MOMENTUM_REGIME_NEUTRAL": 528,
+      "INTRADAY_MOMENTUM_OUTSIDE_SESSION": 548,
+      "INTRADAY_MOMENTUM_CONFIRMATION_MISSING": 159,
+      "INTRADAY_MOMENTUM_NO_TRIGGER": 92,
+      "INTRADAY_MOMENTUM_CANDLE_QUALITY": 224,
+      "INTRADAY_MOMENTUM_COST_TOO_HIGH": 37,
+      "INTRADAY_MOMENTUM_SELL_WAIT_FOR_RETEST": 74,
+      "INTRADAY_MOMENTUM_ROLLOVER_WINDOW": 20,
+      "INTRADAY_MOMENTUM_MARKET_CLOSED": 64,
+      "INTRADAY_MOMENTUM_ADX_WEAK": 168,
+      "INTRADAY_MOMENTUM_SELL_WAIT_FOR_BREAK": 2,
+      "INTRADAY_MOMENTUM_SELL_WAIT_FOR_REJECTION": 2,
+      "INTRADAY_MOMENTUM_SHORT_ENTRY": 1,
+      "INTRADAY_MOMENTUM_LONG_ENTRY": 1
+    },
+    "decisions": [
+      {
+        "instrument": "USD_JPY",
+        "side": "SELL",
+        "entryType": "M15_BREAK_RETEST_REJECTION",
+        "outcome": "REJECTED",
+        "rejectionCode": "SPREAD_TOO_WIDE"
+      },
+      {
+        "instrument": "GBP_USD",
+        "side": "BUY",
+        "entryType": "M15_PULLBACK_RESUMPTION",
+        "outcome": "REJECTED",
+        "rejectionCode": "SPREAD_TOO_WIDE"
+      }
+    ],
+    "networkAttempts": 0,
+    "accounting": {
+      "checks": {
+        "accountBalance": true,
+        "allBrokerTradesHaveLocalOwners": true,
+        "allClosedTradesReconciled": true,
+        "allLocalTradesHaveBrokerOwners": true,
+        "closedTotals": true,
+        "lifetimeCostsAndBalance": true,
+        "marginAvailable": true,
+        "moneyEvidenceComplete": true,
+        "navEqualsBalancePlusUnrealized": true,
+        "openOwnership": true,
+        "ownershipEvidenceComplete": true,
+        "uniqueOwnership": true
+      },
+      "closedNetAud": 0,
+      "closedTrades": 0,
+      "commissionAud": 0,
+      "expectedBalanceAud": 100,
+      "financingAud": 0,
+      "grossClosedAud": 0,
+      "initialBalanceAud": 100,
+      "numericalToleranceAud": 1e-8,
+      "observedBalanceAud": 100,
+      "openTrades": 0,
+      "recordedClosedNetAud": 0,
+      "scope": "Supplied model points and explicitly recorded costs; no intrabar or historical financing claim.",
+      "status": "RECONCILED",
+      "tradeChecks": []
+    },
+    "artifacts": {
+      "firstLocalPath": "/private/tmp/forex-v5-events-reviewed-20261006.json",
+      "rerunLocalPath": "/private/tmp/forex-v5-events-reviewed-rerun-20261006.json",
+      "sha256": "ccb4a5ade5d62e8370e8bc97a8ce227b0bceb793dcdd437e2ac76261e1a9d00f",
+      "rerunSha256": "ccb4a5ade5d62e8370e8bc97a8ce227b0bceb793dcdd437e2ac76261e1a9d00f",
+      "identicalBytes": true,
+      "bytes": 8581215,
+      "reproductionCommand": "node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07-events.json /absolute/path/new-replay.json"
+    },
+    "comparableSnapshotMatchesPriorCheckpoint": true,
+    "assumptions": {
+      "archive": {
+        "path": "../../data/historical/research_M15_MBA_20200101_20260803.json",
+        "sha256": "fd30b7bc2f98f2d362c2be658338d944f9fade5c01dd142d1b91f470b0a75b5d"
+      },
+      "assets": [
+        "AUD_USD",
+        "EUR_USD",
+        "GBP_USD",
+        "USD_JPY"
+      ],
+      "baselineIdentity": {
+        "executionPolicyVersion": "intraday-risk-v5",
+        "pricingModelVersion": "broker-liquidity-v3.1",
+        "releaseVersion": "m15-intraday-v5",
+        "strategy": "intraday_momentum",
+        "strategyVersion": "1.3.0"
+      },
+      "commissionAud": 0,
+      "evaluationUse": "ALREADY_INSPECTED_DEVELOPMENT_DATA",
+      "evidenceLevel": "M15_COMPLETED_CLOSE_SCREENING",
+      "financingEvidence": "No financing events supplied; unavailable historical charges are not asserted zero in reality.",
+      "fromUtc": "2026-07-27T00:00:00Z",
+      "initialBalanceAud": 100,
+      "limitations": [
+        "Completed bid/ask component closes are not contemporaneous executable quotes.",
+        "Intrabar broker-held stops/targets and breakeven opportunities are unresolved.",
+        "Declared liquidity/tradeability and static margin are model assumptions, not observed broker history.",
+        "No untouched holdout, selected candidate or live behavioural promotion."
+      ],
+      "metadata": {
+        "AUD_USD": {
+          "displayPrecision": 5,
+          "marginRate": "0.05",
+          "name": "AUD_USD",
+          "pipLocation": -4,
+          "tradeUnitsPrecision": 0
+        },
+        "EUR_USD": {
+          "displayPrecision": 5,
+          "marginRate": "0.05",
+          "name": "EUR_USD",
+          "pipLocation": -4,
+          "tradeUnitsPrecision": 0
+        },
+        "GBP_USD": {
+          "displayPrecision": 5,
+          "marginRate": "0.05",
+          "name": "GBP_USD",
+          "pipLocation": -4,
+          "tradeUnitsPrecision": 0
+        },
+        "USD_JPY": {
+          "displayPrecision": 3,
+          "marginRate": "0.05",
+          "name": "USD_JPY",
+          "pipLocation": -2,
+          "tradeUnitsPrecision": 0
+        }
+      },
+      "metadataEvidence": "Synthetic fixed 5% margin sensitivity; precision/pip conventions of the four configured instruments. Not historical account metadata.",
+      "pricingAssumptions": {
+        "liquidityUnits": 1000000,
+        "tradeable": true
+      },
+      "purpose": "SOFTWARE_PARITY_AND_ACCOUNTING_SCREEN; NOT A PROFITABILITY EVALUATION",
+      "schedule": "M15 completed-close observations, then management/reconciliation, then actual sorted signals and execution. Not five-second price delivery, ten-second management or sixty-second scan reconstruction.",
+      "schemaVersion": 1,
+      "slippagePips": 0.2,
+      "toUtcExclusive": "2026-08-01T00:00:00Z",
+      "warmupDays": 40,
+      "nodeVersion": "22.16.0"
+    },
+    "limits": [
+      "M15 component closes are modeled price observations, not synchronous executable account quotes.",
+      "Broker-held stops/targets here observe supplied closes only; unobserved intrabar crossings, management opportunities and financing remain unresolved.",
+      "This checks orchestration/account state and cannot establish profitable strategy expectancy or an exact broker replay."
+    ]
+  },
+  "reviewCorrections": [
+    "Fine startup no longer creates an app receipt from the source book before declared response completion.",
+    "Controlled clock advance no longer exposes later same-time conversion state to an earlier protection callback.",
+    "Explicit prior source events initialize source state without turning ordinary old broker timestamps into missing/invalid evidence.",
+    "A partial response fixture supplies the separate broker bridge needed by the actual preliminary conversion contract, without relaxing protections.",
+    "Generated research result JSON is not executed-source input; consumed input JSON needs explicit manifest pins."
+  ],
+  "delivery": {
+    "productSourceChanged": false,
+    "liveRulesOrSettingsChanged": false,
+    "productionRestartPerformed": false,
+    "publication": "This evidence is included with the local implementation commit published to GitHub.",
+    "lastVerifiedProductionRevision": "810c7f91b02ea1b8d5298ed2fedabdefcd3e5c6c",
+    "lastProductionVerification": "Prior measurement release; no new production observation in this offline slice."
+  },
+  "retainedParityInputInventory": [
+    {
+      "path": "docs/reviews/evidence/2026-10-01/sell-exit-study/market.json.gz",
+      "coverage": "102732 completed S5 bid/ask candles in 29 SELL windows; 424 transactions, 78 fullPrice fill books, 58 linked to those SELLs.",
+      "use": "Fill/transaction/accounting parity; trade-selected windows, not complete portfolio or poll deliveries.",
+      "sha256": "5fca5eb4dd92c25aa2aef6eda70d1d1e971d2e29bb51be53c979bcccf25c9760"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-09-21/evaluation/market-data.json",
+      "coverage": "8763 M1 bid/ask candles in 25 trade windows; 3045 M15 midpoint candles across AUD_USD/EUR_USD/USD_JPY.",
+      "use": "Conditional finer-path comparison; component candles, not exact executable events.",
+      "sha256": "18fd1b2b655a8df1f680da061365632368dcb9be593092250bf0a29a24e5fc91"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-09-26/broker-evidence.json",
+      "coverage": "3236 M1 bid/ask candles in 10 windows; 1437 M15 midpoint candles, 108 transactions, 10 broker trades.",
+      "use": "Transaction/finer-path parity; not a continuous market/poll record.",
+      "sha256": "160e82db3a11828822828b32e0706884ae81d33d24a3d0bc982335f3c68748b2"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-09-26/production-evidence.json",
+      "coverage": "35 entry telemetry records; 31 retain quote event/receipt/request-start/elapsed fields; 36 intent conversion-rate snapshots.",
+      "use": "Executed-entry timing/sizing parity; not continuous poll traces or native homeConversions responses.",
+      "sha256": "fd8ed3445174836148e5ace38d93376d4dd932734aa17ad944d2066ef018d909"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-09-30/repeated-usdjpy.json",
+      "coverage": "Focused transaction/fullPrice/conversion evidence and H1 indicator/regime context.",
+      "use": "Focused execution/context parity; H1 context is not raw H1 candles.",
+      "sha256": "6b2976db4df0a62274af19888038619602b0ef43f667be7c45e2e230a0365263"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-01/audusd-3487.json",
+      "coverage": "Focused transaction/fullPrice/homeConversionFactors evidence and H1 indicator/regime context.",
+      "use": "Focused execution/context parity; no inferred poll receipt or native pricing homeConversions.",
+      "sha256": "739c881d4071c66773527faf0a524ca7d458673ed3337e7f64014b9f280095a8"
+    }
+  ],
+  "remaining": [
+    "Retained broker H1/homeConversions comparison and historical costs/liquidity/margin evidence.",
+    "Usable finer historical points/deliveries or defensible exhaustive outcome bounds.",
+    "Session/cache/evaluation-boundary coverage and crash/protection race recovery cases.",
+    "Frozen R3 performance baseline and registered entry/filter/model/exit/fade comparisons.",
+    "V1 evidence decision and user-selected L1 behavior; no profitable replacement selected."
+  ]
+}

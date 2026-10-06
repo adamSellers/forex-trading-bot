@@ -480,6 +480,149 @@ class ReplayBroker {
             transactions: copy(transactions), lastTransactionId: String(this.nextTransactionId - 1) };
     }
 
+    // Modeled external broker state survives a bot restart. This checkpoint is
+    // research evidence, never a production account import or a price source.
+    exportCheckpoint() {
+        return copy({ schemaVersion: 1, artifactKind: 'RESEARCH_REPLAY_BROKER_CHECKPOINT', atMs: this.nowMs(),
+            settings: { initialBalanceAud: this.initialBalanceAud, metadata: Object.fromEntries(this.metadata),
+                slippagePips: this.slippagePips, commissionAud: this.commissionAud },
+            state: { balanceAud: this.balanceAud, nextTransactionId: this.nextTransactionId, nextTradeId: this.nextTradeId,
+                isInitialized: this.isInitialized, trades: [...this.trades.values()], intents: [...this.intents],
+                transactions: this.transactions, ledger: this.ledger, financingEvents: [...this.financingEvents] } });
+    }
+
+    static fromCheckpoint({ checkpoint, clock, market } = {}) {
+        const invalid = (message) => { throw new ReplayDataError(`Invalid broker checkpoint: ${message}`, 'REPLAY_CHECKPOINT_INVALID'); };
+        const amount = (value) => (typeof value === 'number' || typeof value === 'string') &&
+            !(typeof value === 'string' && value.trim() === '') && Number.isFinite(Number(value));
+        const time = (value) => Number.isSafeInteger(value) && Number.isFinite(new Date(value).getTime());
+        const text = (value) => typeof value === 'string' && value.trim() !== '';
+        if (!checkpoint || checkpoint.schemaVersion !== 1 || checkpoint.artifactKind !== 'RESEARCH_REPLAY_BROKER_CHECKPOINT' ||
+            !time(checkpoint.atMs) || typeof clock?.nowMs !== 'function' || checkpoint.atMs > clock.nowMs()) invalid('version or restart time');
+        const settings = checkpoint.settings, state = checkpoint.state;
+        if (!settings || !state || !settings.metadata || typeof settings.metadata !== 'object' || Array.isArray(settings.metadata) ||
+            !['initialBalanceAud', 'slippagePips', 'commissionAud'].every((key) => typeof settings[key] === 'number' &&
+                amount(settings[key]) && settings[key] >= 0) || typeof state.balanceAud !== 'number' || !amount(state.balanceAud) ||
+            typeof state.isInitialized !== 'boolean' || !['trades', 'intents', 'transactions', 'ledger', 'financingEvents'].every((key) => Array.isArray(state[key]))) {
+            invalid('settings or state shape');
+        }
+        const restored = new ReplayBroker({ clock, market, ...copy(settings) });
+        for (const instrument of restored.metadata.keys()) {
+            if (!['displayPrecision', 'pipLocation', 'marginRate'].every((key) => amount(restored.metadata.get(instrument)?.[key]))) invalid('instrument metadata');
+            try { restored._currencies(instrument); restored._metadata(instrument); }
+            catch { invalid('instrument metadata'); }
+        }
+        if (state.nextTransactionId !== state.transactions.length + 1 || state.nextTradeId !== state.trades.length + 1 ||
+            !Number.isSafeInteger(state.nextTransactionId) || !Number.isSafeInteger(state.nextTradeId)) invalid('next identifiers');
+        const transactionIds = new Map();
+        for (const [index, transaction] of state.transactions.entries()) {
+            if (transaction?.id !== String(index + 1) || !text(transaction.type) || !Number.isFinite(Date.parse(transaction.time)) ||
+                Date.parse(transaction.time) > checkpoint.atMs) invalid('transaction identity or time');
+            transactionIds.set(transaction.id, transaction);
+        }
+        const tradeIds = new Map();
+        for (const [index, trade] of state.trades.entries()) {
+            if (trade?.id !== String(index + 1) || !restored.metadata.has(trade.instrument) || !['OPEN', 'CLOSED'].includes(trade.state) ||
+                !amount(trade.price) || Number(trade.price) <= 0 || !amount(trade.initialUnits) ||
+                !Number.isInteger(Number(trade.initialUnits)) || Number(trade.initialUnits) === 0 ||
+                !amount(trade.currentUnits) || Number(trade.currentUnits) !== (trade.state === 'OPEN' ? Number(trade.initialUnits) : 0) ||
+                !['realizedPL', 'financing', 'commission', 'initialMarginRequired'].every((key) => amount(trade[key])) ||
+                Number(trade.commission) < 0 || Number(trade.initialMarginRequired) < 0 ||
+                !Number.isFinite(Date.parse(trade.openTime)) || Date.parse(trade.openTime) > checkpoint.atMs ||
+                !Array.isArray(trade.closingTransactionIDs)) invalid('trade accounting or identity');
+            if (trade.state === 'CLOSED' && (!amount(trade.averageClosePrice) || Number(trade.averageClosePrice) <= 0 ||
+                !Number.isFinite(Date.parse(trade.closeTime)) || Date.parse(trade.closeTime) < Date.parse(trade.openTime) ||
+                Date.parse(trade.closeTime) > checkpoint.atMs || trade.closingTransactionIDs.length !== 1 ||
+                transactionIds.get(trade.closingTransactionIDs[0])?.type !== 'ORDER_FILL')) invalid('closed trade evidence');
+            if (trade.state === 'OPEN' && (Number(trade.realizedPL) !== 0 || trade.closingTransactionIDs.length)) invalid('open trade evidence');
+            const entries = state.transactions.filter((transaction) => transaction.type === 'ORDER_FILL' && transaction.tradeOpened?.tradeID === trade.id);
+            const entry = entries[0];
+            if (entries.length !== 1 || entry.instrument !== trade.instrument || Number(entry.tradeOpened.units) !== Number(trade.initialUnits) ||
+                Number(entry.tradeOpened.price) !== Number(trade.price) || Number(entry.tradeOpened.initialMarginRequired) !== Number(trade.initialMarginRequired) ||
+                entry.time !== trade.openTime || !amount(entry.commission)) invalid('trade entry evidence');
+            const closeFill = trade.state === 'CLOSED' ? transactionIds.get(trade.closingTransactionIDs[0]) : null;
+            const effect = closeFill?.tradesClosed?.find((item) => item.tradeID === trade.id);
+            if (closeFill && (!effect || closeFill.time !== trade.closeTime || closeFill.instrument !== trade.instrument ||
+                Number(effect.units) !== -Number(trade.initialUnits) || Number(effect.price) !== Number(trade.averageClosePrice) ||
+                !amount(effect.realizedPL) || Number(effect.realizedPL) !== Number(trade.realizedPL) || !amount(closeFill.commission))) invalid('trade closing evidence');
+            if (Number(trade.commission) !== Number(entry.commission) + (closeFill ? Number(closeFill.commission) : 0)) invalid('lifetime commission evidence');
+            for (const [key, type] of [['stopLossOrder', 'STOP_LOSS'], ['takeProfitOrder', 'TAKE_PROFIT']]) {
+                const order = trade[key];
+                if (!order) continue;
+                if (!amount(order.price) || Number(order.price) <= 0 || order.tradeID !== trade.id || order.type !== type ||
+                    transactionIds.get(order.id)?.type !== type ||
+                    transactionIds.get(order.id)?.tradeID !== trade.id || Number(transactionIds.get(order.id)?.price) !== Number(order.price) ||
+                    !['PENDING', 'FILLED', 'CANCELLED'].includes(order.state) ||
+                    (trade.state === 'OPEN' ? order.state !== 'PENDING' : order.state === 'PENDING') ||
+                    (order.state === 'FILLED' && closeFill?.orderID !== order.id)) invalid('protection ownership or state');
+            }
+            tradeIds.set(trade.id, trade);
+        }
+        const validateEntries = (entries, label) => {
+            const keys = new Set();
+            for (const pair of entries) {
+                if (!Array.isArray(pair) || pair.length !== 2 || !text(pair[0]) || keys.has(pair[0]) || !pair[1] || typeof pair[1] !== 'object') invalid(`${label} entries`);
+                keys.add(pair[0]);
+            }
+        };
+        validateEntries(state.intents, 'intent');
+        for (const [intentId, intent] of state.intents) {
+            const extensions = restored.buildClientExtensions(intentId);
+            if (intent.status === 'FILLED') {
+                if (!tradeIds.has(intent.tradeId) || intent.orderTransaction?.type !== 'MARKET_ORDER' ||
+                    intent.orderFillTransaction?.type !== 'ORDER_FILL' ||
+                    intent.orderFillTransaction.orderID !== intent.orderTransaction.id ||
+                    intent.orderTransaction.clientExtensions?.id !== extensions.order.id ||
+                    intent.orderFillTransaction.clientOrderID !== extensions.order.id ||
+                    tradeIds.get(intent.tradeId)?.clientExtensions?.id !== extensions.trade.id ||
+                    intent.orderFillTransaction.tradeOpened?.tradeID !== intent.tradeId ||
+                    JSON.stringify(transactionIds.get(intent.orderTransaction.id)) !== JSON.stringify(intent.orderTransaction) ||
+                    JSON.stringify(transactionIds.get(intent.orderFillTransaction.id)) !== JSON.stringify(intent.orderFillTransaction)) invalid('filled intent evidence');
+            } else if (intent.status !== 'REJECTED' || intent.terminalTransaction?.type !== 'MARKET_ORDER_REJECT' ||
+                intent.terminalTransaction.clientExtensions?.id !== extensions.order.id ||
+                JSON.stringify(transactionIds.get(intent.terminalTransaction.id)) !== JSON.stringify(intent.terminalTransaction)) invalid('rejected intent evidence');
+        }
+        let previousAtMs = -Infinity;
+        for (const [index, row] of state.ledger.entries()) {
+            if (row?.sequence !== index + 1 || !time(row.atMs) || row.atMs < previousAtMs || row.atMs > checkpoint.atMs ||
+                !text(row.type) || typeof row.balanceAud !== 'number' || !amount(row.balanceAud)) invalid('ledger identity or time');
+            previousAtMs = row.atMs;
+        }
+        validateEntries(state.financingEvents, 'financing');
+        const financingRows = state.ledger.filter((row) => row.type === 'FINANCING_APPLIED');
+        if (financingRows.length !== state.financingEvents.length) invalid('financing deduplication evidence');
+        for (const [id, event] of state.financingEvents) {
+            const rows = financingRows.filter((row) => row.eventId === id);
+            if (!tradeIds.has(event.tradeId) || !amount(event.amountAud) || !time(event.atMs) || event.atMs > checkpoint.atMs || rows.length !== 1 ||
+                rows[0].tradeId !== event.tradeId || rows[0].atMs !== event.atMs || Number(rows[0].amountAud) !== Number(event.amountAud) ||
+                transactionIds.get(rows[0].transactionId)?.type !== 'DAILY_FINANCING' ||
+                !amount(transactionIds.get(rows[0].transactionId)?.financing) ||
+                Number(transactionIds.get(rows[0].transactionId)?.financing) !== Number(event.amountAud)) invalid('financing ownership');
+        }
+        for (const trade of state.trades) {
+            const financing = state.financingEvents.filter(([, event]) => event.tradeId === trade.id)
+                .reduce((total, [, event]) => total + Number(event.amountAud), 0);
+            if (Math.abs(financing - Number(trade.financing)) > 1e-8) invalid('lifetime financing evidence');
+        }
+        const expectedBalance = settings.initialBalanceAud + state.trades.reduce((total, trade) => total +
+            Number(trade.realizedPL) + Number(trade.financing) - Number(trade.commission), 0);
+        const ledgerBalance = state.ledger.length ? state.ledger.at(-1).balanceAud : settings.initialBalanceAud;
+        if (Math.abs(expectedBalance - state.balanceAud) > 1e-8 || Math.abs(ledgerBalance - state.balanceAud) > 1e-8) invalid('cash accounting');
+        // Copy before assigning: caller-held checkpoint objects cannot mutate the
+        // restored external account or its intent/financing recovery records.
+        const saved = copy(state);
+        restored.balanceAud = saved.balanceAud;
+        restored.nextTransactionId = saved.nextTransactionId;
+        restored.nextTradeId = saved.nextTradeId;
+        restored.isInitialized = saved.isInitialized;
+        restored.trades = new Map(saved.trades.map((trade) => [trade.id, trade]));
+        restored.intents = new Map(saved.intents);
+        restored.transactions = saved.transactions;
+        restored.ledger = saved.ledger;
+        restored.financingEvents = new Map(saved.financingEvents);
+        return restored;
+    }
+
     getLedger() { return copy(this.ledger); }
     snapshot() {
         return { initialBalanceAud: this.initialBalanceAud, balanceAud: this.balanceAud,

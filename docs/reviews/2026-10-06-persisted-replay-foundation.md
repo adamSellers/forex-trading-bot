@@ -1,5 +1,9 @@
 # Persisted replay foundation
 
+Later checkpoint: [replay events and recovery](2026-10-06-replay-events-and-recovery.md)
+extends this implementation with cold recovery, durable feedback and fine event
+dispatch. The source pins and evidence below retain this earlier checkpoint.
+
 The next R1/R2 implementation slice runs unchanged v5 decisions through actual
 isolated repositories and a stateful research broker. It implements software and
 accounting checks needed before a profitability evaluation. It does not select
