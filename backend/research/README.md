@@ -86,7 +86,7 @@ future dates have been selected/frozen by this foundation release.
 Use Node 22.16.0 for the checked-in manifest (the project supports Node >=20 <23):
 
 ```sh
-node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07-node.json /absolute/path/new-replay.json
+node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07-node-sqlite.json /absolute/path/new-replay.json
 ```
 
 This manifest pins the current foundation's local archive, runtime
@@ -100,7 +100,8 @@ tests use synthetic observations and require no archive.
 The original `v5-coarse-parity-2026-07.json` and its emitted evidence remain an
 immutable earlier checkpoint. Its source hashes describe that earlier code;
 do not rewrite it to accept later sources. The `-events` manifest retains the
-event/recovery checkpoint; the `-node` manifest pins the current Node tooling.
+event/recovery checkpoint; the `-node` manifest pins the first Node tooling
+checkpoint, and `-node-sqlite` pins its prebuilt SQLite dependency correction.
 This historical command still runs the
 quarter-hour coarse screen; its filename does not imply historical tick inputs
 or the fine schedule described below.

@@ -75,3 +75,27 @@ contract and software checks, not a profitability result.
 
 Publication and production verification will be recorded after the local commit
 is published and the existing deployment command completes.
+
+### Observed native installation correction
+
+The first deployment of published `ed18345` stopped during dependency preparation:
+the locked `better-sqlite3` 9.6.0 did not supply a Node 22 Linux ARM64 binary.
+The interpreter guard rejected the source-build fallback; deployed `810c7f9`,
+healthy enabled intent, run selection and loss/cooldown state were preserved.
+The [failure capture](evidence/2026-10-06/tooling/prebuilt-native-correction.json)
+records this observed limit.
+
+The correction pins `better-sqlite3` 11.10.0, whose [official assets](https://github.com/WiseLibs/better-sqlite3/releases/expanded_assets/v11.10.0)
+include Node ABI 127 binaries for both Darwin ARM64 and Linux ARM64. This changes
+the native SQLite library to 3.49.2; project schemas and SQL APIs remain the same.
+The [release notes](https://github.com/WiseLibs/better-sqlite3/releases/tag/v11.10.0)
+reject Promise-returning native transaction callbacks; project asynchronous
+transactions use Knex BEGIN/COMMIT instead of that synchronous native helper.
+A clean local install succeeded with the interpreter guard and sentinels active.
+The versioned `-node-sqlite` replay manifest preserves the previous `-node`
+checkpoint rather than rewriting its package hashes.
+
+The corrected dependency passes a fresh 1,229-test/65-suite backend regression,
+57 deployment/restore cases, 21 health scenarios and all backup regressions.
+The historical replay snapshot exactly matches the earlier native version,
+with zero observed network attempts; interpreter sentinels remain unused.
