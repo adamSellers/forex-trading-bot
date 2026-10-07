@@ -101,6 +101,8 @@ Produce opportunity/decision and trade ledgers, account/equity traces, rejection
 
 ## S1 Evaluate structural BUY and entry-location candidates
 
+**October 7 selected release:** the user separately selected the combined prospective BUY break/retest, bid-stop and consumed-episode rule after the overnight incident. It is implemented and deployed as [v6 / strategy 1.4.0](2026-10-07-buy-retest-release.md). The direction-generalized shared execution contract below is now implemented; the original proposed separate candidate comparisons remain research work and are not completed by this release.
+
 Register two separate hypotheses with existing cash-risk limits and exits:
 
 1. **Structural BUY pullback stop:** retain current normal BUY entry rules. For pullbacks, including both-trigger entries, test a stop below the lowest historical bid low from the latest qualifying touch through confirmation, with a price-tick buffer and existing minimum-distance floor. Breakout-only BUYs remain baseline entries. Specify cancellation, crossed-anchor and missing-bid cases before scoring.
@@ -180,13 +182,13 @@ Implementation has started under the subsequent user authorization. Update each 
 | R1 inputs/protocol | Audit/protocol plus causal H1/AUD reconstruction implemented; retained broker parity/future freeze pending | [Research foundation](../../backend/research/README.md) |
 | R2 replay | Persisted core, orderly cold recovery, lifecycle feedback and explicit fine-event dispatch implemented; historical path/cost/parity coverage and complete evaluator pending | [Events, recovery and limits](2026-10-06-replay-events-and-recovery.md) |
 | R3 v5 baseline | Planned | Baseline ledgers, assumptions/accounting |
-| S1 structural BUY | Combined prospective BUY rule explicitly selected October 7; local implementation validated. Separate research comparisons still pending | [Incident evidence](2026-10-07-eurusd-breakeven-repeat.md), [selected v6 contract](2026-10-07-buy-retest-release.md); no portfolio profitability claim |
+| S1 structural BUY | Combined prospective BUY rule selected, implemented and deployed October 7. Separate research comparisons still pending | [Incident evidence](2026-10-07-eurusd-breakeven-repeat.md), [selected v6 contract](2026-10-07-buy-retest-release.md); no portfolio profitability claim |
 | S2 indicator contribution | Planned | All ablation results |
 | M1 prediction | Planned | Model/features and out-of-time calibration |
 | M2 selection | Planned | ADX comparison and decision utility |
 | X1 exits | Planned | Separate exit comparisons and bounds |
 | X2 fades | Planned | Episode/portfolio comparisons |
 | V1 evidence decision | Planned | Supported/rejected/inconclusive findings |
-| L1 selected release | October 7 BUY changes selected and locally validated; publication/deployment pending. Other candidates remain conditional | [Selected v6 contract](2026-10-07-buy-retest-release.md), release tests and delivery |
+| L1 selected release | October 7 BUY changes deployed at clean `562334b` / v6 / 1.4.0, verified healthy/enabled. Other candidates remain conditional | [Selected v6 contract](2026-10-07-buy-retest-release.md), release tests and delivery |
 
 The original planning pass created documentation and reduced baseline evidence only. A1–A3 are now deployed under the subsequent request; the linked release record distinguishes validation, publication and deployment. R1/R2 now provide an offline persisted causal core, orderly cold recovery, lifecycle feedback and explicit source/delivery scheduling. Full historical evaluation, a performance baseline and candidate selection remain pending; this software foundation does not establish profitability.

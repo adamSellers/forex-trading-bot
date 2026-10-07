@@ -1,8 +1,8 @@
 # Live Trading Operator Guide
 
-## October 7 BUY change locally validated
+## October 7 BUY fix deployed
 
-The user selected [v6 / strategy 1.4.0](docs/reviews/2026-10-07-buy-retest-release.md) after the overnight EUR/USD repeat. BUY entries will require a completed break above the previous eight-bar high, a distinct retest above that frozen level and a later bullish confirmation above the retest high. A fill consumes the breakout episode until price closes back through its level and a new pattern forms. Its stop sits below the minimum broker bid low of the retest episode, with the existing six-pip minimum and cash-risk budget. SELL-to-BUY fades are disabled to prevent bypass; SELL entry rules and old trades' exit management remain. Local verification passes 1,316 backend tests and the frontend checks/build; deployment is pending. The current-deployed table below remains the dated v5 contract until delivery.
+The selected [v6 / strategy 1.4.0](docs/reviews/2026-10-07-buy-retest-release.md) is deployed at clean `562334b`, verified healthy/enabled and flat at 12:23 AEDT. BUY entries require a completed break above the previous eight-bar high, a distinct retest above that frozen level and a later bullish confirmation above the retest high. A fill consumes the breakout episode until price closes back through its level and a new pattern forms. Its stop sits below the minimum broker bid low of the retest episode, with the existing six-pip minimum and cash-risk budget. SELL-to-BUY fades are disabled to prevent bypass; SELL entry rules and old trades' exit management remain. All 1,316 backend tests passed locally and during deployment, with frontend checks/builds and a matched backup verified. Earlier dated sections below describe their original releases.
 
 ## October 6 analytics correction
 
@@ -40,20 +40,20 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 ## Current deployed release
 
-The following table describes v5 / strategy 1.3.0, retained by the October 6 [measurement release](docs/reviews/2026-10-06-analytics-measurement-release.md) deployed at `810c7f9`. The [October 1 strategy release](docs/reviews/2026-10-01-sell-retest-release.md) records its original behaviour and delivery.
+The following table describes [v6 / strategy 1.4.0](docs/reviews/2026-10-07-buy-retest-release.md), deployed at `562334b` on October 7. Measurement corrections and existing SELL behavior remain; dated earlier release records retain their original contracts.
 
 | Setting | Value |
 | --- | --- |
-| Release | `m15-intraday-v5` |
-| Strategy | `intraday_momentum` `1.3.0` |
+| Release | `m15-intraday-v6` |
+| Strategy | `intraday_momentum` `1.4.0` |
 | Decision candles | completed M15 with completed H1 regime context |
 | Assets | AUD/USD, EUR/USD, GBP/USD, USD/JPY |
-| Entry | BUY: existing breakout/pullback; SELL: break/retest/rejection; existing freshness/H1 reset; SELL-to-BUY fades only |
+| Entry | BUY: break/retest/confirmation, one fill per breakout episode; SELL: break/retest/rejection; existing freshness/H1 reset; fades disabled |
 | Entry risk | 0.25% × min(80% available margin, A$100) |
 | Capital cap | A$100 |
 | Concurrent positions | one per pair, subject to portfolio risk and margin |
 | Consecutive-loss control | 24-hour entry cooldown after three losses; the next streak starts at zero after expiry |
-| Initial stop | BUY: max(1.25 M15 ATR, 6 pips); SELL: above retest ask high + tick, retaining six-pip minimum |
+| Initial stop | BUY: retest-episode bid low minus one tick; SELL: retest-episode ask high plus one tick; both retain six-pip minimum |
 | Take profit | 1.5R broker order; breakeven at 1R |
 | Time controls | six-hour time stop and pre-rollover close window |
 | New-install trading state | disabled; deployment requires paused/flat, restore always starts paused |
