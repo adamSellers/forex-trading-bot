@@ -66,7 +66,7 @@ function firstResponse(ref) {
         conversionObservations: all.conversionObservations.filter((row) => row.requestStartedAtMs === START) };
 }
 
-describe('fine source/delivery schedule through unchanged persisted v5', () => {
+describe('fine source/delivery schedule through the current persisted runtime', () => {
     test.each([false, true])('breakeven depends on the supplied price at the management poll (held=%s)', async (held) => {
         const ref = await fixtureReference();
         const observations = observationInputs(ref, held);

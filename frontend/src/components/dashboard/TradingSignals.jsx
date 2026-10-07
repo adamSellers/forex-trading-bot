@@ -112,7 +112,9 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                 <TableCell>
                   <Stack direction="row" spacing={0.75}>
                     <Chip size="small" label={signal.signal || 'HOLD'} color={signalColor(signal.signal)} />
-                    {signal.signalClass === 'EXIT_ONLY' && <Chip size="small" label="EXIT ONLY" variant="outlined" />}
+                    {(signal.signalClass === 'EXIT_ONLY' || signal.entryType === 'EXIT_ONLY' ||
+                      ['EXIT_LONG_ONLY', 'EXIT_SHORT_ONLY'].includes(signal.intent)) &&
+                      <Chip size="small" label="EXIT ONLY" variant="outlined" />}
                   </Stack>
                 </TableCell>
                 <TableCell>{trend}</TableCell>

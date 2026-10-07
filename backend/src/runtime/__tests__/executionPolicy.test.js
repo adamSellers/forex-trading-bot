@@ -42,11 +42,40 @@ describe("canonical execution policy", () => {
             config: { minStopLossPips: 6 }, pipValue: 0.0001 })).toBeNull();
     });
 
-    test("structural mode is SELL-only and recovered stop cannot move inside its anchor", () => {
-        expect(resolveCanonicalTradePlan({ signal: { ...structuralSignal, signal: "BUY" },
-            pipValue: 0.0001 })).toBeNull();
+    test("recovered SELL stop cannot move inside its anchor", () => {
         expect(resolveCanonicalTradePlan({ signal: structuralSignal, pipValue: 0.0001,
             submittedStopLossPrice: 0.7009 })).toBeNull();
+    });
+
+    const structuralBuy = { ...structuralSignal, signal: "BUY",
+        tradePlan: { ...structuralSignal.tradePlan, structuralStopLossPrice: 0.699 } };
+
+    test("structural BUY keeps the absolute bid anchor and targets its actual entry distance", () => {
+        const plan = resolveCanonicalTradePlan({ signal: structuralBuy,
+            config: { minStopLossPips: 6 }, entryPrice: 0.7002, pipValue: 0.0001 });
+        expect(plan).toMatchObject({ stopPriceMode: "STRUCTURAL", stopLossPrice: 0.699,
+            structuralStopLossPrice: 0.699, source: "SIGNAL_STRUCTURAL_STOP", floored: false });
+        expect(plan.stopLossPips).toBeCloseTo(12);
+        expect(plan.takeProfitPrice).toBeCloseTo(0.702);
+    });
+
+    test("BUY floor widens before submit and recovery retains that stop after an improved fill", () => {
+        const signal = { ...structuralBuy, tradePlan: { ...structuralBuy.tradePlan, structuralStopLossPrice: 0.6997 } };
+        const before = resolveCanonicalTradePlan({ signal, config: { minStopLossPips: 6 }, pipValue: 0.0001 });
+        expect(before.stopLossPrice).toBeCloseTo(0.6994);
+        expect(before.floored).toBe(true);
+        const filled = resolveCanonicalTradePlan({ signal, config: { minStopLossPips: 6 },
+            entryPrice: 0.6999, pipValue: 0.0001, submittedStopLossPrice: before.stopLossPrice });
+        expect(filled.stopLossPrice).toBe(before.stopLossPrice);
+        expect(filled.stopLossPips).toBeCloseTo(5);
+        expect(filled.takeProfitPrice).toBeCloseTo(0.70065);
+        expect(resolveCanonicalTradePlan({ signal, pipValue: 0.0001,
+            submittedStopLossPrice: 0.6998 })).toBeNull();
+    });
+
+    test.each([0.699, 0.6989])("BUY floor cannot rescue a quote at or below anchor: %s", (entryPrice) => {
+        expect(resolveCanonicalTradePlan({ signal: structuralBuy,
+            config: { minStopLossPips: 20 }, entryPrice, pipValue: 0.0001 })).toBeNull();
     });
 
     test("uses the same ATR fallback and minimum stop floor", () => {

@@ -15,6 +15,8 @@ const {
 const { resolveLossResetEvidence } = require("../runtime/intradayLossResetEvidence");
 const { resolveSellRetestEvidence } = require("../runtime/intradaySellRetestEvidence");
 const { SELL_RETEST_STRATEGY_VERSION, SELL_RETEST_ENTRY_TYPE } = require("../runtime/intradaySellRetestPolicy");
+const { resolveBuyRetestEvidence } = require("../runtime/intradayBuyRetestEvidence");
+const { BUY_RETEST_STRATEGY_VERSION, BUY_RETEST_ENTRY_TYPE } = require("../runtime/intradayBuyRetestPolicy");
 const {
     LOSS_RESET_STRATEGY_VERSIONS, sameLossResetDecision,
 } = require("../runtime/intradayLossResetPolicy");
@@ -1059,7 +1061,7 @@ class LiveTradingEngine extends EventEmitter {
             retest: decision?.retest, confirmation: decision?.confirmation,
             structuralStopLossPrice: decision?.structuralStopLossPrice,
         });
-        if (signal.strategyVersion !== SELL_RETEST_STRATEGY_VERSION ||
+        if (!this.hasSellRetestStrategyVersion(signal) ||
             signal.entryType !== SELL_RETEST_ENTRY_TYPE || prior?.ready !== true ||
             current.ready !== true || signature(prior) !== signature(current) ||
             signal.strategyContext?.signalCandleCloseTime !== current.confirmation?.closedAt ||
@@ -1072,8 +1074,56 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     requiresSellRetestEntry(signal, config = {}) {
-        return signal.signal === "SELL" && (signal.strategyVersion === SELL_RETEST_STRATEGY_VERSION ||
-            config.liveReleaseVersion === "m15-intraday-v5" || config.executionPolicyVersion === "intraday-risk-v5");
+        return signal.signal === "SELL" && (this.hasSellRetestStrategyVersion(signal) ||
+            ["m15-intraday-v5", "m15-intraday-v6"].includes(config.liveReleaseVersion) ||
+            ["intraday-risk-v5", "intraday-risk-v6"].includes(config.executionPolicyVersion));
+    }
+
+    hasSellRetestStrategyVersion(signal) {
+        return [SELL_RETEST_STRATEGY_VERSION, BUY_RETEST_STRATEGY_VERSION].includes(signal?.strategyVersion);
+    }
+
+    requiresBuyRetestEntry(signal, config = {}) {
+        return signal.signal === "BUY" && (signal.strategyVersion === BUY_RETEST_STRATEGY_VERSION ||
+            config.liveReleaseVersion === "m15-intraday-v6" || config.executionPolicyVersion === "intraday-risk-v6");
+    }
+
+    async validateBuyRetestDecision(signal, config) {
+        if (!this.requiresBuyRetestEntry(signal, config)) return;
+        const prior = signal.strategyContext?.buyRetest;
+        let history = null;
+        try {
+            history = this.tradeRepository?.getAllTrades
+                ? await this.tradeRepository.getAllTrades({ mode: "live" }) : null;
+        } catch (_error) {
+            // An unavailable fill history cannot release a consumed episode.
+        }
+        const metadata = await this.getInstrumentMetadataForTrading(signal.symbol, config);
+        const current = await resolveBuyRetestEvidence({
+            instrument: signal.symbol,
+            candles: this.dataService?.getCandles?.(signal.symbol, "15m") || [],
+            breakoutBars: config.intradayBreakoutBars,
+            displayPrecision: Number(metadata.displayPrecision),
+            trades: history,
+            historyAvailable: Array.isArray(history),
+            nowMs: Date.now(),
+        }, this.brokerLifecycleRepository);
+        const signature = (decision) => JSON.stringify({
+            version: decision?.version, instrument: decision?.instrument,
+            episodeId: decision?.episodeId, breakout: decision?.breakout,
+            retest: decision?.retest, confirmation: decision?.confirmation,
+            structuralStopLossPrice: decision?.structuralStopLossPrice,
+        });
+        if (signal.strategyVersion !== BUY_RETEST_STRATEGY_VERSION ||
+            signal.entryType !== BUY_RETEST_ENTRY_TYPE || prior?.ready !== true ||
+            current.ready !== true || signature(prior) !== signature(current) ||
+            signal.strategyContext?.signalCandleCloseTime !== current.confirmation?.closedAt ||
+            signal.tradePlan?.stopPriceMode !== "STRUCTURAL" ||
+            signal.tradePlan?.structuralStopLossPrice !== current.structuralStopLossPrice) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                "BUY break/retest evidence changed, was already traded or is unavailable",
+                { phase: "BUY_RETEST_REVALIDATION", priorBuyRetest: prior || null, currentBuyRetest: current });
+        }
     }
 
     // ==================== ENTRY VALIDATION ====================
@@ -1128,21 +1178,29 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         if (this.requiresSellRetestEntry(signal, config) &&
-            (signal.strategyVersion !== SELL_RETEST_STRATEGY_VERSION || signal.entryType !== SELL_RETEST_ENTRY_TYPE)) {
+            (!this.hasSellRetestStrategyVersion(signal) || signal.entryType !== SELL_RETEST_ENTRY_TYPE)) {
             return { valid: false, code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                 reason: "Current SELL policy requires the versioned break/retest/rejection candidate",
                 context: baseContext };
         }
+        if (this.requiresBuyRetestEntry(signal, config) &&
+            (signal.strategyVersion !== BUY_RETEST_STRATEGY_VERSION || signal.entryType !== BUY_RETEST_ENTRY_TYPE)) {
+            return { valid: false, code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                reason: "Current BUY policy requires the versioned break/retest/confirmation candidate",
+                context: baseContext };
+        }
         if (this.hasStructuralStopContract(signal) &&
             (signal.tradePlan?.stopPriceMode !== "STRUCTURAL" ||
-            (signal.strategyVersion === SELL_RETEST_STRATEGY_VERSION && signal.signal === "SELL" &&
+            (this.hasSellRetestStrategyVersion(signal) && signal.signal === "SELL" &&
                 signal.entryType !== SELL_RETEST_ENTRY_TYPE) ||
+            (signal.strategyVersion === BUY_RETEST_STRATEGY_VERSION && signal.signal === "BUY" &&
+                signal.entryType !== BUY_RETEST_ENTRY_TYPE) ||
             !resolveCanonicalTradePlan({
             signal, config, entryPrice: signal.currentPrice,
             pipValue: oandaClient.getPipValue(signal.symbol),
         }))) {
             return { valid: false, code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
-                reason: "Structural SELL entry requires a valid absolute stop above entry and a risk target",
+                reason: "Structural entry requires a valid absolute stop on its protective side and a risk target",
                 context: { ...baseContext, stopPriceMode: signal.tradePlan?.stopPriceMode ?? null } };
         }
 
@@ -1786,7 +1844,9 @@ class LiveTradingEngine extends EventEmitter {
         return signal?.tradePlan?.stopPriceMode != null ||
             signal?.tradePlan?.structuralStopLossPrice != null ||
             signal?.entryType === SELL_RETEST_ENTRY_TYPE ||
-            (signal?.strategyVersion === SELL_RETEST_STRATEGY_VERSION && signal?.signal === "SELL");
+            signal?.entryType === BUY_RETEST_ENTRY_TYPE ||
+            (this.hasSellRetestStrategyVersion(signal) && signal?.signal === "SELL") ||
+            (signal?.strategyVersion === BUY_RETEST_STRATEGY_VERSION && signal?.signal === "BUY");
     }
 
     resolveStopLoss(signal, config, entryPrice = null, instrumentMetadata = null) {
@@ -1804,7 +1864,7 @@ class LiveTradingEngine extends EventEmitter {
             canonicalPlan.stopPriceMode !== "STRUCTURAL")) {
             if (this.hasStructuralStopContract(signal)) {
                 throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
-                    "Structural SELL stop is missing, invalid or no longer above entry",
+                    "Structural stop is missing, invalid or no longer on its protective side",
                     { phase: "STOP_RESOLUTION", entryPrice: referencePrice,
                         structuralStopLossPrice: signal.tradePlan?.structuralStopLossPrice ?? null });
             }
@@ -1823,7 +1883,7 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPrice: Number(
                 canonicalPlan.stopPriceMode === "STRUCTURAL"
                     ? oandaClient.formatPriceBound(signal.symbol, canonicalPlan.stopLossPrice,
-                        "SELL", instrumentMetadata)
+                        signal.signal, instrumentMetadata)
                     : oandaClient.formatPrice
                     ? oandaClient.formatPrice(
                           signal.symbol,
@@ -2090,6 +2150,15 @@ class LiveTradingEngine extends EventEmitter {
         const deviationPips = Math.abs(quote.worstPrice - referencePrice) / pipValue;
         const spreadPips = quote.spread / pipValue;
         const spreadError = priceDistanceError(quote.bid, quote.ask, pipValue);
+        const structuralAnchor = toFiniteNumber(signal.tradePlan?.structuralStopLossPrice, null);
+        if (this.hasStructuralStopContract(signal) && signal.signal === "BUY" &&
+            Number.isFinite(structuralAnchor) && !exceedsQuoteLimit(quote.bid, structuralAnchor,
+                priceDistanceError(quote.bid, structuralAnchor, 1))) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                "Final broker bid crossed the structural BUY stop",
+                { phase: "FINAL_STOP_RESOLUTION", bid: quote.bid, ask: quote.ask,
+                    structuralStopLossPrice: structuralAnchor });
+        }
         const stop = this.resolveStopLoss(signal, config,
             this.hasStructuralStopContract(signal) ? finalQuote : null, instrumentMetadata);
         const costToStopRatio = (spreadPips + Math.max(0, toFiniteNumber(config.expectedSlippagePips, 0.2))) / stop.stopLossPips;
@@ -2889,6 +2958,7 @@ class LiveTradingEngine extends EventEmitter {
             if (block) throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 block, { phase: "RECONCILIATION" });
             await this.validateSellRetestDecision(signal, config);
+            await this.validateBuyRetestDecision(signal, config);
             await this.validateReentryDecision(signal);
             await this.validateLossResetDecision(signal, config);
             if (this.getOpenTradeByInstrument(symbol)) {
@@ -2948,7 +3018,7 @@ class LiveTradingEngine extends EventEmitter {
             if (this.hasStructuralStopContract(signal) &&
                 (!executablePlan || executablePlan.stopPriceMode !== "STRUCTURAL")) {
                 throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
-                    "Final quote invalidated the structural SELL stop",
+                    "Final quote invalidated the structural stop",
                     { phase: "FINAL_STOP_RESOLUTION", entryPrice: finalQuote.finalQuote });
             }
             if (executablePlan) {
@@ -2958,11 +3028,12 @@ class LiveTradingEngine extends EventEmitter {
             // Persist and size against the exact protection prices serialized
             // to OANDA, including fallback plans and sub-tick ATR distances.
             plannedStopLossPrice = Number(this.hasStructuralStopContract(signal)
-                ? oandaClient.formatPriceBound(symbol, plannedStopLossPrice, "SELL", instrumentMetadata)
+                ? oandaClient.formatPriceBound(symbol, plannedStopLossPrice, signal.signal, instrumentMetadata)
                 : oandaClient.formatPrice(symbol, plannedStopLossPrice, instrumentMetadata));
             if (this.hasStructuralStopContract(signal)) {
-                plannedTakeProfitPrice = finalQuote.finalQuote -
-                    (plannedStopLossPrice - finalQuote.finalQuote) * executablePlan.targetRiskMultiple;
+                plannedTakeProfitPrice = finalQuote.finalQuote +
+                    (signal.signal === "SELL" ? -1 : 1) *
+                    Math.abs(plannedStopLossPrice - finalQuote.finalQuote) * executablePlan.targetRiskMultiple;
             }
             plannedTakeProfitPrice = Number.isFinite(plannedTakeProfitPrice)
                 ? Number(oandaClient.formatPrice(symbol, plannedTakeProfitPrice, instrumentMetadata))

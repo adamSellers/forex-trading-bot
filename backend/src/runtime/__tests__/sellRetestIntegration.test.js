@@ -152,7 +152,7 @@ describe('SELL candidate through the real live orchestration', () => {
         const runtime = await state.boot();
         const signal = await runtime.cycle();
         expect(signal.signal).toBe('SELL');
-        expect(signal.strategyVersion).toBe('1.3.0');
+        expect(signal.strategyVersion).toBe('1.4.0');
         expect(signal.entryType).toBe('M15_BREAK_RETEST_REJECTION');
         expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
         const [instrument, units, options] = oanda.placeMarketOrder.mock.calls[0];

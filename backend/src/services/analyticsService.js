@@ -8,6 +8,7 @@ const {
 const { getActivePairSessions } = require("../strategies/intradayMomentum");
 const { isFadeTrade } = require("../runtime/intradayReentryPolicy");
 const { SELL_RETEST_ENTRY_TYPE } = require("../runtime/intradaySellRetestPolicy");
+const { BUY_RETEST_ENTRY_TYPE } = require("../runtime/intradayBuyRetestPolicy");
 
 const COOLDOWN_SIGNAL_CLASSES = new Set(["COOLDOWN", "SUPPRESSED"]);
 
@@ -1943,7 +1944,8 @@ class AnalyticsService {
             // Fades and break/retest entries retain raw breakout/pullback flags
             // as evidence. Neither outcome belongs to the legacy trend cohort.
             const entryClass = isFadeTrade(trade) ? "POST_TP_FADE"
-                : trade.entryType === SELL_RETEST_ENTRY_TYPE ? "SELL_RETEST" : "TREND";
+                : trade.entryType === SELL_RETEST_ENTRY_TYPE ? "SELL_RETEST"
+                : trade.entryType === BUY_RETEST_ENTRY_TYPE ? "BUY_RETEST" : "TREND";
             const key = `${entryClass}:${trigger}`;
             if (!groups.has(key)) groups.set(key, { entryClass, trigger, trades: [] });
             groups.get(key).trades.push(trade);

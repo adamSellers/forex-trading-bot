@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-07T01:16:42.141Z",
+  "release": "m15-intraday-v6",
+  "strategyVersion": "1.4.0",
+  "executionPolicyVersion": "intraday-risk-v6",
+  "language": "Node.js",
+  "nodeVersion": "22.16.0",
+  "validation": {
+    "backend": {
+      "passed": true,
+      "tests": 1316,
+      "suites": 68
+    },
+    "frontend": {
+      "testsPassed": 16,
+      "productionBuildPassed": true
+    },
+    "incidentFixtureVerified": true,
+    "gitDiffCheckPassed": true
+  },
+  "sourceSha256": {
+    "backend/src/runtime/executionPolicy.js": "727dc6acaafee0849b4cb670d14d7804b8164bd055468aa0cf9fe4805a0e8a85",
+    "backend/src/runtime/intradayLossResetPolicy.js": "182180a56734e8dd5894ffbccb3ad2ac4e34e66abfc6ea84465f17ff19454d64",
+    "backend/src/runtime/intradayReentryPolicy.js": "3f66bf7a826d12acbd72462241d1614cab8bc6854f2d0a66e9e1eb45fbed0add",
+    "backend/src/runtime/runtimeCoordinator.js": "7d4a89ae596419b83179f73923c584a8123c03dfd01deedebec90e3d99cc11ac",
+    "backend/src/services/LiveTradingEngine.js": "f7713fd41bd73501f6ca50e30c165e8763b22f1ae7a9bf414c7521525865b891",
+    "backend/src/services/OandaDataService.js": "9f9086f5fb7921be91a3644f0eebd58be016ea03e7cd5ca05d1efca07d29e9a3",
+    "backend/src/services/analyticsService.js": "a05b2c1953f412a9945a3d2e58e53c3f434ec50bc955913c348ca815177a6787",
+    "backend/src/services/configService.js": "dabec5de8f3fd534bbf8855e8ac13712c9d2a99d943705257626032ca264f21f",
+    "backend/src/services/signalGenerator.js": "f0cf73775ab9bb8334d62ad0f5ed0f041a9e82dc8bb8189ed0f23a0fa664534e",
+    "backend/src/strategies/intradayMomentum.js": "f83782303181642f3ce340a8265ed42fcdcc9f7f6ec05f1f0d81c63ccdc6e793",
+    "frontend/src/components/AnalyticsDashboard.jsx": "a858bc44d827fb129c7a0cc9a3f4f9e7d1c5c74a073df908c69b514321d21f81",
+    "frontend/src/components/TradingConfig.jsx": "94139e2347c4ba7fefba30bc09cd306a31183815bc62cb6f2a12f98c451f58c2",
+    "frontend/src/components/dashboard/TradingSignals.jsx": "783aa157691f49b02d0d02b01056e94e7c7aa4e8ca60c989fd698587b513d6bf",
+    "shared/tradingConfigDefaults.json": "dcfd0a08d865ea80d6b3e71476f0d4044d7fdc3f2de132642d0bcf9969d85fbf",
+    "backend/src/runtime/intradayBuyRetestEvidence.js": "e67ebcafe9d645105ddbb3f54083e0ffa00d37fb76c2180ba09b74bfb9a41dfb",
+    "backend/src/runtime/intradayBuyRetestPolicy.js": "9cce147884a60a718722dbd2d783f5e8b00527ab44470b90ec31aa7a58d42c41"
+  },
+  "preflight": {
+    "capturedAtUtc": "2026-10-07T01:03:56.797Z",
+    "revision": "9b3785bd814b33d8a01d573ebdd40512f7a6dde8",
+    "checkoutStatus": "",
+    "healthStatus": "ok",
+    "systemStatus": "healthy",
+    "entryEnabled": true,
+    "entryRisk": {
+      "status": "READY",
+      "entryAllowed": true,
+      "cooldownActive": false,
+      "consecutiveLosses": 1,
+      "maxConsecutiveLosses": 3,
+      "cooldownDurationMs": 86400000,
+      "cooldownStartedAt": null,
+      "cooldownUntil": null,
+      "remainingMs": 0,
+      "lastLossAt": 1791311794921,
+      "lastCooldownUntil": null,
+      "streakResetAt": 1791303082870,
+      "evaluatedAt": 1791335036769,
+      "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173"
+    },
+    "account": {
+      "currency": "AUD",
+      "balance": 95.093,
+      "marginUsed": 0,
+      "openTrades": 0,
+      "pendingOrders": 0,
+      "unrealizedPL": 0
+    },
+    "selection": {
+      "selectionId": "selection_88d5b25c-31cf-4576-b539-3e708d31cbbe",
+      "strategy": "intraday_momentum",
+      "configHash": "07ea89df6b94cef9e5cc"
+    },
+    "run": {
+      "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+      "startedAt": 1790806534590,
+      "status": "active"
+    },
+    "policy": {
+      "liveReleaseVersion": "m15-intraday-v5",
+      "executionPolicyVersion": "intraday-risk-v5",
+      "pricingModelVersion": "broker-liquidity-v3.1",
+      "riskPerTrade": 0.0025,
+      "maxCapitalAtRisk": 100,
+      "intradayTargetRiskMultiple": 1.5,
+      "breakevenTriggerRiskMultiple": 1,
+      "maxSpreadPips": 1.2,
+      "expectedSlippagePips": 0.2,
+      "intradayMaxCostToStopRatio": 0.15,
+      "timeStopHours": 6,
+      "minStopLossPips": 6
+    }
+  },
+  "limits": [
+    "Software correctness and retained incident eligibility are validated; no alternate portfolio return or positive expectancy is established.",
+    "Historical v5 source manifests/evidence remain unchanged; current v6 sources deliberately fail their source/identity pins.",
+    "Relevant H1 integration inputs are explicitly synthetic; retained overnight candle inputs do not independently reconstruct full indicator warmup."
+  ]
+}

@@ -1,6 +1,6 @@
 const OandaDataService = require("../OandaDataService");
 
-describe("OandaDataService completed M15 historical ask candles", () => {
+describe("OandaDataService completed M15 historical bid and ask candles", () => {
     const completed = {
         time: "2026-09-30T13:30:00.000000000Z",
         complete: true,
@@ -10,7 +10,7 @@ describe("OandaDataService completed M15 historical ask candles", () => {
         ask: { o: "0.69642", h: "0.69662", l: "0.69575", c: "0.69584" },
     };
 
-    test("requests broker midpoint/bid/ask M15 data and retains independent completed ask OHLC", async () => {
+    test("requests broker midpoint/bid/ask M15 data and retains independent completed side OHLC", async () => {
         const service = new OandaDataService(["AUD_USD"]);
         service.oandaRequest = jest.fn().mockResolvedValue({ candles: [
             completed,
@@ -26,8 +26,27 @@ describe("OandaDataService completed M15 historical ask candles", () => {
             time: completed.time,
             open: 0.69636, high: 0.69656, low: 0.69568, close: 0.69578, volume: 247,
             ask: { open: 0.69642, high: 0.69662, low: 0.69575, close: 0.69584 },
+            bid: { open: 0.69630, high: 0.69650, low: 0.69561, close: 0.69572 },
         }]);
         expect(service.getCandles("AUD_USD", "15m")).toBe(result);
+    });
+
+    test.each([
+        undefined, null, {},
+        { o: "0.69630", h: "", l: "0.69561", c: "0.69572" },
+        { o: "0.69630", h: "0.69650bad", l: "0.69561", c: "0.69572" },
+        { o: "0.69630", h: "0.69650", l: "0", c: "0.69572" },
+        { o: "0.69630", h: "0.69600", l: "0.69561", c: "0.69572" },
+        { o: "0.69630", h: "0.69650", l: "0.69620", c: "0.69572" },
+    ])("unavailable bid %p preserves midpoint and valid ask without using today's spread", async (bid) => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.priceCache.AUD_USD = { bid: 0.69559, ask: 0.69568, spread: 0.9 };
+        service.oandaRequest = jest.fn().mockResolvedValue({ candles: [{ ...completed, bid }] });
+        const failure = jest.spyOn(service, "logFailureThrottled");
+        const result = await service.fetchCandles("AUD_USD", "M15");
+        expect(result[0]).toMatchObject({ high: 0.69656, close: 0.69578, bid: null,
+            ask: { high: 0.69662, low: 0.69575 } });
+        expect(failure).not.toHaveBeenCalled();
     });
 
     test.each([

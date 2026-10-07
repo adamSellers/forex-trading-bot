@@ -1,5 +1,9 @@
 # Live Trading Operator Guide
 
+## October 7 BUY change locally validated
+
+The user selected [v6 / strategy 1.4.0](docs/reviews/2026-10-07-buy-retest-release.md) after the overnight EUR/USD repeat. BUY entries will require a completed break above the previous eight-bar high, a distinct retest above that frozen level and a later bullish confirmation above the retest high. A fill consumes the breakout episode until price closes back through its level and a new pattern forms. Its stop sits below the minimum broker bid low of the retest episode, with the existing six-pip minimum and cash-risk budget. SELL-to-BUY fades are disabled to prevent bypass; SELL entry rules and old trades' exit management remain. Local verification passes 1,316 backend tests and the frontend checks/build; deployment is pending. The current-deployed table below remains the dated v5 contract until delivery.
+
 ## October 6 analytics correction
 
 The [measurement release](docs/reviews/2026-10-06-analytics-measurement-release.md) corrects saved signal entry attribution and observed expectancy. A single closed trade or identical observed results retain their actual P&L and mean, but have no empirical bootstrap interval. Available intervals assume independent trades. Cohort observed AUD and pip distributions include flats and keep their signs/denominators separate; missing risk/pip coverage is explicit. Deployed at `810c7f9` on October 6, these corrections retain strategy 1.3.0 and its current live cohort. The release record retains verification evidence.

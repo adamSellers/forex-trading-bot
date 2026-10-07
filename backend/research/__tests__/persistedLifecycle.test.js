@@ -24,14 +24,14 @@ function declaredQuotes(h) {
         clear: () => { overrides.clear(); tradeability.clear(); } };
 }
 
-describe('persisted generated v5 lifecycle decisions', () => {
-    test('a normal stop persists its H1 reset anchor, later requalification permits another generated BUY', async () => {
+describe('persisted generated current-strategy lifecycle decisions', () => {
+    test('a normal stop preserves its H1 reset across restart without reusing the filled BUY episode', async () => {
         const flow = buyLifecycleFlow({ nowMs: START, resetHour: 4 });
         const h = await env.replay({ input: fixtureArchive([flow], { futureIntervals: 0 }), assets: ['EUR_USD'] });
         const points = declaredQuotes(h);
         await h.observeAt(START);
         const opened = (await h.repositories.trades.getAllTrades())[0];
-        expect(opened).toMatchObject({ side: 'BUY', isOpen: true, entryType: 'M15_PULLBACK_RESUMPTION' });
+        expect(opened).toMatchObject({ side: 'BUY', isOpen: true, entryType: 'M15_BREAK_RETEST_CONFIRMATION' });
         points.setBid('EUR_USD', opened.stopLossPrice - 0.00001);
         await h.observeAt(START + 10_000, { scan: false });
         const stopped = (await h.repositories.trades.getAllTrades())[0];
@@ -52,23 +52,26 @@ describe('persisted generated v5 lifecycle decisions', () => {
             }
             scans.push(...await h.observeAt(START + index * M15));
         }
-        expect(scans).toContainEqual(expect.objectContaining({ signal: 'HOLD',
-            reasonCode: 'INTRADAY_MOMENTUM_WAIT_FOR_H1_RESET' }));
-        const rearmed = scans.find((signal) => signal.signal === 'BUY' && signal.strategyContext?.lossReset?.classification === 'H1_RESET_REARMED');
-        expect(rearmed).toBeDefined();
-        expect(rearmed.strategyContext.lossReset.anchor.brokerTradeId).toBe(stopped.oandaTradeId);
-        expect(rearmed.strategyContext.lossReset.state.resetAt).toBe(START + 4 * 3_600_000);
-        expect(rearmed.strategyContext.lossReset.state.rearmedAt).toBeGreaterThan(rearmed.strategyContext.lossReset.state.resetAt);
+        const rearmed = JSON.parse((await env.database('broker_runtime_state')
+            .where('state_key', 'like', 'intraday-loss-reset:v1:EUR_USD:BUY:%').first()).state_value);
+        expect(rearmed.anchor.brokerTradeId).toBe(stopped.oandaTradeId);
+        expect(rearmed.resetAt).toBe(START + 4 * 3_600_000);
+        expect(rearmed.rearmedAt).toBeGreaterThan(rearmed.resetAt);
+        expect(scans.every((signal) => signal.signal !== 'BUY')).toBe(true);
+        const episode = JSON.parse((await env.database('broker_runtime_state')
+            .where('state_key', 'intraday-buy-retest:v1:EUR_USD:8:5').first()).state_value);
+        expect(episode).toMatchObject({ consumed: true, breakout: opened.brokerReconciliationPayload
+            .liveRuntime.entryTelemetry.strategyContext.buyRetest.breakout });
         const trades = await h.repositories.trades.getAllTrades();
-        expect(trades).toHaveLength(2);
-        expect(trades.find((trade) => trade.id !== stopped.id)).toMatchObject({ side: 'BUY', isOpen: true });
+        expect(trades).toHaveLength(1);
+        expect(trades[0]).toMatchObject({ id: stopped.id, isOpen: false });
         const snapshot = await h.snapshot();
         expect(snapshot.accounting.status).toBe('RECONCILED');
         expect(h.engine.stats.errors).toBe(0);
         expect(env.networkAttempts).toBe(0);
     });
 
-    test.each(['BREAKEVEN_STOP', 'TAKE_PROFIT'])('%s blocks an old BUY continuation then admits a wholly post-exit touch', async (exitReason) => {
+    test.each(['BREAKEVEN_STOP', 'TAKE_PROFIT'])('%s cannot reuse the filled BUY episode after more completed touches or restart', async (exitReason) => {
         const flow = buyLifecycleFlow({ nowMs: START });
         const h = await env.replay({ input: fixtureArchive([flow], { futureIntervals: 0 }), assets: ['EUR_USD'] });
         const points = declaredQuotes(h);
@@ -88,30 +91,25 @@ describe('persisted generated v5 lifecycle decisions', () => {
         points.clear();
         const old = (await h.observeAt(START + M15))[0];
         expect(old.signal).toBe('HOLD');
-        expect(old.strategyContext.reentry).toMatchObject({ freshTouch: false,
-            anchor: { tradeId: parent.id, closedAt }, classification: exitReason === 'BREAKEVEN_STOP'
-                ? 'WAIT_FOR_FRESH_PULLBACK' : 'POST_TP_FADE' });
-        expect(old.reasonCode).toBe(exitReason === 'BREAKEVEN_STOP'
-            ? 'INTRADAY_MOMENTUM_WAIT_FOR_FRESH_PULLBACK' : 'INTRADAY_MOMENTUM_SELL_RETEST_REQUIRED');
         expect(await h.repositories.trades.getAllTrades()).toHaveLength(1);
         expect(h.engine.stats.errors).toBe(0);
         await h.restart();
         const scans = [];
         for (let index = 2; index <= 15; index++) scans.push(...await h.observeAt(START + index * M15));
-        const fresh = scans.find((signal) => signal.signal === 'BUY' &&
-            signal.strategyContext?.reentry?.classification === 'FRESH_CONTINUATION');
-        expect(fresh).toBeDefined();
-        expect(fresh.entryType).toBe('M15_PULLBACK_RESUMPTION');
-        expect(fresh.strategyContext.reentry.freshTouchTimes.length).toBeGreaterThan(0);
-        expect(fresh.strategyContext.reentry.freshTouchTimes.every((time) => Date.parse(time) >= closedAt)).toBe(true);
-        expect(fresh.strategyContext.lossReset).toMatchObject({ allowed: true, classification: 'NO_LOSS_RESET_REQUIRED' });
-        expect(await h.repositories.trades.getAllTrades()).toHaveLength(2);
+        expect(scans.every((signal) => signal.signal !== 'BUY')).toBe(true);
+        const episode = JSON.parse((await env.database('broker_runtime_state')
+            .where('state_key', 'intraday-buy-retest:v1:EUR_USD:8:5').first()).state_value);
+        expect(episode).toMatchObject({ consumed: true, breakout: parent.brokerReconciliationPayload
+            .liveRuntime.entryTelemetry.strategyContext.buyRetest.breakout });
+        expect(flow.m15.filter((bar) => Date.parse(bar.time) > closedAt &&
+            bar.low <= episode.breakout.level && bar.close > episode.breakout.level).length).toBeGreaterThan(0);
+        expect(await h.repositories.trades.getAllTrades()).toHaveLength(1);
         expect((await h.snapshot()).accounting.status).toBe('RECONCILED');
         expect(h.engine.stats.errors).toBe(0);
         expect(env.networkAttempts).toBe(0);
     });
 
-    test('a generated SELL target permits one BUY fade, local retries and restart retain its parent and price anchor', async () => {
+    test('a generated SELL target cannot create a BUY fade before or after restart', async () => {
         const flow = sellFadeFlow({ nowMs: START });
         const h = await env.replay({ input: fixtureArchive([flow], { futureIntervals: 0 }), assets: ['GBP_USD'] });
         const points = declaredQuotes(h);
@@ -122,43 +120,16 @@ describe('persisted generated v5 lifecycle decisions', () => {
         await h.observeAt(START + 14 * 60_000, { scan: false });
         expect((await h.repositories.trades.getAllTrades())[0]).toMatchObject({ exitReason: 'TAKE_PROFIT', isOpen: false });
         points.clear();
-        const pricing = h.broker.getPricing.bind(h.broker);
-        let wide = true;
-        env.setFinalPricing(async (instruments, options) => {
-            const payload = await pricing(instruments, options);
-            if (wide) payload.prices = payload.prices.map((quote) => quote.instrument !== 'GBP_USD' ? quote : {
-                ...quote, asks: quote.asks.map((level) => ({ ...level, price: String(Number(level.price) + 0.002) })),
-            });
-            return payload;
-        });
         const offered = (await h.observeAt(START + M15))[0];
-        expect(offered).toMatchObject({ signal: 'BUY', entryType: 'M15_POST_TP_FADE' });
+        expect(offered).toMatchObject({ signal: 'HOLD', reasonCode: 'INTRADAY_MOMENTUM_BUY_RETEST_REQUIRED' });
         expect(offered.strategyContext.reentry).toMatchObject({ freshTouch: false,
-            anchor: { tradeId: parent.id }, originalSide: 'SELL', executedSide: 'BUY' });
-        const declined = await env.database('entry_decisions').where('entry_type', 'M15_POST_TP_FADE').first();
-        expect(declined.rejection_code).toBe('SPREAD_TOO_WIDE');
+            anchor: { tradeId: parent.id }, originalSide: 'SELL', executedSide: 'BUY', classification: 'POST_TP_FADE' });
+        expect(await env.database('entry_decisions').where('entry_type', 'M15_POST_TP_FADE')).toHaveLength(0);
+        await h.restart();
+        const repeated = (await h.observeAt(START + M15 + 60_000))[0];
+        expect(repeated.signal).toBe('HOLD');
         expect(await h.repositories.trades.getAllTrades()).toHaveLength(1);
-        expect(h.engine.stats.errors).toBe(0);
-        await h.restart();
-        wide = false;
-        await h.observeAt(START + M15 + 60_000);
-        const fade = (await h.repositories.trades.getAllTrades()).find((trade) => trade.entryType === 'M15_POST_TP_FADE');
-        expect(fade).toMatchObject({ side: 'BUY', isOpen: true });
-        const attempts = await env.database('entry_decisions').where('entry_type', 'M15_POST_TP_FADE').orderBy('id');
-        expect(attempts).toHaveLength(2);
-        expect(attempts[1]).toMatchObject({ outcome: 'FILLED', setup_id: declined.setup_id,
-            entry_reference_price: declined.entry_reference_price });
-        expect(fade.brokerReconciliationPayload.liveRuntime.entryTelemetry.strategyContext.reentry)
-            .toMatchObject({ classification: 'POST_TP_FADE', anchor: { tradeId: parent.id } });
-        points.setBid('GBP_USD', fade.stopLossPrice - 0.00001);
-        await h.observeAt(START + M15 + 70_000, { scan: false });
-        points.clear();
-        expect(h.engine.stats.errors).toBe(0);
-        await h.restart();
-        const afterFade = (await h.observeAt(START + 2 * M15))[0];
-        expect(afterFade).toMatchObject({ signal: 'HOLD', reasonCode: 'INTRADAY_MOMENTUM_FADE_ALREADY_TAKEN' });
-        expect(afterFade.strategyContext.reentry).toMatchObject({ fadeConsumed: true, anchor: { tradeId: parent.id } });
-        expect(await h.repositories.trades.getAllTrades()).toHaveLength(2);
+        expect(h.broker.snapshot().transactions.filter((row) => row.type === 'MARKET_ORDER')).toHaveLength(1);
         expect((await h.snapshot()).accounting.status).toBe('RECONCILED');
         expect(h.engine.stats.errors).toBe(0);
         expect(env.networkAttempts).toBe(0);
@@ -166,7 +137,8 @@ describe('persisted generated v5 lifecycle decisions', () => {
 
     test('three generated normal losses arm the actual 24-hour cooldown without changing its deadline on restart', async () => {
         const assets = ['EUR_USD', 'GBP_USD', 'USD_JPY', 'AUD_USD'];
-        const flows = assets.map((instrument) => buyLifecycleFlow({ instrument, nowMs: START }));
+        const flows = assets.map((instrument) => buyLifecycleFlow({ instrument,
+            nowMs: instrument === 'AUD_USD' ? START + 3_600_000 : START }));
         const h = await env.replay({ input: fixtureArchive(flows), assets, initialBalanceAud: 1000 });
         const points = declaredQuotes(h);
         points.setTradeable('AUD_USD', false);
@@ -185,7 +157,7 @@ describe('persisted generated v5 lifecycle decisions', () => {
         expect(cooldown).toMatchObject({ cooldownActive: true, consecutiveLosses: 3,
             cooldownStartedAt: lossTime, cooldownUntil: lossTime + 24 * 3_600_000 });
         points.clear();
-        const fourth = (await h.observeAt(START + M15)).find((signal) => signal.symbol === 'AUD_USD');
+        const fourth = (await h.observeAt(START + 3_600_000)).find((signal) => signal.symbol === 'AUD_USD');
         expect(fourth).toMatchObject({ signal: 'BUY', signalClass: 'ACTIONABLE' });
         expect(fourth.strategyContext.lossReset.allowed).toBe(true);
         const rejected = await env.database('entry_decisions').where('instrument', 'AUD_USD').first();

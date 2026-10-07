@@ -9,7 +9,8 @@ const oandaClient = require('../../src/services/Oandaclient');
 const { cloneDefaultConfig } = require('../../src/config/tradingConfig');
 const { evaluatePriceAvailability } = require('../../src/runtime/quoteAvailability');
 const { evaluateIntradayMomentumEntry } = require('../../src/strategies/intradayMomentum');
-const { buyEntryFixture } = require('../fixtures/causalFlows.cjs');
+const { buyEntryFixture, legacyBuyEntryFixture } = require('../fixtures/causalFlows.cjs');
+const { getStrategyDefinition } = require('../../src/strategies');
 
 const START = Date.parse('2026-10-01T23:59:59.900Z');
 const TIMER_EXCLUSIONS = ['Date', 'performance', 'hrtime', 'nextTick',
@@ -136,7 +137,7 @@ describe('research replay clock through production quote observations', () => {
         const evaluation = await evaluateIntradayMomentumEntry(fixture);
         expect(evaluation.signalType).toBe('BUY');
         const signal = new SignalGenerator().buildSignal(fixture.instrument, evaluation,
-            { version: '1.3.0' }, fixture.currentPrice);
+            getStrategyDefinition('intraday_momentum'), fixture.currentPrice);
         const service = new OandaDataService([fixture.instrument]);
         service.candleCache.AUD_USD_M15 = fixture.m15;
         service.candleCache.AUD_USD_H1 = fixture.h1;
@@ -228,10 +229,9 @@ describe('research replay clock through production quote observations', () => {
 });
 
 describe('completed BUY research fixture with coherent H1 history', () => {
-    test.each(['EUR_USD', 'USD_JPY'].flatMap((instrument) =>
-        ['pullback', 'breakout'].map((entry) => ({ instrument, entry }))))(
-        '$instrument $entry reaches the actual deployed-default strategy without replacing its signal', async ({ instrument, entry }) => {
-            const fixture = buyEntryFixture({ instrument, entry });
+    test.each(['EUR_USD', 'USD_JPY'])(
+        '%s break/retest/confirmation reaches the current strategy without replacing its signal', async (instrument) => {
+            const fixture = buyEntryFixture({ instrument });
             expect(fixture.m15.every((bar) => bar.complete && Date.parse(bar.time) + 900_000 <= fixture.nowMs)).toBe(true);
             expect(fixture.h1.every((bar) => bar.complete && Date.parse(bar.time) + 3_600_000 <= fixture.nowMs)).toBe(true);
             const lastHour = fixture.h1.at(-1);
@@ -242,8 +242,17 @@ describe('completed BUY research fixture with coherent H1 history', () => {
             expect(lastHour.low).toBe(Math.min(...lastFour.map((bar) => bar.low)));
             const result = await evaluateIntradayMomentumEntry(fixture);
             expect(result.signalType).toBe('BUY');
-            expect(result.entryType).toBe(entry === 'pullback' ? 'M15_PULLBACK_RESUMPTION' : 'M15_RANGE_BREAKOUT');
+            expect(result.entryType).toBe('M15_BREAK_RETEST_CONFIRMATION');
+            expect(result.tradePlan.stopPriceMode).toBe('STRUCTURAL');
             expect(result.tradePlan.stopLossPrice).toBeLessThan(fixture.currentPrice);
             expect(result.tradePlan.takeProfitPrice).toBeGreaterThan(fixture.currentPrice);
         });
+
+    test.each(['pullback', 'breakout'])('the old %s-only BUY fixture cannot bypass the current structural entry contract', async (entry) => {
+        const fixture = legacyBuyEntryFixture({ instrument: 'EUR_USD', entry });
+        const result = await evaluateIntradayMomentumEntry(fixture);
+        expect(result.signalType).toBe('HOLD');
+        expect(result.tradePlan).toBeNull();
+        expect(result.entryType).not.toBe('M15_POST_TP_FADE');
+    });
 });

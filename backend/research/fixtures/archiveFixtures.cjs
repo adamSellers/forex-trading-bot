@@ -12,7 +12,8 @@ const pricingAssumptions = { tradeable: true, liquidityUnits: 1_000_000 };
 function rawBar(bar) {
     const mid = Object.fromEntries(['open', 'high', 'low', 'close'].map((key, i) => ['ohlc'[i], bar[key]]));
     const ask = Object.fromEntries(['open', 'high', 'low', 'close'].map((key, i) => ['ohlc'[i], bar.ask?.[key] ?? bar[key] + 0.00002]));
-    const bid = Object.fromEntries(Object.entries(mid).map(([key, value]) => [key, value - (ask[key] - value)]));
+    const bid = Object.fromEntries(['open', 'high', 'low', 'close'].map((key, i) =>
+        ['ohlc'[i], bar.bid?.[key] ?? mid['ohlc'[i]] - (ask['ohlc'[i]] - mid['ohlc'[i]])]));
     return { time: Date.parse(bar.time) / 1000, mid, ask, bid, complete: true, volume: bar.volume || 100 };
 }
 function fixtureArchive(flows, { futureIntervals = 24 } = {}) {

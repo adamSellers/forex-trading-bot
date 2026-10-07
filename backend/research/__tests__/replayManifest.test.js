@@ -40,3 +40,13 @@ test('writing research result JSON does not invalidate executed source provenanc
         expect(replaySourcePaths(directory)).toContain('backend/research/newEvaluator.cjs');
     } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
+
+test('retained v5 historical manifests keep their identity and refuse the current v6 source set', () => {
+    for (const file of fs.readdirSync(path.join(root, 'backend/research/manifests'))
+        .filter((file) => /^v5-.*\.json$/.test(file))) {
+        const spec = JSON.parse(fs.readFileSync(path.join(root, 'backend/research/manifests', file), 'utf8'));
+        expect(spec.baselineIdentity).toMatchObject({ strategyVersion: '1.3.0',
+            releaseVersion: 'm15-intraday-v5', executionPolicyVersion: 'intraday-risk-v5' });
+        expect(() => verifyReplaySources(root, spec.sourceHashes)).toThrow();
+    }
+});

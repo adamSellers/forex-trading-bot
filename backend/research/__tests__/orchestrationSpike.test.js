@@ -1,15 +1,16 @@
-// Architecture spike only: synthetic broker-shaped observations, real v5 orchestration.
+// Architecture spike only: synthetic observations through current orchestration.
 const RuntimeCoordinator = require('../../src/runtime/runtimeCoordinator');
 const LiveTradingEngine = require('../../src/services/LiveTradingEngine');
 const OandaDataService = require('../../src/services/OandaDataService');
 const { cloneDefaultConfig } = require('../../src/config/tradingConfig');
+const { getStrategyDefinition } = require('../../src/strategies');
 const {
     createMockConfigService, createMockTradeRepository, createMockEntryDecisionRepository,
 } = require('../../__tests__/helpers/mockServices');
 const oanda = require('../../src/services/Oandaclient');
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
+const { hashReplaySources } = require('../replayManifest.cjs');
 
 jest.mock('uuid', () => {
     let sequence = 0;
@@ -238,7 +239,7 @@ async function timeline({ restart = false, askMissing = false } = {}) {
         repositoryKind: 'IN_MEMORY_TEST_DOUBLES', networkAttempts };
 }
 
-describe('offline chronological v5 architecture spike', () => {
+describe('offline chronological current-strategy architecture spike', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         networkAttempts = 0;
@@ -285,17 +286,12 @@ describe('offline chronological v5 architecture spike', () => {
     afterAll(() => {
         if (!process.env.RESEARCH_REPORT_PATH || smokeResults.length !== 3) return;
         const root = path.resolve(__dirname, '../../..');
-        const sourcePaths = [
-            'backend/src/runtime/runtimeCoordinator.js', 'backend/src/services/signalGenerator.js',
-            'backend/src/services/LiveTradingEngine.js', 'backend/src/strategies/intradayMomentum.js',
-            'backend/src/runtime/intradaySellRetestPolicy.js', 'backend/src/runtime/intradaySellRetestEvidence.js',
-            'backend/src/runtime/executionPolicy.js', 'backend/src/runtime/exitPolicy.js',
-            'backend/research/__tests__/orchestrationSpike.test.js',
-        ];
         const report = { schemaVersion: 1, artifactKind: 'OFFLINE_ORCHESTRATION_ARCHITECTURE_SPIKE',
-            status: 'PASSED_3_SYNTHETIC_SCENARIOS', strategyVersion: '1.3.0',
-            sources: Object.fromEntries(sourcePaths.map((file) => [file,
-                crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')])),
+            status: 'PASSED_3_SYNTHETIC_SCENARIOS',
+            strategyVersion: getStrategyDefinition('intraday_momentum').version,
+            releaseVersion: cloneDefaultConfig().liveReleaseVersion,
+            executionPolicyVersion: cloneDefaultConfig().executionPolicyVersion,
+            sources: hashReplaySources(root),
             scenarios: smokeResults,
             limits: ['Synthetic fixture observations, not a historical strategy/portfolio return.',
                 'Repositories use in-memory test doubles; real SQLite parity and full state replay remain pending.',

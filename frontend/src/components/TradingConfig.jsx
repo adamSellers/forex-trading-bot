@@ -130,7 +130,7 @@ const TradingConfig = () => {
                   ))}
                 </Stack>
                 <Typography variant="body2" color="text.secondary" mt={3}>
-                  Entries require a completed M15 pullback resumption or range breakout, a matching H1 EMA/ADX regime, a liquid pair-specific session and acceptable spread cost. Orders use broker-native stop-loss and take-profit protection with risk-based unit sizing.
+                  Entries require a completed M15 break, a distinct retest and later directional confirmation, a matching H1 EMA/ADX regime, a liquid pair-specific session and acceptable spread cost. BUY breakout episodes allow one fill until the broken level is cancelled and a new pattern forms. Stops sit beyond broker bid/ask structure, with risk-based unit sizing and broker-native take-profit protection.
                 </Typography>
               </Paper>
             </Grid>

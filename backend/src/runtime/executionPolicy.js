@@ -60,20 +60,24 @@ function resolveCanonicalTradePlan({
         const anchor = toFiniteNumber(signal?.tradePlan?.structuralStopLossPrice, null);
         const submitted = toFiniteNumber(submittedStopLossPrice, null);
         const targetRiskMultiple = toFiniteNumber(signal?.tradePlan?.targetRiskMultiple, null);
-        if (!structural || side !== "SELL" || !(anchor > 0) ||
+        if (!structural || !(anchor > 0) ||
             !(targetRiskMultiple > 0) ||
-            (submittedStopLossPrice !== null && (!Number.isFinite(submitted) || submitted < anchor)) ||
+            (submittedStopLossPrice !== null && (!Number.isFinite(submitted) ||
+                (side === "SELL" ? submitted < anchor : submitted > anchor))) ||
             !isDirectionValid(side, entry, submitted ?? anchor, "stop")) return null;
-        const stopLossPrice = submitted ?? Math.max(anchor, entry + minimumPips * pip);
-        const stopDistance = stopLossPrice - entry;
+        const stopLossPrice = submitted ?? (side === "SELL"
+            ? Math.max(anchor, entry + minimumPips * pip)
+            : Math.min(anchor, entry - minimumPips * pip));
+        if (!(stopLossPrice > 0)) return null;
+        const stopDistance = Math.abs(stopLossPrice - entry);
         return {
             ...signal.tradePlan,
             stopLossPrice,
             stopLossPips: stopDistance / pip,
             stopDistance,
-            takeProfitPrice: entry - stopDistance * targetRiskMultiple,
+            takeProfitPrice: entry + (side === "SELL" ? -1 : 1) * stopDistance * targetRiskMultiple,
             source: "SIGNAL_STRUCTURAL_STOP",
-            floored: submitted === null && stopLossPrice > anchor,
+            floored: submitted === null && (side === "SELL" ? stopLossPrice > anchor : stopLossPrice < anchor),
         };
     }
     const plannedStopPips = toFiniteNumber(

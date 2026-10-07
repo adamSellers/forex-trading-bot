@@ -64,6 +64,9 @@ class SignalGenerator extends EventEmitter {
         if (evaluation.entryType === "M15_POST_TP_FADE") {
             setupParts.push(evaluation.strategyContext?.reentry?.anchor?.tradeId);
         }
+        if (evaluation.entryType === "M15_BREAK_RETEST_CONFIRMATION") {
+            setupParts.push(evaluation.strategyContext?.buyRetest?.episodeId);
+        }
         const setupId = setupParts.join(":");
         const rsi = Number.isFinite(evaluation.rsiVal) ? evaluation.rsiVal : null;
         const decisionContext = {
@@ -154,6 +157,7 @@ class SignalGenerator extends EventEmitter {
                 lossResetDecisions: options.lossResetDecisions,
                 lossResetTrades: options.lossResetTrades,
                 sellRetestDecision: options.sellRetestDecision,
+                buyRetestDecision: options.buyRetestDecision,
                 ownedOpenTrade: options.ownedOpenTrade,
                 nowMs:
                     options.nowMs ??

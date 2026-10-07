@@ -25,17 +25,17 @@ const PRICE_FRESHNESS_MAX_AGE_MS = 20_000;
 const CANDLE_REFRESH_FRESHNESS_MAX_AGE_MS = 180_000;
 const OANDA_REQUEST_TIMEOUT_MS = 10_000;
 
-// Historical ask prices must come from this broker candle. A missing or invalid
-// side leaves ask-dependent entries unavailable without changing midpoint data
+// Historical bid/ask prices must come from this broker candle. A missing or invalid
+// side leaves its dependent entries unavailable without changing midpoint data
 // or substituting today's spread for the historical spread.
-function normalizeCandleAsk(ask) {
-    if (!ask || [ask.o, ask.h, ask.l, ask.c].some((value) =>
+function normalizeCandleSide(side) {
+    if (!side || [side.o, side.h, side.l, side.c].some((value) =>
         value === null || value === undefined || value === "")) return null;
     const candle = {
-        open: Number(ask.o),
-        high: Number(ask.h),
-        low: Number(ask.l),
-        close: Number(ask.c),
+        open: Number(side.o),
+        high: Number(side.h),
+        low: Number(side.l),
+        close: Number(side.c),
     };
     if (!Object.values(candle).every((value) => Number.isFinite(value) && value > 0) ||
         candle.high < Math.max(candle.open, candle.close) ||
@@ -453,8 +453,8 @@ class OandaDataService extends EventEmitter {
 
     async fetchCandles(instrument, granularity = "H4", count = 500) {
         try {
-            const includeAsk = granularity === "M15";
-            const priceComponents = includeAsk ? "MBA" : "M";
+            const includeSides = granularity === "M15";
+            const priceComponents = includeSides ? "MBA" : "M";
             const data = await this.oandaRequest(
                 `/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=${priceComponents}`
             );
@@ -468,7 +468,7 @@ class OandaDataService extends EventEmitter {
                     low: parseFloat(c.mid.l),
                     close: parseFloat(c.mid.c),
                     volume: c.volume,
-                    ...(includeAsk ? { ask: normalizeCandleAsk(c.ask) } : {}),
+                    ...(includeSides ? { ask: normalizeCandleSide(c.ask), bid: normalizeCandleSide(c.bid) } : {}),
                 }));
             let previousTime = -Infinity;
             for (const candle of candles) {

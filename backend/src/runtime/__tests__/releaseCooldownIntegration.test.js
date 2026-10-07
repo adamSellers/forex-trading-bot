@@ -3,13 +3,18 @@ const LiveTradingEngine = require("../../services/LiveTradingEngine");
 const { cloneDefaultConfig, computeConfigHash } = require("../../config/tradingConfig");
 const { CONSECUTIVE_LOSS_COOLDOWN_MS } = require("../portfolioRiskPolicy");
 
-jest.mock("../../services/Oandaclient", () => ({
+jest.mock("../../services/Oandaclient", () => {
+    const client = jest.requireActual("../../services/Oandaclient");
+    return {
     getAccountSummary: jest.fn(async () => ({
         account: { currency: "AUD", NAV: "1000", balance: "1000", marginAvailable: "1000" },
     })),
     getPipValue: jest.fn(() => 0.0001),
+    formatPrice: client.formatPrice.bind(client),
+    formatPriceBound: client.formatPriceBound.bind(client),
     placeMarketOrder: jest.fn(),
-}));
+    };
+});
 jest.mock("../../services/emailService", () => ({}));
 
 const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -87,9 +92,12 @@ function fixture({ losses = 3, exitTime = finalExit, ownerRunId = "prior-run" } 
         engine.calculatePositionSize = jest.fn(async () => 10);
         const validate = () => engine.validateEntry({
             symbol: "AUD_USD", signal: "BUY", strategy: "intraday_momentum",
+            strategyVersion: "1.4.0",
             runId: coordinator.getActiveLiveSession().run.runId,
             currentPrice: 0.7, atr: 0.001, atrPips: 10, strength: 30,
-            entryType: "PULLBACK", timeframe: "M15",
+            entryType: "M15_BREAK_RETEST_CONFIRMATION", timeframe: "M15",
+            tradePlan: { stopPriceMode: "STRUCTURAL", structuralStopLossPrice: 0.698,
+                stopLossPrice: 0.698, targetRiskMultiple: 1.5 },
         }, config);
         return { coordinator, engine, validate };
     };

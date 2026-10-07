@@ -89,11 +89,14 @@ Use Node 22.16.0 for the checked-in manifest (the project supports Node >=20 <23
 node backend/research/run_replay.cjs backend/research/manifests/v5-coarse-parity-2026-07-node-sqlite.json /absolute/path/new-replay.json
 ```
 
-This manifest pins the current foundation's local archive, runtime
+This historical v5 manifest pins its foundation checkpoint's local archive, runtime
 source/configuration/migrations, the research harness and dependencies.
 Missing, changed or newly unpinned sources
 fail before historical evaluation. Its v5 identity must match the actual catalog
-and config. Output paths must be new; the launcher does not overwrite evidence.
+and config. The selected October 7 v6 sources intentionally do not satisfy those
+pins: use the matching historical Git revision to reproduce v5, and do not update
+its manifest to call current v6 results historical v5 evidence. Output paths must
+be new; the launcher does not overwrite evidence.
 The ignored archive is needed only for this explicit command. Normal backend
 tests use synthetic observations and require no archive.
 
@@ -234,7 +237,8 @@ environment and runs only the spike's Jest suite. Network transports are denied.
 The suite also participates in ordinary backend tests and requires no ignored
 historical input or native SQLite module.
 
-It uses the actual coordinator, signal generator, indicators, v5 strategy,
+Active software tests use the actual coordinator, signal generator, indicators,
+current selected strategy,
 durable-evidence resolver, entry engine, sizing/protection, management and
 reconciliation with fixed time and broker-shaped synthetic observations. Only
 completed M15/H1 candles are exposed. Tests verify break → retest → confirmation,
@@ -245,7 +249,7 @@ uninterrupted runs must produce identical reduced ledgers.
 The repositories are in-memory test doubles. The broker fixture intentionally
 does not implement historical intrabar triggers, dynamic margin/NAV, liquidity,
 slippage or ten-second price interpolation. The emitted artifact identifies these
-limits and source hashes. It does not claim complete v5 replay, real SQLite
+limits and source hashes. It does not claim complete historical replay, real SQLite
 parity, exact OANDA execution, statistical validation or profitability.
 
 The persisted replay above supersedes this spike's in-memory repositories and

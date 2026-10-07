@@ -37,7 +37,7 @@ describe("live SignalGenerator", () => {
                 symbol: "AUD_USD",
                 signal: "HOLD",
                 strategy: "intraday_momentum",
-                strategyVersion: "1.3.0",
+                strategyVersion: "1.4.0",
                 timeframe: "15m",
             })
         );
@@ -93,15 +93,16 @@ describe("live SignalGenerator", () => {
         const lossResetDecisions = { SELL: { allowed: false, classification: "WAIT_FOR_H1_RESET" } };
         const lossResetTrades = [latestClosedTrade];
         const ownedOpenTrade = { side: "BUY", isOpen: true, entryType: "M15_RANGE_BREAKOUT" };
+        const buyRetestDecision = { version: 1, ready: false, classification: "EPISODE_ALREADY_TRADED", episodeId: "buy-episode" };
         const evaluate = jest.spyOn(strategy, "evaluateEntry").mockReturnValue({
             signalType: "HOLD", signalCandleTime: 1788760800000,
         });
         try {
             await generator.generateSignal("AUD_USD", [{}, {}], 0.65, {
-                latestClosedTrade, reentryHistoryAvailable: false, lossResetDecisions, lossResetTrades, ownedOpenTrade, nowMs: 1788760800000,
+                latestClosedTrade, reentryHistoryAvailable: false, lossResetDecisions, lossResetTrades, ownedOpenTrade, buyRetestDecision, nowMs: 1788760800000,
             });
             expect(evaluate).toHaveBeenCalledWith(expect.objectContaining({
-                latestClosedTrade, reentryHistoryAvailable: false, lossResetDecisions, lossResetTrades, ownedOpenTrade,
+                latestClosedTrade, reentryHistoryAvailable: false, lossResetDecisions, lossResetTrades, ownedOpenTrade, buyRetestDecision,
             }));
         } finally {
             evaluate.mockRestore();
@@ -125,6 +126,16 @@ describe("live SignalGenerator", () => {
             ...evaluation, entryType: "M15_RANGE_BREAKOUT",
         }, { version: "1.2.0" }, 0.65);
         expect(normal.setupId).toBe("AUD_USD:LONG:1788760800000:M15_RANGE_BREAKOUT");
+    });
+    test("new BUY setup identity retains the explicit breakout episode alongside its confirmation candle", () => {
+        const evaluation = { signalType: "BUY", entryType: "M15_BREAK_RETEST_CONFIRMATION", signalCandleTime: 1788760800000,
+            strategyContext: { buyRetest: { episodeId: "buy-retest:v1:AUD_USD:1788759900000" } } };
+        const first = generator.buildSignal("AUD_USD", evaluation, { version: "1.4.0" }, .65);
+        const retry = generator.buildSignal("AUD_USD", evaluation, { version: "1.4.0" }, .65);
+        expect(first.setupId).toBe("AUD_USD:LONG:1788760800000:M15_BREAK_RETEST_CONFIRMATION:buy-retest:v1:AUD_USD:1788759900000");
+        expect(retry.setupId).toBe(first.setupId);
+        const next = generator.buildSignal("AUD_USD", { ...evaluation, strategyContext: { buyRetest: { episodeId: "distinct-break" } } }, { version: "1.4.0" }, .65);
+        expect(next.setupId).not.toBe(first.setupId);
     });
 
     test.each([[0, 0], [null, null], [undefined, null], [NaN, null]])(
