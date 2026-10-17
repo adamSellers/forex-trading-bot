@@ -1,0 +1,25 @@
+{
+  "capturedAtUtc": "2026-10-17T06:11:36.373Z",
+  "readOnly": true,
+  "source": "Authenticated OANDA REST v20 GET /trades/{id}; credentials remained on production host",
+  "trades": [
+    {
+      "requestedTradeId": "2867",
+      "trade": {
+        "id": "2867",
+        "instrument": "AUD_USD",
+        "state": "CLOSED",
+        "closeTime": "2026-06-01T13:21:31.252307297Z"
+      }
+    },
+    {
+      "requestedTradeId": "2858",
+      "trade": {
+        "id": "2858",
+        "instrument": "GBP_USD",
+        "state": "CLOSED",
+        "closeTime": "2026-05-28T00:55:35.281739993Z"
+      }
+    }
+  ]
+}

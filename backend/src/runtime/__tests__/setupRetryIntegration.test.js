@@ -378,6 +378,102 @@ describe('durable same-direction loss reset through live orchestration', () => {
         bar.low = Math.min(bar.low, bar.close - 0.001);
     }
 
+    function addUntimedClosed(state, overrides = {}) {
+        const trade = addClosed(state, { reconciliationStatus: 'RECONCILED',
+            selectionId: 'original-selection', lastBrokerSyncAt: startTime - 80 * 60_000,
+            ...overrides });
+        trade.brokerReconciliationPayload = { close: { trade: { id: trade.oandaTradeId,
+            state: 'CLOSED', averageClosePrice: '1.30000', realizedPL: '-0.1' } },
+            liveRuntime: { entryTelemetry: { original: true } } };
+        return trade;
+    }
+
+    test.each([false, true])('normal broker sync recovers a historical armed stop and preserves its outcome; valid H1 reset still requires a BUY retest (missing pattern=%s)', async (legacyBuy) => {
+        const state = await fixture({ legacyBuy }); state.setQuote(1);
+        const historical = addUntimedClosed(state, { oandaTradeId: '2858',
+            entryTime: Date.parse('2026-05-28T00:00:00Z'),
+            exitTime: Date.parse('2026-05-28T00:55:40Z'), brokerClosedAt: Date.parse('2026-05-28T00:55:40Z') });
+        const original = copy(historical);
+        // Authentic minimal GET capture; historical accounting and market bars
+        // are independent fixtures, not reconstructed broker fills.
+        const tradeDetails = { trade: { id: '2858', instrument: 'GBP_USD', state: 'CLOSED',
+            closeTime: '2026-05-28T00:55:35.281739993Z' } };
+        oanda.getTrade.mockResolvedValue(tradeDetails);
+        makeNeutral(state.history.h1.at(-2));
+        const runtime = await state.boot();
+        const restored = state.tradeRepository.trades.find(trade => trade.id === historical.id);
+        expect({ ...restored, brokerReconciliationPayload: original.brokerReconciliationPayload }).toEqual(original);
+        expect(restored.brokerReconciliationPayload).toEqual({ ...original.brokerReconciliationPayload,
+            closeTimeEvidence: { brokerTradeId: historical.oandaTradeId,
+                confirmedBrokerClosedAt: Date.parse(tradeDetails.trade.closeTime), source: 'BROKER_CLOSED_TRADE' },
+            historicalCloseTimeRecovery: { recoveredAt: startTime, tradeDetails } });
+        const signal = await runtime.cycle();
+        if (legacyBuy) {
+            expect(signal.signal).toBe('HOLD');
+            expect(signal.strategyContext.buyRetest.ready).toBe(false);
+            expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+        } else {
+            expect(signal).toMatchObject({ signal: 'BUY', strategyContext: {
+                lossReset: { allowed: true, classification: 'H1_RESET_REARMED' }, buyRetest: { ready: true },
+            } });
+            expect(oanda.placeMarketOrder).toHaveBeenCalledTimes(1);
+        }
+        await runtime.engine.syncWithOanda({ throwOnError: true });
+        expect(oanda.getTrade).toHaveBeenCalledTimes(1);
+        expect(oanda.getTrade).toHaveBeenCalledWith(historical.oandaTradeId);
+    });
+
+    test.each(['wrong-id', 'wrong-instrument', 'wrong-side', 'open', 'missing-time', 'lookup-failure', 'persist-failure'])('historical close-time recovery remains blocked for %s through coordinator and execution', async (failure) => {
+        const state = await fixture(); state.setQuote(1);
+        const historical = addUntimedClosed(state);
+        const original = copy(historical);
+        makeNeutral(state.history.h1.at(-2));
+        const details = { trade: { id: historical.oandaTradeId, state: 'CLOSED',
+            closeTime: String(historical.brokerClosedAt / 1000) } };
+        if (failure === 'wrong-id') details.trade.id = 'another';
+        if (failure === 'wrong-instrument') details.trade.instrument = 'AUD_USD';
+        if (failure === 'wrong-side') details.trade.initialUnits = '-10';
+        if (failure === 'open') details.trade.state = 'OPEN';
+        if (failure === 'missing-time') delete details.trade.closeTime;
+        oanda.getTrade.mockResolvedValue(details);
+        if (failure === 'lookup-failure') oanda.getTrade.mockRejectedValue(new Error('broker lookup unavailable'));
+        if (failure === 'persist-failure') state.tradeRepository.updateTrade.mockRejectedValue(new Error('write unavailable'));
+        const runtime = await state.boot();
+        const signal = await runtime.cycle();
+        expect(signal).toMatchObject({ signal: 'HOLD', strategyContext: { lossReset: {
+            allowed: false, classification: 'LOSS_RESET_EVIDENCE_UNAVAILABLE',
+        } } });
+        expect(state.tradeRepository.trades.find(trade => trade.id === historical.id)).toEqual(original);
+        expect(runtime.engine.brokerStateUncertain).toBe(false);
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+    });
+
+    test('historical hydration targets only the latest armed missing-time anchor per active pair and side', async () => {
+        const state = await fixture(); state.setQuote(1);
+        const latest = addUntimedClosed(state);
+        addUntimedClosed(state, { id: 'older', oandaTradeId: 'older-broker',
+            brokerClosedAt: startTime - 5 * 3_600_000, exitTime: startTime - 5 * 3_600_000 });
+        addUntimedClosed(state, { id: 'another-pair', oandaTradeId: 'another-pair-broker', instrument: 'AUD_USD' });
+        addUntimedClosed(state, { id: 'not-a-stop', oandaTradeId: 'another-side-broker', side: 'SELL', exitReason: 'SESSION_CLOSE' });
+        oanda.getTrade.mockResolvedValue({ trade: { id: latest.oandaTradeId, state: 'CLOSED',
+            closeTime: String(latest.brokerClosedAt / 1000) } });
+        await state.boot();
+        expect(oanda.getTrade).toHaveBeenCalledTimes(1);
+        expect(oanda.getTrade).toHaveBeenCalledWith(latest.oandaTradeId);
+    });
+
+    test('recovering a missing historical close time does not bypass the required H1 reset', async () => {
+        const state = await fixture(); state.setQuote(1);
+        const historical = addUntimedClosed(state);
+        oanda.getTrade.mockResolvedValue({ trade: { id: historical.oandaTradeId, state: 'CLOSED',
+            closeTime: String(historical.brokerClosedAt / 1000) } });
+        const runtime = await state.boot();
+        expect((await runtime.cycle())).toMatchObject({ signal: 'HOLD', strategyContext: { lossReset: {
+            allowed: false, classification: 'WAIT_FOR_H1_RESET',
+        } } });
+        expect(oanda.placeMarketOrder).not.toHaveBeenCalled();
+    });
+
     test('a same-side initial stop from an older release blocks a new valid M15 setup', async () => {
         const state = await fixture(); addClosed(state); state.setQuote(1);
         const runtime = await state.boot();

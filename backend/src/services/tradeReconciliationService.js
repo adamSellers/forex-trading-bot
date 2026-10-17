@@ -32,6 +32,28 @@ class TradeReconciliationService {
                 ["BROKER_FULL_CLOSE_FILL", "BROKER_CLOSED_TRADE"].includes(evidence.source)) || null;
     }
 
+    recoverHistoricalCloseTime({ localTrade, tradeDetails, recoveredAt = Date.now() }) {
+        const brokerTrade = tradeDetails?.trade;
+        if (localTrade?.isOpen !== false || brokerTrade?.state !== "CLOSED" ||
+            String(brokerTrade.id || "") !== String(localTrade.oandaTradeId || "")) return null;
+        if (brokerTrade.instrument !== undefined && brokerTrade.instrument !== localTrade.instrument) return null;
+        if (brokerTrade.initialUnits !== undefined &&
+            !(Number(brokerTrade.initialUnits) * (localTrade.side === "BUY" ? 1 : localTrade.side === "SELL" ? -1 : 0) > 0)) return null;
+        // Hydrate proof only. The old accounting outcome, observation timestamps
+        // and original broker payload remain historical facts and are retained.
+        const closeTimeEvidence = this.getCloseTimeEvidence({ oandaTradeId: localTrade.oandaTradeId }, {
+            brokerTradeId: String(brokerTrade.id),
+            confirmedBrokerClosedAt: this.getBrokerClosedAt(tradeDetails, null),
+            source: "BROKER_CLOSED_TRADE",
+        });
+        if (!closeTimeEvidence) return null;
+        return {
+            ...(localTrade.brokerReconciliationPayload || {}),
+            closeTimeEvidence,
+            historicalCloseTimeRecovery: { recoveredAt, tradeDetails },
+        };
+    }
+
     parseBrokerTimestamp(value, fallback = null) {
         if (value === null || value === undefined || value === "") {
             return fallback;

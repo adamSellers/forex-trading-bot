@@ -18,7 +18,7 @@ const { SELL_RETEST_STRATEGY_VERSION, SELL_RETEST_ENTRY_TYPE } = require("../run
 const { resolveBuyRetestEvidence } = require("../runtime/intradayBuyRetestEvidence");
 const { BUY_RETEST_STRATEGY_VERSION, BUY_RETEST_ENTRY_TYPE } = require("../runtime/intradayBuyRetestPolicy");
 const {
-    LOSS_RESET_STRATEGY_VERSIONS, sameLossResetDecision,
+    LOSS_RESET_STRATEGY_VERSIONS, sameLossResetDecision, selectLossResetAnchor,
 } = require("../runtime/intradayLossResetPolicy");
 const {
     computeConfigHash,
@@ -356,6 +356,8 @@ class LiveTradingEngine extends EventEmitter {
                 }
             }
 
+            await this.recoverHistoricalLossResetCloseTimes();
+
             if (this.brokerLifecycleRepository) {
                 for (const id of locallyManagedIds) {
                     if (this.quarantinedBrokerTrades.has(id)) {
@@ -387,6 +389,40 @@ class LiveTradingEngine extends EventEmitter {
             logger.error("❌ Failed to sync with Oanda:", error.message);
             if (throwOnError) throw error;
         }
+    }
+
+    async recoverHistoricalLossResetCloseTimes() {
+        const config = this.configService?.get?.();
+        if (config?.strategy !== "intraday_momentum" || !Array.isArray(config.assets) ||
+            !this.tradeRepository?.getAllTrades || !this.tradeRepository?.updateTrade) return [];
+        let trades;
+        try {
+            trades = await this.tradeRepository.getAllTrades({ mode: "live" });
+        } catch (error) {
+            logger.warn(`Could not read historical close-time anchors: ${error.message}`);
+            return [];
+        }
+        if (!Array.isArray(trades)) return [];
+        const recovered = [];
+        for (const instrument of new Set(config.assets)) {
+            for (const side of ["BUY", "SELL"]) {
+                const anchor = selectLossResetAnchor(trades, instrument, side);
+                if (!anchor?.armed || anchor.closedAt !== null) continue;
+                const trade = trades.find((candidate) => candidate.id === anchor.tradeId);
+                try {
+                    const tradeDetails = await oandaClient.getTrade(anchor.brokerTradeId);
+                    const payload = this.tradeReconciliation.recoverHistoricalCloseTime({ localTrade: trade, tradeDetails });
+                    if (!payload) continue;
+                    await this.tradeRepository.updateTrade(trade.id, { brokerReconciliationPayload: payload });
+                    recovered.push({ tradeId: trade.id, ...payload.closeTimeEvidence });
+                } catch (error) {
+                    // Missing historical timing still blocks the existing reset
+                    // policy; it does not imply the open-position snapshot failed.
+                    logger.warn(`Could not recover broker close time for ${anchor.brokerTradeId}: ${error.message}`);
+                }
+            }
+        }
+        return recovered;
     }
 
     async getBrokerEntryBlockReason(excludeIntentId = null) {

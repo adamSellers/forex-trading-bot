@@ -14,6 +14,47 @@ describe("TradeReconciliationService", () => {
         expect(service.parseBrokerTimestamp(1710000000125)).toBe(1710000000125);
     });
 
+    test('historical hydration preserves the original broker payload and adds separately attributable timing proof', () => {
+        const localTrade = { isOpen: false, oandaTradeId: '2858', brokerReconciliationPayload: {
+            close: { accounting: 'original' }, liveRuntime: { entryTelemetry: { retained: true } },
+        } };
+        const original = JSON.parse(JSON.stringify(localTrade));
+        const tradeDetails = { trade: { id: '2858', state: 'CLOSED', closeTime: '1710000000.125' } };
+        expect(service.recoverHistoricalCloseTime({ localTrade, tradeDetails, recoveredAt: 1800000000000 })).toEqual({
+            ...localTrade.brokerReconciliationPayload,
+            closeTimeEvidence: { brokerTradeId: '2858', confirmedBrokerClosedAt: 1710000000125,
+                source: 'BROKER_CLOSED_TRADE' },
+            historicalCloseTimeRecovery: { recoveredAt: 1800000000000, tradeDetails },
+        });
+        expect(localTrade).toEqual(original);
+    });
+
+    test.each([
+        { id: 'another', state: 'CLOSED', closeTime: '1710000000.125' },
+        { id: '2858', state: 'OPEN', closeTime: '1710000000.125' },
+        { id: '2858', state: 'CLOSED' },
+        { id: '2858', state: 'CLOSED', closeTime: 'invalid' },
+        { id: '2858', instrument: 'AUD_USD', state: 'CLOSED', closeTime: '1710000000.125' },
+        { id: '2858', initialUnits: '-10', state: 'CLOSED', closeTime: '1710000000.125' },
+    ])('historical hydration rejects unproven closure: %j', (trade) => {
+        expect(service.recoverHistoricalCloseTime({ localTrade: { isOpen: false, oandaTradeId: '2858',
+            instrument: 'GBP_USD', side: 'BUY' },
+            tradeDetails: { trade } })).toBeNull();
+    });
+
+    // Minimal authenticated broker GET captures retained in
+    // docs/reviews/evidence/2026-10-17/recovered-close-proof.json.
+    test.each([
+        { id: '2867', instrument: 'AUD_USD', state: 'CLOSED', closeTime: '2026-06-01T13:21:31.252307297Z' },
+        { id: '2858', instrument: 'GBP_USD', state: 'CLOSED', closeTime: '2026-05-28T00:55:35.281739993Z' },
+    ])('accepts the authentic minimal broker close-time record for $id', (trade) => {
+        const payload = service.recoverHistoricalCloseTime({ localTrade: {
+            isOpen: false, oandaTradeId: trade.id, instrument: trade.instrument, side: 'BUY',
+        }, tradeDetails: { trade } });
+        expect(payload.closeTimeEvidence).toEqual({ brokerTradeId: trade.id,
+            confirmedBrokerClosedAt: Date.parse(trade.closeTime), source: 'BROKER_CLOSED_TRADE' });
+    });
+
     test.each([undefined, 'invalid'])('a missing or invalid broker close time (%s) is not measurement evidence', (closeTime) => {
         const result = service.resolveExternalClose({
             localTrade: { oandaTradeId: '489', instrument: 'AUD_USD' },
