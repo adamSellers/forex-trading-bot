@@ -18,5 +18,7 @@ Local Node 22.23.1 validation passed 1,336 backend checks across 68 suites: 1,32
 
 The actual coordinator, generator and entry engine accept recovered authentic-shaped proof followed by observed H1 neutral/requalification and a valid BUY pattern. Missing pattern or H1 reset remains HOLD. Failure cases cannot authorize entry. Repeated sync does not refetch already recovered proof.
 
-The user explicitly approved local publication and the standard deployment on October 17. Source follows local commit to GitHub to the target via ./scripts/deploy.sh. Delivery verification will be appended after deployment; the viability analysis remains separate from this recovery release.
+The user explicitly approved local publication and the standard deployment on October 17. Local commit **519b428** was published to GitHub main and deployed with ./scripts/deploy.sh. The target passed all 1,336 backend checks across 68 suites, built the frontend, verified matched backup **20261017_171918**, and restored enabled intent. No production source was edited, committed or pushed manually.
+
+Read-only verification at **17:23 AEDT** confirmed clean 519b428, healthy services, strategy 1.4.0, the original live run, enabled intent and no positions or unresolved orders. Balance remained **A$95.093**. Both historical rows contain separately attributable broker close-time proof; their old exit_time and broker_closed_at values are unchanged. The existing reset evidence for both directions has observed neutral and later qualifying H1 candles. The [deployment verification](evidence/2026-10-17/recovery-deployment-verification.json) retains reduced observations. The viability analysis remains separate from this recovery release.
 

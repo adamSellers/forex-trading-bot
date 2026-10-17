@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "capturedOnSydneyDate": "2026-10-17",
+  "verifiedAtUtc": "2026-10-17T06:23:55.897Z",
+  "localSourceCommit": "519b428ee28c0a43a96b89acd22c99c02cc75fa3",
+  "published": "GitHub main",
+  "deployedCommit": "519b428ee28c0a43a96b89acd22c99c02cc75fa3",
+  "deployedSourceClean": true,
+  "workflow": "Local commit -> GitHub main -> ./scripts/deploy.sh; no direct production source edits or Git publication from target.",
+  "authorization": "User explicitly approved recovery-only publication and standard deployment during October17 review.",
+  "deploymentExitCode": 0,
+  "backup": "20261017_171918",
+  "targetChecks": {
+    "backendTests": 1336,
+    "backendSuites": 68,
+    "frontendProductionBuild": true,
+    "matchedSourceDatabaseBackup": true,
+    "health": true
+  },
+  "runtime": {
+    "status": "healthy",
+    "tradingEnabled": true,
+    "strategyVersion": "1.4.0",
+    "liveRelease": "m15-intraday-v6",
+    "runId": "live_5ceb61ff-bc9e-432a-ae6d-1d638c61f8d6",
+    "sameRunAsBefore": true,
+    "openPositions": 0,
+    "pendingIntents": 0,
+    "brokerStateUncertain": false,
+    "cooldownActive": false,
+    "balanceAud": 95.093,
+    "balanceUnchanged": true,
+    "market": "WEEKEND"
+  },
+  "recoveredRecords": [
+    {
+      "oanda_trade_id": "2858",
+      "instrument": "GBP_USD",
+      "side": "BUY",
+      "exit_time": 1779929740626,
+      "broker_closed_at": 1779929740626,
+      "close_time_evidence": {
+        "brokerTradeId": "2858",
+        "confirmedBrokerClosedAt": 1779929735282,
+        "source": "BROKER_CLOSED_TRADE"
+      },
+      "recovered_at": 1792218183092
+    },
+    {
+      "oanda_trade_id": "2867",
+      "instrument": "AUD_USD",
+      "side": "BUY",
+      "exit_time": 1780320094230,
+      "broker_closed_at": 1780320094230,
+      "close_time_evidence": {
+        "brokerTradeId": "2867",
+        "confirmedBrokerClosedAt": 1780320091252,
+        "source": "BROKER_CLOSED_TRADE"
+      },
+      "recovered_at": 1792218182857
+    }
+  ],
+  "existingResetState": [
+    {
+      "state_key": "intraday-loss-reset:v1:AUD_USD:BUY:2867:96ff2004eb190d692f26",
+      "reset_at": 1790064000000,
+      "rearmed_at": 1791302400000,
+      "last_observed_close_at": 1792184400000
+    },
+    {
+      "state_key": "intraday-loss-reset:v1:GBP_USD:BUY:2858:96ff2004eb190d692f26",
+      "reset_at": 1790064000000,
+      "rearmed_at": 1790589600000,
+      "last_observed_close_at": 1792184400000
+    }
+  ],
+  "scope": "Only missing broker close-time evidence recovered. No entry, stop, target, episode, risk, funding or strategy selection changed.",
+  "limitations": "Recovery does not establish missed fills or profitability. Full viability results reported separately."
+}
