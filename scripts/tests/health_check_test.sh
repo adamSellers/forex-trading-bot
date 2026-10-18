@@ -41,6 +41,12 @@ const data={operationalHealth:health,services:{oanda:{connected:true}},
     liveSelection:{strategy:'intraday_momentum',liveRun:{runId:'fixture-live',mode:'live',status:'active'}},
     config:{enableTrading:true},liveReadiness:{passed:true,status:'PASS'}};
 if(scenario==='weekend') health.entryState='MARKET_CLOSED';
+if(scenario==='healthy_h4'){
+    data.liveSelection.strategy='multi_day_trend';
+    data.liveSelection.liveRun.strategy='multi_day_trend';
+    Object.assign(data.config,{strategy:'multi_day_trend',timeframe:'4h',liveReleaseVersion:'h4-channel-v1',executionPolicyVersion:'h4-channel-risk-v1'});
+}
+if(scenario==='unknown_strategy') data.liveSelection.strategy='unknown_strategy';
 if(scenario==='cooldown'){health.entryState='COOLDOWN';data.liveReadiness={passed:false,status:'COOLDOWN'};}
 if(scenario==='broker_offline') data.services.oanda.connected=false;
 if(['quiet_prices','pricing_delivery_failed'].includes(scenario)){
@@ -62,7 +68,7 @@ export FOREX_PROJECT_DIR="$workspace/app" FOREX_NODE_RUNTIME_LOADED=1
 export HEALTH_TEST_SQLITE_LOG="$workspace/sqlite.log"
 unset FOREX_OPERATOR_TOKEN
 
-for scenario in healthy quiet_prices weekend cooldown; do
+for scenario in healthy healthy_h4 quiet_prices weekend cooldown; do
     : > "$HEALTH_TEST_SQLITE_LOG"
     HEALTH_TEST_CASE="$scenario" bash "$CHECK" > "$workspace/output" || {
         cat "$workspace/output"
@@ -76,7 +82,7 @@ for scenario in healthy quiet_prices weekend cooldown; do
     grep -q 'Database: integrity verified' "$workspace/output"
     grep -q 'Broker lifecycle: resolved' "$workspace/output"
 done
-for scenario in unavailable broker_offline pricing_delivery_failed unprotected stale readiness_failed malformed invalid_shape invalid_timestamp pm2_offline; do
+for scenario in unavailable broker_offline pricing_delivery_failed unprotected stale readiness_failed malformed invalid_shape invalid_timestamp pm2_offline unknown_strategy; do
     : > "$HEALTH_TEST_SQLITE_LOG"
     if HEALTH_TEST_CASE="$scenario" bash "$CHECK" > "$workspace/output"; then
         cat "$workspace/output"
@@ -105,4 +111,4 @@ for scenario in database_corrupt database_pending database_quarantined database_
         database_timeout) grep -q 'Database: verification timed out after 0.2 seconds' "$workspace/output" ;;
     esac
 done
-echo "Health check fixtures passed (21 scenarios)."
+echo "Health check fixtures passed (23 scenarios)."

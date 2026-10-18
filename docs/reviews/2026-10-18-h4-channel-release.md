@@ -91,3 +91,10 @@ Publication and observed deployment state will be recorded after delivery.
 Delivery follows local development and commits → GitHub publication →
 `./scripts/deploy.sh`. No production source hotfixes or automatic live activation
 are performed by this implementation.
+
+The delivery audit found a maintenance health adapter still accepting only the
+old strategy key. That would reject an otherwise healthy H4 deployment. The
+local correction accepts the current and retained owner strategies, keeps unknown
+strategies rejected, and makes maintenance fixtures use the configured strategy.
+All **23 health scenarios and 57 deployment/restore cases** pass on Node 22.
+This corrects the delivery contract without changing trading rules.

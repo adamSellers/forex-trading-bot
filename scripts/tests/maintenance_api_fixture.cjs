@@ -37,7 +37,7 @@ engine.getBrokerEntryBlockReason = async () => null;
 const coordinator = {
     ensureLiveSelectionInitialized: async () => {},
     getLiveSelection: () => ({ liveRun: {
-        runId, strategy: 'intraday_momentum', configHash: computeConfigHash(configService.get()),
+        runId, strategy: configService.get().strategy, configHash: computeConfigHash(configService.get()),
     } }),
 };
 const action = process.argv[2];

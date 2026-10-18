@@ -46,9 +46,9 @@ case "$1" in
     "runtime")
         echo "📋 Live Runtime Activity:"
         if [ -f "$LOG_DIR/combined.log" ]; then
-            grep -iE "(runtime|selection|ownerRunId|runId|managing_only|intraday_momentum)" "$LOG_DIR/combined.log" | tail -80
+            grep -iE "(runtime|selection|ownerRunId|runId|managing_only|intraday_momentum|multi_day_trend)" "$LOG_DIR/combined.log" | tail -80
         else
-            pm2 logs "$APP_NAME" --lines 300 --nostream | grep -iE "(runtime|selection|ownerRunId|runId|managing_only|intraday_momentum)" | tail -80
+            pm2 logs "$APP_NAME" --lines 300 --nostream | grep -iE "(runtime|selection|ownerRunId|runId|managing_only|intraday_momentum|multi_day_trend)" | tail -80
         fi
         ;;
     "errors")

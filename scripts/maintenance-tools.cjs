@@ -48,7 +48,7 @@ function operationalHealth(data) {
     if (health.status !== 'healthy') errors.push('Operational state is not healthy');
     for (const issue of health.issues || []) errors.push(String(issue.message || issue.code || 'Unknown operational issue'));
     const live = data.liveSelection || {}, run = live.liveRun || {};
-    if (!run.runId || live.strategy !== 'intraday_momentum' || run.mode !== 'live' || run.status !== 'active') {
+    if (!run.runId || !['intraday_momentum', 'multi_day_trend'].includes(live.strategy) || run.mode !== 'live' || run.status !== 'active') {
         errors.push('Canonical live runtime selection is not verified');
     }
     if (data.config?.enableTrading === true && data.liveReadiness?.passed !== true && data.liveReadiness?.status !== 'COOLDOWN') {
