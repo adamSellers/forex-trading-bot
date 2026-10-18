@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-17T06:53:48.817Z",
+  "finding": "Current broker settlement factors apply a1% home-currency markup to foreign realized P/L; position valuation factor is distinct.",
+  "sourceUrl": "https://help.oanda.com/au/en/faqs/home-currency-conversion.htm",
+  "apiDefinitionUrl": "https://developer.oanda.com/rest-live-v20/pricing-df/",
+  "proofFile": "docs/reviews/evidence/2026-10-17/home-conversion-proof.json",
+  "ratios": [
+    {
+      "currency": "USD",
+      "gainRelativeToPosition": 0.9899999999999652,
+      "lossRelativeToPosition": 1.0100000000000346
+    },
+    {
+      "currency": "AUD",
+      "gainRelativeToPosition": 1,
+      "lossRelativeToPosition": 1
+    },
+    {
+      "currency": "JPY",
+      "gainRelativeToPosition": 0.9899999999692708,
+      "lossRelativeToPosition": 1.0100000000307294
+    }
+  ],
+  "modelCorrection": {
+    "rate": 0.01,
+    "gain": "modeled quote-to-AUD midpoint position factor ×0.99",
+    "loss": "modeled quote-to-AUD midpoint position factor ×1.01",
+    "homeCurrency": "AUD remains1; apply charge once per foreign→home settlement, not per FX bridge leg",
+    "metadata": "Use captured instrument margin rates and precision; local20x leverage cap remains an independent unchanged live rule."
+  },
+  "evidenceMeanings": [
+    "Current documented fee schedule applied uniformly to retrospective price worlds; not proof the same fee applied in every historical year.",
+    "Retained live P/L already contains conversion costs; never deduct this charge again from historical broker net.",
+    "Modeled midpoint conversion bridges remain assumptions, not retained historical homeConversions.",
+    "Static fixed-ledger overlays do not reproduce unit-sizing, NAV, margin and subsequent eligibility feedback; rerun the causal model."
+  ]
+}

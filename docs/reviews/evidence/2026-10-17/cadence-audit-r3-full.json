@@ -1,0 +1,2698 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "DOCS_ONLY_FROZEN_R3_CADENCE_AND_CENSORING_AUDIT",
+  "cohort": "full",
+  "toolSha256": "3e98575dde2b5119194173240936f3f504ffaa4a970ac2102b022905f119c164",
+  "archiveSha256": "fd30b7bc2f98f2d362c2be658338d944f9fade5c01dd142d1b91f470b0a75b5d",
+  "interval": {
+    "fromUtc": "2020-03-01T00:00:00Z",
+    "toUtcExclusive": "2026-08-03T00:15:00Z"
+  },
+  "coverage": {
+    "distinctM15Boundaries": 159934,
+    "observedUtcDates": 2006
+  },
+  "definitions": {
+    "entries": "Persisted actual-engine entries, including any open boundary positions. Period counts differ from closed-trade-only economic tables if exposure remains open.",
+    "episodes": "BUY episodeId or SELL frozen breakout time/level, grouped by instrument and direction from broker-backed entry telemetry. Counts describe concentration, not proven independent samples.",
+    "gaps": "Observed span between entries with start/end cohort boundaries included. Boundary-touching spans are censored; their length does not bound the eventual complete waiting time.",
+    "marketCoverage": "Counts retained M15 start boundaries strictly inside the gap and their observed UTC dates. Each retained interval contributes 0.25 coverage hours. Missing intervals are not filled. These are observations, not all eligible setups, independent trials, market-session days or exact open-market duration."
+  },
+  "cases": [
+    {
+      "caseId": "r3-full-archive_components-ohlc",
+      "specSha256": "c55068e8c6508a4e01bca9d463fe7129d86778642ba738d86f10172824abd7e0",
+      "resultSha256": "b0134b1e2c02b0ac57cede5a53c4ccb38a1998fad204d0876b3532d5f4970b86",
+      "entries": 2,
+      "closedTrades": 2,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 2,
+      "distinctFilledBreakoutEpisodes": 2,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 1,
+        "2021": 0,
+        "2022": 0,
+        "2023": 0,
+        "2024": 0,
+        "2025": 1,
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 0,
+        "2020-Q2": 0,
+        "2020-Q3": 1,
+        "2020-Q4": 0,
+        "2021-Q1": 0,
+        "2021-Q2": 0,
+        "2021-Q3": 0,
+        "2021-Q4": 0,
+        "2022-Q1": 0,
+        "2022-Q2": 0,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 0,
+        "2023-Q3": 0,
+        "2023-Q4": 0,
+        "2024-Q1": 0,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 0,
+        "2025-Q2": 0,
+        "2025-Q3": 1,
+        "2025-Q4": 0,
+        "2026-Q1": 0,
+        "2026-Q2": 0,
+        "2026-Q3": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 1,
+        "EUR_USD": 1,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0.02557533401119809,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2020-08-07T16:10:00.000Z",
+          "toUtc": "2025-08-18T23:25:00.000Z",
+          "calendarDays": 1837.3020833333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 125202,
+          "observedUtcDates": 1569,
+          "retainedM15IntervalHours": 31300.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 125168,
+              "observedUtcDates": 1569,
+              "retainedM15IntervalHours": 31292
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 125189,
+              "observedUtcDates": 1569,
+              "retainedM15IntervalHours": 31297.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 125184,
+              "observedUtcDates": 1569,
+              "retainedM15IntervalHours": 31296
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 125194,
+              "observedUtcDates": 1569,
+              "retainedM15IntervalHours": 31298.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:25:00.000Z",
+          "toUtc": "2026-08-03T00:15:00.000Z",
+          "calendarDays": 349.03472222222223,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 23715,
+          "observedUtcDates": 301,
+          "retainedM15IntervalHours": 5928.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 23715,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 23715,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 23714,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 23715,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-03-01T00:00:00.000Z",
+          "toUtc": "2020-08-07T16:10:00.000Z",
+          "calendarDays": 159.67361111111111,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 11017,
+          "observedUtcDates": 138,
+          "retainedM15IntervalHours": 2754.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 11017,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2754.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 11016,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2754
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 11015,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2753.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 11011,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2752.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-full-archive_components-olhc",
+      "specSha256": "6f6dce9bcac5b7aabbc87314f3886b77f0834500d7377098da3a8d44b490e0d5",
+      "resultSha256": "2cf87465cf603dbf82d1db15d03b7c146213dba8a05edf7f05a4a357de98230f",
+      "entries": 3,
+      "closedTrades": 3,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 3,
+      "distinctFilledBreakoutEpisodes": 3,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 1,
+        "2021": 0,
+        "2022": 0,
+        "2023": 0,
+        "2024": 0,
+        "2025": 2,
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 0,
+        "2020-Q2": 0,
+        "2020-Q3": 1,
+        "2020-Q4": 0,
+        "2021-Q1": 0,
+        "2021-Q2": 0,
+        "2021-Q3": 0,
+        "2021-Q4": 0,
+        "2022-Q1": 0,
+        "2022-Q2": 0,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 0,
+        "2023-Q3": 0,
+        "2023-Q4": 0,
+        "2024-Q1": 0,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 0,
+        "2025-Q2": 1,
+        "2025-Q3": 1,
+        "2025-Q4": 0,
+        "2026-Q1": 0,
+        "2026-Q2": 0,
+        "2026-Q3": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 2,
+        "EUR_USD": 1,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0.038363001016797134,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2020-08-07T16:05:00.000Z",
+          "toUtc": "2025-04-22T19:31:00.000Z",
+          "calendarDays": 1719.1430555555555,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 117123,
+          "observedUtcDates": 1468,
+          "retainedM15IntervalHours": 29280.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 117089,
+              "observedUtcDates": 1468,
+              "retainedM15IntervalHours": 29272.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 117110,
+              "observedUtcDates": 1468,
+              "retainedM15IntervalHours": 29277.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 117107,
+              "observedUtcDates": 1468,
+              "retainedM15IntervalHours": 29276.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 117115,
+              "observedUtcDates": 1468,
+              "retainedM15IntervalHours": 29278.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:20:00.000Z",
+          "toUtc": "2026-08-03T00:15:00.000Z",
+          "calendarDays": 349.03819444444446,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 23715,
+          "observedUtcDates": 301,
+          "retainedM15IntervalHours": 5928.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 23715,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 23715,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 23714,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 23715,
+              "observedUtcDates": 301,
+              "retainedM15IntervalHours": 5928.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-03-01T00:00:00.000Z",
+          "toUtc": "2020-08-07T16:05:00.000Z",
+          "calendarDays": 159.67013888888889,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 11017,
+          "observedUtcDates": 138,
+          "retainedM15IntervalHours": 2754.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 11017,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2754.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 11016,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2754
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 11015,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2753.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 11011,
+              "observedUtcDates": 138,
+              "retainedM15IntervalHours": 2752.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-04-22T19:31:00.000Z",
+          "toUtc": "2025-08-18T23:20:00.000Z",
+          "calendarDays": 118.15902777777778,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8079,
+          "observedUtcDates": 102,
+          "retainedM15IntervalHours": 2019.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8077,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-full-current_medians-ohlc",
+      "specSha256": "c8a59b7b389d25f0c0ae059de78b61c8b75e5d0c05fd5bcd51215eb6b075e880",
+      "resultSha256": "0c9ee188136a619e765389cbbea69a6315183697101e985f2b70df2829b04124",
+      "entries": 28,
+      "closedTrades": 28,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 27,
+      "distinctFilledBreakoutEpisodes": 28,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 3,
+        "2021": 8,
+        "2022": 2,
+        "2023": 2,
+        "2024": 1,
+        "2025": 8,
+        "2026": 4
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 0,
+        "2020-Q2": 2,
+        "2020-Q3": 1,
+        "2020-Q4": 0,
+        "2021-Q1": 1,
+        "2021-Q2": 2,
+        "2021-Q3": 2,
+        "2021-Q4": 3,
+        "2022-Q1": 1,
+        "2022-Q2": 1,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 0,
+        "2023-Q3": 1,
+        "2023-Q4": 1,
+        "2024-Q1": 1,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 1,
+        "2025-Q2": 1,
+        "2025-Q3": 1,
+        "2025-Q4": 5,
+        "2026-Q1": 2,
+        "2026-Q2": 1,
+        "2026-Q3": 1
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0,
+        "USD_JPY": 15
+      },
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2022-04-14T11:45:00.000Z",
+          "toUtc": "2023-08-23T08:45:00.000Z",
+          "calendarDays": 495.875,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 33871,
+          "observedUtcDates": 425,
+          "retainedM15IntervalHours": 8467.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33870,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33869,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2024-02-19T05:30:00.000Z",
+          "toUtc": "2025-02-18T14:00:00.000Z",
+          "calendarDays": 365.3541666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 24897,
+          "observedUtcDates": 314,
+          "retainedM15IntervalHours": 6224.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-08-07T16:00:00.000Z",
+          "toUtc": "2021-01-04T07:51:00.000Z",
+          "calendarDays": 149.66041666666666,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 9948,
+          "observedUtcDates": 127,
+          "retainedM15IntervalHours": 2487,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9938,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2484.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9946,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9945,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 9942,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2485.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2021-01-04T07:51:00.000Z",
+          "toUtc": "2021-05-12T08:15:00.000Z",
+          "calendarDays": 128.01666666666668,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8837,
+          "observedUtcDates": 111,
+          "retainedM15IntervalHours": 2209.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8837,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2209.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-04-22T19:30:00.000Z",
+          "toUtc": "2025-08-18T23:15:00.000Z",
+          "calendarDays": 118.15625,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8078,
+          "observedUtcDates": 102,
+          "retainedM15IntervalHours": 2019.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8076,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-10-24T02:30:00.000Z",
+          "toUtc": "2024-02-19T05:30:00.000Z",
+          "calendarDays": 118.125,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7879,
+          "observedUtcDates": 100,
+          "retainedM15IntervalHours": 1969.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:15:00.000Z",
+          "toUtc": "2025-11-25T15:15:00.000Z",
+          "calendarDays": 98.66666666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6779,
+          "observedUtcDates": 86,
+          "retainedM15IntervalHours": 1694.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-05-01T02:15:00.000Z",
+          "toUtc": "2020-08-07T16:00:00.000Z",
+          "calendarDays": 98.57291666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6770,
+          "observedUtcDates": 85,
+          "retainedM15IntervalHours": 1692.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6765,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1691.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-12-17T16:45:00.000Z",
+          "toUtc": "2026-03-17T11:15:00.000Z",
+          "calendarDays": 89.77083333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 5933,
+          "observedUtcDates": 78,
+          "retainedM15IntervalHours": 1483.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5932,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2022-01-17T12:45:00.000Z",
+          "toUtc": "2022-04-14T11:45:00.000Z",
+          "calendarDays": 86.95833333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6047,
+          "observedUtcDates": 76,
+          "retainedM15IntervalHours": 1511.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-full-current_medians-olhc",
+      "specSha256": "c14b1ca184cf13d426523a5a43035b79f83cd832ab251ac046b04e321ba99d2a",
+      "resultSha256": "0177b2d3280df903c472cd715b9e9dcc42c16d9d06c9196c20997e01f3285175",
+      "entries": 28,
+      "closedTrades": 28,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 27,
+      "distinctFilledBreakoutEpisodes": 28,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 3,
+        "2021": 8,
+        "2022": 2,
+        "2023": 2,
+        "2024": 1,
+        "2025": 8,
+        "2026": 4
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 0,
+        "2020-Q2": 2,
+        "2020-Q3": 1,
+        "2020-Q4": 0,
+        "2021-Q1": 1,
+        "2021-Q2": 2,
+        "2021-Q3": 2,
+        "2021-Q4": 3,
+        "2022-Q1": 1,
+        "2022-Q2": 1,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 0,
+        "2023-Q3": 1,
+        "2023-Q4": 1,
+        "2024-Q1": 1,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 1,
+        "2025-Q2": 1,
+        "2025-Q3": 1,
+        "2025-Q4": 5,
+        "2026-Q1": 2,
+        "2026-Q2": 1,
+        "2026-Q3": 1
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0,
+        "USD_JPY": 15
+      },
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2022-04-14T11:45:00.000Z",
+          "toUtc": "2023-08-23T08:45:00.000Z",
+          "calendarDays": 495.875,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 33871,
+          "observedUtcDates": 425,
+          "retainedM15IntervalHours": 8467.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33870,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33869,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2024-02-19T05:30:00.000Z",
+          "toUtc": "2025-02-18T14:00:00.000Z",
+          "calendarDays": 365.3541666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 24897,
+          "observedUtcDates": 314,
+          "retainedM15IntervalHours": 6224.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-08-07T16:00:00.000Z",
+          "toUtc": "2021-01-04T07:46:00.000Z",
+          "calendarDays": 149.65694444444443,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 9948,
+          "observedUtcDates": 127,
+          "retainedM15IntervalHours": 2487,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9938,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2484.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9946,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9945,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 9942,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2485.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2021-01-04T07:46:00.000Z",
+          "toUtc": "2021-05-12T08:15:00.000Z",
+          "calendarDays": 128.02013888888888,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8837,
+          "observedUtcDates": 111,
+          "retainedM15IntervalHours": 2209.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8837,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2209.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-04-22T19:30:00.000Z",
+          "toUtc": "2025-08-18T23:15:00.000Z",
+          "calendarDays": 118.15625,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8078,
+          "observedUtcDates": 102,
+          "retainedM15IntervalHours": 2019.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8076,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-10-24T02:30:00.000Z",
+          "toUtc": "2024-02-19T05:30:00.000Z",
+          "calendarDays": 118.125,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7879,
+          "observedUtcDates": 100,
+          "retainedM15IntervalHours": 1969.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:15:00.000Z",
+          "toUtc": "2025-11-25T15:15:00.000Z",
+          "calendarDays": 98.66666666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6779,
+          "observedUtcDates": 86,
+          "retainedM15IntervalHours": 1694.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-05-01T02:15:00.000Z",
+          "toUtc": "2020-08-07T16:00:00.000Z",
+          "calendarDays": 98.57291666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6770,
+          "observedUtcDates": 85,
+          "retainedM15IntervalHours": 1692.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6765,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1691.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-12-17T16:45:00.000Z",
+          "toUtc": "2026-03-17T11:15:00.000Z",
+          "calendarDays": 89.77083333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 5933,
+          "observedUtcDates": 78,
+          "retainedM15IntervalHours": 1483.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5932,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2022-01-17T12:45:00.000Z",
+          "toUtc": "2022-04-14T11:45:00.000Z",
+          "calendarDays": 86.95833333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6047,
+          "observedUtcDates": 76,
+          "retainedM15IntervalHours": 1511.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-ohlc",
+      "specSha256": "73cdaa41605eac8a1510805707160f630d39905e11e3c1fb3d3435a8946b4881",
+      "resultSha256": "647aeb848b2bd8b42749627d8f0209f9d01fd5346b3acababa4b8f20cb5c8a4d",
+      "entries": 28,
+      "closedTrades": 28,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 27,
+      "distinctFilledBreakoutEpisodes": 28,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 3,
+        "2021": 8,
+        "2022": 2,
+        "2023": 2,
+        "2024": 1,
+        "2025": 8,
+        "2026": 4
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 0,
+        "2020-Q2": 2,
+        "2020-Q3": 1,
+        "2020-Q4": 0,
+        "2021-Q1": 1,
+        "2021-Q2": 2,
+        "2021-Q3": 2,
+        "2021-Q4": 3,
+        "2022-Q1": 1,
+        "2022-Q2": 1,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 0,
+        "2023-Q3": 1,
+        "2023-Q4": 1,
+        "2024-Q1": 1,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 1,
+        "2025-Q2": 1,
+        "2025-Q3": 1,
+        "2025-Q4": 5,
+        "2026-Q1": 2,
+        "2026-Q2": 1,
+        "2026-Q3": 1
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0,
+        "USD_JPY": 15
+      },
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2022-04-14T11:45:00.000Z",
+          "toUtc": "2023-08-23T08:45:00.000Z",
+          "calendarDays": 495.875,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 33871,
+          "observedUtcDates": 425,
+          "retainedM15IntervalHours": 8467.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33870,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33869,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2024-02-19T05:40:00.000Z",
+          "toUtc": "2025-02-18T14:00:00.000Z",
+          "calendarDays": 365.34722222222223,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 24897,
+          "observedUtcDates": 314,
+          "retainedM15IntervalHours": 6224.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-08-07T16:00:00.000Z",
+          "toUtc": "2021-01-04T07:52:00.000Z",
+          "calendarDays": 149.6611111111111,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 9948,
+          "observedUtcDates": 127,
+          "retainedM15IntervalHours": 2487,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9938,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2484.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9946,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9945,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 9942,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2485.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2021-01-04T07:52:00.000Z",
+          "toUtc": "2021-05-12T08:15:00.000Z",
+          "calendarDays": 128.01597222222222,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8837,
+          "observedUtcDates": 111,
+          "retainedM15IntervalHours": 2209.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8837,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2209.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-04-22T19:30:00.000Z",
+          "toUtc": "2025-08-18T23:24:00.000Z",
+          "calendarDays": 118.1625,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8079,
+          "observedUtcDates": 102,
+          "retainedM15IntervalHours": 2019.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8077,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-10-24T02:30:00.000Z",
+          "toUtc": "2024-02-19T05:40:00.000Z",
+          "calendarDays": 118.13194444444444,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7880,
+          "observedUtcDates": 100,
+          "retainedM15IntervalHours": 1970,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:24:00.000Z",
+          "toUtc": "2025-11-25T15:15:00.000Z",
+          "calendarDays": 98.66041666666666,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6779,
+          "observedUtcDates": 86,
+          "retainedM15IntervalHours": 1694.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-05-01T02:15:00.000Z",
+          "toUtc": "2020-08-07T16:00:00.000Z",
+          "calendarDays": 98.57291666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6770,
+          "observedUtcDates": 85,
+          "retainedM15IntervalHours": 1692.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6765,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1691.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-12-17T16:45:00.000Z",
+          "toUtc": "2026-03-17T11:15:00.000Z",
+          "calendarDays": 89.77083333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 5933,
+          "observedUtcDates": 78,
+          "retainedM15IntervalHours": 1483.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5932,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2022-01-17T12:45:00.000Z",
+          "toUtc": "2022-04-14T11:45:00.000Z",
+          "calendarDays": 86.95833333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6047,
+          "observedUtcDates": 76,
+          "retainedM15IntervalHours": 1511.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-olhc",
+      "specSha256": "df01180cbe19bfa8cccb4355225c71462ae198abfd918904e0e3211a47967966",
+      "resultSha256": "071f1163b8345fd3858e47b49ffcf7aa0d8b727e807c3e69174af99ff4a81db9",
+      "entries": 28,
+      "closedTrades": 28,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 27,
+      "distinctFilledBreakoutEpisodes": 28,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 3,
+        "2021": 8,
+        "2022": 2,
+        "2023": 2,
+        "2024": 1,
+        "2025": 8,
+        "2026": 4
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 0,
+        "2020-Q2": 2,
+        "2020-Q3": 1,
+        "2020-Q4": 0,
+        "2021-Q1": 1,
+        "2021-Q2": 2,
+        "2021-Q3": 2,
+        "2021-Q4": 3,
+        "2022-Q1": 1,
+        "2022-Q2": 1,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 0,
+        "2023-Q3": 1,
+        "2023-Q4": 1,
+        "2024-Q1": 1,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 1,
+        "2025-Q2": 1,
+        "2025-Q3": 1,
+        "2025-Q4": 5,
+        "2026-Q1": 2,
+        "2026-Q2": 1,
+        "2026-Q3": 1
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0,
+        "USD_JPY": 15
+      },
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2022-04-14T11:45:00.000Z",
+          "toUtc": "2023-08-23T08:45:00.000Z",
+          "calendarDays": 495.875,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 33871,
+          "observedUtcDates": 425,
+          "retainedM15IntervalHours": 8467.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33870,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33869,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 33871,
+              "observedUtcDates": 425,
+              "retainedM15IntervalHours": 8467.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2024-02-19T05:32:00.000Z",
+          "toUtc": "2025-02-18T14:00:00.000Z",
+          "calendarDays": 365.35277777777776,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 24897,
+          "observedUtcDates": 314,
+          "retainedM15IntervalHours": 6224.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-08-07T16:00:00.000Z",
+          "toUtc": "2021-01-04T07:47:00.000Z",
+          "calendarDays": 149.6576388888889,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 9948,
+          "observedUtcDates": 127,
+          "retainedM15IntervalHours": 2487,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9938,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2484.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9946,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9945,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2486.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 9942,
+              "observedUtcDates": 127,
+              "retainedM15IntervalHours": 2485.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2021-01-04T07:47:00.000Z",
+          "toUtc": "2021-05-12T08:15:00.000Z",
+          "calendarDays": 128.01944444444445,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8837,
+          "observedUtcDates": 111,
+          "retainedM15IntervalHours": 2209.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8833,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2208.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8837,
+              "observedUtcDates": 111,
+              "retainedM15IntervalHours": 2209.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-04-22T19:30:00.000Z",
+          "toUtc": "2025-08-18T23:18:00.000Z",
+          "calendarDays": 118.15833333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8079,
+          "observedUtcDates": 102,
+          "retainedM15IntervalHours": 2019.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8077,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8079,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-10-24T02:30:00.000Z",
+          "toUtc": "2024-02-19T05:32:00.000Z",
+          "calendarDays": 118.12638888888888,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7880,
+          "observedUtcDates": 100,
+          "retainedM15IntervalHours": 1970,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7880,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1970
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:18:00.000Z",
+          "toUtc": "2025-11-25T15:15:00.000Z",
+          "calendarDays": 98.66458333333334,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6779,
+          "observedUtcDates": 86,
+          "retainedM15IntervalHours": 1694.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-05-01T02:15:00.000Z",
+          "toUtc": "2020-08-07T16:00:00.000Z",
+          "calendarDays": 98.57291666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6770,
+          "observedUtcDates": 85,
+          "retainedM15IntervalHours": 1692.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6770,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1692.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6765,
+              "observedUtcDates": 85,
+              "retainedM15IntervalHours": 1691.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-12-17T16:45:00.000Z",
+          "toUtc": "2026-03-17T11:15:00.000Z",
+          "calendarDays": 89.77083333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 5933,
+          "observedUtcDates": 78,
+          "retainedM15IntervalHours": 1483.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5932,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2022-01-17T12:45:00.000Z",
+          "toUtc": "2022-04-14T11:45:00.000Z",
+          "calendarDays": 86.95833333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6047,
+          "observedUtcDates": 76,
+          "retainedM15IntervalHours": 1511.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-full-optimistic-ohlc",
+      "specSha256": "26f28cef7cd79624ae0ab3a61578c12f93a3b526f0ad860757c8161e37a56164",
+      "resultSha256": "1887b33bf7a9c3379f4cdcdd75b1e71ed557e8d52b8daf598a0463cd0854461e",
+      "entries": 40,
+      "closedTrades": 40,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 39,
+      "distinctFilledBreakoutEpisodes": 40,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 8,
+        "2021": 13,
+        "2022": 2,
+        "2023": 4,
+        "2024": 1,
+        "2025": 8,
+        "2026": 4
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 1,
+        "2020-Q2": 5,
+        "2020-Q3": 2,
+        "2020-Q4": 0,
+        "2021-Q1": 2,
+        "2021-Q2": 2,
+        "2021-Q3": 6,
+        "2021-Q4": 3,
+        "2022-Q1": 1,
+        "2022-Q2": 1,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 2,
+        "2023-Q3": 1,
+        "2023-Q4": 1,
+        "2024-Q1": 1,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 1,
+        "2025-Q2": 1,
+        "2025-Q3": 1,
+        "2025-Q4": 5,
+        "2026-Q1": 2,
+        "2026-Q2": 1,
+        "2026-Q3": 1
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 12,
+        "USD_JPY": 15
+      },
+      "entriesPer30CalendarDays": 0.5115066802239618,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2022-04-14T11:45:00.000Z",
+          "toUtc": "2023-05-02T09:15:00.000Z",
+          "calendarDays": 382.8958333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 26097,
+          "observedUtcDates": 328,
+          "retainedM15IntervalHours": 6524.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 26096,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6524
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 26095,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6523.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 26097,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6524.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 26097,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6524.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2024-02-19T05:30:00.000Z",
+          "toUtc": "2025-02-18T14:00:00.000Z",
+          "calendarDays": 365.3541666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 24897,
+          "observedUtcDates": 314,
+          "retainedM15IntervalHours": 6224.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-08-10T11:00:00.000Z",
+          "toUtc": "2021-01-04T07:45:00.000Z",
+          "calendarDays": 146.86458333333334,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 9871,
+          "observedUtcDates": 125,
+          "retainedM15IntervalHours": 2467.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9861,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2465.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9869,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2467.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9869,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2467.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 9865,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2466.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-04-22T19:30:00.000Z",
+          "toUtc": "2025-08-18T23:15:00.000Z",
+          "calendarDays": 118.15625,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8078,
+          "observedUtcDates": 102,
+          "retainedM15IntervalHours": 2019.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8076,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-10-24T02:30:00.000Z",
+          "toUtc": "2024-02-19T05:30:00.000Z",
+          "calendarDays": 118.125,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7879,
+          "observedUtcDates": 100,
+          "retainedM15IntervalHours": 1969.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-05-11T12:00:00.000Z",
+          "toUtc": "2023-08-23T08:45:00.000Z",
+          "calendarDays": 103.86458333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7090,
+          "observedUtcDates": 90,
+          "retainedM15IntervalHours": 1772.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:15:00.000Z",
+          "toUtc": "2025-11-25T15:15:00.000Z",
+          "calendarDays": 98.66666666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6779,
+          "observedUtcDates": 86,
+          "retainedM15IntervalHours": 1694.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-12-17T16:45:00.000Z",
+          "toUtc": "2026-03-17T11:15:00.000Z",
+          "calendarDays": 89.77083333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 5933,
+          "observedUtcDates": 78,
+          "retainedM15IntervalHours": 1483.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5932,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2021-02-12T09:00:00.000Z",
+          "toUtc": "2021-05-12T08:15:00.000Z",
+          "calendarDays": 88.96875,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6048,
+          "observedUtcDates": 77,
+          "retainedM15IntervalHours": 1512,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1511
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1511
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6048,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1512
+            }
+          }
+        },
+        {
+          "fromUtc": "2022-01-17T12:45:00.000Z",
+          "toUtc": "2022-04-14T11:45:00.000Z",
+          "calendarDays": 86.95833333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6047,
+          "observedUtcDates": 76,
+          "retainedM15IntervalHours": 1511.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-full-optimistic-olhc",
+      "specSha256": "ff3824b4b6e1830fb649311761cfc498d767ddb980927f9ef737f25f3af99b6e",
+      "resultSha256": "e3390ab0745adbe2f896edb58f3fb4250f0347ea8279a9c893c2f69ac3324554",
+      "entries": 40,
+      "closedTrades": 40,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 39,
+      "distinctFilledBreakoutEpisodes": 40,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2020": 8,
+        "2021": 13,
+        "2022": 2,
+        "2023": 4,
+        "2024": 1,
+        "2025": 8,
+        "2026": 4
+      },
+      "entryCountsByQuarter": {
+        "2020-Q1": 1,
+        "2020-Q2": 5,
+        "2020-Q3": 2,
+        "2020-Q4": 0,
+        "2021-Q1": 2,
+        "2021-Q2": 2,
+        "2021-Q3": 6,
+        "2021-Q4": 3,
+        "2022-Q1": 1,
+        "2022-Q2": 1,
+        "2022-Q3": 0,
+        "2022-Q4": 0,
+        "2023-Q1": 0,
+        "2023-Q2": 2,
+        "2023-Q3": 1,
+        "2023-Q4": 1,
+        "2024-Q1": 1,
+        "2024-Q2": 0,
+        "2024-Q3": 0,
+        "2024-Q4": 0,
+        "2025-Q1": 1,
+        "2025-Q2": 1,
+        "2025-Q3": 1,
+        "2025-Q4": 5,
+        "2026-Q1": 2,
+        "2026-Q2": 1,
+        "2026-Q3": 1
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 12,
+        "USD_JPY": 15
+      },
+      "entriesPer30CalendarDays": 0.5115066802239618,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2022-04-14T11:45:00.000Z",
+          "toUtc": "2023-05-02T09:15:00.000Z",
+          "calendarDays": 382.8958333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 26097,
+          "observedUtcDates": 328,
+          "retainedM15IntervalHours": 6524.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 26096,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6524
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 26095,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6523.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 26097,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6524.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 26097,
+              "observedUtcDates": 328,
+              "retainedM15IntervalHours": 6524.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2024-02-19T05:30:00.000Z",
+          "toUtc": "2025-02-18T14:00:00.000Z",
+          "calendarDays": 365.3541666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 24897,
+          "observedUtcDates": 314,
+          "retainedM15IntervalHours": 6224.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 24897,
+              "observedUtcDates": 314,
+              "retainedM15IntervalHours": 6224.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2020-08-10T11:00:00.000Z",
+          "toUtc": "2021-01-04T07:45:00.000Z",
+          "calendarDays": 146.86458333333334,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 9871,
+          "observedUtcDates": 125,
+          "retainedM15IntervalHours": 2467.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9861,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2465.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9869,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2467.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 9869,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2467.25
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 9865,
+              "observedUtcDates": 125,
+              "retainedM15IntervalHours": 2466.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-04-22T19:30:00.000Z",
+          "toUtc": "2025-08-18T23:15:00.000Z",
+          "calendarDays": 118.15625,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 8078,
+          "observedUtcDates": 102,
+          "retainedM15IntervalHours": 2019.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 8076,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 8078,
+              "observedUtcDates": 102,
+              "retainedM15IntervalHours": 2019.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-10-24T02:30:00.000Z",
+          "toUtc": "2024-02-19T05:30:00.000Z",
+          "calendarDays": 118.125,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7879,
+          "observedUtcDates": 100,
+          "retainedM15IntervalHours": 1969.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7879,
+              "observedUtcDates": 100,
+              "retainedM15IntervalHours": 1969.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2023-05-11T12:00:00.000Z",
+          "toUtc": "2023-08-23T08:45:00.000Z",
+          "calendarDays": 103.86458333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 7090,
+          "observedUtcDates": 90,
+          "retainedM15IntervalHours": 1772.5,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 7090,
+              "observedUtcDates": 90,
+              "retainedM15IntervalHours": 1772.5
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-08-18T23:15:00.000Z",
+          "toUtc": "2025-11-25T15:15:00.000Z",
+          "calendarDays": 98.66666666666667,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6779,
+          "observedUtcDates": 86,
+          "retainedM15IntervalHours": 1694.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6779,
+              "observedUtcDates": 86,
+              "retainedM15IntervalHours": 1694.75
+            }
+          }
+        },
+        {
+          "fromUtc": "2025-12-17T16:45:00.000Z",
+          "toUtc": "2026-03-17T11:15:00.000Z",
+          "calendarDays": 89.77083333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 5933,
+          "observedUtcDates": 78,
+          "retainedM15IntervalHours": 1483.25,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 5932,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 5933,
+              "observedUtcDates": 78,
+              "retainedM15IntervalHours": 1483.25
+            }
+          }
+        },
+        {
+          "fromUtc": "2021-02-12T09:00:00.000Z",
+          "toUtc": "2021-05-12T08:15:00.000Z",
+          "calendarDays": 88.96875,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6048,
+          "observedUtcDates": 77,
+          "retainedM15IntervalHours": 1512,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1511
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1511
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6048,
+              "observedUtcDates": 77,
+              "retainedM15IntervalHours": 1512
+            }
+          }
+        },
+        {
+          "fromUtc": "2022-01-17T12:45:00.000Z",
+          "toUtc": "2022-04-14T11:45:00.000Z",
+          "calendarDays": 86.95833333333333,
+          "leftBoundaryCensored": false,
+          "rightBoundaryCensored": false,
+          "betweenObservedEntries": true,
+          "distinctM15BoundariesStrictlyBetween": 6047,
+          "observedUtcDates": 76,
+          "retainedM15IntervalHours": 1511.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 6044,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 6047,
+              "observedUtcDates": 76,
+              "retainedM15IntervalHours": 1511.75
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

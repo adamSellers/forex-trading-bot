@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "R3_OUTPUT_RETENTION_WORDING_ERRATUM_NO_EXECUTION_CHANGE",
+  "recordedAtUtc": "2026-10-17T07:15:44.267Z",
+  "affectedSource": {
+    "path": "backend/research/__tests__/viabilityEvaluation.test.js",
+    "sha256": "062c6ddca2b44f3409eeb26d1d952e363a6c98f263be121e96a5aa56f236682c",
+    "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6"
+  },
+  "claim": {
+    "field": "summary.scanSummary.retentionPolicy",
+    "text": "All decisions/trades/intents/broker state retained. Consumed signal trace rows periodically removed after aggregate capture; analytics signal counts are not used."
+  },
+  "correction": "The runner uses actual SQLite intent/quarantine tables causally during evaluation, but the final result JSON exports only selected snapshot fields. Complete intent/quarantine table rows are not retained after isolated-database cleanup.",
+  "actualTopLevelExportFields": [
+    "schemaVersion",
+    "artifactKind",
+    "spec",
+    "specSha256",
+    "archiveSha256",
+    "sourceHashes",
+    "baselineIdentity",
+    "nodeVersion",
+    "elapsedSeconds",
+    "registration",
+    "optimization",
+    "networkAttempts",
+    "engineErrors",
+    "marketInputCoverage",
+    "summary",
+    "brokerLedger",
+    "persistedTrades",
+    "entryDecisions",
+    "equityDailyAndTradeObservations"
+  ],
+  "retainedTradingEvidence": {
+    "entryDecisions": "Complete exported entry_decisions rows",
+    "persistedTrades": "Complete exported trades rows, including broker-backed entry/close reconciliation payloads",
+    "brokerLedger": "Broker execution/protection/financing ledger; quote-observation trace rows suppressed",
+    "durableEpisodeAndRiskState": "summary.finalBrokerRuntimeState exports broker_runtime_state rows",
+    "summary": "Economic, cadence, modeled observation and accounting reductions; only the last 15 entry decisions are duplicated in summary.finalDecisions",
+    "equityDailyAndTradeObservations": "All recorded model equity observations despite the broad legacy field name"
+  },
+  "notExported": {
+    "sqliteTables": [
+      "broker_order_intents",
+      "broker_position_quarantines"
+    ],
+    "otherSnapshotState": "The entire broker checkpoint, entire event stream and all SQLite snapshot tables are not serialized. This is not a complete historical database export."
+  },
+  "causalScope": "Intent and quarantine handling occurs through the actual coordinator/engine/repositories in the isolated replay. This erratum changes no runtime call, quote, rule, eligibility, trade, accounting value or source pin.",
+  "auditLimits": [
+    "Export-based parity and independent reducers validate the selected serialized economic/decision/trade/episode-state evidence. They cannot independently compare or audit complete hidden intent/quarantine rows after cleanup.",
+    "Software integration tests exercise actual intent/lifecycle behavior; passing them does not supply missing historical table exports.",
+    "Consumed signal trace rows are removed periodically after aggregate capture, and quote-only broker trace rows are suppressed. Neither forms a complete tick/signal archive."
+  ],
+  "disposition": "Preserve frozen r3 executable source and results. Correct review wording and link this erratum. No restart or strategy behavior change is justified by this export wording issue."
+}

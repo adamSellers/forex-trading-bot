@@ -1,0 +1,850 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_COST_ACCOUNTING_AND_DAY_EPISODE_CLUSTER_AUDIT",
+  "cohort": "RECENT_SEPARATE_COLD_START",
+  "runtime": "v22.23.1",
+  "toolSha256": "8d0f6e0a9478770700dc77f56eb3dbf6dcfa35120d44915b33538fa4a0497b44",
+  "caseCount": 8,
+  "allAccountingAssertionsPassed": true,
+  "cases": [
+    {
+      "caseId": "recent-archive_components-OHLC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-archive_components-OHLC.json",
+      "resultSha256": "98fbce4e76522c7547a323185d88f96bf7c57408023fb122c2a68fab3be619f8",
+      "specSha256": "f0480efee3fe2e2891aac51c8460925343728c2e4ccb937ddb924b1f8c291355",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "recent-archive_components-OLHC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-archive_components-OLHC.json",
+      "resultSha256": "b61feaad00561d8cbc9365b51a99a33f888462e23e2a3d2a6f87d54e12992ebf",
+      "specSha256": "a20a07e8630107fed4424e0a2ee9c08c08c6c81628ca87255695f167c4ecf4f7",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "recent-current_medians-OHLC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-current_medians-OHLC.json",
+      "resultSha256": "a8aa81411ffc39d4da2b7940901945779487782d09ad381eacb79f84f0c6949b",
+      "specSha256": "44743ed8b85df59a9339b4b0981f8b3f0239582580e61a9412386355687919e3",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "recent-current_medians-OLHC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-current_medians-OLHC.json",
+      "resultSha256": "ba247aa4d300a7b9149cea9f7271dc889944f933ae18fc1b8bffbc2b14adb3fa",
+      "specSha256": "6e191fa51f5665694c1ad89a00a15b8ee810212762ef48ed605d37f8d4f7dbc6",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "recent-current_p90_stress-OHLC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-current_p90_stress-OHLC.json",
+      "resultSha256": "c94eaa699e2314eb0aabe6b62a72d6161e3ad9661f7494870eaecbdb91d786c2",
+      "specSha256": "37d6b6a390d4d948310c782338e9daccdf944a7563f64ccfada552ec21bb29cc",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "recent-current_p90_stress-OLHC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-current_p90_stress-OLHC.json",
+      "resultSha256": "4102ad73c59011501433f6c57942d4d5d4a414a9dd03d0d2f8050763d54f294e",
+      "specSha256": "8b48b9f47a0a0c4cdd99738a6d5c9970afe89828d0e5b69a1f7c828579e1df03",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "recent-optimistic-OHLC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-optimistic-OHLC.json",
+      "resultSha256": "a2b48ca3c67b15fc00a9927a85128d6b028c5de932045b5f6aa19f8ec89c67ef",
+      "specSha256": "e1adb59030928082fdf2a2b43dbacfebb0dacb33fe5e9951e76d08bfb5aeeaeb",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "recent-optimistic-OLHC",
+      "resultPath": "backend/data/backtests/viability-20261017/recent/recent-optimistic-OLHC.json",
+      "resultSha256": "c3f97990514863d34e0c847064a0dc7a1aefdbc8279e92b29e230b1d9ad99c86",
+      "specSha256": "646e844357298a4d2fa6dbce0ee1e38f918dfcf65f00a93e716e783778fd3442",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {},
+      "byPair": {},
+      "byYear": {},
+      "byQuarter": {},
+      "pairConcentration": {},
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    }
+  ],
+  "definitions": {
+    "initialRisk": "Absolute filled entry minus immutable original stop, times whole units, times entry quote-to-AUD loss conversion; current moved stop is never reused.",
+    "netCash": "Independent modeled side/fill price P&L converted at exit plus explicit lifetime financing minus entry and closing commission. Every event cash delta is checked.",
+    "friction": "Modeled midpoint entry-to-exit P&L minus modeled executable-price gross plus explicit commissions. This estimates execution friction; spread is not deducted again from net.",
+    "buyEpisode": "Actual persisted buyRetest.episodeId, namespaced by instrument/side.",
+    "sellEpisode": "Instrument plus actual sellRetest.breakout.closedAt and level. The more granular SELL pattern/retest/confirmation tuple is deliberately not used.",
+    "kish": "Squared sum of cluster trade counts (or initial risk) divided by sum of squared cluster sizes. A concentration descriptor, not proof of independent effective trials."
+  },
+  "limits": [
+    "All cases remain separate conditional historical sensitivities of one strategy, not independent strategy samples or an optimized selection.",
+    "Day/episode resampling assumes exchangeable sampled clusters conditionally; temporal dependence, correlated episodes, historical selection, unobserved execution paths and unknown costs remain unresolved.",
+    "No arbitrary minimum trade count or confidence interval proves an edge; singleton/degenerate/no-observation resampling intervals are unavailable.",
+    "Input quotes and modeled conversion paths are counterfactual assumptions. Arithmetic agreement does not establish real broker fills, latency, financing or home-conversion parity.",
+    "Sampled NAV drawdown is independently recomputed from the same retained equity observations. It is not an exhaustive intrabar drawdown bound. Monthly entry counts and elapsed-time-normalized cadence are independently checked."
+  ]
+}

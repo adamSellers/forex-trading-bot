@@ -1,0 +1,3171 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_UNCONDITIONAL_CURRENT_PATTERN_DIAGNOSTIC",
+  "source": {
+    "path": "backend/data/historical/viability_20261017_recent.json",
+    "sha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+    "specPath": "docs/reviews/evidence/2026-10-17/viability-specs/recent/recent-optimistic-OHLC.json",
+    "specSha256": "e1adb59030928082fdf2a2b43dbacfebb0dacb33fe5e9951e76d08bfb5aeeaeb",
+    "runtime": "v22.23.1"
+  },
+  "tool": {
+    "path": "docs/reviews/evidence/2026-10-17/unconditional-pattern-audit.cjs",
+    "sha256": "8483ec316571d7d50fca636ad5e0c55d363c118cc8d60ca3bfe8bc5dda53d868"
+  },
+  "interval": {
+    "fromUtc": "2026-09-15T00:00:00Z",
+    "toUtcExclusive": "2026-10-17T00:00:00Z"
+  },
+  "methods": [
+    "Fresh state at September 15 with exactly the same 500 retained completed M15 candles at startup as the persisted recent evaluator; input contains its identical 40-day prefix.",
+    "Actual BUY and SELL pure policies receive the complete retained 500-bar cache at every distinct modeled M15 boundary. Prior state is preserved; consumed fill sets remain empty because the portfolio evaluation made no fills.",
+    "Raw ready confirmations are recorded before H1, RSI, candle quality, liquid-session, cost, loss-reset or portfolio admission. Distinct confirmation candles and distinct breakout episodes are separate counts.",
+    "For each raw confirmation, actual current strategy is evaluated with both actual policy decisions, matching reconstructed H1 and the new bar midpoint opening quote; this identifies its first failed strategy gate without changing any rule.",
+    "Native retained side candles and coherent optimistic synthetic sides are separate price worlds. Midpoint pattern geometry is identical; side-based structural stop prices can differ.",
+    "This diagnostic makes no trade fills, independent candidate P&L, portfolio returns or counterfactual missed-profit claim."
+  ],
+  "worlds": {
+    "native": {
+      "boundaries": 2292,
+      "observationsByPair": {
+        "AUD_USD": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 7,
+            "classifications": {
+              "WAIT_FOR_RETEST": 1456,
+              "BREAK_CANCELLED": 44,
+              "WAIT_FOR_BREAK": 747,
+              "WAIT_FOR_CONFIRMATION": 38,
+              "CONFIRMED": 7
+            },
+            "maximumFrozenAgeDays": 13.291666666666666,
+            "distinctBreakoutEpisodesWithConfirmation": 7
+          },
+          "SELL": {
+            "readyConfirmationCandles": 0,
+            "classifications": {
+              "WAIT_FOR_RETEST": 2292
+            },
+            "maximumFrozenAgeDays": 36.604166666666664,
+            "distinctBreakoutEpisodesWithConfirmation": 0
+          }
+        },
+        "EUR_USD": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 13,
+            "classifications": {
+              "BREAK_CANCELLED": 59,
+              "WAIT_FOR_BREAK": 1064,
+              "WAIT_FOR_RETEST": 1081,
+              "WAIT_FOR_CONFIRMATION": 75,
+              "CONFIRMED": 13
+            },
+            "maximumFrozenAgeDays": 3.1979166666666665,
+            "distinctBreakoutEpisodesWithConfirmation": 12
+          },
+          "SELL": {
+            "readyConfirmationCandles": 0,
+            "classifications": {
+              "WAIT_FOR_RETEST": 2292
+            },
+            "maximumFrozenAgeDays": 37.229166666666664,
+            "distinctBreakoutEpisodesWithConfirmation": 0
+          }
+        },
+        "GBP_USD": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 8,
+            "classifications": {
+              "WAIT_FOR_RETEST": 1296,
+              "BREAK_CANCELLED": 45,
+              "WAIT_FOR_BREAK": 892,
+              "WAIT_FOR_CONFIRMATION": 51,
+              "CONFIRMED": 8
+            },
+            "maximumFrozenAgeDays": 4.40625,
+            "distinctBreakoutEpisodesWithConfirmation": 7
+          },
+          "SELL": {
+            "readyConfirmationCandles": 1,
+            "classifications": {
+              "BREAK_CANCELLED": 1,
+              "WAIT_FOR_BREAK": 1,
+              "WAIT_FOR_RETEST": 2283,
+              "WAIT_FOR_REJECTION": 6,
+              "CONFIRMED": 1
+            },
+            "maximumFrozenAgeDays": 30.53125,
+            "distinctBreakoutEpisodesWithConfirmation": 1
+          }
+        },
+        "USD_JPY": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 0,
+            "classifications": {
+              "WAIT_FOR_RETEST": 2292
+            },
+            "maximumFrozenAgeDays": 32.760416666666664,
+            "distinctBreakoutEpisodesWithConfirmation": 0
+          },
+          "SELL": {
+            "readyConfirmationCandles": 5,
+            "classifications": {
+              "BREAK_CANCELLED": 24,
+              "WAIT_FOR_BREAK": 486,
+              "WAIT_FOR_RETEST": 1760,
+              "WAIT_FOR_REJECTION": 17,
+              "CONFIRMED": 5
+            },
+            "maximumFrozenAgeDays": 17.322916666666668,
+            "distinctBreakoutEpisodesWithConfirmation": 5
+          }
+        }
+      },
+      "confirmedEvents": [
+        {
+          "atUtc": "2026-09-15T14:00:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-15T13:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-15T12:30:00.000Z",
+            "closedAt": 1789476300000,
+            "level": 1.1543
+          },
+          "retest": {
+            "time": "2026-09-15T13:30:00.000Z",
+            "closedAt": 1789479900000,
+            "high": 1.1544,
+            "firstTime": "2026-09-15T13:15:00.000Z",
+            "bidLow": 1.15386
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1789476300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.15385,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.15494,
+            "fastEma": 1.154354474053174,
+            "slowEma": 1.1559222711320947,
+            "adx": 33.754942879634854,
+            "pdi": 19.647408388382356,
+            "mdi": 20.755163126535617,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 65.15
+          }
+        },
+        {
+          "atUtc": "2026-09-16T07:00:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-16T06:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-16T05:45:00.000Z",
+            "closedAt": 1789538400000,
+            "level": 155.215
+          },
+          "retest": {
+            "time": "2026-09-16T06:00:00.000Z",
+            "closedAt": 1789539300000,
+            "low": 155.056,
+            "firstTime": "2026-09-16T06:00:00.000Z",
+            "askHigh": 155.241
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1789538400000:1789539300000:1789542000000",
+          "structuralStopLossPrice": 155.242,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 154.974,
+            "fastEma": 155.12060615287234,
+            "slowEma": 154.82730036082955,
+            "adx": 34.38554450222999,
+            "pdi": 20.978375062817417,
+            "mdi": 20.13927010397868,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 29.41
+          }
+        },
+        {
+          "atUtc": "2026-09-16T07:45:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-16T07:30:00.000Z",
+          "breakout": {
+            "time": "2026-09-15T00:15:00.000Z",
+            "closedAt": 1789432200000,
+            "level": 1.34984
+          },
+          "retest": {
+            "time": "2026-09-16T06:00:00.000Z",
+            "closedAt": 1789539300000,
+            "low": 1.34786,
+            "firstTime": "2026-09-16T06:00:00.000Z",
+            "askHigh": 1.35021
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:GBP_USD:1789432200000:1789539300000:1789544700000",
+          "structuralStopLossPrice": 1.35022,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.34806,
+            "fastEma": 1.3479966458319834,
+            "slowEma": 1.3487545272038903,
+            "adx": 23.50427909232067,
+            "pdi": 21.25422661877823,
+            "mdi": 19.704667102805956,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 46.34
+          }
+        },
+        {
+          "atUtc": "2026-09-16T11:30:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-16T11:15:00.000Z",
+          "breakout": {
+            "time": "2026-09-16T10:15:00.000Z",
+            "closedAt": 1789554600000,
+            "level": 0.71314
+          },
+          "retest": {
+            "time": "2026-09-16T11:00:00.000Z",
+            "closedAt": 1789557300000,
+            "high": 0.71328,
+            "firstTime": "2026-09-16T10:30:00.000Z",
+            "bidLow": 0.71287
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1789554600000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.71286,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.71318,
+            "fastEma": 0.712947781027544,
+            "slowEma": 0.7134784597128346,
+            "adx": 19.183078689091612,
+            "pdi": 17.040847009330232,
+            "mdi": 19.007983443701733,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 62.3
+          }
+        },
+        {
+          "atUtc": "2026-09-16T15:15:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-16T15:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-16T14:30:00.000Z",
+            "closedAt": 1789569900000,
+            "level": 155.116
+          },
+          "retest": {
+            "time": "2026-09-16T14:45:00.000Z",
+            "closedAt": 1789570800000,
+            "low": 155.07,
+            "firstTime": "2026-09-16T14:45:00.000Z",
+            "askHigh": 155.204
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1789569900000:1789570800000:1789571700000",
+          "structuralStopLossPrice": 155.205,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 155.083,
+            "fastEma": 155.1260159615034,
+            "slowEma": 154.9086769054093,
+            "adx": 21.17633116488771,
+            "pdi": 20.353609743708773,
+            "mdi": 22.92479691990481,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 39.57
+          }
+        },
+        {
+          "atUtc": "2026-09-17T04:00:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-17T03:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-17T02:30:00.000Z",
+            "closedAt": 1789613100000,
+            "level": 0.70981
+          },
+          "retest": {
+            "time": "2026-09-17T03:00:00.000Z",
+            "closedAt": 1789614900000,
+            "high": 0.71029,
+            "firstTime": "2026-09-17T02:45:00.000Z",
+            "bidLow": 0.70968
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1789613100000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.70967,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 0.71048,
+            "fastEma": 0.7106601236414033,
+            "slowEma": 0.7120074304972708,
+            "adx": 33.136571896325414,
+            "pdi": 16.616746348662467,
+            "mdi": 26.796074317808596,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 60.91,
+            "bodyRatio": 0.5909090909091826,
+            "rangeAtr": 0.9356849894305325
+          }
+        },
+        {
+          "atUtc": "2026-09-17T11:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-17T10:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-17T10:00:00.000Z",
+            "closedAt": 1789640100000,
+            "level": 1.34
+          },
+          "retest": {
+            "time": "2026-09-17T10:15:00.000Z",
+            "closedAt": 1789641000000,
+            "high": 1.34051,
+            "firstTime": "2026-09-17T10:15:00.000Z",
+            "bidLow": 1.33989
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1789640100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.33988,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.34053,
+            "fastEma": 1.3400999963000535,
+            "slowEma": 1.3431415444677564,
+            "adx": 42.508482456390205,
+            "pdi": 19.420984519245753,
+            "mdi": 23.536390646328773,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 65.59
+          }
+        },
+        {
+          "atUtc": "2026-09-18T03:45:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-18T03:30:00.000Z",
+          "breakout": {
+            "time": "2026-09-18T03:00:00.000Z",
+            "closedAt": 1789701300000,
+            "level": 1.3364
+          },
+          "retest": {
+            "time": "2026-09-18T03:15:00.000Z",
+            "closedAt": 1789702200000,
+            "high": 1.33668,
+            "firstTime": "2026-09-18T03:15:00.000Z",
+            "bidLow": 1.33626
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1789701300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.33625,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.33611,
+            "fastEma": 1.3367391131631063,
+            "slowEma": 1.3397249568877603,
+            "adx": 44.41786632685453,
+            "pdi": 11.866179363402164,
+            "mdi": 25.233518917006496,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 65.34
+          }
+        },
+        {
+          "atUtc": "2026-09-21T14:45:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-21T14:30:00.000Z",
+          "breakout": {
+            "time": "2026-09-18T16:15:00.000Z",
+            "closedAt": 1789749000000,
+            "level": 1.14693
+          },
+          "retest": {
+            "time": "2026-09-21T14:15:00.000Z",
+            "closedAt": 1790001000000,
+            "high": 1.14726,
+            "firstTime": "2026-09-21T14:00:00.000Z",
+            "bidLow": 1.14659
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1789749000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.14658,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.14724,
+            "fastEma": 1.1479013588975275,
+            "slowEma": 1.148225528323346,
+            "adx": 15.333122837153105,
+            "pdi": 25.924568724593335,
+            "mdi": 20.86226531285054,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 38.29
+          }
+        },
+        {
+          "atUtc": "2026-09-22T19:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-22T19:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-22T17:45:00.000Z",
+            "closedAt": 1790100000000,
+            "level": 1.14389
+          },
+          "retest": {
+            "time": "2026-09-22T18:00:00.000Z",
+            "closedAt": 1790100900000,
+            "high": 1.14432,
+            "firstTime": "2026-09-22T18:00:00.000Z",
+            "bidLow": 1.14368
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790100000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.14367,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.14422,
+            "fastEma": 1.1454370632198536,
+            "slowEma": 1.1465331034627169,
+            "adx": 31.47722668573688,
+            "pdi": 10.883177343756572,
+            "mdi": 30.33771173550133,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 50.02,
+            "bodyRatio": 0.631578947368175,
+            "rangeAtr": 0.40303589261681755
+          }
+        },
+        {
+          "atUtc": "2026-09-22T19:15:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-22T19:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-22T17:45:00.000Z",
+            "closedAt": 1790100000000,
+            "level": 1.33313
+          },
+          "retest": {
+            "time": "2026-09-22T18:00:00.000Z",
+            "closedAt": 1790100900000,
+            "high": 1.33372,
+            "firstTime": "2026-09-22T18:00:00.000Z",
+            "bidLow": 1.33283
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1790100000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.33282,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.33348,
+            "fastEma": 1.3354399419187177,
+            "slowEma": 1.336688756015964,
+            "adx": 29.721537624242508,
+            "pdi": 13.173524022149559,
+            "mdi": 33.442723639599244,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 48.23,
+            "bodyRatio": 0.8809523809526201,
+            "rangeAtr": 0.6109058122526353
+          }
+        },
+        {
+          "atUtc": "2026-09-24T22:30:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-24T22:15:00.000Z",
+          "breakout": {
+            "time": "2026-09-24T21:30:00.000Z",
+            "closedAt": 1790286300000,
+            "level": 158.838
+          },
+          "retest": {
+            "time": "2026-09-24T22:00:00.000Z",
+            "closedAt": 1790288100000,
+            "low": 158.798,
+            "firstTime": "2026-09-24T22:00:00.000Z",
+            "askHigh": 158.921
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1790286300000:1790288100000:1790289000000",
+          "structuralStopLossPrice": 158.922,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 1,
+          "h1": {
+            "close": 158.834,
+            "fastEma": 158.64574310306082,
+            "slowEma": 158.25561564854036,
+            "adx": 26.99292878718203,
+            "pdi": 20.59189213382634,
+            "mdi": 14.239218975295001,
+            "longStructure": true,
+            "shortStructure": false,
+            "longRegime": true,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 44.96
+          }
+        },
+        {
+          "atUtc": "2026-09-25T02:00:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-25T01:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T00:45:00.000Z",
+            "closedAt": 1790298000000,
+            "level": 158.702
+          },
+          "retest": {
+            "time": "2026-09-25T01:30:00.000Z",
+            "closedAt": 1790300700000,
+            "low": 158.659,
+            "firstTime": "2026-09-25T01:30:00.000Z",
+            "askHigh": 158.717
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1790298000000:1790300700000:1790301600000",
+          "structuralStopLossPrice": 158.718,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 158.614,
+            "fastEma": 158.66695665352393,
+            "slowEma": 158.3235459696429,
+            "adx": 21.906787762320473,
+            "pdi": 16.710677482020714,
+            "mdi": 18.700306686299303,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 34.52
+          }
+        },
+        {
+          "atUtc": "2026-09-25T02:15:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-25T02:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T01:00:00.000Z",
+            "closedAt": 1790298900000,
+            "level": 0.70114
+          },
+          "retest": {
+            "time": "2026-09-25T01:45:00.000Z",
+            "closedAt": 1790301600000,
+            "high": 0.70136,
+            "firstTime": "2026-09-25T01:45:00.000Z",
+            "bidLow": 0.70101
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790298900000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.701,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 0.70125,
+            "fastEma": 0.7019868576064987,
+            "slowEma": 0.704211112609091,
+            "adx": 51.02969121769827,
+            "pdi": 12.571459113413244,
+            "mdi": 24.032744376871904,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 53.66,
+            "bodyRatio": 0.5454545454545914,
+            "rangeAtr": 0.6290633260098478
+          }
+        },
+        {
+          "atUtc": "2026-09-25T06:15:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-25T06:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T05:30:00.000Z",
+            "closedAt": 1790315100000,
+            "level": 0.70164
+          },
+          "retest": {
+            "time": "2026-09-25T05:45:00.000Z",
+            "closedAt": 1790316000000,
+            "high": 0.70191,
+            "firstTime": "2026-09-25T05:45:00.000Z",
+            "bidLow": 0.70158
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790315100000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.70157,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.70188,
+            "fastEma": 0.7018072239968763,
+            "slowEma": 0.7037985932802434,
+            "adx": 45.05056588348996,
+            "pdi": 14.311018523862508,
+            "mdi": 21.209335301563097,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 69.62
+          }
+        },
+        {
+          "atUtc": "2026-09-25T06:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-25T06:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T05:00:00.000Z",
+            "closedAt": 1790313300000,
+            "level": 1.13722
+          },
+          "retest": {
+            "time": "2026-09-25T05:30:00.000Z",
+            "closedAt": 1790315100000,
+            "high": 1.13757,
+            "firstTime": "2026-09-25T05:15:00.000Z",
+            "bidLow": 1.13709
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790313300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.13708,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.13754,
+            "fastEma": 1.1375833516667784,
+            "slowEma": 1.1390395000790359,
+            "adx": 31.639065709172723,
+            "pdi": 18.464323295823522,
+            "mdi": 22.249356305163378,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 65.61
+          }
+        },
+        {
+          "atUtc": "2026-09-28T03:00:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-28T02:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-28T02:15:00.000Z",
+            "closedAt": 1790562600000,
+            "level": 0.70202
+          },
+          "retest": {
+            "time": "2026-09-28T02:30:00.000Z",
+            "closedAt": 1790563500000,
+            "high": 0.70218,
+            "firstTime": "2026-09-28T02:30:00.000Z",
+            "bidLow": 0.70188
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790562600000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.70187,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.70221,
+            "fastEma": 0.7021209268097737,
+            "slowEma": 0.7029511088455084,
+            "adx": 18.6672703102713,
+            "pdi": 22.109704088801443,
+            "mdi": 22.189424048612377,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 56.78
+          }
+        },
+        {
+          "atUtc": "2026-09-28T08:00:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-28T07:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T05:00:00.000Z",
+            "closedAt": 1790313300000,
+            "level": 1.13722
+          },
+          "retest": {
+            "time": "2026-09-28T07:00:00.000Z",
+            "closedAt": 1790579700000,
+            "high": 1.13772,
+            "firstTime": "2026-09-28T07:00:00.000Z",
+            "bidLow": 1.13705
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790313300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.13704,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_ADX_WEAK",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.13829,
+            "fastEma": 1.1386053782630539,
+            "slowEma": 1.1389486777856805,
+            "adx": 16.499105231781606,
+            "pdi": 17.36321207145897,
+            "mdi": 27.38393399428511,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 50.49
+          }
+        },
+        {
+          "atUtc": "2026-09-28T14:00:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-28T13:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-28T11:45:00.000Z",
+            "closedAt": 1790596800000,
+            "level": 0.7018
+          },
+          "retest": {
+            "time": "2026-09-28T12:00:00.000Z",
+            "closedAt": 1790597700000,
+            "high": 0.70254,
+            "firstTime": "2026-09-28T12:00:00.000Z",
+            "bidLow": 0.70168
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790596800000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.70167,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.70262,
+            "fastEma": 0.7020796725532438,
+            "slowEma": 0.7026331674700189,
+            "adx": 13.82211461030907,
+            "pdi": 24.949505839130296,
+            "mdi": 22.094032158015196,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 61.18
+          }
+        },
+        {
+          "atUtc": "2026-10-01T01:30:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-01T01:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-01T00:30:00.000Z",
+            "closedAt": 1790815500000,
+            "level": 1.13326
+          },
+          "retest": {
+            "time": "2026-10-01T01:00:00.000Z",
+            "closedAt": 1790817300000,
+            "high": 1.13356,
+            "firstTime": "2026-10-01T01:00:00.000Z",
+            "bidLow": 1.13304
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790815500000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.13303,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.13331,
+            "fastEma": 1.1338545296935068,
+            "slowEma": 1.1346957385956464,
+            "adx": 16.57778874023356,
+            "pdi": 18.38887711287272,
+            "mdi": 24.152041443589876,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 54.76
+          }
+        },
+        {
+          "atUtc": "2026-10-02T03:15:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T03:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:15:00.000Z",
+            "closedAt": 1790908200000,
+            "level": 0.69256
+          },
+          "retest": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "high": 0.69283,
+            "firstTime": "2026-10-02T02:45:00.000Z",
+            "bidLow": 0.69241
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790908200000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.6924,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 0.69272,
+            "fastEma": 0.6930775033953624,
+            "slowEma": 0.6947082240924647,
+            "adx": 24.196237863812755,
+            "pdi": 18.959858296700947,
+            "mdi": 29.070037712237312,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 59.26,
+            "bodyRatio": 0.7857142857144274,
+            "rangeAtr": 0.746059384291906
+          }
+        },
+        {
+          "atUtc": "2026-10-02T03:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T03:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:30:00.000Z",
+            "closedAt": 1790909100000,
+            "level": 1.12423
+          },
+          "retest": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "high": 1.12445,
+            "firstTime": "2026-10-02T02:45:00.000Z",
+            "bidLow": 1.1241
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790909100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.12409,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.12443,
+            "fastEma": 1.1259177158705451,
+            "slowEma": 1.129300929793574,
+            "adx": 48.12624606756031,
+            "pdi": 11.365882759982998,
+            "mdi": 29.677045270778713,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 59.77
+          }
+        },
+        {
+          "atUtc": "2026-10-02T03:30:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T03:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "level": 1.31994
+          },
+          "retest": {
+            "time": "2026-10-02T03:00:00.000Z",
+            "closedAt": 1790910900000,
+            "high": 1.32046,
+            "firstTime": "2026-10-02T03:00:00.000Z",
+            "bidLow": 1.31985
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1790910000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.31984,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.31996,
+            "fastEma": 1.3206904965544304,
+            "slowEma": 1.3225642023717779,
+            "adx": 26.69338224247381,
+            "pdi": 16.57861392810842,
+            "mdi": 23.907313284441308,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 66.03
+          }
+        },
+        {
+          "atUtc": "2026-10-02T12:45:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T12:30:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "level": 1.31994
+          },
+          "retest": {
+            "time": "2026-10-02T12:15:00.000Z",
+            "closedAt": 1790944200000,
+            "high": 1.32083,
+            "firstTime": "2026-10-02T12:00:00.000Z",
+            "bidLow": 1.31951
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1790910000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.3195,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_ADX_WEAK",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.32064,
+            "fastEma": 1.32083675081767,
+            "slowEma": 1.3220760792801838,
+            "adx": 16.20841652807896,
+            "pdi": 15.187686300675464,
+            "mdi": 17.726179100047325,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 62.08
+          }
+        },
+        {
+          "atUtc": "2026-10-05T06:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T06:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T05:30:00.000Z",
+            "closedAt": 1791179100000,
+            "level": 1.1189
+          },
+          "retest": {
+            "time": "2026-10-05T05:45:00.000Z",
+            "closedAt": 1791180000000,
+            "high": 1.11929,
+            "firstTime": "2026-10-05T05:45:00.000Z",
+            "bidLow": 1.11872
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791179100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.11871,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.11922,
+            "fastEma": 1.1228489330063287,
+            "slowEma": 1.12556482046217,
+            "adx": 30.376879590855662,
+            "pdi": 12.578568479837404,
+            "mdi": 37.73801708219708,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 43.37
+          }
+        },
+        {
+          "atUtc": "2026-10-05T08:45:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T08:30:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T07:30:00.000Z",
+            "closedAt": 1791186300000,
+            "level": 1.11987
+          },
+          "retest": {
+            "time": "2026-10-05T08:00:00.000Z",
+            "closedAt": 1791188100000,
+            "high": 1.12056,
+            "firstTime": "2026-10-05T08:00:00.000Z",
+            "bidLow": 1.11945
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791186300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.11944,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.12014,
+            "fastEma": 1.1222679020754753,
+            "slowEma": 1.1251085020873255,
+            "adx": 32.82934116994573,
+            "pdi": 13.559592408266939,
+            "mdi": 34.0039000825039,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 56.38,
+            "bodyRatio": 0.6375000000000832,
+            "rangeAtr": 0.8235614641267014
+          }
+        },
+        {
+          "atUtc": "2026-10-05T19:30:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T19:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T18:00:00.000Z",
+            "closedAt": 1791224100000,
+            "level": 1.1211
+          },
+          "retest": {
+            "time": "2026-10-05T18:15:00.000Z",
+            "closedAt": 1791225000000,
+            "high": 1.12162,
+            "firstTime": "2026-10-05T18:15:00.000Z",
+            "bidLow": 1.12097
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791224100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.12096,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12152,
+            "fastEma": 1.121223670841379,
+            "slowEma": 1.1235265401878065,
+            "adx": 29.43170375714056,
+            "pdi": 16.73836546946328,
+            "mdi": 25.843213404394117,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 62.4
+          }
+        },
+        {
+          "atUtc": "2026-10-05T21:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T20:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T19:15:00.000Z",
+            "closedAt": 1791228600000,
+            "level": 1.32206
+          },
+          "retest": {
+            "time": "2026-10-05T19:45:00.000Z",
+            "closedAt": 1791230400000,
+            "high": 1.32234,
+            "firstTime": "2026-10-05T19:30:00.000Z",
+            "bidLow": 1.32175
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1791228600000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.32174,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_MARKET_CLOSED",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": null,
+          "m15": null
+        },
+        {
+          "atUtc": "2026-10-06T08:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-06T07:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-06T07:00:00.000Z",
+            "closedAt": 1791270900000,
+            "level": 1.32184
+          },
+          "retest": {
+            "time": "2026-10-06T07:30:00.000Z",
+            "closedAt": 1791272700000,
+            "high": 1.32352,
+            "firstTime": "2026-10-06T07:30:00.000Z",
+            "bidLow": 1.32174
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1791270900000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.32173,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.3237,
+            "fastEma": 1.3220773934870036,
+            "slowEma": 1.3222047844172562,
+            "adx": 14.278088799637063,
+            "pdi": 25.292470118805994,
+            "mdi": 21.833704501001588,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 67.79
+          }
+        },
+        {
+          "atUtc": "2026-10-07T07:00:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-07T06:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-06T07:30:00.000Z",
+            "closedAt": 1791272700000,
+            "level": 1.12234
+          },
+          "retest": {
+            "time": "2026-10-07T06:15:00.000Z",
+            "closedAt": 1791354600000,
+            "high": 1.12252,
+            "firstTime": "2026-10-07T06:15:00.000Z",
+            "bidLow": 1.12211
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791272700000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.1221,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12276,
+            "fastEma": 1.1242206292383754,
+            "slowEma": 1.1240636954209537,
+            "adx": 21.535871022102608,
+            "pdi": 16.88635240526638,
+            "mdi": 28.16911895222317,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 35.3
+          }
+        },
+        {
+          "atUtc": "2026-10-09T01:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-09T01:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-09T00:00:00.000Z",
+            "closedAt": 1791504900000,
+            "level": 1.1216
+          },
+          "retest": {
+            "time": "2026-10-09T00:45:00.000Z",
+            "closedAt": 1791507600000,
+            "high": 1.12198,
+            "firstTime": "2026-10-09T00:15:00.000Z",
+            "bidLow": 1.12131
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791504900000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.1213,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12183,
+            "fastEma": 1.1205120582010615,
+            "slowEma": 1.1207783806710545,
+            "adx": 26.256219669997733,
+            "pdi": 27.559643629770715,
+            "mdi": 13.003921943432125,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 64.43
+          }
+        },
+        {
+          "atUtc": "2026-10-12T06:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-12T05:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-11T23:15:00.000Z",
+            "closedAt": 1791761400000,
+            "level": 1.32352
+          },
+          "retest": {
+            "time": "2026-10-12T05:15:00.000Z",
+            "closedAt": 1791783000000,
+            "high": 1.32416,
+            "firstTime": "2026-10-12T05:15:00.000Z",
+            "bidLow": 1.32342
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1791761400000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.32341,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.32419,
+            "fastEma": 1.3237664940754301,
+            "slowEma": 1.3232408871913264,
+            "adx": 16.5853236676493,
+            "pdi": 22.314252905835502,
+            "mdi": 22.2120445741939,
+            "longStructure": true,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 49.15
+          }
+        },
+        {
+          "atUtc": "2026-10-12T06:30:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-12T06:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-11T23:15:00.000Z",
+            "closedAt": 1791761400000,
+            "level": 1.11999
+          },
+          "retest": {
+            "time": "2026-10-12T06:00:00.000Z",
+            "closedAt": 1791785700000,
+            "high": 1.12036,
+            "firstTime": "2026-10-12T05:15:00.000Z",
+            "bidLow": 1.11971
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791761400000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.1197,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12024,
+            "fastEma": 1.1205435596573217,
+            "slowEma": 1.1207286125451874,
+            "adx": 14.676804496296127,
+            "pdi": 23.59865243869293,
+            "mdi": 24.554353639365665,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 50.88
+          }
+        },
+        {
+          "atUtc": "2026-10-14T18:15:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-10-14T18:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-14T17:15:00.000Z",
+            "closedAt": 1791999000000,
+            "level": 158.66
+          },
+          "retest": {
+            "time": "2026-10-14T17:45:00.000Z",
+            "closedAt": 1792000800000,
+            "low": 158.561,
+            "firstTime": "2026-10-14T17:45:00.000Z",
+            "askHigh": 158.675
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1791999000000:1792000800000:1792001700000",
+          "structuralStopLossPrice": 158.676,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 1,
+          "h1": {
+            "close": 158.562,
+            "fastEma": 158.54358767167545,
+            "slowEma": 158.43463672920106,
+            "adx": 22.26660430764563,
+            "pdi": 24.796854122649062,
+            "mdi": 18.461759526135648,
+            "longStructure": true,
+            "shortStructure": false,
+            "longRegime": true,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 33.93,
+            "bodyRatio": 0.9390243902437905,
+            "rangeAtr": 1.5544616479737807
+          }
+        }
+      ],
+      "confirmedEventFirstStrategyGateCounts": {
+        "INTRADAY_MOMENTUM_REGIME_NEUTRAL": 13,
+        "INTRADAY_MOMENTUM_OUTSIDE_SESSION": 11,
+        "INTRADAY_MOMENTUM_CONFIRMATION_MISSING": 7,
+        "INTRADAY_MOMENTUM_ADX_WEAK": 2,
+        "INTRADAY_MOMENTUM_MARKET_CLOSED": 1
+      },
+      "finalStates": {
+        "AUD_USD": {
+          "BUY": {
+            "version": 1,
+            "instrument": "AUD_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-16T02:30:00.000Z",
+              "closedAt": 1792118700000,
+              "level": 0.69264
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "AUD_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-10T06:00:00.000Z",
+              "closedAt": 1789020900000,
+              "level": 0.72168
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        },
+        "EUR_USD": {
+          "BUY": {
+            "version": 1,
+            "instrument": "EUR_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-14T17:00:00.000Z",
+              "closedAt": 1791998100000,
+              "level": 1.11266
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "EUR_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-09T15:00:00.000Z",
+              "closedAt": 1788966900000,
+              "level": 1.16445
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        },
+        "GBP_USD": {
+          "BUY": {
+            "version": 1,
+            "instrument": "GBP_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-14T17:15:00.000Z",
+              "closedAt": 1791999000000,
+              "level": 1.31604
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "GBP_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-16T07:45:00.000Z",
+              "closedAt": 1789545600000,
+              "level": 1.3476
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        },
+        "USD_JPY": {
+          "BUY": {
+            "version": 1,
+            "instrument": "USD_JPY",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-14T02:15:00.000Z",
+              "closedAt": 1789353000000,
+              "level": 153.873
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "USD_JPY",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-14T18:15:00.000Z",
+              "closedAt": 1792002600000,
+              "level": 158.404
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        }
+      }
+    },
+    "optimistic": {
+      "boundaries": 2292,
+      "observationsByPair": {
+        "AUD_USD": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 7,
+            "classifications": {
+              "WAIT_FOR_RETEST": 1456,
+              "BREAK_CANCELLED": 44,
+              "WAIT_FOR_BREAK": 747,
+              "WAIT_FOR_CONFIRMATION": 38,
+              "CONFIRMED": 7
+            },
+            "maximumFrozenAgeDays": 13.291666666666666,
+            "distinctBreakoutEpisodesWithConfirmation": 7
+          },
+          "SELL": {
+            "readyConfirmationCandles": 0,
+            "classifications": {
+              "WAIT_FOR_RETEST": 2292
+            },
+            "maximumFrozenAgeDays": 36.604166666666664,
+            "distinctBreakoutEpisodesWithConfirmation": 0
+          }
+        },
+        "EUR_USD": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 13,
+            "classifications": {
+              "BREAK_CANCELLED": 59,
+              "WAIT_FOR_BREAK": 1064,
+              "WAIT_FOR_RETEST": 1081,
+              "WAIT_FOR_CONFIRMATION": 75,
+              "CONFIRMED": 13
+            },
+            "maximumFrozenAgeDays": 3.1979166666666665,
+            "distinctBreakoutEpisodesWithConfirmation": 12
+          },
+          "SELL": {
+            "readyConfirmationCandles": 0,
+            "classifications": {
+              "WAIT_FOR_RETEST": 2292
+            },
+            "maximumFrozenAgeDays": 37.229166666666664,
+            "distinctBreakoutEpisodesWithConfirmation": 0
+          }
+        },
+        "GBP_USD": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 8,
+            "classifications": {
+              "WAIT_FOR_RETEST": 1296,
+              "BREAK_CANCELLED": 45,
+              "WAIT_FOR_BREAK": 892,
+              "WAIT_FOR_CONFIRMATION": 51,
+              "CONFIRMED": 8
+            },
+            "maximumFrozenAgeDays": 4.40625,
+            "distinctBreakoutEpisodesWithConfirmation": 7
+          },
+          "SELL": {
+            "readyConfirmationCandles": 1,
+            "classifications": {
+              "BREAK_CANCELLED": 1,
+              "WAIT_FOR_BREAK": 1,
+              "WAIT_FOR_RETEST": 2283,
+              "WAIT_FOR_REJECTION": 6,
+              "CONFIRMED": 1
+            },
+            "maximumFrozenAgeDays": 30.53125,
+            "distinctBreakoutEpisodesWithConfirmation": 1
+          }
+        },
+        "USD_JPY": {
+          "initialM15Count": 500,
+          "initialH1Count": 500,
+          "BUY": {
+            "readyConfirmationCandles": 0,
+            "classifications": {
+              "WAIT_FOR_RETEST": 2292
+            },
+            "maximumFrozenAgeDays": 32.760416666666664,
+            "distinctBreakoutEpisodesWithConfirmation": 0
+          },
+          "SELL": {
+            "readyConfirmationCandles": 5,
+            "classifications": {
+              "BREAK_CANCELLED": 24,
+              "WAIT_FOR_BREAK": 486,
+              "WAIT_FOR_RETEST": 1760,
+              "WAIT_FOR_REJECTION": 17,
+              "CONFIRMED": 5
+            },
+            "maximumFrozenAgeDays": 17.322916666666668,
+            "distinctBreakoutEpisodesWithConfirmation": 5
+          }
+        }
+      },
+      "confirmedEvents": [
+        {
+          "atUtc": "2026-09-15T14:00:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-15T13:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-15T12:30:00.000Z",
+            "closedAt": 1789476300000,
+            "level": 1.1543
+          },
+          "retest": {
+            "time": "2026-09-15T13:30:00.000Z",
+            "closedAt": 1789479900000,
+            "high": 1.1544,
+            "firstTime": "2026-09-15T13:15:00.000Z",
+            "bidLow": 1.1538899999999999
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1789476300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.15388,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.15494,
+            "fastEma": 1.154354474053174,
+            "slowEma": 1.1559222711320947,
+            "adx": 33.754942879634854,
+            "pdi": 19.647408388382356,
+            "mdi": 20.755163126535617,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 65.15
+          }
+        },
+        {
+          "atUtc": "2026-09-16T07:00:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-16T06:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-16T05:45:00.000Z",
+            "closedAt": 1789538400000,
+            "level": 155.215
+          },
+          "retest": {
+            "time": "2026-09-16T06:00:00.000Z",
+            "closedAt": 1789539300000,
+            "low": 155.056,
+            "firstTime": "2026-09-16T06:00:00.000Z",
+            "askHigh": 155.236
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1789538400000:1789539300000:1789542000000",
+          "structuralStopLossPrice": 155.237,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 154.974,
+            "fastEma": 155.12060615287234,
+            "slowEma": 154.82730036082955,
+            "adx": 34.38554450222999,
+            "pdi": 20.978375062817417,
+            "mdi": 20.13927010397868,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 29.41
+          }
+        },
+        {
+          "atUtc": "2026-09-16T07:45:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-16T07:30:00.000Z",
+          "breakout": {
+            "time": "2026-09-15T00:15:00.000Z",
+            "closedAt": 1789432200000,
+            "level": 1.34984
+          },
+          "retest": {
+            "time": "2026-09-16T06:00:00.000Z",
+            "closedAt": 1789539300000,
+            "low": 1.34786,
+            "firstTime": "2026-09-16T06:00:00.000Z",
+            "askHigh": 1.3500349999999999
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:GBP_USD:1789432200000:1789539300000:1789544700000",
+          "structuralStopLossPrice": 1.35005,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.34806,
+            "fastEma": 1.3479966458319834,
+            "slowEma": 1.3487545272038903,
+            "adx": 23.50427909232067,
+            "pdi": 21.25422661877823,
+            "mdi": 19.704667102805956,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 46.34
+          }
+        },
+        {
+          "atUtc": "2026-09-16T11:30:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-16T11:15:00.000Z",
+          "breakout": {
+            "time": "2026-09-16T10:15:00.000Z",
+            "closedAt": 1789554600000,
+            "level": 0.71314
+          },
+          "retest": {
+            "time": "2026-09-16T11:00:00.000Z",
+            "closedAt": 1789557300000,
+            "high": 0.71328,
+            "firstTime": "2026-09-16T10:30:00.000Z",
+            "bidLow": 0.71291
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1789554600000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.7129,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.71318,
+            "fastEma": 0.712947781027544,
+            "slowEma": 0.7134784597128346,
+            "adx": 19.183078689091612,
+            "pdi": 17.040847009330232,
+            "mdi": 19.007983443701733,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 62.3
+          }
+        },
+        {
+          "atUtc": "2026-09-16T15:15:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-16T15:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-16T14:30:00.000Z",
+            "closedAt": 1789569900000,
+            "level": 155.116
+          },
+          "retest": {
+            "time": "2026-09-16T14:45:00.000Z",
+            "closedAt": 1789570800000,
+            "low": 155.07,
+            "firstTime": "2026-09-16T14:45:00.000Z",
+            "askHigh": 155.19899999999998
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1789569900000:1789570800000:1789571700000",
+          "structuralStopLossPrice": 155.2,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 155.083,
+            "fastEma": 155.1260159615034,
+            "slowEma": 154.9086769054093,
+            "adx": 21.17633116488771,
+            "pdi": 20.353609743708773,
+            "mdi": 22.92479691990481,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 39.57
+          }
+        },
+        {
+          "atUtc": "2026-09-17T04:00:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-17T03:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-17T02:30:00.000Z",
+            "closedAt": 1789613100000,
+            "level": 0.70981
+          },
+          "retest": {
+            "time": "2026-09-17T03:00:00.000Z",
+            "closedAt": 1789614900000,
+            "high": 0.71029,
+            "firstTime": "2026-09-17T02:45:00.000Z",
+            "bidLow": 0.70972
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1789613100000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.70971,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 0.71048,
+            "fastEma": 0.7106601236414033,
+            "slowEma": 0.7120074304972708,
+            "adx": 33.136571896325414,
+            "pdi": 16.616746348662467,
+            "mdi": 26.796074317808596,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 60.91,
+            "bodyRatio": 0.5909090909091826,
+            "rangeAtr": 0.9356849894305325
+          }
+        },
+        {
+          "atUtc": "2026-09-17T11:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-17T10:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-17T10:00:00.000Z",
+            "closedAt": 1789640100000,
+            "level": 1.34
+          },
+          "retest": {
+            "time": "2026-09-17T10:15:00.000Z",
+            "closedAt": 1789641000000,
+            "high": 1.34051,
+            "firstTime": "2026-09-17T10:15:00.000Z",
+            "bidLow": 1.339925
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1789640100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.33992,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.34053,
+            "fastEma": 1.3400999963000535,
+            "slowEma": 1.3431415444677564,
+            "adx": 42.508482456390205,
+            "pdi": 19.420984519245753,
+            "mdi": 23.536390646328773,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 65.59
+          }
+        },
+        {
+          "atUtc": "2026-09-18T03:45:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-18T03:30:00.000Z",
+          "breakout": {
+            "time": "2026-09-18T03:00:00.000Z",
+            "closedAt": 1789701300000,
+            "level": 1.3364
+          },
+          "retest": {
+            "time": "2026-09-18T03:15:00.000Z",
+            "closedAt": 1789702200000,
+            "high": 1.33668,
+            "firstTime": "2026-09-18T03:15:00.000Z",
+            "bidLow": 1.336305
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1789701300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.3363,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.33611,
+            "fastEma": 1.3367391131631063,
+            "slowEma": 1.3397249568877603,
+            "adx": 44.41786632685453,
+            "pdi": 11.866179363402164,
+            "mdi": 25.233518917006496,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 65.34
+          }
+        },
+        {
+          "atUtc": "2026-09-21T14:45:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-21T14:30:00.000Z",
+          "breakout": {
+            "time": "2026-09-18T16:15:00.000Z",
+            "closedAt": 1789749000000,
+            "level": 1.14693
+          },
+          "retest": {
+            "time": "2026-09-21T14:15:00.000Z",
+            "closedAt": 1790001000000,
+            "high": 1.14726,
+            "firstTime": "2026-09-21T14:00:00.000Z",
+            "bidLow": 1.14662
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1789749000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.14661,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.14724,
+            "fastEma": 1.1479013588975275,
+            "slowEma": 1.148225528323346,
+            "adx": 15.333122837153105,
+            "pdi": 25.924568724593335,
+            "mdi": 20.86226531285054,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 38.29
+          }
+        },
+        {
+          "atUtc": "2026-09-22T19:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-22T19:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-22T17:45:00.000Z",
+            "closedAt": 1790100000000,
+            "level": 1.14389
+          },
+          "retest": {
+            "time": "2026-09-22T18:00:00.000Z",
+            "closedAt": 1790100900000,
+            "high": 1.14432,
+            "firstTime": "2026-09-22T18:00:00.000Z",
+            "bidLow": 1.14372
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790100000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.14371,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.14422,
+            "fastEma": 1.1454370632198536,
+            "slowEma": 1.1465331034627169,
+            "adx": 31.47722668573688,
+            "pdi": 10.883177343756572,
+            "mdi": 30.33771173550133,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 50.02,
+            "bodyRatio": 0.631578947368175,
+            "rangeAtr": 0.40303589261681755
+          }
+        },
+        {
+          "atUtc": "2026-09-22T19:15:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-22T19:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-22T17:45:00.000Z",
+            "closedAt": 1790100000000,
+            "level": 1.33313
+          },
+          "retest": {
+            "time": "2026-09-22T18:00:00.000Z",
+            "closedAt": 1790100900000,
+            "high": 1.33372,
+            "firstTime": "2026-09-22T18:00:00.000Z",
+            "bidLow": 1.3328650000000002
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1790100000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.33286,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.33348,
+            "fastEma": 1.3354399419187177,
+            "slowEma": 1.336688756015964,
+            "adx": 29.721537624242508,
+            "pdi": 13.173524022149559,
+            "mdi": 33.442723639599244,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 48.23,
+            "bodyRatio": 0.8809523809526201,
+            "rangeAtr": 0.6109058122526353
+          }
+        },
+        {
+          "atUtc": "2026-09-24T22:30:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-24T22:15:00.000Z",
+          "breakout": {
+            "time": "2026-09-24T21:30:00.000Z",
+            "closedAt": 1790286300000,
+            "level": 158.838
+          },
+          "retest": {
+            "time": "2026-09-24T22:00:00.000Z",
+            "closedAt": 1790288100000,
+            "low": 158.798,
+            "firstTime": "2026-09-24T22:00:00.000Z",
+            "askHigh": 158.892
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1790286300000:1790288100000:1790289000000",
+          "structuralStopLossPrice": 158.893,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 1,
+          "h1": {
+            "close": 158.834,
+            "fastEma": 158.64574310306082,
+            "slowEma": 158.25561564854036,
+            "adx": 26.99292878718203,
+            "pdi": 20.59189213382634,
+            "mdi": 14.239218975295001,
+            "longStructure": true,
+            "shortStructure": false,
+            "longRegime": true,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 44.96
+          }
+        },
+        {
+          "atUtc": "2026-09-25T02:00:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-09-25T01:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T00:45:00.000Z",
+            "closedAt": 1790298000000,
+            "level": 158.702
+          },
+          "retest": {
+            "time": "2026-09-25T01:30:00.000Z",
+            "closedAt": 1790300700000,
+            "low": 158.659,
+            "firstTime": "2026-09-25T01:30:00.000Z",
+            "askHigh": 158.712
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1790298000000:1790300700000:1790301600000",
+          "structuralStopLossPrice": 158.713,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 158.614,
+            "fastEma": 158.66695665352393,
+            "slowEma": 158.3235459696429,
+            "adx": 21.906787762320473,
+            "pdi": 16.710677482020714,
+            "mdi": 18.700306686299303,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 34.52
+          }
+        },
+        {
+          "atUtc": "2026-09-25T02:15:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-25T02:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T01:00:00.000Z",
+            "closedAt": 1790298900000,
+            "level": 0.70114
+          },
+          "retest": {
+            "time": "2026-09-25T01:45:00.000Z",
+            "closedAt": 1790301600000,
+            "high": 0.70136,
+            "firstTime": "2026-09-25T01:45:00.000Z",
+            "bidLow": 0.7010500000000001
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790298900000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.70104,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 0.70125,
+            "fastEma": 0.7019868576064987,
+            "slowEma": 0.704211112609091,
+            "adx": 51.02969121769827,
+            "pdi": 12.571459113413244,
+            "mdi": 24.032744376871904,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 53.66,
+            "bodyRatio": 0.5454545454545914,
+            "rangeAtr": 0.6290633260098478
+          }
+        },
+        {
+          "atUtc": "2026-09-25T06:15:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-25T06:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T05:30:00.000Z",
+            "closedAt": 1790315100000,
+            "level": 0.70164
+          },
+          "retest": {
+            "time": "2026-09-25T05:45:00.000Z",
+            "closedAt": 1790316000000,
+            "high": 0.70191,
+            "firstTime": "2026-09-25T05:45:00.000Z",
+            "bidLow": 0.7016100000000001
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790315100000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.7016,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.70188,
+            "fastEma": 0.7018072239968763,
+            "slowEma": 0.7037985932802434,
+            "adx": 45.05056588348996,
+            "pdi": 14.311018523862508,
+            "mdi": 21.209335301563097,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 69.62
+          }
+        },
+        {
+          "atUtc": "2026-09-25T06:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-25T06:00:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T05:00:00.000Z",
+            "closedAt": 1790313300000,
+            "level": 1.13722
+          },
+          "retest": {
+            "time": "2026-09-25T05:30:00.000Z",
+            "closedAt": 1790315100000,
+            "high": 1.13757,
+            "firstTime": "2026-09-25T05:15:00.000Z",
+            "bidLow": 1.13712
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790313300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.13711,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.13754,
+            "fastEma": 1.1375833516667784,
+            "slowEma": 1.1390395000790359,
+            "adx": 31.639065709172723,
+            "pdi": 18.464323295823522,
+            "mdi": 22.249356305163378,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 65.61
+          }
+        },
+        {
+          "atUtc": "2026-09-28T03:00:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-28T02:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-28T02:15:00.000Z",
+            "closedAt": 1790562600000,
+            "level": 0.70202
+          },
+          "retest": {
+            "time": "2026-09-28T02:30:00.000Z",
+            "closedAt": 1790563500000,
+            "high": 0.70218,
+            "firstTime": "2026-09-28T02:30:00.000Z",
+            "bidLow": 0.70192
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790562600000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.70191,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.70221,
+            "fastEma": 0.7021209268097737,
+            "slowEma": 0.7029511088455084,
+            "adx": 18.6672703102713,
+            "pdi": 22.109704088801443,
+            "mdi": 22.189424048612377,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 56.78
+          }
+        },
+        {
+          "atUtc": "2026-09-28T08:00:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-28T07:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-25T05:00:00.000Z",
+            "closedAt": 1790313300000,
+            "level": 1.13722
+          },
+          "retest": {
+            "time": "2026-09-28T07:00:00.000Z",
+            "closedAt": 1790579700000,
+            "high": 1.13772,
+            "firstTime": "2026-09-28T07:00:00.000Z",
+            "bidLow": 1.1370799999999999
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790313300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.13707,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_ADX_WEAK",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.13829,
+            "fastEma": 1.1386053782630539,
+            "slowEma": 1.1389486777856805,
+            "adx": 16.499105231781606,
+            "pdi": 17.36321207145897,
+            "mdi": 27.38393399428511,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 50.49
+          }
+        },
+        {
+          "atUtc": "2026-09-28T14:00:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-09-28T13:45:00.000Z",
+          "breakout": {
+            "time": "2026-09-28T11:45:00.000Z",
+            "closedAt": 1790596800000,
+            "level": 0.7018
+          },
+          "retest": {
+            "time": "2026-09-28T12:00:00.000Z",
+            "closedAt": 1790597700000,
+            "high": 0.70254,
+            "firstTime": "2026-09-28T12:00:00.000Z",
+            "bidLow": 0.7017100000000001
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790596800000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.7017,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 0.70262,
+            "fastEma": 0.7020796725532438,
+            "slowEma": 0.7026331674700189,
+            "adx": 13.82211461030907,
+            "pdi": 24.949505839130296,
+            "mdi": 22.094032158015196,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 61.18
+          }
+        },
+        {
+          "atUtc": "2026-10-01T01:30:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-01T01:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-01T00:30:00.000Z",
+            "closedAt": 1790815500000,
+            "level": 1.13326
+          },
+          "retest": {
+            "time": "2026-10-01T01:00:00.000Z",
+            "closedAt": 1790817300000,
+            "high": 1.13356,
+            "firstTime": "2026-10-01T01:00:00.000Z",
+            "bidLow": 1.1330799999999999
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790815500000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.13307,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.13331,
+            "fastEma": 1.1338545296935068,
+            "slowEma": 1.1346957385956464,
+            "adx": 16.57778874023356,
+            "pdi": 18.38887711287272,
+            "mdi": 24.152041443589876,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 54.76
+          }
+        },
+        {
+          "atUtc": "2026-10-02T03:15:00.000Z",
+          "instrument": "AUD_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T03:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:15:00.000Z",
+            "closedAt": 1790908200000,
+            "level": 0.69256
+          },
+          "retest": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "high": 0.69283,
+            "firstTime": "2026-10-02T02:45:00.000Z",
+            "bidLow": 0.69245
+          },
+          "episodeId": "buy-retest:v1:AUD_USD:1790908200000",
+          "patternId": null,
+          "structuralStopLossPrice": 0.69244,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 0.69272,
+            "fastEma": 0.6930775033953624,
+            "slowEma": 0.6947082240924647,
+            "adx": 24.196237863812755,
+            "pdi": 18.959858296700947,
+            "mdi": 29.070037712237312,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 59.26,
+            "bodyRatio": 0.7857142857144274,
+            "rangeAtr": 0.746059384291906
+          }
+        },
+        {
+          "atUtc": "2026-10-02T03:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T03:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:30:00.000Z",
+            "closedAt": 1790909100000,
+            "level": 1.12423
+          },
+          "retest": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "high": 1.12445,
+            "firstTime": "2026-10-02T02:45:00.000Z",
+            "bidLow": 1.12414
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1790909100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.12413,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.12443,
+            "fastEma": 1.1259177158705451,
+            "slowEma": 1.129300929793574,
+            "adx": 48.12624606756031,
+            "pdi": 11.365882759982998,
+            "mdi": 29.677045270778713,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 59.77
+          }
+        },
+        {
+          "atUtc": "2026-10-02T03:30:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T03:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "level": 1.31994
+          },
+          "retest": {
+            "time": "2026-10-02T03:00:00.000Z",
+            "closedAt": 1790910900000,
+            "high": 1.32046,
+            "firstTime": "2026-10-02T03:00:00.000Z",
+            "bidLow": 1.319885
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1790910000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.31988,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.31996,
+            "fastEma": 1.3206904965544304,
+            "slowEma": 1.3225642023717779,
+            "adx": 26.69338224247381,
+            "pdi": 16.57861392810842,
+            "mdi": 23.907313284441308,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 66.03
+          }
+        },
+        {
+          "atUtc": "2026-10-02T12:45:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-02T12:30:00.000Z",
+          "breakout": {
+            "time": "2026-10-02T02:45:00.000Z",
+            "closedAt": 1790910000000,
+            "level": 1.31994
+          },
+          "retest": {
+            "time": "2026-10-02T12:15:00.000Z",
+            "closedAt": 1790944200000,
+            "high": 1.32083,
+            "firstTime": "2026-10-02T12:00:00.000Z",
+            "bidLow": 1.3195450000000002
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1790910000000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.31954,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_ADX_WEAK",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.32064,
+            "fastEma": 1.32083675081767,
+            "slowEma": 1.3220760792801838,
+            "adx": 16.20841652807896,
+            "pdi": 15.187686300675464,
+            "mdi": 17.726179100047325,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 62.08
+          }
+        },
+        {
+          "atUtc": "2026-10-05T06:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T06:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T05:30:00.000Z",
+            "closedAt": 1791179100000,
+            "level": 1.1189
+          },
+          "retest": {
+            "time": "2026-10-05T05:45:00.000Z",
+            "closedAt": 1791180000000,
+            "high": 1.11929,
+            "firstTime": "2026-10-05T05:45:00.000Z",
+            "bidLow": 1.11876
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791179100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.11875,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.11922,
+            "fastEma": 1.1228489330063287,
+            "slowEma": 1.12556482046217,
+            "adx": 30.376879590855662,
+            "pdi": 12.578568479837404,
+            "mdi": 37.73801708219708,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 43.37
+          }
+        },
+        {
+          "atUtc": "2026-10-05T08:45:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T08:30:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T07:30:00.000Z",
+            "closedAt": 1791186300000,
+            "level": 1.11987
+          },
+          "retest": {
+            "time": "2026-10-05T08:00:00.000Z",
+            "closedAt": 1791188100000,
+            "high": 1.12056,
+            "firstTime": "2026-10-05T08:00:00.000Z",
+            "bidLow": 1.1195
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791186300000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.11949,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": -1,
+          "h1": {
+            "close": 1.12014,
+            "fastEma": 1.1222679020754753,
+            "slowEma": 1.1251085020873255,
+            "adx": 32.82934116994573,
+            "pdi": 13.559592408266939,
+            "mdi": 34.0039000825039,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": true
+          },
+          "m15": {
+            "rsi": 56.38,
+            "bodyRatio": 0.6375000000000832,
+            "rangeAtr": 0.8235614641267014
+          }
+        },
+        {
+          "atUtc": "2026-10-05T19:30:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T19:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T18:00:00.000Z",
+            "closedAt": 1791224100000,
+            "level": 1.1211
+          },
+          "retest": {
+            "time": "2026-10-05T18:15:00.000Z",
+            "closedAt": 1791225000000,
+            "high": 1.12162,
+            "firstTime": "2026-10-05T18:15:00.000Z",
+            "bidLow": 1.12101
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791224100000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.121,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12152,
+            "fastEma": 1.121223670841379,
+            "slowEma": 1.1235265401878065,
+            "adx": 29.43170375714056,
+            "pdi": 16.73836546946328,
+            "mdi": 25.843213404394117,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 62.4
+          }
+        },
+        {
+          "atUtc": "2026-10-05T21:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-05T20:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-05T19:15:00.000Z",
+            "closedAt": 1791228600000,
+            "level": 1.32206
+          },
+          "retest": {
+            "time": "2026-10-05T19:45:00.000Z",
+            "closedAt": 1791230400000,
+            "high": 1.32234,
+            "firstTime": "2026-10-05T19:30:00.000Z",
+            "bidLow": 1.3218050000000001
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1791228600000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.3218,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_MARKET_CLOSED",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": null,
+          "m15": null
+        },
+        {
+          "atUtc": "2026-10-06T08:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-06T07:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-06T07:00:00.000Z",
+            "closedAt": 1791270900000,
+            "level": 1.32184
+          },
+          "retest": {
+            "time": "2026-10-06T07:30:00.000Z",
+            "closedAt": 1791272700000,
+            "high": 1.32352,
+            "firstTime": "2026-10-06T07:30:00.000Z",
+            "bidLow": 1.321785
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1791270900000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.32178,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.3237,
+            "fastEma": 1.3220773934870036,
+            "slowEma": 1.3222047844172562,
+            "adx": 14.278088799637063,
+            "pdi": 25.292470118805994,
+            "mdi": 21.833704501001588,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 67.79
+          }
+        },
+        {
+          "atUtc": "2026-10-07T07:00:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-07T06:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-06T07:30:00.000Z",
+            "closedAt": 1791272700000,
+            "level": 1.12234
+          },
+          "retest": {
+            "time": "2026-10-07T06:15:00.000Z",
+            "closedAt": 1791354600000,
+            "high": 1.12252,
+            "firstTime": "2026-10-07T06:15:00.000Z",
+            "bidLow": 1.12214
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791272700000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.12213,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12276,
+            "fastEma": 1.1242206292383754,
+            "slowEma": 1.1240636954209537,
+            "adx": 21.535871022102608,
+            "pdi": 16.88635240526638,
+            "mdi": 28.16911895222317,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 35.3
+          }
+        },
+        {
+          "atUtc": "2026-10-09T01:15:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-09T01:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-09T00:00:00.000Z",
+            "closedAt": 1791504900000,
+            "level": 1.1216
+          },
+          "retest": {
+            "time": "2026-10-09T00:45:00.000Z",
+            "closedAt": 1791507600000,
+            "high": 1.12198,
+            "firstTime": "2026-10-09T00:15:00.000Z",
+            "bidLow": 1.12135
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791504900000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.12134,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12183,
+            "fastEma": 1.1205120582010615,
+            "slowEma": 1.1207783806710545,
+            "adx": 26.256219669997733,
+            "pdi": 27.559643629770715,
+            "mdi": 13.003921943432125,
+            "longStructure": false,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 64.43
+          }
+        },
+        {
+          "atUtc": "2026-10-12T06:00:00.000Z",
+          "instrument": "GBP_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-12T05:45:00.000Z",
+          "breakout": {
+            "time": "2026-10-11T23:15:00.000Z",
+            "closedAt": 1791761400000,
+            "level": 1.32352
+          },
+          "retest": {
+            "time": "2026-10-12T05:15:00.000Z",
+            "closedAt": 1791783000000,
+            "high": 1.32416,
+            "firstTime": "2026-10-12T05:15:00.000Z",
+            "bidLow": 1.3234650000000001
+          },
+          "episodeId": "buy-retest:v1:GBP_USD:1791761400000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.32346,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.32419,
+            "fastEma": 1.3237664940754301,
+            "slowEma": 1.3232408871913264,
+            "adx": 16.5853236676493,
+            "pdi": 22.314252905835502,
+            "mdi": 22.2120445741939,
+            "longStructure": true,
+            "shortStructure": false,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 49.15
+          }
+        },
+        {
+          "atUtc": "2026-10-12T06:30:00.000Z",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "confirmationCandleStartUtc": "2026-10-12T06:15:00.000Z",
+          "breakout": {
+            "time": "2026-10-11T23:15:00.000Z",
+            "closedAt": 1791761400000,
+            "level": 1.11999
+          },
+          "retest": {
+            "time": "2026-10-12T06:00:00.000Z",
+            "closedAt": 1791785700000,
+            "high": 1.12036,
+            "firstTime": "2026-10-12T05:15:00.000Z",
+            "bidLow": 1.11975
+          },
+          "episodeId": "buy-retest:v1:EUR_USD:1791761400000",
+          "patternId": null,
+          "structuralStopLossPrice": 1.11974,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 0,
+          "h1": {
+            "close": 1.12024,
+            "fastEma": 1.1205435596573217,
+            "slowEma": 1.1207286125451874,
+            "adx": 14.676804496296127,
+            "pdi": 23.59865243869293,
+            "mdi": 24.554353639365665,
+            "longStructure": false,
+            "shortStructure": true,
+            "longRegime": false,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 50.88
+          }
+        },
+        {
+          "atUtc": "2026-10-14T18:15:00.000Z",
+          "instrument": "USD_JPY",
+          "side": "SELL",
+          "confirmationCandleStartUtc": "2026-10-14T18:00:00.000Z",
+          "breakout": {
+            "time": "2026-10-14T17:15:00.000Z",
+            "closedAt": 1791999000000,
+            "level": 158.66
+          },
+          "retest": {
+            "time": "2026-10-14T17:45:00.000Z",
+            "closedAt": 1792000800000,
+            "low": 158.561,
+            "firstTime": "2026-10-14T17:45:00.000Z",
+            "askHigh": 158.66899999999998
+          },
+          "episodeId": null,
+          "patternId": "sell-retest:v1:USD_JPY:1791999000000:1792000800000:1792001700000",
+          "structuralStopLossPrice": 158.67,
+          "firstStrategyReasonCode": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+          "gatedSignalType": "HOLD",
+          "gatedDirection": 1,
+          "h1": {
+            "close": 158.562,
+            "fastEma": 158.54358767167545,
+            "slowEma": 158.43463672920106,
+            "adx": 22.26660430764563,
+            "pdi": 24.796854122649062,
+            "mdi": 18.461759526135648,
+            "longStructure": true,
+            "shortStructure": false,
+            "longRegime": true,
+            "shortRegime": false
+          },
+          "m15": {
+            "rsi": 33.93,
+            "bodyRatio": 0.9390243902437905,
+            "rangeAtr": 1.5544616479737807
+          }
+        }
+      ],
+      "confirmedEventFirstStrategyGateCounts": {
+        "INTRADAY_MOMENTUM_REGIME_NEUTRAL": 13,
+        "INTRADAY_MOMENTUM_OUTSIDE_SESSION": 11,
+        "INTRADAY_MOMENTUM_CONFIRMATION_MISSING": 7,
+        "INTRADAY_MOMENTUM_ADX_WEAK": 2,
+        "INTRADAY_MOMENTUM_MARKET_CLOSED": 1
+      },
+      "finalStates": {
+        "AUD_USD": {
+          "BUY": {
+            "version": 1,
+            "instrument": "AUD_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-16T02:30:00.000Z",
+              "closedAt": 1792118700000,
+              "level": 0.69264
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "AUD_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-10T06:00:00.000Z",
+              "closedAt": 1789020900000,
+              "level": 0.72168
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        },
+        "EUR_USD": {
+          "BUY": {
+            "version": 1,
+            "instrument": "EUR_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-14T17:00:00.000Z",
+              "closedAt": 1791998100000,
+              "level": 1.11266
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "EUR_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-09T15:00:00.000Z",
+              "closedAt": 1788966900000,
+              "level": 1.16445
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        },
+        "GBP_USD": {
+          "BUY": {
+            "version": 1,
+            "instrument": "GBP_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-14T17:15:00.000Z",
+              "closedAt": 1791999000000,
+              "level": 1.31604
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "GBP_USD",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-16T07:45:00.000Z",
+              "closedAt": 1789545600000,
+              "level": 1.3476
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        },
+        "USD_JPY": {
+          "BUY": {
+            "version": 1,
+            "instrument": "USD_JPY",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-09-14T02:15:00.000Z",
+              "closedAt": 1789353000000,
+              "level": 153.873
+            },
+            "retest": null,
+            "confirmation": null,
+            "bidEvidenceAvailable": true,
+            "consumed": false
+          },
+          "SELL": {
+            "version": 1,
+            "instrument": "USD_JPY",
+            "breakoutBars": 8,
+            "lastProcessedCandleCloseTime": 1792183500000,
+            "breakout": {
+              "time": "2026-10-14T18:15:00.000Z",
+              "closedAt": 1792002600000,
+              "level": 158.404
+            },
+            "retest": null,
+            "confirmation": null,
+            "askEvidenceAvailable": true
+          }
+        }
+      }
+    }
+  },
+  "sourceHashes": {
+    "backend/research/historicalMarket.cjs": "310d18d7d5df0e47bf317a41e0f813334f17cb781f9bc342c90bba9c6e896696",
+    "backend/src/runtime/intradayBuyRetestPolicy.js": "9cce147884a60a718722dbd2d783f5e8b00527ab44470b90ec31aa7a58d42c41",
+    "backend/src/runtime/intradaySellRetestPolicy.js": "d1572c9d2297ed0fc89247131b8978489a6d342ee627852d58484d8543328224",
+    "backend/src/strategies/intradayMomentum.js": "f83782303181642f3ce340a8265ed42fcdcc9f7f6ec05f1f0d81c63ccdc6e793",
+    "backend/src/runtime/marketDataFreshness.js": "a41a8275e7780195a5ef55d7ede96d8e104e5e4289fd66f01f019585807f528d",
+    "shared/tradingConfigDefaults.json": "dcfd0a08d865ea80d6b3e71476f0d4044d7fdc3f2de132642d0bcf9969d85fbf"
+  }
+}

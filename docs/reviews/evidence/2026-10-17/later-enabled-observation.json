@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-17T07:00:35.806Z",
+  "source": "Read-only deployed config/stat and narrowly filtered local service log tail",
+  "fileEnableTrading": false,
+  "configModifiedAtUtc": "2026-10-17T06:34:38.411Z",
+  "focusedLogs": [
+    {
+      "log": "out.log",
+      "lines": [
+        "2026-10-17 03:00:24 +11:00: \u001b[36m{\"timestamp\":\"2026-10-16T16:00:24.811Z\",\"level\":\"INFO\",\"message\":\"Broadcasted config update\"}\u001b[0m",
+        "2026-10-17 03:02:22 +11:00: \u001b[36m{\"timestamp\":\"2026-10-16T16:02:22.341Z\",\"level\":\"INFO\",\"message\":\"📋 Config loaded from /opt/forex-trading-bot/backend/data/trading_config.json\"}\u001b[0m",
+        "2026-10-17 03:02:22 +11:00: \u001b[36m{\"timestamp\":\"2026-10-16T16:02:22.345Z\",\"level\":\"INFO\",\"message\":\"📋 Config loaded from /opt/forex-trading-bot/backend/data/trading_config.json\"}\u001b[0m",
+        "2026-10-17 03:02:30 +11:00: \u001b[36m{\"timestamp\":\"2026-10-16T16:02:30.753Z\",\"level\":\"INFO\",\"message\":\"Broadcasted config update\"}\u001b[0m",
+        "2026-10-17 17:18:20 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:18:20.928Z\",\"level\":\"INFO\",\"message\":\"Broadcasted config update\"}\u001b[0m",
+        "2026-10-17 17:21:28 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:21:28.606Z\",\"level\":\"INFO\",\"message\":\"📋 Config loaded from /opt/forex-trading-bot/backend/data/trading_config.json\"}\u001b[0m",
+        "2026-10-17 17:21:28 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:21:28.609Z\",\"level\":\"INFO\",\"message\":\"📋 Config loaded from /opt/forex-trading-bot/backend/data/trading_config.json\"}\u001b[0m",
+        "2026-10-17 17:22:55 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:22:55.303Z\",\"level\":\"INFO\",\"message\":\"📋 Config loaded from /opt/forex-trading-bot/backend/data/trading_config.json\"}\u001b[0m",
+        "2026-10-17 17:22:55 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:22:55.306Z\",\"level\":\"INFO\",\"message\":\"📋 Config loaded from /opt/forex-trading-bot/backend/data/trading_config.json\"}\u001b[0m",
+        "2026-10-17 17:23:36 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:23:36.712Z\",\"level\":\"INFO\",\"message\":\"Broadcasted config update\"}\u001b[0m",
+        "2026-10-17 17:34:34 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:34:34.305Z\",\"level\":\"INFO\",\"message\":\"Broadcasted config update\"}\u001b[0m",
+        "2026-10-17 17:34:38 +11:00: \u001b[36m{\"timestamp\":\"2026-10-17T06:34:38.423Z\",\"level\":\"INFO\",\"message\":\"Broadcasted config update\"}\u001b[0m"
+      ]
+    },
+    {
+      "log": "error.log",
+      "lines": [
+        "2026-10-17 11:03:11 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:03:11.083Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:03:21 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:03:21.083Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:03:31 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:03:31.103Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:03:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:03:41.092Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:03:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:03:41.168Z\",\"level\":\"ERROR\",\"message\":\"❌ Price fetch error:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:03:51 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:03:51.099Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:04:01 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:04:01.097Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:04:11 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:04:11.099Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:04:21 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:04:21.095Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:04:31 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:04:31.107Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:04:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:04:41.098Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:04:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:04:41.168Z\",\"level\":\"ERROR\",\"message\":\"❌ Price fetch error:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:04:51 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:04:51.092Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:05:01 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:05:01.101Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:05:11 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:05:11.102Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:05:21 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:05:21.094Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:05:31 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:05:31.097Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:05:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:05:41.105Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:05:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:05:41.173Z\",\"level\":\"ERROR\",\"message\":\"❌ Price fetch error:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:05:51 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:05:51.091Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:06:01 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:06:01.111Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:06:11 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:06:11.097Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:06:21 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:06:21.094Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:06:31 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:06:31.118Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:06:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:06:41.105Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:06:41 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:06:41.181Z\",\"level\":\"ERROR\",\"message\":\"❌ Price fetch error:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:06:51 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:06:51.097Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:07:01 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:07:01.111Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:07:11 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:07:11.113Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m",
+        "2026-10-17 11:07:21 +11:00: \u001b[31m{\"timestamp\":\"2026-10-17T00:07:21.106Z\",\"level\":\"ERROR\",\"message\":\"❌ Failed to sync with Oanda:\",\"data\":\"Oanda API Error (503): System under maintenance, please try again later.\"}\u001b[0m"
+      ]
+    }
+  ],
+  "limitation": "A config broadcast does not identify actor or changed field; do not infer a user action or automatic cause from this alone."
+}

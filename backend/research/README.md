@@ -254,3 +254,95 @@ parity, exact OANDA execution, statistical validation or profitability.
 
 The persisted replay above supersedes this spike's in-memory repositories and
 minimal broker model. Its original evidence remains an earlier software checkpoint.
+
+## Evaluate unchanged current v6 under declared path and cost models
+
+The separate current-v6 evaluator runs the actual coordinator, generator,
+durable episode policies, entry/risk engine, management and SQLite repositories.
+It does not repin or rename the historical v5 manifests. Run it with supported
+Node 22 and a new output path:
+
+```sh
+node backend/research/run_viability.cjs /absolute/path/spec.json /absolute/path/NEW-result.json
+```
+
+The specification declares `schemaVersion: 1`, `evaluationUse: RETROSPECTIVE`,
+`caseId`, `archivePath`, `archiveSha256`, `assets`, `fromUtc`, `toUtcExclusive`,
+`initialBalanceAud`, `pathOrder` (`OHLC` or `OLHC`), `spreadPips` (`null` for native
+components or an explicit per-pair map), `slippagePips`, `commissionAud`, and
+`scanMode: COMPRESSED_STATIC_HOLDS`. The corrected r3 contract also requires
+`cohortId`, `costCaseId`, `homeConversionFeeRate`, `unrealizedConversionPurpose`
+(`position` for neutral open-P/L conversion), and an explicit boolean
+`policyOptimization`. An archive without a top-level granularity
+marker additionally requires the provenance-backed `archiveGranularity: M15`.
+The 40-day unscored history prefix initializes bounded 500-bar candle caches.
+There is one continuous account and durable episode lineage per scored cohort;
+annual boundaries do not reset state, risk gates or cash.
+
+Every specification pins `protocolPath`, `inputManifestPath`,
+`launchRegistrationPath`, and `instrumentMetadataPath`, each with its matching
+`Sha256` field. The launcher verifies these resources and the complete
+`hashReplaySources(root)` inventory before importing the runtime. The launch
+registration must match the exact interval, assets, cost case, path, initial
+balance, conversion fee, open-P/L conversion purpose, and optimization flag.
+The input manifest must include the archive and captured broker instrument
+metadata. Unregistered bytes or settings stop the run; sources are verified
+again after evaluation. This does not make retrospective data an untouched test.
+
+These are explicitly conditional counterfactual price worlds. Native-component
+paths pair independent bid/ask extrema synchronously by assumption. Constant
+spread cases derive **both all candle sides and delivered prices** from retained
+midpoint OHLC plus/minus the declared half spread. That changes side anchors and
+is not a historical account-quote reconstruction. Linear path vertices occur
+at 0/5/10/15 minutes; supplied source prices trigger protection every five seconds
+while exposed and the actual manager runs every ten seconds. Neither traversal
+is an exhaustive lower/upper profitability bound. Financing is not silently
+claimed known: no historical charges are supplied, and modeled positions
+crossing 17:00 New York are listed explicitly.
+
+Captured broker instrument precision, size limits and margin rates replace
+generic fixture metadata. These current observations are applied retrospectively;
+historical account metadata is unavailable. Modeled foreign settlement uses
+midpoint cross rates and `homeConversionFeeRate: 0.01` once into AUD: gains use
+`positionValue * 0.99`, losses use `positionValue * 1.01`. AUD remains one. The
+neutral `positionValue` factor converts open P/L and margin, consistent with the
+documented v20 distinction between position valuation and settlement. Instrument
+open P/L is still marked at the supplied liquidation-side quote, so sampled NAV
+is a declared proxy rather than exact historical v20 margin NAV. No conversion
+fee is deducted a second time from settled net P/L.
+
+Actual one-minute scans are retained where price/costs/actions can change an
+entry or exit. While flat, early static candle holds or two explicitly unready
+completed patterns cannot become an entry before another M15 completion, so
+those repeated scans are compressed. Reports distinguish these observation
+counts from independent candidate events. An exact-input bounded memo of the
+pure market-calendar export avoids recomputing identical historical timestamps;
+production source is unchanged. The synthetic parity capture in
+`docs/reviews/evidence/2026-10-17/viability-software` compares memo/native and
+compressed/every-minute runs through rejection, pricing reconsideration, fill
+and timed exit; complete broker/trade/decision/state ledgers match.
+
+The opt-in research policy optimization still calls the actual BUY/SELL policy
+functions. With complete immutable evidence and a valid persisted cursor it
+removes only already-processed history preceding the required breakout window;
+missing, mutable or invalid evidence falls back to the full window. An unused
+initial fallback is evaluated lazily against snapshotted immutable inputs.
+Corrected on/off software controls cover the full recent interval and a declared
+rejection, valid fill and timed exit with identical economic and durable state
+ledgers. Production policy source and parameters are unchanged.
+
+The launcher strips credential/preload variables and uses the existing offline
+isolated harness. Sources are hashed before evaluation and checked unchanged
+afterward. Full decision/trade rows and the broker execution ledger are retained.
+Already-consumed saved signal trace rows are periodically removed after reason
+counts and candidate identities are captured; no trading consumer reads them,
+and analytics signal counts are not used. Outputs include net AUD/R, a conditional
+midpoint-versus-execution friction decomposition, period/pair counts, sampled NAV
+drawdown, droughts, open boundary positions and a seeded day-cluster sensitivity.
+Output schema version 2 separates `executionFrictionAud` (spread/slippage plus
+commission) and `homeConversionCostAud` (settlement markup), both already included
+in net P/L. The old summary field `estimatedExecutionFrictionAud` remains their
+total for compatibility. Gross midpoint movement is a fixed-entry/exit-time
+decomposition, not the return of a different executable strategy.
+The cluster interval does not establish independence or an untouched live edge.
+No new strategy parameter, live gate or automatic promotion is selected here.

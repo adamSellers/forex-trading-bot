@@ -1,0 +1,351 @@
+{
+  "events": [
+    {
+      "candidateId": "v6-current-viability-2026-10-17",
+      "kind": "REGISTERED",
+      "protocol": {
+        "baselineIdentity": {
+          "assets": [
+            "AUD_USD",
+            "EUR_USD",
+            "GBP_USD",
+            "USD_JPY"
+          ],
+          "capitalCapAud": 100,
+          "deployedCommit": "562334b",
+          "executionPolicy": "intraday-risk-v6",
+          "release": "m15-intraday-v6",
+          "riskPerTrade": 0.0025,
+          "sourceCommit": "76593d0",
+          "strategyVersion": "1.4.0"
+        },
+        "candidateId": "v6-current-viability-2026-10-17",
+        "costCases": [
+          {
+            "id": "optimistic",
+            "meaning": "Lower observed current quote costs applied historically as explicitly optimistic sensitivity; not historical executable evidence.",
+            "slippagePips": 0,
+            "spreadsPips": {
+              "AUD_USD": 0.6,
+              "EUR_USD": 0.8,
+              "GBP_USD": 1.1,
+              "USD_JPY": 0.6
+            }
+          },
+          {
+            "id": "current_medians",
+            "meaning": "Present quote medians plus configured expected slippage; constant synthetic spread not exact historical quote.",
+            "slippagePips": 0.2,
+            "spreadsPips": {
+              "AUD_USD": 0.8,
+              "EUR_USD": 1,
+              "GBP_USD": 1.5,
+              "USD_JPY": 1
+            }
+          },
+          {
+            "id": "current_p90_stress",
+            "meaning": "Present p90 quote costs and larger adverse fill sensitivity.",
+            "slippagePips": 0.5,
+            "spreadsPips": {
+              "AUD_USD": 0.9,
+              "EUR_USD": 1.1,
+              "GBP_USD": 1.7,
+              "USD_JPY": 1.2
+            }
+          },
+          {
+            "id": "archive_components",
+            "meaning": "Archive-native sensitivity only; component closes/extrema do not prove simultaneous account executable spread.",
+            "slippagePips": 0.2,
+            "spreadsPips": "retained independent bid/ask component closes"
+          }
+        ],
+        "dataManifestDescription": "Archive SHA256 retained by prior audit; full current source/input manifest finalized separately before scored run. Recent data use is retrospective, not untouched.",
+        "dataManifestSha256": "fd30b7bc2f98f2d362c2be658338d944f9fade5c01dd142d1b91f470b0a75b5d",
+        "economicObjectives": {
+          "economicScale": "Report achieved AUD and returns at A$100 starting account/current cap. No invented income target, extrapolated salary, or guaranteed growth.",
+          "keep": "Positive portfolio net expectancy after explicit costs, with no sign reversal in declared plausible sensitivities, meaningful period coverage, cluster uncertainty not leaving positive sign unresolved, and reported achieved cadence/economic scale. No extra risk/capital assumption.",
+          "redesign": "A concrete useful component or observable structural mismatch supports a new independently specified candidate; this does not authorize live tuning.",
+          "scrap": "Reject the current rule set if even generous declared cases do not support credible positive net edge, or evidence supports continuing loss. Inconclusive results fail KEEP but do not prove profit is mathematically impossible."
+        },
+        "entryPolicy": "Unchanged v6 actual runtime: H1 regime, pair sessions, M15 quality/EMA/RSI, durable frozen break/retest/confirmation, consumed BUY episodes, protected-exit freshness and H1 loss reset.",
+        "evaluationUse": "RETROSPECTIVE",
+        "exitPolicy": "Unchanged broker-side absolute stops and 1.5R targets, +1R breakeven, six-hour and New York16:45 exits, current risk/margin/aggregate checks. Preserve state across years; no artificial boundary liquidation.",
+        "featuresKnownAtDecision": "Only completed delivered M15/H1 candles, causally available conversion/risk state and modeled point quotes; never expose current bar OHLC to entry features before completion.",
+        "hypothesis": "The unchanged current v6 portfolio can earn positive net returns after explicit transaction costs at a useful observable cadence.",
+        "labelPolicy": "No label learning/tuning. Annual/quarterly breakdowns are retrospective diagnostics; no holdout claim. Warmup unscored and state carried.",
+        "periods": [
+          {
+            "alreadyInspected": true,
+            "fromUtc": "2020-01-01T00:00:00Z",
+            "role": "DEVELOPMENT",
+            "toUtcExclusive": "2026-01-01T00:00:00Z"
+          },
+          {
+            "alreadyInspected": true,
+            "fromUtc": "2026-01-01T00:00:00Z",
+            "role": "FINAL_EVALUATION",
+            "toUtcExclusive": "2026-08-03T00:15:00Z"
+          }
+        ],
+        "registeredIntentAtUtc": "2026-10-17T06:13:10.453Z",
+        "schemaVersion": 1,
+        "trialBudget": {
+          "maximumVariants": 8,
+          "selectionRule": "One unchanged strategy; four preregistered cost models crossed with two path assumptions O-H-L-C/O-L-H-C. Report all variants; never select best as evidence of optimized edge. Repair/reproducibility reruns retain protocol/trial lineage."
+        },
+        "uncertaintyMethod": "Two declared OHLC traversal sensitivities, not exhaustive bounds. Report day/episode clusters and effective cluster counts; observed-path variation, costs, unavailable financing/delivery/parity evidence and open boundary positions. All historical data are retrospective."
+      },
+      "registeredAtUtc": "2026-10-17T06:13:10.518Z",
+      "specSha256": "894254b9d2d74d0998406a067ea236ae285a0abd8fdeb19cf75bc7efe1488afc"
+    },
+    {
+      "artifact": "docs/reviews/evidence/2026-10-17/viability-protocol-r2.json",
+      "artifactSha256": "bdff32ac2bc7be02bdcaa5c198958182e64dabb7df6e4c569ccd7e257ab6398a",
+      "candidateId": "v6-current-viability-2026-10-17",
+      "kind": "RESULT_RECORDED",
+      "recordedAtUtc": "2026-10-17T06:16:00.053Z",
+      "status": "ABANDONED"
+    },
+    {
+      "candidateId": "v6-current-viability-2026-10-17-r2",
+      "kind": "REGISTERED",
+      "protocol": {
+        "baselineIdentity": {
+          "assets": [
+            "AUD_USD",
+            "EUR_USD",
+            "GBP_USD",
+            "USD_JPY"
+          ],
+          "capitalCapAud": 100,
+          "deployedCommit": "562334b",
+          "executionPolicy": "intraday-risk-v6",
+          "release": "m15-intraday-v6",
+          "riskPerTrade": 0.0025,
+          "sourceCommit": "76593d0",
+          "strategyVersion": "1.4.0"
+        },
+        "candidateId": "v6-current-viability-2026-10-17-r2",
+        "costCases": [
+          {
+            "id": "optimistic",
+            "meaning": "Lower observed current quote costs applied historically as explicitly optimistic sensitivity; not historical executable evidence.",
+            "slippagePips": 0,
+            "spreadsPips": {
+              "AUD_USD": 0.6,
+              "EUR_USD": 0.8,
+              "GBP_USD": 1.1,
+              "USD_JPY": 0.6
+            }
+          },
+          {
+            "id": "current_medians",
+            "meaning": "Present quote medians plus configured expected slippage; constant synthetic spread not exact historical quote.",
+            "slippagePips": 0.2,
+            "spreadsPips": {
+              "AUD_USD": 0.8,
+              "EUR_USD": 1,
+              "GBP_USD": 1.5,
+              "USD_JPY": 1
+            }
+          },
+          {
+            "id": "current_p90_stress",
+            "meaning": "Present p90 quote costs and larger adverse fill sensitivity.",
+            "slippagePips": 0.5,
+            "spreadsPips": {
+              "AUD_USD": 0.9,
+              "EUR_USD": 1.1,
+              "GBP_USD": 1.7,
+              "USD_JPY": 1.2
+            }
+          },
+          {
+            "id": "archive_components",
+            "meaning": "Archive-native sensitivity only; component closes/extrema do not prove simultaneous account executable spread.",
+            "slippagePips": 0.2,
+            "spreadsPips": "retained independent bid/ask component closes"
+          }
+        ],
+        "dataManifestDescription": "SHA256 of viability-inputs.json, which pins all raw/derived input evidence. Replaces original protocol whose dataManifestSha256 named the archive itself.",
+        "dataManifestSha256": "68fdb8b9a72c1acf07f23f5e65d04c5bcad2d7e31868f4aa92c8932372040ca2",
+        "economicObjectives": {
+          "economicScale": "Report achieved AUD and returns at A$100 starting account/current cap. No invented income target, extrapolated salary, or guaranteed growth.",
+          "keep": "Positive portfolio net expectancy after explicit costs, with no sign reversal in declared plausible sensitivities, meaningful period coverage, cluster uncertainty not leaving positive sign unresolved, and reported achieved cadence/economic scale. No extra risk/capital assumption.",
+          "redesign": "A concrete useful component or observable structural mismatch supports a new independently specified candidate; this does not authorize live tuning.",
+          "scrap": "Reject the current rule set if even generous declared cases do not support credible positive net edge, or evidence supports continuing loss. Inconclusive results fail KEEP but do not prove profit is mathematically impossible."
+        },
+        "entryPolicy": "Unchanged v6 actual runtime: H1 regime, pair sessions, M15 quality/EMA/RSI, durable frozen break/retest/confirmation, consumed BUY episodes, protected-exit freshness and H1 loss reset.",
+        "evaluationUse": "RETROSPECTIVE",
+        "exitPolicy": "Unchanged broker-side absolute stops and 1.5R targets, +1R breakeven, six-hour and New York16:45 exits, current risk/margin/aggregate checks. Preserve state across years; no artificial boundary liquidation.",
+        "featuresKnownAtDecision": "Only completed delivered M15/H1 candles, causally available conversion/risk state and modeled point quotes; never expose current bar OHLC to entry features before completion.",
+        "hypothesis": "The unchanged current v6 portfolio can earn positive net returns after explicit transaction costs at a useful observable cadence.",
+        "labelPolicy": "No label learning/tuning. Annual/quarterly breakdowns are retrospective diagnostics; no holdout claim. Warmup unscored and state carried.",
+        "periods": [
+          {
+            "alreadyInspected": true,
+            "fromUtc": "2020-01-01T00:00:00Z",
+            "role": "DEVELOPMENT",
+            "toUtcExclusive": "2026-01-01T00:00:00Z"
+          },
+          {
+            "alreadyInspected": true,
+            "fromUtc": "2026-01-01T00:00:00Z",
+            "role": "FINAL_EVALUATION",
+            "toUtcExclusive": "2026-08-03T00:15:00Z"
+          }
+        ],
+        "registeredIntentAtUtc": "2026-10-17T06:16:00.023Z",
+        "schemaVersion": 1,
+        "supersedes": "v6-current-viability-2026-10-17",
+        "trialBudget": {
+          "maximumVariants": 8,
+          "selectionRule": "One unchanged strategy; four preregistered cost models crossed with two path assumptions O-H-L-C/O-L-H-C. Report all variants; never select best as evidence of optimized edge. Repair/reproducibility reruns retain protocol/trial lineage."
+        },
+        "uncertaintyMethod": "Two declared OHLC traversal sensitivities, not exhaustive bounds. Report day/episode clusters and effective cluster counts; observed-path variation, costs, unavailable financing/delivery/parity evidence and open boundary positions. All historical data are retrospective."
+      },
+      "registeredAtUtc": "2026-10-17T06:16:00.083Z",
+      "specSha256": "bdff32ac2bc7be02bdcaa5c198958182e64dabb7df6e4c569ccd7e257ab6398a"
+    },
+    {
+      "artifact": "docs/reviews/evidence/2026-10-17/viability-abandonment-r2.json",
+      "artifactSha256": "854f02201c34aa8ef37acc82624b0a467c2a08069e85e7ca8b6b6428107d7f6d",
+      "candidateId": "v6-current-viability-2026-10-17-r2",
+      "kind": "RESULT_RECORDED",
+      "recordedAtUtc": "2026-10-17T06:53:20.342Z",
+      "status": "ABANDONED"
+    },
+    {
+      "candidateId": "v6-current-viability-2026-10-17-r3",
+      "kind": "REGISTERED",
+      "protocol": {
+        "accountAssumptions": {
+          "brokerMarginRate": 0.03333333333333,
+          "brokerMetadataEvidence": "docs/reviews/evidence/2026-10-17/instrument-metadata-proof.json",
+          "costScope": "Current broker fee and metadata applied uniformly to historical price worlds. Financing unknown; record rollover crossings. No all-in historical broker-cost claim.",
+          "feeEvidence": "docs/reviews/evidence/2026-10-17/home-conversion-proof.json",
+          "foreignSettlementConversion": "Midpoint-derived quote-to-AUD position cross ×0.99 on gains /×1.01 on losses, charged once; AUD identity1.",
+          "homeCurrency": "AUD",
+          "localLeverageCap": 20,
+          "unrealizedConversionPurpose": "position",
+          "unrealizedInstrumentMark": "Declared liquidation-side proxy; not exact broker NAVmid."
+        },
+        "baselineIdentity": {
+          "assets": [
+            "AUD_USD",
+            "EUR_USD",
+            "GBP_USD",
+            "USD_JPY"
+          ],
+          "capitalCapAud": 100,
+          "deployedCommit": "519b428ee28c0a43a96b89acd22c99c02cc75fa3",
+          "executionPolicy": "intraday-risk-v6",
+          "release": "m15-intraday-v6",
+          "riskPerTrade": 0.0025,
+          "sourceCommit": "519b428ee28c0a43a96b89acd22c99c02cc75fa3",
+          "strategyVersion": "1.4.0"
+        },
+        "candidateId": "v6-current-viability-2026-10-17-r3",
+        "costCases": [
+          {
+            "commissionAudPerExecution": 0,
+            "homeConversionFeeRate": 0.01,
+            "id": "optimistic",
+            "meaning": "Lower observed current quote costs applied historically as explicitly optimistic sensitivity; not historical executable evidence.",
+            "slippagePips": 0,
+            "spreadsPips": {
+              "AUD_USD": 0.6,
+              "EUR_USD": 0.8,
+              "GBP_USD": 1.1,
+              "USD_JPY": 0.6
+            }
+          },
+          {
+            "commissionAudPerExecution": 0,
+            "homeConversionFeeRate": 0.01,
+            "id": "current_medians",
+            "meaning": "Present quote medians plus configured expected slippage; constant synthetic spread not exact historical quote.",
+            "slippagePips": 0.2,
+            "spreadsPips": {
+              "AUD_USD": 0.8,
+              "EUR_USD": 1,
+              "GBP_USD": 1.5,
+              "USD_JPY": 1
+            }
+          },
+          {
+            "commissionAudPerExecution": 0,
+            "homeConversionFeeRate": 0.01,
+            "id": "current_p90_stress",
+            "meaning": "Present p90 quote costs and larger adverse fill sensitivity.",
+            "slippagePips": 0.5,
+            "spreadsPips": {
+              "AUD_USD": 0.9,
+              "EUR_USD": 1.1,
+              "GBP_USD": 1.7,
+              "USD_JPY": 1.2
+            }
+          },
+          {
+            "commissionAudPerExecution": 0,
+            "homeConversionFeeRate": 0.01,
+            "id": "archive_components",
+            "meaning": "Archive-native sensitivity only; component closes/extrema do not prove simultaneous account executable spread.",
+            "slippagePips": 0.2,
+            "spreadsPips": "retained independent bid/ask component closes"
+          }
+        ],
+        "dataManifestDescription": "SHA256 of immutable viability-inputs-r3.json; includes current broker settlement factors and instrument metadata.",
+        "dataManifestSha256": "f91f6ffb78a9fdf8a4020267c8c8b7fd73e164e5becd90730d58b2b4e2879852",
+        "economicObjectives": {
+          "economicScale": "Report achieved AUD and returns at A$100 starting account/current cap. No invented income target, extrapolated salary, or guaranteed growth.",
+          "keep": "Positive portfolio net expectancy after explicit costs, with no sign reversal in declared plausible sensitivities, meaningful period coverage, cluster uncertainty not leaving positive sign unresolved, and reported achieved cadence/economic scale. No extra risk/capital assumption.",
+          "redesign": "A concrete useful component or observable structural mismatch supports a new independently specified candidate; this does not authorize live tuning.",
+          "scrap": "Reject the current rule set if even generous declared cases do not support credible positive net edge, or evidence supports continuing loss. Inconclusive results fail KEEP but do not prove profit is mathematically impossible."
+        },
+        "entryPolicy": "Unchanged v6 actual runtime: H1 regime, pair sessions, M15 quality/EMA/RSI, durable frozen break/retest/confirmation, consumed BUY episodes, protected-exit freshness and H1 loss reset.",
+        "evaluationUse": "RETROSPECTIVE",
+        "exitPolicy": "Unchanged broker-side absolute stops and 1.5R targets, +1R breakeven, six-hour and New York16:45 exits, current risk/margin/aggregate checks. Preserve state across years; no artificial boundary liquidation.",
+        "featuresKnownAtDecision": "Only completed delivered M15/H1 candles, causally available conversion/risk state and modeled point quotes; never expose current bar OHLC to entry features before completion.",
+        "hypothesis": "The unchanged current v6 portfolio can earn positive net returns after explicit transaction costs at a useful observable cadence.",
+        "labelPolicy": "No label learning/tuning. Annual/quarterly breakdowns are retrospective diagnostics; no holdout claim. Warmup unscored and state carried.",
+        "periods": [
+          {
+            "alreadyInspected": true,
+            "fromUtc": "2020-03-01T00:00:00Z",
+            "role": "DEVELOPMENT",
+            "toUtcExclusive": "2026-01-01T00:00:00Z"
+          },
+          {
+            "alreadyInspected": true,
+            "fromUtc": "2026-01-01T00:00:00Z",
+            "role": "FINAL_EVALUATION",
+            "toUtcExclusive": "2026-08-03T00:15:00Z"
+          }
+        ],
+        "registeredIntentAtUtc": "2026-10-17T07:03:05.723Z",
+        "repairReason": "r2abandoned after confirmed omission of current1%cashsettlement markup and useofstatic5%brokermetadata. Re-evaluate same8models and2cohorts fromscratch throughfullcash/eligibilityfeedback; no strategy tuning or outcome-based variant selection.",
+        "schemaVersion": 1,
+        "supersedes": "v6-current-viability-2026-10-17-r2",
+        "trialBudget": {
+          "maximumVariants": 8,
+          "selectionRule": "One unchanged strategy; four preregistered cost models crossed with two path assumptions O-H-L-C/O-L-H-C. Report all variants; never select best as evidence of optimized edge. Repair/reproducibility reruns retain protocol/trial lineage."
+        },
+        "uncertaintyMethod": "Two declared OHLC traversal sensitivities, not exhaustive bounds. Report day/episode clusters and effective cluster counts; observed-path variation, costs, unavailable financing/delivery/parity evidence and open boundary positions. All historical data are retrospective."
+      },
+      "registeredAtUtc": "2026-10-17T07:03:05.799Z",
+      "specSha256": "5c5d76cabd4df8e987ab5e1a069e819c2ce00bef03169817d1593c0da0d6c939"
+    },
+    {
+      "artifact": "docs/reviews/evidence/2026-10-17/viability-decision-r3.json",
+      "artifactSha256": "f9d18ab9351732173c8656630d9774ab039556044de82f22e714243bca086c3a",
+      "candidateId": "v6-current-viability-2026-10-17-r3",
+      "kind": "RESULT_RECORDED",
+      "recordedAtUtc": "2026-10-17T09:48:57.299Z",
+      "status": "INCONCLUSIVE"
+    }
+  ],
+  "schemaVersion": 1
+}

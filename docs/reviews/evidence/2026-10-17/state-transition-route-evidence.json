@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-17T07:03:21.866Z",
+  "readOnly": true,
+  "source": "Production /var/log/nginx/access.log; filtered remotely before output",
+  "timeWindowUtc": ["2026-10-17T06:30:00.000Z", "2026-10-17T06:36:00.000Z"],
+  "parsedRequestsInWindow": 70,
+  "relevantMutatingApiRequests": [
+    { "timeUtc": "2026-10-17T06:34:34.000Z", "timeSydney": "2026-10-17T17:34:34+11:00", "method": "POST", "route": "/api/trading/start", "status": 200, "userAgentClass": "BROWSER_LIKE" },
+    { "timeUtc": "2026-10-17T06:34:38.000Z", "timeSydney": "2026-10-17T17:34:38+11:00", "method": "POST", "route": "/api/trading/stop", "status": 200, "userAgentClass": "BROWSER_LIKE" }
+  ],
+  "userAgentClassCheckedAtUtc": "2026-10-17T07:30:48.848Z",
+  "userAgentClassLimitation": "Descriptive classification only; it does not identify actor, request origin or intent. No raw user agent was exported.",
+  "localBackendTestLogStat": {
+    "path": "/private/tmp/forex-20261017-final-backend-tests.log",
+    "createdAtUtc": "2026-10-17T06:40:28.394Z",
+    "modifiedAtUtc": "2026-10-17T06:40:45.268Z",
+    "limitation": "Filesystem metadata places creation and final modification after the two requests; it does not prove the contents of earlier test runs or identify a requester."
+  },
+  "routeContract": "POST /api/trading/stop calls configService.update({enableTrading:false}) and returns success; backend/src/routes/tradingRoutes.js",
+  "corroboration": "The stop request second matches the saved configuration modification time 2026-10-17T06:34:38.411Z and config broadcast 2026-10-17T06:34:38.423Z retained in later-enabled-observation.json.",
+  "conclusion": "A successful HTTP trading-stop request explains the observed disabled state. This evidence does not identify the actor or establish whether the request was intended.",
+  "unchanged": "No source, production settings, process activation or trading state was modified during this investigation.",
+  "privacy": "Only relevant HTTP method, route path, response status and timestamp were exported. No client address, user agent, query string, request body or credentials were returned."
+}

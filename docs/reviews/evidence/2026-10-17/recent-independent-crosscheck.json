@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_RECENT_MODEL_ARITHMETIC_STATE_AND_PRECISION_CROSSCHECK",
+  "runtime": "v22.23.1",
+  "toolSha256": "ddf1fa26bbb378b66d26ade7259e1a656c8f007acdecaf4d78d78484cc8cecf1",
+  "inputHashes": {
+    "docs/reviews/evidence/2026-10-17/viability-recent-summary.json": "36aaf39900ca91bdf54576d38ecf6df869faea92d9f3e2e0fc42a7d054e48b95",
+    "docs/reviews/evidence/2026-10-17/unconditional-pattern-audit.json": "42cd2dba41a76255e7e972f0fe0284ae921f1d257ae20e1fcf8c185cf35ad8d2"
+  },
+  "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+  "sourceFileCount": 96,
+  "casesChecked": [
+    {
+      "caseId": "recent-archive_components-OHLC",
+      "resultSha256": "98fbce4e76522c7547a323185d88f96bf7c57408023fb122c2a68fab3be619f8",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    },
+    {
+      "caseId": "recent-archive_components-OLHC",
+      "resultSha256": "b61feaad00561d8cbc9365b51a99a33f888462e23e2a3d2a6f87d54e12992ebf",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    },
+    {
+      "caseId": "recent-current_medians-OHLC",
+      "resultSha256": "a8aa81411ffc39d4da2b7940901945779487782d09ad381eacb79f84f0c6949b",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    },
+    {
+      "caseId": "recent-current_medians-OLHC",
+      "resultSha256": "ba247aa4d300a7b9149cea9f7271dc889944f933ae18fc1b8bffbc2b14adb3fa",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    },
+    {
+      "caseId": "recent-current_p90_stress-OHLC",
+      "resultSha256": "c94eaa699e2314eb0aabe6b62a72d6161e3ad9661f7494870eaecbdb91d786c2",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    },
+    {
+      "caseId": "recent-current_p90_stress-OLHC",
+      "resultSha256": "4102ad73c59011501433f6c57942d4d5d4a414a9dd03d0d2f8050763d54f294e",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    },
+    {
+      "caseId": "recent-optimistic-OHLC",
+      "resultSha256": "a2b48ca3c67b15fc00a9927a85128d6b028c5de932045b5f6aa19f8ec89c67ef",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    },
+    {
+      "caseId": "recent-optimistic-OLHC",
+      "resultSha256": "c3f97990514863d34e0c847064a0dc7a1aefdbc8279e92b29e230b1d9ad99c86",
+      "sourcePinsMatch": true,
+      "resultAndSpecHashesMatch": true,
+      "independentNoTradeArithmetic": true,
+      "modeledBoundaries": 2292
+    }
+  ],
+  "independentPatternStateMatches": [
+    {
+      "caseId": "recent-archive_components-OHLC",
+      "exactStateMatches": 8
+    },
+    {
+      "caseId": "recent-archive_components-OLHC",
+      "exactStateMatches": 8
+    },
+    {
+      "caseId": "recent-optimistic-OHLC",
+      "exactStateMatches": 8
+    },
+    {
+      "caseId": "recent-optimistic-OLHC",
+      "exactStateMatches": 8
+    }
+  ],
+  "rawPatternSummary": {
+    "native": {
+      "confirmedCandles": 34,
+      "distinctBreakoutEpisodes": 32,
+      "firstStrategyGates": {
+        "INTRADAY_MOMENTUM_REGIME_NEUTRAL": 13,
+        "INTRADAY_MOMENTUM_OUTSIDE_SESSION": 11,
+        "INTRADAY_MOMENTUM_CONFIRMATION_MISSING": 7,
+        "INTRADAY_MOMENTUM_ADX_WEAK": 2,
+        "INTRADAY_MOMENTUM_MARKET_CLOSED": 1
+      },
+      "observedH1DirectionAtRawConfirmation": {
+        "NEUTRAL_OR_WEAK": 20,
+        "OPPOSITE": 13,
+        "UNOBSERVED_BECAUSE_MARKET_GATE_RETURNED_FIRST": 1
+      }
+    },
+    "optimistic": {
+      "confirmedCandles": 34,
+      "distinctBreakoutEpisodes": 32,
+      "firstStrategyGates": {
+        "INTRADAY_MOMENTUM_REGIME_NEUTRAL": 13,
+        "INTRADAY_MOMENTUM_OUTSIDE_SESSION": 11,
+        "INTRADAY_MOMENTUM_CONFIRMATION_MISSING": 7,
+        "INTRADAY_MOMENTUM_ADX_WEAK": 2,
+        "INTRADAY_MOMENTUM_MARKET_CLOSED": 1
+      },
+      "observedH1DirectionAtRawConfirmation": {
+        "NEUTRAL_OR_WEAK": 20,
+        "OPPOSITE": 13,
+        "UNOBSERVED_BECAUSE_MARKET_GATE_RETURNED_FIRST": 1
+      }
+    }
+  },
+  "precisionSensitivity": {
+    "method": "Actual ReplayBroker.formatPrice on synthetic GBP_USD midpoint +/- half of declared 1.1 pip spread for every recent retained midpoint OHLC vertex.",
+    "componentPoints": 20000,
+    "maximumPerSideRoundingErrorPips": 0.05,
+    "roundedAskMinusBidPipsCounts": {
+      "1": 14732,
+      "1.1": 5268
+    },
+    "interpretation": "The source spread stays 1.1 pips, but two rounded fills can reduce cost by approximately 0.1 pip. Sampled paths also have fractional ticks; ordinary per-fill rounding is at most half a display tick. This is a small optimistic precision assumption, not a demonstrated sizing-budget violation. No recent admitted candidate reaches costs, so it does not change this cohort zero-trade finding."
+  },
+  "limits": [
+    "Eight zero-trade cost/path cases are repeated conditional sensitivities of the same interval, not eight independent strategy trials or evidence of zero trading risk.",
+    "The raw-pattern diagnostic has no fills; it attributes an observed filter intersection, not a hypothetical relaxed-rule strategy return.",
+    "No H1-aligned raw confirmation is observed where H1 was computed. This is not proof the rules are logically impossible or no future confirmation can align.",
+    "The 32 calendar day drought is conditional on the specified September 15 cold lineage and excludes no-trade outcomes beyond the declared interval."
+  ]
+}

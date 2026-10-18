@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-17T09:45:35.242Z",
+  "source": "Read-only local health APIs and Git revision on deployed host; no Start/Stop/config/order calls",
+  "deployedCommit": "519b428ee28c0a43a96b89acd22c99c02cc75fa3",
+  "apiStatus": "ok",
+  "operationalStatus": "healthy",
+  "degradedReasons": [],
+  "services": {
+    "api": true,
+    "oanda": true,
+    "dataService": true,
+    "signalGenerator": true,
+    "tradingEngine": true
+  },
+  "tradingEnabled": false,
+  "strategyVersion": "1.4.0",
+  "openPositions": 0,
+  "pendingOrderIntentCount": 0,
+  "quarantinedBrokerPositions": 0,
+  "brokerStateUncertain": false,
+  "latestSuccessfulBrokerSyncAt": 1792230333737,
+  "limitation": "Point-in-time service and entry-intent observation. Does not identify who changed intent or establish profitability."
+}

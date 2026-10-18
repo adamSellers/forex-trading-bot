@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "UNSCORED_EXTERNAL_NATIVE_TIMEOUT_ONLY_PARITY_CONTROL",
+  "validatedAtUtc": "2026-10-17T07:55:13.000Z",
+  "baseline": {
+    "path": "/private/tmp/viability-r3-validation/filled-on-result.json",
+    "sha256": "b46843691b3d3488ca116693055feceedccaa7f4759b4b8c5e258547e3c072c7"
+  },
+  "control": {
+    "path": "backend/data/backtests/viability-20261017/software-r3/runtime-budget-control.json",
+    "sha256": "36a301ad05f091adce57b5efd2441b5c15fdf96fbfd75547af29eb2ca038414e",
+    "runtimeSidecarPath": "backend/data/backtests/viability-20261017/software-r3/runtime-budget-control.json.runtime-repair.json"
+  },
+  "comparison": {
+    "allResultFieldsExactExcept": [
+      "elapsedSeconds"
+    ],
+    "unchangedFinancialSourceCount": 119,
+    "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+    "completeResultEquality": true,
+    "closedTrades": 1,
+    "netAud": -0.020724909851225284,
+    "totalNetR": -0.11940298507442405
+  },
+  "amendment": {
+    "schemaVersion": 1,
+    "artifactKind": "EXTERNAL_NATIVE_TIMEOUT_ONLY_RUNTIME_REPAIR_ATTEMPT",
+    "mode": "SOFTWARE_VALIDATION_CONTROL",
+    "caseId": "software-r3-filled-on",
+    "specSha256": "ead62b17b86023a53bb7fb38aa1f50a43b865443fd91073ed5068fa8197933dc",
+    "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+    "runtimeRegistrationPath": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-software-registration.json",
+    "runtimeRegistrationSha256": "651e3da05816de1b84ce1ea7bd28359681d00412388613bae0419adf09f1de6d",
+    "helper": {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-helper.cjs",
+      "sha256": "7e73cc42d61e982d5800c67f5fff659c0d9a127b6b39af9dc7e17f7c09e6e930"
+    },
+    "launcher": {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-launcher.cjs",
+      "sha256": "83b6795e964b12444b86707603c398d6c8d7f473219724c17de5548011d8c165"
+    },
+    "originalTimeoutMs": 7200000,
+    "extendedTimeoutMs": 21600000,
+    "startedAtUtc": "2026-10-17T07:54:37.643Z",
+    "completedAtUtc": "2026-10-17T07:54:44.019Z",
+    "nodeVersion": "22.23.1",
+    "exitCode": 0,
+    "error": null,
+    "outputPath": "backend/data/backtests/viability-20261017/software-r3/runtime-budget-control.json",
+    "outputSha256": "36a301ad05f091adce57b5efd2441b5c15fdf96fbfd75547af29eb2ca038414e",
+    "financialChange": "NONE; same test function, financial source closure, original spec, path/cost/account assumptions and original isolated setup."
+  },
+  "scope": "Only the native timeout argument changed before test registration. No active historical process, test body, financial source/spec, cost/path rule, account metadata or data input changed. Actual historical repair is prohibited without new registered actual timeout proof."
+}

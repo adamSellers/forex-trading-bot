@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Corrected r3 frozen inputs for unchanged v6 viability including verified current broker conversion fee and instrument metadata",
+  "sourceCommit": "519b428ee28c0a43a96b89acd22c99c02cc75fa3",
+  "files": [
+    {
+      "path": "backend/data/historical/research_M15_MBA_20200101_20260803.json",
+      "bytes": 315610418,
+      "sha256": "fd30b7bc2f98f2d362c2be658338d944f9fade5c01dd142d1b91f470b0a75b5d"
+    },
+    {
+      "path": "backend/data/historical/viability_20261017_recent.json",
+      "bytes": 5403697,
+      "sha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/cadence-diagnostic.json",
+      "bytes": 47274,
+      "sha256": "fe4b09a7d124dddba337dcbd560fd96b614af8175a9729487be42498922e91b5"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/recovered-close-proof.json",
+      "bytes": 606,
+      "sha256": "519299e93473b3fe488a2f57c7cdf648f2413f7aeff94a95a4a3a693dbd6188d"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/observed-spreads.json",
+      "bytes": 1541,
+      "sha256": "2b42d47c109c632baf95da217daa6e9ee0a7eff8dc21da378b9534e7e613713d"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/parity-audit.json",
+      "bytes": 20737,
+      "sha256": "28252192e788255bb74a54f0ed72fe4ff78af460ffe5f6e640f469ade96def35"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/home-conversion-proof.json",
+      "bytes": 1010,
+      "sha256": "f163af4c2cedc4ecc69824c92b8431fcc7f3e17293a9f3626f0ab565d49813ef"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/instrument-metadata-proof.json",
+      "bytes": 1366,
+      "sha256": "80325d02eb68586e9beca0d435ce523ea546db26faadede13610680f5e275b77"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/cost-contract-audit.json",
+      "bytes": 1823,
+      "sha256": "cd1ca69d230fabd6585bf29545e1950f2f4f340b7c4f9f965c05eda9879ac48b"
+    }
+  ],
+  "limitations": [
+    "All historical periods are retrospective; no untouched holdout.",
+    "Retained OHLC is not a tick path or simultaneous executable ClientPrice.",
+    "Current quote summary informs sensitivity assumptions, not reconstructed historical spreads.",
+    "Current1% conversion fee and captured instrument metadata applied to historical price worlds; not original historical account contract reconstruction."
+  ]
+}

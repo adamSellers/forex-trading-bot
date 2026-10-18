@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_V6_RESEARCH_METHOD_AUDIT",
+  "capturedOnSydneyDate": "2026-10-17",
+  "purpose": "Audit data, cost, cadence and inference limits; not a profitability result or authorization to trade.",
+  "source": {
+    "path": "backend/data/historical/research_M15_MBA_20200101_20260803.json",
+    "sha256": "fd30b7bc2f98f2d362c2be658338d944f9fade5c01dd142d1b91f470b0a75b5d",
+    "bytes": 315610418,
+    "granularity": "M15",
+    "pricingComponents": "MBA",
+    "evaluationUse": "ALREADY_INSPECTED_RETROSPECTIVE",
+    "runtime": "v22.23.1"
+  },
+  "tool": {
+    "path": "docs/reviews/evidence/2026-10-17/method-audit.cjs",
+    "sha256": "7de44bd44366bdb7997f43e58aeaaaaadbe9866701c7b02c3a69e3aed106bee2"
+  },
+  "sourceHashes": {
+    "shared/tradingConfigDefaults.json": "dcfd0a08d865ea80d6b3e71476f0d4044d7fdc3f2de132642d0bcf9969d85fbf",
+    "backend/src/runtime/executionPolicy.js": "727dc6acaafee0849b4cb670d14d7804b8164bd055468aa0cf9fe4805a0e8a85",
+    "backend/src/runtime/intradayBuyRetestPolicy.js": "9cce147884a60a718722dbd2d783f5e8b00527ab44470b90ec31aa7a58d42c41",
+    "backend/src/runtime/intradaySellRetestPolicy.js": "d1572c9d2297ed0fc89247131b8978489a6d342ee627852d58484d8543328224",
+    "backend/research/intrabarUncertainty.cjs": "08090d26433306e465f98394fd14666571d8bf6f6b9de332ae94dd9e4654cd95",
+    "backend/research/README.md": "5d52780f646cee877dcf3da2f79c495dd0c1315c8f11567a4dd61d265bff0c19",
+    "docs/reviews/2026-10-06-profitability-implementation-plan.md": "e4d4edf957672f2ef3c799fab878b655f691f9aa46d9a63027e43879a8009030"
+  },
+  "evidenceMeanings": {
+    "componentCloseDifference": "Ask-component close minus bid-component close. Components lack a shared retained event timestamp; this is not a verified simultaneous account executable spread.",
+    "candles": "Completed OHLC prices locate retained extrema, not their temporal order or ten-second management delivery.",
+    "rawScans": "Repeated scans of the same completed candle are not independent opportunities. Include market sessions and unique pair/candle decision coverage.",
+    "historicalLabels": "All 2020-August 2026 data has prior outcome access; a holdout filename cannot restore untouched status."
+  },
+  "configuredSpreadLimitPips": 1.2,
+  "componentCloseDifferenceByYear": {
+    "AUD_USD": {
+      "2020": {
+        "observations": 24947,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 4114,
+        "medianComponentCloseDifferencePips": 1.4,
+        "p95ComponentCloseDifferencePips": 3.2,
+        "percentAtMostConfiguredSpreadLimit": 16.490960837
+      },
+      "2021": {
+        "observations": 24930,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 5088,
+        "medianComponentCloseDifferencePips": 1.4,
+        "p95ComponentCloseDifferencePips": 2.8,
+        "percentAtMostConfiguredSpreadLimit": 20.4091456077
+      },
+      "2022": {
+        "observations": 24863,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 3598,
+        "medianComponentCloseDifferencePips": 1.4,
+        "p95ComponentCloseDifferencePips": 2.4,
+        "percentAtMostConfiguredSpreadLimit": 14.471302739
+      },
+      "2023": {
+        "observations": 24859,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 8515,
+        "medianComponentCloseDifferencePips": 1.3,
+        "p95ComponentCloseDifferencePips": 2,
+        "percentAtMostConfiguredSpreadLimit": 34.2531879802
+      },
+      "2024": {
+        "observations": 24960,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 11232,
+        "medianComponentCloseDifferencePips": 1.3,
+        "p95ComponentCloseDifferencePips": 1.7,
+        "percentAtMostConfiguredSpreadLimit": 45
+      },
+      "2025": {
+        "observations": 24864,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 5944,
+        "medianComponentCloseDifferencePips": 1.3,
+        "p95ComponentCloseDifferencePips": 2,
+        "percentAtMostConfiguredSpreadLimit": 23.906048906
+      },
+      "2026": {
+        "observations": 14509,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 2834,
+        "medianComponentCloseDifferencePips": 1.3,
+        "p95ComponentCloseDifferencePips": 2,
+        "percentAtMostConfiguredSpreadLimit": 19.532703839
+      }
+    },
+    "EUR_USD": {
+      "2020": {
+        "observations": 24954,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 6290,
+        "medianComponentCloseDifferencePips": 1.4,
+        "p95ComponentCloseDifferencePips": 3.1,
+        "percentAtMostConfiguredSpreadLimit": 25.2063797387
+      },
+      "2021": {
+        "observations": 24943,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 4993,
+        "medianComponentCloseDifferencePips": 1.4,
+        "p95ComponentCloseDifferencePips": 2.2,
+        "percentAtMostConfiguredSpreadLimit": 20.0176402197
+      },
+      "2022": {
+        "observations": 24864,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 159,
+        "medianComponentCloseDifferencePips": 1.6,
+        "p95ComponentCloseDifferencePips": 2.6,
+        "percentAtMostConfiguredSpreadLimit": 0.6394787645
+      },
+      "2023": {
+        "observations": 24858,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 212,
+        "medianComponentCloseDifferencePips": 1.5,
+        "p95ComponentCloseDifferencePips": 2.2,
+        "percentAtMostConfiguredSpreadLimit": 0.8528441548
+      },
+      "2024": {
+        "observations": 24960,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 0,
+        "medianComponentCloseDifferencePips": 1.5,
+        "p95ComponentCloseDifferencePips": 1.9,
+        "percentAtMostConfiguredSpreadLimit": 0
+      },
+      "2025": {
+        "observations": 24864,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 0,
+        "medianComponentCloseDifferencePips": 1.6,
+        "p95ComponentCloseDifferencePips": 2.3,
+        "percentAtMostConfiguredSpreadLimit": 0
+      },
+      "2026": {
+        "observations": 14509,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 0,
+        "medianComponentCloseDifferencePips": 1.6,
+        "p95ComponentCloseDifferencePips": 2.1,
+        "percentAtMostConfiguredSpreadLimit": 0
+      }
+    },
+    "GBP_USD": {
+      "2020": {
+        "observations": 24950,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 97,
+        "medianComponentCloseDifferencePips": 1.9,
+        "p95ComponentCloseDifferencePips": 6,
+        "percentAtMostConfiguredSpreadLimit": 0.3887775551
+      },
+      "2021": {
+        "observations": 24943,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 331,
+        "medianComponentCloseDifferencePips": 1.7,
+        "p95ComponentCloseDifferencePips": 6,
+        "percentAtMostConfiguredSpreadLimit": 1.3270256184
+      },
+      "2022": {
+        "observations": 24860,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 2,
+        "medianComponentCloseDifferencePips": 2,
+        "p95ComponentCloseDifferencePips": 4.9,
+        "percentAtMostConfiguredSpreadLimit": 0.0080450523
+      },
+      "2023": {
+        "observations": 24860,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 6,
+        "medianComponentCloseDifferencePips": 1.8,
+        "p95ComponentCloseDifferencePips": 3.9,
+        "percentAtMostConfiguredSpreadLimit": 0.0241351569
+      },
+      "2024": {
+        "observations": 24960,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 0,
+        "medianComponentCloseDifferencePips": 1.8,
+        "p95ComponentCloseDifferencePips": 2.7,
+        "percentAtMostConfiguredSpreadLimit": 0
+      },
+      "2025": {
+        "observations": 24861,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 0,
+        "medianComponentCloseDifferencePips": 1.9,
+        "p95ComponentCloseDifferencePips": 3.4,
+        "percentAtMostConfiguredSpreadLimit": 0
+      },
+      "2026": {
+        "observations": 14509,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 0,
+        "medianComponentCloseDifferencePips": 1.9,
+        "p95ComponentCloseDifferencePips": 3.5,
+        "percentAtMostConfiguredSpreadLimit": 0
+      }
+    },
+    "USD_JPY": {
+      "2020": {
+        "observations": 24945,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 7619,
+        "medianComponentCloseDifferencePips": 1.3,
+        "p95ComponentCloseDifferencePips": 3.3,
+        "percentAtMostConfiguredSpreadLimit": 30.5431950291
+      },
+      "2021": {
+        "observations": 24950,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 5975,
+        "medianComponentCloseDifferencePips": 1.3,
+        "p95ComponentCloseDifferencePips": 2.5,
+        "percentAtMostConfiguredSpreadLimit": 23.9478957916
+      },
+      "2022": {
+        "observations": 24864,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 283,
+        "medianComponentCloseDifferencePips": 1.7,
+        "p95ComponentCloseDifferencePips": 3.2,
+        "percentAtMostConfiguredSpreadLimit": 1.1381917632
+      },
+      "2023": {
+        "observations": 24860,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 67,
+        "medianComponentCloseDifferencePips": 1.7,
+        "p95ComponentCloseDifferencePips": 3.2,
+        "percentAtMostConfiguredSpreadLimit": 0.2695092518
+      },
+      "2024": {
+        "observations": 24960,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 193,
+        "medianComponentCloseDifferencePips": 1.7,
+        "p95ComponentCloseDifferencePips": 3,
+        "percentAtMostConfiguredSpreadLimit": 0.7732371795
+      },
+      "2025": {
+        "observations": 24864,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 710,
+        "medianComponentCloseDifferencePips": 1.7,
+        "p95ComponentCloseDifferencePips": 2.9,
+        "percentAtMostConfiguredSpreadLimit": 2.8555341055
+      },
+      "2026": {
+        "observations": 14509,
+        "closeDifferenceAtMostConfiguredSpreadLimit": 325,
+        "medianComponentCloseDifferencePips": 1.7,
+        "p95ComponentCloseDifferencePips": 2.8,
+        "percentAtMostConfiguredSpreadLimit": 2.2399889724
+      }
+    }
+  },
+  "demonstratedInputSensitivity": {
+    "finding": "Every EUR_USD and GBP_USD archived component-close difference in 2024, 2025 and January-August 2026 exceeds the configured 1.2 pip limit.",
+    "implication": "Native component-close price proxies alone would prohibit all entries in those pair-years, irrespective of setup quality. A zero count cannot establish actual historical live-account cadence.",
+    "independentLiveContrast": "Retained October 7 incident evidence contains actual EUR_USD fills and signal spreads around 0.8-1.1 pips. This differs in period and account-price evidence; it does not identify exact historical executable spreads."
+  },
+  "prespecifiedEconomicDecisionCriteria": {
+    "timing": "Communicated to primary reviewer before inspecting the new historical evaluator outcomes.",
+    "keep": "Unchanged current-rule portfolio must support positive net expectancy after explicit executable costs and plausible path/cost sensitivities, with cluster and period uncertainty not leaving the sign unresolved; cadence and capped capital must serve a stated economic purpose.",
+    "redesign": "A specific demonstrated structural benefit survives costs, but an identifiable policy or implementation prevents viability; test a bounded new hypothesis without selecting a winning historical tweak as proof.",
+    "scrapCurrentStrategy": "No credible edge survives generous declared assumptions, or ongoing live-risk/research expenditure lacks evidence sufficient to justify keeping this strategy. This does not prove every possible replacement unprofitable.",
+    "inconclusive": "Contradictory, highly cost-sensitive or unresolved output fails a keep decision but is not mathematical proof profitability is impossible.",
+    "noAutomaticThreshold": "No fixed win rate, arbitrary trade count, confidence cutoff or existing 100-trade analytics flag proves an edge. Independent effective day/episode clusters and economic effect matter."
+  },
+  "requiredEvaluationChecks": [
+    "Preserve whole-unit sizing, AUD conversion, actual cost/spread and price-bound gates, portfolio competition/sort order, H1 reset, protected-exit state, cooldown, exposure and drawdown checks.",
+    "Preserve frozen BUY/SELL episode state continuously across research calendar boundaries. Separately label fresh-start cohort sensitivities; never pool them as one continuous account.",
+    "Apply spread once through bid/ask entry and liquidation prices. Explicit commissions/financing/fees are additional only when not already in the reported cash amount.",
+    "Use BUY bid and SELL ask evidence for stop/target liquidation. Retained target threshold contacts do not imply realized fills.",
+    "Declare per-execution adverse slippage assumptions, target fills at threshold or better, gap handling, whole-unit rounding, conversion-time assumptions and absent historical financing.",
+    "Do not invent observed quote delivery or claim OHLC high-first/low-first paths are exhaustive. Additional recrossings and management delivery/acknowledgement can alter breakeven outcomes.",
+    "Changing fixed-spread decision quotes while retaining archival bid/ask stops is a mixed proxy model. Reconstructing synchronous MBA from midpoint also changes structural-stop evidence; label each synthetic price world explicitly.",
+    "Show separate raw opportunities, admitted entries, fills, unique active days, no-trade intervals, positions remaining open and observable mark-to-market drawdown; never force a final close for convenience.",
+    "Report gross signals, conditional trade-label returns and achievable account/portfolio P&L separately. A rejected order is not a loss.",
+    "Show net AUD and net original-cash-risk R, cost/path sensitivity, by-period and by-pair concentration, effective day/episode cluster counts and unknown coverage."
+  ],
+  "economicScale": {
+    "riskFormula": "min(0.8 * freeMarginAud, 100) * 0.0025, before whole-unit and leverage caps, using current default 20% margin buffer",
+    "flat95AudRiskBudget": 0.19,
+    "flat95AudNominalOnePointFiveRTarget": 0.285,
+    "maximumRiskBudgetAud": 0.25,
+    "implication": "Positive expectancy at this capped capital is a research outcome, not evidence of meaningful income. Raising capital/risk does not repair negative expectancy."
+  },
+  "officialContractSourcesChecked": [
+    {
+      "url": "https://developer.oanda.com/rest-live-v20/instrument-df/",
+      "checkedOnSydneyDate": "2026-10-17",
+      "supports": "Candles contain interval-start time, component OHLC, volume and completion; H1/M15 are hour-aligned. OHLC lacks intrabar timestamps."
+    },
+    {
+      "url": "https://developer.oanda.com/rest-live-v20/pricing-df/",
+      "checkedOnSydneyDate": "2026-10-17",
+      "supports": "ClientPrice is account-specific with event time, liquidity buckets and tradeable status. Home conversion has distinct gain/loss/position factors."
+    },
+    {
+      "url": "https://developer.oanda.com/rest-live-v20/order-df/",
+      "checkedOnSydneyDate": "2026-10-17",
+      "supports": "Take-profit fills at threshold or better; ordinary stop-loss fills at threshold or worse; default liquidation sides are bid for a long and ask for a short."
+    },
+    {
+      "url": "https://developer.oanda.com/rest-live-v20/trade-df/",
+      "checkedOnSydneyDate": "2026-10-17",
+      "supports": "Trade realized P&L and financing are separate fields; opened/closed execution times and dependent protections have their own evidence."
+    }
+  ],
+  "changesMade": "Only this local research audit script and its JSON output; no live order, setting, deployment or strategy rule."
+}

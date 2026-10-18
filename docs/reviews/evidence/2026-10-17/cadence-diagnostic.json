@@ -1,0 +1,1593 @@
+{
+  "schemaVersion": 1,
+  "capturedOnSydneyDate": "2026-10-17",
+  "purpose": "Read-only diagnosis of ten-day trade gap and recent performance; no live behavior change selected.",
+  "source": {
+    "localHead": "76593d0",
+    "deployedHead": "562334beffefc7a26d3eee99db5c73631e3a2ec0",
+    "deployedSourceClean": true,
+    "strategyVersion": "1.4.0",
+    "release": "m15-intraday-v6",
+    "runId": "live_5ceb61ff-bc9e-432a-ae6d-1d638c61f8d6"
+  },
+  "healthObservation": {
+    "capturedAtUtc": "2026-10-17T02:57:14.189Z",
+    "status": "healthy",
+    "tradingEnabled": true,
+    "marketReason": "WEEKEND",
+    "readiness": "PASS",
+    "openPositions": 0,
+    "pendingIntents": 0,
+    "quarantines": 0,
+    "brokerStateUncertain": false,
+    "cooldownActive": false,
+    "balanceAud": 95.093,
+    "navAud": 95.093,
+    "openBrokerPositions": 0,
+    "source": "GET /api/system/health and GET /api/portfolio; portfolio reads OANDA account summary and openTrades."
+  },
+  "latestTrades": [
+    {
+      "oanda_trade_id": "3519",
+      "instrument": "EUR_USD",
+      "side": "BUY",
+      "units": 148,
+      "entry_time": 1791309172318,
+      "exit_time": 1791311794921,
+      "pnl_aud": -0.1691,
+      "pnl_pips": -7.900000000000685,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3507",
+      "instrument": "EUR_USD",
+      "side": "BUY",
+      "units": 114,
+      "entry_time": 1791298852677,
+      "exit_time": 1791303082870,
+      "pnl_aud": 0,
+      "pnl_pips": 0,
+      "exit_reason": "BREAKEVEN_STOP",
+      "breakeven_hit": 1,
+      "owner_run_id": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3497",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "units": 134,
+      "entry_time": 1790838943205,
+      "exit_time": 1790840848837,
+      "pnl_aud": -0.1787,
+      "pnl_pips": -14.500000000001023,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3487",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "units": 146,
+      "entry_time": 1790775951138,
+      "exit_time": 1790779834656,
+      "pnl_aud": -0.1758,
+      "pnl_pips": -8.299999999999974,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_2d7872d4-0983-47f9-9842-957231912a6b",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3475",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "units": 123,
+      "entry_time": 1790683212435,
+      "exit_time": 1790684038006,
+      "pnl_aud": -0.0011,
+      "pnl_pips": -0.10000000000047748,
+      "exit_reason": "BREAKEVEN_STOP",
+      "breakeven_hit": 1,
+      "owner_run_id": "live_dd31bf2c-f431-45f2-9705-6aeb5983e261",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3465",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "units": 102,
+      "entry_time": 1790603134863,
+      "exit_time": 1790605611444,
+      "pnl_aud": -0.1716,
+      "pnl_pips": -18.39999999999975,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_dd31bf2c-f431-45f2-9705-6aeb5983e261",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3455",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "units": 101,
+      "entry_time": 1790595034773,
+      "exit_time": 1790598541624,
+      "pnl_aud": -0.1794,
+      "pnl_pips": -19.400000000001683,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_dd31bf2c-f431-45f2-9705-6aeb5983e261",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3445",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "units": 81,
+      "entry_time": 1790352933881,
+      "exit_time": 1790357848759,
+      "pnl_aud": -0.185,
+      "pnl_pips": -25,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3435",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "units": 162,
+      "entry_time": 1790305528599,
+      "exit_time": 1790311101233,
+      "pnl_aud": -0.1399,
+      "pnl_pips": -6.00000000000045,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3425",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "units": 187,
+      "entry_time": 1790290408578,
+      "exit_time": 1790298500491,
+      "pnl_aud": -0.1615,
+      "pnl_pips": -6.00000000000045,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3413",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "units": 121,
+      "entry_time": 1790188231378,
+      "exit_time": 1790196304804,
+      "pnl_aud": -0.0469,
+      "pnl_pips": -2.699999999999925,
+      "exit_reason": "SESSION_CLOSE",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3403",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "units": 140,
+      "entry_time": 1790177470814,
+      "exit_time": 1790181418898,
+      "pnl_aud": -0.1879,
+      "pnl_pips": -14.799999999999613,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3393",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "units": 131,
+      "entry_time": 1790173869856,
+      "exit_time": 1790175194930,
+      "pnl_aud": -0.1841,
+      "pnl_pips": -9.799999999999809,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3381",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "units": 142,
+      "entry_time": 1790172069843,
+      "exit_time": 1790173632880,
+      "pnl_aud": 0.2718,
+      "pnl_pips": 13.60000000000028,
+      "exit_reason": "TAKE_PROFIT",
+      "breakeven_hit": 1,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3369",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "units": 201,
+      "entry_time": 1790146985361,
+      "exit_time": 1790149016767,
+      "pnl_aud": 0.2585,
+      "pnl_pips": 9.200000000000319,
+      "exit_reason": "TAKE_PROFIT",
+      "breakeven_hit": 1,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3357",
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "units": 160,
+      "entry_time": 1790088369339,
+      "exit_time": 1790099557202,
+      "pnl_aud": 0,
+      "pnl_pips": 0,
+      "exit_reason": "BREAKEVEN_STOP",
+      "breakeven_hit": 1,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3347",
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "units": 184,
+      "entry_time": 1790079365123,
+      "exit_time": 1790084614122,
+      "pnl_aud": -0.1619,
+      "pnl_pips": -6.20000000000065,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3337",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "units": 90,
+      "entry_time": 1789733729507,
+      "exit_time": 1789736446154,
+      "pnl_aud": -0.1871,
+      "pnl_pips": -23.099999999999454,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3327",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "units": 126,
+      "entry_time": 1789607552114,
+      "exit_time": 1789608606993,
+      "pnl_aud": -0.177,
+      "pnl_pips": -15.399999999999636,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    },
+    {
+      "oanda_trade_id": "3317",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "units": 162,
+      "entry_time": 1789565433717,
+      "exit_time": 1789568433377,
+      "pnl_aud": -0.176,
+      "pnl_pips": -11.899999999999977,
+      "exit_reason": "STOP_LOSS",
+      "breakeven_hit": 0,
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "reconciliation_status": "RECONCILED"
+    }
+  ],
+  "cohorts": [
+    {
+      "owner_run_id": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+      "release": "m15-intraday-v5",
+      "first_entry": 1790838943205,
+      "last_entry": 1791309172318,
+      "total": 3,
+      "open": 0,
+      "wins": 0,
+      "losses": 2,
+      "flat": 1,
+      "pnl": -0.3478
+    },
+    {
+      "owner_run_id": "live_2d7872d4-0983-47f9-9842-957231912a6b",
+      "release": "m15-intraday-v4.2",
+      "first_entry": 1790775951138,
+      "last_entry": 1790775951138,
+      "total": 1,
+      "open": 0,
+      "wins": 0,
+      "losses": 1,
+      "flat": 0,
+      "pnl": -0.1758
+    },
+    {
+      "owner_run_id": "live_dd31bf2c-f431-45f2-9705-6aeb5983e261",
+      "release": "m15-intraday-v4.1",
+      "first_entry": 1790595034773,
+      "last_entry": 1790683212435,
+      "total": 3,
+      "open": 0,
+      "wins": 0,
+      "losses": 3,
+      "flat": 0,
+      "pnl": -0.35209999999999997
+    },
+    {
+      "owner_run_id": "live_a8458577-5451-4c6b-ae9b-adfe95d2fcf3",
+      "release": "m15-intraday-v3.3",
+      "first_entry": 1789343611727,
+      "last_entry": 1790352933881,
+      "total": 25,
+      "open": 0,
+      "wins": 6,
+      "losses": 16,
+      "flat": 3,
+      "pnl": -1.2692999999999999
+    },
+    {
+      "owner_run_id": "live_1407bb14-6eca-489a-bbcf-f1daf3b8506f",
+      "release": "m15-intraday-v3.2",
+      "first_entry": 1789064258833,
+      "last_entry": 1789092939863,
+      "total": 2,
+      "open": 0,
+      "wins": 1,
+      "losses": 1,
+      "flat": 0,
+      "pnl": -0.06529999999999998
+    },
+    {
+      "owner_run_id": "live_04421d2d-42ee-464d-94d5-20ffda6f6336",
+      "release": "m15-intraday-v3.1",
+      "first_entry": 1788919251451,
+      "last_entry": 1788959751358,
+      "total": 4,
+      "open": 0,
+      "wins": 1,
+      "losses": 3,
+      "flat": 0,
+      "pnl": -0.27680000000000005
+    },
+    {
+      "owner_run_id": "live_d52e2213-97c9-477c-85f9-fb7ce58a1571",
+      "release": "m15-intraday-v3",
+      "first_entry": 1788759945301,
+      "last_entry": 1788791445834,
+      "total": 4,
+      "open": 0,
+      "wins": 4,
+      "losses": 0,
+      "flat": 0,
+      "pnl": 0.8243
+    },
+    {
+      "owner_run_id": "live_f5fd0dc4-e049-45ea-be0f-6f48e4cf9dfd",
+      "release": "m15-intraday-v2",
+      "first_entry": 1788311100526,
+      "last_entry": 1788452134546,
+      "total": 5,
+      "open": 0,
+      "wins": 2,
+      "losses": 2,
+      "flat": 1,
+      "pnl": 0.18289999999999995
+    },
+    {
+      "owner_run_id": "live_66a3be18-deee-4b57-9f4a-10e6af7160a1",
+      "release": "m15-intraday-v1",
+      "first_entry": 1786365961268,
+      "last_entry": 1787312142226,
+      "total": 12,
+      "open": 0,
+      "wins": 3,
+      "losses": 6,
+      "flat": 3,
+      "pnl": -0.16669999999999996
+    },
+    {
+      "owner_run_id": "live_7b62da29-7325-4819-8df8-15466282a78d",
+      "release": null,
+      "first_entry": 1783364410209,
+      "last_entry": 1783364410209,
+      "total": 1,
+      "open": 0,
+      "wins": 0,
+      "losses": 1,
+      "flat": 0,
+      "pnl": -0.2144
+    },
+    {
+      "owner_run_id": "live_5cafbc39-06fa-4af5-ba3a-0cde9f60b8d7",
+      "release": null,
+      "first_entry": 1779895453237,
+      "last_entry": 1780319739854,
+      "total": 2,
+      "open": 0,
+      "wins": 0,
+      "losses": 2,
+      "flat": 0,
+      "pnl": -3.5091
+    },
+    {
+      "owner_run_id": "live_1cabd321-ced5-45b6-9f1b-c04c44d4279d",
+      "release": null,
+      "first_entry": 1777443358205,
+      "last_entry": 1779659336507,
+      "total": 13,
+      "open": 0,
+      "wins": 3,
+      "losses": 8,
+      "flat": 2,
+      "pnl": -5.628154004860164
+    },
+    {
+      "owner_run_id": "live_0c137edf-e5a9-48f5-94b8-771e08ef9bb0",
+      "release": null,
+      "first_entry": 1776861057198,
+      "last_entry": 1777278702714,
+      "total": 3,
+      "open": 0,
+      "wins": 0,
+      "losses": 2,
+      "flat": 1,
+      "pnl": -3.5385999999999997
+    },
+    {
+      "owner_run_id": "live_5c3ffdaa-a898-4ce1-8164-59989cbb94ac",
+      "release": null,
+      "first_entry": 1776194121897,
+      "last_entry": 1776769265000,
+      "total": 4,
+      "open": 0,
+      "wins": 0,
+      "losses": 4,
+      "flat": 0,
+      "pnl": -7.4271
+    },
+    {
+      "owner_run_id": null,
+      "release": null,
+      "first_entry": 1769136339278,
+      "last_entry": 1774336553473,
+      "total": 77,
+      "open": 0,
+      "wins": 18,
+      "losses": 52,
+      "flat": 7,
+      "pnl": -30.563999999999993
+    }
+  ],
+  "postLastWinner": {
+    "nonWinningTrades": 13,
+    "pnlAud": -1.781,
+    "description": "Includes breakeven scratches and a -A$0.0011 slipped breakeven; spans changed releases and is not one strategy-performance cohort.",
+    "lastPositiveBrokerTradeId": "3381"
+  },
+  "signalWindow": {
+    "fromUtc": "2026-10-07T01:22:21.382Z",
+    "throughUtc": "2026-10-17T02:58:29.910Z",
+    "runId": "live_5ceb61ff-bc9e-432a-ae6d-1d638c61f8d6",
+    "pairScans": 57912,
+    "allSavedSignalsHoldWait": true,
+    "entryDecisionRows": 0,
+    "reasonCounts": [
+      {
+        "reason_code": "INTRADAY_MOMENTUM_REGIME_NEUTRAL",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 13203,
+        "instrument_candles": 883,
+        "first_at": 1791342021525,
+        "last_at": 1792180769782
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_MARKET_CLOSED",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 13112,
+        "instrument_candles": 64,
+        "first_at": 1791406781571,
+        "last_at": 1792205909910
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_OUTSIDE_SESSION",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 12959,
+        "instrument_candles": 865,
+        "first_at": 1791336201532,
+        "last_at": 1792183469796
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_CANDLE_QUALITY",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 5388,
+        "instrument_candles": 361,
+        "first_at": 1791336201505,
+        "last_at": 1792179869713
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_CONFIRMATION_MISSING",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 4195,
+        "instrument_candles": 282,
+        "first_at": 1791336621509,
+        "last_at": 1792180769762
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_ADX_WEAK",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 3841,
+        "instrument_candles": 257,
+        "first_at": 1791336201579,
+        "last_at": 1792166371533
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_SELL_WAIT_FOR_RETEST",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 1912,
+        "instrument_candles": 132,
+        "first_at": 1791362721644,
+        "last_at": 1792180769710
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_BUY_WAIT_FOR_RETEST",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 1731,
+        "instrument_candles": 116,
+        "first_at": 1791337521514,
+        "last_at": 1792164571500
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_COST_TOO_HIGH",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 597,
+        "instrument_candles": 53,
+        "first_at": 1791391721556,
+        "last_at": 1792159531465
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_ROLLOVER_WINDOW",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 448,
+        "instrument_candles": 32,
+        "first_at": 1791405941565,
+        "last_at": 1792184309793
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_WAITING_FOR_POST_REOPEN_CANDLE",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 280,
+        "instrument_candles": 28,
+        "first_at": 1791407141570,
+        "last_at": 1792098871145
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_LOSS_RESET_EVIDENCE_UNAVAILABLE",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 152,
+        "instrument_candles": 30,
+        "first_at": 1791522274247,
+        "last_at": 1792158811480
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_NOT_TRADEABLE",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 60,
+        "instrument_candles": 8,
+        "first_at": 1791387981773,
+        "last_at": 1791393281585
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_BUY_WAIT_FOR_BREAK",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 30,
+        "instrument_candles": 2,
+        "first_at": 1791531034334,
+        "last_at": 1791533674362
+      },
+      {
+        "reason_code": "INTRADAY_MOMENTUM_WARMUP",
+        "signal": "HOLD",
+        "intent": "WAIT",
+        "scans": 4,
+        "instrument_candles": 4,
+        "first_at": 1791336141382,
+        "last_at": 1791336141436
+      }
+    ],
+    "dailyCoverage": [
+      {
+        "sydney_date": "2026-10-07",
+        "instrument": "AUD_USD",
+        "scans": 698,
+        "candles": 47,
+        "first_at": 1791336141382,
+        "last_at": 1791377961733,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-07",
+        "instrument": "EUR_USD",
+        "scans": 698,
+        "candles": 47,
+        "first_at": 1791336141401,
+        "last_at": 1791377961761,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-07",
+        "instrument": "GBP_USD",
+        "scans": 698,
+        "candles": 47,
+        "first_at": 1791336141421,
+        "last_at": 1791377961778,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-07",
+        "instrument": "USD_JPY",
+        "scans": 698,
+        "candles": 47,
+        "first_at": 1791336141436,
+        "last_at": 1791377961798,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-08",
+        "instrument": "AUD_USD",
+        "scans": 1439,
+        "candles": 96,
+        "first_at": 1791378021737,
+        "last_at": 1791464381914,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-08",
+        "instrument": "EUR_USD",
+        "scans": 1439,
+        "candles": 96,
+        "first_at": 1791378021760,
+        "last_at": 1791464381941,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-08",
+        "instrument": "GBP_USD",
+        "scans": 1439,
+        "candles": 96,
+        "first_at": 1791378021777,
+        "last_at": 1791464381957,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-08",
+        "instrument": "USD_JPY",
+        "scans": 1439,
+        "candles": 96,
+        "first_at": 1791378021802,
+        "last_at": 1791464381978,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-09",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791464441922,
+        "last_at": 1791550774389,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-09",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791464441951,
+        "last_at": 1791550774416,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-09",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791464441964,
+        "last_at": 1791550774429,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-09",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791464441983,
+        "last_at": 1791550774465,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-10",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 33,
+        "first_at": 1791550834394,
+        "last_at": 1791637181511,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-10",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 33,
+        "first_at": 1791550834426,
+        "last_at": 1791637181540,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-10",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 33,
+        "first_at": 1791550834438,
+        "last_at": 1791637181556,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-10",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 33,
+        "first_at": 1791550834458,
+        "last_at": 1791637181574,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-11",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 1,
+        "first_at": 1791637241519,
+        "last_at": 1791723586668,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-11",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 1,
+        "first_at": 1791637241544,
+        "last_at": 1791723586701,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-11",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 1,
+        "first_at": 1791637241557,
+        "last_at": 1791723586717,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-11",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 1,
+        "first_at": 1791637241575,
+        "last_at": 1791723586739,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-12",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 64,
+        "first_at": 1791723646671,
+        "last_at": 1791809983437,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-12",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 64,
+        "first_at": 1791723646702,
+        "last_at": 1791809983455,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-12",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 64,
+        "first_at": 1791723646718,
+        "last_at": 1791809983468,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-12",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 64,
+        "first_at": 1791723646740,
+        "last_at": 1791809983487,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-13",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791810043449,
+        "last_at": 1791896377743,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-13",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791810043480,
+        "last_at": 1791896377768,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-13",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791810043495,
+        "last_at": 1791896377785,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-13",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791810043519,
+        "last_at": 1791896377809,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-14",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791896437756,
+        "last_at": 1791982774597,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-14",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791896437790,
+        "last_at": 1791982774625,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-14",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791896437803,
+        "last_at": 1791982774637,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-14",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791896437822,
+        "last_at": 1791982774656,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-15",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791982834607,
+        "last_at": 1792069170125,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-15",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791982834635,
+        "last_at": 1792069170152,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-15",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791982834648,
+        "last_at": 1792069170170,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-15",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1791982834668,
+        "last_at": 1792069170195,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-16",
+        "instrument": "AUD_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1792069230137,
+        "last_at": 1792155571421,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-16",
+        "instrument": "EUR_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1792069230166,
+        "last_at": 1792155571445,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-16",
+        "instrument": "GBP_USD",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1792069230180,
+        "last_at": 1792155571461,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-16",
+        "instrument": "USD_JPY",
+        "scans": 1438,
+        "candles": 96,
+        "first_at": 1792069230200,
+        "last_at": 1792155571483,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-17",
+        "instrument": "AUD_USD",
+        "scans": 837,
+        "candles": 33,
+        "first_at": 1792155631424,
+        "last_at": 1792205909850,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-17",
+        "instrument": "EUR_USD",
+        "scans": 837,
+        "candles": 33,
+        "first_at": 1792155631449,
+        "last_at": 1792205909878,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-17",
+        "instrument": "GBP_USD",
+        "scans": 837,
+        "candles": 33,
+        "first_at": 1792155631467,
+        "last_at": 1792205909894,
+        "entry_intents": 0
+      },
+      {
+        "sydney_date": "2026-10-17",
+        "instrument": "USD_JPY",
+        "scans": 837,
+        "candles": 33,
+        "first_at": 1792155631490,
+        "last_at": 1792205909910,
+        "entry_intents": 0
+      }
+    ],
+    "patternContextCoverage": [
+      {
+        "scans": 4422,
+        "instrument_candles": 296,
+        "aligned_ready_scans": 0
+      }
+    ],
+    "patternClassifications": [
+      {
+        "instrument": "AUD_USD",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 1331,
+        "candles": 89
+      },
+      {
+        "instrument": "AUD_USD",
+        "buy_class": "WAIT_FOR_BREAK",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 117,
+        "candles": 8
+      },
+      {
+        "instrument": "AUD_USD",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "WAIT_FOR_BREAK",
+        "scans": 30,
+        "candles": 2
+      },
+      {
+        "instrument": "AUD_USD",
+        "buy_class": "WAIT_FOR_CONFIRMATION",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 15,
+        "candles": 1
+      },
+      {
+        "instrument": "AUD_USD",
+        "buy_class": "BREAK_CANCELLED",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 1,
+        "candles": 1
+      },
+      {
+        "instrument": "EUR_USD",
+        "buy_class": "WAIT_FOR_BREAK",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 554,
+        "candles": 37
+      },
+      {
+        "instrument": "EUR_USD",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 450,
+        "candles": 30
+      },
+      {
+        "instrument": "EUR_USD",
+        "buy_class": "BREAK_CANCELLED",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 1,
+        "candles": 1
+      },
+      {
+        "instrument": "GBP_USD",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "WAIT_FOR_BREAK",
+        "scans": 568,
+        "candles": 38
+      },
+      {
+        "instrument": "GBP_USD",
+        "buy_class": "WAIT_FOR_BREAK",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 349,
+        "candles": 24
+      },
+      {
+        "instrument": "GBP_USD",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 328,
+        "candles": 22
+      },
+      {
+        "instrument": "GBP_USD",
+        "buy_class": "BREAK_CANCELLED",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 3,
+        "candles": 3
+      },
+      {
+        "instrument": "GBP_USD",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "BREAK_CANCELLED",
+        "scans": 2,
+        "candles": 2
+      },
+      {
+        "instrument": "USD_JPY",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "WAIT_FOR_RETEST",
+        "scans": 540,
+        "candles": 36
+      },
+      {
+        "instrument": "USD_JPY",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "WAIT_FOR_BREAK",
+        "scans": 131,
+        "candles": 9
+      },
+      {
+        "instrument": "USD_JPY",
+        "buy_class": "WAIT_FOR_RETEST",
+        "sell_class": "BREAK_CANCELLED",
+        "scans": 2,
+        "candles": 2
+      }
+    ],
+    "legacyEvidenceFailures": [
+      {
+        "instrument": "AUD_USD",
+        "side": "BUY",
+        "anchor_id": "2867",
+        "anchor_closed_at": null,
+        "buy_ready": 0,
+        "sell_ready": 0,
+        "scans": 73,
+        "candles": 21
+      },
+      {
+        "instrument": "GBP_USD",
+        "side": "BUY",
+        "anchor_id": "2858",
+        "anchor_closed_at": null,
+        "buy_ready": 0,
+        "sell_ready": 0,
+        "scans": 79,
+        "candles": 9
+      }
+    ]
+  },
+  "latestAnchors": [
+    {
+      "instrument": "AUD_USD",
+      "side": "BUY",
+      "oanda_trade_id": "2867",
+      "exit_reason": "STOP_LOSS",
+      "exit_time": 1780320094230,
+      "broker_closed_at": 1780320094230,
+      "reconciliation_status": "RECONCILED",
+      "close_time_evidence": null,
+      "close_trade_time": null,
+      "broker_state": null,
+      "fill_time": null
+    },
+    {
+      "instrument": "AUD_USD",
+      "side": "SELL",
+      "oanda_trade_id": "3487",
+      "exit_reason": "STOP_LOSS",
+      "exit_time": 1790779834656,
+      "broker_closed_at": 1790779834656,
+      "reconciliation_status": "RECONCILED",
+      "close_time_evidence": "{\"brokerTradeId\":\"3487\",\"confirmedBrokerClosedAt\":1790779834656,\"source\":\"BROKER_CLOSED_TRADE\"}",
+      "close_trade_time": "1790779834.655786070",
+      "broker_state": "CLOSED",
+      "fill_time": null
+    },
+    {
+      "instrument": "EUR_USD",
+      "side": "BUY",
+      "oanda_trade_id": "3519",
+      "exit_reason": "STOP_LOSS",
+      "exit_time": 1791311794921,
+      "broker_closed_at": 1791311794921,
+      "reconciliation_status": "RECONCILED",
+      "close_time_evidence": "{\"brokerTradeId\":\"3519\",\"confirmedBrokerClosedAt\":1791311794921,\"source\":\"BROKER_CLOSED_TRADE\"}",
+      "close_trade_time": "1791311794.920621947",
+      "broker_state": "CLOSED",
+      "fill_time": null
+    },
+    {
+      "instrument": "EUR_USD",
+      "side": "SELL",
+      "oanda_trade_id": "3413",
+      "exit_reason": "SESSION_CLOSE",
+      "exit_time": 1790196304804,
+      "broker_closed_at": 1790196304804,
+      "reconciliation_status": "RECONCILED",
+      "close_time_evidence": "{\"brokerTradeId\":\"3413\",\"confirmedBrokerClosedAt\":1790196304804,\"source\":\"BROKER_CLOSED_TRADE\"}",
+      "close_trade_time": "1790196304.803833637",
+      "broker_state": "CLOSED",
+      "fill_time": "1790196304.803833637"
+    },
+    {
+      "instrument": "GBP_USD",
+      "side": "BUY",
+      "oanda_trade_id": "2858",
+      "exit_reason": "STOP_LOSS",
+      "exit_time": 1779929740626,
+      "broker_closed_at": 1779929740626,
+      "reconciliation_status": "RECONCILED",
+      "close_time_evidence": null,
+      "close_trade_time": null,
+      "broker_state": null,
+      "fill_time": null
+    },
+    {
+      "instrument": "GBP_USD",
+      "side": "SELL",
+      "oanda_trade_id": "2606",
+      "exit_reason": "EXTERNAL",
+      "exit_time": 1773904092164,
+      "broker_closed_at": null,
+      "reconciliation_status": null,
+      "close_time_evidence": null,
+      "close_trade_time": null,
+      "broker_state": null,
+      "fill_time": null
+    },
+    {
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "oanda_trade_id": "3497",
+      "exit_reason": "STOP_LOSS",
+      "exit_time": 1790840848837,
+      "broker_closed_at": 1790840848837,
+      "reconciliation_status": "RECONCILED",
+      "close_time_evidence": "{\"brokerTradeId\":\"3497\",\"confirmedBrokerClosedAt\":1790840848837,\"source\":\"BROKER_CLOSED_TRADE\"}",
+      "close_trade_time": "1790840848.837309990",
+      "broker_state": "CLOSED",
+      "fill_time": null
+    },
+    {
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "oanda_trade_id": "3475",
+      "exit_reason": "BREAKEVEN_STOP",
+      "exit_time": 1790684038006,
+      "broker_closed_at": 1790684038006,
+      "reconciliation_status": "RECONCILED",
+      "close_time_evidence": "{\"brokerTradeId\":\"3475\",\"confirmedBrokerClosedAt\":1790684038006,\"source\":\"BROKER_CLOSED_TRADE\"}",
+      "close_trade_time": "1790684038.005640451",
+      "broker_state": "CLOSED",
+      "fill_time": null
+    }
+  ],
+  "durablePatternAndResetState": [
+    {
+      "state_key": "intraday-loss-reset:v1:AUD_USD:SELL:3435:96ff2004eb190d692f26",
+      "state_value": {
+        "version": 1,
+        "anchor": {
+          "tradeId": "078a691e-39f4-4a2e-8a64-3f6cfd8a333b",
+          "brokerTradeId": "3435",
+          "instrument": "AUD_USD",
+          "side": "SELL",
+          "exitReason": "STOP_LOSS",
+          "closedAt": 1790311101233,
+          "armed": true
+        },
+        "predicateSignature": "96ff2004eb190d692f26",
+        "resetAt": 1790316000000,
+        "rearmedAt": 1790546400000,
+        "lastObservedCloseAt": 1790776800000
+      },
+      "updated_at_ms": 1790776848101
+    },
+    {
+      "state_key": "intraday-loss-reset:v1:EUR_USD:BUY:3053:96ff2004eb190d692f26",
+      "state_value": {
+        "version": 1,
+        "anchor": {
+          "tradeId": "878ade84-d7a6-4674-a076-878a47a8efa9",
+          "brokerTradeId": "3053",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "exitReason": "STOP_LOSS",
+          "closedAt": 1788446225963,
+          "armed": true
+        },
+        "predicateSignature": "96ff2004eb190d692f26",
+        "resetAt": 1788508800000,
+        "rearmedAt": 1788512400000,
+        "lastObservedCloseAt": 1791302400000
+      },
+      "updated_at_ms": 1791302445378
+    },
+    {
+      "state_key": "intraday-loss-reset:v1:USD_JPY:BUY:3403:96ff2004eb190d692f26",
+      "state_value": {
+        "version": 1,
+        "anchor": {
+          "tradeId": "fac64fec-6d48-436c-a7f7-7b7b0d6e2ff9",
+          "brokerTradeId": "3403",
+          "instrument": "USD_JPY",
+          "side": "BUY",
+          "exitReason": "STOP_LOSS",
+          "closedAt": 1790181418898,
+          "armed": true
+        },
+        "predicateSignature": "96ff2004eb190d692f26",
+        "resetAt": 1790211600000,
+        "rearmedAt": 1790229600000,
+        "lastObservedCloseAt": 1790838000000
+      },
+      "updated_at_ms": 1790838035400
+    },
+    {
+      "state_key": "intraday-loss-reset:v1:AUD_USD:SELL:3487:96ff2004eb190d692f26",
+      "state_value": {
+        "version": 1,
+        "anchor": {
+          "tradeId": "3b2a8ef2-c82f-49c0-8a36-d300d52bf057",
+          "brokerTradeId": "3487",
+          "instrument": "AUD_USD",
+          "side": "SELL",
+          "exitReason": "STOP_LOSS",
+          "closedAt": 1790779834656,
+          "armed": true
+        },
+        "predicateSignature": "96ff2004eb190d692f26",
+        "resetAt": 1790838000000,
+        "rearmedAt": 1790874000000,
+        "lastObservedCloseAt": 1792184400000
+      },
+      "updated_at_ms": 1792184429699
+    },
+    {
+      "state_key": "intraday-sell-retest:v1:AUD_USD:8:5",
+      "state_value": {
+        "version": 1,
+        "instrument": "AUD_USD",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-10-14T12:30:00.000000000Z",
+          "closedAt": 1791981900000,
+          "level": 0.70036
+        },
+        "retest": null,
+        "confirmation": null,
+        "askEvidenceAvailable": true
+      },
+      "updated_at_ms": 1792184429717
+    },
+    {
+      "state_key": "intraday-sell-retest:v1:EUR_USD:8:5",
+      "state_value": {
+        "version": 1,
+        "instrument": "EUR_USD",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-09-25T20:45:00.000000000Z",
+          "closedAt": 1790370000000,
+          "level": 1.1392
+        },
+        "retest": null,
+        "confirmation": null,
+        "askEvidenceAvailable": true
+      },
+      "updated_at_ms": 1792184429741
+    },
+    {
+      "state_key": "intraday-sell-retest:v1:GBP_USD:8:5",
+      "state_value": {
+        "version": 1,
+        "instrument": "GBP_USD",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-10-16T15:45:00.000000000Z",
+          "closedAt": 1792166400000,
+          "level": 1.3339
+        },
+        "retest": null,
+        "confirmation": null,
+        "askEvidenceAvailable": true
+      },
+      "updated_at_ms": 1792184429757
+    },
+    {
+      "state_key": "intraday-sell-retest:v1:USD_JPY:8:3",
+      "state_value": {
+        "version": 1,
+        "instrument": "USD_JPY",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-10-14T18:15:00.000000000Z",
+          "closedAt": 1792002600000,
+          "level": 158.404
+        },
+        "retest": null,
+        "confirmation": null,
+        "askEvidenceAvailable": true
+      },
+      "updated_at_ms": 1792184429779
+    },
+    {
+      "state_key": "intraday-loss-reset:v1:USD_JPY:BUY:3497:96ff2004eb190d692f26",
+      "state_value": {
+        "version": 1,
+        "anchor": {
+          "tradeId": "d00348bb-d1f6-421b-97ef-48041aeb166d",
+          "brokerTradeId": "3497",
+          "instrument": "USD_JPY",
+          "side": "BUY",
+          "exitReason": "STOP_LOSS",
+          "closedAt": 1790840848837,
+          "armed": true
+        },
+        "predicateSignature": "96ff2004eb190d692f26",
+        "resetAt": 1790863200000,
+        "rearmedAt": 1791176400000,
+        "lastObservedCloseAt": 1792184400000
+      },
+      "updated_at_ms": 1792184429769
+    },
+    {
+      "state_key": "intraday-loss-reset:v1:EUR_USD:BUY:3519:96ff2004eb190d692f26",
+      "state_value": {
+        "version": 1,
+        "anchor": {
+          "tradeId": "727e9b14-35a3-47ee-a3c1-13fde002d6d0",
+          "brokerTradeId": "3519",
+          "instrument": "EUR_USD",
+          "side": "BUY",
+          "exitReason": "STOP_LOSS",
+          "closedAt": 1791311794921,
+          "armed": true
+        },
+        "predicateSignature": "96ff2004eb190d692f26",
+        "resetAt": 1791334800000,
+        "rearmedAt": 1791518400000,
+        "lastObservedCloseAt": 1792184400000
+      },
+      "updated_at_ms": 1792184429731
+    },
+    {
+      "state_key": "intraday-buy-retest:v1:AUD_USD:8:5",
+      "state_value": {
+        "version": 1,
+        "instrument": "AUD_USD",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-10-16T02:30:00.000000000Z",
+          "closedAt": 1792118700000,
+          "level": 0.69264
+        },
+        "retest": null,
+        "confirmation": null,
+        "bidEvidenceAvailable": true,
+        "consumed": false
+      },
+      "updated_at_ms": 1792184429724
+    },
+    {
+      "state_key": "intraday-buy-retest:v1:EUR_USD:8:5",
+      "state_value": {
+        "version": 1,
+        "instrument": "EUR_USD",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-10-14T17:00:00.000000000Z",
+          "closedAt": 1791998100000,
+          "level": 1.11266
+        },
+        "retest": null,
+        "confirmation": null,
+        "bidEvidenceAvailable": true,
+        "consumed": false
+      },
+      "updated_at_ms": 1792184429747
+    },
+    {
+      "state_key": "intraday-buy-retest:v1:GBP_USD:8:5",
+      "state_value": {
+        "version": 1,
+        "instrument": "GBP_USD",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-10-14T17:15:00.000000000Z",
+          "closedAt": 1791999000000,
+          "level": 1.31604
+        },
+        "retest": null,
+        "confirmation": null,
+        "bidEvidenceAvailable": true,
+        "consumed": false
+      },
+      "updated_at_ms": 1792184429762
+    },
+    {
+      "state_key": "intraday-buy-retest:v1:USD_JPY:8:3",
+      "state_value": {
+        "version": 1,
+        "instrument": "USD_JPY",
+        "breakoutBars": 8,
+        "lastProcessedCandleCloseTime": 1792184400000,
+        "breakout": {
+          "time": "2026-09-30T14:30:00.000000000Z",
+          "closedAt": 1790779500000,
+          "level": 157.006
+        },
+        "retest": null,
+        "confirmation": null,
+        "bidEvidenceAvailable": true,
+        "consumed": false
+      },
+      "updated_at_ms": 1792184429784
+    }
+  ],
+  "interpretation": [
+    "Saved signal history, not just current process counters, confirms no v6 actionable entry or execution attempt. Scans occurred daily on all four configured pairs.",
+    "Reason codes are the first failed gate. Raw scans repeat completed candles; per-reason distinct instrument/candle counts can overlap and must not be added as a unique opportunity total.",
+    "Retest state advances before strategy filters. Context is attached only after earlier gates pass. Among the 4422 scans/296 instrument-candle pairs that passed those gates, no direction-aligned retest was ready. This does not count all confirmations hidden behind earlier gates.",
+    "All eight current pair/side pattern states have no retained retest. EUR/USD SELL still uses its September 25 break at 1.1392; USD/JPY BUY still uses its September 30 break at 157.006. Frozen levels cancel only on a completed close through the original level. No age expiry/rebase is in the selected contract.",
+    "AUD/USD BUY and GBP/USD BUY also lack explicit confirmed broker close-time proof for ancient stop anchors 2867/2858. The records say RECONCILED, but the currently required proof is absent. All 152 scans reporting this limitation also lack ready retest patterns; recovering proof alone would not demonstrate missed v6 fills.",
+    "Normal broker sync handles open trades; already-closed historical rows 2867/2858 are not automatically refetched. Missing close proof can remain unavailable indefinitely. RECONCILED alone does not establish the timestamp proof required by confirmedCloseTime.",
+    "Current clean healthy runtime does not demonstrate continuous historical health or profitable expectancy. No outage is identified as the cause of the observed gap by this capture.",
+    "The recorded v3.3 cohort is negative. v5 had two losses and one scratch. v6 has no trades, hence no outcome evidence. Cross-release summaries cannot establish one strategy's expectancy.",
+    "The repository's frozen full historical performance baseline and indicator/exit comparisons remain unfinished. Correctness tests do not establish profitability."
+  ],
+  "followupScope": [
+    "Review frozen-level lifecycle against observed market paths before selecting any expiry/rebase rule; avoid inventing a timer merely to force cadence.",
+    "Address the demonstrated legacy close-evidence recovery gap with broker GET evidence and persisted provenance through a selected local correction and normal deployment; never substitute local observation time. This is separate from pattern eligibility and profitability.",
+    "Complete chronological cost-aware baseline/candidate evaluation, reporting cadence and net performance as well as implementation correctness.",
+    "Any live strategy change requires an explicit selected contract and preserves existing risk/ownership/one-way delivery rules."
+  ],
+  "changesMade": {
+    "source": false,
+    "settings": false,
+    "orders": false,
+    "processes": false,
+    "deployment": false,
+    "localEvidenceOnly": true
+  },
+  "reproduction": {
+    "databaseAccess": "sqlite3 -readonly -json /opt/forex-trading-bot/backend/data/trading.db",
+    "signalFilter": "run_id='live_5ceb61ff-bc9e-432a-ae6d-1d638c61f8d6'",
+    "reasonAggregation": "GROUP BY reason_code, signal, intent; COUNT(*) scans and COUNT(DISTINCT instrument || ':' || signal_candle_time) instrument_candles.",
+    "patternReadiness": "json_extract(decision_context,'$.currentDirection') matched to strategyContext.buyRetest.ready or sellRetest.ready.",
+    "caveat": "This file combines sequential read observations over several minutes; totals are dated captures, not an atomic snapshot. Secrets/raw account and full trade metadata are omitted."
+  }
+}

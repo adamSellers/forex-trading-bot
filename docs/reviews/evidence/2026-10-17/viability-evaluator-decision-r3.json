@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "EVALUATOR_RECOMMENDATION_AFTER_ALL_EIGHT_ORIGINAL_R3_RUNS",
+  "recordedAtUtc": "2026-10-17T09:44:11.520Z",
+  "recommendation": "SCRAP_CURRENT_V6_RULE_SET_AS_LIVE_STRATEGY",
+  "meaning": "Retire this current entry/episode/exit rule set from live use. Retain useful execution/reconciliation infrastructure. Any redesign is a new explicitly specified research candidate, not a profitable improvement already established by this review.",
+  "scope": "An evaluator assessment under the registered frame, following root confirmation that all 8 original processes exited 0. Independent full economic audit remains a separate artifact owned by the financial auditor.",
+  "evidence": [
+    {
+      "path": "docs/reviews/evidence/2026-10-17/viability-protocol-r3.json",
+      "sha256": "5c5d76cabd4df8e987ab5e1a069e819c2ce00bef03169817d1593c0da0d6c939"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/viability-full-summary-r3-complete.json",
+      "sha256": "8d092f86e532dc275a137ab7d5a90d1529d14bcb9066dc8005cc8ff15b32d4e1"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/cadence-audit-r3-full.json",
+      "sha256": "16bfb4ce71430d2928e7537554f4c192061893023448af03cf23c56a9181d333"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/viability-recent-summary-r3.json",
+      "sha256": "281d9cf5243993ab80dae220001a484d3d4f17b3adae343078bfcd75cdab1bd0"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/economic-audit-r3-recent.json",
+      "sha256": "e5e43bbd96025f48ef9d187d2b889098237b354f0468f2af5a256f26195a3808"
+    }
+  ],
+  "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "observations": [
+    {
+      "caseId": "r3-full-archive_components-ohlc",
+      "closedTrades": 2,
+      "netAud": -0.1101282314393425,
+      "totalNetR": -0.5634600599851685,
+      "meanNetR": -0.28173002999258423,
+      "conditionalDayClusterInterval": [
+        -0.536181448991599,
+        -0.02727861099356941
+      ],
+      "post2021NetAud": -0.005229451104874279,
+      "everyCalendarYear2022ThroughPartial2026Negative": false,
+      "netAudPerClosedTrade": -0.05506411571967125,
+      "entriesPer30CalendarDays": 0.02557533401119809,
+      "zeroEntryMonths": 76,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.002986376606420734
+    },
+    {
+      "caseId": "r3-full-archive_components-olhc",
+      "closedTrades": 3,
+      "netAud": -0.0845165787038521,
+      "totalNetR": -0.427253444711254,
+      "meanNetR": -0.14241781490375133,
+      "conditionalDayClusterInterval": [
+        -0.536181448991599,
+        0.13620661527391448
+      ],
+      "post2021NetAud": 0.020382201630616128,
+      "everyCalendarYear2022ThroughPartial2026Negative": false,
+      "netAudPerClosedTrade": -0.028172192901284032,
+      "entriesPer30CalendarDays": 0.038363001016797134,
+      "zeroEntryMonths": 75,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.002741943940863447
+    },
+    {
+      "caseId": "r3-full-current_medians-ohlc",
+      "closedTrades": 28,
+      "netAud": 0.42556279946096187,
+      "totalNetR": 2.208024662496678,
+      "meanNetR": 0.07885802366059565,
+      "conditionalDayClusterInterval": [
+        -0.2819176615691225,
+        0.4529705937785425
+      ],
+      "post2021NetAud": -0.8977394945712478,
+      "everyCalendarYear2022ThroughPartial2026Negative": true,
+      "netAudPerClosedTrade": 0.015198671409320066,
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "zeroEntryMonths": 56,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.01328366731633516
+    },
+    {
+      "caseId": "r3-full-current_medians-olhc",
+      "closedTrades": 28,
+      "netAud": 0.7045785504318429,
+      "totalNetR": 3.7355191821443,
+      "meanNetR": 0.13341139936229643,
+      "conditionalDayClusterInterval": [
+        -0.24974147852732914,
+        0.5197240885202912
+      ],
+      "post2021NetAud": -0.8961109353773568,
+      "everyCalendarYear2022ThroughPartial2026Negative": true,
+      "netAudPerClosedTrade": 0.025163519658280103,
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "zeroEntryMonths": 56,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.013295309237224875
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-ohlc",
+      "closedTrades": 28,
+      "netAud": 0.04153383016288928,
+      "totalNetR": 0.20463934486711732,
+      "meanNetR": 0.007308548030968476,
+      "conditionalDayClusterInterval": [
+        -0.33695415911487836,
+        0.38303383501074384
+      ],
+      "post2021NetAud": -1.0022505912753277,
+      "everyCalendarYear2022ThroughPartial2026Negative": true,
+      "netAudPerClosedTrade": 0.0014833510772460457,
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "zeroEntryMonths": 56,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.01383975389802125
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-olhc",
+      "closedTrades": 28,
+      "netAud": 0.01161118984786541,
+      "totalNetR": 0.04097137346453694,
+      "meanNetR": 0.0014632633380191765,
+      "conditionalDayClusterInterval": [
+        -0.3421002169239299,
+        0.3774753298651088
+      ],
+      "post2021NetAud": -1.0234758500291412,
+      "everyCalendarYear2022ThroughPartial2026Negative": true,
+      "netAudPerClosedTrade": 0.00041468535170947896,
+      "entriesPer30CalendarDays": 0.3580546761567733,
+      "zeroEntryMonths": 56,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.014087633220886665
+    },
+    {
+      "caseId": "r3-full-optimistic-ohlc",
+      "closedTrades": 40,
+      "netAud": 0.6599075529590269,
+      "totalNetR": 3.552927114354525,
+      "meanNetR": 0.08882317785886312,
+      "conditionalDayClusterInterval": [
+        -0.21709969405791735,
+        0.40641621952499324
+      ],
+      "post2021NetAud": -0.6662228129982286,
+      "everyCalendarYear2022ThroughPartial2026Negative": true,
+      "netAudPerClosedTrade": 0.016497688823975672,
+      "entriesPer30CalendarDays": 0.5115066802239618,
+      "zeroEntryMonths": 51,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.010409069923337604
+    },
+    {
+      "caseId": "r3-full-optimistic-olhc",
+      "closedTrades": 40,
+      "netAud": 0.3881277611191357,
+      "totalNetR": 2.061402652092452,
+      "meanNetR": 0.051535066302311305,
+      "conditionalDayClusterInterval": [
+        -0.2422472521693634,
+        0.368166739646619
+      ],
+      "post2021NetAud": -0.934881679864977,
+      "everyCalendarYear2022ThroughPartial2026Negative": true,
+      "netAudPerClosedTrade": 0.009703194027978392,
+      "entriesPer30CalendarDays": 0.5115066802239618,
+      "zeroEntryMonths": 51,
+      "openPositions": 0,
+      "financingCutoffCrossings": 0,
+      "sampledDrawdownFraction": 0.012031528113687436
+    }
+  ],
+  "reasons": [
+    "KEEP fails: all six coherent synthetic-cost day-cluster intervals leave the positive expectancy sign unresolved. Native-component worlds are negative but their spread proxy cannot establish actual-account returns.",
+    "Full-history synthetic net is positive but tiny: median cases earn A$0.4256–0.7046 over 6.42 years; stress cases retain A$0.0116–0.0415. Do not describe all cases as losing.",
+    "Every calendar year 2022–2025 and partial 2026 is negative in all six synthetic cases; full-period gains come from 2020–2021. This is retrospective temporal instability, not a newly reserved holdout.",
+    "Median/stress cadence is 28 filled episodes over 6.42 years; optimistic cadence 40. Observed inter-entry gaps reach 495.875 days in median/stress and 382.896 days even in optimistic worlds. The recent separate cohort has 0 entries in all eight cases.",
+    "The frozen-level/confirmation versus H1 timing mismatch explains a concrete design weakness, but this review has not isolated a profitable core component or validated an expiry/gate/target change. Another small live tweak has not earned promotion."
+  ],
+  "limits": [
+    "This recommendation is a practical refusal to continue the current rule set, not proof of mathematically negative expectancy under all possible quotes or a verdict on all FX strategies.",
+    "Two OHLC paths and static spread worlds are conditional scenarios, not exhaustive bounds, historical simultaneous quotes or exact future live-frequency forecasts.",
+    "Historical financing is modeled zero and unavailable; all final cases have 0 modeled rollover crossings and 0 open boundary positions.",
+    "Observed sampled drawdowns are at most 1.409%, below 5%; no exported entry decision was rejected for drawdown or broker margin. NAV-proxy precision remains disclosed."
+  ],
+  "noNewTrialOrFinancialSourceChange": true
+}

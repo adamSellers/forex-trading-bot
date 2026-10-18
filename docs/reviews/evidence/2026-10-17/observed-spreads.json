@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "OBSERVED_ACCOUNT_CLIENT_QUOTE_SPREAD_SUMMARY",
+  "capturedOnSydneyDate": "2026-10-17",
+  "source": "Aggregate query of saved open-market v6 signal decision_context.strategyContext.costs.spreadPips; no broker account or individual financial record export.",
+  "runId": "live_5ceb61ff-bc9e-432a-ae6d-1d638c61f8d6",
+  "weighting": "Repeated minute pair scans, not independent candle observations. Includes all saved open-market sessions/rollover observations. Descriptive present-account distributions only.",
+  "rows": [
+    {
+      "instrument": "AUD_USD",
+      "scans": 11002,
+      "minPips": 0.6,
+      "meanPips": 0.9120523541175277,
+      "medianPips": 0.8,
+      "p90Pips": 0.9,
+      "maxPips": 9.5,
+      "fractionAtOrBelow1_2": 0.9707325940738047
+    },
+    {
+      "instrument": "EUR_USD",
+      "scans": 11002,
+      "minPips": 0.8,
+      "meanPips": 1.0712052354117731,
+      "medianPips": 1,
+      "p90Pips": 1.1,
+      "maxPips": 9.4,
+      "fractionAtOrBelow1_2": 0.9662788583893838
+    },
+    {
+      "instrument": "GBP_USD",
+      "scans": 11002,
+      "minPips": 1.1,
+      "meanPips": 1.6895473550266005,
+      "medianPips": 1.5,
+      "p90Pips": 1.7,
+      "maxPips": 19.6,
+      "fractionAtOrBelow1_2": 0.04726413379385566
+    },
+    {
+      "instrument": "USD_JPY",
+      "scans": 11002,
+      "minPips": 0.6,
+      "meanPips": 1.1731230685330796,
+      "medianPips": 1,
+      "p90Pips": 1.2,
+      "maxPips": 9.4,
+      "fractionAtOrBelow1_2": 0.9270132703144883
+    }
+  ]
+}

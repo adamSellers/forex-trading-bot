@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "VIABILITY_DECISION_FRAME_PENDING_FULL_ECONOMIC_RESULTS",
+  "status": "FULL_ECONOMIC_CASES_PENDING; NO FINAL VERDICT IN THIS FRAME",
+  "protocol": {
+    "path": "docs/reviews/evidence/2026-10-17/viability-protocol-r2.json",
+    "sha256": "bdff32ac2bc7be02bdcaa5c198958182e64dabb7df6e4c569ccd7e257ab6398a",
+    "economicObjectives": {
+      "keep": "Positive portfolio net expectancy after explicit costs, with no sign reversal in declared plausible sensitivities, meaningful period coverage, cluster uncertainty not leaving positive sign unresolved, and reported achieved cadence/economic scale. No extra risk/capital assumption.",
+      "redesign": "A concrete useful component or observable structural mismatch supports a new independently specified candidate; this does not authorize live tuning.",
+      "scrap": "Reject the current rule set if even generous declared cases do not support credible positive net edge, or evidence supports continuing loss. Inconclusive results fail KEEP but do not prove profit is mathematically impossible.",
+      "economicScale": "Report achieved AUD and returns at A$100 starting account/current cap. No invented income target, extrapolated salary, or guaranteed growth."
+    }
+  },
+  "evidence": {
+    "docs/reviews/evidence/2026-10-17/viability-recent-summary.json": "36aaf39900ca91bdf54576d38ecf6df869faea92d9f3e2e0fc42a7d054e48b95",
+    "docs/reviews/evidence/2026-10-17/recent-independent-crosscheck.json": "00fdc62fa2bff7077f898c26ca8c9794c7a6e78983b7b3a35d10ef78694b2d88",
+    "docs/reviews/evidence/2026-10-17/unconditional-pattern-audit.json": "42cd2dba41a76255e7e972f0fe0284ae921f1d257ae20e1fcf8c185cf35ad8d2",
+    "docs/reviews/evidence/2026-10-17/full-pattern-screen.json": "f032ebb309061b2fa194e8da47f9b597cac824d4c199f94c3b7ff479adf06503"
+  },
+  "establishedFindings": [
+    {
+      "kind": "ACTUAL_PERSISTED_OFFLINE_CURRENT_RULE_COHORT",
+      "finding": "All eight declared cost/path cases in the separate September 15–October 17 retrospective cohort produced zero actionable candidates, zero trades and zero open boundary positions across 2,292 M15 boundaries. Source and accounting checks pass. Economic expectancy is undefined."
+    },
+    {
+      "kind": "INDEPENDENT_CURRENT_RULE_PATTERN_DIAGNOSTIC",
+      "finding": "The same recent native and optimistic worlds contain 34 raw completed confirmation candles from 32 breakout episodes. All fail before costs; of 33 with H1 context, 20 are neutral or weak and 13 oppose the confirmation direction. None align. The absence of admitted setups is not explained solely by spread, missing legacy proof, or broker submission failure."
+    },
+    {
+      "kind": "UNCONDITIONAL_HISTORICAL_NO_FILL_GEOMETRY_SCREEN",
+      "finding": "Across 159,934 chronological M15 boundaries, the independent native no-fill lineage has 1,497 raw confirmation candles: 56 BUY and 1,441 SELL. Only 111 align with the current H1 predicate. Opening-price/no-history evaluation emits 28 signals before order admission. These are not attainable portfolio trade counts or returns; feedback and within-candle repricing can change the full runtime outcome."
+    },
+    {
+      "kind": "DEMONSTRATED_CONTRACT_AND_MODELED_STATE",
+      "finding": "The current policies preserve a frozen broken level until a completed close cancels it. A confirmed/filled BUY consumes that episode until cancellation; a SELL confirmation resets on a later bar. A fresh local range break alone does not replace a still-active old level. This matches the implemented contract and creates strong path and initialization dependence. Some no-fill historical BUY levels persist from March 2020 or September 2022; those are modeled examples, not production history."
+    }
+  ],
+  "decisionUse": [
+    {
+      "outcome": "KEEP",
+      "rule": "Apply the already registered criterion exactly: credible positive cost-adjusted expectancy at the actual A$100/current-cap scale, stable under declared plausible path/cost sensitivities, meaningful period coverage and cluster uncertainty resolving the positive sign. A green software test, positive gross movement, a lone good case, or zero-trade zero-net result does not meet it."
+    },
+    {
+      "outcome": "REDESIGN",
+      "rule": "Use only if full evidence fails KEEP yet supplies a concrete defensible reason for a separately specified candidate. The demonstrated episode/H1 timing mismatch is a research hypothesis, not permission to select an expiry, relax a gate, increase capital or promote another live tweak. Any redesign must define its own thesis, cost model and future evaluation before outcomes."
+    },
+    {
+      "outcome": "SCRAP_CURRENT_RULE_SET",
+      "rule": "Use the registered criterion if generous cases still fail to support credible positive net edge or economic evidence supports continued loss. Distinguish the practical decision to retire this strategy from a statistical claim that all FX strategies are impossible. A lack of power can justify refusing continued live use without proving mathematically negative expectancy."
+    }
+  ],
+  "requiredReporting": [
+    "Lead with one clear keep/redesign/scrap recommendation after all full cases finish; preserve statistical uncertainty rather than disguising it as a verdict.",
+    "Separate observed production outcomes, isolated software reproduction, full conditional replay and hypothetical no-fill geometry. The 13 recent live losses span releases and are not 13 independent v6 losses.",
+    "Explain missing-proof recovery and deployment separately; correct execution/evidence plumbing cannot establish strategy edge.",
+    "Report net AUD/R, cost sensitivities, trade-bearing days/periods, droughts, sampled drawdown, risk-gate attribution and open boundary positions. Native independent side components do not establish contemporaneous account spreads.",
+    "Do not pool the recent cold-start cohort with the historical portfolio across the unobserved August gap. Do not call repeated scans independent opportunities.",
+    "No final profit recommendation is made by this frame while the full economic cases remain pending."
+  ]
+}

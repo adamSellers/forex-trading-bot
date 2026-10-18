@@ -30,7 +30,7 @@ function comparable(value) {
 }
 
 async function createPersistedReplay({ database, clock, market, broker, config = {}, onDatabaseClosed = null,
-    configPath: suppliedConfigPath = null, priorEvents = [], pricingRequestTimeoutMs = null }) {
+    configPath: suppliedConfigPath = null, priorEvents = [], pricingRequestTimeoutMs = null, captureEvents = true }) {
     if (process.env.NODE_ENV !== 'test' || process.env.RESEARCH_REPLAY_ISOLATED !== '1') {
         throw new Error('Persisted replay requires the isolated research test process');
     }
@@ -92,6 +92,7 @@ async function createPersistedReplay({ database, clock, market, broker, config =
         market.advanceTo(clock.nowMs());
     }
     async function recordEvent(kind, signals = []) {
+        if (!captureEvents) return;
         const { account } = await broker.getAccountSummary();
         const event = { time: clock.nowMs(), monotonicMs: clock.monoMs(),
             signals: signals.map(({ symbol, signal, signalClass, reasonCode, entryType, setupId }) =>

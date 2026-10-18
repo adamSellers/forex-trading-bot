@@ -51,7 +51,7 @@ function createReplayTestHarness() {
     async function replay({ input, assets, startMs = fixtures.START, initialBalanceAud = 100,
         brokerOptions = {}, modelPricing = fixtures.pricingAssumptions, databasePath = ':memory:',
         configPath, brokerCheckpoint, priorEvents, monotonicMs = 0, uuidStart = 0,
-        marketFactory = null, beforeBoot = null, pricingRequestTimeoutMs = null }) {
+        marketFactory = null, beforeBoot = null, pricingRequestTimeoutMs = null, captureEvents = true }) {
         uuidSequence = uuidStart;
         const clock = new ReplayClock(startMs, { monotonicMs });
         clock.install();
@@ -68,6 +68,7 @@ function createReplayTestHarness() {
         if (beforeBoot) await beforeBoot({ clock, market, broker, database });
         const harness = await createPersistedReplay({ database, clock, market, broker,
             config: { ...cloneDefaultConfig(), assets }, configPath, priorEvents, pricingRequestTimeoutMs,
+            captureEvents,
             onDatabaseClosed: () => { database = null; } });
         resources.push(harness);
         return harness;

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "UNSCORED_ACTUAL_REPLAY_NATIVE_TIMER_SCHEDULING_OBSERVATION",
+  "observedAtUtc": "2026-10-17T08:44:00.056Z",
+  "scope": "Existing 28-boundary filled actual-orchestration software fixture only; no historical job/source mutation or economic verdict.",
+  "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "all119FinancialSourcesUnchanged": true,
+  "completeResultExactExceptElapsedSeconds": true,
+  "passiveInstrumentation": "Captured native setTimeout before fake clocks. At first actual scored boundary, scheduled a50ms callback that only records a timestamp. On evaluator COMPLETE, recorded whether it had fired. No yield or financial call was added.",
+  "observation": {
+    "schemaVersion": 1,
+    "purpose": "UNSCORED_PASSIVE_NATIVE_TIMER_EVENT_LOOP_PROBE",
+    "timerBudgetMs": 50,
+    "startedAfterFirstActualScoredBoundary": true,
+    "completion": {
+      "elapsedSinceFirstBoundaryMs": 5254.614,
+      "native50msTimerFiredBeforeCompletion": false,
+      "nativeTimerDelayMs": null
+    },
+    "nativeTimerEventuallyFired": true,
+    "eventualNativeTimerDelayMs": 5256.535916000001
+  },
+  "explanation": "The native callback did not run during5254.614ms of actual replay work and fired after5256.536ms. Async/await over synchronous better-sqlite3 operations can remain in a long microtask chain; native timers are not preemptive.",
+  "budgetConclusion": "Circus installs a real native2h timeout, but its callback can be delayed by replay event-loop starvation. This is not a proven hard wall-clock termination at2h. Existing historical jobs may or may not yield differently; do not infer either timeout or immunity from this bounded observation.",
+  "activation": "Runtime-repair contingency remains dormant until an actual timeout failure is observed. No historical retry launched.",
+  "preservedFiles": [
+    {
+      "path": "backend/data/backtests/viability-20261017/software-r3/viability-native-timer-probe-setup.cjs",
+      "sha256": "e2dceb9d6935284c626454f36fc415051d46e78815999cd89cfa03d44d7b654f"
+    },
+    {
+      "path": "backend/data/backtests/viability-20261017/software-r3/viability-native-timer-probe-launch.cjs",
+      "sha256": "39cf79f08d3ca048561c366e093377afe31196192249bc1abb3437d33a2cbb90"
+    },
+    {
+      "path": "backend/data/backtests/viability-20261017/software-r3/viability-native-timer-probe-observation.json",
+      "sha256": "448a144dabdca9026ed0c2575208593b4c87863d0c08986033eb59751df4dab1"
+    }
+  ],
+  "rawResult": {
+    "path": "backend/data/backtests/viability-20261017/software-r3/native-timer-probe-result.json",
+    "sha256": "c0a6debe6eaa502433698bf79df23289bca92112c0eeca50cdb561be5f785f67"
+  }
+}

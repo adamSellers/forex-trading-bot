@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-17T07:05:48.432Z",
+  "scope": "Final local ordinary backend regression after r3research correction; no production deployment of research",
+  "runtime": "Node22.23.1",
+  "command": "npm --prefix backend test -- --runInBand",
+  "exitCode": 0,
+  "passedSuites": 70,
+  "passedTests": 1353,
+  "skippedSuites": 1,
+  "skippedTests": 1,
+  "skipMeaning": "Historical economic driver opts in only through registered spec; scored cohorts run separately.",
+  "elapsedSeconds": 18.23,
+  "sourceFiles": 119,
+  "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "logSha256": "0f6859625dd6c1994060a07e379ac271a105c44491b99b138552020cd241269c",
+  "focusedValidation": "viability-software-r3.json records corrected filled/recent full-ledger optimization parity and injected lifecycle/restart checks",
+  "productionRecoveryTargetChecks": {
+    "passedTests": 1336,
+    "passedSuites": 68,
+    "sourceCommit": "519b428"
+  }
+}

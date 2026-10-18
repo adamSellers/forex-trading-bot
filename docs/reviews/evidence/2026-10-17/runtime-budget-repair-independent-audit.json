@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_RUNTIME_BUDGET_CONTINGENCY_AUDIT",
+  "auditedAtUtc": "2026-10-17T08:00:39.518Z",
+  "nodeVersion": "22.23.1",
+  "status": "PASS_FOR_DORMANT_SOFTWARE_ONLY_CONTINGENCY",
+  "scope": "Read-only source/registration inspection and independent full-result comparison; no historical job started, stopped or changed.",
+  "inputs": [
+    {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-helper.cjs",
+      "sha256": "7e73cc42d61e982d5800c67f5fff659c0d9a127b6b39af9dc7e17f7c09e6e930"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-launcher.cjs",
+      "sha256": "83b6795e964b12444b86707603c398d6c8d7f473219724c17de5548011d8c165"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-plan.json",
+      "sha256": "bbbca90939359a167175e733c199f59253a918490090c7ab249db4f627f78acc"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-software-validation.json",
+      "sha256": "c6b67359b77f088cb445a284a542922a6250691c4e58d0c3619d65b807aa622e"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-software-registration.json",
+      "sha256": "651e3da05816de1b84ce1ea7bd28359681d00412388613bae0419adf09f1de6d"
+    },
+    {
+      "path": "/private/tmp/viability-r3-validation/filled-on-result.json",
+      "sha256": "b46843691b3d3488ca116693055feceedccaa7f4759b4b8c5e258547e3c072c7"
+    },
+    {
+      "path": "backend/data/backtests/viability-20261017/software-r3/runtime-budget-control.json",
+      "sha256": "36a301ad05f091adce57b5efd2441b5c15fdf96fbfd75547af29eb2ca038414e"
+    },
+    {
+      "path": "backend/data/backtests/viability-20261017/software-r3/runtime-budget-control.json.runtime-repair.json",
+      "sha256": "622256402c3903566c9dcb9a80c702fb8f386c068c51d17a523c02954fffb474"
+    }
+  ],
+  "checks": {
+    "completeResultDeepEqualityExceptElapsedSeconds": true,
+    "sourceCount": 119,
+    "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+    "allCurrentFinancialSourcesMatch": true,
+    "sidecarMatchesValidation": true,
+    "helperOnlyChangesRegisteredTimeoutArgument": true,
+    "testFunctionAndExistingSetupPreserved": true,
+    "originalTimeoutMs": 7200000,
+    "extendedTimeoutMs": 21600000,
+    "closedTrades": 1,
+    "netAud": -0.020724909851225284,
+    "totalNetR": -0.11940298507442405
+  },
+  "activationLimits": [
+    "No historical rerun is authorized by dormant plan or this audit. Actual native Jest timeout must occur first.",
+    "Launcher verifies preserved timeout-log hash and generic native Jest timeout text. It does not itself parse the exact failed case, test-name, or 7200000ms value from that log. The separately hashed ACTUAL_TIMEOUT_RECOVERY registration must associate the exact failed attempt/spec and preserved log as the plan requires.",
+    "Any later retry requires the exact original financial spec and source pins, fresh output and isolated DB; full economic and cadence audit still required.",
+    "Software equality of this nonzero fixture supports the isolated timeout amendment. It does not establish financial strategy profitability or exhaustive implementation equivalence."
+  ]
+}

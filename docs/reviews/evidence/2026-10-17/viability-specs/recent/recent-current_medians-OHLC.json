@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "evaluationUse": "RETROSPECTIVE",
+  "caseId": "recent-current_medians-OHLC",
+  "archivePath": "/Users/adams/code/forex-trading-bot/backend/data/historical/viability_20261017_recent.json",
+  "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+  "archiveGranularity": "M15",
+  "assets": [
+    "AUD_USD",
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY"
+  ],
+  "fromUtc": "2026-09-15T00:00:00Z",
+  "toUtcExclusive": "2026-10-17T00:00:00Z",
+  "initialBalanceAud": 100,
+  "pathOrder": "OHLC",
+  "spreadPips": {
+    "AUD_USD": 0.8,
+    "EUR_USD": 1,
+    "GBP_USD": 1.5,
+    "USD_JPY": 1
+  },
+  "slippagePips": 0.2,
+  "commissionAud": 0,
+  "scanMode": "COMPRESSED_STATIC_HOLDS",
+  "protocolPath": "/Users/adams/code/forex-trading-bot/docs/reviews/evidence/2026-10-17/viability-protocol-r2.json",
+  "protocolSha256": "bdff32ac2bc7be02bdcaa5c198958182e64dabb7df6e4c569ccd7e257ab6398a",
+  "cohortInterpretation": "Separate retrospective recent cold-start cohort; 40day prefix. Unknown Aug3–5 bridge is not filled or joined to historical cash/episode state.",
+  "launchRegistrationPath": "/Users/adams/code/forex-trading-bot/docs/reviews/evidence/2026-10-17/viability-launch.json",
+  "launchRegistrationSha256": "220eff9d8cd5ecd4d3a313ea6729e88c71f6c4eb3fd0ab3948763b0b916a52a3"
+}

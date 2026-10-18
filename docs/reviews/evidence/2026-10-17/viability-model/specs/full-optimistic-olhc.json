@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "evaluationUse": "RETROSPECTIVE",
+  "caseId": "full-optimistic-olhc",
+  "archivePath": "/Users/adams/code/forex-trading-bot/backend/data/historical/research_M15_MBA_20200101_20260803.json",
+  "archiveSha256": "fd30b7bc2f98f2d362c2be658338d944f9fade5c01dd142d1b91f470b0a75b5d",
+  "assets": [
+    "AUD_USD",
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY"
+  ],
+  "fromUtc": "2020-03-01T00:00:00Z",
+  "toUtcExclusive": "2026-08-03T00:15:00Z",
+  "initialBalanceAud": 100,
+  "pathOrder": "OLHC",
+  "spreadPips": {
+    "AUD_USD": 0.6,
+    "EUR_USD": 0.8,
+    "GBP_USD": 1.1,
+    "USD_JPY": 0.6
+  },
+  "slippagePips": 0,
+  "commissionAud": 0,
+  "scanMode": "COMPRESSED_STATIC_HOLDS",
+  "protocolId": "v6-current-viability-2026-10-17-r2",
+  "protocolSha256": "bdff32ac2bc7be02bdcaa5c198958182e64dabb7df6e4c569ccd7e257ab6398a",
+  "inputManifestSha256": "68fdb8b9a72c1acf07f23f5e65d04c5bcad2d7e31868f4aa92c8932372040ca2",
+  "launchSha256": "220eff9d8cd5ecd4d3a313ea6729e88c71f6c4eb3fd0ab3948763b0b916a52a3"
+}

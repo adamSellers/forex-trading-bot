@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-10-17T06:53:20.261Z",
+  "status": "ABANDONED",
+  "candidateId": "v6-current-viability-2026-10-17-r2",
+  "reason": "Known 1% home-currency settlement markup omitted from counterfactual conversion; account instrument margins also differ from static5%. Exact corrected causal replay required; no fixed-ledger overlay claimed as portfolio returns.",
+  "recent": "All8zeroentryresults retained as earlier software/cadence checkpoint, not final corrected model.",
+  "sourceBundle": {
+    "path": "backend/data/backtests/viability-20261017/abandoned-r2-source.json.gz",
+    "sha256": "cb59031151c67c950f71bca1032bc9c1f694dd148a29913a478e31fb7462c37e"
+  },
+  "proof": [
+    "docs/reviews/evidence/2026-10-17/home-conversion-proof.json",
+    "docs/reviews/evidence/2026-10-17/instrument-metadata-proof.json"
+  ],
+  "cases": [
+    {
+      "cost": "optimistic",
+      "pathOrder": "ohlc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-optimistic-ohlc.log",
+      "progressLogSha256": "419584e894d67b5c5b19d4ab93c0c670753e924ead82131b99543a7d54a0ebcb",
+      "lastProgressLine": "viability full-optimistic-ohlc: 39300/159934, trades=18, elapsed=1824.1s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    },
+    {
+      "cost": "optimistic",
+      "pathOrder": "olhc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-optimistic-olhc.log",
+      "progressLogSha256": "74f231baef4b49ed8569c4715ea463145d786204985be2ce2c759166fabd73a4",
+      "lastProgressLine": "viability full-optimistic-olhc: 39400/159934, trades=18, elapsed=1828.3s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    },
+    {
+      "cost": "current_medians",
+      "pathOrder": "ohlc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-current_medians-ohlc.log",
+      "progressLogSha256": "a10fed7108d0190bab110f9f97b94c05276e26d69efd0cc979829f7bb728d75f",
+      "lastProgressLine": "viability full-current_medians-ohlc: 45300/159934, trades=11, elapsed=1828.6s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    },
+    {
+      "cost": "current_medians",
+      "pathOrder": "olhc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-current_medians-olhc.log",
+      "progressLogSha256": "be2a572af7627cfb7cc7aa5c26e13aa48ed1d1aceea36f2c71aef7f492fb6c1b",
+      "lastProgressLine": "viability full-current_medians-olhc: 45100/159934, trades=11, elapsed=1828.8s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    },
+    {
+      "cost": "current_p90_stress",
+      "pathOrder": "ohlc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-current_p90_stress-ohlc.log",
+      "progressLogSha256": "777215f23074abfe228f5871ca4468b8789fefe5910aad2e6fce4b7823fbc183",
+      "lastProgressLine": "viability full-current_p90_stress-ohlc: 45300/159934, trades=11, elapsed=1825.7s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    },
+    {
+      "cost": "current_p90_stress",
+      "pathOrder": "olhc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-current_p90_stress-olhc.log",
+      "progressLogSha256": "61cbcb73e4f6824955fc628cb23588f0b49f63d718cabe4820ba60c258832204",
+      "lastProgressLine": "viability full-current_p90_stress-olhc: 45100/159934, trades=11, elapsed=1827.2s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    },
+    {
+      "cost": "archive_components",
+      "pathOrder": "ohlc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-archive_components-ohlc.log",
+      "progressLogSha256": "f0e518e4b712ea1daf355e49d22552626440ba9bef8db9f16c6f48c04228e7e3",
+      "lastProgressLine": "viability full-archive_components-ohlc: 52700/159934, trades=1, elapsed=1829.3s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    },
+    {
+      "cost": "archive_components",
+      "pathOrder": "olhc",
+      "progressLogPath": "backend/data/backtests/viability-20261017/abandoned-r2-logs/full-archive_components-olhc.log",
+      "progressLogSha256": "4cd5101a807da09f69566d97fc8b278c489711ec09edeb3dd85ffc4f9e54646a",
+      "lastProgressLine": "viability full-archive_components-olhc: 52900/159934, trades=1, elapsed=1829.9s",
+      "completedResultExists": false,
+      "termination": "REQUESTED_SIGTERM_EXIT1"
+    }
+  ]
+}

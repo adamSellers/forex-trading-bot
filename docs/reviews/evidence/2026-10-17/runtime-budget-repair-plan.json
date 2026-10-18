@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "DORMANT_ACTUAL_TIMEOUT_ONLY_RECOVERY_PLAN",
+  "status": "DORMANT; NO HISTORICAL CASE AUTHORIZED_OR_RERUN_BY_THIS_PLAN",
+  "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "financialSourceCount": 119,
+  "softwareValidation": {
+    "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-software-validation.json",
+    "sha256": "c6b67359b77f088cb445a284a542922a6250691c4e58d0c3619d65b807aa622e",
+    "fullResultEqualExceptElapsedSeconds": true
+  },
+  "helper": {
+    "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-helper.cjs",
+    "sha256": "7e73cc42d61e982d5800c67f5fff659c0d9a127b6b39af9dc7e17f7c09e6e930"
+  },
+  "launcher": {
+    "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-launcher.cjs",
+    "sha256": "83b6795e964b12444b86707603c398d6c8d7f473219724c17de5548011d8c165"
+  },
+  "mechanism": "A separately pinned Jest setup file proxies global test registration, verifies the original single test name/function/7,200,000ms argument and forwards that unchanged function with a21,600,000ms native budget. Existing original test module,119 financial sources, spec registration and all numerical inputs remain unchanged. Existing historical processes are never touched.",
+  "activationRequirements": [
+    "Wait for an actual original scored case to fail with native Jest timeout; a projection of slowness is insufficient.",
+    "Preserve the original failed attempt log and its SHA256, original spec bytes/SHA, launch/protocol/input registrations and source119 closure. Do not overwrite them or count failed attempts as completed outcomes.",
+    "Before any rerun, write and hash a new ACTUAL_TIMEOUT_RECOVERY registration using the template below, one allowedCases row for each actually timed-out case.",
+    "Use the exact original case specification, same supported Node runtime, data, cost/path/metadata assumptions and a fresh output path. Each case cold-starts its full original cohort; there is no partial-state resume.",
+    "After rerun success, retain the raw output unchanged and its .runtime-repair.json sidecar. Independent economic audit and cadence audit still apply; failure and runtime-only repair lineage remain visible."
+  ],
+  "registrationTemplate": {
+    "schemaVersion": 1,
+    "artifactKind": "REGISTERED_EXTERNAL_TIMEOUT_ONLY_ACTUAL_RECOVERY",
+    "mode": "ACTUAL_TIMEOUT_RECOVERY",
+    "registeredAtUtc": "SET_BEFORE_ANY_REPAIRED_RUN",
+    "testName": "runs the frozen rules through actual persisted coordinator, entry, risk and exits",
+    "originalTimeoutMs": 7200000,
+    "extendedTimeoutMs": 21600000,
+    "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+    "helper": {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-helper.cjs",
+      "sha256": "7e73cc42d61e982d5800c67f5fff659c0d9a127b6b39af9dc7e17f7c09e6e930"
+    },
+    "launcher": {
+      "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-launcher.cjs",
+      "sha256": "83b6795e964b12444b86707603c398d6c8d7f473219724c17de5548011d8c165"
+    },
+    "allowedCases": [
+      {
+        "caseId": "EXACT_TIMED_OUT_CASE_ID",
+        "specSha256": "SHA256_OF_ORIGINAL_SPEC_BYTES",
+        "trigger": {
+          "kind": "ACTUAL_NATIVE_JEST_TIMEOUT",
+          "originalTimeoutMs": 7200000,
+          "logPath": "PATH_TO_PRESERVED_ACTUAL_FAILED_ATTEMPT_LOG",
+          "logSha256": "SHA256_OF_THAT_LOG"
+        }
+      }
+    ]
+  },
+  "commandTemplate": "NODE_GYP_FORCE_PYTHON=/usr/bin/false /path/to/same-node22 docs/reviews/evidence/2026-10-17/runtime-budget-repair-launcher.cjs /absolute/original-spec.json /absolute/NEW-result.json /absolute/registered-runtime-repair.json SHA256_OF_RUNTIME_REGISTRATION",
+  "outputContract": "Raw economic result schema/spec/source pins remain original r3. A separate runtime-repair sidecar records added executable hashes, original/extended timeout, registration proof, actual runtime/version, attempt exit and raw result hash. It does not rewrite the financial result.",
+  "limits": [
+    "This controls software execution budget only; it supplies no new economic evidence by itself.",
+    "Source/executable hash verification and complete software-fixture equality are evidence of the isolated amendment; they do not prove historical profitability or independent statistical samples.",
+    "No supported mechanism extends the timer of an already running original Circus test; the contingency only applies to a separately launched, registered retry after actual timeout."
+  ]
+}

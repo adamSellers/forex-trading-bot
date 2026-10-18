@@ -1,0 +1,2115 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_COST_ACCOUNTING_AND_DAY_EPISODE_CLUSTER_AUDIT",
+  "cohort": "RECENT_SEPARATE_COLD_START",
+  "costRevision": "R3_KNOWN_SETTLEMENT_MARKUP",
+  "runtime": "v22.23.1",
+  "toolSha256": "add5b2c787510b35ea6599dfc55e12cba59c1f7df49f859c1adca84e1f7b5075",
+  "caseCount": 8,
+  "allAccountingAssertionsPassed": true,
+  "cases": [
+    {
+      "caseId": "r3-recent-archive_components-ohlc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-archive_components-ohlc.json",
+      "resultSha256": "acd0d985c22fbd45db6a85fb7cc27cf93aa141f64bad45570d091f1f14dfa7af",
+      "specSha256": "c5e83f5d84a05ebaa1710903eef399bcd88effa77fc982e05de2c0128c03643c",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "r3-recent-archive_components-olhc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-archive_components-olhc.json",
+      "resultSha256": "4d34773cb48d43aaf23dd7a10cc7838729bf74c5f30d55bec918c13a3eb88560",
+      "specSha256": "f2bf72dd4eeded1702ad69980c3dcccfc877ab46458d43aca9f65807289b4c3e",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "r3-recent-current_medians-ohlc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-current_medians-ohlc.json",
+      "resultSha256": "f1504f6ca94cdf13afcea9e4c24c636cd2c7bb38dad37ef8d66a266ccac27c7b",
+      "specSha256": "d692a224cce2497980d58306ff534290edea21e8ce2f82e7656437a7647db471",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "r3-recent-current_medians-olhc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-current_medians-olhc.json",
+      "resultSha256": "648089c0278f2a77248b2686f3ee29b7806de7bee4be9b3f8bc68d46f29bf997",
+      "specSha256": "ee5a4014043848a6c6a2ce97f0ff041ddd32d7808370183582dfb0d66ee386c0",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "r3-recent-current_p90_stress-ohlc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-current_p90_stress-ohlc.json",
+      "resultSha256": "2c0f5f8a36320b07c17bd8506aae5b7ca6031f5630eb350030c4bb05eb43e54a",
+      "specSha256": "9b8fa5412db3eb8711373bd94e1a84b817fe7f0eb7ebcf30da6463315cf13453",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "r3-recent-current_p90_stress-olhc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-current_p90_stress-olhc.json",
+      "resultSha256": "e478ec93efcdbb91a508e445cdee251265fce504d6bb7ada502ab0b02302092a",
+      "specSha256": "2a8ab571c2f80c9394d224a4e2f5c2495de27e3e0b2564548af86059f4831caa",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "r3-recent-optimistic-ohlc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-optimistic-ohlc.json",
+      "resultSha256": "3ea31771c035631283a18f4dcf5ea2b67b570acda8929c985431a43e89f899e5",
+      "specSha256": "22252d05e64bb011ef510453054265ef992c1466d60c5e2dcf10749b12c18dea",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    },
+    {
+      "caseId": "r3-recent-optimistic-olhc",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/recent/r3-recent-optimistic-olhc.json",
+      "resultSha256": "b22f19d7c9613e7fdc85e59762e5ca23c2f2a53a03e1dba18a4ebbe8c17ead0e",
+      "specSha256": "4d4f4c2a5d14e36013ff5ed0654d7c4eeeef5f819f3736744633f365e954b613",
+      "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+      "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+      "sourceVerification": "MATCHES_CURRENT_FROZEN_FILES",
+      "interval": {
+        "fromUtc": "2026-09-15T00:00:00.000Z",
+        "toUtcExclusive": "2026-10-17T00:00:00.000Z"
+      },
+      "closedTrades": 0,
+      "openTrades": 0,
+      "independentFinalBalanceAud": 100,
+      "netAud": 0,
+      "totalNetR": 0,
+      "averageNetR": null,
+      "missingRiskMetadataTradeIds": [],
+      "missingEpisodeMetadataTradeIds": [],
+      "grossBeforeEstimatedFrictionAud": 0,
+      "estimatedFrictionAud": 0,
+      "executionFrictionAud": 0,
+      "homeConversionCostAud": 0,
+      "financingAud": 0,
+      "commissionAud": 0,
+      "bySide": {
+        "BUY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "SELL": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byPair": {
+        "AUD_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "EUR_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "GBP_USD": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "USD_JPY": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byYear": {
+        "2026": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "byQuarter": {
+        "2026-Q3": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        },
+        "2026-Q4": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "flat": 0,
+          "netAud": 0,
+          "grossBeforeEstimatedFrictionAud": 0,
+          "estimatedFrictionAud": 0,
+          "executionFrictionAud": 0,
+          "homeConversionCostAud": 0,
+          "initialRiskAud": 0,
+          "riskCoveredTrades": 0,
+          "coveredNetR": 0,
+          "netR": 0
+        }
+      },
+      "pairConcentration": {
+        "AUD_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "EUR_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "GBP_USD": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        },
+        "USD_JPY": {
+          "tradeShare": null,
+          "absoluteNetContributionShare": null
+        }
+      },
+      "entryDecisionCounts": {},
+      "rejectionCounts": {},
+      "portfolioRiskReasonCounts": {},
+      "riskRejectionRows": [],
+      "uncertainty": {
+        "entryDay": {
+          "clusterField": "entryDayUtc",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        },
+        "breakoutEpisode": {
+          "clusterField": "episodeId",
+          "observedClusters": 0,
+          "coveredClosedTrades": 0,
+          "missingMetadataOrRiskTradeIds": [],
+          "kishTradeSizeEffectiveClusters": null,
+          "kishRiskSizeEffectiveClusters": null,
+          "conditionalMeanNetRPerTrade": null,
+          "seededClusterResampling": {
+            "seed": 20261017,
+            "replications": 0,
+            "percentile95MeanNetRPerTrade": null,
+            "status": "NO_COVERED_CLUSTERS"
+          },
+          "clusters": [],
+          "limitations": "Whole clusters are resampled uniformly with replacement; the mean uses the resampled trade count. Kish counts quantify size concentration only. Days and episodes are not established independent or exchangeable; interday dependence, historical rule selection, unobserved paths and unknown costs remain outside this conditional diagnostic."
+        }
+      },
+      "frequency": {
+        "entriesPerTouchedCalendarMonth": 0,
+        "entriesPer30CalendarDays": 0,
+        "observedUtcMarketDays": 28,
+        "monthlyEntries": {
+          "2026-09": 0,
+          "2026-10": 0
+        },
+        "partialBoundaryMonths": {
+          "first": true,
+          "last": true
+        },
+        "zeroEntryMonths": 2,
+        "entryGapDays": {
+          "median": 32,
+          "p90": 32,
+          "maximum": 32
+        },
+        "longestGaps": [
+          {
+            "fromUtc": "2026-09-15T00:00:00.000Z",
+            "toUtc": "2026-10-17T00:00:00.000Z",
+            "calendarDays": 32
+          }
+        ]
+      },
+      "drawdown": {
+        "sampledNavMaxAud": 0,
+        "sampledNavMaxFraction": 0,
+        "observations": 2293
+      },
+      "accountingAssertions": "ALL_PASSED",
+      "tradeLedger": []
+    }
+  ],
+  "definitions": {
+    "initialRisk": "Absolute filled entry minus immutable original stop, times whole units, times entry quote-to-AUD loss conversion; current moved stop is never reused.",
+    "netCash": "Independent modeled side/fill price P&L converted at exit plus explicit lifetime financing minus entry and closing commission. Every event cash delta is checked.",
+    "friction": "Total friction equals unmarked midpoint-path P&L minus settled executable P&L plus AUD commission. Execution friction and once-per-settlement home-conversion cost are reported separately; embedded spread and markup are never deducted again from net.",
+    "buyEpisode": "Actual persisted buyRetest.episodeId, namespaced by instrument/side.",
+    "sellEpisode": "Instrument plus actual sellRetest.breakout.closedAt and level. The more granular SELL pattern/retest/confirmation tuple is deliberately not used.",
+    "kish": "Squared sum of cluster trade counts (or initial risk) divided by sum of squared cluster sizes. A concentration descriptor, not proof of independent effective trials."
+  },
+  "limits": [
+    "All cases remain separate conditional historical sensitivities of one strategy, not independent strategy samples or an optimized selection.",
+    "Day/episode resampling assumes exchangeable sampled clusters conditionally; temporal dependence, correlated episodes, historical selection, unobserved execution paths and unknown costs remain unresolved.",
+    "No arbitrary minimum trade count or confidence interval proves an edge; singleton/degenerate/no-observation resampling intervals are unavailable.",
+    "Input quotes and modeled conversion paths are counterfactual assumptions. Arithmetic agreement does not establish real broker fills, latency, financing or home-conversion parity.",
+    "Sampled NAV drawdown is independently recomputed from the same retained equity observations. It is not an exhaustive intrabar drawdown bound. Monthly entry counts and elapsed-time-normalized cadence are independently checked."
+  ]
+}

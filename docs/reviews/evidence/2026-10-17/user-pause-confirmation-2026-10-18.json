@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "SUBSEQUENT_USER_CONFIRMATION_OF_PAUSED_ENTRY_INTENT",
+  "confirmedOnSydneyDate": "2026-10-18",
+  "eventSydneyDate": "2026-10-17",
+  "approximateEventTimeAedt": "17:34",
+  "source": "Direct user reply in this review chat to the pending question about the observed disabled entries",
+  "userReply": "Yes, I paused it",
+  "establishedFact": "The user intentionally paused trading. The observed October 17 Stop request and disabled entry intent are consistent with that confirmation.",
+  "scopeLimit": "The reply confirms the pause; it does not separately attribute the preceding Start request.",
+  "reviewImpact": "Resolves the previously unknown pause intent. Does not change the strategy viability findings or explain the preceding ten-day absence of trades.",
+  "runtimeActionTakenForThisReply": "None; documentation only. Existing paused intent preserved.",
+  "historicalEvidence": [
+    "state-transition-route-evidence.json",
+    "final-runtime-observation-r3.json"
+  ],
+  "provenance": "The October 17 report, decision, raw observations and integrity hashes remain unchanged as dated evidence. This subsequent confirmation is recorded separately."
+}

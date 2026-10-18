@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_REDUCER_ENTRY_VWAP_ROUNDING_TRACE_BEFORE_CORRECTION",
+  "tracedAtUtc": "2026-10-17T09:43:44.863Z",
+  "runtime": "v22.23.1",
+  "originalAuditTool": {
+    "path": "docs/reviews/evidence/2026-10-17/economic-audit.cjs",
+    "sha256": "add5b2c787510b35ea6599dfc55e12cba59c1f7df49f859c1adca84e1f7b5075",
+    "preservedExactBytesAt": "docs/reviews/evidence/2026-10-17/economic-audit-r3-before-vwap-rounding.cjs",
+    "preservedSha256": "add5b2c787510b35ea6599dfc55e12cba59c1f7df49f859c1adca84e1f7b5075"
+  },
+  "failedOriginalAttempt": {
+    "error": "AssertionError [ERR_ASSERTION]: 8 registered side/slippage/precision entry fill: 1.30232 differs from 1.30233\n    at near (economic-audit.cjs:11:56)\n    at auditOne (economic-audit.cjs:181:9)\n    at main (economic-audit.cjs:350:20)\nNode.js v22.23.1; original audit process exit_code=1; no aggregate output written.",
+    "description": "Original strict full reducer failed on first optimistic entry tie before an aggregate was written. Original error label/numbers and source stack line numbers retained; path prefix abbreviated only in this evidence text.",
+    "errorTextSha256": "ddb15b948b44d17de3fae97f366b495bf5b4aa1a4d84d1591b953f5056329222",
+    "exitCode": 1
+  },
+  "contract": {
+    "source": "backend/research/replayBroker.cjs getExecutableQuote consumes a bucket by value += consumed * level.price; selected price = value/requested; placeMarketOrder rounds that executable price plus declared slippage. Closing uses explicit liquidation closeout side directly.",
+    "liquidityUnits": 1000000,
+    "independentCorrectedFormula": "Number((((abs(units) * modeledSidePrice) / abs(units)) + entryDirection * spec.slippagePips * pip).toFixed(displayPrecision))",
+    "scope": "Entry reconstruction only; no tolerance change; original declared midpoint/side path, close reconstruction, settled cash, risk, fee and costs assertions unchanged."
+  },
+  "cases": [
+    {
+      "caseId": "r3-full-archive_components-ohlc",
+      "rawResultSha256": "b0134b1e2c02b0ac57cede5a53c4ccb38a1998fad204d0876b3532d5f4970b86",
+      "mismatches": [],
+      "numberOfMismatches": 0,
+      "actualNetAud": -0.1101282314393425,
+      "hypotheticalDirectRoundNetAud": -0.1101282314393425,
+      "hypotheticalDirectRoundNetDeltaAud": 0,
+      "netSignChanged": false
+    },
+    {
+      "caseId": "r3-full-archive_components-olhc",
+      "rawResultSha256": "2cf87465cf603dbf82d1db15d03b7c146213dba8a05edf7f05a4a357de98230f",
+      "mismatches": [],
+      "numberOfMismatches": 0,
+      "actualNetAud": -0.0845165787038521,
+      "hypotheticalDirectRoundNetAud": -0.0845165787038521,
+      "hypotheticalDirectRoundNetDeltaAud": 0,
+      "netSignChanged": false
+    },
+    {
+      "caseId": "r3-full-current_medians-ohlc",
+      "rawResultSha256": "0c9ee188136a619e765389cbbea69a6315183697101e985f2b70df2829b04124",
+      "mismatches": [],
+      "numberOfMismatches": 0,
+      "actualNetAud": 0.42556279946096187,
+      "hypotheticalDirectRoundNetAud": 0.42556279946096187,
+      "hypotheticalDirectRoundNetDeltaAud": 0,
+      "netSignChanged": false
+    },
+    {
+      "caseId": "r3-full-current_medians-olhc",
+      "rawResultSha256": "0177b2d3280df903c472cd715b9e9dcc42c16d9d06c9196c20997e01f3285175",
+      "mismatches": [],
+      "numberOfMismatches": 0,
+      "actualNetAud": 0.7045785504318429,
+      "hypotheticalDirectRoundNetAud": 0.7045785504318429,
+      "hypotheticalDirectRoundNetDeltaAud": 0,
+      "netSignChanged": false
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-ohlc",
+      "rawResultSha256": "647aeb848b2bd8b42749627d8f0209f9d01fd5346b3acababa4b8f20cb5c8a4d",
+      "mismatches": [],
+      "numberOfMismatches": 0,
+      "actualNetAud": 0.04153383016288928,
+      "hypotheticalDirectRoundNetAud": 0.04153383016288928,
+      "hypotheticalDirectRoundNetDeltaAud": 0,
+      "netSignChanged": false
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-olhc",
+      "rawResultSha256": "071f1163b8345fd3858e47b49ffcf7aa0d8b727e807c3e69174af99ff4a81db9",
+      "mismatches": [],
+      "numberOfMismatches": 0,
+      "actualNetAud": 0.01161118984786541,
+      "hypotheticalDirectRoundNetAud": 0.01161118984786541,
+      "hypotheticalDirectRoundNetDeltaAud": 0,
+      "netSignChanged": false
+    },
+    {
+      "caseId": "r3-full-optimistic-ohlc",
+      "rawResultSha256": "1887b33bf7a9c3379f4cdcdd75b1e71ed557e8d52b8daf598a0463cd0854461e",
+      "mismatches": [
+        {
+          "brokerTradeId": "8",
+          "instrument": "GBP_USD",
+          "side": "SELL",
+          "atMs": 1597057200000,
+          "units": 55,
+          "sourceSidePrice": 1.3023250000000002,
+          "sourceSide17Digits": "1.3023250000000002",
+          "weightedOneBucketPrice": 1.302325,
+          "weighted17Digits": "1.3023250000000000",
+          "declaredSlippagePips": 0,
+          "displayPrecision": 5,
+          "directRound": 1.30233,
+          "weightedRound": 1.30232,
+          "actualFill": 1.30232,
+          "entryTelemetryExecutablePrice": 1.3023250000000002,
+          "entryTelemetryWorstPrice": 1.3023250000000002,
+          "fillDeltaPips": -0.10000000000065513,
+          "fixedLedgerDirectRoundNetDifferenceAud": 0.0007766220227501397
+        }
+      ],
+      "numberOfMismatches": 1,
+      "actualNetAud": 0.6599075529590269,
+      "hypotheticalDirectRoundNetAud": 0.6606841749817771,
+      "hypotheticalDirectRoundNetDeltaAud": 0.0007766220227501952,
+      "netSignChanged": false
+    },
+    {
+      "caseId": "r3-full-optimistic-olhc",
+      "rawResultSha256": "e3390ab0745adbe2f896edb58f3fb4250f0347ea8279a9c893c2f69ac3324554",
+      "mismatches": [
+        {
+          "brokerTradeId": "8",
+          "instrument": "GBP_USD",
+          "side": "SELL",
+          "atMs": 1597057200000,
+          "units": 55,
+          "sourceSidePrice": 1.3023250000000002,
+          "sourceSide17Digits": "1.3023250000000002",
+          "weightedOneBucketPrice": 1.302325,
+          "weighted17Digits": "1.3023250000000000",
+          "declaredSlippagePips": 0,
+          "displayPrecision": 5,
+          "directRound": 1.30233,
+          "weightedRound": 1.30232,
+          "actualFill": 1.30232,
+          "entryTelemetryExecutablePrice": 1.3023250000000002,
+          "entryTelemetryWorstPrice": 1.3023250000000002,
+          "fillDeltaPips": -0.10000000000065513,
+          "fixedLedgerDirectRoundNetDifferenceAud": 0.0007766026604458798
+        }
+      ],
+      "numberOfMismatches": 1,
+      "actualNetAud": 0.3881277611191357,
+      "hypotheticalDirectRoundNetAud": 0.3889043637795816,
+      "hypotheticalDirectRoundNetDeltaAud": 0.0007766026604458798,
+      "netSignChanged": false
+    }
+  ],
+  "allRegisteredFillsExactlyMatchIndependentWeightedFormula": true,
+  "noRawFinancialOutputOrFrozenSourceChanged": true,
+  "limits": [
+    "This measures the difference between two numerical entry-price reconstruction formulas on the already recorded fixed ledger. It does not rerun sizing, eligibility, stops or later cash feedback under an alternative price world.",
+    "Observed operation-order effect is exactly a half-tick representation tie at entry; it falls within existing disclosed synthetic half-tick precision uncertainty. It is not evidence of exact real broker execution.",
+    "The initial reducer rounded source side price directly and omitted the actual declared single-bucket volume-weighting arithmetic. Correct only that independent audit operation, preserving original tool and failed-attempt lineage."
+  ]
+}

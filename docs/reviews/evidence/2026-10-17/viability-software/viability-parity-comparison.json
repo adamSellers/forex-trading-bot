@@ -1,0 +1,433 @@
+{
+  "allEqual": true,
+  "runs": [
+    {
+      "mode": "COMPRESSED_STATIC_HOLDS",
+      "cache": "memo",
+      "elapsed": 6.104533458,
+      "trades": 1,
+      "decisions": 2,
+      "reduced": {
+        "trades": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            1789153260000,
+            1.10225,
+            1.10217,
+            173,
+            -0.020760332165277787,
+            "TIME_STOP",
+            0,
+            1.10158
+          ]
+        ],
+        "decisions": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131600000,
+            "REJECTED",
+            "SPREAD_TOO_WIDE",
+            1.1022057250270387
+          ],
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            "FILLED",
+            null,
+            1.1022057250270387
+          ]
+        ],
+        "accounting": {
+          "checks": {
+            "accountBalance": true,
+            "allBrokerTradesHaveLocalOwners": true,
+            "allClosedTradesReconciled": true,
+            "allLocalTradesHaveBrokerOwners": true,
+            "closedTotals": true,
+            "lifetimeCostsAndBalance": true,
+            "marginAvailable": true,
+            "moneyEvidenceComplete": true,
+            "navEqualsBalancePlusUnrealized": true,
+            "openOwnership": true,
+            "ownershipEvidenceComplete": true,
+            "uniqueOwnership": true
+          },
+          "closedNetAud": -0.020760332165277787,
+          "closedTrades": 1,
+          "commissionAud": 0,
+          "expectedBalanceAud": 99.97923966783472,
+          "financingAud": 0,
+          "grossClosedAud": -0.020760332165277787,
+          "initialBalanceAud": 100,
+          "numericalToleranceAud": 1e-8,
+          "observedBalanceAud": 99.97923966783472,
+          "openTrades": 0,
+          "recordedClosedNetAud": -0.020760332165277787,
+          "scope": "Supplied model points and explicitly recorded costs; no intrabar or historical financing claim.",
+          "status": "RECONCILED",
+          "tradeChecks": [
+            {
+              "brokerTradeId": "1",
+              "expectedNetAud": -0.020760332165277787,
+              "matched": true,
+              "recordedClosed": true,
+              "recordedNetAud": -0.020760332165277787
+            }
+          ]
+        },
+        "states": [
+          {
+            "state_key": "intraday-sell-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":false}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-sell-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":{\"time\":\"2026-09-11T12:15:00.000Z\",\"closedAt\":1789129800000,\"level\":1.1018057250270388},\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "aud_nav_high_watermark",
+            "state_value": "{\"navAud\":100,\"observedAt\":1789131600000}",
+            "updated_at_ms": 1789131600000
+          }
+        ]
+      }
+    },
+    {
+      "mode": "COMPRESSED_STATIC_HOLDS",
+      "cache": "native",
+      "elapsed": 6.05446875,
+      "trades": 1,
+      "decisions": 2,
+      "reduced": {
+        "trades": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            1789153260000,
+            1.10225,
+            1.10217,
+            173,
+            -0.020760332165277787,
+            "TIME_STOP",
+            0,
+            1.10158
+          ]
+        ],
+        "decisions": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131600000,
+            "REJECTED",
+            "SPREAD_TOO_WIDE",
+            1.1022057250270387
+          ],
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            "FILLED",
+            null,
+            1.1022057250270387
+          ]
+        ],
+        "accounting": {
+          "checks": {
+            "accountBalance": true,
+            "allBrokerTradesHaveLocalOwners": true,
+            "allClosedTradesReconciled": true,
+            "allLocalTradesHaveBrokerOwners": true,
+            "closedTotals": true,
+            "lifetimeCostsAndBalance": true,
+            "marginAvailable": true,
+            "moneyEvidenceComplete": true,
+            "navEqualsBalancePlusUnrealized": true,
+            "openOwnership": true,
+            "ownershipEvidenceComplete": true,
+            "uniqueOwnership": true
+          },
+          "closedNetAud": -0.020760332165277787,
+          "closedTrades": 1,
+          "commissionAud": 0,
+          "expectedBalanceAud": 99.97923966783472,
+          "financingAud": 0,
+          "grossClosedAud": -0.020760332165277787,
+          "initialBalanceAud": 100,
+          "numericalToleranceAud": 1e-8,
+          "observedBalanceAud": 99.97923966783472,
+          "openTrades": 0,
+          "recordedClosedNetAud": -0.020760332165277787,
+          "scope": "Supplied model points and explicitly recorded costs; no intrabar or historical financing claim.",
+          "status": "RECONCILED",
+          "tradeChecks": [
+            {
+              "brokerTradeId": "1",
+              "expectedNetAud": -0.020760332165277787,
+              "matched": true,
+              "recordedClosed": true,
+              "recordedNetAud": -0.020760332165277787
+            }
+          ]
+        },
+        "states": [
+          {
+            "state_key": "intraday-sell-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":false}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-sell-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":{\"time\":\"2026-09-11T12:15:00.000Z\",\"closedAt\":1789129800000,\"level\":1.1018057250270388},\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "aud_nav_high_watermark",
+            "state_value": "{\"navAud\":100,\"observedAt\":1789131600000}",
+            "updated_at_ms": 1789131600000
+          }
+        ]
+      }
+    },
+    {
+      "mode": "EVERY_MINUTE",
+      "cache": "memo",
+      "elapsed": 9.303131,
+      "trades": 1,
+      "decisions": 2,
+      "reduced": {
+        "trades": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            1789153260000,
+            1.10225,
+            1.10217,
+            173,
+            -0.020760332165277787,
+            "TIME_STOP",
+            0,
+            1.10158
+          ]
+        ],
+        "decisions": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131600000,
+            "REJECTED",
+            "SPREAD_TOO_WIDE",
+            1.1022057250270387
+          ],
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            "FILLED",
+            null,
+            1.1022057250270387
+          ]
+        ],
+        "accounting": {
+          "checks": {
+            "accountBalance": true,
+            "allBrokerTradesHaveLocalOwners": true,
+            "allClosedTradesReconciled": true,
+            "allLocalTradesHaveBrokerOwners": true,
+            "closedTotals": true,
+            "lifetimeCostsAndBalance": true,
+            "marginAvailable": true,
+            "moneyEvidenceComplete": true,
+            "navEqualsBalancePlusUnrealized": true,
+            "openOwnership": true,
+            "ownershipEvidenceComplete": true,
+            "uniqueOwnership": true
+          },
+          "closedNetAud": -0.020760332165277787,
+          "closedTrades": 1,
+          "commissionAud": 0,
+          "expectedBalanceAud": 99.97923966783472,
+          "financingAud": 0,
+          "grossClosedAud": -0.020760332165277787,
+          "initialBalanceAud": 100,
+          "numericalToleranceAud": 1e-8,
+          "observedBalanceAud": 99.97923966783472,
+          "openTrades": 0,
+          "recordedClosedNetAud": -0.020760332165277787,
+          "scope": "Supplied model points and explicitly recorded costs; no intrabar or historical financing claim.",
+          "status": "RECONCILED",
+          "tradeChecks": [
+            {
+              "brokerTradeId": "1",
+              "expectedNetAud": -0.020760332165277787,
+              "matched": true,
+              "recordedClosed": true,
+              "recordedNetAud": -0.020760332165277787
+            }
+          ]
+        },
+        "states": [
+          {
+            "state_key": "intraday-sell-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":false}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-sell-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":{\"time\":\"2026-09-11T12:15:00.000Z\",\"closedAt\":1789129800000,\"level\":1.1018057250270388},\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "aud_nav_high_watermark",
+            "state_value": "{\"navAud\":100,\"observedAt\":1789131600000}",
+            "updated_at_ms": 1789131600000
+          }
+        ]
+      }
+    },
+    {
+      "mode": "EVERY_MINUTE",
+      "cache": "native",
+      "elapsed": 9.433554417,
+      "trades": 1,
+      "decisions": 2,
+      "reduced": {
+        "trades": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            1789153260000,
+            1.10225,
+            1.10217,
+            173,
+            -0.020760332165277787,
+            "TIME_STOP",
+            0,
+            1.10158
+          ]
+        ],
+        "decisions": [
+          [
+            "EUR_USD",
+            "BUY",
+            1789131600000,
+            "REJECTED",
+            "SPREAD_TOO_WIDE",
+            1.1022057250270387
+          ],
+          [
+            "EUR_USD",
+            "BUY",
+            1789131660000,
+            "FILLED",
+            null,
+            1.1022057250270387
+          ]
+        ],
+        "accounting": {
+          "checks": {
+            "accountBalance": true,
+            "allBrokerTradesHaveLocalOwners": true,
+            "allClosedTradesReconciled": true,
+            "allLocalTradesHaveBrokerOwners": true,
+            "closedTotals": true,
+            "lifetimeCostsAndBalance": true,
+            "marginAvailable": true,
+            "moneyEvidenceComplete": true,
+            "navEqualsBalancePlusUnrealized": true,
+            "openOwnership": true,
+            "ownershipEvidenceComplete": true,
+            "uniqueOwnership": true
+          },
+          "closedNetAud": -0.020760332165277787,
+          "closedTrades": 1,
+          "commissionAud": 0,
+          "expectedBalanceAud": 99.97923966783472,
+          "financingAud": 0,
+          "grossClosedAud": -0.020760332165277787,
+          "initialBalanceAud": 100,
+          "numericalToleranceAud": 1e-8,
+          "observedBalanceAud": 99.97923966783472,
+          "openTrades": 0,
+          "recordedClosedNetAud": -0.020760332165277787,
+          "scope": "Supplied model points and explicitly recorded costs; no intrabar or historical financing claim.",
+          "status": "RECONCILED",
+          "tradeChecks": [
+            {
+              "brokerTradeId": "1",
+              "expectedNetAud": -0.020760332165277787,
+              "matched": true,
+              "recordedClosed": true,
+              "recordedNetAud": -0.020760332165277787
+            }
+          ]
+        },
+        "states": [
+          {
+            "state_key": "intraday-sell-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:AUD_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"AUD_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":false}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-sell-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":null,\"retest\":null,\"confirmation\":null,\"askEvidenceAvailable\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "intraday-buy-retest:v1:EUR_USD:8:5",
+            "state_value": "{\"version\":1,\"instrument\":\"EUR_USD\",\"breakoutBars\":8,\"lastProcessedCandleCloseTime\":1789155900000,\"breakout\":{\"time\":\"2026-09-11T12:15:00.000Z\",\"closedAt\":1789129800000,\"level\":1.1018057250270388},\"retest\":null,\"confirmation\":null,\"bidEvidenceAvailable\":true,\"consumed\":true}",
+            "updated_at_ms": 1789155900000
+          },
+          {
+            "state_key": "aud_nav_high_watermark",
+            "state_value": "{\"navAud\":100,\"observedAt\":1789131600000}",
+            "updated_at_ms": 1789131600000
+          }
+        ]
+      }
+    }
+  ]
+}

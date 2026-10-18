@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "purpose": "UNSCORED_SOFTWARE_CONTROLS_NOT_ECONOMIC_STRATEGY_EVIDENCE",
+  "createdAtUtc": "2026-10-17T07:02:54.622Z",
+  "sourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "sourceCount": 119,
+  "controls": [
+    {
+      "label": "filled",
+      "matched": [
+        "summary except declared optimization flag",
+        "brokerLedger",
+        "persistedTrades",
+        "entryDecisions",
+        "equityDailyAndTradeObservations"
+      ],
+      "keys": [
+        "schemaVersion",
+        "artifactKind",
+        "spec",
+        "specSha256",
+        "archiveSha256",
+        "sourceHashes",
+        "baselineIdentity",
+        "nodeVersion",
+        "elapsedSeconds",
+        "registration",
+        "optimization",
+        "networkAttempts",
+        "engineErrors",
+        "marketInputCoverage",
+        "summary",
+        "brokerLedger",
+        "persistedTrades",
+        "entryDecisions",
+        "equityDailyAndTradeObservations"
+      ],
+      "closedTrades": 1,
+      "netAud": -0.020724909851225284,
+      "netR": -0.11940298507442405,
+      "fee": 0.0002051971272398513,
+      "optimization": {
+        "calls": 340,
+        "lazyInitial": 170,
+        "lazyMaterialized": 0,
+        "trimmed": 166,
+        "retainedBars": 1436,
+        "removedBars": 81564,
+        "fallback": 4
+      },
+      "elapsedOff": 5.383142208000001,
+      "elapsedOn": 5.344320791
+    },
+    {
+      "label": "recent",
+      "matched": [
+        "summary except declared optimization flag",
+        "brokerLedger",
+        "persistedTrades",
+        "entryDecisions",
+        "equityDailyAndTradeObservations"
+      ],
+      "keys": [
+        "schemaVersion",
+        "artifactKind",
+        "spec",
+        "specSha256",
+        "archiveSha256",
+        "sourceHashes",
+        "baselineIdentity",
+        "nodeVersion",
+        "elapsedSeconds",
+        "registration",
+        "optimization",
+        "networkAttempts",
+        "engineErrors",
+        "marketInputCoverage",
+        "summary",
+        "brokerLedger",
+        "persistedTrades",
+        "entryDecisions",
+        "equityDailyAndTradeObservations"
+      ],
+      "closedTrades": 0,
+      "netAud": 0,
+      "netR": 0,
+      "fee": 0,
+      "optimization": {
+        "calls": 36672,
+        "lazyInitial": 18336,
+        "lazyMaterialized": 0,
+        "trimmed": 18328,
+        "retainedBars": 164952,
+        "removedBars": 8999048,
+        "fallback": 8
+      },
+      "elapsedOff": 38.791696083999994,
+      "elapsedOn": 19.232962124999997
+    }
+  ],
+  "additionalSuites": {
+    "actualPolicyOptimizationInjected": {
+      "suites": 7,
+      "tests": 75,
+      "passed": true,
+      "scope": "BUY/SELL policy, durable evidence, persisted lifecycle/restart, gap/side recovery, consumption and integration"
+    },
+    "physicsAndLegacy": {
+      "suites": 6,
+      "tests": 69,
+      "passed": true
+    },
+    "registration": {
+      "suites": 1,
+      "tests": 11,
+      "passed": true
+    }
+  },
+  "retention": {
+    "note": "Full temporary registration/spec/result bytes copied unchanged. Absolute paths preserve original run provenance rather than implying relocated registrations were executed.",
+    "files": [
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-inputs.json",
+        "sha256": "c0fcc50ef3befa4cb1e43642ab904e9b117e79f7d7bfec58cf35262f71d25c14",
+        "bytes": 392
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-off-launch.json",
+        "sha256": "f6237fa3753e6a9fd84302caf8c23ca9a397b1f73e7d2157a988935cc394d1e4",
+        "bytes": 14716
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-off-result.json",
+        "sha256": "329f10926b492c71e3facc66b60737a992f9ac2dc3c79b2e7a7114f3857f0351",
+        "bytes": 457690
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-off-spec.json",
+        "sha256": "cf4770730dc9ae15124c73ee15eb43cd5eaa7469748223cf5bd61992d216584b",
+        "bytes": 1614
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-on-launch.json",
+        "sha256": "9247eecd826b697809354ec9e3cf0c17879ce912aa5b967fc775769aad18c70d",
+        "bytes": 14715
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-on-result.json",
+        "sha256": "b46843691b3d3488ca116693055feceedccaa7f4759b4b8c5e258547e3c072c7",
+        "bytes": 457693
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-on-spec.json",
+        "sha256": "ead62b17b86023a53bb7fb38aa1f50a43b865443fd91073ed5068fa8197933dc",
+        "bytes": 1611
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/filled-protocol.json",
+        "sha256": "6213fac952fe0a193bcbcdbde420a74bfc3872404e256937eabcfd72410746ad",
+        "bytes": 180
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/parity-comparison.json",
+        "sha256": "7a2894cc3b06da61a6a1a0479366c382bd82e71c17266c89b7eb37bae39c51a3",
+        "bytes": 2417
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-inputs.json",
+        "sha256": "f0e471209361ef15559fb2dd49d5ce7f6dad4c246734ff993e045fcd0b87df63",
+        "bytes": 437
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-off-launch.json",
+        "sha256": "05cfa7e776c97b1f46397b0d8d80f50b8d5a957ec7523ec6d7d9dfd87d635a90",
+        "bytes": 14802
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-off-result.json",
+        "sha256": "491cfa9290a28eaf9ed560e00ef3f7f91484d23f49d62a6435b0ec2e5a5c9238",
+        "bytes": 290958
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-off-spec.json",
+        "sha256": "4bab1dd482cbf62d37a470b84cae5eafa521ec2dbac906d18cedf209a244a9be",
+        "bytes": 1890
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-on-launch.json",
+        "sha256": "212a14e34f4f20009f4cc569dc54a5141cfa4e94f44144381ba5a47ba030dfd4",
+        "bytes": 14801
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-on-result.json",
+        "sha256": "687c27408fe2d8832e95cab035313239847d52588bdda714d594a1718c4d7268",
+        "bytes": 290977
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-on-spec.json",
+        "sha256": "6af1c1ae27ef5b3afd2dbed2f5691ffb6ea8347022b0b8211e070975fd90f5d9",
+        "bytes": 1887
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/recent-protocol.json",
+        "sha256": "dd7a4a4b7472305d89e9b9e82162f74eb9632c8d18d6347fb235abbbbe3bc5d4",
+        "bytes": 214
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/declared-filled-archive.json",
+        "sha256": "cf6c550f681e92d87547d53a260a0fc2d4db038684d42ad3a8d121e9170ff195",
+        "bytes": 382308
+      },
+      {
+        "path": "backend/data/backtests/viability-20261017/software-r3/optimization-test-setup.cjs",
+        "sha256": "ae147d71c3c90f0e59f312bd4abc9b60e941eff70d44c2a329da0b66c88422ea",
+        "bytes": 606
+      }
+    ]
+  }
+}

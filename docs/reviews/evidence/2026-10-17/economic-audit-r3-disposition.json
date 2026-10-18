@@ -1,0 +1,494 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_POST_COMPLETION_VIABILITY_DISPOSITION",
+  "reviewedAtUtc": "2026-10-17T09:45:38.624Z",
+  "runtime": "v22.23.1",
+  "inputs": [
+    {
+      "path": "docs/reviews/evidence/2026-10-17/economic-audit-r3-full.json",
+      "sha256": "67e295dc93c47f830133d9a344e966ba2405899cbf16bb581a7dc85a4576aac9"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/viability-protocol-r3.json",
+      "sha256": "5c5d76cabd4df8e987ab5e1a069e819c2ce00bef03169817d1593c0da0d6c939"
+    },
+    {
+      "path": "/private/tmp/forex-viability-r3-exits.json",
+      "sha256": "199be157590c0c07b1f5a1f794d2bd1e942544a30a780bfa731b51b4dffe313e"
+    },
+    {
+      "path": "docs/reviews/evidence/2026-10-17/economic-audit-r3-fill-rounding-repair.json",
+      "sha256": "1018ad8305316a147d90f420199f276d9f448b75491dda873ed8dd6698402cb6"
+    }
+  ],
+  "completion": {
+    "originalCases": 8,
+    "allNativeProcessesExitZero": true,
+    "runtimeRepairActivated": false,
+    "all119FinancialSourceFilesUnchanged": true,
+    "independentAccountingAssertions": "ALL_PASSED",
+    "networkAttempts": 0,
+    "engineErrors": 0
+  },
+  "recommendation": "SCRAP_CURRENT_LIVE_RULESET",
+  "trialEvidenceStatusRecommendation": "INCONCLUSIVE",
+  "statusMeaning": "The declared historical models do not resolve positive live expectancy; the practical decision rejects continued deployment of the unchanged current rules under the registered keep/scrap criteria. This is not proof of mathematical impossibility or a claim that all modeled point totals lose.",
+  "registeredCriteria": {
+    "keep": "Positive portfolio net expectancy after explicit costs, with no sign reversal in declared plausible sensitivities, meaningful period coverage, cluster uncertainty not leaving positive sign unresolved, and reported achieved cadence/economic scale. No extra risk/capital assumption.",
+    "redesign": "A concrete useful component or observable structural mismatch supports a new independently specified candidate; this does not authorize live tuning.",
+    "scrap": "Reject the current rule set if even generous declared cases do not support credible positive net edge, or evidence supports continuing loss. Inconclusive results fail KEEP but do not prove profit is mathematically impossible.",
+    "economicScale": "Report achieved AUD and returns at A$100 starting account/current cap. No invented income target, extrapolated salary, or guaranteed growth."
+  },
+  "reasons": [
+    "Even optimistic declared cases fail to establish a credible positive sign; conditional day and actual breakout-episode resampling intervals include zero. Retrospective rule/data inspection and unresolved execution assumptions further limit inference.",
+    "Every synthetic case has negative net in each year from 2022 through partial 2026; its positive full-period total depends on 2020–21.",
+    "Median/stress cases achieve 28 SELL-only entries over approximately 6.4 years, with 56 of 78 touched months empty and a maximum entry gap of approximately 496 days. No external cadence/income threshold is invented.",
+    "Stress retains only A$0.0116–0.0415 modeled total profit at A$100 initial capital after 95.5–98.7% of positive fixed-timing gross is consumed by explicit friction. Any undeclared cost would have very small headroom.",
+    "Recent separately initialized cold lineage has zero actionable entries/trades in all eight cases. Raw-policy/H1 audits explain this conditional drought but are not an exact reconstruction of production inherited state."
+  ],
+  "redesignInterpretation": "Observed multi-year frozen episodes provide a concrete research question for a new separately specified hypothesis; no evidence shows that expiry or relaxed filters improves expectancy. Retain broker recovery, ownership, accounting and replay infrastructure. No profitable subset/cost-path variant is selected.",
+  "cases": [
+    {
+      "caseId": "r3-full-archive_components-ohlc",
+      "closedTrades": 2,
+      "openTrades": 0,
+      "netAud": -0.1101282314393425,
+      "totalNetR": -0.5634600599851685,
+      "averageNetR": -0.28173002999258423,
+      "netAsPercentInitial100Aud": -0.1101282314393425,
+      "synthetic": false,
+      "all2022ThroughPartial2026YearsNegative": null,
+      "net2022ThroughPartial2026Aud": -0.005229451104874279,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.02557533401119809,
+        "zeroEntryMonths": 76,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 1837.3020833333333
+      },
+      "observedDayClusters": 2,
+      "dayKishTradeSize": 2,
+      "observedEpisodeClusters": 2,
+      "episodeKishTradeSize": 2,
+      "dayMeanRPercentile95": [
+        -0.536181448991599,
+        -0.02727861099356941
+      ],
+      "episodeMeanRPercentile95": [
+        -0.536181448991599,
+        -0.02727861099356941
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": false,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.04623804090635368,
+      "homeConversionCostAud": 0.001090378529102415,
+      "totalFrictionAud": 0.0473284194354561,
+      "grossFixedTimingAud": -0.06279981200388642,
+      "frictionFractionOfPositiveFixedTimingGross": null,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.002986376606420734,
+      "sideClosedTradeCounts": {
+        "SELL": 2,
+        "BUY": 0
+      },
+      "pairClosedTradeCounts": {
+        "EUR_USD": 1,
+        "AUD_USD": 1,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      }
+    },
+    {
+      "caseId": "r3-full-archive_components-olhc",
+      "closedTrades": 3,
+      "openTrades": 0,
+      "netAud": -0.0845165787038521,
+      "totalNetR": -0.427253444711254,
+      "averageNetR": -0.14241781490375133,
+      "netAsPercentInitial100Aud": -0.0845165787038521,
+      "synthetic": false,
+      "all2022ThroughPartial2026YearsNegative": null,
+      "net2022ThroughPartial2026Aud": 0.020382201630616128,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.038363001016797134,
+        "zeroEntryMonths": 75,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 1719.1430555555555
+      },
+      "observedDayClusters": 3,
+      "dayKishTradeSize": 3,
+      "observedEpisodeClusters": 3,
+      "episodeKishTradeSize": 3,
+      "dayMeanRPercentile95": [
+        -0.536181448991599,
+        0.13620661527391448
+      ],
+      "episodeMeanRPercentile95": [
+        -0.536181448991599,
+        0.13620661527391448
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": true,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.07552762836613935,
+      "homeConversionCostAud": 0.0013500160160340021,
+      "totalFrictionAud": 0.07687764438217336,
+      "grossFixedTimingAud": -0.007638934321678739,
+      "frictionFractionOfPositiveFixedTimingGross": null,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.002741943940863447,
+      "sideClosedTradeCounts": {
+        "SELL": 3,
+        "BUY": 0
+      },
+      "pairClosedTradeCounts": {
+        "EUR_USD": 1,
+        "AUD_USD": 2,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      }
+    },
+    {
+      "caseId": "r3-full-current_medians-ohlc",
+      "closedTrades": 28,
+      "openTrades": 0,
+      "netAud": 0.42556279946096187,
+      "totalNetR": 2.208024662496678,
+      "averageNetR": 0.07885802366059565,
+      "netAsPercentInitial100Aud": 0.42556279946096187,
+      "synthetic": true,
+      "all2022ThroughPartial2026YearsNegative": true,
+      "net2022ThroughPartial2026Aud": -0.8977394945712478,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.3580546761567733,
+        "zeroEntryMonths": 56,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 495.875
+      },
+      "observedDayClusters": 27,
+      "dayKishTradeSize": 26.133333333333333,
+      "observedEpisodeClusters": 28,
+      "episodeKishTradeSize": 28,
+      "dayMeanRPercentile95": [
+        -0.27786223905826757,
+        0.4659580247228216
+      ],
+      "episodeMeanRPercentile95": [
+        -0.2900154025225132,
+        0.4587779309782703
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": true,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.5632544812450636,
+      "homeConversionCostAud": 0.046702046296693764,
+      "totalFrictionAud": 0.6099565275417573,
+      "grossFixedTimingAud": 1.0355193270027194,
+      "frictionFractionOfPositiveFixedTimingGross": 0.589034421315205,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.01328366731633516,
+      "sideClosedTradeCounts": {
+        "SELL": 28,
+        "BUY": 0
+      },
+      "pairClosedTradeCounts": {
+        "USD_JPY": 15,
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0
+      }
+    },
+    {
+      "caseId": "r3-full-current_medians-olhc",
+      "closedTrades": 28,
+      "openTrades": 0,
+      "netAud": 0.7045785504318428,
+      "totalNetR": 3.7355191821443,
+      "averageNetR": 0.13341139936229643,
+      "netAsPercentInitial100Aud": 0.7045785504318428,
+      "synthetic": true,
+      "all2022ThroughPartial2026YearsNegative": true,
+      "net2022ThroughPartial2026Aud": -0.8961109353773568,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.3580546761567733,
+        "zeroEntryMonths": 56,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 495.875
+      },
+      "observedDayClusters": 27,
+      "dayKishTradeSize": 26.133333333333333,
+      "observedEpisodeClusters": 28,
+      "episodeKishTradeSize": 28,
+      "dayMeanRPercentile95": [
+        -0.2427235773521803,
+        0.5302190209506716
+      ],
+      "episodeMeanRPercentile95": [
+        -0.2560293998743526,
+        0.5314688204937509
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": true,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.5624982995942149,
+      "homeConversionCostAud": 0.04943736459329702,
+      "totalFrictionAud": 0.611935664187512,
+      "grossFixedTimingAud": 1.3165142146193554,
+      "frictionFractionOfPositiveFixedTimingGross": 0.4648150831887838,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.013295309237224875,
+      "sideClosedTradeCounts": {
+        "SELL": 28,
+        "BUY": 0
+      },
+      "pairClosedTradeCounts": {
+        "USD_JPY": 15,
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0
+      }
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-ohlc",
+      "closedTrades": 28,
+      "openTrades": 0,
+      "netAud": 0.04153383016288911,
+      "totalNetR": 0.2046393448671171,
+      "averageNetR": 0.007308548030968468,
+      "netAsPercentInitial100Aud": 0.04153383016288911,
+      "synthetic": true,
+      "all2022ThroughPartial2026YearsNegative": true,
+      "net2022ThroughPartial2026Aud": -1.002250591275328,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.3580546761567733,
+        "zeroEntryMonths": 56,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 495.875
+      },
+      "observedDayClusters": 27,
+      "dayKishTradeSize": 26.133333333333333,
+      "observedEpisodeClusters": 28,
+      "episodeKishTradeSize": 28,
+      "dayMeanRPercentile95": [
+        -0.34156181364948207,
+        0.3789855486834056
+      ],
+      "episodeMeanRPercentile95": [
+        -0.34916148271489933,
+        0.37777674792866434
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": true,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.8398777822747756,
+      "homeConversionCostAud": 0.044995596770099,
+      "totalFrictionAud": 0.8848733790448746,
+      "grossFixedTimingAud": 0.9264072092077632,
+      "frictionFractionOfPositiveFixedTimingGross": 0.9551667671083787,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.01383975389802125,
+      "sideClosedTradeCounts": {
+        "SELL": 28,
+        "BUY": 0
+      },
+      "pairClosedTradeCounts": {
+        "USD_JPY": 15,
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0
+      }
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-olhc",
+      "closedTrades": 28,
+      "openTrades": 0,
+      "netAud": 0.011611189847865494,
+      "totalNetR": 0.04097137346453694,
+      "averageNetR": 0.0014632633380191765,
+      "netAsPercentInitial100Aud": 0.011611189847865494,
+      "synthetic": true,
+      "all2022ThroughPartial2026YearsNegative": true,
+      "net2022ThroughPartial2026Aud": -1.0234758500291412,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.3580546761567733,
+        "zeroEntryMonths": 56,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 495.875
+      },
+      "observedDayClusters": 27,
+      "dayKishTradeSize": 26.133333333333333,
+      "observedEpisodeClusters": 28,
+      "episodeKishTradeSize": 28,
+      "dayMeanRPercentile95": [
+        -0.34691143150430925,
+        0.37516941592601644
+      ],
+      "episodeMeanRPercentile95": [
+        -0.3579134959113979,
+        0.37121715008327244
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": true,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.8281835113571648,
+      "homeConversionCostAud": 0.04509098887307334,
+      "totalFrictionAud": 0.8732745002302383,
+      "grossFixedTimingAud": 0.8848856900781037,
+      "frictionFractionOfPositiveFixedTimingGross": 0.986878316625461,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.014087633220886665,
+      "sideClosedTradeCounts": {
+        "SELL": 28,
+        "BUY": 0
+      },
+      "pairClosedTradeCounts": {
+        "USD_JPY": 15,
+        "AUD_USD": 7,
+        "EUR_USD": 6,
+        "GBP_USD": 0
+      }
+    },
+    {
+      "caseId": "r3-full-optimistic-ohlc",
+      "closedTrades": 40,
+      "openTrades": 0,
+      "netAud": 0.6599075529590269,
+      "totalNetR": 3.552927114354525,
+      "averageNetR": 0.08882317785886312,
+      "netAsPercentInitial100Aud": 0.6599075529590269,
+      "synthetic": true,
+      "all2022ThroughPartial2026YearsNegative": true,
+      "net2022ThroughPartial2026Aud": -0.6662228129982288,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.5115066802239618,
+        "zeroEntryMonths": 51,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 382.8958333333333
+      },
+      "observedDayClusters": 39,
+      "dayKishTradeSize": 38.095238095238095,
+      "observedEpisodeClusters": 40,
+      "episodeKishTradeSize": 40,
+      "dayMeanRPercentile95": [
+        -0.2210052754394993,
+        0.4166396412092371
+      ],
+      "episodeMeanRPercentile95": [
+        -0.22743910981838442,
+        0.4051480296979172
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": true,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.4096132169569281,
+      "homeConversionCostAud": 0.06537338558424288,
+      "totalFrictionAud": 0.47498660254117087,
+      "grossFixedTimingAud": 1.1348941555001977,
+      "frictionFractionOfPositiveFixedTimingGross": 0.41852942870414506,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.010409069923337604,
+      "sideClosedTradeCounts": {
+        "BUY": 1,
+        "SELL": 39
+      },
+      "pairClosedTradeCounts": {
+        "GBP_USD": 12,
+        "USD_JPY": 15,
+        "AUD_USD": 7,
+        "EUR_USD": 6
+      }
+    },
+    {
+      "caseId": "r3-full-optimistic-olhc",
+      "closedTrades": 40,
+      "openTrades": 0,
+      "netAud": 0.38812776111913583,
+      "totalNetR": 2.0614026520924527,
+      "averageNetR": 0.05153506630231132,
+      "netAsPercentInitial100Aud": 0.38812776111913583,
+      "synthetic": true,
+      "all2022ThroughPartial2026YearsNegative": true,
+      "net2022ThroughPartial2026Aud": -0.9348816798649772,
+      "frequency": {
+        "entriesPer30CalendarDays": 0.5115066802239618,
+        "zeroEntryMonths": 51,
+        "touchedMonths": 78,
+        "maxEntryGapCalendarDays": 382.8958333333333
+      },
+      "observedDayClusters": 39,
+      "dayKishTradeSize": 38.095238095238095,
+      "observedEpisodeClusters": 40,
+      "episodeKishTradeSize": 40,
+      "dayMeanRPercentile95": [
+        -0.24807217554125405,
+        0.3772461459708058
+      ],
+      "episodeMeanRPercentile95": [
+        -0.2549812673256178,
+        0.3648833816879219
+      ],
+      "positiveSignUnresolvedInBothEmpiricalResamplings": true,
+      "initialRiskMetadataMissing": 0,
+      "episodeMetadataMissing": 0,
+      "executionFrictionAud": 0.4100175605010254,
+      "homeConversionCostAud": 0.06251395651021702,
+      "totalFrictionAud": 0.4725315170112423,
+      "grossFixedTimingAud": 0.860659278130378,
+      "frictionFractionOfPositiveFixedTimingGross": 0.5490343612372703,
+      "financingModeledAud": 0,
+      "financingKnown": false,
+      "modeledNewYorkRolloverCrossings": 0,
+      "portfolioRiskRejections": 0,
+      "portfolioRiskReasonCounts": {},
+      "sampledNavMaximumDrawdownFraction": 0.012031528113687436,
+      "sideClosedTradeCounts": {
+        "BUY": 1,
+        "SELL": 39
+      },
+      "pairClosedTradeCounts": {
+        "GBP_USD": 12,
+        "USD_JPY": 15,
+        "AUD_USD": 7,
+        "EUR_USD": 6
+      }
+    }
+  ],
+  "limits": [
+    "Cases are separate conditional sensitivity worlds of one strategy; never pool them as independent returns or choose the best as edge evidence.",
+    "Empirical day/episode clusters are not established independent or exchangeable. Kish counts describe concentration, not a count of independent trials.",
+    "Gross and friction use the same achieved trades/fills/timing. They are an accounting decomposition, not a rerun of an alternative costless strategy.",
+    "No historical financing events supplied; financing is omitted from modeled returns. No modeled 17:00 New York cutoff crossings or boundary exposure were observed, but exact historical broker charges remain unverified.",
+    "NAV, drawdown, margin and liquidation marks are declared proxies. Sampled drawdown is not an exhaustive intrabar or exact broker NAV measurement.",
+    "Archive component prices do not establish simultaneous account executable quotes; source half-tick display rounding, unobserved latency, intrabar ordering and delivery remain unresolved.",
+    "Native archive intervals based on two/three trades are especially fragile; their narrow empirical intervals cannot establish a population-loss law.",
+    "The independent reducer entry-VWAP tie correction changed only audit arithmetic, preserved original tool/error lineage and all eight raw financial outputs. No financial source, cost, strategy, trial or result was changed."
+  ]
+}

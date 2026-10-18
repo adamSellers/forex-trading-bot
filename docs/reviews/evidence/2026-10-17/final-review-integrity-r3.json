@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "FINAL_REVIEW_INTEGRITY_AND_DELIVERY_CHECK",
+  "recordedAtUtc": "2026-10-17T09:50:32.864Z",
+  "status": "PASSED",
+  "reportPath": "docs/reviews/2026-10-17-strategy-viability-review.md",
+  "reportSha256": "6955906951ce7f172d6ea0022c86b40ce3aae39946b3e76ca8b91a4b7f2faea2",
+  "decisionPath": "docs/reviews/evidence/2026-10-17/viability-decision-r3.json",
+  "decisionSha256": "f9d18ab9351732173c8656630d9774ab039556044de82f22e714243bca086c3a",
+  "trialLedgerSha256": "4a9b9de67277a09f11eb14716992cd4268e15fcc583abe658778ab0c10098e61",
+  "trialStatus": "INCONCLUSIVE",
+  "financialSourceCount": 119,
+  "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "decisionEvidenceHashesVerified": 23,
+  "localReportLinksVerified": 30,
+  "allEightFullNativeExitsZero": true,
+  "runtimeRepairActivated": false,
+  "localResearchAndReviewPublished": false,
+  "approvedRecoveryFixDeployed": "519b428ee28c0a43a96b89acd22c99c02cc75fa3",
+  "liveStrategyOrRiskRulesChanged": false
+}

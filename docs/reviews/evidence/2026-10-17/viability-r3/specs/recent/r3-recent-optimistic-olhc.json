@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "evaluationUse": "RETROSPECTIVE",
+  "caseId": "r3-recent-optimistic-olhc",
+  "cohortId": "recent",
+  "costCaseId": "optimistic",
+  "archivePath": "/Users/adams/code/forex-trading-bot/backend/data/historical/viability_20261017_recent.json",
+  "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+  "archiveGranularity": "M15",
+  "assets": [
+    "AUD_USD",
+    "EUR_USD",
+    "GBP_USD",
+    "USD_JPY"
+  ],
+  "fromUtc": "2026-09-15T00:00:00Z",
+  "toUtcExclusive": "2026-10-17T00:00:00Z",
+  "pathOrder": "OLHC",
+  "spreadPips": {
+    "AUD_USD": 0.6,
+    "EUR_USD": 0.8,
+    "GBP_USD": 1.1,
+    "USD_JPY": 0.6
+  },
+  "slippagePips": 0,
+  "scanMode": "COMPRESSED_STATIC_HOLDS",
+  "protocolId": "v6-current-viability-2026-10-17-r3",
+  "homeConversionFeeRate": 0.01,
+  "unrealizedConversionPurpose": "position",
+  "policyOptimization": true,
+  "initialBalanceAud": 100,
+  "commissionAud": 0,
+  "protocolPath": "/Users/adams/code/forex-trading-bot/docs/reviews/evidence/2026-10-17/viability-protocol-r3.json",
+  "protocolSha256": "5c5d76cabd4df8e987ab5e1a069e819c2ce00bef03169817d1593c0da0d6c939",
+  "inputManifestPath": "/Users/adams/code/forex-trading-bot/docs/reviews/evidence/2026-10-17/viability-inputs-r3.json",
+  "inputManifestSha256": "f91f6ffb78a9fdf8a4020267c8c8b7fd73e164e5becd90730d58b2b4e2879852",
+  "launchRegistrationPath": "/Users/adams/code/forex-trading-bot/docs/reviews/evidence/2026-10-17/viability-launch-r3.json",
+  "launchRegistrationSha256": "5d9c12aafd8d67e690acadbd5357cf10c754cd67b1aceaffaf24d3c0e82a7442",
+  "instrumentMetadataPath": "/Users/adams/code/forex-trading-bot/docs/reviews/evidence/2026-10-17/instrument-metadata-proof.json",
+  "instrumentMetadataSha256": "80325d02eb68586e9beca0d435ce523ea546db26faadede13610680f5e275b77"
+}

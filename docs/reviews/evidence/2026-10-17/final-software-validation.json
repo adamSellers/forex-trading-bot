@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "checkedOnSydneyDate": "2026-10-17",
+  "runtime": "Node22.23.1",
+  "ordinaryBackendSuite": {
+    "passedSuites": 68,
+    "skippedDataDependentSuite": 1,
+    "passedTests": 1336,
+    "skippedDataDependentTest": 1,
+    "seconds": 16.603,
+    "source": "/private/tmp/forex-20261017-final-backend-tests.log",
+    "environment": "Isolated tests with local loopback enabled; no live orders."
+  },
+  "targetDeploymentSuite": {
+    "passedSuites": 68,
+    "passedTests": 1336,
+    "productionFrontendBuild": true,
+    "backupVerified": true,
+    "revision": "519b428"
+  },
+  "researchFocusedSuite": {
+    "passedTests": 61,
+    "scope": "Persisted replay, historical market and independent accounting"
+  },
+  "scoredCases": "Separate eight full-history and eight recent cost/path cases; ordinary data-dependent test is intentionally opt-in.",
+  "sourceStability": "Full scored executable source remains frozen; external prototype trimming was tested but NOT integrated or used for scored results.",
+  "limitations": "These checks validate behavior and accounting, not profitable expectancy."
+}

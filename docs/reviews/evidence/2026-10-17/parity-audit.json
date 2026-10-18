@@ -1,0 +1,590 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "INDEPENDENT_RECENT_M15_TO_DIRECT_H1_PARITY_AUDIT",
+  "capturedOnSydneyDate": "2026-10-17",
+  "source": {
+    "path": "backend/data/historical/viability_20261017_recent.json",
+    "bytes": 5403697,
+    "sha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+    "downloadedAtUtc": "2026-10-17T06:13:43.162Z",
+    "origin": "OANDA REST v20 authenticated instrument candles GET; no account or trade fields",
+    "runtime": "v22.23.1"
+  },
+  "tool": {
+    "path": "docs/reviews/evidence/2026-10-17/parity-audit.cjs",
+    "sha256": "eb6c70059961b77ff98140cfe820b83d1c19ba649686fa35a61749c023b6fb6f"
+  },
+  "instruments": {
+    "AUD_USD": {
+      "m15": {
+        "count": 5000,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 192
+          }
+        ],
+        "absentGridIntervals": 1920
+      },
+      "h1": {
+        "count": 1250,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 48
+          }
+        ],
+        "absentGridIntervals": 480
+      },
+      "parity": {
+        "comparedCompleteFourQuarterHours": 1250,
+        "comparedComponentOhlcs": 3750,
+        "exactMatchedComponentOhlcs": 3750,
+        "exactMatchedVolumeHours": 1250,
+        "exactMatchedAllFieldsHours": 1250,
+        "fieldDifferenceCount": 0,
+        "firstFieldDifferences": [],
+        "incompleteQuarterHours": [],
+        "m15HoursWithoutDirectH1": [],
+        "status": "EXACT_ON_ALL_COMPARABLE_HOURS"
+      },
+      "componentCloseDifference": {
+        "meaning": "Independent ask-component close minus bid-component close; not verified simultaneous account spread.",
+        "medianPips": 1.3,
+        "p90Pips": 1.5,
+        "atMostConfiguredOnePointTwoPips": 1004,
+        "total": 5000
+      }
+    },
+    "EUR_USD": {
+      "m15": {
+        "count": 5000,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 192
+          }
+        ],
+        "absentGridIntervals": 1920
+      },
+      "h1": {
+        "count": 1250,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 48
+          }
+        ],
+        "absentGridIntervals": 480
+      },
+      "parity": {
+        "comparedCompleteFourQuarterHours": 1250,
+        "comparedComponentOhlcs": 3750,
+        "exactMatchedComponentOhlcs": 3750,
+        "exactMatchedVolumeHours": 1250,
+        "exactMatchedAllFieldsHours": 1250,
+        "fieldDifferenceCount": 0,
+        "firstFieldDifferences": [],
+        "incompleteQuarterHours": [],
+        "m15HoursWithoutDirectH1": [],
+        "status": "EXACT_ON_ALL_COMPARABLE_HOURS"
+      },
+      "componentCloseDifference": {
+        "meaning": "Independent ask-component close minus bid-component close; not verified simultaneous account spread.",
+        "medianPips": 1.6,
+        "p90Pips": 1.7,
+        "atMostConfiguredOnePointTwoPips": 0,
+        "total": 5000
+      }
+    },
+    "GBP_USD": {
+      "m15": {
+        "count": 5000,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 192
+          }
+        ],
+        "absentGridIntervals": 1920
+      },
+      "h1": {
+        "count": 1250,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 48
+          }
+        ],
+        "absentGridIntervals": 480
+      },
+      "parity": {
+        "comparedCompleteFourQuarterHours": 1250,
+        "comparedComponentOhlcs": 3750,
+        "exactMatchedComponentOhlcs": 3750,
+        "exactMatchedVolumeHours": 1250,
+        "exactMatchedAllFieldsHours": 1250,
+        "fieldDifferenceCount": 0,
+        "firstFieldDifferences": [],
+        "incompleteQuarterHours": [],
+        "m15HoursWithoutDirectH1": [],
+        "status": "EXACT_ON_ALL_COMPARABLE_HOURS"
+      },
+      "componentCloseDifference": {
+        "meaning": "Independent ask-component close minus bid-component close; not verified simultaneous account spread.",
+        "medianPips": 1.8,
+        "p90Pips": 2.1,
+        "atMostConfiguredOnePointTwoPips": 0,
+        "total": 5000
+      }
+    },
+    "USD_JPY": {
+      "m15": {
+        "count": 5000,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 192
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 192
+          }
+        ],
+        "absentGridIntervals": 1920
+      },
+      "h1": {
+        "count": 1250,
+        "firstIntervalStartUtc": "2026-08-05T19:00:00.000Z",
+        "lastIntervalEndUtc": "2026-10-16T21:00:00.000Z",
+        "structuralProblems": 0,
+        "firstProblems": [],
+        "gaps": [
+          {
+            "fromUtc": "2026-08-07T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-09T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-14T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-16T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-21T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-23T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-08-28T21:00:00.000Z",
+            "toUtcExclusive": "2026-08-30T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-04T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-06T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-11T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-13T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-18T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-20T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-09-25T21:00:00.000Z",
+            "toUtcExclusive": "2026-09-27T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-02T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-04T21:00:00.000Z",
+            "absentGridIntervals": 48
+          },
+          {
+            "fromUtc": "2026-10-09T21:00:00.000Z",
+            "toUtcExclusive": "2026-10-11T21:00:00.000Z",
+            "absentGridIntervals": 48
+          }
+        ],
+        "absentGridIntervals": 480
+      },
+      "parity": {
+        "comparedCompleteFourQuarterHours": 1250,
+        "comparedComponentOhlcs": 3750,
+        "exactMatchedComponentOhlcs": 3750,
+        "exactMatchedVolumeHours": 1250,
+        "exactMatchedAllFieldsHours": 1250,
+        "fieldDifferenceCount": 0,
+        "firstFieldDifferences": [],
+        "incompleteQuarterHours": [],
+        "m15HoursWithoutDirectH1": [],
+        "status": "EXACT_ON_ALL_COMPARABLE_HOURS"
+      },
+      "componentCloseDifference": {
+        "meaning": "Independent ask-component close minus bid-component close; not verified simultaneous account spread.",
+        "medianPips": 1.6,
+        "p90Pips": 1.9,
+        "atMostConfiguredOnePointTwoPips": 183,
+        "total": 5000
+      }
+    }
+  },
+  "interpretation": [
+    "Exact compared prices establish direct-H1 agreement for these recently retained account-independent instrument candle observations; do not extend that finding automatically to every 2020-August 2026 hour.",
+    "Hours lacking four retained quarters are excluded and reported. Missing intervals may be closures, holidays, quiet intervals or capture gaps; this audit does not diagnose service health or synthesize prices.",
+    "Matching candle OHLC does not validate simultaneous account pricing, home conversions, executable liquidity, quote receipt, source event ordering, five-second path or ten-second management.",
+    "Any 5-second interpolated price paths remain declared sensitivities. High-first/low-first paths are not exhaustive account-return bounds."
+  ],
+  "changesMade": "Only local standalone audit script and result. No strategy/runtime/live changes."
+}

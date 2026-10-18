@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-17T06:51:28.023Z",
+  "source": "OANDA REST v20 account instruments GET; only instrument metadata fields returned",
+  "instruments": [
+    {
+      "name": "AUD_USD",
+      "type": "CURRENCY",
+      "displayPrecision": 5,
+      "pipLocation": -4,
+      "marginRate": "0.03333333333333",
+      "tradeUnitsPrecision": 0,
+      "minimumTradeSize": "1",
+      "maximumOrderUnits": "100000000",
+      "maximumPositionSize": "0"
+    },
+    {
+      "name": "EUR_USD",
+      "type": "CURRENCY",
+      "displayPrecision": 5,
+      "pipLocation": -4,
+      "marginRate": "0.03333333333333",
+      "tradeUnitsPrecision": 0,
+      "minimumTradeSize": "1",
+      "maximumOrderUnits": "100000000",
+      "maximumPositionSize": "0"
+    },
+    {
+      "name": "GBP_USD",
+      "type": "CURRENCY",
+      "displayPrecision": 5,
+      "pipLocation": -4,
+      "marginRate": "0.03333333333333",
+      "tradeUnitsPrecision": 0,
+      "minimumTradeSize": "1",
+      "maximumOrderUnits": "50000000",
+      "maximumPositionSize": "0"
+    },
+    {
+      "name": "USD_JPY",
+      "type": "CURRENCY",
+      "displayPrecision": 3,
+      "pipLocation": -2,
+      "marginRate": "0.03333333333333",
+      "tradeUnitsPrecision": 0,
+      "minimumTradeSize": "1",
+      "maximumOrderUnits": "100000000",
+      "maximumPositionSize": "0"
+    }
+  ]
+}

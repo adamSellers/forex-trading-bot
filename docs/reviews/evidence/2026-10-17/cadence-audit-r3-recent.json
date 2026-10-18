@@ -1,0 +1,503 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "DOCS_ONLY_FROZEN_R3_CADENCE_AND_CENSORING_AUDIT",
+  "cohort": "recent",
+  "toolSha256": "3e98575dde2b5119194173240936f3f504ffaa4a970ac2102b022905f119c164",
+  "archiveSha256": "587a3af822e3150172faf7b13c6d3ca8e9cc4575467e5d94cb5c433c68370695",
+  "interval": {
+    "fromUtc": "2026-09-15T00:00:00Z",
+    "toUtcExclusive": "2026-10-17T00:00:00Z"
+  },
+  "coverage": {
+    "distinctM15Boundaries": 2292,
+    "observedUtcDates": 28
+  },
+  "definitions": {
+    "entries": "Persisted actual-engine entries, including any open boundary positions. Period counts differ from closed-trade-only economic tables if exposure remains open.",
+    "episodes": "BUY episodeId or SELL frozen breakout time/level, grouped by instrument and direction from broker-backed entry telemetry. Counts describe concentration, not proven independent samples.",
+    "gaps": "Observed span between entries with start/end cohort boundaries included. Boundary-touching spans are censored; their length does not bound the eventual complete waiting time.",
+    "marketCoverage": "Counts retained M15 start boundaries strictly inside the gap and their observed UTC dates. Each retained interval contributes 0.25 coverage hours. Missing intervals are not filled. These are observations, not all eligible setups, independent trials, market-session days or exact open-market duration."
+  },
+  "cases": [
+    {
+      "caseId": "r3-recent-archive_components-ohlc",
+      "specSha256": "c5e83f5d84a05ebaa1710903eef399bcd88effa77fc982e05de2c0128c03643c",
+      "resultSha256": "acd0d985c22fbd45db6a85fb7cc27cf93aa141f64bad45570d091f1f14dfa7af",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-recent-archive_components-olhc",
+      "specSha256": "f2bf72dd4eeded1702ad69980c3dcccfc877ab46458d43aca9f65807289b4c3e",
+      "resultSha256": "4d34773cb48d43aaf23dd7a10cc7838729bf74c5f30d55bec918c13a3eb88560",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-recent-current_medians-ohlc",
+      "specSha256": "d692a224cce2497980d58306ff534290edea21e8ce2f82e7656437a7647db471",
+      "resultSha256": "f1504f6ca94cdf13afcea9e4c24c636cd2c7bb38dad37ef8d66a266ccac27c7b",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-recent-current_medians-olhc",
+      "specSha256": "ee5a4014043848a6c6a2ce97f0ff041ddd32d7808370183582dfb0d66ee386c0",
+      "resultSha256": "648089c0278f2a77248b2686f3ee29b7806de7bee4be9b3f8bc68d46f29bf997",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-recent-current_p90_stress-ohlc",
+      "specSha256": "9b8fa5412db3eb8711373bd94e1a84b817fe7f0eb7ebcf30da6463315cf13453",
+      "resultSha256": "2c0f5f8a36320b07c17bd8506aae5b7ca6031f5630eb350030c4bb05eb43e54a",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-recent-current_p90_stress-olhc",
+      "specSha256": "2a8ab571c2f80c9394d224a4e2f5c2495de27e3e0b2564548af86059f4831caa",
+      "resultSha256": "e478ec93efcdbb91a508e445cdee251265fce504d6bb7ada502ab0b02302092a",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-recent-optimistic-ohlc",
+      "specSha256": "22252d05e64bb011ef510453054265ef992c1466d60c5e2dcf10749b12c18dea",
+      "resultSha256": "3ea31771c035631283a18f4dcf5ea2b67b570acda8929c985431a43e89f899e5",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "r3-recent-optimistic-olhc",
+      "specSha256": "4d4f4c2a5d14e36013ff5ed0654d7c4eeeef5f819f3736744633f365e954b613",
+      "resultSha256": "b22f19d7c9613e7fdc85e59762e5ca23c2f2a53a03e1dba18a4ebbe8c17ead0e",
+      "entries": 0,
+      "closedTrades": 0,
+      "openBoundaryTrades": 0,
+      "tradeBearingUtcEntryDays": 0,
+      "distinctFilledBreakoutEpisodes": 0,
+      "entriesWithoutEpisodeEvidence": 0,
+      "entryCountsByYear": {
+        "2026": 0
+      },
+      "entryCountsByQuarter": {
+        "2026-Q3": 0,
+        "2026-Q4": 0
+      },
+      "entryCountsByPair": {
+        "AUD_USD": 0,
+        "EUR_USD": 0,
+        "GBP_USD": 0,
+        "USD_JPY": 0
+      },
+      "entriesPer30CalendarDays": 0,
+      "longestObservedEntryGaps": [
+        {
+          "fromUtc": "2026-09-15T00:00:00.000Z",
+          "toUtc": "2026-10-17T00:00:00.000Z",
+          "calendarDays": 32,
+          "leftBoundaryCensored": true,
+          "rightBoundaryCensored": true,
+          "betweenObservedEntries": false,
+          "distinctM15BoundariesStrictlyBetween": 2291,
+          "observedUtcDates": 28,
+          "retainedM15IntervalHours": 572.75,
+          "byPair": {
+            "AUD_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "EUR_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "GBP_USD": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            },
+            "USD_JPY": {
+              "distinctM15BoundariesStrictlyBetween": 2291,
+              "observedUtcDates": 28,
+              "retainedM15IntervalHours": 572.75
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

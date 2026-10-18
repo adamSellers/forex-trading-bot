@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "evaluationUse": "RETROSPECTIVE",
+  "archivePath": "/private/tmp/viability-parity-archive-v2.json",
+  "archiveSha256": "cf6c550f681e92d87547d53a260a0fc2d4db038684d42ad3a8d121e9170ff195",
+  "assets": [
+    "AUD_USD",
+    "EUR_USD"
+  ],
+  "fromUtc": "2026-09-11T13:00:00.000Z",
+  "toUtcExclusive": "2026-09-11T20:00:00.000Z",
+  "initialBalanceAud": 100,
+  "pathOrder": "OHLC",
+  "spreadPips": null,
+  "slippagePips": 0.2,
+  "commissionAud": 0,
+  "smokeReconsiderationFirstMinute": true,
+  "caseId": "software-parity-v2-EVERY_MINUTE",
+  "scanMode": "EVERY_MINUTE"
+}

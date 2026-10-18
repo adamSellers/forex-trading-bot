@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "REGISTERED_EXTERNAL_TIMEOUT_ONLY_SOFTWARE_CONTROL",
+  "mode": "SOFTWARE_VALIDATION_CONTROL",
+  "registeredAtUtc": "2026-10-17T07:54:26.814Z",
+  "testName": "runs the frozen rules through actual persisted coordinator, entry, risk and exits",
+  "originalTimeoutMs": 7200000,
+  "extendedTimeoutMs": 21600000,
+  "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "helper": {
+    "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-helper.cjs",
+    "sha256": "7e73cc42d61e982d5800c67f5fff659c0d9a127b6b39af9dc7e17f7c09e6e930"
+  },
+  "launcher": {
+    "path": "docs/reviews/evidence/2026-10-17/runtime-budget-repair-launcher.cjs",
+    "sha256": "83b6795e964b12444b86707603c398d6c8d7f473219724c17de5548011d8c165"
+  },
+  "allowedCases": [
+    {
+      "caseId": "software-r3-filled-on",
+      "specSha256": "ead62b17b86023a53bb7fb38aa1f50a43b865443fd91073ed5068fa8197933dc"
+    }
+  ],
+  "scope": "Only uns cored filled software-control fixture. No historical runtime repair is authorized by this registration.",
+  "condition": "No historical case may use this mode. Actual recovery requires a new registered ACTUAL_TIMEOUT_RECOVERY record containing exact failed spec and hashed actual native-timeout log before use."
+}

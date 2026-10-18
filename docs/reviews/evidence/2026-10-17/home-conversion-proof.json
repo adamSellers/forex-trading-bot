@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "capturedAtUtc": "2026-10-17T06:50:23.196Z",
+  "source": "OANDA REST v20 account pricing GET; only market and conversion fields returned",
+  "homeCurrency": "AUD",
+  "marketStatus": "WEEKEND_RETAINED_PRICES",
+  "prices": [
+    {
+      "instrument": "AUD_USD",
+      "time": "2026-10-16T20:59:05.035653347Z",
+      "bid": 0.69432,
+      "ask": 0.69487,
+      "tradeable": false
+    },
+    {
+      "instrument": "USD_JPY",
+      "time": "2026-10-16T20:59:05.046070104Z",
+      "bid": 157.989,
+      "ask": 158.015,
+      "tradeable": false
+    }
+  ],
+  "conversions": [
+    {
+      "currency": "USD",
+      "accountGain": 1.425281002987,
+      "accountLoss": 1.454074558603,
+      "positionValue": 1.439677780795
+    },
+    {
+      "currency": "AUD",
+      "accountGain": 1,
+      "accountLoss": 1,
+      "positionValue": 1
+    },
+    {
+      "currency": "JPY",
+      "accountGain": 0.009020709098,
+      "accountLoss": 0.009202945646,
+      "positionValue": 0.009111827372
+    }
+  ]
+}

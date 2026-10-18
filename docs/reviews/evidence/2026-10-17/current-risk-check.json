@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "capturedOnSydneyDate": "2026-10-17",
+  "source": "Read-only persisted aud_nav_high_watermark and broker-backed portfolio summary after recovery deployment",
+  "highWatermarkNavAud": 97.8585,
+  "currentNavAud": 95.093,
+  "drawdownFraction": 0.02826019201193563,
+  "configuredMaximumDrawdownFraction": 0.05,
+  "drawdownLimitCurrentlyExceeded": false,
+  "cooldownActive": false,
+  "interpretation": "The observed current drawdown and cooldown do not explain the existing ten-day absence of actionable entry signals. Final entry checks still run only when a strategy candidate exists."
+}

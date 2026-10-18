@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "ALL_EIGHT_ORIGINAL_R3_FULL_PROCESS_SUCCESS_AND_RAW_OUTPUT_MANIFEST",
+  "recordedAtUtc": "2026-10-17T09:42:25.292Z",
+  "nodeVersion": "v22.23.1",
+  "runtimeRepairActivated": false,
+  "financialSourcePinSetSha256": "6bf2f0c3ac6b3f8423e5605e6ab3d7228012553881fc6fd49af047a250ca6ad6",
+  "financialSourceCount": 119,
+  "status": "ALL_EIGHT_ORIGINAL_NATIVE_EXITS_ZERO",
+  "cases": [
+    {
+      "caseId": "r3-full-optimistic-ohlc",
+      "exitCode": 0,
+      "sessionId": 36956,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-optimistic-ohlc.json",
+      "specSha256": "26f28cef7cd79624ae0ab3a61578c12f93a3b526f0ad860757c8161e37a56164",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-optimistic-ohlc.json",
+      "resultSha256": "1887b33bf7a9c3379f4cdcdd75b1e71ed557e8d52b8daf598a0463cd0854461e",
+      "resultBytes": 29495421,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-optimistic-ohlc.log",
+      "logSha256": "73587c9b97ab9cc50c294eed2b854e1bc987e8f033e03debc0337cffab2de2a9"
+    },
+    {
+      "caseId": "r3-full-optimistic-olhc",
+      "exitCode": 0,
+      "sessionId": 26618,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-optimistic-olhc.json",
+      "specSha256": "ff3824b4b6e1830fb649311761cfc498d767ddb980927f9ef737f25f3af99b6e",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-optimistic-olhc.json",
+      "resultSha256": "e3390ab0745adbe2f896edb58f3fb4250f0347ea8279a9c893c2f69ac3324554",
+      "resultBytes": 29619130,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-optimistic-olhc.log",
+      "logSha256": "2d21f995494c27f95964a8e3a6604d2389651fd1ee8e1822eb1f883bd25a7cb2"
+    },
+    {
+      "caseId": "r3-full-current_medians-ohlc",
+      "exitCode": 0,
+      "sessionId": 25326,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-current_medians-ohlc.json",
+      "specSha256": "c8a59b7b389d25f0c0ae059de78b61c8b75e5d0c05fd5bcd51215eb6b075e880",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-current_medians-ohlc.json",
+      "resultSha256": "0c9ee188136a619e765389cbbea69a6315183697101e985f2b70df2829b04124",
+      "resultBytes": 28483776,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-current_medians-ohlc.log",
+      "logSha256": "352cb8cc91eba9eaa07667d7689c3271a274750fc719a441a3a2867a2c6e3488"
+    },
+    {
+      "caseId": "r3-full-current_medians-olhc",
+      "exitCode": 0,
+      "sessionId": 21951,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-current_medians-olhc.json",
+      "specSha256": "c14b1ca184cf13d426523a5a43035b79f83cd832ab251ac046b04e321ba99d2a",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-current_medians-olhc.json",
+      "resultSha256": "0177b2d3280df903c472cd715b9e9dcc42c16d9d06c9196c20997e01f3285175",
+      "resultBytes": 28583265,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-current_medians-olhc.log",
+      "logSha256": "b0021ca28098c54dad9642a1c6840f0ab7144dcd99c7a4de95427a8dd57972f2"
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-ohlc",
+      "exitCode": 0,
+      "sessionId": 25900,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-current_p90_stress-ohlc.json",
+      "specSha256": "73cdaa41605eac8a1510805707160f630d39905e11e3c1fb3d3435a8946b4881",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-current_p90_stress-ohlc.json",
+      "resultSha256": "647aeb848b2bd8b42749627d8f0209f9d01fd5346b3acababa4b8f20cb5c8a4d",
+      "resultBytes": 28709652,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-current_p90_stress-ohlc.log",
+      "logSha256": "21defd40b5008f922718aaf290f6acd2a522d4dbb7773464f7d19a80e109d79e"
+    },
+    {
+      "caseId": "r3-full-current_p90_stress-olhc",
+      "exitCode": 0,
+      "sessionId": 28994,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-current_p90_stress-olhc.json",
+      "specSha256": "df01180cbe19bfa8cccb4355225c71462ae198abfd918904e0e3211a47967966",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-current_p90_stress-olhc.json",
+      "resultSha256": "071f1163b8345fd3858e47b49ffcf7aa0d8b727e807c3e69174af99ff4a81db9",
+      "resultBytes": 28763559,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-current_p90_stress-olhc.log",
+      "logSha256": "679b63329e8e4fee4601b91590f5c7154d04b982cc1324465066d2f54e43574f"
+    },
+    {
+      "caseId": "r3-full-archive_components-ohlc",
+      "exitCode": 0,
+      "sessionId": 66098,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-archive_components-ohlc.json",
+      "specSha256": "c55068e8c6508a4e01bca9d463fe7129d86778642ba738d86f10172824abd7e0",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-archive_components-ohlc.json",
+      "resultSha256": "b0134b1e2c02b0ac57cede5a53c4ccb38a1998fad204d0876b3532d5f4970b86",
+      "resultBytes": 24258301,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-archive_components-ohlc.log",
+      "logSha256": "d69c6adbc6364b486b66d4749f0ecee6b158a0fd445c197c9afec224803a6b49"
+    },
+    {
+      "caseId": "r3-full-archive_components-olhc",
+      "exitCode": 0,
+      "sessionId": 93191,
+      "exitEvidence": "Root write_stdin returned native process exit_code=0",
+      "specPath": "docs/reviews/evidence/2026-10-17/viability-r3/specs/full/r3-full-archive_components-olhc.json",
+      "specSha256": "6f6dce9bcac5b7aabbc87314f3886b77f0834500d7377098da3a8d44b490e0d5",
+      "resultPath": "backend/data/backtests/viability-20261017/r3/full/r3-full-archive_components-olhc.json",
+      "resultSha256": "2cf87465cf603dbf82d1db15d03b7c146213dba8a05edf7f05a4a357de98230f",
+      "resultBytes": 24395873,
+      "logPath": "backend/data/backtests/viability-20261017/r3/logs/r3-full-archive_components-olhc.log",
+      "logSha256": "0017c7d02d59ca62d0951f0688618bbcf2658d541892c0ef0a8bc83eadb515fb"
+    }
+  ],
+  "limits": [
+    "Native exit/test success validates execution completion, not economic edge. Independent accounting and uncertainty audits are separate.",
+    "Raw results and logs follow the repository ignored-data convention and remain local; all bytes are hashed here."
+  ]
+}

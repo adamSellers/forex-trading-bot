@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "candidateId": "v6-current-viability-2026-10-17-r2",
+  "hypothesis": "The unchanged current v6 portfolio can earn positive net returns after explicit transaction costs at a useful observable cadence.",
+  "baselineIdentity": {
+    "release": "m15-intraday-v6",
+    "strategyVersion": "1.4.0",
+    "executionPolicy": "intraday-risk-v6",
+    "sourceCommit": "76593d0",
+    "deployedCommit": "562334b",
+    "riskPerTrade": 0.0025,
+    "capitalCapAud": 100,
+    "assets": [
+      "AUD_USD",
+      "EUR_USD",
+      "GBP_USD",
+      "USD_JPY"
+    ]
+  },
+  "dataManifestSha256": "68fdb8b9a72c1acf07f23f5e65d04c5bcad2d7e31868f4aa92c8932372040ca2",
+  "dataManifestDescription": "SHA256 of viability-inputs.json, which pins all raw/derived input evidence. Replaces original protocol whose dataManifestSha256 named the archive itself.",
+  "entryPolicy": "Unchanged v6 actual runtime: H1 regime, pair sessions, M15 quality/EMA/RSI, durable frozen break/retest/confirmation, consumed BUY episodes, protected-exit freshness and H1 loss reset.",
+  "exitPolicy": "Unchanged broker-side absolute stops and 1.5R targets, +1R breakeven, six-hour and New York16:45 exits, current risk/margin/aggregate checks. Preserve state across years; no artificial boundary liquidation.",
+  "featuresKnownAtDecision": "Only completed delivered M15/H1 candles, causally available conversion/risk state and modeled point quotes; never expose current bar OHLC to entry features before completion.",
+  "costCases": [
+    {
+      "id": "optimistic",
+      "spreadsPips": {
+        "AUD_USD": 0.6,
+        "EUR_USD": 0.8,
+        "GBP_USD": 1.1,
+        "USD_JPY": 0.6
+      },
+      "slippagePips": 0,
+      "meaning": "Lower observed current quote costs applied historically as explicitly optimistic sensitivity; not historical executable evidence."
+    },
+    {
+      "id": "current_medians",
+      "spreadsPips": {
+        "AUD_USD": 0.8,
+        "EUR_USD": 1,
+        "GBP_USD": 1.5,
+        "USD_JPY": 1
+      },
+      "slippagePips": 0.2,
+      "meaning": "Present quote medians plus configured expected slippage; constant synthetic spread not exact historical quote."
+    },
+    {
+      "id": "current_p90_stress",
+      "spreadsPips": {
+        "AUD_USD": 0.9,
+        "EUR_USD": 1.1,
+        "GBP_USD": 1.7,
+        "USD_JPY": 1.2
+      },
+      "slippagePips": 0.5,
+      "meaning": "Present p90 quote costs and larger adverse fill sensitivity."
+    },
+    {
+      "id": "archive_components",
+      "spreadsPips": "retained independent bid/ask component closes",
+      "slippagePips": 0.2,
+      "meaning": "Archive-native sensitivity only; component closes/extrema do not prove simultaneous account executable spread."
+    }
+  ],
+  "economicObjectives": {
+    "keep": "Positive portfolio net expectancy after explicit costs, with no sign reversal in declared plausible sensitivities, meaningful period coverage, cluster uncertainty not leaving positive sign unresolved, and reported achieved cadence/economic scale. No extra risk/capital assumption.",
+    "redesign": "A concrete useful component or observable structural mismatch supports a new independently specified candidate; this does not authorize live tuning.",
+    "scrap": "Reject the current rule set if even generous declared cases do not support credible positive net edge, or evidence supports continuing loss. Inconclusive results fail KEEP but do not prove profit is mathematically impossible.",
+    "economicScale": "Report achieved AUD and returns at A$100 starting account/current cap. No invented income target, extrapolated salary, or guaranteed growth."
+  },
+  "uncertaintyMethod": "Two declared OHLC traversal sensitivities, not exhaustive bounds. Report day/episode clusters and effective cluster counts; observed-path variation, costs, unavailable financing/delivery/parity evidence and open boundary positions. All historical data are retrospective.",
+  "trialBudget": {
+    "maximumVariants": 8,
+    "selectionRule": "One unchanged strategy; four preregistered cost models crossed with two path assumptions O-H-L-C/O-L-H-C. Report all variants; never select best as evidence of optimized edge. Repair/reproducibility reruns retain protocol/trial lineage."
+  },
+  "periods": [
+    {
+      "role": "DEVELOPMENT",
+      "fromUtc": "2020-01-01T00:00:00Z",
+      "toUtcExclusive": "2026-01-01T00:00:00Z",
+      "alreadyInspected": true
+    },
+    {
+      "role": "FINAL_EVALUATION",
+      "fromUtc": "2026-01-01T00:00:00Z",
+      "toUtcExclusive": "2026-08-03T00:15:00Z",
+      "alreadyInspected": true
+    }
+  ],
+  "labelPolicy": "No label learning/tuning. Annual/quarterly breakdowns are retrospective diagnostics; no holdout claim. Warmup unscored and state carried.",
+  "evaluationUse": "RETROSPECTIVE",
+  "registeredIntentAtUtc": "2026-10-17T06:16:00.023Z",
+  "supersedes": "v6-current-viability-2026-10-17"
+}

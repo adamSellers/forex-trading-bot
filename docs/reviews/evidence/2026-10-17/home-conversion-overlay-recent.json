@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "KNOWN_HOME_CONVERSION_MARKUP_FIXED_LEDGER_OVERLAY_ONLY",
+  "runtime": "v22.23.1",
+  "toolSha256": "8e7a9732a05d9cd5b1d35cadfdbb7a76fd6d07237914b9bc928e72925f3fc9c3",
+  "helperSha256": "fc6c2d3ee74ab748abe5757676b25541c145522ff126fae8ea935228af897503",
+  "proofPath": "docs/reviews/evidence/2026-10-17/home-conversion-proof.json",
+  "proofSha256": "f163af4c2cedc4ecc69824c92b8431fcc7f3e17293a9f3626f0ab565d49813ef",
+  "observedConversionRatios": [
+    {
+      "currency": "USD",
+      "gainToPositionRatio": 0.989999999999965,
+      "lossToPositionRatio": 1.01000000000003
+    },
+    {
+      "currency": "JPY",
+      "gainToPositionRatio": 0.989999999969271,
+      "lossToPositionRatio": 1.01000000003073
+    }
+  ],
+  "markupFraction": 0.01,
+  "formula": "Replace quotePL times derived bid/ask conversion with quotePL times modeled midpoint position conversion times 0.99 for gains or 1.01 for losses. Existing AUD commissions/financing are held fixed. Subtract the replaced old conversion-spread cost from the new midpoint markup cost; never add both.",
+  "cases": [
+    {
+      "caseId": "recent-archive_components-OHLC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-archive_components-OHLC.json",
+      "sourceResultSha256": "98fbce4e76522c7547a323185d88f96bf7c57408023fb122c2a68fab3be619f8",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": null,
+        "pathOrder": "OHLC",
+        "slippagePips": 0.2
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    },
+    {
+      "caseId": "recent-archive_components-OLHC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-archive_components-OLHC.json",
+      "sourceResultSha256": "b61feaad00561d8cbc9365b51a99a33f888462e23e2a3d2a6f87d54e12992ebf",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": null,
+        "pathOrder": "OLHC",
+        "slippagePips": 0.2
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    },
+    {
+      "caseId": "recent-current_medians-OHLC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-current_medians-OHLC.json",
+      "sourceResultSha256": "a8aa81411ffc39d4da2b7940901945779487782d09ad381eacb79f84f0c6949b",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": {
+          "AUD_USD": 0.8,
+          "EUR_USD": 1,
+          "GBP_USD": 1.5,
+          "USD_JPY": 1
+        },
+        "pathOrder": "OHLC",
+        "slippagePips": 0.2
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    },
+    {
+      "caseId": "recent-current_medians-OLHC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-current_medians-OLHC.json",
+      "sourceResultSha256": "ba247aa4d300a7b9149cea9f7271dc889944f933ae18fc1b8bffbc2b14adb3fa",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": {
+          "AUD_USD": 0.8,
+          "EUR_USD": 1,
+          "GBP_USD": 1.5,
+          "USD_JPY": 1
+        },
+        "pathOrder": "OLHC",
+        "slippagePips": 0.2
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    },
+    {
+      "caseId": "recent-current_p90_stress-OHLC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-current_p90_stress-OHLC.json",
+      "sourceResultSha256": "c94eaa699e2314eb0aabe6b62a72d6161e3ad9661f7494870eaecbdb91d786c2",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": {
+          "AUD_USD": 0.9,
+          "EUR_USD": 1.1,
+          "GBP_USD": 1.7,
+          "USD_JPY": 1.2
+        },
+        "pathOrder": "OHLC",
+        "slippagePips": 0.5
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    },
+    {
+      "caseId": "recent-current_p90_stress-OLHC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-current_p90_stress-OLHC.json",
+      "sourceResultSha256": "4102ad73c59011501433f6c57942d4d5d4a414a9dd03d0d2f8050763d54f294e",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": {
+          "AUD_USD": 0.9,
+          "EUR_USD": 1.1,
+          "GBP_USD": 1.7,
+          "USD_JPY": 1.2
+        },
+        "pathOrder": "OLHC",
+        "slippagePips": 0.5
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    },
+    {
+      "caseId": "recent-optimistic-OHLC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-optimistic-OHLC.json",
+      "sourceResultSha256": "a2b48ca3c67b15fc00a9927a85128d6b028c5de932045b5f6aa19f8ec89c67ef",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": {
+          "AUD_USD": 0.6,
+          "EUR_USD": 0.8,
+          "GBP_USD": 1.1,
+          "USD_JPY": 0.6
+        },
+        "pathOrder": "OHLC",
+        "slippagePips": 0
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    },
+    {
+      "caseId": "recent-optimistic-OLHC",
+      "sourceResultPath": "backend/data/backtests/viability-20261017/recent/recent-optimistic-OLHC.json",
+      "sourceResultSha256": "c3f97990514863d34e0c847064a0dc7a1aefdbc8279e92b29e230b1d9ad99c86",
+      "sourcePinSetSha256": "42f65ba67b279a836bb79c45aa1f210c0ce1b1a80efc96a76628f2660fdad8b3",
+      "spec": {
+        "fromUtc": "2026-09-15T00:00:00Z",
+        "toUtcExclusive": "2026-10-17T00:00:00Z",
+        "spreadPips": {
+          "AUD_USD": 0.6,
+          "EUR_USD": 0.8,
+          "GBP_USD": 1.1,
+          "USD_JPY": 0.6
+        },
+        "pathOrder": "OLHC",
+        "slippagePips": 0
+      },
+      "closedTradesFixed": 0,
+      "openTradesFixed": 0,
+      "originalClosedNetAud": 0,
+      "markedClosedNetAudFixedLedger": 0,
+      "conversionMarkupFromMidAud": 0,
+      "replacedOldConversionSpreadCostAud": 0,
+      "replacementAdditionalCostAud": 0,
+      "originalFinalBalanceAud": 100,
+      "markedFinalCashFixedLedger": 100,
+      "sizingFeedbackInvarianceEstablished": false,
+      "portfolioAdmissionInvarianceEstablished": false,
+      "rows": [],
+      "openBoundaryValuationRows": []
+    }
+  ],
+  "conclusion": "This repairs one known cost on the exact saved fills/units only. It cannot complete the requested economic assessment because actual units, NAV/free margin, admission, loss state and subsequent portfolio feedback were not rerun.",
+  "limitations": [
+    "Modeled midpoint position conversion remains a price-path assumption; observed broker position conversion can differ in timing and source.",
+    "The 1% current observed markup is applied as an explicit current-cost sensitivity; this is not exact historical financing or fee evidence for every date.",
+    "Changed accountLoss affects canonical whole-unit worst-fill risk sizing before an order. Changed cash affects future sizing and risk gates. Existing saved decisions do not prove no alternate orders would become eligible.",
+    "Actual lower broker margin rates can affect free margin, broker marginUsed and final exposure despite the existing stricter 20x local leverage rule. A fixed-ledger conversion overlay cannot model that feedback.",
+    "An exact corrected-cost orchestration rerun is required before claiming a full portfolio result that includes the known conversion markup and demonstrated broker metadata."
+  ]
+}

@@ -14,7 +14,8 @@ class ReplayDataError extends Error {
 }
 
 class ReplayBroker {
-    constructor({ clock, market, initialBalanceAud = 100, metadata = {}, slippagePips = 0, commissionAud = 0 } = {}) {
+    constructor({ clock, market, initialBalanceAud = 100, metadata = {}, slippagePips = 0, commissionAud = 0,
+        unrealizedConversionPurpose = 'pnl' } = {}) {
         if (typeof clock?.nowMs !== 'function' || typeof market?.getQuote !== 'function' ||
             typeof market?.getHomeConversions !== 'function') {
             throw new ReplayDataError('ReplayBroker requires a clock, quote provider and home-conversion provider');
@@ -22,6 +23,7 @@ class ReplayBroker {
         for (const [name, value] of Object.entries({ initialBalanceAud, slippagePips, commissionAud })) {
             if (!finite(value) || Number(value) < 0) throw new ReplayDataError(`Invalid ${name}`);
         }
+        if (!['pnl', 'position'].includes(unrealizedConversionPurpose)) throw new ReplayDataError('Declare supported unrealized conversion purpose');
         this.clock = clock;
         this.market = market;
         this.initialBalanceAud = Number(initialBalanceAud);
@@ -29,6 +31,7 @@ class ReplayBroker {
         this.metadata = metadata instanceof Map ? new Map(metadata) : new Map(Object.entries(metadata));
         this.slippagePips = Number(slippagePips); // Adverse pips per execution.
         this.commissionAud = Number(commissionAud); // Fixed AUD per execution, including entry.
+        this.unrealizedConversionPurpose = unrealizedConversionPurpose;
         this.trades = new Map();
         this.intents = new Map();
         this.transactions = [];
@@ -192,7 +195,7 @@ class ReplayBroker {
         const exit = this._liquidationPrice(trade, observation);
         const quoteProfit = (exit - Number(trade.price)) * Number(trade.currentUnits);
         const [base, counter] = this._currencies(trade.instrument);
-        const pnlAud = quoteProfit === 0 ? 0 : quoteProfit * this._rate(counter, 'pnl', quoteProfit);
+        const pnlAud = quoteProfit === 0 ? 0 : quoteProfit * this._rate(counter, this.unrealizedConversionPurpose, quoteProfit);
         const marginAud = Math.abs(Number(trade.currentUnits)) * this._rate(base, 'position') * Number(this._metadata(trade.instrument).marginRate);
         return { quote: observation, exit, pnlAud, marginAud };
     }
@@ -301,7 +304,7 @@ class ReplayBroker {
         const account = (await this.getAccountSummary()).account;
         const liquidation = this._liquidationPrice({ instrument, currentUnits: String(units) }, quote);
         const initialQuotePL = (liquidation - fill) * units;
-        const initialPnlAud = initialQuotePL === 0 ? 0 : initialQuotePL * this._rate(counter, 'pnl', initialQuotePL);
+        const initialPnlAud = initialQuotePL === 0 ? 0 : initialQuotePL * this._rate(counter, this.unrealizedConversionPurpose, initialQuotePL);
         if (margin > Number(account.marginAvailable) - this.commissionAud + initialPnlAud) {
             return this._rejectOrder(instrument, units, options, 'INSUFFICIENT_MARGIN');
         }
@@ -485,7 +488,8 @@ class ReplayBroker {
     exportCheckpoint() {
         return copy({ schemaVersion: 1, artifactKind: 'RESEARCH_REPLAY_BROKER_CHECKPOINT', atMs: this.nowMs(),
             settings: { initialBalanceAud: this.initialBalanceAud, metadata: Object.fromEntries(this.metadata),
-                slippagePips: this.slippagePips, commissionAud: this.commissionAud },
+                slippagePips: this.slippagePips, commissionAud: this.commissionAud,
+                ...(this.unrealizedConversionPurpose === 'pnl' ? {} : { unrealizedConversionPurpose: this.unrealizedConversionPurpose }) },
             state: { balanceAud: this.balanceAud, nextTransactionId: this.nextTransactionId, nextTradeId: this.nextTradeId,
                 isInitialized: this.isInitialized, trades: [...this.trades.values()], intents: [...this.intents],
                 transactions: this.transactions, ledger: this.ledger, financingEvents: [...this.financingEvents] } });
@@ -628,7 +632,8 @@ class ReplayBroker {
         return { initialBalanceAud: this.initialBalanceAud, balanceAud: this.balanceAud,
             trades: [...this.trades.values()].map(copy), transactions: copy(this.transactions), ledger: this.getLedger(),
             assumptions: { priceEvidence: 'supplied_quote_points_only', slippagePipsPerExecution: this.slippagePips,
-                commissionAudPerExecution: this.commissionAud, financing: 'explicit_timestamped_events_only', partialCloses: 'unsupported' } };
+                commissionAudPerExecution: this.commissionAud, financing: 'explicit_timestamped_events_only', partialCloses: 'unsupported',
+                ...(this.unrealizedConversionPurpose === 'pnl' ? {} : { unrealizedConversionPurpose: this.unrealizedConversionPurpose }) } };
     }
 }
 
