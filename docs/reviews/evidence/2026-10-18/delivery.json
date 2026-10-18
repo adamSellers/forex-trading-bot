@@ -1,0 +1,33 @@
+{
+  "recordedAt": "2026-10-18T06:39:16.735Z",
+  "workflow": "local commits → GitHub → ./scripts/deploy.sh",
+  "deployedRevision": "c09efb5da7ab915510b4f239e1fe2b54e35d6973",
+  "deploymentExitCode": 0,
+  "targetBackend": {
+    "passed": 1468,
+    "skipped": 1,
+    "passedSuites": 74,
+    "totalSuites": 75,
+    "nodeVersion": "v22.16.0"
+  },
+  "targetBuild": "passed",
+  "backup": {
+    "timestamp": "20261018_173316",
+    "sourceArchive": "forex_backup_20261018_173316.tar.gz",
+    "database": "trading_20261018_173316.db",
+    "integrity": "verified by standard deployment"
+  },
+  "standaloneChecks": {
+    "healthScenarios": 23,
+    "deploymentRestoreCases": 57
+  },
+  "priorAttempt": {
+    "revision": "3eb6113",
+    "result": "cutover succeeded; maintenance verifier rejected H4 key",
+    "correction": "c09efb5 accepts H4 and retained legacy keys, rejects unknown strategies",
+    "entryState": "paused"
+  },
+  "activationPerformed": false,
+  "verification": "post-deployment-verification.json",
+  "observationLimit": "An initial follow-up assertion saw degraded without retaining its issue list. Subsequent direct health reads at 06:38:17 and 06:38:30 UTC were healthy with readiness PASS; no cause is asserted for that first response."
+}

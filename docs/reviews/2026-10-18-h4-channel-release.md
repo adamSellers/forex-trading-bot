@@ -1,5 +1,16 @@
 # H4 rolling-channel release — October 18, 2026
 
+**Deployed and verified:** clean source `c09efb5da7ab915510b4f239e1fe2b54e35d6973`
+is running H4 strategy 2.0.0. Read-only verification at **17:38:30 AEDT on
+October 18** found healthy services, readiness PASS, entries paused, no open
+trades/pending broker orders/intents/quarantines and reconciled broker state.
+All four pairs have completed H4 bid/ask candles. See the
+[verification](evidence/2026-10-18/post-deployment-verification.json) and
+[delivery record](evidence/2026-10-18/delivery.json). Adam activates entries with
+the existing Start Trading control. The next market reopen is Monday 08:05
+AEDT; Friday signals expire, so entries await a qualifying fresh H4 signal
+after reopening rather than placing an order merely because the market opens.
+
 Adam requested a replacement after the v6 viability review, accepted multi-day
 holding and one position per pair, delegated remaining choices, and explicitly
 authorized building, publishing and standard deployment on October 18. Trading
@@ -98,3 +109,18 @@ local correction accepts the current and retained owner strategies, keeps unknow
 strategies rejected, and makes maintenance fixtures use the configured strategy.
 All **23 health scenarios and 57 deployment/restore cases** pass on Node 22.
 This corrects the delivery contract without changing trading rules.
+
+The first standard deployment installed `3eb6113` and left entries paused when
+that old verifier rejected the H4 key. The correction was developed/tested
+locally, committed, published and consumed through a second standard deployment.
+The completed command exited successfully at `c09efb5`, passing 1,468 target
+backend checks, the frontend build, source/database backup, integrity and
+operational health checks. Backup `20261018_173316` is verified. No production
+source edits or automatic trading activation were performed.
+
+One initial follow-up assertion saw a degraded response without retaining its
+issue list; subsequent direct checks at 06:38:17 and 06:38:30 UTC were healthy
+with readiness PASS. Its cause is not established. The final stored snapshot
+describes the measured release state, not a guarantee of uninterrupted future
+broker connectivity or profitability. This later documentation-only follow-up
+does not change the deployed executable revision.
