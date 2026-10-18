@@ -1,5 +1,7 @@
 # Forex Trading Bot
 
+**October 18 H4 replacement:** Adam authorized implementation, publication and standard deployment of [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md), release `h4-channel-v1`. Completed H4 20-bar crossings enter with a 2 ATR(14) stop and a 10-bar bid/ask protective channel. One position per pair, overlapping pairs within existing risk limits, weekday overnight holding and Friday 16:45 New York closure. No fixed target, automatic breakeven or six-hour exit for new owners. Historical M15 owners retain their policies. Delivery is being validated; intentional paused entries will be preserved. Profitability and trade frequency are unproven. Earlier checkpoints below remain historical.
+
 **October 7 BUY fix deployed:** [v6 BUY break/retest and consumed episodes](docs/reviews/2026-10-07-buy-retest-release.md), strategy **1.4.0**, is verified at clean **`562334b`**, healthy/enabled and flat. BUY entries require distinct completed break/retest/confirmation candles, a stop below broker bid structure and one fill per frozen breakout episode until observed cancellation and new formation. SELL-to-BUY fades are disabled; existing SELL behavior and cash-risk limits remain. All 1,316 backend tests passed locally and on the target, alongside 16 local frontend checks, builds and a matched backup. This is a prospective change, not demonstrated profitability.
 
 **October 6 Node.js tooling deployed:** verified clean `9b3785b` after tests, build, matched backup and health checks, with enabled intent and strategy/risk/run/loss state preserved. the permanent project language policy requires no Python. Active research, analysis, deployment, backup and restore tools now use Node.js/shell; retired source remains in Git history and historical numerical evidence is preserved. Validation passes 1,229 backend tests, 57 deployment/restore cases, 21 health scenarios and the backup regressions. The [migration record](docs/reviews/2026-10-06-node-tooling.md) records contracts, limits and delivery. Earlier release and runtime observations below are dated checkpoints.
@@ -26,7 +28,7 @@ Read-only inspection on September 28 verified the user-deployed [integrated v4 r
 
 The user then requested removal of the global position-count cap. Local **v4.1 / strategy 1.2.1 / intraday-risk-v4.1** allows one position per pair while retaining all existing per-trade, portfolio, margin and loss limits. Local validation is complete: latest passing results cover 850 tests across 41 backend suites, plus changed JSX syntax checks. **Publication/build/deployment remain pending.** See the [pair capacity contract](docs/reviews/2026-09-28-pair-capacity-release.md) and [status register](docs/reviews/2026-09-26-status-and-decisions.md).
 
-## Strategy and release state
+## Historical M15 strategy and release state
 
 V5 retains the existing H1 regime, M15 trend/RSI, sessions, pricing, loss reset and protected-exit checks. BUY entries keep their eight-bar breakout or bar-aligned pullback/resumption. Normal SELL entries require a bearish break below the prior eight-bar low, a distinct later retest closing below that frozen level, then a later bearish close below the retest low. A close at/above the level cancels; another retouch updates the retest and cannot confirm on the same candle.
 
@@ -35,6 +37,14 @@ The SELL stop is above the maximum retest-episode ask high plus a price tick, wi
 Position size remains 0.25% of min(80% available margin, A$100), with one position per pair, 0.5%-of-NAV aggregate stop risk and existing margin checks. Three consecutive losses pause entries for 24 hours. Six-hour and New York rollover exits remain. Durable evidence and final broker reconciliation prevent stale, changed or already-filled patterns from opening another SELL. The [release contract](docs/reviews/2026-10-01-sell-retest-release.md) defines interaction with prior positions, retries and historical cohorts.
 
 This is a live experimental candidate; its profitability is unproven. Correctness tests validate implementation, while versioned actual OANDA outcomes provide performance evidence. Trade cadence is observed, never forced to reach a quota.
+
+## Current H4 strategy
+
+The candidate is `multi_day_trend` 2.0.0. A completed H4 close must freshly cross the preceding 20-bar high or low. The 20 bars describe recent history; the bot does not wait 80 hours after a crossing. Initial protection is max(2 × H4 ATR(14), six pips), then ratchets using the latest 10 completed H4 bid lows for a BUY or ask highs for a SELL. Positions may span weekdays and close from Friday 16:45 New York.
+
+Position size remains 0.25% of min(80% available margin, A$100), one position per pair, 0.5%-of-NAV aggregate stop risk and existing margin/exposure controls. Three consecutive losses retain the 24-hour cooldown. Spread, expected slippage, price movement, broker reconciliation and receipt freshness checks remain. Daily financing affects overnight positions, including the usual Wednesday triple charge. Trade cadence is observed, never forced to a quota.
+
+The [release record](docs/reviews/2026-10-18-h4-channel-release.md) tracks testing and deployment. This is an experimental candidate with unproven profitability.
 
 ## Runtime
 

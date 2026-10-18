@@ -73,10 +73,10 @@ describe("OandaDataService completed M15 historical bid and ask candles", () => 
         expect(failure).not.toHaveBeenCalled();
     });
 
-    test("keeps H1 and other existing candle requests and shapes midpoint-only", async () => {
+    test("keeps H1 and daily candle requests and shapes midpoint-only", async () => {
         const service = new OandaDataService(["AUD_USD"]);
         service.oandaRequest = jest.fn().mockResolvedValue({ candles: [completed] });
-        for (const granularity of ["H1", "H4"]) {
+        for (const granularity of ["H1", "D"]) {
             const result = await service.fetchCandles("AUD_USD", granularity, 100);
             expect(service.oandaRequest).toHaveBeenLastCalledWith(
                 `/v3/instruments/AUD_USD/candles?granularity=${granularity}&count=100&price=M`
@@ -86,6 +86,73 @@ describe("OandaDataService completed M15 historical bid and ask candles", () => 
                 open: 0.69636, high: 0.69656, low: 0.69568, close: 0.69578, volume: 247,
             });
         }
+    });
+
+    test("requests H4 midpoint/bid/ask with explicit New York 17:00 daily alignment", async () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        const h4Completed = { ...completed, time: "2026-09-30T09:00:00.000000000Z" };
+        service.oandaRequest = jest.fn().mockResolvedValue({ candles: [h4Completed,
+            { ...completed, time: "2026-09-30T17:00:00Z", complete: false }] });
+        const result = await service.fetchCandles("AUD_USD", "H4", 500);
+        expect(service.oandaRequest).toHaveBeenCalledWith(
+            "/v3/instruments/AUD_USD/candles?granularity=H4&count=500&price=MBA&dailyAlignment=17&alignmentTimezone=America%2FNew_York");
+        expect(result).toEqual([expect.objectContaining({ complete: true, time: h4Completed.time,
+            high: 0.69656, bid: { open: 0.69630, high: 0.69650, low: 0.69561, close: 0.69572 },
+            ask: { open: 0.69642, high: 0.69662, low: 0.69575, close: 0.69584 } })]);
+        expect(service.getCandles("AUD_USD", "4h")).toBe(result);
+    });
+
+    test("H4 missing historical sides remain unavailable without substituting current spread", async () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.priceCache.AUD_USD = { bid: 0.69559, ask: 0.69568, spread: 0.9 };
+        service.oandaRequest = jest.fn().mockResolvedValue({ candles: [{ ...completed, bid: null, ask: undefined }] });
+        const result = await service.fetchCandles("AUD_USD", "H4");
+        expect(result[0]).toMatchObject({ close: 0.69578, complete: true, bid: null, ask: null });
+    });
+});
+
+describe("OandaDataService strategy-specific entry history", () => {
+    const nowMs = Date.parse("2026-10-13T13:02:00Z");
+
+    test("H4 primary defaults to the multi-day contract without requiring retired M15/H1 features", () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.candleCache.AUD_USD_H4 = [{ time: "2026-10-13T09:00:00Z", complete: true }];
+        expect(service.getEntryFreshness("AUD_USD", { nowMs }).fresh).toBe(true);
+        expect(service.getEntryFreshness("AUD_USD", { nowMs, strategy: "multi_day_trend" }).fresh).toBe(true);
+        expect(service.getEntryFreshness("AUD_USD", { nowMs, strategy: "intraday_momentum" }).code).toBe("CANDLE_DATA_UNAVAILABLE");
+        expect(service.getEntryFreshness("AUD_USD", { nowMs, timeframe: "15m" }).code).toBe("CANDLE_DATA_UNAVAILABLE");
+    });
+
+    test("an explicit legacy strategy keeps its original M15/H1 contract when the selected primary is H4", () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.candleCache.AUD_USD_M15 = [{ time: "2026-10-13T12:45:00Z" }];
+        service.candleCache.AUD_USD_H1 = [{ time: "2026-10-13T12:00:00Z" }];
+        expect(service.getEntryFreshness("AUD_USD", { nowMs, strategy: "intraday_momentum" }).fresh).toBe(true);
+        expect(service.getEntryFreshness("AUD_USD", { nowMs, timeframe: "15m" }).fresh).toBe(true);
+        expect(service.getEntryFreshness("AUD_USD", { nowMs, strategy: "multi_day_trend", timeframe: "15m" }).code).toBe("CANDLE_DATA_UNAVAILABLE");
+        service.updateCandleConfig({ timeframe: "15m" });
+        expect(service.getEntryFreshness("AUD_USD", { nowMs }).fresh).toBe(true);
+    });
+
+    test("normal weekend data stays healthy but its trigger cannot reopen on Sunday", () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        const sunday = Date.parse("2026-10-18T21:06:00Z");
+        service.candleCache.AUD_USD_H4 = [{ time: "2026-10-16T17:00:00Z", complete: true }];
+        service.candleCacheUpdatedAt.AUD_USD_H4 = sunday;
+        service.priceCache.AUD_USD = { bid: 0.66, ask: 0.6601, tradeable: true,
+            timestamp: sunday, fetchedAt: sunday };
+        expect(service.getFreshnessStatus({ nowMs: sunday })).toMatchObject({ candlesFresh: true, staleCandles: [],
+            completedCandles: [expect.objectContaining({ timeframe: "H4", fresh: true })] });
+        expect(service.getEntryFreshness("AUD_USD", { nowMs: sunday })).toMatchObject({
+            fresh: false, code: "H4_SIGNAL_EXPIRED" });
+    });
+
+    test("successful cache receipt cannot hide a genuinely missing completed H4 bar", () => {
+        const service = new OandaDataService(["AUD_USD"]);
+        service.candleCache.AUD_USD_H4 = [{ time: "2026-10-13T05:00:00Z", complete: true }];
+        service.candleCacheUpdatedAt.AUD_USD_H4 = nowMs;
+        expect(service.getFreshnessStatus({ nowMs })).toMatchObject({ candlesFresh: false,
+            staleCandles: ["AUD_USD_H4"], completedCandles: [expect.objectContaining({ code: "STALE_COMPLETED_CANDLE" })] });
     });
 });
 
@@ -155,13 +222,14 @@ describe("OandaDataService required granularities", () => {
         expect(service.getRequiredGranularities()).toEqual(["H4"]);
     });
 
-    test("retains refresh diagnostics for legacy timeframes outside the intraday entry contract", () => {
+    test("reports current H4 completion freshness alongside cache receipt freshness", () => {
         service.isRunning = true;
-        service.priceCache.AUD_USD = { bid: 0.66, ask: 0.6601, tradeable: true, timestamp: 99_000, fetchedAt: 99_000 };
-        service.candleCache.AUD_USD_H4 = [{ time: "2026-01-01T00:00:00Z" }];
-        service.candleCacheUpdatedAt.AUD_USD_H4 = 98_000;
+        const nowMs = Date.parse("2026-10-13T13:02:00Z");
+        service.priceCache.AUD_USD = { bid: 0.66, ask: 0.6601, tradeable: true, timestamp: nowMs - 1000, fetchedAt: nowMs - 1000 };
+        service.candleCache.AUD_USD_H4 = [{ time: "2026-10-13T09:00:00Z" }];
+        service.candleCacheUpdatedAt.AUD_USD_H4 = nowMs - 2000;
 
-        expect(service.getFreshnessStatus({ nowMs: 100_000 })).toEqual(
+        expect(service.getFreshnessStatus({ nowMs })).toEqual(
             expect.objectContaining({
                 pricesFresh: true,
                 candlesFresh: true,
@@ -169,6 +237,7 @@ describe("OandaDataService required granularities", () => {
                 oldestCandleRefreshAgeMs: 2_000,
                 stalePrices: [],
                 staleCandles: [],
+                completedCandles: [expect.objectContaining({ instrument: "AUD_USD", timeframe: "H4", fresh: true })],
             })
         );
     });

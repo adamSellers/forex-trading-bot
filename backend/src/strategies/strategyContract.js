@@ -1,4 +1,6 @@
-const CANONICAL_STRATEGY_KEYS = Object.freeze(["intraday_momentum"]);
+// Legacy identity remains resolvable for saved run ownership and analytics.
+// Only the active release is exposed by listStrategyCatalog().
+const CANONICAL_STRATEGY_KEYS = Object.freeze(["intraday_momentum", "multi_day_trend"]);
 
 const CANONICAL_STRATEGY_KEY_SET = new Set(CANONICAL_STRATEGY_KEYS);
 

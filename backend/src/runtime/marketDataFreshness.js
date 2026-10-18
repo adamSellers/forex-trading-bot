@@ -1,6 +1,7 @@
 const MINUTE_MS = 60_000;
 const CANDLE_PUBLICATION_GRACE_MS = 90_000;
-const TIMEFRAME_MINUTES = { "15m": 15, M15: 15, "1h": 60, H1: 60 };
+const TIMEFRAME_MINUTES = { "15m": 15, M15: 15, "1h": 60, H1: 60, "4h": 240, H4: 240 };
+const H4_MS = 240 * MINUTE_MS;
 const nyClock = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     weekday: "short",
@@ -41,6 +42,20 @@ function getForexMarketState(nowMs = Date.now()) {
 function expectedCompletedCandleClose(timeframe, nowMs, graceMs) {
     const periodMs = TIMEFRAME_MINUTES[timeframe] * MINUTE_MS;
     if (!periodMs || !Number.isFinite(nowMs)) return null;
+    if (timeframe === "4h" || timeframe === "H4") {
+        // OANDA H4 is explicitly requested with dailyAlignment=17 and
+        // alignmentTimezone=America/New_York. Its boundaries are 01/05/09/
+        // 13/17/21 New York, whose UTC offset changes during the closed weekend.
+        // Enumerating actual hourly instants preserves both sides of that DST
+        // transition instead of projecting today's offset onto Friday's bars.
+        let close = Math.floor((nowMs - graceMs) / (60 * MINUTE_MS)) * 60 * MINUTE_MS;
+        for (let index = 0; index < 7 * 24; index++, close -= 60 * MINUTE_MS) {
+            const hour = Number(nyClock.formatToParts(new Date(close))
+                .find((part) => part.type === "hour")?.value);
+            if (hour % 4 === 1 && getForexMarketState(close - 2 * MINUTE_MS).open) return close;
+        }
+        return null;
+    }
     let close = Math.floor((nowMs - graceMs) / periodMs) * periodMs;
     // A weekend can span 49 hours at the autumn DST change. Ignore empty
     // scheduled slots while preserving the final partially traded Friday bar.
@@ -66,12 +81,49 @@ function evaluateCandleFreshness(candles, timeframe, {
     let code = null;
     if (!latest || !Number.isFinite(latestCloseAt) || expectedCloseAt === null) {
         code = "CANDLE_DATA_UNAVAILABLE";
-    } else if (latest.complete === false || latestCloseAt > nowMs + 1000) {
+    } else if (latest.complete === false || latestCloseAt > nowMs + (["4h", "H4"].includes(timeframe) ? 0 : 1000)) {
         code = "CANDLE_NOT_COMPLETE";
+    } else if (["4h", "H4"].includes(timeframe) && !isH4Boundary(latestCloseAt)) {
+        code = "INVALID_H4_ALIGNMENT";
     } else if (latestCloseAt < expectedCloseAt) {
         code = "STALE_COMPLETED_CANDLE";
     }
     return { fresh: code === null, code, timeframe, latestCloseAt, expectedCloseAt, graceMs: publicationGraceMs };
+}
+
+function isH4Boundary(timestamp) {
+    if (!Number.isFinite(timestamp) || timestamp % (60 * MINUTE_MS) !== 0) return false;
+    const hour = Number(nyClock.formatToParts(new Date(timestamp))
+        .find((part) => part.type === "hour")?.value);
+    return hour % 4 === 1;
+}
+
+function evaluateMultiDayEntryFreshness({ h4Candles, nowMs = Date.now() } = {}) {
+    const market = getForexMarketState(nowMs);
+    const h4 = evaluateCandleFreshness(h4Candles, "4h", { nowMs });
+    let historyCode = null;
+    let previousStart = -Infinity;
+    for (const candle of Array.isArray(h4Candles) ? h4Candles : []) {
+        const startedAt = Date.parse(candle?.time);
+        if (!Number.isFinite(startedAt) || startedAt <= previousStart || !isH4Boundary(startedAt + H4_MS)) {
+            historyCode = "INVALID_H4_HISTORY";
+            break;
+        }
+        if (candle.complete === false || startedAt + H4_MS > nowMs) {
+            historyCode = "CANDLE_NOT_COMPLETE";
+            break;
+        }
+        previousStart = startedAt;
+    }
+    let code = !market.open ? "MARKET_CLOSED" : historyCode || h4.code;
+    // Candle history can be current during a closed weekend, but its signal
+    // must not become a new entry when Sunday trading resumes. Ordinary daily
+    // reopen needs no first-new-H4 delay while a trigger is still in its window.
+    const signalExpiresAt = h4.latestCloseAt === null
+        ? null : h4.latestCloseAt + H4_MS + CANDLE_PUBLICATION_GRACE_MS;
+    if (!code && nowMs >= signalExpiresAt) code = "H4_SIGNAL_EXPIRED";
+    return { fresh: code === null, code, checkedAt: nowMs, market,
+        signalExpiresAt, timeframes: { "4h": h4 } };
 }
 
 function evaluateIntradayEntryFreshness({ m15Candles, h1Candles, nowMs = Date.now() } = {}) {
@@ -94,5 +146,6 @@ module.exports = {
     CANDLE_PUBLICATION_GRACE_MS,
     evaluateCandleFreshness,
     evaluateIntradayEntryFreshness,
+    evaluateMultiDayEntryFreshness,
     getForexMarketState,
 };

@@ -8,6 +8,7 @@ const { ACCOUNT_CURRENCY } = require("../runtime/currencyConversion");
 const {
     evaluateCandleFreshness,
     evaluateIntradayEntryFreshness,
+    evaluateMultiDayEntryFreshness,
     getForexMarketState,
 } = require("../runtime/marketDataFreshness");
 
@@ -453,10 +454,12 @@ class OandaDataService extends EventEmitter {
 
     async fetchCandles(instrument, granularity = "H4", count = 500) {
         try {
-            const includeSides = granularity === "M15";
+            const includeSides = ["M15", "H4"].includes(granularity);
             const priceComponents = includeSides ? "MBA" : "M";
+            const alignment = granularity === "H4"
+                ? "&dailyAlignment=17&alignmentTimezone=America%2FNew_York" : "";
             const data = await this.oandaRequest(
-                `/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=${priceComponents}`
+                `/v3/instruments/${instrument}/candles?granularity=${granularity}&count=${count}&price=${priceComponents}${alignment}`
             );
 
             const candles = data.candles
@@ -468,6 +471,7 @@ class OandaDataService extends EventEmitter {
                     low: parseFloat(c.mid.l),
                     close: parseFloat(c.mid.c),
                     volume: c.volume,
+                    ...(granularity === "H4" ? { complete: true } : {}),
                     ...(includeSides ? { ask: normalizeCandleSide(c.ask), bid: normalizeCandleSide(c.bid) } : {}),
                 }));
             let previousTime = -Infinity;
@@ -517,7 +521,14 @@ class OandaDataService extends EventEmitter {
         return this.candleCache[key] || [];
     }
 
-    getEntryFreshness(instrument, { nowMs = Date.now() } = {}) {
+    getEntryFreshness(instrument, { nowMs = Date.now(), strategy = null, timeframe = null } = {}) {
+        const selectedTimeframe = timeframe || this.primaryTimeframe;
+        if (strategy === "multi_day_trend" || strategy !== "intraday_momentum" && ["4h", "H4"].includes(selectedTimeframe)) {
+            return evaluateMultiDayEntryFreshness({
+                h4Candles: this.getCandles(instrument, "4h"),
+                nowMs,
+            });
+        }
         return evaluateIntradayEntryFreshness({
             m15Candles: this.getCandles(instrument, "15m"),
             h1Candles: this.getCandles(instrument, "1h"),
@@ -583,7 +594,7 @@ class OandaDataService extends EventEmitter {
             this.getRequiredGranularities().map((granularity) => {
                 const key = `${instrument}_${granularity}`;
                 const updatedAt = Number(this.candleCacheUpdatedAt[key]) || null;
-                const completedCandle = ["M15", "H1"].includes(granularity)
+                const completedCandle = ["M15", "H1", "H4"].includes(granularity)
                     ? evaluateCandleFreshness(this.candleCache[key], granularity, { nowMs })
                     : null;
                 return {

@@ -1,6 +1,7 @@
 const RuntimeCoordinator = require("../runtimeCoordinator");
 const LiveTradingEngine = require("../../services/LiveTradingEngine");
-const { cloneDefaultConfig, computeConfigHash } = require("../../config/tradingConfig");
+const { computeConfigHash } = require("../../config/tradingConfig");
+const cloneDefaultConfig = () => JSON.parse(JSON.stringify(require("../../../../shared/legacyIntradayConfigDefaults.json")));
 const { CONSECUTIVE_LOSS_COOLDOWN_MS } = require("../portfolioRiskPolicy");
 
 jest.mock("../../services/Oandaclient", () => {

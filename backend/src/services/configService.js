@@ -60,7 +60,28 @@ class ConfigService extends EventEmitter {
                 const fileConfig = JSON.parse(fileContent);
                 nextConfig = normalizeTradingConfig(fileConfig);
                 delete nextConfig.tradingMode;
-                if (
+                if (DEFAULT_CONFIG.liveReleaseVersion === "h4-channel-v1" &&
+                    fileConfig.liveReleaseVersion !== DEFAULT_CONFIG.liveReleaseVersion) {
+                    // A new strategy changes entry/exit semantics, not the saved
+                    // shared account envelope or the operator's enabled intent.
+                    const retainedKeys = [
+                        "enableTrading", "assets", "signalCooldown", "positionSizeMethod",
+                        "riskPerTrade", "maxCapitalAtRisk", "fixedPositionUnits",
+                        "maxPortfolioExposure", "portfolioRiskEnforcement",
+                        "maxAggregateStopRiskPctNav", "maxNetCurrencyExposurePctNav",
+                        "maxCorrelatedExposurePctNav", "maxDailyLossPctNav",
+                        "maxDrawdownPctNav", "maxConsecutiveLosses", "correlationThreshold",
+                        "minNavAud", "leverage", "maxLeverage", "marginBuffer",
+                        "maxSpreadPips", "expectedSlippagePips", "maxPriceAgeMs",
+                        "maxEntryDeviationPips", "logLevel", "enableEmailAlerts", "alertEmail",
+                    ];
+                    const retained = Object.fromEntries(retainedKeys
+                        .filter((key) => Object.prototype.hasOwnProperty.call(fileConfig, key))
+                        .map((key) => [key, fileConfig[key]]));
+                    nextConfig = normalizeTradingConfig({ ...DEFAULT_CONFIG, ...retained });
+                    needsSave = true;
+                    logger.info(`Applied ${DEFAULT_CONFIG.liveReleaseVersion}; saved shared risk and enabled intent preserved`);
+                } else if (
                     ["m15-intraday-v3", "m15-intraday-v3.1", "m15-intraday-v3.2", "m15-intraday-v3.3", "m15-intraday-v4", "m15-intraday-v4.1", "m15-intraday-v4.2", "m15-intraday-v5"].includes(fileConfig.liveReleaseVersion) &&
                     DEFAULT_CONFIG.liveReleaseVersion === "m15-intraday-v6"
                 ) {

@@ -2,7 +2,7 @@
 const RuntimeCoordinator = require('../../src/runtime/runtimeCoordinator');
 const LiveTradingEngine = require('../../src/services/LiveTradingEngine');
 const OandaDataService = require('../../src/services/OandaDataService');
-const { cloneDefaultConfig } = require('../../src/config/tradingConfig');
+const { cloneLegacyConfig } = require('../fixtures/legacyReplayHarness.cjs');
 const { getStrategyDefinition } = require('../../src/strategies');
 const {
     createMockConfigService, createMockTradeRepository, createMockEntryDecisionRepository,
@@ -72,7 +72,7 @@ async function fixture() {
             row.runId === runId && row.configHash === configHash && row.setupId === setupId);
         return matches.length ? copy(matches.at(-1)) : null;
     });
-    const configService = createMockConfigService({ ...cloneDefaultConfig(), assets: [pair], enableTrading: true });
+    const configService = createMockConfigService({ ...cloneLegacyConfig(), assets: [pair], enableTrading: true });
     const runRecords = new Map();
     const strategyRunRepository = {
         list: jest.fn(async ({ statuses }) => [...runRecords.values()].filter((run) => statuses.includes(run.status)).map(copy)),
@@ -289,8 +289,8 @@ describe('offline chronological current-strategy architecture spike', () => {
         const report = { schemaVersion: 1, artifactKind: 'OFFLINE_ORCHESTRATION_ARCHITECTURE_SPIKE',
             status: 'PASSED_3_SYNTHETIC_SCENARIOS',
             strategyVersion: getStrategyDefinition('intraday_momentum').version,
-            releaseVersion: cloneDefaultConfig().liveReleaseVersion,
-            executionPolicyVersion: cloneDefaultConfig().executionPolicyVersion,
+            releaseVersion: cloneLegacyConfig().liveReleaseVersion,
+            executionPolicyVersion: cloneLegacyConfig().executionPolicyVersion,
             sources: hashReplaySources(root),
             scenarios: smokeResults,
             limits: ['Synthetic fixture observations, not a historical strategy/portfolio return.',

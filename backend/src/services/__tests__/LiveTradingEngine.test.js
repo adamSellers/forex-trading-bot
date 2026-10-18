@@ -733,7 +733,9 @@ describe('LiveTradingEngine', () => {
                 id: `activation-loss-${index}`, isOpen: false, pnlAud: -0.1,
                 exitTime: finalExit - (3 - index) * 1_000, ownerRunId: 'active-live-run',
             }));
-            Object.assign(mockConfigService.config, cloneDefaultConfig(), { enableTrading: false,
+            Object.assign(mockConfigService.config, cloneDefaultConfig(),
+                require('../../strategies/intradayMomentum').DEFAULT_INTRADAY_MOMENTUM_CONFIG,
+                { strategy: 'intraday_momentum', enableTrading: false,
                 liveReleaseVersion: 'm15-intraday-v5', executionPolicyVersion: 'intraday-risk-v5' });
             oandaClient.getAccountSummary.mockResolvedValue({ account: {
                 balance: '100', NAV: '100', currency: 'AUD', marginUsed: '0', marginAvailable: '100',
@@ -2579,7 +2581,8 @@ describe('LiveTradingEngine', () => {
             Object.assign(mockConfigService.config, require('../../../../shared/tradingConfigDefaults.json'), { enableTrading: true });
             // This matrix covers the unchanged distance-plan execution
             // contract; current candidate cases opt into v5 below.
-            Object.assign(mockConfigService.config, { liveReleaseVersion: 'm15-intraday-v4.2',
+            Object.assign(mockConfigService.config, require('../../strategies/intradayMomentum').DEFAULT_INTRADAY_MOMENTUM_CONFIG,
+                { strategy: 'intraday_momentum', liveReleaseVersion: 'm15-intraday-v4.2',
                 executionPolicyVersion: 'intraday-risk-v4.2' });
             const price = (value) => value.toFixed(market.precision);
             const makeQuote = (bid, ask) => ({
@@ -3690,7 +3693,9 @@ describe('LiveTradingEngine', () => {
             // Retain the numerical risk policy while exercising these recorded
             // v5 BUY distance signals. Current v6 candidates are covered above.
             // The obsolete count cannot silently reintroduce a global gate.
-            Object.assign(mockConfigService.config, cloneDefaultConfig(), {
+            Object.assign(mockConfigService.config, cloneDefaultConfig(),
+                require('../../strategies/intradayMomentum').DEFAULT_INTRADAY_MOMENTUM_CONFIG,
+                { strategy: 'intraday_momentum',
                 enableTrading: true, assets: Object.keys(mids), maxOpenPositions: 1,
                 liveReleaseVersion: 'm15-intraday-v5', executionPolicyVersion: 'intraday-risk-v5',
             });

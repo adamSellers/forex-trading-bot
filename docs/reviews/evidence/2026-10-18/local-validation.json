@@ -1,0 +1,28 @@
+{
+  "recordedAt": "2026-10-18T06:25:13.106Z",
+  "nodeVersion": "v22.23.1",
+  "backend": {
+    "passed": 1468,
+    "failed": 0,
+    "pending": 1,
+    "total": 1469,
+    "passedSuites": 74,
+    "totalSuites": 75,
+    "skipped": "opt-in retrospective v6 viability experiment (retained historical evidence unchanged)"
+  },
+  "frontend": {
+    "testsPassed": 21,
+    "productionBuild": "passed"
+  },
+  "brokerObservation": {
+    "request": "read-only current data-service candle contract",
+    "instruments": 4,
+    "candlesPerInstrument": 30,
+    "reference": "h4-broker-candles.json"
+  },
+  "limits": [
+    "Software correctness checks do not establish profitability or expected trade frequency.",
+    "Old v6 research fixture compatibility is separate from H4 strategy evaluation.",
+    "Trading remains paused pending manual operator activation."
+  ]
+}

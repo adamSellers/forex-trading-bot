@@ -18,8 +18,8 @@ describe("live SignalGenerator", () => {
         const defaultGenerator = new SignalGenerator();
         expect(defaultGenerator.config).toEqual(
             expect.objectContaining({
-                strategy: "intraday_momentum",
-                timeframe: "15m",
+                strategy: "multi_day_trend",
+                timeframe: "4h",
             })
         );
     });

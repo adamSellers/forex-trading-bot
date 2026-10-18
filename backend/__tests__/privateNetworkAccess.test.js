@@ -120,7 +120,7 @@ describe("private internal-network app access", () => {
     test("actual API exposes dashboard data without a token or session", async () => {
         const config = await request(instance.server).get("/api/config")
             .set("Origin", "http://fx.oakroad").expect(200);
-        expect(config.body.strategy).toBe("intraday_momentum");
+        expect(config.body.strategy).toBe("multi_day_trend");
         expect(config.headers["access-control-allow-origin"]).toBe("http://fx.oakroad");
         const prices = await request(instance.server).get("/api/prices?instruments=AUD_USD").expect(200);
         expect(prices.body.prices[0].bid).toBe(0.67);

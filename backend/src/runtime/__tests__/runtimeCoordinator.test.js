@@ -51,7 +51,7 @@ describe("RuntimeCoordinator live-only release", () => {
 
         expect(selection).toEqual(
             expect.objectContaining({
-                strategy: "intraday_momentum",
+                strategy: "multi_day_trend",
                 liveRun: expect.objectContaining({
                     mode: "live",
                     status: "active",
@@ -95,10 +95,10 @@ describe("RuntimeCoordinator live-only release", () => {
         }
     });
 
-    test("quote-freshness startup creates one new cohort and preserves a prior owner's attribution and exit config", async () => {
+    test("H4 startup creates one new cohort and preserves a prior owner's attribution and exit config", async () => {
         const deployed = cloneDefaultConfig();
         const priorConfig = {
-            ...deployed,
+            ...require("../../../../shared/legacyIntradayConfigDefaults.json"),
             liveReleaseVersion: "m15-intraday-v3",
             executionPolicyVersion: "intraday-risk-v3",
             pricingModelVersion: "broker-liquidity-v2",
@@ -116,12 +116,7 @@ describe("RuntimeCoordinator live-only release", () => {
             metadata: { entryEnabled: true, releaseVersion: priorConfig.liveReleaseVersion },
             startedAt: 1000,
         };
-        const deps = dependencies({
-            ...priorConfig,
-            liveReleaseVersion: deployed.liveReleaseVersion,
-            executionPolicyVersion: deployed.executionPolicyVersion,
-            pricingModelVersion: deployed.pricingModelVersion,
-        });
+        const deps = dependencies(deployed);
         deps.strategyRunRepository.list.mockResolvedValue([priorRun]);
         const trade = {
             id: "trade-1",

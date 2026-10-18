@@ -8,7 +8,7 @@ const workerPhase = process.env.RESEARCH_COLD_WORKER_PHASE;
 const hash = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
 if (workerPhase) {
-    const { createReplayTestHarness, fixtureArchive, START } = require('../testHarness.cjs');
+    const { createReplayTestHarness, fixtureArchive, START } = require('../fixtures/legacyReplayHarness.cjs');
     const { buyEntryFixture } = require('../fixtures/causalFlows.cjs');
     const env = createReplayTestHarness();
 

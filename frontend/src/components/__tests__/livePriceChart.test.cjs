@@ -109,12 +109,12 @@ function textContent(tree) {
   return textContent(tree.props.children);
 }
 
-function mount(prices = { AUD_USD: quote }) {
+function mount(prices = { AUD_USD: quote }, initialTimeframe = 'M15') {
   const state = [], setters = [], effects = [], memos = [];
   const pendingEffects = [];
   const requests = [], intervals = new Map();
   let cursor = 0, dirty = false, nextInterval = 1, tree;
-  let props = { prices, assets: ['AUD_USD', 'EUR_USD'] };
+  let props = { prices, assets: ['AUD_USD', 'EUR_USD'], initialTimeframe };
   const context = {
     React, ...recharts, calculateEMA,
     formatPrice: sharedValue('formatPrice'), formatInstrument: sharedValue('formatInstrument'),
@@ -243,6 +243,19 @@ test('broker quotes stay separate from completed OHLC, indicators and historical
   assert.ok(historical.includes(new Date(last.time).toLocaleString()));
   assert.ok(historical.includes(new Date(last.closeTime).toLocaleTimeString()));
   assert.ok(!historical.includes('0.72000'));
+  app.unmount();
+});
+
+test('the active H4 strategy opens its chart on H4 while retaining manual timeframe selection', async () => {
+  const app = mount({ AUD_USD: quote }, 'H4');
+  assert.equal(app.requests[0].timeframe, 'H4');
+  const h4Candles = candles.map((candle, index) => ({ ...candle,
+    time: new Date(Date.parse('2026-09-22T21:00:00Z') + index * 4 * 60 * 60 * 1000).toISOString() }));
+  await app.respond(0, h4Candles);
+  assert.equal(app.data.at(-1).time, Date.parse(h4Candles.at(-1).time));
+  assert.equal(app.data.at(-1).closeTime - app.data.at(-1).time, 4 * 60 * 60 * 1000);
+  app.select('ToggleButtonGroup', 'M15');
+  assert.equal(app.requests.at(-1).timeframe, 'M15');
   app.unmount();
 });
 

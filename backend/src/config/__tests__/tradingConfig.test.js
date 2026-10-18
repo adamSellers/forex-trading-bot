@@ -9,7 +9,7 @@ const {
 describe("tradingConfig", () => {
     test("retains the deployed v4 snapshot hash and old capacity semantics", () => {
         const historical = {
-            ...cloneDefaultConfig(),
+            ...require("../../../../shared/legacyIntradayConfigDefaults.json"),
             liveReleaseVersion: "m15-intraday-v4",
             executionPolicyVersion: "intraday-risk-v4",
             maxOpenPositions: 1,

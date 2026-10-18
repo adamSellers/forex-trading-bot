@@ -42,14 +42,15 @@ import TradingSignals from './dashboard/TradingSignals';
 import RecentTrades from './dashboard/RecentTrades';
 import LivePriceChart from './dashboard/LivePriceChart';
 import MarketStatusBanner from './dashboard/MarketStatusBanner';
+import { CURRENT_STRATEGY_KEY, strategyLabel } from '../utils/strategyDisplay';
 
 const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
 const SIDEBAR_WIDTH = 340;
-const DEFAULT_STRATEGY_KEY = 'intraday_momentum';
+const DEFAULT_STRATEGY_KEY = CURRENT_STRATEGY_KEY;
 const FALLBACK_STRATEGY_OPTIONS = [
   {
-    key: 'intraday_momentum',
-    label: 'M15 Intraday Momentum',
+    key: CURRENT_STRATEGY_KEY,
+    label: 'H4 Trend',
     version: 'unknown',
     runtimeStatus: 'unavailable',
   },
@@ -70,7 +71,7 @@ const normalizeStrategySelection = (strategyKey, catalog = []) => {
 
 const getStrategyLabel = (strategyKey, catalog = []) => {
   const strategy = getStrategyOptions(catalog).find((option) => option.key === strategyKey);
-  return strategy?.label || 'M15 Intraday Momentum';
+  return strategyLabel(strategyKey, strategy?.label);
 };
 
 const withReadDeadline = (request) => {
@@ -829,7 +830,7 @@ const TradingDashboard = () => {
 
       {/* Market Status Banner - Shows open/closed status with countdown */}
       <Box sx={{ flexShrink: 0 }}>
-        <MarketStatusBanner />
+        <MarketStatusBanner strategy={systemStatus?.config?.strategy || liveSelection?.strategy || selectedStrategy} />
       </Box>
 
       {/* KPI Stats */}
@@ -950,7 +951,8 @@ const TradingDashboard = () => {
               </Typography>
             </Box>
             <Box flexGrow={1} sx={{ position: 'relative' }}>
-              <LivePriceChart prices={prices} assets={activeChartAssets} height="100%" />
+              <LivePriceChart prices={prices} assets={activeChartAssets}
+                initialTimeframe={systemStatus?.config?.timeframe === '15m' ? 'M15' : 'H4'} height="100%" />
             </Box>
           </GlassCard>
         </Box>

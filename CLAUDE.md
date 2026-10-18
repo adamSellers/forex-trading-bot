@@ -1,5 +1,7 @@
 # Forex Trading Bot — repository instructions
 
+**October 18 superseding authorization:** Adam requested the H4 replacement, accepted multi-day holding and one trade per pair, delegated remaining choices, then authorized building, publishing and standard deployment. [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md), key `multi_day_trend`, release `h4-channel-v1`, is being validated. Keep old `intraday_momentum` defaults, hashes and owner exits for history. Shared risk limits and loss/cooldown state remain. Preserve intentional paused entries; Adam activates through the existing Start Trading control. No profitability or trade-frequency claim follows from correctness tests. The earlier October 17 statement that no redesign was selected describes that dated checkpoint.
+
 **Project language policy, October 6:** no Python for source, research, analysis,
 tooling, tests, deployment or maintenance. Use Node.js and the existing shell
 scripts. Preserve demonstrated contracts and safety checks when replacing tooling;

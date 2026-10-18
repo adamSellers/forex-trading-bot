@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const defaults = require("../../../shared/tradingConfigDefaults.json");
+const legacyDefaults = require("../../../shared/legacyIntradayConfigDefaults.json");
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -58,6 +59,8 @@ const NUMERIC_KEYS = new Set([
     "intradayShortRsiMinimum",
     "intradayShortRsiMaximum",
     "intradayMaxCostToStopRatio",
+    "trendBreakoutBars", "trendExitBars", "trendAtrPeriod", "trendStopAtr",
+    "trendMaxCostToStopRatio", "weekendCloseLocalHour", "weekendCloseLocalMinute",
 ]);
 
 const BOOLEAN_KEYS = new Set([
@@ -70,6 +73,7 @@ const BOOLEAN_KEYS = new Set([
     "enableTakeProfit",
     "enableBreakeven",
     "enableTrailingStops",
+    "enableChannelTrailing",
     "enableEmailAlerts",
     "enforceConfigFreeze",
 ]);
@@ -114,7 +118,11 @@ function normalizeBoolean(value) {
 }
 
 function normalizeTradingConfig(config = {}, { mergeDefaults = true } = {}) {
-    const base = mergeDefaults ? cloneDefaultConfig() : {};
+    // Historical snapshots must not acquire new H4 defaults or change hashes.
+    const legacy = config.strategy === "intraday_momentum" ||
+        String(config.liveReleaseVersion || "").startsWith("m15-intraday-") ||
+        String(config.executionPolicyVersion || "").startsWith("intraday-risk-");
+    const base = mergeDefaults ? clone(legacy ? legacyDefaults : defaults) : {};
     const normalized = { ...base, ...clone(config || {}) };
     delete normalized.configHash;
 
@@ -180,8 +188,9 @@ function getStrategyDefaultConfig(strategyKey) {
 
 function materializeStrategyConfig(config = {}, options = {}) {
     const provided = clone(config || {});
-    const base = normalizeTradingConfig(options.baseConfig || {});
-    const strategyKey = options.strategyKey || provided.strategy || base.strategy;
+    const strategyKey = options.strategyKey || provided.strategy ||
+        options.baseConfig?.strategy || defaults.strategy;
+    const base = normalizeTradingConfig({ ...(options.baseConfig || {}), strategy: strategyKey });
     return normalizeTradingConfig({
         ...base,
         ...getStrategyDefaultConfig(strategyKey),

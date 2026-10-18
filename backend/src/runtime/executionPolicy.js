@@ -54,8 +54,14 @@ function resolveCanonicalTradePlan({
     // must not translate that price as it does a distance/ATR plan. Once the
     // order is submitted even the minimum floor belongs to the saved order,
     // not to a later fill or recovery quote.
-    const structural = signal?.tradePlan?.stopPriceMode === "STRUCTURAL";
-    if (structural || signal?.tradePlan?.stopPriceMode != null ||
+    const mode = signal?.tradePlan?.stopPriceMode;
+    const atrDistance = mode === "ATR_DISTANCE";
+    if (atrDistance && (!(toFiniteNumber(signal.tradePlan.stopPips, null) > 0) ||
+        signal.tradePlan.structuralStopLossPrice != null ||
+        signal.tradePlan.takeProfitPrice != null || signal.tradePlan.takeProfit != null ||
+        signal.tradePlan.targetRiskMultiple != null)) return null;
+    const structural = mode === "STRUCTURAL";
+    if (structural || (mode != null && !atrDistance) ||
         signal?.tradePlan?.structuralStopLossPrice != null) {
         const anchor = toFiniteNumber(signal?.tradePlan?.structuralStopLossPrice, null);
         const submitted = toFiniteNumber(submittedStopLossPrice, null);

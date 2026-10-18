@@ -1,6 +1,7 @@
 const RuntimeCoordinator = require("../runtimeCoordinator");
 const { createEngineSupervisor } = require("../engineSupervisor");
-const { cloneDefaultConfig, computeConfigHash } = require("../../config/tradingConfig");
+const { computeConfigHash } = require("../../config/tradingConfig");
+const cloneDefaultConfig = () => JSON.parse(JSON.stringify(require("../../../../shared/legacyIntradayConfigDefaults.json")));
 
 describe("first scan after supervised attachment", () => {
     test.each([false, true])("delivers a restored pricing reconsideration to the attached engine (delayed=%s)", async (delayed) => {

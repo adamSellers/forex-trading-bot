@@ -1,7 +1,7 @@
 const RuntimeCoordinator = require('../runtimeCoordinator');
 const LiveTradingEngine = require('../../services/LiveTradingEngine');
 const OandaDataService = require('../../services/OandaDataService');
-const { cloneDefaultConfig } = require('../../config/tradingConfig');
+const cloneDefaultConfig = () => JSON.parse(JSON.stringify(require('../../../../shared/legacyIntradayConfigDefaults.json')));
 const {
     createMockConfigService, createMockTradeRepository, createMockEntryDecisionRepository,
 } = require('../../../__tests__/helpers/mockServices');

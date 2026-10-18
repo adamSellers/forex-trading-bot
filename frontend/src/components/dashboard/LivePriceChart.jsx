@@ -128,10 +128,14 @@ const useChartData = (instrument, timeframe) => {
         : { data: [], loading: true, error: null };
 };
 
-const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS }) => {
+const LivePriceChart = ({ prices = {}, assets = FOREX_INSTRUMENTS, initialTimeframe = 'M15' }) => {
   const theme = useTheme();
   const [selectedAsset, setSelectedAsset] = useState(assets[0] || 'AUD_USD');
-  const [timeframe, setTimeframe] = useState('M15'); // Oanda format
+  const [timeframe, setTimeframe] = useState(initialTimeframe); // Oanda format
+
+  useEffect(() => {
+      if (TIMEFRAME_MAP[initialTimeframe]) setTimeframe(initialTimeframe);
+  }, [initialTimeframe]);
   
   // Get instrument info
   const instrumentInfo = INSTRUMENT_INFO[selectedAsset] || {};

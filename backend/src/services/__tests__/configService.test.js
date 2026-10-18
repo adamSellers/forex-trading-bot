@@ -2,6 +2,8 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const ConfigService = require("../configService");
+const legacyDefaults = require("../../../../shared/legacyIntradayConfigDefaults.json");
+const { evaluateLiveReadiness } = require("../../runtime/liveReadiness");
 jest.mock("../Oandaclient", () => ({}));
 const LiveTradingEngine = require("../LiveTradingEngine");
 
@@ -21,12 +23,17 @@ describe("ConfigService governance", () => {
 
     test("identifies per-pair capacity without increasing the retained risk defaults", () => {
         expect(ConfigService.DEFAULT_CONFIG).toMatchObject({
-            liveReleaseVersion: "m15-intraday-v6",
-            executionPolicyVersion: "intraday-risk-v6",
+            strategy: "multi_day_trend",
+            timeframe: "4h",
+            liveReleaseVersion: "h4-channel-v1",
+            executionPolicyVersion: "h4-channel-risk-v1",
             pricingModelVersion: "broker-liquidity-v3.1",
             riskPerTrade: 0.0025,
             maxCapitalAtRisk: 100,
-            intradayTargetRiskMultiple: 1.5,
+            trendBreakoutBars: 20,
+            trendExitBars: 10,
+            enableTakeProfit: false,
+            enableBreakeven: false,
         });
         expect(ConfigService.DEFAULT_CONFIG).not.toHaveProperty("maxOpenPositions");
     });
@@ -43,14 +50,14 @@ describe("ConfigService governance", () => {
                 enableTrading: true,
                 liveReleaseVersion: ConfigService.DEFAULT_CONFIG.liveReleaseVersion,
                 executionPolicyVersion: ConfigService.DEFAULT_CONFIG.executionPolicyVersion,
-                strategy: "intraday_momentum",
-                timeframe: "15m",
+                strategy: "multi_day_trend",
+                timeframe: "4h",
             })
         );
         expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(
             expect.objectContaining({
                 enableTrading: true,
-                strategy: "intraday_momentum",
+                strategy: "multi_day_trend",
             })
         );
     });
@@ -72,9 +79,11 @@ describe("ConfigService governance", () => {
         ["m15-intraday-v4.2", "intraday-risk-v4.2", "broker-liquidity-v3.1", true],
         ["m15-intraday-v5", "intraday-risk-v5", "broker-liquidity-v3.1", false],
         ["m15-intraday-v5", "intraday-risk-v5", "broker-liquidity-v3.1", true],
+        ["m15-intraday-v6", "intraday-risk-v6", "broker-liquidity-v3.1", false],
+        ["m15-intraday-v6", "intraday-risk-v6", "broker-liquidity-v3.1", true],
     ])("integrated upgrade from %s preserves settings (%s/%s, enabled=%s) across restart", (liveReleaseVersion, executionPolicyVersion, pricingModelVersion, enableTrading) => {
         const prior = {
-            ...ConfigService.DEFAULT_CONFIG,
+            ...legacyDefaults,
             liveReleaseVersion,
             executionPolicyVersion,
             pricingModelVersion,
@@ -98,18 +107,28 @@ describe("ConfigService governance", () => {
         };
         fs.writeFileSync(configPath, JSON.stringify(prior));
         const expected = {
-            ...prior,
-            liveReleaseVersion: ConfigService.DEFAULT_CONFIG.liveReleaseVersion,
-            executionPolicyVersion: ConfigService.DEFAULT_CONFIG.executionPolicyVersion,
-            pricingModelVersion: ConfigService.DEFAULT_CONFIG.pricingModelVersion,
+            ...ConfigService.DEFAULT_CONFIG,
+            enableTrading,
+            assets: ["EUR_USD", "USD_JPY"],
+            riskPerTrade: 0.001,
+            maxCapitalAtRisk: 75,
+            signalCooldown: 120000,
+            maxPriceAgeMs: 12000,
+            maxSpreadPips: 1,
+            logLevel: "debug",
+            enableEmailAlerts: true,
+            alertEmail: "test@example.invalid",
         };
-        delete expected.maxOpenPositions;
 
         const service = new ConfigService(configPath).init();
         const { configHash, ...loaded } = service.get();
-        // Exact equality covers every retained numeric, boolean and other setting;
-        // the deliberately nondefault values expose an accidental defaults reset.
+        // Shared operator settings survive; the new release supplies its own
+        // entry and exit rules instead of inheriting a prior intraday variant.
         expect(loaded).toEqual(expected);
+        expect(loaded).not.toHaveProperty("intradayTargetRiskMultiple");
+        expect(loaded.timeStopHours).toBe(0);
+        expect(prior.intradayTargetRiskMultiple).toBe(1.8);
+        expect(prior.timeStopHours).toBe(4);
         expect(configHash).not.toBe(ConfigService.computeConfigHash(prior));
         expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(expected);
 
@@ -132,7 +151,7 @@ describe("ConfigService governance", () => {
         expect(() => service.update({ maxOpenPositions: 1 })).toThrow("freeze active");
     });
 
-    test("older releases retain the existing strategy-default migration", () => {
+    test("older releases retain shared risk settings while adopting H4 rules and remain blocked by live caps", () => {
         fs.writeFileSync(configPath, JSON.stringify({
             liveReleaseVersion: "m15-intraday-v2",
             enableTrading: true,
@@ -148,10 +167,21 @@ describe("ConfigService governance", () => {
         expect(loaded).toEqual({
             ...ConfigService.DEFAULT_CONFIG,
             enableTrading: true,
+            riskPerTrade: 0.01,
+            maxCapitalAtRisk: 500,
             logLevel: "debug",
             enableEmailAlerts: true,
             alertEmail: "test@example.invalid",
         });
+        const readiness = evaluateLiveReadiness({
+            config: service.get(),
+            liveSelection: { liveRun: { strategy: "multi_day_trend", configHash } },
+        });
+        expect(readiness.activationAllowed).toBe(false);
+        expect(readiness.reasons).toEqual(expect.arrayContaining([
+            expect.objectContaining({ code: "LIVE_RISK_LIMIT", key: "riskPerTrade" }),
+            expect.objectContaining({ code: "LIVE_RISK_LIMIT", key: "maxCapitalAtRisk" }),
+        ]));
     });
 
     test("rejects direct activation outside the readiness-gated path", () => {
@@ -201,7 +231,7 @@ describe("ConfigService governance", () => {
         expect(() => service.update({ enforceConfigFreeze: false })).toThrow("freeze active");
         expect(() => service.update({ enforceConfigFreeze: "false" })).toThrow("freeze active");
         service.config.enforceConfigFreeze = false;
-        expect(() => service.update({ intradayTargetRiskMultiple: 9 })).toThrow("freeze active");
+        expect(() => service.update({ trendBreakoutBars: 99 })).toThrow("freeze active");
     });
 
     test.each(["writeFileSync", "fsyncSync", "renameSync"])("failed %s pauses immediately, invalidates entries and blocks activation until repaired", (operation) => {

@@ -3,9 +3,10 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Box, Chip, Collapse, IconButton, Stack, Typography, alpha, useTheme } from '@mui/material';
 import { ExpandLess, ExpandMore, NightsStay, TrendingUp, WarningAmber } from '@mui/icons-material';
 import { apiCall, API_ENDPOINTS } from '../../config/api';
+import { isH4Trend } from '../../utils/strategyDisplay';
 
 const ENTRY_LABELS = {
-  WATCHING: 'Watching for a completed M15 setup',
+  WATCHING: 'Watching for a completed market setup',
   PAUSED: 'New entries are paused',
   COOLDOWN: 'Consecutive-loss cooldown',
   MARKET_CLOSED: 'Waiting for the market to reopen',
@@ -13,7 +14,7 @@ const ENTRY_LABELS = {
   UNKNOWN: 'Live entry state could not be verified',
 };
 
-const MarketStatusBanner = ({ compact = false }) => {
+const MarketStatusBanner = ({ compact = false, strategy = null }) => {
   const theme = useTheme();
   const [health, setHealth] = useState(null);
   const [error, setError] = useState(false);
@@ -83,7 +84,9 @@ const MarketStatusBanner = ({ compact = false }) => {
             <Typography variant="subtitle2" fontWeight="bold" color={tone + '.main'}>{title}</Typography>
             <Typography variant="caption" color="text.secondary">
               {unavailable ? 'Reconnect to verify live market data and position management.'
-                : ENTRY_LABELS[health.entryState] || 'Review the live entry state'}
+                : health.entryState === 'WATCHING'
+                  ? `Watching for a completed ${isH4Trend({ strategy }) ? 'H4 channel breakout' : strategy === 'intraday_momentum' ? 'M15 setup' : 'market setup'}`
+                  : ENTRY_LABELS[health.entryState] || 'Review the live entry state'}
             </Typography>
           </Box>
         </Stack>

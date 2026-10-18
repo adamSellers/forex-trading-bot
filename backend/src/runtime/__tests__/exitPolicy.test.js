@@ -2,6 +2,8 @@ const {
     buildOwnerRunExitPolicy,
     calculateMonotonicStop,
     resolveBreakevenDistance,
+    isH4ChannelExitPolicy,
+    resolveEntryExitWindowReason,
     resolveOwnerRunExitPolicy,
     resolveTimedExitReason,
     resolveTrailingStopDistances,
@@ -156,5 +158,72 @@ describe("intraday owner exit policy", () => {
                 trailDistance: 0.002,
             })
         ).toBeNull();
+    });
+});
+
+describe("H4 channel owner exit policy", () => {
+    const config = {
+        strategy: "multi_day_trend",
+        liveReleaseVersion: "h4-channel-v1",
+        executionPolicyVersion: "h4-channel-risk-v1",
+        trendExitBars: 10,
+        // Retained global fields cannot restore the intraday policy.
+        timeStopHours: 6,
+        enableBreakeven: true,
+        enableTakeProfit: true,
+        sessionCloseTimeZone: "America/New_York",
+        sessionCloseLocalHour: 16,
+        sessionCloseLocalMinute: 45,
+        sessionCloseWindowMinutes: 30,
+    };
+    const policy = () => buildOwnerRunExitPolicy({ config, ownerRunId: "channel-owner" });
+
+    test("captures a distinct immutable owner contract without targets, breakeven or an intraday deadline", () => {
+        const openingConfig = { ...config };
+        const saved = buildOwnerRunExitPolicy({ config: openingConfig, ownerRunId: "channel-owner" });
+        openingConfig.trendExitBars = 3;
+        expect(saved).toMatchObject({ version: 2, kind: "H4_CHANNEL", ownerRunId: "channel-owner",
+            config: { trendExitBars: 10, enableChannelTrailing: true, channelTrailTimeframe: "4h",
+                enableTakeProfit: false, enableBreakeven: false, enableTrailingStops: false, timeStopHours: 0 } });
+        expect(resolveOwnerRunExitPolicy({ ownerExitPolicy: saved }, { strategy: "intraday_momentum" })).toBe(saved);
+        expect(resolveBreakevenDistance({ policy: saved })).toBeNull();
+    });
+
+    test.each(["2026-08-10T20:45:00Z", "2026-08-11T22:00:00Z", "2026-01-12T21:45:00Z"])(
+        "holds across weekday rollover and the old six-hour deadline at %s", (time) => {
+            expect(resolveTimedExitReason({ trade: { entryTime: Date.parse(time) - 48 * 3_600_000 },
+                policy: policy(), now: Date.parse(time) })).toBeNull();
+        });
+
+    test.each([
+        ["2026-08-14T20:44:59Z", null], ["2026-08-14T20:45:00Z", "WEEKEND_CLOSE"],
+        ["2026-01-09T21:44:59Z", null], ["2026-01-09T21:45:00Z", "WEEKEND_CLOSE"],
+        ["2026-08-15T12:00:00Z", "WEEKEND_CLOSE"],
+        ["2026-03-08T21:04:59Z", "WEEKEND_CLOSE"], ["2026-03-08T21:05:00Z", null],
+        ["2026-11-01T22:04:59Z", "WEEKEND_CLOSE"], ["2026-11-01T22:05:00Z", null],
+    ])("Friday flatten and entry embargo match New York DST at %s", (time, reason) => {
+        const now = Date.parse(time);
+        expect(resolveTimedExitReason({ policy: policy(), now })).toBe(reason);
+        expect(resolveEntryExitWindowReason({ policy: config, now })).toBe(reason);
+    });
+
+    test("persisted v6 owners retain their daily close and one-R breakeven under the new selection", () => {
+        const legacy = buildOwnerRunExitPolicy({ strategy: "intraday_momentum", config: {
+            ...config, strategy: "intraday_momentum", liveReleaseVersion: "m15-intraday-v6",
+            executionPolicyVersion: "intraday-risk-v6", breakevenTriggerRiskMultiple: 1,
+        } });
+        const resolved = resolveOwnerRunExitPolicy({ ownerExitPolicy: legacy }, config);
+        expect(resolved).toBe(legacy);
+        expect(isH4ChannelExitPolicy(resolved)).toBe(false);
+        expect(resolveTimedExitReason({ policy: resolved, trade: { entryTime: Date.parse("2026-08-10T18:00:00Z") },
+            now: Date.parse("2026-08-10T20:45:00Z") })).toBe("SESSION_CLOSE");
+        expect(resolveBreakevenDistance({ policy: resolved, runtimeMetadata: { initialStopDistance: 0.001 } }))
+            .toBeCloseTo(0.001);
+    });
+
+    test("a legacy trade missing its snapshot cannot inherit the selected channel exits", () => {
+        const resolved = resolveOwnerRunExitPolicy({ strategy: "intraday_momentum", entryTime: 1 }, config);
+        expect(isH4ChannelExitPolicy(resolved)).toBe(false);
+        expect(resolved.config).toMatchObject({ timeStopHours: 6, enableBreakeven: true, breakevenTriggerRiskMultiple: 1 });
     });
 });

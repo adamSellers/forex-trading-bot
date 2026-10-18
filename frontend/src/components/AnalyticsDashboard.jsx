@@ -35,6 +35,7 @@ import { analyticsAPI, runtimeAPI, strategiesAPI } from '../config/api';
 import EquityChart from './analytics/EquityChart';
 import PairPerformance from './analytics/PairPerformance';
 import { formatExpectancyInference } from '../utils/analyticsInference';
+import { strategyLabel as getSavedStrategyLabel } from '../utils/strategyDisplay';
 import {
   ExitAnalysisWidget,
   KPICard,
@@ -90,8 +91,8 @@ const formatModeLabel = (mode) =>
 
 const formatRunLabel = (run, catalog = []) => {
   if (!run) return 'All Runs';
-  const strategyLabel =
-    catalog.find((strategy) => strategy.key === run.strategy)?.label || run.strategy;
+  const strategyLabel = getSavedStrategyLabel(run.strategy || run.configSnapshot?.strategy,
+    catalog.find((strategy) => strategy.key === run.strategy)?.label);
   const modeLabel = formatModeLabel(run.mode);
   const shortRunId = String(run.runId || '').slice(0, 12);
   const release = run.metadata?.releaseVersion || run.configSnapshot?.liveReleaseVersion || 'Historical';
@@ -233,7 +234,8 @@ const AnalyticsDashboard = () => {
     if (!analytics) return 'Choose a live history scope';
     const snapshotRun = availableRuns.find((run) => run.runId === analytics.filters?.runId);
     const snapshotStrategy = analytics.filters?.strategy;
-    const strategyLabel = strategyCatalog.find((option) => option.key === snapshotStrategy)?.label || snapshotStrategy || 'All strategies';
+    const strategyLabel = snapshotStrategy ? getSavedStrategyLabel(snapshotStrategy,
+      strategyCatalog.find((option) => option.key === snapshotStrategy)?.label) : 'All strategies';
     if (analytics.scope === 'current') return `Current live run snapshot | ${String(analytics.filters?.runId || '').slice(0, 12)}`;
     if (analytics.scope === 'run') return snapshotRun ? formatRunLabel(snapshotRun, strategyCatalog) : `Run ${analytics.filters?.runId || 'unavailable'}`;
     return `All live history | ${strategyLabel}`;

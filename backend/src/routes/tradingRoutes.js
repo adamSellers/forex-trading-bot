@@ -213,9 +213,7 @@ function requireService(res, service, label) {
 }
 
 router.get("/strategies/catalog", (_req, res) => {
-    const strategies = listStrategyCatalog().filter(
-        (strategy) => strategy.key === "intraday_momentum"
-    );
+    const strategies = listStrategyCatalog();
     res.json({ strategies, liveOnly: true, timestamp: Date.now() });
 });
 
@@ -223,7 +221,7 @@ router.get("/health", (req, res) => {
     const config = req.app.locals.configService?.get?.() || {};
     const coordinator = getRuntimeCoordinator(req);
     const strategy = getStrategyDefinition(
-        config.strategy || "intraday_momentum"
+        config.strategy || "multi_day_trend"
     );
     res.json({
         status: "ok",
@@ -243,7 +241,7 @@ router.get("/health", (req, res) => {
             strategy: strategy.key,
             strategyLabel: strategy.label,
             strategyVersion: strategy.version,
-            timeframe: config.timeframe || "15m",
+            timeframe: config.timeframe || "4h",
             maxOpenPositions: null,
             positionPolicy: POSITION_POLICY,
             riskPerTrade: config.riskPerTrade || 0,

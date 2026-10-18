@@ -8,13 +8,13 @@ const {
 const { createStrategyDefinition, createNoopResult } = require("../strategyContract");
 
 describe("live strategy registry", () => {
-    test("exposes intraday_momentum as the only runnable strategy", () => {
-        expect(CANONICAL_STRATEGY_KEYS).toEqual(["intraday_momentum"]);
-        expect(Object.keys(strategyRegistry)).toEqual(["intraday_momentum"]);
+    test("exposes H4 in the catalog and retains legacy owner lookup", () => {
+        expect(CANONICAL_STRATEGY_KEYS).toEqual(["intraday_momentum", "multi_day_trend"]);
+        expect(Object.keys(strategyRegistry)).toEqual(["intraday_momentum", "multi_day_trend"]);
         expect(listStrategyCatalog()).toEqual([
             expect.objectContaining({
-                key: "intraday_momentum",
-                version: "1.4.0",
+                key: "multi_day_trend",
+                version: "2.0.0",
                 runtimeStatus: "live_ready",
                 metadata: expect.objectContaining({ supportsLive: true }),
             }),

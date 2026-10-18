@@ -1,12 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { createReplayTestHarness, fixtureArchive, START, M15 } = require('../testHarness.cjs');
+const { createReplayTestHarness, fixtureArchive, START, M15, cloneLegacyConfig } = require('../fixtures/legacyReplayHarness.cjs');
 const env = createReplayTestHarness();
 const { verifyReplaySources } = require('../replayManifest.cjs');
 const { sellRetestFixture } = require('../../src/strategies/__tests__/fixtures/intradaySellRetestFixture');
 const { buyEntryFixture } = require('../fixtures/causalFlows.cjs');
-const { cloneDefaultConfig } = require('../../src/config/tradingConfig');
 const { getStrategyDefinition } = require('../../src/strategies');
 
 describe('persisted chronological production-path replay', () => {
@@ -175,7 +174,7 @@ describe('persisted chronological production-path replay', () => {
         if (spec.pricingAssumptions?.tradeable !== true || !(spec.pricingAssumptions.liquidityUnits > 0)) throw new Error('Declare modeled tradeability and liquidity');
         if (spec.nodeVersion !== process.versions.node) throw new Error('Use the manifest-pinned Node version');
         verifyReplaySources(path.resolve(__dirname, '../../..'), spec.sourceHashes);
-        const config = cloneDefaultConfig();
+        const config = cloneLegacyConfig();
         const actualIdentity = { strategy: config.strategy,
             strategyVersion: getStrategyDefinition(config.strategy).version,
             releaseVersion: config.liveReleaseVersion, executionPolicyVersion: config.executionPolicyVersion,

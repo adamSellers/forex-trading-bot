@@ -11,7 +11,7 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
     test("accepts the deployed live strategy", () => {
         const req = {
             body: {
-                strategy: "intraday_momentum",
+                strategy: "multi_day_trend",
             },
         };
         const res = createResponse();
@@ -40,7 +40,7 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
             expect.objectContaining({
                 error: "Validation failed",
                 details: [
-                    "Invalid strategy. This release supports intraday_momentum only.",
+                    "Invalid strategy. This release supports multi_day_trend only.",
                 ],
             })
         );
@@ -63,7 +63,7 @@ describe("ValidationMiddleware.validateTradingConfig", () => {
             expect.objectContaining({
                 error: "Validation failed",
                 details: [
-                    "Invalid strategy. This release supports intraday_momentum only.",
+                    "Invalid strategy. This release supports multi_day_trend only.",
                 ],
             })
         );

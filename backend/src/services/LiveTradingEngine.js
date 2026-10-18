@@ -35,11 +35,17 @@ const {
     buildOwnerRunExitPolicy,
     calculateMonotonicStop,
     getTradeExitMetadata,
+    isH4ChannelExitPolicy,
     resolveBreakevenDistance,
     resolveOwnerRunExitPolicy,
+    resolveEntryExitWindowReason,
     resolveTimedExitReason,
     resolveTrailingStopDistances,
 } = require("../runtime/exitPolicy");
+const { evaluateChannelTrail, evaluateMultiDayTrendEntry, MULTI_DAY_TREND_VERSION,
+    ROLLING_CHANNEL_ENTRY_TYPE } = require("../strategies/multiDayTrend");
+const { getForexMarketState } = require("../runtime/marketDataFreshness");
+const { getLiveRiskLimitViolations } = require("../runtime/liveReadiness");
 const {
     ACCOUNT_CURRENCY,
     AudCurrencyConverter,
@@ -452,6 +458,14 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     assertEntryClock(signal, config, now = Date.now()) {
+        if (signal.strategy === "multi_day_trend" || config.strategy === "multi_day_trend") {
+            if (!getForexMarketState(now).open ||
+                resolveEntryExitWindowReason({ policy: config, now })) {
+                throw entryPolicyRejection(ENTRY_REJECTION_CODES.OUTSIDE_SESSION,
+                    "H4 entry market is closed or the Friday cutoff is active", { phase: "ENTRY_CLOCK" });
+            }
+            return;
+        }
         if (signal.strategy !== "intraday_momentum" && config.strategy !== "intraday_momentum") return;
         const { getActivePairSessions } = require("../strategies/intradayMomentum");
         if (!getActivePairSessions(signal.symbol, now).length ||
@@ -832,6 +846,15 @@ class LiveTradingEngine extends EventEmitter {
         // originating trend remains valid and must not close it on the next scan.
         const existingTrade = this.getOpenTradeByInstrument(symbol);
         if (["BUY", "SELL"].includes(signalType) && existingTrade &&
+            (signal.strategy === "multi_day_trend" || config.strategy === "multi_day_trend")) {
+            await this.reportEntryRejection(signal, config, decisionId, {
+                rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                reason: "Existing position retains its owner exit policy; one position per pair",
+                context: { openPositions: this.openTrades.size },
+            });
+            return;
+        }
+        if (["BUY", "SELL"].includes(signalType) && existingTrade &&
             (isFadeTrade(existingTrade) || entryType === FADE_ENTRY_TYPE)) {
             await this.reportEntryRejection(signal, config, decisionId, {
                 rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
@@ -1162,6 +1185,38 @@ class LiveTradingEngine extends EventEmitter {
         }
     }
 
+    validateMultiDayTrendDecision(signal, config) {
+        if (signal.strategy !== "multi_day_trend" && config.strategy !== "multi_day_trend") return;
+        const price = this.dataService?.getCurrentPrice?.(signal.symbol);
+        const current = evaluateMultiDayTrendEntry({
+            instrument: signal.symbol,
+            candles: this.dataService?.getCandles?.(signal.symbol, "4h") || [],
+            currentPrice: signal.currentPrice,
+            config,
+            nowMs: Date.now(),
+            marketContext: { price, session: { tradeable: price?.tradeable === true,
+                spreadPips: price?.spread } },
+        });
+        const currentStart = typeof current.signalCandleTime === "number"
+            ? current.signalCandleTime : Date.parse(current.signalCandleTime);
+        const signalStart = typeof signal.signalCandleTime === "number"
+            ? signal.signalCandleTime : Date.parse(signal.signalCandleTime);
+        const stopPips = Number(signal.tradePlan?.stopPips);
+        if (signal.strategy !== "multi_day_trend" || config.strategy !== "multi_day_trend" ||
+            signal.strategyVersion !== MULTI_DAY_TREND_VERSION || signal.timeframe !== "4h" ||
+            signal.entryType !== ROLLING_CHANNEL_ENTRY_TYPE ||
+            current.signalType !== signal.signal || !Number.isFinite(signalStart) || currentStart !== signalStart ||
+            signal.tradePlan?.stopPriceMode !== "ATR_DISTANCE" ||
+            !(stopPips > 0) || Math.abs(stopPips - Number(current.tradePlan?.stopPips)) > 1e-8 ||
+            !resolveCanonicalTradePlan({ signal, config, entryPrice: signal.currentPrice,
+                pipValue: oandaClient.getPipValue(signal.symbol) })) {
+            throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                "H4 channel decision is stale, changed or missing its versioned ATR plan",
+                { phase: "H4_REVALIDATION", currentReason: current.reasonCode,
+                    signalCandleTime: signal.signalCandleTime, currentCandleTime: current.signalCandleTime });
+        }
+    }
+
     // ==================== ENTRY VALIDATION ====================
 
     /**
@@ -1197,10 +1252,26 @@ class LiveTradingEngine extends EventEmitter {
             };
         }
 
+        const riskLimitViolations = config.strategy === "multi_day_trend"
+            ? getLiveRiskLimitViolations(config) : [];
+        if (riskLimitViolations.length) {
+            return { valid: false, code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
+                reason: "Configured risk exceeds the existing live release caps",
+                context: { ...baseContext, riskLimitViolations } };
+        }
+
         const brokerBlock = await this.getBrokerEntryBlockReason();
         if (brokerBlock) {
             return { valid: false, code: ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 reason: brokerBlock, context: baseContext };
+        }
+
+        try {
+            this.validateMultiDayTrendDecision(signal, config);
+        } catch (error) {
+            if (!error.entryPolicyRejection) throw error;
+            return { valid: false, code: error.entryRejectionCode,
+                reason: error.message, context: { ...baseContext, ...error.entryRejectionContext } };
         }
 
         // 2. Check instrument is in active list
@@ -1877,7 +1948,7 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     hasStructuralStopContract(signal) {
-        return signal?.tradePlan?.stopPriceMode != null ||
+        return (signal?.tradePlan?.stopPriceMode != null && signal.tradePlan.stopPriceMode !== "ATR_DISTANCE") ||
             signal?.tradePlan?.structuralStopLossPrice != null ||
             signal?.entryType === SELL_RETEST_ENTRY_TYPE ||
             signal?.entryType === BUY_RETEST_ENTRY_TYPE ||
@@ -1898,7 +1969,7 @@ class LiveTradingEngine extends EventEmitter {
         });
         if (!canonicalPlan || (this.hasStructuralStopContract(signal) &&
             canonicalPlan.stopPriceMode !== "STRUCTURAL")) {
-            if (this.hasStructuralStopContract(signal)) {
+            if (this.hasStructuralStopContract(signal) || signal?.tradePlan?.stopPriceMode === "ATR_DISTANCE") {
                 throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                     "Structural stop is missing, invalid or no longer on its protective side",
                     { phase: "STOP_RESOLUTION", entryPrice: referencePrice,
@@ -1917,7 +1988,7 @@ class LiveTradingEngine extends EventEmitter {
         return {
             stopLossPips: canonicalPlan.stopLossPips,
             stopLossPrice: Number(
-                canonicalPlan.stopPriceMode === "STRUCTURAL"
+                ["STRUCTURAL", "ATR_DISTANCE"].includes(canonicalPlan.stopPriceMode)
                     ? oandaClient.formatPriceBound(signal.symbol, canonicalPlan.stopLossPrice,
                         signal.signal, instrumentMetadata)
                     : oandaClient.formatPrice
@@ -2171,7 +2242,8 @@ class LiveTradingEngine extends EventEmitter {
         const quoteTime = priceData.timestamp;
         const quoteAgeMs = fetchedAt - quoteTime;
         if (this.dataService.getEntryFreshness) {
-            const freshness = this.dataService.getEntryFreshness(signal.symbol, { nowMs: Date.now() });
+            const freshness = this.dataService.getEntryFreshness(signal.symbol, { nowMs: Date.now(),
+                strategy: signal.strategy || config.strategy, timeframe: signal.timeframe || config.timeframe });
             if (freshness?.fresh !== true) throw new Error(`Entry market history unavailable: ${freshness?.code || "STALE_CANDLES"}`);
         } else if (process.env.NODE_ENV !== "test") {
             throw new Error("Entry market freshness service is unavailable");
@@ -2196,7 +2268,8 @@ class LiveTradingEngine extends EventEmitter {
                     structuralStopLossPrice: structuralAnchor });
         }
         const stop = this.resolveStopLoss(signal, config,
-            this.hasStructuralStopContract(signal) ? finalQuote : null, instrumentMetadata);
+            (this.hasStructuralStopContract(signal) || signal.tradePlan?.stopPriceMode === "ATR_DISTANCE")
+                ? finalQuote : null, instrumentMetadata);
         const costToStopRatio = (spreadPips + Math.max(0, toFiniteNumber(config.expectedSlippagePips, 0.2))) / stop.stopLossPips;
         const configuredDeviation = Number(config.maxEntryDeviationPips);
         const maxDeviationPips =
@@ -2209,7 +2282,8 @@ class LiveTradingEngine extends EventEmitter {
             spreadPips, maxSpreadPips: toFiniteNumber(config.maxSpreadPips, 3),
             stopPips: stop.stopLossPips,
             expectedSlippagePips: Math.max(0, toFiniteNumber(config.expectedSlippagePips, 0.2)),
-            costToStopRatio, maxCostToStopRatio: toFiniteNumber(config.intradayMaxCostToStopRatio, 0.15),
+            costToStopRatio, maxCostToStopRatio: toFiniteNumber(config.strategy === "multi_day_trend"
+                ? config.trendMaxCostToStopRatio : config.intradayMaxCostToStopRatio, 0.15),
             entryReferencePrice: referencePrice, currentPrice: signal.currentPrice,
             deviationPips, maxEntryDeviationPips: maxDeviationPips,
             priceAgeMs: quoteAgeMs, priceReceiptAgeMs: fetchedAt - priceData.fetchedAt,
@@ -2220,7 +2294,7 @@ class LiveTradingEngine extends EventEmitter {
             throw entryPolicyRejection(ENTRY_REJECTION_CODES.SPREAD_TOO_WIDE,
                 `Final execution cost exceeds entry policy for ${signal.symbol}: spread ${Number(spreadPips.toPrecision(10))} pips exceeds ${context.maxSpreadPips}`, context);
         }
-        if ((signal.strategy === "intraday_momentum" || config.strategy === "intraday_momentum") &&
+        if ((["intraday_momentum", "multi_day_trend"].includes(signal.strategy || config.strategy)) &&
             exceedsQuoteLimit(costToStopRatio, context.maxCostToStopRatio, spreadError / stop.stopLossPips)) {
             throw entryPolicyRejection(ENTRY_REJECTION_CODES.COST_TO_STOP_TOO_HIGH,
                 `Final execution cost exceeds entry policy for ${signal.symbol}: cost/stop ${Number((costToStopRatio * 100).toPrecision(10))}% exceeds ${context.maxCostToStopRatio * 100}%`, context);
@@ -2544,7 +2618,9 @@ class LiveTradingEngine extends EventEmitter {
             toFiniteNumber(context.plannedTakeProfitPrice, null)
         );
         let desiredStop = Number.isFinite(alignedStop)
-            ? Number(oandaClient.formatPrice(signal.symbol, alignedStop, context.instrumentMetadata))
+            ? Number(signal.tradePlan?.stopPriceMode === "ATR_DISTANCE"
+                ? oandaClient.formatPriceBound(signal.symbol, alignedStop, signal.signal, context.instrumentMetadata)
+                : oandaClient.formatPrice(signal.symbol, alignedStop, context.instrumentMetadata))
             : null;
         const desiredTakeProfit = Number.isFinite(alignedTakeProfit)
             ? Number(oandaClient.formatPrice(signal.symbol, alignedTakeProfit, context.instrumentMetadata))
@@ -2995,6 +3071,7 @@ class LiveTradingEngine extends EventEmitter {
                 block, { phase: "RECONCILIATION" });
             await this.validateSellRetestDecision(signal, config);
             await this.validateBuyRetestDecision(signal, config);
+            this.validateMultiDayTrendDecision(signal, config);
             await this.validateReentryDecision(signal);
             await this.validateLossResetDecision(signal, config);
             if (this.getOpenTradeByInstrument(symbol)) {
@@ -3063,7 +3140,8 @@ class LiveTradingEngine extends EventEmitter {
             }
             // Persist and size against the exact protection prices serialized
             // to OANDA, including fallback plans and sub-tick ATR distances.
-            plannedStopLossPrice = Number(this.hasStructuralStopContract(signal)
+            plannedStopLossPrice = Number((this.hasStructuralStopContract(signal) ||
+                signal.tradePlan?.stopPriceMode === "ATR_DISTANCE")
                 ? oandaClient.formatPriceBound(symbol, plannedStopLossPrice, signal.signal, instrumentMetadata)
                 : oandaClient.formatPrice(symbol, plannedStopLossPrice, instrumentMetadata));
             if (this.hasStructuralStopContract(signal)) {
@@ -3242,9 +3320,11 @@ class LiveTradingEngine extends EventEmitter {
                     throw error;
                 }
                 if (this.dataService.getEntryFreshness &&
-                    this.dataService.getEntryFreshness(symbol, { nowMs: Date.now() })?.fresh !== true) {
+                    this.dataService.getEntryFreshness(symbol, { nowMs: Date.now(),
+                        strategy: signal.strategy || config.strategy, timeframe: signal.timeframe || config.timeframe })?.fresh !== true) {
                     throw new Error("Market history changed before broker submission");
                 }
+                this.validateMultiDayTrendDecision(signal, config);
                 brokerRequestStarted = true;
                 orderResult = await oandaClient.placeMarketOrder(
                     symbol,
@@ -3882,6 +3962,10 @@ class LiveTradingEngine extends EventEmitter {
             await this.executeExit(trade, currentPrice, timedExit);
             return;
         }
+        if (isH4ChannelExitPolicy(this.getOwnerExitPolicy(trade, config))) {
+            await this.updateH4ChannelStop(trade, config);
+            return;
+        }
         await this.retryPendingStopUpdate(trade);
         if (!this.openTrades.has(trade.id)) return;
         if (trade.brokerReconciliationPayload?.stopUpdate) return;
@@ -3994,11 +4078,15 @@ class LiveTradingEngine extends EventEmitter {
         const stopMatches = this.protectionPriceMatches(brokerStop, desiredStop, trade.instrument);
         const targetMatches = !Number.isFinite(target) || this.protectionPriceMatches(brokerTarget, target, trade.instrument);
         const pending = trade.brokerReconciliationPayload?.stopUpdate;
-        const pendingConfirmed = pending && this.protectionPriceMatches(brokerStop, pending.desiredPrice, trade.instrument) &&
+        const pendingStopConfirmed = pending && Number.isFinite(brokerStop) && Number.isFinite(Number(pending.desiredPrice)) &&
+            (this.protectionPriceMatches(brokerStop, pending.desiredPrice, trade.instrument) ||
+                (trade.side === "BUY" ? brokerStop > Number(pending.desiredPrice) : brokerStop < Number(pending.desiredPrice)));
+        const pendingConfirmed = pendingStopConfirmed &&
             (!Number.isFinite(pending.desiredTakeProfitPrice) || this.protectionPriceMatches(brokerTarget, pending.desiredTakeProfitPrice, trade.instrument));
         if (pendingConfirmed) {
             const updates = {
                 ...(pending.localUpdates || {}), stopLossPrice: brokerStop,
+                ...(Number.isFinite(pending.localUpdates?.trailingStopPrice) ? { trailingStopPrice: brokerStop } : {}),
                 ...(Number.isFinite(pending.desiredTakeProfitPrice) ? { takeProfitPrice: brokerTarget } : {}),
                 activeStopType: pending.stopType || trade.activeStopType,
                 reconciliationStatus: "OPEN", lastBrokerSyncAt: Date.now(),
@@ -4272,6 +4360,54 @@ class LiveTradingEngine extends EventEmitter {
         logger.info(
             `🛡️ Breakeven activated for ${trade.instrument} (${trade.side}): SL moved to ${breakevenPrice.toFixed(5)}`
         );
+    }
+
+    async updateH4ChannelStop(trade, config) {
+        return this.withBrokerLifecycle(async () => {
+            // Reload after waiting for any entry, close or protection operation.
+            // Reconcile the actual broker stop before comparing the channel so
+            // a confirmed write lost before local persistence cannot be undone.
+            trade = this.openTrades.get(trade.id);
+            if (!trade || trade.reconciliationStatus === "CLOSE_RETRY_PENDING") return false;
+            const details = await oandaClient.getTrade(trade.oandaTradeId);
+            const brokerTrade = details?.trade;
+            if (String(brokerTrade?.id) !== String(trade.oandaTradeId) || brokerTrade?.state !== "OPEN") return false;
+            await this.reconcileBrokerProtection(trade, brokerTrade);
+            trade = this.openTrades.get(trade.id);
+            if (!trade || trade.reconciliationStatus === "CLOSE_RETRY_PENDING") return false;
+
+            const pending = trade.brokerReconciliationPayload?.stopUpdate;
+            if (pending) {
+                if (pending.status !== "RETRY_PENDING" || Number(pending.nextRetryAt) > Date.now()) return false;
+                const retried = await this._applyBrokerStopUpdate(trade, Number(pending.desiredPrice),
+                    pending.stopType || "BROKER_STOP_RETRY", pending.localUpdates || {}, pending);
+                if (!retried || !this.openTrades.has(trade.id) || trade.brokerReconciliationPayload?.stopUpdate) return false;
+            }
+
+            const metadata = await this.getInstrumentMetadataForTrading(trade.instrument, config);
+            const quote = this.dataService.getCurrentPrice(trade.instrument);
+            if (!evaluatePriceAvailability(quote, { maxAgeMs: 30000 }).available) return false;
+            const channel = evaluateChannelTrail({
+                instrument: trade.instrument,
+                side: trade.side,
+                // OandaDataService exposes the normalized broker H4 cache by
+                // instrument/timeframe; the helper selects completed bars only.
+                candles: this.dataService.getCandles(trade.instrument, "4h"),
+                nowMs: Date.now(),
+                config: this.getOwnerExitConfig(trade, config),
+            });
+            if (!channel.ready) return false;
+            const desiredPrice = Number(oandaClient.formatPriceBound(
+                trade.instrument, channel.stopLossPrice, trade.side, metadata));
+            if (!Number.isFinite(desiredPrice) || !this.isMonotonicStopImprovement(trade, desiredPrice)) return false;
+            const liquidationPrice = trade.side === "SELL" ? quote.ask : quote.bid;
+            if (trade.side === "BUY" ? liquidationPrice <= desiredPrice : liquidationPrice >= desiredPrice) {
+                return Boolean(await this._executeExit(trade, liquidationPrice, "CHANNEL_EXIT"));
+            }
+            return this._applyBrokerStopUpdate(trade, desiredPrice, "CHANNEL", {
+                trailingStopPrice: desiredPrice,
+            });
+        });
     }
 
     /**

@@ -3,7 +3,6 @@ import {
   Alert,
   Box,
   Chip,
-  LinearProgress,
   Stack,
   Table,
   TableBody,
@@ -14,9 +13,11 @@ import {
   Typography,
 } from '@mui/material';
 import { Radar } from '@mui/icons-material';
+import { isH4Trend, strategyLabel } from '../../utils/strategyDisplay';
 
 const formatInstrument = (value = '') => value.replace('_', '/');
 const number = (value, digits = 2) => {
+  if (value === null || value === undefined || value === '') return '--';
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed.toFixed(digits) : '--';
 };
@@ -28,6 +29,7 @@ const signalColor = (signal) => {
 };
 
 const TradingSignals = ({ signals, systemStatus, compact = false }) => {
+  const h4Release = isH4Trend(systemStatus?.config || {});
   const filtered = useMemo(() => {
     const assets = new Set(systemStatus?.config?.assets || []);
     return (Array.isArray(signals) ? signals : [])
@@ -37,21 +39,17 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
 
   if (!filtered.length) {
     const candles = Number(systemStatus?.services?.dataService?.candleCount || 0);
-    const target = Math.max(1, Number(systemStatus?.config?.assets?.length || 1) * 700);
     return (
       <Box height="100%" display="grid" sx={{ placeItems: 'center' }} p={3}>
         <Stack alignItems="center" spacing={1.5} maxWidth={420}>
           <Radar sx={{ fontSize: 48, opacity: 0.25 }} />
           <Typography variant="body2" fontWeight={800}>WAITING FOR LIVE MARKET SNAPSHOT</Typography>
           <Typography variant="caption" color="text.secondary" textAlign="center">
-            M15 Intraday Momentum is loading complete M15 and H1 candles plus the current OANDA spread.
+            {h4Release
+              ? 'H4 Trend is loading completed H4 candles and the current OANDA quote.'
+              : 'M15 Intraday Momentum is loading complete M15 and H1 candles plus the current OANDA spread.'}
           </Typography>
-          {candles < target && (
-            <Box width="100%" mt={1}>
-              <LinearProgress variant="determinate" value={Math.min(100, (candles / target) * 100)} />
-              <Typography variant="caption" color="text.secondary">{candles} candles cached</Typography>
-            </Box>
-          )}
+          <Typography variant="caption" color="text.secondary">{candles} completed candles cached</Typography>
         </Stack>
       </Box>
     );
@@ -62,6 +60,7 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
       <Stack sx={{ height: '100%', overflowY: 'auto' }} divider={<Box borderBottom={1} borderColor="divider" />}>
         {filtered.map((signal) => {
           const context = signal.strategyContext || signal.decisionContext?.strategyContext || {};
+          const h4Signal = isH4Trend(signal) || isH4Trend(context);
           return (
             <Box key={`${signal.symbol}-${signal.signalCandleTime}-${signal.reasonCode}`} p={1.5}>
               <Stack direction="row" justifyContent="space-between" gap={2}>
@@ -71,7 +70,10 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                 </Box>
                 <Stack alignItems="flex-end" spacing={0.5}>
                   <Chip size="small" label={signal.signal} color={signalColor(signal.signal)} />
-                  <Typography variant="caption">H1 ADX {number(context.h1?.adx, 1)}</Typography>
+                  <Typography variant="caption">
+                    {h4Signal ? `H4 ATR ${number(context.h4?.atr, signal.symbol?.endsWith('_JPY') ? 3 : 5)}`
+                      : `H1 ADX ${number(context.h1?.adx, 1)}`}
+                  </Typography>
                 </Stack>
               </Stack>
             </Box>
@@ -88,9 +90,9 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
           <TableRow>
             <TableCell>Pair</TableCell>
             <TableCell>Live action</TableCell>
-            <TableCell>H1 regime</TableCell>
-            <TableCell align="right">H1 ADX</TableCell>
-            <TableCell align="right">M15 / cost</TableCell>
+            <TableCell>Strategy / direction</TableCell>
+            <TableCell align="right">Volatility / strength</TableCell>
+            <TableCell align="right">Setup / cost</TableCell>
             <TableCell>Decision</TableCell>
           </TableRow>
         </TableHead>
@@ -99,8 +101,13 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
             const context = signal.strategyContext || signal.decisionContext?.strategyContext || {};
             const h1 = context.h1 || {};
             const m15 = context.m15 || {};
+            const h4 = context.h4 || {};
+            const h4Signal = isH4Trend(signal) || isH4Trend(context);
             const costs = context.costs || {};
             const trend = h1.longRegime ? 'LONG' : h1.shortRegime ? 'SHORT' : 'FLAT';
+            const channelDirection = h4.freshLong ? 'LONG BREAKOUT' : h4.freshShort ? 'SHORT BREAKOUT'
+              : h4.channelHigh != null ? 'IN CHANNEL / NO FRESH BREAKOUT' : 'AWAITING H4 DATA';
+            const priceDigits = signal.symbol?.endsWith('_JPY') ? 3 : 5;
             return (
               <TableRow key={`${signal.symbol}-${signal.signalCandleTime}-${signal.reasonCode}`} hover>
                 <TableCell>
@@ -117,11 +124,19 @@ const TradingSignals = ({ signals, systemStatus, compact = false }) => {
                       <Chip size="small" label="EXIT ONLY" variant="outlined" />}
                   </Stack>
                 </TableCell>
-                <TableCell>{trend}</TableCell>
-                <TableCell align="right">{number(h1.adx, 1)}</TableCell>
+                <TableCell>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {strategyLabel(signal.strategy || context.family)} v{signal.strategyVersion || context.version || 'unknown'}
+                  </Typography>
+                  {h4Signal ? channelDirection : `H1 ${trend}`}
+                </TableCell>
+                <TableCell align="right">
+                  {h4Signal ? `ATR ${number(h4.atr, priceDigits)}` : `ADX ${number(h1.adx, 1)}`}
+                </TableCell>
                 <TableCell align="right">
                   <Typography variant="body2" fontFamily="monospace">
-                    RSI {number(m15.rsi, 1)}
+                    {h4Signal ? `H4 ${number(h4.channelLow, priceDigits)} – ${number(h4.channelHigh, priceDigits)}`
+                      : `M15 RSI ${number(m15.rsi, 1)}`}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
                     spread {number(costs.spreadPips, 1)}p / stop {number(costs.stopPips, 1)}p

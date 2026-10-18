@@ -1,4 +1,4 @@
-const { createReplayTestHarness, fixtureArchive, START } = require('../testHarness.cjs');
+const { createReplayTestHarness, fixtureArchive, START } = require('../fixtures/legacyReplayHarness.cjs');
 const env = createReplayTestHarness();
 const { buyEntryFixture } = require('../fixtures/causalFlows.cjs');
 const { HistoricalMarket } = require('../historicalMarket.cjs');

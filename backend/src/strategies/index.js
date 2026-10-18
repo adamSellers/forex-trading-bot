@@ -1,4 +1,5 @@
 const intradayMomentumStrategy = require("./intradayMomentum");
+const multiDayTrendStrategy = require("./multiDayTrend");
 const {
     CANONICAL_STRATEGY_KEYS,
     assertCanonicalStrategyKey,
@@ -6,6 +7,7 @@ const {
 
 const strategyRegistry = Object.freeze({
     intraday_momentum: intradayMomentumStrategy,
+    multi_day_trend: multiDayTrendStrategy,
 });
 
 function isCanonicalStrategyKey(strategyKey) {
@@ -17,7 +19,7 @@ function getStrategyDefinition(strategyKey) {
 }
 
 function listStrategyCatalog() {
-    return CANONICAL_STRATEGY_KEYS.map((strategyKey) => {
+    return ["multi_day_trend"].map((strategyKey) => {
         const definition = getStrategyDefinition(strategyKey);
 
         return {

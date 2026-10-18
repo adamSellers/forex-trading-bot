@@ -1,5 +1,22 @@
 # Live Trading Operator Guide
 
+**October 18 H4 replacement:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md), release `h4-channel-v1`, is being validated for the authorized standard deployment. Intentional paused entries will be preserved; use Start Trading when ready. Earlier versioned sections describe historical M15 owners.
+
+## Current H4 candidate
+
+| Setting | Value |
+| --- | --- |
+| Strategy / release | `multi_day_trend` 2.0.0 / `h4-channel-v1` |
+| Entry | Fresh completed H4 close beyond the preceding 20-bar high/low |
+| Initial stop | 2 × ATR(14), minimum six pips |
+| Protective channel | Latest 10 completed H4 bid lows for BUY / ask highs for SELL; only tightens |
+| Profit target / breakeven | None |
+| Holding | Overnight on weekdays; Friday close from 16:45 New York |
+| Concurrent positions | One per pair, subject to existing portfolio and margin limits |
+| Risk | 0.25% × min(80% available margin, A$100); aggregate stop risk ≤0.5% NAV |
+
+A 20-bar channel is a lookback, not an 80-hour delay after a breakout. The same signal cannot submit duplicate orders. A new opposite signal does not reverse an existing position. A pause blocks entries while existing positions continue to be managed. Financing accrues for overnight positions; Friday closure does not avoid Wednesday triple financing. Gaps can exceed planned stop losses. Profitability and trade frequency are unproven.
+
 ## October 7 BUY fix deployed
 
 The selected [v6 / strategy 1.4.0](docs/reviews/2026-10-07-buy-retest-release.md) is deployed at clean `562334b`, verified healthy/enabled and flat at 12:23 AEDT. BUY entries require a completed break above the previous eight-bar high, a distinct retest above that frozen level and a later bullish confirmation above the retest high. A fill consumes the breakout episode until price closes back through its level and a new pattern forms. Its stop sits below the minimum broker bid low of the retest episode, with the existing six-pip minimum and cash-risk budget. SELL-to-BUY fades are disabled to prevent bypass; SELL entry rules and old trades' exit management remain. All 1,316 backend tests passed locally and during deployment, with frontend checks/builds and a matched backup verified. Earlier dated sections below describe their original releases.
@@ -24,11 +41,11 @@ Breakeven exits, including tiny negative fills at the moved stop, do not arm thi
 
 The dashboard signal reason distinguishes waiting for an H1 reset, waiting for renewed H1 qualification and unavailable reset evidence. A restart or release change does not erase an unfinished reset requirement. The release record distinguishes implementation/testing from actual deployment. Older version-specific sections below remain historical context.
 
-The application now has one job: run `intraday_momentum` against the configured live OANDA account.
+The application runs `multi_day_trend` against the configured live OANDA account. The versioned M15 sections below describe historical owners.
 
 ## What the dashboard means
 
-- **Setup forming**: the H1 regime is valid, but M15 confirmation or a fresh completed-candle trigger is absent.
+- **Setup forming**: waiting for a fresh completed H4 close through the rolling channel.
 - **Actionable**: a new live BUY or SELL passed the strategy and is ready for execution checks.
 - **Exit only**: close the corresponding existing position; never open the opposite side from that event.
 - **Rejected**: an actionable event failed an explicit live check such as spread, stale price, position limit, risk, margin or account state.
@@ -38,7 +55,7 @@ The configuration page is intentionally read-only. Strategy parameters and risk 
 
 **Chart correction deployed with v5 on October 1:** Market Overview keeps completed midpoint candle closes and their indicators separate from the **Latest quote** point. The quote uses its broker event time, while each completed close is plotted at its candle's end time. Hover a historical point to see the completed interval and original high/low; the line itself still represents closes and does not show every intrabar excursion. The trend badge uses completed chart candles. See the [correction record](docs/reviews/2026-10-01-chart-correction.md) for verification and delivery status.
 
-## Current deployed release
+## Historical v6 release
 
 The following table describes [v6 / strategy 1.4.0](docs/reviews/2026-10-07-buy-retest-release.md), deployed at `562334b` on October 7. Measurement corrections and existing SELL behavior remain; dated earlier release records retain their original contracts.
 

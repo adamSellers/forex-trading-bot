@@ -6,7 +6,7 @@ const OandaDataService = require('../../src/services/OandaDataService');
 const LiveTradingEngine = require('../../src/services/LiveTradingEngine');
 const SignalGenerator = require('../../src/services/signalGenerator');
 const oandaClient = require('../../src/services/Oandaclient');
-const { cloneDefaultConfig } = require('../../src/config/tradingConfig');
+const { cloneLegacyConfig } = require('../fixtures/legacyReplayHarness.cjs');
 const { evaluatePriceAvailability } = require('../../src/runtime/quoteAvailability');
 const { evaluateIntradayMomentumEntry } = require('../../src/strategies/intradayMomentum');
 const { buyEntryFixture, legacyBuyEntryFixture } = require('../fixtures/causalFlows.cjs');
@@ -136,7 +136,7 @@ describe('research replay clock through production quote observations', () => {
         const fixture = buyEntryFixture({ instrument: 'AUD_USD', nowMs: clock.nowMs() });
         const evaluation = await evaluateIntradayMomentumEntry(fixture);
         expect(evaluation.signalType).toBe('BUY');
-        const signal = new SignalGenerator().buildSignal(fixture.instrument, evaluation,
+        const signal = new SignalGenerator(cloneLegacyConfig()).buildSignal(fixture.instrument, evaluation,
             getStrategyDefinition('intraday_momentum'), fixture.currentPrice);
         const service = new OandaDataService([fixture.instrument]);
         service.candleCache.AUD_USD_M15 = fixture.m15;
@@ -153,7 +153,7 @@ describe('research replay clock through production quote observations', () => {
                 asks: [{ price: String(fixture.currentPrice + 0.00002), liquidity: 1000000 }],
             }] };
         });
-        const pending = engine.getFinalEntryQuote(signal, { ...cloneDefaultConfig(), maxPriceAgeMs: 25 },
+        const pending = engine.getFinalEntryQuote(signal, { ...cloneLegacyConfig(), maxPriceAgeMs: 25 },
             { pipLocation: -4, displayPrecision: 5 }, 10);
         if (elapsedMs === 25) {
             const quote = await pending;

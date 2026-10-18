@@ -78,8 +78,43 @@ function resolveConfiguredDistance({
 }
 
 const OWNER_EXIT_POLICY_VERSION = 1;
+const CHANNEL_OWNER_EXIT_POLICY_VERSION = 2;
+const CHANNEL_EXIT_KIND = "H4_CHANNEL";
+const weeklyExitClock = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+});
+
+function isH4ChannelExitPolicy(policy = {}) {
+    const config = policy.config || policy;
+    return policy.kind === CHANNEL_EXIT_KIND || policy.strategy === "multi_day_trend" ||
+        config.strategy === "multi_day_trend" || config.liveReleaseVersion === "h4-channel-v1" ||
+        config.executionPolicyVersion === "h4-channel-risk-v1";
+}
+
+// The multi-day release holds through ordinary weekday rollovers, then closes
+// before the weekly market shutdown. Keep the entry embargo active through the
+// existing Sunday 17:05 New York reopen, including either DST transition.
+function resolveEntryExitWindowReason({ policy = {}, now = Date.now() } = {}) {
+    if (!isH4ChannelExitPolicy(policy)) return null;
+    if (!Number.isFinite(now)) return "WEEKEND_CLOSE";
+    const values = Object.fromEntries(weeklyExitClock.formatToParts(new Date(now))
+        .map((part) => [part.type, part.value]));
+    const minute = Number(values.hour) * 60 + Number(values.minute);
+    return values.weekday === "Sat" || values.weekday === "Fri" && minute >= 16 * 60 + 45 ||
+        values.weekday === "Sun" && minute < 17 * 60 + 5 ? "WEEKEND_CLOSE" : null;
+}
 
 const OWNER_EXIT_CONFIG_KEYS = [
+    "liveReleaseVersion",
+    "executionPolicyVersion",
+    "enableTakeProfit",
+    "enableChannelTrailing",
+    "channelTrailTimeframe",
+    "trendExitBars",
     "timeStopHours",
     "sessionCloseHourUTC",
     "sessionCloseTimeZone",
@@ -140,6 +175,20 @@ function buildOwnerRunExitPolicy({
     createdAt = Date.now(),
 } = {}) {
     const exitConfig = pickExitConfig(config);
+    const channelPolicy = isH4ChannelExitPolicy({ strategy, config });
+    if (channelPolicy) {
+        Object.assign(exitConfig, {
+            liveReleaseVersion: "h4-channel-v1",
+            executionPolicyVersion: "h4-channel-risk-v1",
+            enableTakeProfit: false,
+            enableBreakeven: false,
+            enableTrailingStops: false,
+            enableChannelTrailing: true,
+            channelTrailTimeframe: "4h",
+            trendExitBars: toFiniteNumber(config.trendExitBars, 10),
+            timeStopHours: 0,
+        });
+    }
     if (
         tradePlan?.trailingStopPips !== undefined &&
         exitConfig.trailingStopPips === undefined
@@ -148,7 +197,8 @@ function buildOwnerRunExitPolicy({
     }
 
     return {
-        version: OWNER_EXIT_POLICY_VERSION,
+        version: channelPolicy ? CHANNEL_OWNER_EXIT_POLICY_VERSION : OWNER_EXIT_POLICY_VERSION,
+        ...(channelPolicy ? { kind: CHANNEL_EXIT_KIND } : {}),
         ownerRunId,
         strategy: strategy || config.strategy || null,
         createdAt,
@@ -164,9 +214,17 @@ function resolveOwnerRunExitPolicy(trade = {}, fallbackConfig = {}) {
 
     if (persisted?.config && persisted.version) return persisted;
 
+    // Old positions without an explicit snapshot must not acquire the newly
+    // selected multi-day exits. Normal persisted owners remain authoritative.
+    const retainedConfig = trade?.brokerReconciliationPayload?.liveRuntime?.exitConfig;
+    const config = retainedConfig || (isH4ChannelExitPolicy(fallbackConfig) && !isH4ChannelExitPolicy(trade)
+        ? { ...require("../strategies/intradayMomentum").DEFAULT_INTRADAY_MOMENTUM_CONFIG,
+            strategy: "intraday_momentum" }
+        : fallbackConfig);
+
     return buildOwnerRunExitPolicy({
-        strategy: trade.strategy || fallbackConfig.strategy,
-        config: fallbackConfig,
+        strategy: trade.strategy || config.strategy,
+        config,
         tradePlan: {
             trailingStopPips: trade.trailingStopPips,
         },
@@ -232,6 +290,7 @@ function resolveTrailingStopDistances({
 }
 
 function resolveTimedExitReason({ trade = {}, policy = {}, now = Date.now() }) {
+    if (isH4ChannelExitPolicy(policy)) return resolveEntryExitWindowReason({ policy, now });
     const config = policy.config || policy || {};
     const entryTime = toFiniteNumber(trade.entryTime, now);
     const sessionCloseTimeZone = String(
@@ -324,12 +383,15 @@ function calculateMonotonicStop({ trade = {}, currentPrice, trailDistance }) {
 
 module.exports = {
     OWNER_EXIT_POLICY_VERSION,
+    CHANNEL_OWNER_EXIT_POLICY_VERSION,
     buildOwnerRunExitPolicy,
     calculateMonotonicStop,
     getTradeExitMetadata,
+    isH4ChannelExitPolicy,
     resolveBreakevenDistance,
     resolveConfiguredDistance,
     resolveOwnerRunExitPolicy,
+    resolveEntryExitWindowReason,
     resolveTimedExitReason,
     resolveTrailingStopDistances,
 };

@@ -390,7 +390,8 @@ class RuntimeCoordinator extends EventEmitter {
                     (trade.ownerRunId || trade.runId) === session.run.runId) || null : null;
             const signalStart = Date.parse(context?.timeframes?.["15m"]?.candles?.at(-1)?.time);
             const lossResetDecisions = {};
-            for (const side of ["BUY", "SELL"]) {
+            const legacyIntraday = session.run.strategy === "intraday_momentum";
+            for (const side of legacyIntraday ? ["BUY", "SELL"] : []) {
                 lossResetDecisions[side] = await resolveLossResetEvidence({
                     instrument, side, trades: tradeHistory,
                     historyAvailable: Array.isArray(tradeHistory),
@@ -402,22 +403,22 @@ class RuntimeCoordinator extends EventEmitter {
                 }, this.brokerLifecycleRepository);
             }
 
-            const sellRetestDecision = await resolveSellRetestEvidence({
+            const sellRetestDecision = legacyIntraday ? await resolveSellRetestEvidence({
                 instrument,
                 candles: context?.timeframes?.["15m"]?.candles || [],
                 breakoutBars: session.generator.config.intradayBreakoutBars,
                 trades: tradeHistory,
                 historyAvailable: Array.isArray(tradeHistory),
                 nowMs: sharedContext.generatedAt,
-            }, this.brokerLifecycleRepository);
-            const buyRetestDecision = await resolveBuyRetestEvidence({
+            }, this.brokerLifecycleRepository) : null;
+            const buyRetestDecision = legacyIntraday ? await resolveBuyRetestEvidence({
                 instrument,
                 candles: context?.timeframes?.["15m"]?.candles || [],
                 breakoutBars: session.generator.config.intradayBreakoutBars,
                 trades: tradeHistory,
                 historyAvailable: Array.isArray(tradeHistory),
                 nowMs: sharedContext.generatedAt,
-            }, this.brokerLifecycleRepository);
+            }, this.brokerLifecycleRepository) : null;
 
             let signal = await session.generator.generateSignal(
                 instrument,
@@ -528,7 +529,8 @@ class RuntimeCoordinator extends EventEmitter {
         const requested = {
             ...(configSnapshot || this.configService?.get?.() || {}),
             strategy:
-                strategyKey || active?.run.strategy || "intraday_momentum",
+                strategyKey || configSnapshot?.strategy || this.configService?.get?.().strategy ||
+                active?.run.strategy || "multi_day_trend",
         };
         const config = materializeStrategyConfig(requested, {
             strategyKey: requested.strategy,
@@ -624,11 +626,11 @@ class RuntimeCoordinator extends EventEmitter {
         }
         const active = this.getActiveLiveSession();
         const deployed = materializeStrategyConfig(
-            this.configService?.get?.() || { strategy: "intraday_momentum" },
+            this.configService?.get?.() || { strategy: "multi_day_trend" },
             {
                 strategyKey:
                     this.configService?.get?.().strategy ||
-                    "intraday_momentum",
+                    "multi_day_trend",
             }
         );
         const deployedHash = computeConfigHash(deployed);

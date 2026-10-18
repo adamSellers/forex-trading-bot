@@ -58,7 +58,7 @@ function buildOperationalHealth({
             }
             if (!unavailable.length) add("STALE_PRICE_DATA", "Current validated broker pricing responses are unavailable");
         }
-        if (dataStatus.freshness?.candlesFresh !== true) add("STALE_CANDLE_DATA", "Current completed M15/H1 history is unavailable or stale");
+        if (dataStatus.freshness?.candlesFresh !== true) add("STALE_CANDLE_DATA", "Current required completed candle history is unavailable or stale");
         const lastRun = finiteTime(runtimeStatus.lastRunTime ?? runtimeStatus.lastRun);
         if (!lastRun || nowMs - lastRun > STALE_RUNTIME_MS) add("STRATEGY_CYCLE_STALE", "The strategy loop has not completed a recent decision cycle");
     }

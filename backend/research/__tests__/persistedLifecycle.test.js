@@ -1,4 +1,4 @@
-const { createReplayTestHarness, fixtureArchive, START, M15 } = require('../testHarness.cjs');
+const { createReplayTestHarness, fixtureArchive, START, M15 } = require('../fixtures/legacyReplayHarness.cjs');
 const env = createReplayTestHarness();
 const { buyLifecycleFlow, sellFadeFlow } = require('../fixtures/lifecycleFlows.cjs');
 
