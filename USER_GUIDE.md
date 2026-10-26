@@ -1,6 +1,6 @@
 # Live Trading Operator Guide
 
-**October 26 local implementation complete, not deployed:** [H4 peak profit protection 2.1.0](docs/reviews/2026-10-26-h4-peak-profit-release.md) adds a 0.5R peak trail after +1R alongside the existing channel. Local checks pass; publication and deployment remain pending. Existing H4-v1 positions retain channel-only exits.
+**October 27 published, deployment deferred:** [H4 peak profit protection 2.1.0](docs/reviews/2026-10-26-h4-peak-profit-release.md) is published at `461a277`, but its standard deployment requires a flat broker account. Two open positions blocked cutover. At 07:20 AEDT the earlier release remained healthy/enabled and both positions retained protection. The new 0.5R peak trail after +1R is **not deployed**.
 
 **October 18 deployment verified:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md) is deployed at clean `c09efb5`, verified healthy and flat at **17:38 AEDT**, with entries **paused** and readiness passing. All 1,468 target backend tests, build, backup and deployment health checks passed; local checks also cover 21 frontend tests, 23 health scenarios and 57 deployment/restore cases. All four pairs have completed H4 bid/ask data. Adam must use the existing Start Trading control to activate entries. Profitability and trade frequency remain unproven. Earlier pending-delivery statements below describe prior checkpoints.
 

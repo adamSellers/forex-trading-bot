@@ -1,0 +1,160 @@
+{
+  "recordedAtUtc": "2026-10-26T20:21:51.965Z",
+  "userAuthorization": "now deploy —27October2026 Australia/Sydney",
+  "publishedRevision": "461a27758c6b181b2ec679eef060aeefb3f0708c",
+  "publishedBranch": "main",
+  "repository": "adamSellers/forex-trading-bot",
+  "deploymentCommand": "./scripts/deploy.sh",
+  "deploymentExitCode": 1,
+  "result": "DEFERRED_OPEN_BROKER_POSITIONS",
+  "deployedRevision": "c09efb5da7ab915510b4f239e1fe2b54e35d6973",
+  "before": {
+    "config": {
+      "enableTrading": true,
+      "strategy": "multi_day_trend",
+      "timeframe": "4h",
+      "liveReleaseVersion": "h4-channel-v1",
+      "executionPolicyVersion": "h4-channel-risk-v1",
+      "configHash": "5c21f2ba01099502340f",
+      "riskPerTrade": 0.0025,
+      "maxCapitalAtRisk": 100,
+      "trendExitBars": 10
+    },
+    "engine": {
+      "isRunning": true,
+      "tradingEnabled": true,
+      "openPositions": 2,
+      "monitoringActive": true,
+      "lastPositionMonitorAt": 1793045936726,
+      "lastSuccessfulBrokerSyncAt": 1793045937454,
+      "pendingOrderIntentCount": 0,
+      "brokerStateUncertain": false,
+      "protectionPendingTrades": []
+    },
+    "positions": [
+      {
+        "id": "3ae85607-7470-4daa-9dbd-9fb6002ee1ec",
+        "instrument": "GBP_USD",
+        "side": "SELL",
+        "units": 26,
+        "entryPrice": 1.33468,
+        "stopLossPrice": 1.33963,
+        "activeStopType": "INITIAL_STOP",
+        "reconciliationStatus": "OPEN",
+        "ownerExitPolicyVersion": 2,
+        "ownerRelease": "h4-channel-v1"
+      },
+      {
+        "id": "24893c15-284c-45e0-9e1e-372addf4713d",
+        "instrument": "EUR_USD",
+        "side": "SELL",
+        "units": 28,
+        "entryPrice": 1.11822,
+        "stopLossPrice": 1.12257,
+        "activeStopType": "INITIAL_STOP",
+        "reconciliationStatus": "OPEN",
+        "ownerExitPolicyVersion": 2,
+        "ownerRelease": "h4-channel-v1"
+      }
+    ],
+    "health": {
+      "status": "healthy",
+      "issues": [],
+      "entryState": "WATCHING",
+      "readinessPassed": true
+    },
+    "run": {
+      "runId": "live_c5696338-3663-4012-b7ff-cd8ae5c211c8",
+      "strategy": "multi_day_trend",
+      "status": "active",
+      "configHash": "5c21f2ba01099502340f"
+    }
+  },
+  "after": {
+    "config": {
+      "enableTrading": true,
+      "strategy": "multi_day_trend",
+      "timeframe": "4h",
+      "liveReleaseVersion": "h4-channel-v1",
+      "executionPolicyVersion": "h4-channel-risk-v1",
+      "configHash": "5c21f2ba01099502340f",
+      "riskPerTrade": 0.0025,
+      "maxCapitalAtRisk": 100,
+      "trendExitBars": 10
+    },
+    "engine": {
+      "isRunning": true,
+      "tradingEnabled": true,
+      "openPositions": 2,
+      "monitoringActive": true,
+      "lastPositionMonitorAt": 1793046046726,
+      "lastSuccessfulBrokerSyncAt": 1793046047409,
+      "pendingOrderIntentCount": 0,
+      "brokerStateUncertain": false,
+      "protectionPendingTrades": []
+    },
+    "positions": [
+      {
+        "id": "3ae85607-7470-4daa-9dbd-9fb6002ee1ec",
+        "instrument": "GBP_USD",
+        "side": "SELL",
+        "units": 26,
+        "entryPrice": 1.33468,
+        "stopLossPrice": 1.33963,
+        "activeStopType": "INITIAL_STOP",
+        "reconciliationStatus": "OPEN",
+        "ownerExitPolicyVersion": 2,
+        "ownerRelease": "h4-channel-v1"
+      },
+      {
+        "id": "24893c15-284c-45e0-9e1e-372addf4713d",
+        "instrument": "EUR_USD",
+        "side": "SELL",
+        "units": 28,
+        "entryPrice": 1.11822,
+        "stopLossPrice": 1.12257,
+        "activeStopType": "INITIAL_STOP",
+        "reconciliationStatus": "OPEN",
+        "ownerExitPolicyVersion": 2,
+        "ownerRelease": "h4-channel-v1"
+      }
+    ],
+    "health": {
+      "status": "healthy",
+      "issues": [],
+      "entryState": "WATCHING",
+      "readinessPassed": true
+    },
+    "run": {
+      "runId": "live_c5696338-3663-4012-b7ff-cd8ae5c211c8",
+      "strategy": "multi_day_trend",
+      "status": "active",
+      "configHash": "5c21f2ba01099502340f"
+    }
+  },
+  "brokerAfter": {
+    "openTradeCount": 2,
+    "pendingOrderCount": 2,
+    "currency": "AUD",
+    "balance": "95.1291",
+    "NAV": "95.1575"
+  },
+  "deploymentLog": [
+    "Deploying published main to adam@img.oakroad...",
+    "From github.com:adamSellers/forex-trading-bot",
+    " * branch            main       -> FETCH_HEAD",
+    "   c09efb5..461a277  main       -> origin/main",
+    "Broker has open trades, pending orders, or unknown state",
+    "Deployment stopped: Waiting for a flat broker account and resolved orders. Management has been left running.",
+    "Previous trading state restored: enabled.",
+    "Preparation failed; the deployed source and dependencies were not replaced."
+  ],
+  "deploymentLogSha256": "67b1f28c357d6a412c59b2f131004a3cd27f57ba9ea205f09a04dd36c6567915",
+  "unchanged": [
+    "Production source and dependencies were not replaced; no cutover/build/backup/restart occurred.",
+    "Existing enabled intent was restored and independently confirmed through the API.",
+    "Both existing v1-owner positions remain open, managed and protected; no manual position closure or stop modification was requested."
+  ],
+  "nextRequiredState": "Broker account flat, no pending orders and resolved lifecycle, as required by the existing deployment script. Rerun the same standard command then.",
+  "automaticRetryScheduled": false
+}

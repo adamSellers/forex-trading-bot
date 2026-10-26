@@ -2,8 +2,11 @@
 
 Local implementation and validation are complete for strategy **2.1.0**,
 release **`h4-channel-v2`**, execution policy **`h4-channel-risk-v2`**.
-Working-tree changes remain uncommitted, unpublished and **not deployed**.
-No production restart or live settings change was performed.
+**October 27 delivery update:** implementation commit `461a277` is published to
+GitHub `main`. Standard deployment was attempted and **deferred by the existing
+flat-broker check** while GBP/USD and EUR/USD SELL positions remain open.
+Production still runs `c09efb5` / H4-v1. Enabled entries and healthy position
+management were restored and verified. The new exit rule is **not deployed**.
 
 Adam accepted the channel-plus-peak recommendation and requested implementation.
 The selected starting rule activates at **+1R** and trails the best observed
@@ -100,7 +103,23 @@ or broker orders.
 
 ## Delivery
 
-Local implementation, review and checks are complete. Production remains on the
-earlier release as last inspected; no new readiness claim is made. Delivery
-remains local commit/publication to GitHub followed by the single deployment
-command. Deployment does not retroactively change existing trade owners.
+Adam explicitly requested deployment on October 27. The tested implementation
+was committed locally as `461a27758c6b181b2ec679eef060aeefb3f0708c`, then pushed
+to GitHub `main`. The existing `./scripts/deploy.sh` fetched that published
+revision and exited 1 before preparation/cutover because the broker had open
+exposure. No source/dependency replacement, build, backup or restart occurred.
+The script restored its temporary entry pause to the previously enabled state.
+
+At **07:20 AEDT on October 27**, post-attempt API verification found healthy
+H4-v1 management, readiness passing, enabled entries, two open positions,
+no unresolved entry intents, no broker uncertainty and no pending protection
+updates. Each position retains its original version-2 channel-only owner and
+positive stop price. An independent authenticated broker summary confirmed
+two open trades and two pending orders. Production source remained clean at
+`c09efb5`. The [reduced delivery evidence](evidence/2026-10-27/peak-profit-deployment-deferred.json)
+records publication, the command output and before/after observations.
+
+Deployment requires a flat broker account and resolved pending orders under the
+existing script. No position was manually closed and no automatic retry was
+scheduled. Rerun the same standard command when its flat-account condition is
+satisfied. Deployment does not retroactively change existing trade owners.
