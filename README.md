@@ -1,5 +1,7 @@
 # Forex Trading Bot
 
+**October 26 local implementation complete:** [H4 peak profit protection 2.1.0](docs/reviews/2026-10-26-h4-peak-profit-release.md), release `h4-channel-v2`, adds a 0.5R trail behind the best observed executable price after +1R alongside the ten-bar channel. The tighter stop wins; existing owners retain their exits. Local validation passes 1,508 backend tests, 22 frontend tests, 24 health scenarios, 57 deployment/restore scenarios and the frontend build. Changes remain uncommitted, unpublished and **not deployed**.
+
 **October 18 deployment verified:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md) is deployed at clean `c09efb5`, verified healthy and flat at **17:38 AEDT**, with entries **paused** and readiness passing. All 1,468 target backend tests, build, backup and deployment health checks passed; local checks also cover 21 frontend tests, 23 health scenarios and 57 deployment/restore cases. All four pairs have completed H4 bid/ask data. Adam must use the existing Start Trading control to activate entries. Profitability and trade frequency remain unproven. Earlier pending-delivery statements below describe prior checkpoints.
 
 **October 18 H4 replacement:** Adam authorized implementation, publication and standard deployment of [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md), release `h4-channel-v1`. Completed H4 20-bar crossings enter with a 2 ATR(14) stop and a 10-bar bid/ask protective channel. One position per pair, overlapping pairs within existing risk limits, weekday overnight holding and Friday 16:45 New York closure. No fixed target, automatic breakeven or six-hour exit for new owners. Historical M15 owners retain their policies. Delivery is being validated; intentional paused entries will be preserved. Profitability and trade frequency are unproven. Earlier checkpoints below remain historical.
@@ -42,11 +44,11 @@ This is a live experimental candidate; its profitability is unproven. Correctnes
 
 ## Current H4 strategy
 
-The candidate is `multi_day_trend` 2.0.0. A completed H4 close must freshly cross the preceding 20-bar high or low. The 20 bars describe recent history; the bot does not wait 80 hours after a crossing. Initial protection is max(2 × H4 ATR(14), six pips), then ratchets using the latest 10 completed H4 bid lows for a BUY or ask highs for a SELL. Positions may span weekdays and close from Friday 16:45 New York.
+The locally implemented candidate is `multi_day_trend` 2.1.0; deployed 2.0.0 owners retain channel-only exits. A completed H4 close must freshly cross the preceding 20-bar high or low. The 20 bars describe recent history; the bot does not wait 80 hours after a crossing. Initial protection is max(2 × H4 ATR(14), six pips), then ratchets using the latest 10 completed H4 bid lows for a BUY or ask highs for a SELL. Version 2.1.0 additionally activates a 0.5R trail behind the best observed executable bid/ask after +1R, where R remains the original filled-entry-to-stop distance. The tighter stop wins and never loosens. Positions may span weekdays and close from Friday 16:45 New York.
 
 Position size remains 0.25% of min(80% available margin, A$100), one position per pair, 0.5%-of-NAV aggregate stop risk and existing margin/exposure controls. Three consecutive losses retain the 24-hour cooldown. Spread, expected slippage, price movement, broker reconciliation and receipt freshness checks remain. Daily financing affects overnight positions, including the usual Wednesday triple charge. Trade cadence is observed, never forced to a quota.
 
-The [release record](docs/reviews/2026-10-18-h4-channel-release.md) tracks testing and deployment. This is an experimental candidate with unproven profitability.
+The [peak protection release record](docs/reviews/2026-10-26-h4-peak-profit-release.md) tracks local validation and pending delivery; the [original H4 release](docs/reviews/2026-10-18-h4-channel-release.md) retains its deployment evidence. This is an experimental candidate with unproven profitability.
 
 ## Runtime
 

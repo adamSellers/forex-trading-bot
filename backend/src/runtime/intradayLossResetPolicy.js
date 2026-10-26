@@ -75,7 +75,7 @@ function selectLossResetAnchor(trades, instrument, side) {
         exitReason: latest.exitReason,
         closedAt: confirmedCloseTime(latest),
         armed: latest.exitReason === "STOP_LOSS" && !latest.breakevenHit &&
-            !["BREAKEVEN", "TRAILING"].includes(activeStopType),
+            !["BREAKEVEN", "TRAILING", "PEAK_PROFIT"].includes(activeStopType),
     };
 }
 

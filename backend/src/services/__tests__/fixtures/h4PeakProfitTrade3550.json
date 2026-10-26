@@ -1,0 +1,27 @@
+{
+  "purpose": "Compact retained executable-ask path for mechanics testing, not historical hypothetical fills",
+  "source": {
+    "captureSha256": "07d464f16b2c6ed0fe3d00bee2148b2943143a8fd10e58cd7f8dbdf1660a1464",
+    "retainedReview": "docs/reviews/evidence/2026-10-26/latest-trade-profit-comparison.json",
+    "retainedMechanics": "docs/reviews/evidence/2026-10-26/illustrative-exit-mechanics.json",
+    "method": "Executable asks reconstructed from original trade3550 sampledExcursion.samples: entryPrice minus recorded favorablePips times0.01; original API capture SHA256 verified before extraction"
+  },
+  "trade": {
+    "oandaTradeId": "3550",
+    "instrument": "USD_JPY",
+    "side": "SELL",
+    "units": 28,
+    "entryPrice": 157.041,
+    "initialStopLossPrice": 157.762,
+    "entryAt": "2026-10-22T09:00:41.422Z"
+  },
+  "quotes": [
+    { "eventAt": "2026-10-23T00:05:52.928Z", "ask": 156.287, "favorablePips": 75.4, "expectedStop": 156.648 },
+    { "eventAt": "2026-10-23T00:39:23.490Z", "ask": 156.085, "favorablePips": 95.6, "expectedStop": 156.446 },
+    { "eventAt": "2026-10-23T00:58:53.527Z", "ask": 156.449, "favorablePips": 59.2 }
+  ],
+  "limits": [
+    "Bid quotes and receipt times are synthetic test inputs; only executable asks and event times are retained observations.",
+    "The test broker closing snapshot is simulated, not a verified historical or hypothetical fill."
+  ]
+}

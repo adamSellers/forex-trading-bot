@@ -75,7 +75,7 @@ const TradingConfig = () => {
                 <Box>
                   <Typography variant="h5" fontWeight={900}>{strategyLabel(config.strategy)}</Typography>
                   <Typography color="text.secondary">
-                    {h4Trend ? 'Completed-H4 rolling channel breakouts with a protective exit channel'
+                    {h4Trend ? `Completed-H4 rolling channel breakouts with ${config.enablePeakProfitTrail ? 'channel and peak profit protection' : 'a protective exit channel'}`
                       : 'Completed-M15 entries aligned with liquid-session H1 trends'}
                   </Typography>
                 </Box>
@@ -92,7 +92,11 @@ const TradingConfig = () => {
                 <Grid item xs={6} md={3}><Value label="Breakout channel">Prior {config.trendBreakoutBars} H4 bars</Value></Grid>
                 <Grid item xs={6} md={3}><Value label="Initial stop">{config.trendStopAtr} × H4 ATR({config.trendAtrPeriod})</Value></Grid>
                 <Grid item xs={6} md={3}><Value label="Minimum stop">{config.minStopLossPips} pips</Value></Grid>
-                <Grid item xs={6} md={3}><Value label="Protective trail">{config.trendExitBars} H4 bars</Value></Grid>
+                <Grid item xs={6} md={3}><Value label="Channel trail">{config.trendExitBars} H4 bars</Value></Grid>
+                {config.enablePeakProfitTrail && <>
+                  <Grid item xs={6} md={3}><Value label="Profit trail activation">+{config.peakProfitTrailActivationRiskMultiple}R</Value></Grid>
+                  <Grid item xs={6} md={3}><Value label="Peak trailing gap">{config.peakProfitTrailRiskMultiple}R</Value></Grid>
+                </>}
                 <Grid item xs={6} md={3}><Value label="Profit target / breakeven">None / off</Value></Grid>
                 <Grid item xs={6} md={3}><Value label="Weekend close">Friday {fridayClose} New York</Value></Grid>
               </> : <>
@@ -146,7 +150,7 @@ const TradingConfig = () => {
                 </Stack>
                 <Typography variant="body2" color="text.secondary" mt={3}>
                   {h4Trend
-                    ? `Entries require a fresh completed H4 close beyond the prior ${config.trendBreakoutBars}-bar channel. The initial volatility stop uses ${config.trendStopAtr} ATR with the displayed minimum, then can only tighten using the latest ${config.trendExitBars} completed H4 bars. There is no fixed profit target, breakeven move or six-hour exit. Positions close before the weekend on Friday at ${fridayClose} New York time.`
+                    ? `Entries require a fresh completed H4 close beyond the prior ${config.trendBreakoutBars}-bar channel. The initial volatility stop uses ${config.trendStopAtr} ATR with the displayed minimum, then can only tighten using the latest ${config.trendExitBars} completed H4 bars.${config.enablePeakProfitTrail ? ` After +${config.peakProfitTrailActivationRiskMultiple}R, a second trail follows the best observed executable price by ${config.peakProfitTrailRiskMultiple}R; the tighter protective stop wins. R is the initial filled price-to-stop distance. Stops never loosen, and actual fills can differ because of gaps, slippage and costs.` : ''} There is no fixed profit target, automatic breakeven move or six-hour exit. Positions close before the weekend on Friday at ${fridayClose} New York time.`
                     : 'Entries require a completed M15 break, a distinct retest and later directional confirmation, a matching H1 EMA/ADX regime, a liquid pair-specific session and acceptable spread cost. BUY breakout episodes allow one fill until the broken level is cancelled and a new pattern forms. Stops sit beyond broker bid/ask structure, with risk-based unit sizing and broker-native take-profit protection.'}
                 </Typography>
               </Paper>

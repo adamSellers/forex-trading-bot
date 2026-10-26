@@ -89,7 +89,13 @@ export default function RecentTrades({ trades = [] }) {
                         const isWin = pnl >= 0;
                         const entryPrice = trade.entryPrice || trade.entry_price || trade.price;
                         const exitPrice = trade.exitPrice || trade.exit_price;
-                        const exitReason = trade.exitReason || trade.exit_reason;
+                        const recordedExitReason = trade.exitReason || trade.exit_reason;
+                        const activeStopType = trade.activeStopType || trade.active_stop_type;
+                        // OANDA fills the ratcheted protection as an ordinary
+                        // stop-loss order. Show the owning trail in the row while
+                        // keeping its stored broker accounting reason intact.
+                        const exitReason = recordedExitReason === 'STOP_LOSS' && activeStopType === 'PEAK_PROFIT'
+                            ? 'PEAK_TRAILING_STOP' : recordedExitReason;
                         const timestamp = new Date(trade.exitTime || trade.exit_time || trade.entryTime || trade.entry_time || trade.timestamp);
 
                         return (

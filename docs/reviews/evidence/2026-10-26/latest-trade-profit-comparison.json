@@ -1,0 +1,411 @@
+{
+  "purpose": "Read-only review of latest trade cash profit versus earlier smaller-pip losses",
+  "apiRetrievedAtUtc": "2026-10-26T08:47:43.554Z",
+  "source": {
+    "method": "GET production /api/trades?limit=6; includes persisted broker reconciliation",
+    "productionRevision": "c09efb5da7ab915510b4f239e1fe2b54e35d6973",
+    "trackedSourceStatus": "clean",
+    "rawApiCaptureSha256": "07d464f16b2c6ed0fe3d00bee2148b2943143a8fd10e58cd7f8dbdf1660a1464",
+    "retainedIndependentBrokerEvidence": "../2026-10-18/h4-live-observation/observation-2026-10-25T1811Z.json",
+    "retainedOctober7Evidence": "../2026-10-07/eurusd-breakeven-repeat.json"
+  },
+  "latestTradeId": "3550",
+  "latestCloseFill": {
+    "id": "3557",
+    "type": "ORDER_FILL",
+    "reason": "MARKET_ORDER_TRADE_CLOSE",
+    "instrument": "USD_JPY",
+    "units": "28",
+    "price": "156.840",
+    "pl": "0.0505",
+    "quotePL": "5.628",
+    "financing": "0.0000",
+    "commission": "0.0000",
+    "guaranteedExecutionFee": "0.0000",
+    "gainQuoteHomeConversionFactor": "0.008973243526",
+    "lossQuoteHomeConversionFactor": "0.009154521173",
+    "halfSpreadCost": "0.0020"
+  },
+  "trades": [
+    {
+      "oandaTradeId": "3550",
+      "instrument": "USD_JPY",
+      "side": "SELL",
+      "units": 28,
+      "entryPrice": 157.041,
+      "exitPrice": 156.84,
+      "pnlAud": 0.0463,
+      "pnlPips": 20.09999999999934,
+      "swapAud": -0.0042,
+      "commissionAud": 0,
+      "entryTime": 1792659641422,
+      "exitTime": 1792788307740,
+      "exitReason": "WEEKEND_CLOSE",
+      "reconciliationStatus": "RECONCILED",
+      "closePriceSource": "BROKER_CLOSE",
+      "strategy": "multi_day_trend",
+      "runId": "live_c5696338-3663-4012-b7ff-cd8ae5c211c8",
+      "configHash": "5c21f2ba01099502340f",
+      "initialStopLossPrice": 157.762,
+      "initialStopPips": 72.10000000000036,
+      "initialRiskAud": 0.18510592301121293,
+      "entrySizingQuoteToAudRate": 0.009169106549,
+      "initialPipRiskAud": 0.00256734983372,
+      "netR": 0.2501270583178224,
+      "closeCosts": {
+        "grossRealizedPL": 0.0505,
+        "financing": -0.0042,
+        "commission": 0,
+        "guaranteedExecutionFee": 0,
+        "dividendAdjustment": 0
+      },
+      "brokerTrade": {
+        "id": "3550",
+        "instrument": "USD_JPY",
+        "state": "CLOSED",
+        "price": "157.041",
+        "initialUnits": "-28",
+        "currentUnits": "0",
+        "realizedPL": "0.0505",
+        "financing": "-0.0042",
+        "averageClosePrice": "156.840",
+        "openTime": "1792659641.422474381",
+        "closeTime": "1792788307.739574249",
+        "closingTransactionIDs": [
+          "3557"
+        ]
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "method": "EXECUTABLE_QUOTE_POLL",
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorablePips": 95.59999999999889,
+        "maxFavorableR": 1.3259361997225854,
+        "observations": 12589,
+        "firstObservedAt": 1792659646745,
+        "lastObservedAt": 1792788302727,
+        "confirmedBrokerClosedAt": 1792788307740
+      }
+    },
+    {
+      "oandaTradeId": "3529",
+      "instrument": "AUD_USD",
+      "side": "BUY",
+      "units": 36,
+      "entryPrice": 0.69961,
+      "exitPrice": 0.69945,
+      "pnlAud": -0.0102,
+      "pnlPips": -1.59999999999938,
+      "swapAud": -0.0019,
+      "commissionAud": 0,
+      "entryTime": 1792486835318,
+      "exitTime": 1792668533797,
+      "exitReason": "STOP_LOSS",
+      "reconciliationStatus": "RECONCILED",
+      "closePriceSource": "BROKER_CLOSE",
+      "strategy": "multi_day_trend",
+      "runId": "live_c5696338-3663-4012-b7ff-cd8ae5c211c8",
+      "configHash": "5c21f2ba01099502340f",
+      "initialStopLossPrice": 0.69612,
+      "initialStopPips": 34.89999999999993,
+      "initialRiskAud": 0.18139199975770104,
+      "entrySizingQuoteToAudRate": 1.443744028635,
+      "initialPipRiskAud": 0.005197478503086001,
+      "netR": -0.05623180743155657,
+      "closeCosts": {
+        "grossRealizedPL": -0.0083,
+        "financing": -0.0019,
+        "commission": 0,
+        "guaranteedExecutionFee": 0,
+        "dividendAdjustment": 0
+      },
+      "brokerTrade": {
+        "id": "3529",
+        "instrument": "AUD_USD",
+        "state": "CLOSED",
+        "price": "0.69961",
+        "initialUnits": "36",
+        "currentUnits": "0",
+        "realizedPL": "-0.0083",
+        "financing": "-0.0019",
+        "averageClosePrice": "0.69945",
+        "openTime": "1792486835.318276941",
+        "closeTime": "1792668533.796759315",
+        "closingTransactionIDs": [
+          "3554"
+        ]
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "method": "EXECUTABLE_QUOTE_POLL",
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorablePips": 39.900000000000496,
+        "maxFavorableR": 1.1432664756447155,
+        "observations": 15559,
+        "firstObservedAt": 1792486840521,
+        "lastObservedAt": 1792668524447,
+        "confirmedBrokerClosedAt": 1792668533797
+      }
+    },
+    {
+      "oandaTradeId": "3519",
+      "instrument": "EUR_USD",
+      "side": "BUY",
+      "units": 148,
+      "entryPrice": 1.12637,
+      "exitPrice": 1.12558,
+      "pnlAud": -0.1691,
+      "pnlPips": -7.900000000000685,
+      "swapAud": 0,
+      "commissionAud": 0,
+      "entryTime": 1791309172318,
+      "exitTime": 1791311794921,
+      "exitReason": "STOP_LOSS",
+      "reconciliationStatus": "RECONCILED",
+      "closePriceSource": "BROKER_CLOSE",
+      "strategy": "intraday_momentum",
+      "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+      "configHash": "07ea89df6b94cef9e5cc",
+      "initialStopLossPrice": 1.12558,
+      "initialStopPips": 7.900000000000684,
+      "initialRiskAud": 0.1690272546454189,
+      "entrySizingQuoteToAudRate": 1.445665879622,
+      "initialPipRiskAud": 0.021395855018405602,
+      "netR": -1.0004303764782414,
+      "closeCosts": {
+        "grossRealizedPL": -0.1691,
+        "financing": 0,
+        "commission": 0,
+        "guaranteedExecutionFee": 0,
+        "dividendAdjustment": 0
+      },
+      "brokerTrade": {
+        "id": "3519",
+        "instrument": "EUR_USD",
+        "state": "CLOSED",
+        "price": "1.12637",
+        "initialUnits": "148",
+        "currentUnits": "0",
+        "realizedPL": "-0.1691",
+        "financing": "0.0000",
+        "averageClosePrice": "1.12558",
+        "openTime": "1791309172.317969610",
+        "closeTime": "1791311794.920621947",
+        "closingTransactionIDs": [
+          "3526"
+        ]
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "method": "EXECUTABLE_QUOTE_POLL",
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorablePips": 1.0999999999983245,
+        "maxFavorableR": 0.1392405063288898,
+        "observations": 243,
+        "firstObservedAt": 1791309172470,
+        "lastObservedAt": 1791311789260,
+        "confirmedBrokerClosedAt": 1791311794921
+      }
+    },
+    {
+      "oandaTradeId": "3497",
+      "instrument": "USD_JPY",
+      "side": "BUY",
+      "units": 134,
+      "entryPrice": 158.348,
+      "exitPrice": 158.203,
+      "pnlAud": -0.1787,
+      "pnlPips": -14.500000000001023,
+      "swapAud": 0,
+      "commissionAud": 0,
+      "entryTime": 1790838943205,
+      "exitTime": 1790840848837,
+      "exitReason": "STOP_LOSS",
+      "reconciliationStatus": "RECONCILED",
+      "closePriceSource": "BROKER_CLOSE",
+      "strategy": "intraday_momentum",
+      "runId": "live_8f6557a3-2661-4643-acd0-e524414f2173",
+      "configHash": "07ea89df6b94cef9e5cc",
+      "initialStopLossPrice": 158.203,
+      "initialStopPips": 14.500000000001023,
+      "initialRiskAud": 0.17829656206715258,
+      "entrySizingQuoteToAudRate": 0.009176354198,
+      "initialPipRiskAud": 0.01229631462532,
+      "netR": -1.0022627353448097,
+      "closeCosts": {
+        "grossRealizedPL": -0.1787,
+        "financing": 0,
+        "commission": 0,
+        "guaranteedExecutionFee": 0,
+        "dividendAdjustment": 0
+      },
+      "brokerTrade": {
+        "id": "3497",
+        "instrument": "USD_JPY",
+        "state": "CLOSED",
+        "price": "158.348",
+        "initialUnits": "134",
+        "currentUnits": "0",
+        "realizedPL": "-0.1787",
+        "financing": "0.0000",
+        "averageClosePrice": "158.203",
+        "openTime": "1790838943.204759089",
+        "closeTime": "1790840848.837309990",
+        "closingTransactionIDs": [
+          "3504"
+        ]
+      },
+      "sampledExcursion": {
+        "version": 2,
+        "method": "EXECUTABLE_QUOTE_POLL",
+        "lifetimeStatus": "VERIFIED",
+        "maxFavorablePips": 9.799999999998477,
+        "maxFavorableR": 0.6758620689653645,
+        "observations": 190,
+        "firstObservedAt": 1790838950647,
+        "lastObservedAt": 1790840841127,
+        "confirmedBrokerClosedAt": 1790840848837
+      }
+    }
+  ],
+  "verification": {
+    "result": "PASS",
+    "tradesMatchedToPersistedBrokerRecords": 4,
+    "h4TradesMatchedToOctober25Evidence": 2,
+    "latestQuoteProfitJpy": 5.628,
+    "latestConvertedPriceProfitAud": 0.0505,
+    "latestFinancingAud": -0.0042,
+    "latestNetAud": 0.0463,
+    "latestDisplayAud": "0.05",
+    "latestPriceMoveFractionOfInitialStop": 0.2787794729542197
+  },
+  "limits": [
+    "Fresh app API capture with persisted broker records; this review did not complete a fresh independent OANDA GET. Independent broker evidence retained from October25 agrees for the two H4 outcomes.",
+    "Initial cash risk uses the stored entry sizing conversion, not the exit gain conversion; conversion direction and rates differ. No exact entry risk-budget/NAV reconstruction was performed.",
+    "Maximum favorable movement is retained executable quote polling inside the confirmed trade lifetime, not the full tick maximum.",
+    "No strategy, sizing, exit, settings or runtime change; no publication or deployment."
+  ],
+  "trailingStopReview": {
+    "tradeId": "3550",
+    "method": "Retrospective frozen-rule reconstruction from retained 80-bar normalized broker candle snapshot",
+    "limits": "Shows mathematical channel candidates at each completed H4 boundary, not a complete production management-loop trace",
+    "ownerExitPolicy": {
+      "version": 2,
+      "kind": "H4_CHANNEL",
+      "ownerRunId": "live_c5696338-3663-4012-b7ff-cd8ae5c211c8",
+      "strategy": "multi_day_trend",
+      "createdAt": 1792659641783,
+      "config": {
+        "liveReleaseVersion": "h4-channel-v1",
+        "executionPolicyVersion": "h4-channel-risk-v1",
+        "enableTakeProfit": false,
+        "enableChannelTrailing": true,
+        "channelTrailTimeframe": "4h",
+        "trendExitBars": 10,
+        "timeStopHours": 0,
+        "sessionCloseTimeZone": "America/New_York",
+        "sessionCloseLocalHour": 16,
+        "sessionCloseLocalMinute": 45,
+        "sessionCloseWindowMinutes": 30,
+        "enableBreakeven": false,
+        "breakevenTriggerPips": 0,
+        "breakevenTriggerRiskMultiple": 1,
+        "enableTrailingStops": false,
+        "trailingStopActivationPips": 0,
+        "trailingStopActivationRiskMultiple": 0,
+        "trailingStopPips": 0,
+        "trailingStopRiskMultiple": 0
+      }
+    },
+    "rows": [
+      {
+        "evaluatedAt": "2026-10-22T09:00:41.422Z",
+        "channelStop": 158.4,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-20T17:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-22T05:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-22T13:00:00.000Z",
+        "channelStop": 158.4,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-20T21:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-22T09:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-22T17:00:00.000Z",
+        "channelStop": 158.378,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-21T01:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-22T13:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-22T21:00:00.000Z",
+        "channelStop": 158.354,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-21T05:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-22T17:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-23T01:00:00.000Z",
+        "channelStop": 158.354,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-21T09:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-22T21:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-23T05:00:00.000Z",
+        "channelStop": 158.354,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-21T13:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-23T01:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-23T09:00:00.000Z",
+        "channelStop": 158.354,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-21T17:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-23T05:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-23T13:00:00.000Z",
+        "channelStop": 158.261,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-21T21:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-23T09:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-23T17:00:00.000Z",
+        "channelStop": 158.186,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-22T01:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-23T13:00:00.000000000Z"
+      },
+      {
+        "evaluatedAt": "2026-10-23T20:45:07.739Z",
+        "channelStop": 158.186,
+        "existingStop": 157.762,
+        "wouldTighten": false,
+        "earliestWindowCandle": "2026-10-22T01:00:00.000000000Z",
+        "latestWindowCandle": "2026-10-23T13:00:00.000000000Z"
+      }
+    ],
+    "maxFavorableSample": {
+      "at": "2026-10-23T00:39:23.490Z",
+      "pips": 95.59999999999889,
+      "executableAsk": 156.085
+    },
+    "candleSource": "../2026-10-18/h4-live-observation/week-one-h4-inputs-2026-10-25.json",
+    "contemporaneousCorroboration": "../2026-10-18/h4-live-observation/observation-2026-10-23T1814Z.json",
+    "conclusion": "Channel trailing was enabled. Every reconstructed in-lifetime candidate was above the tighter existing SELL stop157.762, so none could ratchet. Legacy fixed-distance trailing and automatic breakeven were disabled by the H4 owner. No missed tighter channel candidate demonstrated."
+  }
+}

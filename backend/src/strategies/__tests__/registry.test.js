@@ -14,7 +14,7 @@ describe("live strategy registry", () => {
         expect(listStrategyCatalog()).toEqual([
             expect.objectContaining({
                 key: "multi_day_trend",
-                version: "2.0.0",
+                version: "2.1.0",
                 runtimeStatus: "live_ready",
                 metadata: expect.objectContaining({ supportsLive: true }),
             }),

@@ -25,8 +25,8 @@ describe("ConfigService governance", () => {
         expect(ConfigService.DEFAULT_CONFIG).toMatchObject({
             strategy: "multi_day_trend",
             timeframe: "4h",
-            liveReleaseVersion: "h4-channel-v1",
-            executionPolicyVersion: "h4-channel-risk-v1",
+            liveReleaseVersion: "h4-channel-v2",
+            executionPolicyVersion: "h4-channel-risk-v2",
             pricingModelVersion: "broker-liquidity-v3.1",
             riskPerTrade: 0.0025,
             maxCapitalAtRisk: 100,
@@ -34,6 +34,9 @@ describe("ConfigService governance", () => {
             trendExitBars: 10,
             enableTakeProfit: false,
             enableBreakeven: false,
+            enablePeakProfitTrail: true,
+            peakProfitTrailActivationRiskMultiple: 1,
+            peakProfitTrailRiskMultiple: 0.5,
         });
         expect(ConfigService.DEFAULT_CONFIG).not.toHaveProperty("maxOpenPositions");
     });
@@ -60,6 +63,33 @@ describe("ConfigService governance", () => {
                 strategy: "multi_day_trend",
             })
         );
+    });
+
+    test.each([false, true])("H4-v1 upgrade preserves every saved entry, risk and enabled=%s value", (enableTrading) => {
+        const historical = require("../../../../shared/legacyH4ChannelConfigDefaults.json");
+        const prior = { ...historical, enableTrading, assets: ["EUR_USD"], riskPerTrade: 0.001,
+            maxCapitalAtRisk: 75, trendBreakoutBars: 25, trendExitBars: 12,
+            maxPriceAgeMs: 12000, enableEmailAlerts: true, alertEmail: "test@example.invalid" };
+        fs.writeFileSync(configPath, JSON.stringify(prior));
+        const expected = { ...prior, configSchemaVersion: 6, liveReleaseVersion: "h4-channel-v2",
+            executionPolicyVersion: "h4-channel-risk-v2", enablePeakProfitTrail: true,
+            peakProfitTrailActivationRiskMultiple: 1, peakProfitTrailRiskMultiple: 0.5 };
+        const service = new ConfigService(configPath).init();
+        const { configHash, ...loaded } = service.get();
+        expect(loaded).toEqual(expected);
+        expect(configHash).not.toBe(ConfigService.computeConfigHash(prior));
+        expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(expected);
+        const restarted = new ConfigService(configPath);
+        const save = jest.spyOn(restarted, "save");
+        restarted.init();
+        expect(restarted.get()).toEqual(service.get());
+        expect(save).not.toHaveBeenCalled();
+        expect(prior).not.toHaveProperty("enablePeakProfitTrail");
+    });
+
+    test.each(["enablePeakProfitTrail", "peakProfitTrailActivationRiskMultiple", "peakProfitTrailRiskMultiple"])("%s stays release-owned", (key) => {
+        const service = new ConfigService(configPath).init();
+        expect(() => service.update({ [key]: key === "enablePeakProfitTrail" ? false : 2 })).toThrow("freeze active");
     });
 
     test.each([

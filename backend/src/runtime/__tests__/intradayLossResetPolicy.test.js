@@ -56,6 +56,7 @@ describe("initial-stop H1 reset evidence", () => {
         { exitReason: "STOP_LOSS", breakevenHit: true },
         { exitReason: "STOP_LOSS", activeStopType: "BREAKEVEN" },
         { exitReason: "STOP_LOSS", activeStopType: "TRAILING" },
+        { exitReason: "STOP_LOSS", activeStopType: "PEAK_PROFIT" },
         { exitReason: "TRAILING_STOP" }, { exitReason: "SESSION_CLOSE" }, { exitReason: "TAKE_PROFIT" },
     ])("does not arm for a noninitial-stop result %j", (fields) => {
         expect(evaluateLossResetPolicy({ instrument, side: "SELL", trades: [closedTrade(fields)] }))

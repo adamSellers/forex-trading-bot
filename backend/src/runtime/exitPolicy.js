@@ -79,6 +79,7 @@ function resolveConfiguredDistance({
 
 const OWNER_EXIT_POLICY_VERSION = 1;
 const CHANNEL_OWNER_EXIT_POLICY_VERSION = 2;
+const PEAK_CHANNEL_OWNER_EXIT_POLICY_VERSION = 3;
 const CHANNEL_EXIT_KIND = "H4_CHANNEL";
 const weeklyExitClock = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -91,8 +92,37 @@ const weeklyExitClock = new Intl.DateTimeFormat("en-US", {
 function isH4ChannelExitPolicy(policy = {}) {
     const config = policy.config || policy;
     return policy.kind === CHANNEL_EXIT_KIND || policy.strategy === "multi_day_trend" ||
-        config.strategy === "multi_day_trend" || config.liveReleaseVersion === "h4-channel-v1" ||
-        config.executionPolicyVersion === "h4-channel-risk-v1";
+        config.strategy === "multi_day_trend" || ["h4-channel-v1", "h4-channel-v2"].includes(config.liveReleaseVersion) ||
+        ["h4-channel-risk-v1", "h4-channel-risk-v2"].includes(config.executionPolicyVersion);
+}
+
+function isPeakProfitTrailPolicy(policy = {}) {
+    return policy.version === PEAK_CHANNEL_OWNER_EXIT_POLICY_VERSION &&
+        isH4ChannelExitPolicy(policy) && policy.config?.enablePeakProfitTrail === true;
+}
+
+// R is immutable filled-entry-to-original-stop distance. A moved protective
+// stop cannot become a new risk denominator after restart or reconciliation.
+function evaluatePeakProfitTrail({ trade = {}, policy = {}, runtimeMetadata = {}, peakPrice } = {}) {
+    if (!isPeakProfitTrailPolicy(policy)) return null;
+    const entry = toFiniteNumber(trade.entryPrice, null);
+    const peak = toFiniteNumber(peakPrice, null);
+    const originalStop = toFiniteNumber(runtimeMetadata.initialStopLossPrice, null);
+    const originalStopValid = originalStop > 0 && (trade.side === "BUY"
+        ? originalStop < entry : originalStop > entry);
+    const risk = toFiniteNumber(runtimeMetadata.initialStopDistance,
+        originalStopValid ? Math.abs(entry - originalStop) : null);
+    const activation = toFiniteNumber(policy.config.peakProfitTrailActivationRiskMultiple, null);
+    const gap = toFiniteNumber(policy.config.peakProfitTrailRiskMultiple, null);
+    if (!["BUY", "SELL"].includes(trade.side) || !(entry > 0) || !(peak > 0) ||
+        !(risk > 0) || !(activation > 0) || !(gap > 0)) return null;
+    const favorableDistance = trade.side === "BUY" ? peak - entry : entry - peak;
+    // Allow only floating-point representation error, not an early activation
+    // allowance. This matters at exact JPY and five-decimal broker thresholds.
+    const error = Number.EPSILON * (Math.abs(peak) + Math.abs(entry) + Math.abs(risk * activation));
+    if (risk * activation - favorableDistance > error) return null;
+    const stopLossPrice = trade.side === "BUY" ? peak - risk * gap : peak + risk * gap;
+    return stopLossPrice > 0 ? { stopLossPrice, initialStopDistance: risk } : null;
 }
 
 // The multi-day release holds through ordinary weekday rollovers, then closes
@@ -115,6 +145,9 @@ const OWNER_EXIT_CONFIG_KEYS = [
     "enableChannelTrailing",
     "channelTrailTimeframe",
     "trendExitBars",
+    "enablePeakProfitTrail",
+    "peakProfitTrailActivationRiskMultiple",
+    "peakProfitTrailRiskMultiple",
     "timeStopHours",
     "sessionCloseHourUTC",
     "sessionCloseTimeZone",
@@ -176,10 +209,12 @@ function buildOwnerRunExitPolicy({
 } = {}) {
     const exitConfig = pickExitConfig(config);
     const channelPolicy = isH4ChannelExitPolicy({ strategy, config });
+    const peakChannelPolicy = channelPolicy && (config.liveReleaseVersion === "h4-channel-v2" ||
+        config.executionPolicyVersion === "h4-channel-risk-v2");
     if (channelPolicy) {
         Object.assign(exitConfig, {
-            liveReleaseVersion: "h4-channel-v1",
-            executionPolicyVersion: "h4-channel-risk-v1",
+            liveReleaseVersion: peakChannelPolicy ? "h4-channel-v2" : "h4-channel-v1",
+            executionPolicyVersion: peakChannelPolicy ? "h4-channel-risk-v2" : "h4-channel-risk-v1",
             enableTakeProfit: false,
             enableBreakeven: false,
             enableTrailingStops: false,
@@ -188,6 +223,18 @@ function buildOwnerRunExitPolicy({
             trendExitBars: toFiniteNumber(config.trendExitBars, 10),
             timeStopHours: 0,
         });
+        if (peakChannelPolicy) {
+            Object.assign(exitConfig, {
+                enablePeakProfitTrail: config.enablePeakProfitTrail === true,
+                peakProfitTrailActivationRiskMultiple: toFiniteNumber(config.peakProfitTrailActivationRiskMultiple, 1),
+                peakProfitTrailRiskMultiple: toFiniteNumber(config.peakProfitTrailRiskMultiple, 0.5),
+            });
+        } else {
+            // A v1 owner never acquires new semantics from later global fields.
+            delete exitConfig.enablePeakProfitTrail;
+            delete exitConfig.peakProfitTrailActivationRiskMultiple;
+            delete exitConfig.peakProfitTrailRiskMultiple;
+        }
     }
     if (
         tradePlan?.trailingStopPips !== undefined &&
@@ -197,7 +244,8 @@ function buildOwnerRunExitPolicy({
     }
 
     return {
-        version: channelPolicy ? CHANNEL_OWNER_EXIT_POLICY_VERSION : OWNER_EXIT_POLICY_VERSION,
+        version: peakChannelPolicy ? PEAK_CHANNEL_OWNER_EXIT_POLICY_VERSION
+            : channelPolicy ? CHANNEL_OWNER_EXIT_POLICY_VERSION : OWNER_EXIT_POLICY_VERSION,
         ...(channelPolicy ? { kind: CHANNEL_EXIT_KIND } : {}),
         ownerRunId,
         strategy: strategy || config.strategy || null,
@@ -217,10 +265,12 @@ function resolveOwnerRunExitPolicy(trade = {}, fallbackConfig = {}) {
     // Old positions without an explicit snapshot must not acquire the newly
     // selected multi-day exits. Normal persisted owners remain authoritative.
     const retainedConfig = trade?.brokerReconciliationPayload?.liveRuntime?.exitConfig;
-    const config = retainedConfig || (isH4ChannelExitPolicy(fallbackConfig) && !isH4ChannelExitPolicy(trade)
-        ? { ...require("../strategies/intradayMomentum").DEFAULT_INTRADAY_MOMENTUM_CONFIG,
-            strategy: "intraday_momentum" }
-        : fallbackConfig);
+    const config = retainedConfig || (isH4ChannelExitPolicy(trade)
+        ? { ...fallbackConfig, liveReleaseVersion: "h4-channel-v1", executionPolicyVersion: "h4-channel-risk-v1" }
+        : isH4ChannelExitPolicy(fallbackConfig)
+            ? { ...require("../strategies/intradayMomentum").DEFAULT_INTRADAY_MOMENTUM_CONFIG,
+                strategy: "intraday_momentum" }
+            : fallbackConfig);
 
     return buildOwnerRunExitPolicy({
         strategy: trade.strategy || config.strategy,
@@ -384,10 +434,13 @@ function calculateMonotonicStop({ trade = {}, currentPrice, trailDistance }) {
 module.exports = {
     OWNER_EXIT_POLICY_VERSION,
     CHANNEL_OWNER_EXIT_POLICY_VERSION,
+    PEAK_CHANNEL_OWNER_EXIT_POLICY_VERSION,
     buildOwnerRunExitPolicy,
     calculateMonotonicStop,
     getTradeExitMetadata,
     isH4ChannelExitPolicy,
+    isPeakProfitTrailPolicy,
+    evaluatePeakProfitTrail,
     resolveBreakevenDistance,
     resolveConfiguredDistance,
     resolveOwnerRunExitPolicy,

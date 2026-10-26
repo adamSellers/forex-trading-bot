@@ -3,7 +3,7 @@ export const CURRENT_STRATEGY_KEY = 'multi_day_trend';
 export const isH4Trend = (identity = {}) => {
   const key = identity.strategy || identity.key || identity.family;
   if (key) return key === CURRENT_STRATEGY_KEY;
-  return identity.liveReleaseVersion === 'h4-channel-v1';
+  return ['h4-channel-v1', 'h4-channel-v2'].includes(identity.liveReleaseVersion);
 };
 
 export const strategyLabel = (key, catalogLabel = null) => {

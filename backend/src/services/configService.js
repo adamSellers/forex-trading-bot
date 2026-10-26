@@ -60,7 +60,18 @@ class ConfigService extends EventEmitter {
                 const fileConfig = JSON.parse(fileContent);
                 nextConfig = normalizeTradingConfig(fileConfig);
                 delete nextConfig.tradingMode;
-                if (DEFAULT_CONFIG.liveReleaseVersion === "h4-channel-v1" &&
+                if (DEFAULT_CONFIG.liveReleaseVersion === "h4-channel-v2" &&
+                    (fileConfig.liveReleaseVersion === "h4-channel-v1" ||
+                        fileConfig.executionPolicyVersion === "h4-channel-risk-v1")) {
+                    // This release adds profit protection without replacing
+                    // the saved H4 entry, channel, risk or operational intent.
+                    const releaseKeys = ["configSchemaVersion", "liveReleaseVersion", "executionPolicyVersion",
+                        "enablePeakProfitTrail", "peakProfitTrailActivationRiskMultiple", "peakProfitTrailRiskMultiple"];
+                    nextConfig = normalizeTradingConfig({ ...nextConfig,
+                        ...Object.fromEntries(releaseKeys.map((key) => [key, DEFAULT_CONFIG[key]])) });
+                    needsSave = true;
+                    logger.info(`Applied ${DEFAULT_CONFIG.liveReleaseVersion}; saved H4 settings and enabled intent preserved`);
+                } else if (DEFAULT_CONFIG.strategy === "multi_day_trend" &&
                     fileConfig.liveReleaseVersion !== DEFAULT_CONFIG.liveReleaseVersion) {
                     // A new strategy changes entry/exit semantics, not the saved
                     // shared account envelope or the operator's enabled intent.

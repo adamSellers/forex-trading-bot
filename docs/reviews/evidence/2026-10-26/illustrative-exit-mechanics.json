@@ -1,0 +1,116 @@
+{
+  "purpose": "Illustrative retrospective exit mechanics, not strategy-performance ranking",
+  "tradeId": "3550",
+  "initialRiskPips": 72.10000000000036,
+  "quoteSourceSha256": "07d464f16b2c6ed0fe3d00bee2148b2943143a8fd10e58cd7f8dbdf1660a1464",
+  "candidates": [
+    {
+      "name": "Price breakeven after +1R",
+      "activationR": 1,
+      "gapR": null,
+      "activationAtUtc": "2026-10-23T00:05:52.928Z",
+      "firstObservedCrossing": {
+        "atUtc": "2026-10-23T02:06:43.774Z",
+        "firstObservedPipsAtOrBeyondStop": -1.099999999999568,
+        "previousStopPips": 0,
+        "previousSampledPeakPips": 95.59999999999889
+      }
+    },
+    {
+      "name": "Trail 1R behind sampled peak after +1R",
+      "activationR": 1,
+      "gapR": 1,
+      "activationAtUtc": "2026-10-23T00:05:52.928Z",
+      "firstObservedCrossing": {
+        "atUtc": "2026-10-23T01:54:43.492Z",
+        "firstObservedPipsAtOrBeyondStop": 23.400000000000887,
+        "previousStopPips": 23.499999999998522,
+        "previousSampledPeakPips": 95.59999999999889
+      }
+    },
+    {
+      "name": "Trail 0.75R behind sampled peak after +1R",
+      "activationR": 1,
+      "gapR": 0.75,
+      "activationAtUtc": "2026-10-23T00:05:52.928Z",
+      "firstObservedCrossing": {
+        "atUtc": "2026-10-23T01:37:53.852Z",
+        "firstObservedPipsAtOrBeyondStop": 41.30000000000109,
+        "previousStopPips": 41.52499999999861,
+        "previousSampledPeakPips": 95.59999999999889
+      }
+    },
+    {
+      "name": "Trail 0.5R behind sampled peak after +1R",
+      "activationR": 1,
+      "gapR": 0.5,
+      "activationAtUtc": "2026-10-23T00:05:52.928Z",
+      "firstObservedCrossing": {
+        "atUtc": "2026-10-23T00:58:53.527Z",
+        "firstObservedPipsAtOrBeyondStop": 59.199999999998454,
+        "previousStopPips": 59.549999999998704,
+        "previousSampledPeakPips": 95.59999999999889
+      }
+    }
+  ],
+  "shorterChannelReconstruction": [
+    {
+      "atUtc": "2026-10-22T09:00:41.422Z",
+      "fiveBarChannelCandidate": 158.354,
+      "candidatePriceProfitPips": -131.30000000000166
+    },
+    {
+      "atUtc": "2026-10-22T13:00:00.000Z",
+      "fiveBarChannelCandidate": 158.354,
+      "candidatePriceProfitPips": -131.30000000000166
+    },
+    {
+      "atUtc": "2026-10-22T17:00:00.000Z",
+      "fiveBarChannelCandidate": 158.261,
+      "candidatePriceProfitPips": -121.99999999999989
+    },
+    {
+      "atUtc": "2026-10-22T21:00:00.000Z",
+      "fiveBarChannelCandidate": 158.186,
+      "candidatePriceProfitPips": -114.50000000000102
+    },
+    {
+      "atUtc": "2026-10-23T01:00:00.000Z",
+      "fiveBarChannelCandidate": 157.745,
+      "candidatePriceProfitPips": -70.40000000000077
+    },
+    {
+      "atUtc": "2026-10-23T05:00:00.000Z",
+      "fiveBarChannelCandidate": 157.366,
+      "candidatePriceProfitPips": -32.500000000001705
+    },
+    {
+      "atUtc": "2026-10-23T09:00:00.000Z",
+      "fiveBarChannelCandidate": 157.366,
+      "candidatePriceProfitPips": -32.500000000001705
+    },
+    {
+      "atUtc": "2026-10-23T13:00:00.000Z",
+      "fiveBarChannelCandidate": 157.177,
+      "candidatePriceProfitPips": -13.599999999999568
+    },
+    {
+      "atUtc": "2026-10-23T17:00:00.000Z",
+      "fiveBarChannelCandidate": 157.177,
+      "candidatePriceProfitPips": -13.599999999999568
+    },
+    {
+      "atUtc": "2026-10-23T20:45:07.739Z",
+      "fiveBarChannelCandidate": 157.177,
+      "candidatePriceProfitPips": -13.599999999999568
+    }
+  ],
+  "limits": [
+    "Selected after observing this trade. Parameters are examples, not validated optimal settings.",
+    "Uses retained executable quote samples. Price stop activation is assumed immediate at the observed sample; broker update acknowledgment, missed ticks and actual stop fills are not reconstructed.",
+    "First quote at/beyond a stop is an observed crossing, not an assumed executable fill or exact trigger time.",
+    "Illustrative thresholds exclude changed financing, conversion, fees and slippage; no net hypothetical profit is asserted.",
+    "Stops here use unrounded pip arithmetic; submitted stops must use broker price precision and outward protective rounding.",
+    "Earlier exits may change later entries and portfolio occupancy; this is not a full orchestration replay."
+  ]
+}

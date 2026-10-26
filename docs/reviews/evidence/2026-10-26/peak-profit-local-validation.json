@@ -1,0 +1,50 @@
+{
+  "validatedAtUtc": "2026-10-26T09:23:21.461Z",
+  "sourceState": "Uncommitted local working tree based on5686e19; not published or deployed",
+  "runtime": "Node22.23.1",
+  "strategyVersion": "2.1.0",
+  "release": "h4-channel-v2",
+  "executionPolicy": "h4-channel-risk-v2",
+  "tests": {
+    "backend": {
+      "passed": 1508,
+      "suitesPassed": 75,
+      "skipped": 1,
+      "skip": "Existing opt-in historical viability experiment"
+    },
+    "frontend": {
+      "passed": 22
+    },
+    "frontendBuild": "PASS",
+    "healthScenarios": {
+      "passed": 24
+    },
+    "deploymentRestoreScenarios": {
+      "passed": 57
+    },
+    "diffCheck": "PASS"
+  },
+  "logSha256": {
+    "backend": "052f5bafa4321deae29233899ebb984457c262d7ebf445610c74d4580c9d045b",
+    "frontend": "5fe562fea88ac4aa11025c0f304e18120afb44976a155be13fa0506a0f9fbf0c",
+    "build": "9cec943864fc4732184a25d638e797ddf4e13b6ea2b1011dfb7522dbd78b6061",
+    "health": "027df8eeda555ab8680a13f881b79af270f64093b678e703860fd940abf7e5e5",
+    "deployment": "5bbd081488691b4fb76e8ee8608c6502144c4e34ebf14d67e8f097d7925408fc"
+  },
+  "selectedSourceSha256": {
+    "backend/src/runtime/exitPolicy.js": "d25669cda81e3665aae5814d9f1044defc6e966ee2c90fbe6c1133eeab88b794",
+    "backend/src/services/LiveTradingEngine.js": "e9af97782823f45425f6069ca6d56f21abda8ed44aba0bbb2e04bbc6d9529251",
+    "backend/src/config/tradingConfig.js": "0927d0a2198870f2080ff2cab89a85261c762ebb5a3aa17b3defa8b2265d77bc",
+    "backend/src/services/configService.js": "b514aa41ac0d3ad83c2caf03b4c5c04a9e0a50712b2a6fb33c3fab3c9e63f679",
+    "shared/tradingConfigDefaults.json": "010720d9063f730cea05e7a38604e66b7455a05e725b9d7bdf08bef90f90fec4",
+    "shared/legacyH4ChannelConfigDefaults.json": "3e8d500943a66e4db3fc53181613c7a45835a8f7b33095ff2e72b1ee7b5e623a",
+    "backend/src/services/__tests__/h4PeakProfitManagementIntegration.test.js": "90667692cd1bf602d65874b0bce29e5139bb8e9ed6e4c860f0a97d08dda0f24a",
+    "backend/src/services/__tests__/fixtures/h4PeakProfitTrade3550.json": "bb7bd7c65e0da641b543b49793f9aec2ba3c2b33a5422d82e02b58d161c5e8e7"
+  },
+  "provenanceNotes": [
+    "Full backend rerun allowed local loopback binding after sandbox EPERM on existing server/API/Socket.IO tests.",
+    "Fixtures use broker-shaped responses and actual engine/data-service/repository orchestration; no production services or live orders.",
+    "No Python invoked or introduced.",
+    "Mechanical validation does not demonstrate improved profitability."
+  ]
+}

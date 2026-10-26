@@ -43,8 +43,8 @@ describe('H4 release integration contracts', () => {
         const configPath = path.join(directory, 'config.json');
         fs.writeFileSync(configPath, JSON.stringify(saved));
         const current = new ConfigService(configPath).init().get();
-        expect(current).toMatchObject({ strategy: 'multi_day_trend', liveReleaseVersion: 'h4-channel-v1',
-            executionPolicyVersion: 'h4-channel-risk-v1', timeframe: '4h', enableTrading: enabled,
+        expect(current).toMatchObject({ strategy: 'multi_day_trend', liveReleaseVersion: 'h4-channel-v2',
+            executionPolicyVersion: 'h4-channel-risk-v2', timeframe: '4h', enableTrading: enabled,
             riskPerTrade: 0.001, maxCapitalAtRisk: 75, maxAggregateStopRiskPctNav: 0.004,
             logLevel: 'debug', enableTakeProfit: false, enableBreakeven: false, timeStopHours: 0 });
         expect(current).not.toHaveProperty('intradayTargetRiskMultiple');
@@ -96,7 +96,7 @@ describe('H4 release integration contracts', () => {
             key: 'intraday_momentum', version: '1.4.0', requiredData: { timeframes: ['15m', '1h'] },
         });
         expect(getStrategyDefinition('multi_day_trend')).toMatchObject({
-            key: 'multi_day_trend', version: '2.0.0', requiredData: { timeframes: ['4h'] },
+            key: 'multi_day_trend', version: '2.1.0', requiredData: { timeframes: ['4h'] },
         });
         expect(listStrategyCatalog().map(item => item.key)).toEqual(['multi_day_trend']);
         const router = require('../../routes/tradingRoutes');
@@ -141,7 +141,7 @@ describe('H4 release integration contracts', () => {
         const generator = new SignalGenerator(config);
         const signal = await generator.generateSignal('EUR_USD', candles, data.priceCache.EUR_USD.price,
             { marketContext: context, nowMs: now });
-        expect(signal).toMatchObject({ signal: 'BUY', strategy: 'multi_day_trend', strategyVersion: '2.0.0',
+        expect(signal).toMatchObject({ signal: 'BUY', strategy: 'multi_day_trend', strategyVersion: '2.1.0',
             entryType: 'ROLLING_CHANNEL_BREAKOUT', tradePlan: { takeProfitPrice: null, targetRiskMultiple: null } });
         expect(signal.strategyContext).not.toHaveProperty('buyRetest');
         expect(signal.strategyContext).not.toHaveProperty('lossReset');

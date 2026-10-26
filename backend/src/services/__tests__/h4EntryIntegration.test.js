@@ -49,7 +49,7 @@ async function fixture({ pairs = [{ instrument: 'EUR_USD', side: 'BUY' }] } = {}
     let finalSpread = null;
     jest.spyOn(Date, 'now').mockImplementation(() => now);
     const configService = createMockConfigService({ ...cloneDefaultConfig(), strategy: 'multi_day_trend',
-        liveReleaseVersion: 'h4-channel-v1', executionPolicyVersion: 'h4-channel-risk-v1', timeframe: '4h',
+        liveReleaseVersion: 'h4-channel-v2', executionPolicyVersion: 'h4-channel-risk-v2', timeframe: '4h',
         assets: pairs.map((pair) => pair.instrument), enableTrading: true, riskPerTrade: 0.0025,
         maxCapitalAtRisk: 100, maxSpreadPips: 1.2, expectedSlippagePips: 0.2, maxEntryDeviationPips: 1.5,
         trendBreakoutBars: 20, trendExitBars: 10, trendAtrPeriod: 14, trendStopAtr: 2,
@@ -161,7 +161,7 @@ describe('H4 live entry through coordinator, current-candle validation, sizing a
     test.each(['BUY', 'SELL'])('a valid %s uses a protected 2 ATR entry with no target or breakeven', async (side) => {
         const state = await fixture({ pairs: [{ instrument: 'EUR_USD', side }] });
         const [signal] = await state.scan();
-        expect(signal).toMatchObject({ signal: side, strategy: 'multi_day_trend', strategyVersion: '2.0.0',
+        expect(signal).toMatchObject({ signal: side, strategy: 'multi_day_trend', strategyVersion: '2.1.0',
             timeframe: '4h', entryType: 'ROLLING_CHANNEL_BREAKOUT' });
         const orders = state.requests.filter((request) => request.method === 'POST');
         expect(orders).toHaveLength(1);
@@ -169,7 +169,7 @@ describe('H4 live entry through coordinator, current-candle validation, sizing a
         expect(orders[0].body.order.takeProfitOnFill).toBeUndefined();
         const trade = state.tradeRepository.trades[0];
         expect(trade).toMatchObject({ strategy: 'multi_day_trend', takeProfitPrice: null, breakevenHit: false,
-            brokerReconciliationPayload: { liveRuntime: { entryTelemetry: { strategyContext: { version: '2.0.0' } },
+            brokerReconciliationPayload: { liveRuntime: { entryTelemetry: { strategyContext: { version: '2.1.0' } },
                 ownerExitPolicy: { kind: 'H4_CHANNEL', config: {
                 enableBreakeven: false, enableTakeProfit: false, timeStopHours: 0, trendExitBars: 10 } } } } });
         expect(Math.abs(trade.entryPrice - trade.stopLossPrice)).toBeCloseTo(signal.tradePlan.stopPips * 0.0001, 4);

@@ -5,7 +5,7 @@ const { resolveEntryExitWindowReason } = require("../runtime/exitPolicy");
 const { exceedsQuoteLimit, priceDistanceError } = require("../runtime/quoteMath");
 
 const H4_MS = 4 * 60 * 60 * 1000;
-const MULTI_DAY_TREND_VERSION = "2.0.0";
+const MULTI_DAY_TREND_VERSION = "2.1.0";
 const ROLLING_CHANNEL_ENTRY_TYPE = "ROLLING_CHANNEL_BREAKOUT";
 const DEFAULT_MULTI_DAY_TREND_CONFIG = Object.freeze({
     timeframe: "4h",
@@ -24,6 +24,9 @@ const DEFAULT_MULTI_DAY_TREND_CONFIG = Object.freeze({
     minStopLossPips: 6,
     enableTakeProfit: false,
     enableBreakeven: false,
+    enablePeakProfitTrail: true,
+    peakProfitTrailActivationRiskMultiple: 1,
+    peakProfitTrailRiskMultiple: 0.5,
 });
 
 function finite(value) {
@@ -302,7 +305,7 @@ function evaluateChannelTrail({ instrument, side, candles = [], nowMs = Date.now
 const multiDayTrendStrategy = createStrategyDefinition({
     key: "multi_day_trend",
     label: "H4 Rolling Channel Trend",
-    description: "Fresh symmetric completed H4 20-bar channel breakouts, 2 ATR initial risk and a 10-bar protective exit channel.",
+    description: "Fresh symmetric completed H4 20-bar channel breakouts, 2 ATR initial risk, a 10-bar exit channel and a 0.5R executable-peak trail after +1R.",
     version: MULTI_DAY_TREND_VERSION,
     runtimeStatus: "live_ready",
     requiredData: { timeframes: ["4h"], marketData: ["candles", "price", "spread"], indicators: ["atr"] },

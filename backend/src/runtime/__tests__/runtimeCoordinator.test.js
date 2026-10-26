@@ -33,6 +33,35 @@ function dependencies(config = cloneDefaultConfig()) {
 }
 
 describe("RuntimeCoordinator live-only release", () => {
+    test("H4 profit-trail release creates one new cohort while old owned trades retain their v1 config", async () => {
+        const historical = require("../../../../shared/legacyH4ChannelConfigDefaults.json");
+        const priorConfig = { ...historical, enableTrading: true, riskPerTrade: 0.001 };
+        const priorRun = { runId: "h4-v1-owner", mode: "live", status: "active", strategy: "multi_day_trend",
+            selectionId: "h4-v1-selection", configSnapshot: priorConfig, configHash: computeConfigHash(priorConfig),
+            metadata: { entryEnabled: true, releaseVersion: "h4-channel-v1" }, startedAt: 1000 };
+        const trade = { id: "h4-v1-trade", instrument: "USD_JPY", strategy: "multi_day_trend",
+            ownerRunId: priorRun.runId, runId: priorRun.runId, configHash: priorRun.configHash,
+            selectionId: priorRun.selectionId };
+        const deps = dependencies();
+        deps.strategyRunRepository.list.mockResolvedValue([priorRun]);
+        deps.tradeRepository.getOpenTrades.mockImplementation(async (filters) =>
+            !filters.ownerRunId || filters.ownerRunId === priorRun.runId ? [trade] : []);
+        const coordinator = new RuntimeCoordinator(deps);
+        const selected = await coordinator.ensureLiveSelectionInitialized();
+        const previous = coordinator.getRunSession(priorRun.runId);
+        expect(selected.liveRun).toMatchObject({ status: "active", parentRunId: priorRun.runId,
+            configSnapshot: { liveReleaseVersion: "h4-channel-v2", enablePeakProfitTrail: true,
+                peakProfitTrailActivationRiskMultiple: 1, peakProfitTrailRiskMultiple: 0.5 } });
+        expect(previous.run).toMatchObject({ status: "managing_only", configHash: priorRun.configHash });
+        expect(previous.generator.config).toEqual(priorConfig);
+        expect(previous.generator.config).not.toHaveProperty("enablePeakProfitTrail");
+        expect(previous.managedInstruments).toContain("USD_JPY");
+        expect(deps.tradeRepository.updateTrade).not.toHaveBeenCalled();
+        await coordinator.ensureLiveSelectionInitialized();
+        expect(deps.strategyRunRepository.replaceActiveRun).toHaveBeenCalledTimes(1);
+        expect(coordinator.listRuns().filter(run => run.status === "active")).toHaveLength(1);
+    });
+
     test("records a no-data decision for each configured pair instead of silently skipping the cycle", async () => {
         const deps = dependencies();
         deps.dataService.getCurrentPrice.mockReturnValue(null);

@@ -1,23 +1,28 @@
 # Live Trading Operator Guide
 
+**October 26 local implementation complete, not deployed:** [H4 peak profit protection 2.1.0](docs/reviews/2026-10-26-h4-peak-profit-release.md) adds a 0.5R peak trail after +1R alongside the existing channel. Local checks pass; publication and deployment remain pending. Existing H4-v1 positions retain channel-only exits.
+
 **October 18 deployment verified:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md) is deployed at clean `c09efb5`, verified healthy and flat at **17:38 AEDT**, with entries **paused** and readiness passing. All 1,468 target backend tests, build, backup and deployment health checks passed; local checks also cover 21 frontend tests, 23 health scenarios and 57 deployment/restore cases. All four pairs have completed H4 bid/ask data. Adam must use the existing Start Trading control to activate entries. Profitability and trade frequency remain unproven. Earlier pending-delivery statements below describe prior checkpoints.
 
 **October 18 H4 replacement:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md), release `h4-channel-v1`, is being validated for the authorized standard deployment. Intentional paused entries will be preserved; use Start Trading when ready. Earlier versioned sections describe historical M15 owners.
 
-## Current H4 candidate
+## Locally implemented H4 candidate — deployment pending
 
 | Setting | Value |
 | --- | --- |
-| Strategy / release | `multi_day_trend` 2.0.0 / `h4-channel-v1` |
+| Strategy / release | `multi_day_trend` 2.1.0 / `h4-channel-v2` |
 | Entry | Fresh completed H4 close beyond the preceding 20-bar high/low |
 | Initial stop | 2 × ATR(14), minimum six pips |
 | Protective channel | Latest 10 completed H4 bid lows for BUY / ask highs for SELL; only tightens |
+| Peak profit trail | After +1R, trail best observed executable bid/ask by 0.5R; tighter stop wins |
 | Profit target / breakeven | None |
 | Holding | Overnight on weekdays; Friday close from 16:45 New York |
 | Concurrent positions | One per pair, subject to existing portfolio and margin limits |
 | Risk | 0.25% × min(80% available margin, A$100); aggregate stop risk ≤0.5% NAV |
 
 A 20-bar channel is a lookback, not an 80-hour delay after a breakout. The same signal cannot submit duplicate orders. A new opposite signal does not reverse an existing position. A pause blocks entries while existing positions continue to be managed. Financing accrues for overnight positions; Friday closure does not avoid Wednesday triple financing. Gaps can exceed planned stop losses. Profitability and trade frequency are unproven.
+
+R is the original actual filled-entry-to-stop price distance and stays fixed when protection moves. Peaks are saved from valid management quotes and survive restart; unobserved ticks cannot advance the trail. Confirmed stops stay with the broker between polls. This release applies to new owners after deployment, with no retroactive change to older positions.
 
 ## October 7 BUY fix deployed
 

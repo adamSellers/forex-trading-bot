@@ -178,6 +178,22 @@ describe("H4 channel owner exit policy", () => {
     };
     const policy = () => buildOwnerRunExitPolicy({ config, ownerRunId: "channel-owner" });
 
+    test("new peak policy is snapshotted separately while old owners and missing snapshots retain v1 exits", () => {
+        const current = { ...config, liveReleaseVersion: "h4-channel-v2", executionPolicyVersion: "h4-channel-risk-v2",
+            enablePeakProfitTrail: true, peakProfitTrailActivationRiskMultiple: 1, peakProfitTrailRiskMultiple: 0.5 };
+        const modern = buildOwnerRunExitPolicy({ config: current, ownerRunId: "peak-owner" });
+        current.peakProfitTrailRiskMultiple = 0.1;
+        expect(modern).toMatchObject({ version: 3, kind: "H4_CHANNEL", config: {
+            enablePeakProfitTrail: true, peakProfitTrailActivationRiskMultiple: 1, peakProfitTrailRiskMultiple: 0.5 } });
+        expect(resolveOwnerRunExitPolicy({ ownerExitPolicy: policy() }, current).version).toBe(2);
+        const missing = resolveOwnerRunExitPolicy({ strategy: "multi_day_trend", entryTime: 1 }, current);
+        expect(missing).toMatchObject({ version: 2, config: { liveReleaseVersion: "h4-channel-v1" } });
+        expect(missing.config).not.toHaveProperty("enablePeakProfitTrail");
+        const accidentallyMixed = buildOwnerRunExitPolicy({ config: { ...config, enablePeakProfitTrail: true } });
+        expect(accidentallyMixed.version).toBe(2);
+        expect(accidentallyMixed.config).not.toHaveProperty("enablePeakProfitTrail");
+    });
+
     test("captures a distinct immutable owner contract without targets, breakeven or an intraday deadline", () => {
         const openingConfig = { ...config };
         const saved = buildOwnerRunExitPolicy({ config: openingConfig, ownerRunId: "channel-owner" });

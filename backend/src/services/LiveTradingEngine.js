@@ -36,6 +36,8 @@ const {
     calculateMonotonicStop,
     getTradeExitMetadata,
     isH4ChannelExitPolicy,
+    isPeakProfitTrailPolicy,
+    evaluatePeakProfitTrail,
     resolveBreakevenDistance,
     resolveOwnerRunExitPolicy,
     resolveEntryExitWindowReason,
@@ -4362,6 +4364,32 @@ class LiveTradingEngine extends EventEmitter {
         );
     }
 
+    async _recordPeakProfitTrail(trade, quote, policy) {
+        if (!isPeakProfitTrailPolicy(policy) ||
+            !evaluatePriceAvailability(quote, { maxAgeMs: 30000 }).available) return;
+        const price = trade.side === "SELL" ? quote.ask : quote.bid;
+        const prior = trade.brokerReconciliationPayload?.peakProfitTrail;
+        const previousPeak = prior?.version === 1 ? toFiniteNumber(prior.peakPrice, null) : null;
+        const peakPrice = trade.side === "SELL"
+            ? Math.min(previousPeak > 0 ? previousPeak : price, price)
+            : Math.max(previousPeak > 0 ? previousPeak : price, price);
+        if (previousPeak === peakPrice) return;
+        const peakProfitTrail = {
+            version: 1,
+            peakPrice,
+            // A successfully received unchanged broker price remains usable.
+            // Receipt/observation time and broker event time are separate facts.
+            observedAt: Date.now(),
+            quoteEventAt: quote.timestamp,
+        };
+        const brokerReconciliationPayload = this.mergeBrokerPayload(trade, { peakProfitTrail });
+        // Durable control state is independent of reversible excursion telemetry.
+        // Persist before attempting any stop mutation so an unacknowledged write
+        // or process restart cannot erase a previously observed favorable peak.
+        await this.tradeRepository.updateTrade(trade.id, { brokerReconciliationPayload });
+        trade.brokerReconciliationPayload = brokerReconciliationPayload;
+    }
+
     async updateH4ChannelStop(trade, config) {
         return this.withBrokerLifecycle(async () => {
             // Reload after waiting for any entry, close or protection operation.
@@ -4369,6 +4397,8 @@ class LiveTradingEngine extends EventEmitter {
             // a confirmed write lost before local persistence cannot be undone.
             trade = this.openTrades.get(trade.id);
             if (!trade || trade.reconciliationStatus === "CLOSE_RETRY_PENDING") return false;
+            const policy = this.getOwnerExitPolicy(trade, config);
+            await this._recordPeakProfitTrail(trade, this.dataService.getCurrentPrice(trade.instrument), policy);
             const details = await oandaClient.getTrade(trade.oandaTradeId);
             const brokerTrade = details?.trade;
             if (String(brokerTrade?.id) !== String(trade.oandaTradeId) || brokerTrade?.state !== "OPEN") return false;
@@ -4376,36 +4406,75 @@ class LiveTradingEngine extends EventEmitter {
             trade = this.openTrades.get(trade.id);
             if (!trade || trade.reconciliationStatus === "CLOSE_RETRY_PENDING") return false;
 
+            const metadata = await this.getInstrumentMetadataForTrading(trade.instrument, config);
+            const chooseCandidate = () => {
+                const channel = evaluateChannelTrail({
+                    instrument: trade.instrument,
+                    side: trade.side,
+                    // Completed side candles alone drive the channel. Missing
+                    // H4 history must not disable independent peak protection.
+                    candles: this.dataService.getCandles(trade.instrument, "4h"),
+                    nowMs: Date.now(),
+                    config: policy.config,
+                });
+                const peak = evaluatePeakProfitTrail({ trade, policy,
+                    runtimeMetadata: trade.brokerReconciliationPayload?.liveRuntime,
+                    peakPrice: trade.brokerReconciliationPayload?.peakProfitTrail?.peakPrice });
+                const pending = trade.brokerReconciliationPayload?.stopUpdate;
+                const candidates = [
+                    ...(channel.ready ? [{ price: channel.stopLossPrice, type: "CHANNEL" }] : []),
+                    ...(peak ? [{ price: peak.stopLossPrice, type: "PEAK_PROFIT" }] : []),
+                    ...(pending?.status === "RETRY_PENDING"
+                        ? [{ price: Number(pending.desiredPrice), type: pending.stopType || "CHANNEL" }] : []),
+                ].map(candidate => ({ ...candidate, price: Number(oandaClient.formatPriceBound(
+                    trade.instrument, candidate.price, trade.side, metadata)) }))
+                    .filter(candidate => Number.isFinite(candidate.price) && this.isMonotonicStopImprovement(trade, candidate.price));
+                return candidates.reduce((best, next) => !best || (trade.side === "SELL"
+                    ? next.price < best.price : next.price > best.price) ? next : best, null);
+            };
+            const crossed = (candidate, quote) => candidate && (trade.side === "SELL"
+                ? quote.ask >= candidate.price : quote.bid <= candidate.price);
+            const closeCrossed = (candidate, quote) => this._executeExit(trade,
+                trade.side === "SELL" ? quote.ask : quote.bid,
+                candidate.type === "PEAK_PROFIT" ? "PEAK_PROFIT_EXIT" : "CHANNEL_EXIT");
+            const captureManagementQuote = async () => {
+                for (;;) {
+                    const observed = this.dataService.getCurrentPrice(trade.instrument);
+                    if (!evaluatePriceAvailability(observed, { maxAgeMs: 30000 }).available) return null;
+                    await this._recordPeakProfitTrail(trade, observed, policy);
+                    // Saving durable state is asynchronous. A reversal or stale
+                    // receipt during the save must not authorize a crossed stop.
+                    const latest = this.dataService.getCurrentPrice(trade.instrument);
+                    if (!evaluatePriceAvailability(latest, { maxAgeMs: 30000 }).available) return null;
+                    const peak = trade.brokerReconciliationPayload?.peakProfitTrail?.peakPrice;
+                    if (isPeakProfitTrailPolicy(policy) && (trade.side === "SELL"
+                        ? latest.ask < peak : latest.bid > peak)) continue;
+                    return latest;
+                }
+            };
+            let quote = await captureManagementQuote();
+            if (!quote) return false;
+            let candidate = chooseCandidate();
+            // A pending write is not yet broker protection. If its intended
+            // stop (or a tighter newly observed candidate) has been crossed,
+            // use the existing close lifecycle even during retry backoff.
+            if (crossed(candidate, quote)) return Boolean(await closeCrossed(candidate, quote));
             const pending = trade.brokerReconciliationPayload?.stopUpdate;
             if (pending) {
                 if (pending.status !== "RETRY_PENDING" || Number(pending.nextRetryAt) > Date.now()) return false;
                 const retried = await this._applyBrokerStopUpdate(trade, Number(pending.desiredPrice),
                     pending.stopType || "BROKER_STOP_RETRY", pending.localUpdates || {}, pending);
                 if (!retried || !this.openTrades.has(trade.id) || trade.brokerReconciliationPayload?.stopUpdate) return false;
+                // Broker confirmation can take time; a cached receipt does not
+                // become fresh again just because that request completed.
+                quote = await captureManagementQuote();
+                if (!quote) return false;
+                candidate = chooseCandidate();
+                if (crossed(candidate, quote)) return Boolean(await closeCrossed(candidate, quote));
             }
-
-            const metadata = await this.getInstrumentMetadataForTrading(trade.instrument, config);
-            const quote = this.dataService.getCurrentPrice(trade.instrument);
-            if (!evaluatePriceAvailability(quote, { maxAgeMs: 30000 }).available) return false;
-            const channel = evaluateChannelTrail({
-                instrument: trade.instrument,
-                side: trade.side,
-                // OandaDataService exposes the normalized broker H4 cache by
-                // instrument/timeframe; the helper selects completed bars only.
-                candles: this.dataService.getCandles(trade.instrument, "4h"),
-                nowMs: Date.now(),
-                config: this.getOwnerExitConfig(trade, config),
-            });
-            if (!channel.ready) return false;
-            const desiredPrice = Number(oandaClient.formatPriceBound(
-                trade.instrument, channel.stopLossPrice, trade.side, metadata));
-            if (!Number.isFinite(desiredPrice) || !this.isMonotonicStopImprovement(trade, desiredPrice)) return false;
-            const liquidationPrice = trade.side === "SELL" ? quote.ask : quote.bid;
-            if (trade.side === "BUY" ? liquidationPrice <= desiredPrice : liquidationPrice >= desiredPrice) {
-                return Boolean(await this._executeExit(trade, liquidationPrice, "CHANNEL_EXIT"));
-            }
-            return this._applyBrokerStopUpdate(trade, desiredPrice, "CHANNEL", {
-                trailingStopPrice: desiredPrice,
+            if (!candidate) return false;
+            return this._applyBrokerStopUpdate(trade, candidate.price, candidate.type, {
+                trailingStopPrice: candidate.price,
             });
         });
     }

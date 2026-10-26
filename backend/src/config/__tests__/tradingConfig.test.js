@@ -7,6 +7,28 @@ const {
 } = require("../tradingConfig");
 
 describe("tradingConfig", () => {
+    test("historical H4-v1 snapshots retain the captured hash and never acquire peak-trail fields", () => {
+        const historical = require("../../../../shared/legacyH4ChannelConfigDefaults.json");
+        expect(computeConfigHash(historical)).toBe("5c21f2ba01099502340f");
+        expect(normalizeTradingConfig(historical)).toEqual(historical);
+        expect(materializeStrategyConfig(historical)).toEqual(historical);
+        expect(materializeStrategyConfig({ strategy: "multi_day_trend" }, { baseConfig: historical })).toEqual(historical);
+        expect(materializeStrategyConfig(historical)).not.toHaveProperty("enablePeakProfitTrail");
+        expect(computeConfigHash(cloneDefaultConfig())).not.toBe(computeConfigHash(historical));
+    });
+
+    test("new peak-trail fields normalize explicitly and affect the release identity", () => {
+        const config = normalizeTradingConfig({ enablePeakProfitTrail: "true",
+            peakProfitTrailActivationRiskMultiple: "1", peakProfitTrailRiskMultiple: "0.5" });
+        expect(config).toMatchObject({ configSchemaVersion: 6, liveReleaseVersion: "h4-channel-v2",
+            executionPolicyVersion: "h4-channel-risk-v2", enablePeakProfitTrail: true,
+            peakProfitTrailActivationRiskMultiple: 1, peakProfitTrailRiskMultiple: 0.5 });
+        for (const change of [{ enablePeakProfitTrail: false }, { peakProfitTrailActivationRiskMultiple: 2 },
+            { peakProfitTrailRiskMultiple: 0.75 }]) {
+            expect(computeConfigHash({ ...config, ...change })).not.toBe(computeConfigHash(config));
+        }
+    });
+
     test("retains the deployed v4 snapshot hash and old capacity semantics", () => {
         const historical = {
             ...require("../../../../shared/legacyIntradayConfigDefaults.json"),

@@ -2,7 +2,7 @@ const {
     evaluateLiveReadiness,
     getLiveRiskLimitViolations,
 } = require("../liveReadiness");
-const { computeConfigHash } = require("../../config/tradingConfig");
+const { cloneDefaultConfig, computeConfigHash } = require("../../config/tradingConfig");
 
 function readyConfig(overrides = {}) {
     return {
@@ -35,6 +35,17 @@ function readySelection(config) {
 }
 
 describe("liveReadiness", () => {
+    test("new H4 profit-protection release requires the matching runtime config", () => {
+        const config = cloneDefaultConfig();
+        expect(evaluateLiveReadiness({ config, liveSelection: readySelection(config) })).toMatchObject({
+            passed: true, activationAllowed: true, strategyVersion: "2.1.0",
+        });
+        const historical = require("../../../../shared/legacyH4ChannelConfigDefaults.json");
+        const readiness = evaluateLiveReadiness({ config, liveSelection: readySelection(historical) });
+        expect(readiness).toMatchObject({ passed: false, activationAllowed: false });
+        expect(readiness.reasons).toContainEqual(expect.objectContaining({ code: "LIVE_CONFIG_MISMATCH" }));
+    });
+
     test("passes a matching M15 intraday live release", () => {
         const config = readyConfig();
         const readiness = evaluateLiveReadiness({

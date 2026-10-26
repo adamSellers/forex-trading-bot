@@ -5,7 +5,7 @@ const { H4_MS, attachSides, multiDayTrendFixture, appendH4 } = require("./fixtur
 
 describe("H4 rolling channel strategy", () => {
     test("freezes the declared version, data and parameter defaults", () => {
-        expect(strategy).toMatchObject({ key: "multi_day_trend", version: "2.0.0",
+        expect(strategy).toMatchObject({ key: "multi_day_trend", version: "2.1.0",
             requiredData: { timeframes: ["4h"], indicators: ["atr"] } });
         expect(Object.isFrozen(DEFAULT_MULTI_DAY_TREND_CONFIG)).toBe(true);
         expect(DEFAULT_MULTI_DAY_TREND_CONFIG).toMatchObject({ trendBreakoutBars: 20,
@@ -20,7 +20,7 @@ describe("H4 rolling channel strategy", () => {
             fixture.h4.map((c) => c.close), 14).at(-1);
         expect(actual).toMatchObject({ signalType: side, entryType: "ROLLING_CHANNEL_BREAKOUT",
             signalClass: "ACTIONABLE", signalCandleTime: fixture.h4.at(-1).time,
-            metadata: { strategy: "multi_day_trend", version: "2.0.0" },
+            metadata: { strategy: "multi_day_trend", version: "2.1.0" },
             htfContext: { enabled: false }, tradePlan: { stopPriceMode: "ATR_DISTANCE",
                 stopLossType: "ATR", takeProfit: null, takeProfitPrice: null, targetRiskMultiple: null } });
         expect(actual.atrVal).toBe(atr);

@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const defaults = require("../../../shared/tradingConfigDefaults.json");
 const legacyDefaults = require("../../../shared/legacyIntradayConfigDefaults.json");
+const legacyH4Defaults = require("../../../shared/legacyH4ChannelConfigDefaults.json");
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -38,6 +39,8 @@ const NUMERIC_KEYS = new Set([
     "trailingStopActivationPips",
     "trailingStopActivationRiskMultiple",
     "trailingStopRiskMultiple",
+    "peakProfitTrailActivationRiskMultiple",
+    "peakProfitTrailRiskMultiple",
     "sessionCloseLocalHour",
     "sessionCloseLocalMinute",
     "sessionCloseWindowMinutes",
@@ -74,6 +77,7 @@ const BOOLEAN_KEYS = new Set([
     "enableBreakeven",
     "enableTrailingStops",
     "enableChannelTrailing",
+    "enablePeakProfitTrail",
     "enableEmailAlerts",
     "enforceConfigFreeze",
 ]);
@@ -122,7 +126,8 @@ function normalizeTradingConfig(config = {}, { mergeDefaults = true } = {}) {
     const legacy = config.strategy === "intraday_momentum" ||
         String(config.liveReleaseVersion || "").startsWith("m15-intraday-") ||
         String(config.executionPolicyVersion || "").startsWith("intraday-risk-");
-    const base = mergeDefaults ? clone(legacy ? legacyDefaults : defaults) : {};
+    const historicalH4 = isLegacyH4Config(config);
+    const base = mergeDefaults ? clone(legacy ? legacyDefaults : historicalH4 ? legacyH4Defaults : defaults) : {};
     const normalized = { ...base, ...clone(config || {}) };
     delete normalized.configHash;
 
@@ -174,6 +179,11 @@ function normalizeTradingConfig(config = {}, { mergeDefaults = true } = {}) {
     return normalized;
 }
 
+function isLegacyH4Config(config = {}) {
+    return config.liveReleaseVersion === "h4-channel-v1" ||
+        config.executionPolicyVersion === "h4-channel-risk-v1";
+}
+
 function getStrategyDefaultConfig(strategyKey) {
     if (!strategyKey) return {};
     try {
@@ -190,10 +200,12 @@ function materializeStrategyConfig(config = {}, options = {}) {
     const provided = clone(config || {});
     const strategyKey = options.strategyKey || provided.strategy ||
         options.baseConfig?.strategy || defaults.strategy;
-    const base = normalizeTradingConfig({ ...(options.baseConfig || {}), strategy: strategyKey });
+    const base = normalizeTradingConfig({ ...(options.baseConfig || {}), ...provided, strategy: strategyKey });
     return normalizeTradingConfig({
         ...base,
-        ...getStrategyDefaultConfig(strategyKey),
+        // A stored H4-v1 owner must retain its original fields and hash rather
+        // than inherit the newer strategy definition's profit-protection rule.
+        ...(isLegacyH4Config(base) ? {} : getStrategyDefaultConfig(strategyKey)),
         ...provided,
         strategy: strategyKey,
     });

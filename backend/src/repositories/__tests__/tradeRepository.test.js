@@ -2,6 +2,7 @@
 const TradeRepository = require('../tradeRepository');
 const { createTestDb, seedTestData, cleanupTestDb, destroyTestDb } = require('../../../__tests__/helpers/testDb');
 const { createMockTrade, createClosedTrade, createLosingTrade, createDbRecord } = require('../../../__tests__/fixtures/mockTrades');
+const { buildOwnerRunExitPolicy, resolveOwnerRunExitPolicy, evaluatePeakProfitTrail } = require('../../runtime/exitPolicy');
 
 // Store reference to test database for mock
 // IMPORTANT: Variable must be prefixed with 'mock' for Jest hoisting to work
@@ -562,6 +563,45 @@ describe('TradeRepository', () => {
                     },
                 })
             );
+        });
+
+        test('SQLite reload preserves the v3 owner, original risk, executable peak and pending protection independently of the moving stop', async () => {
+            const ownerExitPolicy = buildOwnerRunExitPolicy({ ownerRunId: 'h4-peak-owner', config: {
+                strategy: 'multi_day_trend', liveReleaseVersion: 'h4-channel-v2',
+                executionPolicyVersion: 'h4-channel-risk-v2', enablePeakProfitTrail: true,
+                peakProfitTrailActivationRiskMultiple: 1, peakProfitTrailRiskMultiple: 0.5,
+            } });
+            expect(ownerExitPolicy.version).toBe(3);
+            const liveRuntime = { initialStopLossPrice: 157.762, initialStopDistance: 0.721, ownerExitPolicy };
+            await repository.save(createMockTrade({ id: 'h4-durable-peak', oandaTradeId: '3550',
+                instrument: 'USD_JPY', side: 'SELL', units: 28, entryPrice: 157.041,
+                stopLossPrice: 157.762, activeStopType: 'INITIAL', ownerRunId: 'h4-peak-owner',
+                strategy: 'multi_day_trend', brokerReconciliationPayload: { liveRuntime } }));
+            const peakProfitTrail = { version: 1, peakPrice: 156.085,
+                observedAt: 1792715965490, quoteEventAt: 1792715963490 };
+            const stopUpdate = { status: 'RETRY_PENDING', desiredPrice: 156.446,
+                stopType: 'PEAK_PROFIT', nextRetryAt: 1792715970490,
+                localUpdates: { trailingStopPrice: 156.446 } };
+            await repository.updateTrade('h4-durable-peak', { reconciliationStatus: 'STOP_UPDATE_RETRY_PENDING',
+                brokerReconciliationPayload: { liveRuntime, peakProfitTrail, stopUpdate } });
+
+            const [restored] = await new TradeRepository().getOpenTrades({ ownerRunId: 'h4-peak-owner' });
+            expect(restored.brokerReconciliationPayload).toEqual({ liveRuntime, peakProfitTrail, stopUpdate });
+            expect(restored.reconciliationStatus).toBe('STOP_UPDATE_RETRY_PENDING');
+            const restoredPolicy = resolveOwnerRunExitPolicy(restored, { strategy: 'intraday_momentum' });
+            expect(restoredPolicy).toEqual(ownerExitPolicy);
+            expect(evaluatePeakProfitTrail({ trade: restored, policy: restoredPolicy,
+                runtimeMetadata: restored.brokerReconciliationPayload.liveRuntime,
+                peakPrice: restored.brokerReconciliationPayload.peakProfitTrail.peakPrice }).stopLossPrice).toBeCloseTo(156.4455);
+
+            await repository.updateTrade(restored.id, { stopLossPrice: 156.446, trailingStopPrice: 156.446,
+                activeStopType: 'PEAK_PROFIT', reconciliationStatus: 'OPEN',
+                brokerReconciliationPayload: { ...restored.brokerReconciliationPayload, stopUpdate: null } });
+            const [confirmed] = await new TradeRepository().getOpenTrades({ ownerRunId: 'h4-peak-owner' });
+            expect(confirmed).toMatchObject({ stopLossPrice: 156.446, trailingStopPrice: 156.446,
+                activeStopType: 'PEAK_PROFIT', reconciliationStatus: 'OPEN',
+                brokerReconciliationPayload: { liveRuntime, peakProfitTrail, stopUpdate: null } });
+            expect(confirmed.brokerReconciliationPayload.liveRuntime.initialStopDistance).toBe(0.721);
         });
 
         test('should update runtime identity fields', async () => {
