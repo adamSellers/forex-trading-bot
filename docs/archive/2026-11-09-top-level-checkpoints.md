@@ -1,0 +1,220 @@
+# Top-level instruction and README snapshots — 9 November 2026
+
+These snapshots preserve the complete top-level documents before the engineering documentation cleanup at source `7ddee7923839bcd7ae8a4cac0df3c182229a07c2`. Their dates, observations, release-specific authorizations and superseded checkpoints retain their original meaning. They are historical reference, not current operating instructions or present production-state evidence.
+
+The fenced contents are byte-for-byte copies; relative paths and links inside them retain their original repository-root context. Current instructions live in [CLAUDE.md](../../CLAUDE.md), and the dated implementation/delivery status is in the [engineering review record](../reviews/2026-11-09-engineering-review.md).
+
+## CLAUDE.md
+
+Original path: `CLAUDE.md`
+SHA-256: `bf5e325e890240203fd1bf312e0010bf0d878beb67b933bf5b14f5b7f23118d1`
+
+````markdown
+# Forex Trading Bot — repository instructions
+
+**October 18 deployment verified:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md) is deployed at clean `c09efb5`, verified healthy and flat at **17:38 AEDT**, with entries **paused** and readiness passing. All 1,468 target backend tests, build, backup and deployment health checks passed; local checks also cover 21 frontend tests, 23 health scenarios and 57 deployment/restore cases. All four pairs have completed H4 bid/ask data. Adam must use the existing Start Trading control to activate entries. Profitability and trade frequency remain unproven. Earlier pending-delivery statements below describe prior checkpoints.
+
+**October 18 superseding authorization:** Adam requested the H4 replacement, accepted multi-day holding and one trade per pair, delegated remaining choices, then authorized building, publishing and standard deployment. [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md), key `multi_day_trend`, release `h4-channel-v1`, is being validated. Keep old `intraday_momentum` defaults, hashes and owner exits for history. Shared risk limits and loss/cooldown state remain. Preserve intentional paused entries; Adam activates through the existing Start Trading control. No profitability or trade-frequency claim follows from correctness tests. The earlier October 17 statement that no redesign was selected describes that dated checkpoint.
+
+**Project language policy, October 6:** no Python for source, research, analysis,
+tooling, tests, deployment or maintenance. Use Node.js and the existing shell
+scripts. Preserve demonstrated contracts and safety checks when replacing tooling;
+historical evidence retains its original provenance. This is also saved in Adam's
+global `~/.codex/AGENTS.md` instructions and applies across projects.
+
+**October 18 pause confirmation:** Adam [confirmed directly](docs/reviews/evidence/2026-10-17/user-pause-confirmation-2026-10-18.json) that he intentionally paused trading around **17:34 AEDT on October 17**. This resolves the earlier uncertainty about pause intent; it does not separately attribute the preceding Start request. Preserve the existing paused intent. The confirmation changes no viability finding, strategy rule or runtime setting; the October 17 report and evidence retain their original dated provenance.
+
+**October 17 viability review complete:** the [current v6 review](docs/reviews/2026-10-17-strategy-viability-review.md) recommends **SCRAP the current rule set as a live strategy**, preserving the infrastructure. Statistical evidence for positive expectancy is **INCONCLUSIVE**, not proof that every model loses: all eight fixed full-history cases and eight separate recent cases completed and were audited. Median models produce 28 trades / +A$0.4256–0.7046 over 6.42 years; stress leaves +A$0.0116–0.0415. Every synthetic case loses in each year from 2022 through partial 2026, and day/episode uncertainty spans zero. The recent cohort has zero trades. No redesign, strategy/risk change or new funding was selected or implemented. Research/report files remain local and unpublished; this does not complete the older v5 R3 baseline or other untouched packages.
+
+**October 17 evidence recovery deployed:** the user explicitly approved publication and standard deployment of the [recovery-only fix](docs/reviews/2026-10-17-historical-close-evidence-recovery.md), source **`519b428`**. Authentic close-time proof for AUD/USD 2867 and GBP/USD 2858 is recovered separately from old local timestamps. All 1,336 target checks, build, backup and deployment verification passed. Later read-only verification at **20:45 AEDT** found healthy services, v6 / 1.4.0, entries **disabled**, flat and no uncertain/pending exposure. Preserve that observed entry intent; browser-like Start/Stop requests at 17:34 establish no actor. Only recovery delivery was approved; the new offline research remains unpublished. Local research validation passed 1,353 tests / 70 suites, separate from the deployed target checks.
+
+**October 7 BUY fix deployed:** [v6 / strategy 1.4.0 / intraday-risk-v6](docs/reviews/2026-10-07-buy-retest-release.md) is verified at clean **`562334b`**, healthy/enabled and flat at **12:23 AEDT**. Normal BUY entries require distinct completed break/retest/confirmation, bid structural stops and one broker fill per frozen breakout episode until observed cancellation/new formation. SELL-to-BUY fades are disabled to prevent bypass; SELL rules, numerical risk, historical ownership and all-history H1 loss-reset evidence remain. All 1,316 backend tests / 68 suites passed locally and on the target, with 16 local frontend checks, builds and the matched backup verified. Publication/deployment used local commits → GitHub → the existing command. This prospective selection does not establish profitability or complete the other research packages. Earlier dated checkpoints below retain their original observations.
+
+**October 7 EUR/USD incident review:** broker-confirmed BUY 3507 scratched at breakeven, then BUY 3519 lost A$0.1691. The protected-exit guard accepted four new post-exit EMA touches; v5 BUY freshness permits another pullback within the same trend and does not consume a broader market setup. The second ATR stop was 1 pip above the minimum bid low of the planned latest-touch-to-confirmation span. The [review and retained evidence](docs/reviews/2026-10-07-eurusd-breakeven-repeat.md) records the unchanged production state at that diagnostic checkpoint; subsequent user selection is recorded above.
+
+**October 6 tooling deployed:** clean `9b3785b` is verified healthy/enabled with the prebuilt SQLite correction; strategy 1.3.0, risk/run/config and loss/cooldown state are preserved. active research and operations now use Node.js/shell under the permanent no-Python policy. Historical Python sources are retired to Git history; numerical evidence/provenance is retained. All 1,229 backend tests, 57 deployment/restore cases, 21 health scenarios and backup regressions pass. The [migration record](docs/reviews/2026-10-06-node-tooling.md) records scope, native-install fallback policy, archive compatibility and delivery.
+
+**October 6 offline replay checkpoint:** R1/R2 now include causal inputs, controlled clocks, a stateful broker model, migrated SQLite, orderly cold process recovery, persisted lifecycle feedback and explicit source/delivery/timer events. All **1,198 backend tests / 64 suites** pass; pinned historical software screens reproduce with zero observed network attempts. The [events and recovery record](docs/reviews/2026-10-06-replay-events-and-recovery.md) records scope and limits. Research remains offline; last verified production is `810c7f9`, v5 / 1.3.0. Retained broker parity, exhaustive historical path/cost/boundary coverage, crash races, R3 performance baseline and candidate selection remain pending. No strategy profitability or new live rules are claimed.
+
+**October 6 measurement release deployed:** A1–A3 are verified at clean `810c7f9`; 1,037 backend tests passed locally and on the target, plus 16 local frontend/deployment-contract checks and production builds. Backup and post-release checks passed; enabled v5 strategy/risk/run/config and loss state were preserved. The [release record](docs/reviews/2026-10-06-analytics-measurement-release.md) specifies attribution, uncertainty and observed-expectancy contracts. The user explicitly authorizes local tests/builds, commits, GitHub publication and the existing deployment command for this work, superseding older user-managed delivery restrictions. Strategy 1.3.0 and live risk rules remain unchanged. The [plan](docs/reviews/2026-10-06-profitability-implementation-plan.md) authorizes isolated offline research; the product continues to have one live runtime.
+
+**October 1 deployment verified:** [v5 SELL break/retest candidate](docs/reviews/2026-10-01-sell-retest-release.md) is live at clean **`73cf4b5` / strategy 1.3.0 / intraday-risk-v5**. SELL entries require distinct completed break, retest and rejection candles with ask-based structural stops. BUY entry rules and numerical risk limits remain unchanged; BUY-to-SELL fades are disabled. All 1,004 backend tests passed locally and in deployment; build, backup and live verification passed. Entries are enabled, all four pairs have ask-candle/pattern evidence, and the chart correction is deployed. The user explicitly authorized local commits, GitHub publication, builds and deployment. This supersedes older current-state and pending-release summaries below.
+
+**September 30 deployment verified:** v4.2 / strategy 1.2.2 / intraday-risk-v4.2 is running at clean `c6b6c77`, published locally through GitHub and deployed with the standard command. Verification at 14:10 AEST confirmed healthy services, enabled intent, flat/resolved broker state and the original cooldown ending 22:13:58 AEST. All 906 backend tests passed locally and during deployment; builds and backup verification passed. The [release record](docs/reviews/2026-09-30-loss-reset-release.md) is authoritative; earlier implementation/pending-delivery statements below describe prior checkpoints.
+
+## Authoritative current state
+
+**September 30 authorized work:** the user subsequently requested implementation and deployment of the [H1 loss-reset requirement](docs/reviews/2026-09-30-loss-reset-release.md), **v4.2 / strategy 1.2.2**. For this specific release the user authorizes local commits, GitHub publication, builds and the existing deployment command, superseding the standing user-managed restriction below. Preserve the one-way workflow. Only normal initial stops arm the new same-pair/same-direction H1 nonmatching-then-matching requirement; breakeven does not. The linked release record tracks implementation, validation and actual delivery separately.
+
+**September 30 superseding observation:** read-only inspection verified clean user-deployed `6722838`, **m15-intraday-v4.1 / strategy 1.2.1 / intraday-risk-v4.1**. Earlier pending-v4.1-deployment statements describe the prior checkpoint. The [repeated USD/JPY review](docs/reviews/2026-09-30-repeated-usdjpy-review.md) broker-verifies three current-release trades: two full stops and one protected breakeven scratch, net −A$0.3521. Ordinary stop-losses deliberately bypass protected-exit freshness; applying that existing predicate after losses would still allow all three. Do not infer absent freshness from its unevaluated default telemetry. No new loss-specific policy was approved or implemented; this diagnostic changed documentation/evidence only. See the dated report for cooldown and broker snapshots, not a continuing runtime-state assertion.
+
+This is one live OANDA AUD account and one `intraday_momentum` runtime. Read-only inspection on September 28 verified clean user-deployed revision `aed750f`, release `m15-intraday-v4`, strategy `1.2.0`, execution policy `intraday-risk-v4`; the dashboard/API and broker were healthy, enabled and flat. The user then explicitly requested removal of the global position-count cap. The [pair capacity release](docs/reviews/2026-09-28-pair-capacity-release.md) defines local **m15-intraday-v4.1 / strategy 1.2.1 / intraday-risk-v4.1**, implemented and locally validated with latest passing results covering 850 tests across 41 backend suites; publication/build/deployment remain pending and user-managed. The [status register](docs/reviews/2026-09-26-status-and-decisions.md) separates deployed and local state; dated review evidence is unchanged.
+
+The [September 26 review](docs/reviews/2026-09-26-follow-up-trading-review.md) broker-verifies ten additional trades, net −A$0.5369. The reviewed v3.3 run totals 25 trades / −A$1.2693; all 35 since September 6 total −A$0.7871 across mixed releases. The [excursion correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) is deployed: all ten new trades have verified version 2 lifetime samples, with legacy aggregates still unverified. The original 744-test implementation validation and the later production observation are separate facts.
+
+The user subsequently authorized the [integrated release specification and implementation](docs/reviews/2026-09-26-integrated-release-specification.md). That deployed v4 release implements bar-aligned pullback/resumption, all-trigger protected-exit freshness, one opposite-direction fade per normal TP episode without freshness, exact serialized-price sizing and RSI/decision attribution. Local validation passed: 834 tests across 41 backend suites; the changed analytics JSX also passed syntax validation; publication, builds and deployment remain user-managed. Production was not changed by the implementation; the user subsequently deployed it, verified September 28. Both normal and fade entries retain 1.5R targets, existing stops/exits and numerical risk limits.
+
+The research is mixed: the structural rule excludes five of 35 historical fills whose actual net was +A$0.0315, including two winners; the four conditional fade paths produce two targets and two stops, with no observed BUY-to-SELL example. These are explicitly experimental entry changes, not a proven profitable replacement or a blanket ban on pure pullbacks. The precision correction fixes a demonstrated order-bound mismatch; actual reviewed fills stayed within budget.
+
+Read these documents before changing trading behavior:
+
+- [Pair capacity release](docs/reviews/2026-09-28-pair-capacity-release.md): explicit September 28 user decision, current concurrency contract, migration and validation status.
+- [Integrated release specification](docs/reviews/2026-09-26-integrated-release-specification.md): authorized v4 scope, exact entry/episode contracts, evidence limits and acceptance status.
+- [README.md](README.md) and [USER_GUIDE.md](USER_GUIDE.md).
+- [September 26 status and decisions](docs/reviews/2026-09-26-status-and-decisions.md) and [performance review](docs/reviews/2026-09-26-follow-up-trading-review.md): latest verified state, evidence and unresolved choices.
+- [September 6 production review](docs/reviews/2026-09-06-production-review.md): immutable evidence from the read-only audit.
+- [September 6 remediation register](docs/reviews/2026-09-06-remediation.md): accepted changes, justification, verification and delivery status.
+- [project_roadmap.md](project_roadmap.md): current implementation checkpoints.
+- [PROJECT_HISTORY.md](PROJECT_HISTORY.md): completed milestones with explicit deployment state.
+
+## Permanent constraints
+
+- One live strategy, one active entry runtime, no simulated execution subsystem, no strategy promotion/switching interface.
+- This is a private personal tool available only on the user's internal network. The user explicitly removed the operator login requirement on 2026-09-07. Dashboard, API, sockets, startup and ordinary maintenance require no app login or operator token. Do not reintroduce accounts, sessions or access gates as general remediation; broker credentials and trading risk checks remain required.
+- Automatic emails cover the existing trade-open/close notifications only. Operational health belongs in the dashboard/API; do not reintroduce warning/recovery emails or reuse the trade-email setting for new notification categories without explicit user instruction. Keep health, readiness and risk checks active.
+- No manual test orders. Use isolated mocks/fixtures to test failures and lifecycle integration.
+- Preserve broker ownership, durable intents, historical run/config attribution and real trade records.
+- Broker/account truth wins over local caches. Uncertain exposure or protective orders must stop new entries while reconciliation/management continues.
+- Keep entry risk at or below 0.25% and sizing-capital ceiling A$100, with existing portfolio/margin/loss limits. The September 28 user decision removes the account-wide position-count cap: one position per pair, with qualifying different pairs allowed concurrently. Further funding or risk-limit changes require an explicit user decision; do not reintroduce the retired global cap as a safety default.
+- Each behavioral release increments release/strategy identity and retains prior cohorts. Fixes must be demonstrated through the live orchestration path, not only isolated helper tests.
+
+## Authorized September 6 work
+
+The user approved implementation of the review findings and requested documentation of every change and its justification. Complete the authorized local remediation, record verification results and unresolved limits, and keep production unchanged. Do not reinterpret statistical hypotheses in the report as approval to tune entry indicators or select retrospectively winning pairs/sides.
+
+## Git, build and production workflow
+
+The workflow is strictly one way: local development → local commits and publication to GitHub → deployment from GitHub to the bot. Never stage, commit or push source from the production machine, reverse-sync its code into GitHub, or edit deployed source as a hotfix. Diagnose there when authorized, implement locally, and use the same deployment path for every release. This is also the user's standing rule for all projects.
+
+Except for explicitly authorized releases (including the October 1 v5 request above), the user manages Git publication, builds and deployments. Do not run `git add`, `git commit`, `git push`, frontend/production builds, deployment scripts or production restarts. The user-facing deployment is one command after Git publication: `./scripts/deploy.sh` from the local checkout (`./scripts/update.sh` on the Pi). Keep setup, staging and checks in the scripts; do not turn normal deployment into a manual runbook. Read-only SSH is authorized at `adam@img.oakroad:/opt/forex-trading-bot`; never edit deployed source directly.
+
+Backend tests, isolated fault reproductions, syntax/lint checks, dependency installation needed for local tests and local source/documentation edits are appropriate. Use Node >=20 <23 (pinned `.nvmrc`); native SQLite must match Node's ABI. Never point a test at the production database or load broker credentials into a test process.
+
+## Documentation and checkpoints
+
+Keep the remediation register current with finding → change → rationale → tests → remaining work. Update user-facing docs when behavior changes. Mark code completion separately from deployment. Checkpoints preserve context; do not silently drop remaining authorized work. Historical instructions and old strategy decisions are historical evidence, not current policy.
+
+## Authorized September 28 pair capacity release
+
+Local v4.1 implements the [pair capacity contract](docs/reviews/2026-09-28-pair-capacity-release.md): the active global count setting/readiness ceiling is removed, same-pair exclusion and all existing risk/strategy/broker guards remain, and API/UI report one per pair. The existing aggregate stop-risk ceiling remains 0.5% of NAV and can still reject additional full-risk pairs. Preserve saved settings/enabled intent except the retired field, historical snapshots, active cooldown expiry and prior trade ownership. This explicit decision supersedes earlier one-position preservation instructions; no publication/build/deployment authorization changed. Final validation is recorded in the release record: latest passing results cover 850 tests across 41 backend suites, with changed JSX syntax checks passing. These totals combine the full run and targeted reruns; no frontend build or deployment occurred.
+
+## Authorized September 26 integrated release
+
+The user approved preparing the complete release specification and implementing it locally. Preserve the package in the [specification](docs/reviews/2026-09-26-integrated-release-specification.md), including the ordinary pullback change, protected-exit continuation, experimental fade, precision correction and attribution. Do not narrow the work to the newest fade idea or introduce unrelated filters. The prior discussion-only instruction was superseded by this explicit implementation authorization; Git publication/build/deployment ownership was not changed.
+
+Ordinary pullbacks use each historical bar's EMA20/EMA50 and clear the structure from the latest touch, retaining the prior-two-bar minimum. Protected-exit freshness deliberately retains the separately specified **new signal EMA20** reference and requires a wholly post-exit prior bar. Apply it to both triggers. A same-direction repeat after normal TP without freshness may fade once; after BE it waits. A fade's close carries the original TP anchor and consumed state, never arms another fade. Persist original versus executed side and parent episode, and revalidate after broker reconciliation. Existing risk/quote/shorting checks apply to the actual order; signal reversal must not close a fade or displace an existing position to make room for one.
+
+The new signal must complete strictly after its protected exit; changing side/type must not reuse an already-completed candle. Use explicit matching broker close-time evidence or retained broker response timestamps. The historical `brokerClosedAt` field can contain a local observation fallback and alone cannot prove a post-exit condition. Preserve the separate normal/fade entry class in analytics without rewriting raw trigger meanings.
+
+The September 21/26 conditional studies are evidence, not alternate portfolio returns. Preserve the 1.5R target, +1R breakeven, original deadlines, costs, active cooldown deadlines and prior open-trade ownership. Historical studies retain their original one-position capacity; the September 28 live policy supersedes that cap without rewriting those studies. A new cohort identifies the combined change; component attribution is limited. Final integrated verification results belong in the specification. S3 destination choice, recovery drill and email-delivery checks remain separate operational follow-ups.
+
+## September 11 entry rejection and reconsideration correction
+
+The user approved correcting expected local pricing declines counted as system errors, double-counted unexpected errors, and same-candle suppression after a confirmed local decline. Reconsider only `SPREAD_TOO_WIDE`, `COST_TO_STOP_TOO_HIGH` and `ENTRY_PRICE_DEVIATION` outcomes that occurred before any order submission, on the next existing scan while the same setup still qualifies. Preserve the first decision-price anchor and its existing movement bound across attempts and restart through the existing durable decision records. Submission, uncertainty, fills and other rejection types retain suppression. Do not add a rapid retry loop, widen limits, change costs/risk/strategy thresholds or reset an anchor to chase the market. The [implementation record](docs/reviews/2026-09-11-entry-rejection-and-reconsideration.md) separates observed cached-price opportunities from unproven executable fills and records delivery state. The v3/v3.1/v3.2 migration preserves saved settings and enabled intent.
+
+## September 10 maintenance and quote-limit correction: deployed
+
+The user approved fixing the demonstrated backup/cooldown pause and exact quote-boundary rejections. Preserve enabled intent during maintenance while enforcing the original cooldown deadline at entry; distinguish activation permission from immediate entry readiness. Carry only an active cooldown through a release change, using existing run metadata; never clear or restart it merely by deploying. Preserve historical ownership and incomplete-streak isolation between cohorts. Numerical comparisons account for binary arithmetic error without widening trading limits or rounding broker prices. The v3/v3.1 upgrade preserves saved settings. The linked implementation record tracks justification, integrated validation and delivery state. An already-disabled production instance stays disabled until the user enables it through the normal dashboard control.
+
+## September 8 quote-freshness correction: deployed
+
+The user approved the full [quote-freshness correction](docs/reviews/2026-09-08-quote-freshness-fix-plan.md) on September 8, requiring each change to be justified, validated and minimal. User deployment of `d46da61`, `m15-intraday-v3.1` / strategy `1.1.1`, was verified read-only on September 10. The correction covers health, cached/final entry, pre-submission checks, management, conversions, telemetry and deployment-health verification; publication/build/deployment remain user-managed. Normal repeated OANDA events received in successful current responses are not by themselves a bot-health failure. Keep broker event time distinct from validated receipt and elapsed request time; changing a shared field's meaning requires tracing every consumer. Global Codex instructions in `~/.codex/AGENTS.md` record the user's cross-project lesson about evidence, scope and behavioural impact. Preserve the existing risk/strategy settings and historical semantics when implementing an approved correction.
+
+## Historical archive
+
+The previous CLAUDE.md, including earlier incidents and retired architectures, is preserved in [docs/archive/CLAUDE_HISTORY_BEFORE_2026-09-06.md](docs/archive/CLAUDE_HISTORY_BEFORE_2026-09-06.md). It must not override these current instructions.
+````
+
+## README.md
+
+Original path: `README.md`
+SHA-256: `828216f2218457bc0e97683b198cea3835600704e2834bf6773145722df8cf04`
+
+````markdown
+# Forex Trading Bot
+
+**October 27 deployment deferred:** [H4 peak profit protection 2.1.0](docs/reviews/2026-10-26-h4-peak-profit-release.md), release `h4-channel-v2`, is published at `461a277`. The standard deployment stopped at its existing flat-broker check while GBP/USD and EUR/USD SELL positions remain open. At 07:20 AEDT production was verified healthy/enabled, with protected positions, still at clean `c09efb5` / H4-v1. **The new rule is not deployed.** Local validation passes 1,508 backend tests, 22 frontend tests, 24 health scenarios, 57 deployment/restore scenarios and build. The rule adds a 0.5R peak trail after +1R alongside the channel; the tighter stop wins.
+
+**October 18 deployment verified:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md) is deployed at clean `c09efb5`, verified healthy and flat at **17:38 AEDT**, with entries **paused** and readiness passing. All 1,468 target backend tests, build, backup and deployment health checks passed; local checks also cover 21 frontend tests, 23 health scenarios and 57 deployment/restore cases. All four pairs have completed H4 bid/ask data. Adam must use the existing Start Trading control to activate entries. Profitability and trade frequency remain unproven. Earlier pending-delivery statements below describe prior checkpoints.
+
+**October 18 H4 replacement:** Adam authorized implementation, publication and standard deployment of [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md), release `h4-channel-v1`. Completed H4 20-bar crossings enter with a 2 ATR(14) stop and a 10-bar bid/ask protective channel. One position per pair, overlapping pairs within existing risk limits, weekday overnight holding and Friday 16:45 New York closure. No fixed target, automatic breakeven or six-hour exit for new owners. Historical M15 owners retain their policies. Delivery is being validated; intentional paused entries will be preserved. Profitability and trade frequency are unproven. Earlier checkpoints below remain historical.
+
+**October 7 BUY fix deployed:** [v6 BUY break/retest and consumed episodes](docs/reviews/2026-10-07-buy-retest-release.md), strategy **1.4.0**, is verified at clean **`562334b`**, healthy/enabled and flat. BUY entries require distinct completed break/retest/confirmation candles, a stop below broker bid structure and one fill per frozen breakout episode until observed cancellation and new formation. SELL-to-BUY fades are disabled; existing SELL behavior and cash-risk limits remain. All 1,316 backend tests passed locally and on the target, alongside 16 local frontend checks, builds and a matched backup. This is a prospective change, not demonstrated profitability.
+
+**October 6 Node.js tooling deployed:** verified clean `9b3785b` after tests, build, matched backup and health checks, with enabled intent and strategy/risk/run/loss state preserved. the permanent project language policy requires no Python. Active research, analysis, deployment, backup and restore tools now use Node.js/shell; retired source remains in Git history and historical numerical evidence is preserved. Validation passes 1,229 backend tests, 57 deployment/restore cases, 21 health scenarios and the backup regressions. The [migration record](docs/reviews/2026-10-06-node-tooling.md) records contracts, limits and delivery. Earlier release and runtime observations below are dated checkpoints.
+
+The [offline research tools](backend/research/README.md) cover persisted replay, cold recovery, lifecycle feedback and explicit price/delivery timing. Their dated [v5 validation record](docs/reviews/2026-10-06-replay-events-and-recovery.md) reports 1,198 passing backend tests and reproducible historical software screens. Active runtime fixtures now use the selected v6 contract; historical v5 source/evidence pins retain their original identity. Full historical performance evaluation and the remaining candidate comparisons are pending.
+
+**October 6 measurement release deployed:** A1–A3 are verified at clean `810c7f9`; 1,037 backend tests passed locally and on the target, plus 16 local frontend/deployment-contract checks and production builds. Backup and post-release checks passed; enabled v5 strategy/risk/run/config and loss state were preserved. The [release record](docs/reviews/2026-10-06-analytics-measurement-release.md) specifies attribution, uncertainty and observed-expectancy contracts. The user explicitly authorizes local tests/builds, commits, GitHub publication and the existing deployment command for this work, superseding older user-managed delivery restrictions. Strategy 1.3.0 and live risk rules remain unchanged. The [plan](docs/reviews/2026-10-06-profitability-implementation-plan.md) authorizes isolated offline research; the product continues to have one live runtime.
+
+**October 1 deployment verified:** [v5 SELL break/retest candidate](docs/reviews/2026-10-01-sell-retest-release.md) is live at clean **`73cf4b5` / strategy 1.3.0 / intraday-risk-v5**. SELL entries require distinct completed break, retest and rejection candles with ask-based structural stops. BUY entry rules and numerical risk limits remain unchanged; BUY-to-SELL fades are disabled. All 1,004 backend tests passed locally and in deployment; build, backup and live verification passed. Entries are enabled, all four pairs have ask-candle/pattern evidence, and the chart correction is deployed. The user explicitly authorized local commits, GitHub publication, builds and deployment. This supersedes older current-state and pending-release summaries below.
+
+**September 30 deployment verified:** [v4.2 H1 loss-reset release](docs/reviews/2026-09-30-loss-reset-release.md) is live at `c6b6c77` / strategy 1.2.2. After an initial stop, the same pair/direction requires completed H1 nonqualification followed by later requalification. Breakeven does not arm this requirement. The deployment passed 906 backend tests, build, backup and health checks; enabled intent and the existing cooldown were preserved. Earlier pending-release statements below are historical checkpoints.
+
+This repository runs one automated strategy against one live OANDA account. It has no simulated execution mode, strategy selector, or alternate runtime.
+
+**Authorized September 30 release:** [v4.2 / strategy 1.2.2](docs/reviews/2026-09-30-loss-reset-release.md) adds an H1 reset after a normal initial stop: that pair/direction must stop qualifying on a completed hourly candle, then qualify again on a later hourly candle before another normal M15 entry. Breakeven does not arm this requirement. Validation/publication/deployment progress is recorded in the release record; existing targets, exits and numerical risk limits remain unchanged.
+
+**September 30 observation:** user-deployed v4.1 / strategy 1.2.1 is verified at clean `6722838`; earlier pending-deployment statements below are historical. The [repeated USD/JPY review](docs/reviews/2026-09-30-repeated-usdjpy-review.md) verifies two full stops and one breakeven scratch in the new cohort and explains why ordinary stop-losses leave subsequent same-direction signals eligible. No new strategy rule was introduced by that review.
+
+See the [September 26 follow-up trading review](docs/reviews/2026-09-26-follow-up-trading-review.md) for the next ten trades (−A$0.5369), broker verification and the updated target/re-entry evaluation. The [September 21 review](docs/reviews/2026-09-21-eight-day-trading-review.md), [September 6 production review](docs/reviews/2026-09-06-production-review.md) and [remediation register](docs/reviews/2026-09-06-remediation.md) retain earlier evidence and approved corrections.
+
+Read-only inspection on September 26 verified the [excursion measurement correction](docs/reviews/2026-09-21-excursion-measurement-correction.md) deployed at `5889b66`; all ten new trades have verified version 2 samples. It removes post-close observations and separates unverified legacy data. The [target and re-entry study](docs/reviews/2026-09-21-target-and-reentry-evaluation.md) and its September 26 follow-up preserve the candidate rules and counterexamples reviewed before implementation.
+
+Read-only inspection on September 28 verified the user-deployed [integrated v4 release](docs/reviews/2026-09-26-integrated-release-specification.md) at clean `aed750f`, strategy 1.2.0. It combines revised pullback/resumption, protected-exit freshness, a post-TP fade experiment, exact broker-price sizing and decision/RSI attribution; its original local validation passed 834 tests across 41 backend suites.
+
+The user then requested removal of the global position-count cap. Local **v4.1 / strategy 1.2.1 / intraday-risk-v4.1** allows one position per pair while retaining all existing per-trade, portfolio, margin and loss limits. Local validation is complete: latest passing results cover 850 tests across 41 backend suites, plus changed JSX syntax checks. **Publication/build/deployment remain pending.** See the [pair capacity contract](docs/reviews/2026-09-28-pair-capacity-release.md) and [status register](docs/reviews/2026-09-26-status-and-decisions.md).
+
+## Historical M15 strategy and release state
+
+V5 retains the existing H1 regime, M15 trend/RSI, sessions, pricing, loss reset and protected-exit checks. BUY entries keep their eight-bar breakout or bar-aligned pullback/resumption. Normal SELL entries require a bearish break below the prior eight-bar low, a distinct later retest closing below that frozen level, then a later bearish close below the retest low. A close at/above the level cancels; another retouch updates the retest and cannot confirm on the same candle.
+
+The SELL stop is above the maximum retest-episode ask high plus a price tick, with the existing six-pip minimum. The exact submitted stop stays fixed after the fill; units fit the existing cash-risk budget and actual fill determines the 1.5R target and +1R breakeven. BUY stops remain max(1.25 M15 ATR, six pips). Missing ask evidence prevents a new SELL until broker evidence recovers. BUY-to-SELL fades are disabled; SELL-to-BUY fades and existing exits remain.
+
+Position size remains 0.25% of min(80% available margin, A$100), with one position per pair, 0.5%-of-NAV aggregate stop risk and existing margin checks. Three consecutive losses pause entries for 24 hours. Six-hour and New York rollover exits remain. Durable evidence and final broker reconciliation prevent stale, changed or already-filled patterns from opening another SELL. The [release contract](docs/reviews/2026-10-01-sell-retest-release.md) defines interaction with prior positions, retries and historical cohorts.
+
+This is a live experimental candidate; its profitability is unproven. Correctness tests validate implementation, while versioned actual OANDA outcomes provide performance evidence. Trade cadence is observed, never forced to reach a quota.
+
+## Current H4 strategy
+
+The locally implemented candidate is `multi_day_trend` 2.1.0; deployed 2.0.0 owners retain channel-only exits. A completed H4 close must freshly cross the preceding 20-bar high or low. The 20 bars describe recent history; the bot does not wait 80 hours after a crossing. Initial protection is max(2 × H4 ATR(14), six pips), then ratchets using the latest 10 completed H4 bid lows for a BUY or ask highs for a SELL. Version 2.1.0 additionally activates a 0.5R trail behind the best observed executable bid/ask after +1R, where R remains the original filled-entry-to-stop distance. The tighter stop wins and never loosens. Positions may span weekdays and close from Friday 16:45 New York.
+
+Position size remains 0.25% of min(80% available margin, A$100), one position per pair, 0.5%-of-NAV aggregate stop risk and existing margin/exposure controls. Three consecutive losses retain the 24-hour cooldown. Spread, expected slippage, price movement, broker reconciliation and receipt freshness checks remain. Daily financing affects overnight positions, including the usual Wednesday triple charge. Trade cadence is observed, never forced to a quota.
+
+The [peak protection release record](docs/reviews/2026-10-26-h4-peak-profit-release.md) tracks local validation and pending delivery; the [original H4 release](docs/reviews/2026-10-18-h4-channel-release.md) retains its deployment evidence. This is an experimental candidate with unproven profitability.
+
+## Runtime
+
+- Backend: Node.js 20-22, Express, Socket.IO, SQLite/Knex
+- Frontend: React, Vite, Material UI
+- Broker: OANDA REST v20 live API
+- Production: Raspberry Pi under PM2
+- Account/reference currency: AUD
+
+The engine reconciles its database with OANDA after restart, persists deterministic order intents before submission, recovers ambiguous submissions, quarantines unknown broker trades, and keeps protective-stop ownership with the live run that opened a position.
+
+## Local verification
+
+```bash
+cd backend
+npm test -- --runInBand
+cd ../frontend
+npm run build
+```
+
+The repository requires Node `>=20 <23`; native SQLite tests will not load under unsupported Node releases.
+
+## Deployment
+
+This is a private internal-network tool. Open the dashboard directly; there is no app login or operator token.
+
+After publishing the reviewed changes to `main`, deploy from your local checkout:
+
+```bash
+./scripts/deploy.sh
+```
+
+The command handles SSH, pause and broker checks, tests, build, backup, migration, restart, health and restoration of the previous trading state through readiness. See [the short deployment guide](scripts/DEPLOYMENT_README.md). The user explicitly authorized publication/build/deployment for the October 1 v5 release.
+
+See [USER_GUIDE.md](USER_GUIDE.md) for the operator surface and [M15_INTRADAY_RELEASE_2026-08-10.md](M15_INTRADAY_RELEASE_2026-08-10.md) for the original August design. The user guide and status register describe current behavior and decision points.
+````

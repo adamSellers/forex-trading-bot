@@ -1,4 +1,3 @@
-const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 const ACTIVE_INTENT_STATUSES = [
@@ -10,7 +9,7 @@ const ACTIVE_INTENT_STATUSES = [
 ];
 
 class BrokerLifecycleRepository {
-    constructor(database = db) {
+    constructor(database = require("../../config/database").db) {
         this.db = database;
     }
 

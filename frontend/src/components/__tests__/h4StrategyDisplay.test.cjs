@@ -103,13 +103,13 @@ test('mixed current and legacy signals retain their own timeframe and unknown va
 });
 
 test('market watching text follows the actual strategy without changing entry state', async () => {
-  const health = { status: 'healthy', market: { open: true }, entryState: 'WATCHING', checkedAt: 1 };
+  const health = { status: 'healthy', market: { open: true }, entryState: 'WATCHING', checkedAt: Date.now() };
   for (const [strategy, expected] of [['multi_day_trend', 'H4 channel breakout'], ['intraday_momentum', 'M15 setup']]) {
-    const Banner = await component('../dashboard/MarketStatusBanner.jsx', 'MarketStatusBanner', [health, false, false]);
-    assert.ok(textContent(Banner({ strategy })).includes(expected));
+    const Banner = await component('../dashboard/MarketStatusBanner.jsx', 'MarketStatusBanner');
+    assert.ok(textContent(Banner({ strategy, health })).includes(expected));
   }
-  const Banner = await component('../dashboard/MarketStatusBanner.jsx', 'MarketStatusBanner', [{ ...health, entryState: 'PAUSED' }, false, false]);
-  assert.ok(textContent(Banner({ strategy: 'multi_day_trend' })).includes('New entries are paused'));
+  const Banner = await component('../dashboard/MarketStatusBanner.jsx', 'MarketStatusBanner');
+  assert.ok(textContent(Banner({ strategy: 'multi_day_trend', health: { ...health, entryState: 'PAUSED' } })).includes('New entries are paused'));
 });
 
 test('the active catalog cannot rename a historical intraday run', async () => {
@@ -118,4 +118,27 @@ test('the active catalog cannot rename a historical intraday run', async () => {
   assert.equal(isH4Trend({ strategy: 'intraday_momentum', liveReleaseVersion: 'm15-intraday-v6' }), false);
   assert.equal(isH4Trend({ liveReleaseVersion: 'h4-channel-v1' }), true);
   assert.equal(isH4Trend({ liveReleaseVersion: 'h4-channel-v2' }), true);
+});
+
+test('controlled market status retains broker observation failures without changing entry state', async () => {
+  const health = { status: 'healthy', market: { open: true }, entryState: 'WATCHING', checkedAt: Date.now() };
+  const Banner = await component('../dashboard/MarketStatusBanner.jsx', 'MarketStatusBanner');
+  const rendered = textContent(Banner({ strategy: 'multi_day_trend', health, brokerUnavailable: true }));
+  assert.ok(rendered.includes('The latest broker connection check failed'));
+  assert.ok(rendered.includes('H4 channel breakout'));
+  assert.ok(textContent(Banner({ health, error: true })).includes('Market and bot status unavailable'));
+  assert.ok(textContent(Banner({ health: { ...health, checkedAt: Date.now() - 180001 } })).includes('Market and bot status unavailable'));
+});
+
+test('an accepted local pause displays immediately while older market health still reports watching', async () => {
+  const checkedAt = Date.now() - 1000;
+  const health = { status: 'healthy', market: { open: true }, entryState: 'WATCHING', checkedAt };
+  const Banner = await component('../dashboard/MarketStatusBanner.jsx', 'MarketStatusBanner');
+  const rendered = textContent(Banner({ strategy: 'multi_day_trend', health,
+    entryState: 'PAUSED', brokerUnavailable: true }));
+  assert.ok(rendered.includes('New entries are paused'));
+  assert.ok(!rendered.includes('Watching for a completed H4 channel breakout'));
+  assert.ok(rendered.includes('The latest broker connection check failed'));
+  assert.equal(health.checkedAt, checkedAt);
+  assert.equal(health.entryState, 'WATCHING');
 });

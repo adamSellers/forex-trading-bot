@@ -1,8 +1,11 @@
 // backend/src/repositories/signalRepository.js
-const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class SignalRepository {
+    constructor(database = require("../../config/database").db) {
+        this.db = database;
+    }
+
     _serializeJson(value) {
         if (value === undefined) return undefined;
         if (value === null) return null;
@@ -171,13 +174,13 @@ class SignalRepository {
             }
 
             try {
-                await db("signals").insert(this._buildSignalRecord(signal));
+                await this.db("signals").insert(this._buildSignalRecord(signal));
             } catch (error) {
                 if (!this._isMissingColumnError(error)) {
                     throw error;
                 }
 
-                await db("signals").insert(this._buildLegacySignalRecord(signal));
+                await this.db("signals").insert(this._buildLegacySignalRecord(signal));
             }
 
             logger.debug(
@@ -207,7 +210,7 @@ class SignalRepository {
             );
 
             try {
-                await db("signals").insert(signalRecords);
+                await this.db("signals").insert(signalRecords);
             } catch (error) {
                 if (!this._isMissingColumnError(error)) {
                     throw error;
@@ -216,7 +219,7 @@ class SignalRepository {
                 const legacyRecords = validSignals.map((signal) =>
                     this._buildLegacySignalRecord(signal)
                 );
-                await db("signals").insert(legacyRecords);
+                await this.db("signals").insert(legacyRecords);
             }
             logger.debug(`${signalRecords.length} signals saved to database`);
         } catch (error) {
@@ -227,7 +230,7 @@ class SignalRepository {
 
     async getRecent(limit = 50, filters = {}) {
         try {
-            const rows = await this._applyRuntimeFilters(db("signals"), filters)
+            const rows = await this._applyRuntimeFilters(this.db("signals"), filters)
                 .orderBy("timestamp", "desc")
                 .limit(limit);
             return rows.map((row) => this._mapRow(row));
@@ -240,7 +243,7 @@ class SignalRepository {
     async getBySymbol(symbol, limit = 50, filters = {}) {
         try {
             const rows = await this._applyRuntimeFilters(
-                db("signals").where("instrument", symbol),
+                this.db("signals").where("instrument", symbol),
                 filters
             )
                 .orderBy("timestamp", "desc")
@@ -257,7 +260,7 @@ class SignalRepository {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
             const rows = await this._applyRuntimeFilters(
-                db("signals").where("timestamp", ">=", timestamp),
+                this.db("signals").where("timestamp", ">=", timestamp),
                 filters
             ).orderBy("timestamp", "desc");
             return rows.map((row) => this._mapRow(row));
@@ -272,7 +275,7 @@ class SignalRepository {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
             const rows = await this._applyRuntimeFilters(
-                db("signals")
+                this.db("signals")
                     .select(
                         "instrument",
                         "signal",
@@ -301,7 +304,7 @@ class SignalRepository {
                         "run_id",
                         "selection_id",
                         "mode",
-                        db.raw("CASE WHEN json_valid(decision_context) THEN json_extract(decision_context, '$.entryAttemptId') END AS entry_attempt_id")
+                        this.db.raw("CASE WHEN json_valid(decision_context) THEN json_extract(decision_context, '$.entryAttemptId') END AS entry_attempt_id")
                     )
                     .where("timestamp", ">=", timestamp),
                 filters
@@ -330,10 +333,10 @@ class SignalRepository {
             let totalDeleted = 0;
             let deletedInBatch = 0;
             do {
-                deletedInBatch = await db("signals")
+                deletedInBatch = await this.db("signals")
                     .whereIn(
                         "id",
-                        db("signals")
+                        this.db("signals")
                             .select("id")
                             .where("timestamp", "<", cutoff)
                             .limit(batchSize)
@@ -356,7 +359,7 @@ class SignalRepository {
         try {
             if (!runId) return 0;
 
-            return await this._applyRuntimeFilters(db("signals"), {
+            return await this._applyRuntimeFilters(this.db("signals"), {
                 ...filters,
                 runId,
             }).del();
@@ -368,7 +371,7 @@ class SignalRepository {
 
     async deleteByRuntimeFilters(filters = {}) {
         try {
-            return await this._applyRuntimeFilters(db("signals"), filters).del();
+            return await this._applyRuntimeFilters(this.db("signals"), filters).del();
         } catch (error) {
             logger.error("Error deleting signals by runtime filters:", error);
             throw error;
@@ -380,7 +383,7 @@ class SignalRepository {
             const periodMs = this.parsePeriod(period);
             const cutoffTime = Date.now() - periodMs;
 
-            const rows = await db("signals").where(
+            const rows = await this.db("signals").where(
                 "timestamp",
                 ">=",
                 cutoffTime

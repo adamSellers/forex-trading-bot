@@ -1,5 +1,5 @@
 // Research harness: production orchestration and repositories, isolated SQLite.
-// The launcher/test supplies the broker singleton and database import boundaries.
+// The launcher/test supplies isolated database and broker adapters explicitly.
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -29,7 +29,7 @@ function comparable(value) {
     return value;
 }
 
-async function createPersistedReplay({ database, clock, market, broker, config = {}, onDatabaseClosed = null,
+async function createPersistedReplay({ database, clock, market, broker, brokerClient = broker, config = {}, onDatabaseClosed = null,
     configPath: suppliedConfigPath = null, priorEvents = [], pricingRequestTimeoutMs = null, captureEvents = true }) {
     if (process.env.NODE_ENV !== 'test' || process.env.RESEARCH_REPLAY_ISOLATED !== '1') {
         throw new Error('Persisted replay requires the isolated research test process');
@@ -63,8 +63,8 @@ async function createPersistedReplay({ database, clock, market, broker, config =
         return broker.getPricing(dataService.getPricingInstruments(), { includeHomeConversions });
     };
     const repositories = {
-        signals: new SignalRepository(), decisions: new EntryDecisionRepository(),
-        trades: new TradeRepository(), runs: new StrategyRunRepository(),
+        signals: new SignalRepository(database), decisions: new EntryDecisionRepository(database),
+        trades: new TradeRepository(database), runs: new StrategyRunRepository(database),
         lifecycle: new BrokerLifecycleRepository(database),
     };
     const analytics = new AnalyticsService(repositories.trades, repositories.signals, repositories.decisions);
@@ -108,7 +108,7 @@ async function createPersistedReplay({ database, clock, market, broker, config =
             tradeRepository: repositories.trades, strategyRunRepository: repositories.runs,
             brokerLifecycleRepository: repositories.lifecycle });
         await coordinator.ensureLiveSelectionInitialized();
-        engine = new LiveTradingEngine().init(configService, dataService, repositories.trades,
+        engine = new LiveTradingEngine({ brokerClient }).init(configService, dataService, repositories.trades,
             coordinator, null, repositories.decisions, repositories.lifecycle);
         const processQueue = engine.processQueue.bind(engine);
         engine.processQueue = () => {

@@ -109,6 +109,7 @@ describe("private internal-network app access", () => {
 
     afterAll(async () => {
         if (instance) await new Promise((resolve) => instance.io.close(resolve));
+        instance?.app.locals.liveOperator?.dispose();
         for (const [name, original] of Object.entries(previousListeners || {})) {
             for (const listener of process.listeners(name)) {
                 if (!original.includes(listener)) process.removeListener(name, listener);
@@ -126,12 +127,28 @@ describe("private internal-network app access", () => {
         expect(prices.body.prices[0].bid).toBe(0.67);
     });
 
+    test("the operator dashboard exposes one versioned view with truthful unavailable sources", async () => {
+        const config = instance.app.locals.configService.config;
+        const assets = config.assets;
+        config.assets = ["AUD_USD"];
+        try {
+            const { body } = await request(instance.server).get("/api/operator/dashboard").expect(200);
+            expect(body).toMatchObject({ schemaVersion: 1, streamId: expect.any(String), publication: expect.any(Number),
+                intent: { entriesEnabled: true, durable: true }, protection: { engineAttached: true },
+                observations: { account: { status: "unavailable", observedAt: null }, prices: { status: "available" } } });
+            expect(body.overview.prices[0]).toMatchObject({ instrument: "AUD_USD", bid: 0.67 });
+            expect(body.overview.prices[0].fetchedAt - body.overview.prices[0].timestamp).toBe(60_000);
+            expect(body.overview.account).toBeNull();
+        } finally { config.assets = assets; }
+    });
+
     test("actual server delegates ownership initialization and first scan to supervised attachment", async () => {
         const { createEngineSupervisor } = require("../src/runtime/engineSupervisor");
         const options = createEngineSupervisor.mock.calls[0][0];
         const coordinator = instance.app.locals.runtimeCoordinator;
+        const priorCalls = coordinator.ensureLiveSelectionInitialized.mock.calls.length;
         await options.beforeStart();
-        expect(coordinator.ensureLiveSelectionInitialized).toHaveBeenCalledTimes(1);
+        expect(coordinator.ensureLiveSelectionInitialized).toHaveBeenCalledTimes(priorCalls + 1);
         await options.onStarted();
         expect(coordinator.start).toHaveBeenCalledWith(instance.app.locals.dataService, 60000);
     });
@@ -140,6 +157,17 @@ describe("private internal-network app access", () => {
         await request(instance.server).post("/api/trading/stop")
             .send({}).expect(200, { success: true, message: "Live entries disabled" });
         expect(instance.app.locals.configService.update).toHaveBeenCalledWith({ enableTrading: false });
+        expect(instance.app.locals.configService.get().enableTrading).toBe(false);
+    });
+
+    test("operator commands preserve a confirmed pause and return structured activation rejection", async () => {
+        const paused = await request(instance.server).post("/api/operator/entries/pause").send({}).expect(200);
+        expect(paused.body).toMatchObject({ command: "pauseEntries", outcome: "accepted", success: true,
+            refreshPending: true, view: { intent: { entriesEnabled: false, durable: true },
+                entries: { state: "PAUSED" } } });
+        const rejected = await request(instance.server).post("/api/operator/entries/enable").send({}).expect(409);
+        expect(rejected.body).toMatchObject({ command: "enableEntries", outcome: "rejected", success: false,
+            liveReadiness: { activationAllowed: false } });
         expect(instance.app.locals.configService.get().enableTrading).toBe(false);
     });
 
@@ -188,8 +216,12 @@ describe("private internal-network app access", () => {
                     if (!packet.startsWith("42")) return;
                     const event = JSON.parse(packet.slice(2));
                     events.push(event);
-                    if (event[0] === "connected") socket.send('42["getPrices"]');
-                    if (events.some(([name]) => name === "engineStatus") &&
+                    if (event[0] === "connected") {
+                        socket.send('42["getPrices"]');
+                        socket.send('42["operatorSubscribe"]');
+                    }
+                    if (events.some(([name]) => name === "operatorView") &&
+                        events.some(([name]) => name === "engineStatus") &&
                         events.filter(([name]) => name === "priceUpdate").length === 2) finish();
                 });
             });
@@ -197,6 +229,9 @@ describe("private internal-network app access", () => {
                 message: "Connected to Forex Trading Bot",
             })]);
             expect(events.filter(([name]) => name === "priceUpdate")).toHaveLength(2);
+            expect(events).toContainEqual(["operatorView", expect.objectContaining({
+                schemaVersion: 1, streamId: expect.any(String), publication: expect.any(Number),
+            })]);
             const response = await request(instance.server).get("/api/prices?instruments=AUD_USD").expect(200);
             for (const [, prices] of events.filter(([name]) => name === "priceUpdate")) {
                 expect(prices.AUD_USD).toEqual(response.body.prices[0]);
@@ -205,6 +240,49 @@ describe("private internal-network app access", () => {
         } finally {
             socket.terminate();
         }
+    });
+
+    test("operator subscriptions stop independently while the shared navigation socket stays connected", async () => {
+        const events = [];
+        const waiting = new Set();
+        const socket = new WebSocket(`ws://127.0.0.1:${instance.server.address().port}/socket.io/?EIO=4&transport=websocket`);
+        const waitFor = (predicate) => new Promise((resolve, reject) => {
+            const check = () => {
+                if (!predicate()) return;
+                clearTimeout(timer);
+                waiting.delete(check);
+                resolve();
+            };
+            const timer = setTimeout(() => { waiting.delete(check); reject(new Error('Operator subscription event timed out')); }, 3000);
+            waiting.add(check);
+            check();
+        });
+        socket.on('message', (buffer) => {
+            const packet = buffer.toString();
+            if (packet.startsWith('0')) socket.send('40');
+            if (packet === '2') socket.send('3');
+            if (!packet.startsWith('42')) return;
+            const event = JSON.parse(packet.slice(2));
+            events.push(event);
+            if (event[0] === 'connected') socket.send('42["getPrices"]');
+            for (const check of [...waiting]) check();
+        });
+        try {
+            await waitFor(() => events.filter(([name]) => name === 'priceUpdate').length === 2);
+            expect(events.some(([name]) => name === 'operatorView')).toBe(false);
+            socket.send('42["operatorSubscribe"]');
+            await waitFor(() => events.some(([name, value]) => name === 'operatorSubscription' && value.active) &&
+                events.some(([name]) => name === 'operatorView'));
+            socket.send('42["operatorUnsubscribe"]');
+            await waitFor(() => events.some(([name, value]) => name === 'operatorSubscription' && value.active === false));
+            const stoppedAt = events.length;
+            const previousPriceCount = events.filter(([name]) => name === 'priceUpdate').length;
+            instance.app.locals.configService.emit('configChanged', instance.app.locals.configService.get());
+            socket.send('42["getPrices"]');
+            await waitFor(() => events.filter(([name]) => name === 'priceUpdate').length > previousPriceCount);
+            expect(events.slice(stoppedAt).some(([name]) => name === 'operatorView')).toBe(false);
+            expect(socket.readyState).toBe(WebSocket.OPEN);
+        } finally { socket.terminate(); }
     });
 
     describe("live server retention checkpoint", () => {

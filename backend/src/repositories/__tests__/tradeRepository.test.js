@@ -4,48 +4,20 @@ const { createTestDb, seedTestData, cleanupTestDb, destroyTestDb } = require('..
 const { createMockTrade, createClosedTrade, createLosingTrade, createDbRecord } = require('../../../__tests__/fixtures/mockTrades');
 const { buildOwnerRunExitPolicy, resolveOwnerRunExitPolicy, evaluatePeakProfitTrail } = require('../../runtime/exitPolicy');
 
-// Store reference to test database for mock
-// IMPORTANT: Variable must be prefixed with 'mock' for Jest hoisting to work
-let mockTestDbInstance = null;
-
-// Mock the database module - use a function that delegates to mockTestDbInstance
-jest.mock('../../../config/database', () => ({
-    db: new Proxy(function() {}, {
-        apply: (target, thisArg, args) => {
-            // Handle db("tableName") calls
-            if (mockTestDbInstance) {
-                return mockTestDbInstance(args[0]);
-            }
-            throw new Error('Database not initialized');
-        },
-        get: (target, prop) => {
-            // Handle db.fn, db.raw, etc.
-            if (mockTestDbInstance && mockTestDbInstance[prop]) {
-                return typeof mockTestDbInstance[prop] === 'function'
-                    ? mockTestDbInstance[prop].bind(mockTestDbInstance)
-                    : mockTestDbInstance[prop];
-            }
-            return undefined;
-        },
-    }),
-}));
-
 describe('TradeRepository', () => {
     let repository;
     let testDb;
 
     beforeAll(async () => {
         testDb = await createTestDb();
-        mockTestDbInstance = testDb;
     });
 
     afterAll(async () => {
         await destroyTestDb(testDb);
-        mockTestDbInstance = null;
     });
 
     beforeEach(async () => {
-        repository = new TradeRepository();
+        repository = new TradeRepository(testDb);
         await cleanupTestDb(testDb);
     });
 
@@ -57,6 +29,22 @@ describe('TradeRepository', () => {
         expect(trades.map((trade) => trade.id)).toEqual(['old-entry']);
         const entries = await repository.getTradesSince(4000, { timeBasis: 'entry', endTime: 6000 });
         expect(entries.map((trade) => trade.id)).toEqual(['still-open']);
+    });
+
+    test('independent ledgers retain their own trades across repository recreation', async () => {
+        const secondDatabase = await createTestDb();
+        try {
+            const secondRepository = new TradeRepository(secondDatabase);
+            await repository.save(createMockTrade({ id: 'same-id', entryPrice: 0.65 }));
+            await secondRepository.save(createMockTrade({ id: 'same-id', entryPrice: 0.72 }));
+
+            const [first] = await new TradeRepository(testDb).getOpenTrades();
+            const [second] = await new TradeRepository(secondDatabase).getOpenTrades();
+            expect(first.entryPrice).toBe(0.65);
+            expect(second.entryPrice).toBe(0.72);
+        } finally {
+            await destroyTestDb(secondDatabase);
+        }
     });
 
     describe('_mapToTradeObject', () => {
@@ -585,7 +573,7 @@ describe('TradeRepository', () => {
             await repository.updateTrade('h4-durable-peak', { reconciliationStatus: 'STOP_UPDATE_RETRY_PENDING',
                 brokerReconciliationPayload: { liveRuntime, peakProfitTrail, stopUpdate } });
 
-            const [restored] = await new TradeRepository().getOpenTrades({ ownerRunId: 'h4-peak-owner' });
+            const [restored] = await new TradeRepository(testDb).getOpenTrades({ ownerRunId: 'h4-peak-owner' });
             expect(restored.brokerReconciliationPayload).toEqual({ liveRuntime, peakProfitTrail, stopUpdate });
             expect(restored.reconciliationStatus).toBe('STOP_UPDATE_RETRY_PENDING');
             const restoredPolicy = resolveOwnerRunExitPolicy(restored, { strategy: 'intraday_momentum' });
@@ -597,7 +585,7 @@ describe('TradeRepository', () => {
             await repository.updateTrade(restored.id, { stopLossPrice: 156.446, trailingStopPrice: 156.446,
                 activeStopType: 'PEAK_PROFIT', reconciliationStatus: 'OPEN',
                 brokerReconciliationPayload: { ...restored.brokerReconciliationPayload, stopUpdate: null } });
-            const [confirmed] = await new TradeRepository().getOpenTrades({ ownerRunId: 'h4-peak-owner' });
+            const [confirmed] = await new TradeRepository(testDb).getOpenTrades({ ownerRunId: 'h4-peak-owner' });
             expect(confirmed).toMatchObject({ stopLossPrice: 156.446, trailingStopPrice: 156.446,
                 activeStopType: 'PEAK_PROFIT', reconciliationStatus: 'OPEN',
                 brokerReconciliationPayload: { liveRuntime, peakProfitTrail, stopUpdate: null } });

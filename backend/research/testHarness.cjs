@@ -1,4 +1,4 @@
-// Shared Jest-only import boundaries for real isolated orchestration suites.
+// Shared Jest clock/notification isolation for real orchestration suites.
 // This module is never imported by the application/server or a live runtime.
 const path = require('node:path');
 const knex = require('knex');
@@ -15,29 +15,7 @@ function createReplayTestHarness() {
     const resources = [];
     const installedClocks = new Set();
 
-    // Install these before importing production classes. The database import
-    // delegates only to the explicitly installed research connection.
-    jestApi.doMock('../config/database', () => ({ db: new Proxy(function () {}, {
-        apply: (_target, _this, args) => {
-            if (!database) throw new Error('Research database is not installed');
-            return database(...args);
-        },
-        get: (_target, key) => typeof database?.[key] === 'function'
-            ? database[key].bind(database) : database?.[key],
-    }) }));
     jestApi.doMock('uuid', () => ({ v4: () => `00000000-0000-4000-8000-${String(++uuidSequence).padStart(12, '0')}` }));
-    jestApi.doMock('../src/services/Oandaclient', () => {
-        const client = jestApi.requireActual('../src/services/Oandaclient');
-        const pure = ['getPipValue', 'getExecutableQuote', 'formatPrice', 'formatPriceBound', 'buildClientExtensions'];
-        const transport = ['initialize', 'getAccountSummary', 'getOpenTrades', 'getPricing', 'getTrade',
-            'placeMarketOrder', 'modifyTrade', 'closeTrade', 'findOrderIntent', 'getInstrumentMetadata'];
-        return { ...Object.fromEntries(pure.map((name) => [name, client[name].bind(client)])),
-            ...Object.fromEntries(transport.map((name) => [name, (...args) => {
-                if (!broker || typeof broker[name] !== 'function') throw new Error(`Research broker method unavailable: ${name}`);
-                if (name === 'getPricing' && finalPricing) return finalPricing(...args);
-                return broker[name](...args);
-            }])) };
-    });
     jestApi.doMock('../src/services/emailService', () => ({
         sendTradeOpenedAlert: jestApi.fn(async () => {}), sendTradeClosedAlert: jestApi.fn(async () => {}),
     }));
@@ -47,6 +25,7 @@ function createReplayTestHarness() {
     const { ReplayBroker } = require('./replayBroker.cjs');
     const { createPersistedReplay } = require('./persistedReplay.cjs');
     const { cloneDefaultConfig } = require('../src/config/tradingConfig');
+    const client = require('../src/services/Oandaclient');
 
     async function replay({ input, assets, startMs = fixtures.START, initialBalanceAud = 100,
         brokerOptions = {}, modelPricing = fixtures.pricingAssumptions, databasePath = ':memory:',
@@ -66,7 +45,18 @@ function createReplayTestHarness() {
             useNullAsDefault: true, pool: { min: 1, max: 1 } });
         await database.migrate.latest({ directory: path.resolve(__dirname, '../migrations') });
         if (beforeBoot) await beforeBoot({ clock, market, broker, database });
-        const harness = await createPersistedReplay({ database, clock, market, broker,
+        // Retain the live price/identifier serialization contract while the
+        // declared replay broker supplies every external observation/write.
+        const replayBroker = broker;
+        const pure = ['getPipValue', 'getExecutableQuote', 'formatPrice', 'formatPriceBound', 'buildClientExtensions'];
+        const transport = ['initialize', 'getAccountSummary', 'getOpenTrades', 'getPricing', 'getTrade',
+            'placeMarketOrder', 'modifyTrade', 'closeTrade', 'findOrderIntent', 'getInstrumentMetadata'];
+        const brokerClient = { ...Object.fromEntries(pure.map((name) => [name, client[name].bind(client)])),
+            ...Object.fromEntries(transport.map((name) => [name, (...args) => {
+                if (name === 'getPricing' && finalPricing) return finalPricing(...args);
+                return replayBroker[name](...args);
+            }])) };
+        const harness = await createPersistedReplay({ database, clock, market, broker, brokerClient,
             config: { ...cloneDefaultConfig(), assets }, configPath, priorEvents, pricingRequestTimeoutMs,
             captureEvents,
             onDatabaseClosed: () => { database = null; } });

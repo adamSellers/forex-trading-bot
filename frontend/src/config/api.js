@@ -48,6 +48,10 @@ export const API_ENDPOINTS = {
     tradingStop: "/api/trading/stop",
     tradingReset: "/api/trading/reset",
     tradingLiveReadiness: "/api/trading/live-readiness",
+    operatorDashboard: "/api/operator/dashboard",
+    operatorEnable: "/api/operator/entries/enable",
+    operatorPause: "/api/operator/entries/pause",
+    operatorReconcile: "/api/operator/reconcile",
 
     // configRoutes.js
     config: "/api/config",
@@ -158,6 +162,13 @@ export const apiCall = async (endpoint, options = {}) => {
 /**
  * Trading API - Market data, account, trades
  */
+export const operatorAPI = {
+    readDashboard: (options = {}) => apiCall(API_ENDPOINTS.operatorDashboard, options),
+    enableEntries: () => apiCall(API_ENDPOINTS.operatorEnable, { method: "POST" }),
+    pauseEntries: () => apiCall(API_ENDPOINTS.operatorPause, { method: "POST" }),
+    reconcileBroker: () => apiCall(API_ENDPOINTS.operatorReconcile, { method: "POST" }),
+};
+
 export const tradingAPI = {
     // Health & Status
     getStatus: () => apiCall(API_ENDPOINTS.health),
@@ -415,6 +426,7 @@ export default {
     socket,
     API_ENDPOINTS,
     apiCall,
+    operatorAPI,
     tradingAPI,
     configAPI,
     engineAPI,

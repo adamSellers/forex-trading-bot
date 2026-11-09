@@ -1,7 +1,10 @@
-const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class StrategyRunRepository {
+    constructor(database = require("../../config/database").db) {
+        this.db = database;
+    }
+
     _serializeJson(value) {
         if (value === undefined) return undefined;
         if (value === null) return null;
@@ -99,7 +102,7 @@ class StrategyRunRepository {
     }
 
     async create(run = {}) {
-        await db("strategy_runs").insert(this._buildRecord(run));
+        await this.db("strategy_runs").insert(this._buildRecord(run));
         return this.getByRunId(run.runId);
     }
 
@@ -140,7 +143,7 @@ class StrategyRunRepository {
 
     async update(runId, updates = {}) {
         if (!runId) return null;
-        await db("strategy_runs").where("run_id", runId).update(this._buildUpdates(updates));
+        await this.db("strategy_runs").where("run_id", runId).update(this._buildUpdates(updates));
         return this.getByRunId(runId);
     }
 
@@ -151,7 +154,7 @@ class StrategyRunRepository {
             nextRun.mode !== "live" || nextRun.status !== "active") {
             throw new Error("Live replacement must retire its predecessor and activate its successor");
         }
-        return db.transaction(async (transaction) => {
+        return this.db.transaction(async (transaction) => {
             const changed = await transaction("strategy_runs")
                 .where({ run_id: runId, mode: "live", status: "active" })
                 .update(priorUpdates);
@@ -167,12 +170,12 @@ class StrategyRunRepository {
     }
 
     async getByRunId(runId) {
-        const row = await db("strategy_runs").where("run_id", runId).first();
+        const row = await this.db("strategy_runs").where("run_id", runId).first();
         return this._mapRow(row);
     }
 
     async retireNonLiveRuns(stoppedAt = Date.now()) {
-        return db("strategy_runs")
+        return this.db("strategy_runs")
             .whereNot("mode", "live")
             .whereIn("status", ["active", "managing_only"])
             .update({
@@ -183,7 +186,7 @@ class StrategyRunRepository {
     }
 
     async list(filters = {}) {
-        const rows = await this._applyFilters(db("strategy_runs"), filters)
+        const rows = await this._applyFilters(this.db("strategy_runs"), filters)
             .orderBy("started_at", "desc");
         return rows.map((row) => this._mapRow(row));
     }

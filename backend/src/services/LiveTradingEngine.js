@@ -2,7 +2,7 @@
 const EventEmitter = require("events");
 const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
-const oandaClient = require("./Oandaclient");
+const BrokerLifecycle = require("../runtime/brokerLifecycle");
 const emailService = require("./emailService");
 const positionPolicy = require("../constants/positionPolicy");
 const { normalizeOandaPrice, evaluatePriceAvailability } = require("../runtime/quoteAvailability");
@@ -94,6 +94,8 @@ class LiveTradingEngine extends EventEmitter {
     constructor(options = {}) {
         super();
 
+        this.brokerClient = options.brokerClient || require("./Oandaclient");
+
         // Dependencies (injected via init())
         this.configService = null;
         this.dataService = null;
@@ -121,7 +123,15 @@ class LiveTradingEngine extends EventEmitter {
         this.isMonitoringPositions = false;
         this.highWatermarkNavAud = null;
         this.entryRiskState = null;
-        this.brokerLifecycleTail = Promise.resolve();
+        this.lifecycle = new BrokerLifecycle({
+            trades: this.openTrades,
+            operations: {
+                reconcile: (options) => this._syncWithOanda(options),
+                enter: (...args) => this._executeEntry(...args),
+                close: (...args) => this._executeExit(...args),
+                tightenStop: (...args) => this._applyBrokerStopUpdate(...args),
+            },
+        });
         this.brokerStateUncertain = true;
         this.lastBrokerReconciledAt = null;
         this.lastBrokerSyncAttemptAt = null;
@@ -218,7 +228,7 @@ class LiveTradingEngine extends EventEmitter {
 
         // Initialize Oanda client
         try {
-            await oandaClient.initialize();
+            await this.brokerClient.initialize();
         } catch (error) {
             logger.error(
                 "❌ Failed to initialize Oanda client:",
@@ -283,7 +293,7 @@ class LiveTradingEngine extends EventEmitter {
      * Sync open trades from database with local state
      */
     async syncOpenTrades({ throwOnError = false } = {}) {
-        return this.withBrokerLifecycle(async () => {
+        return this.lifecycle.transaction(async (lifecycle) => {
         try {
             const dbTrades = await this.tradeRepository.getOpenTrades();
 
@@ -297,7 +307,7 @@ class LiveTradingEngine extends EventEmitter {
             );
 
             // Also sync with Oanda to verify positions
-            await this._syncWithOanda({ throwOnError: true });
+            await lifecycle.reconcile({ throwOnError: true });
         } catch (error) {
             this.brokerStateUncertain = true;
             logger.error("❌ Failed to sync open trades:", error.message);
@@ -306,32 +316,24 @@ class LiveTradingEngine extends EventEmitter {
         });
     }
 
-    // Entries, closes, protection changes and reconciliation share one queue.
-    // A snapshot taken before a fill cannot subsequently mark that fill missing.
-    withBrokerLifecycle(operation) {
-        const result = this.brokerLifecycleTail.then(operation);
-        this.brokerLifecycleTail = result.catch(() => {});
-        return result;
-    }
-
     /**
      * Sync local state with actual Oanda positions
      */
     async syncWithOanda({ throwOnError = false } = {}) {
-        return this.withBrokerLifecycle(() => this._syncWithOanda({ throwOnError }));
+        return this.lifecycle.reconcile({ throwOnError });
     }
 
-    async _syncWithOanda({ throwOnError = false } = {}) {
+    async _syncWithOanda({ throwOnError = false, lifecycle } = {}) {
         this.brokerStateUncertain = true;
         this.lastBrokerSyncAttemptAt = Date.now();
         try {
-            const oandaResponse = await oandaClient.getOpenTrades();
+            const oandaResponse = await this.brokerClient.getOpenTrades();
             if (!Array.isArray(oandaResponse?.trades)) {
                 throw new Error("Broker open-trade snapshot is incomplete");
             }
             const brokerTrades = oandaResponse.trades;
 
-            await this.recoverPendingOrderIntents(brokerTrades);
+            await this.recoverPendingOrderIntents(brokerTrades, lifecycle);
 
             const oandaTradeIds = new Set(brokerTrades.map((t) => String(t.id)));
             const knownLocalIds = new Set([...this.openTrades.values()].map((trade) => String(trade.oandaTradeId)));
@@ -348,7 +350,7 @@ class LiveTradingEngine extends EventEmitter {
                     await this.handleExternalClose(trade);
                 } else if (trade.oandaTradeId) {
                     const brokerTrade = brokerTrades.find((item) => String(item.id) === String(trade.oandaTradeId));
-                    await this.reconcileBrokerProtection(trade, brokerTrade);
+                    await this.reconcileBrokerProtection(trade, brokerTrade, lifecycle);
                 }
             }
 
@@ -360,7 +362,7 @@ class LiveTradingEngine extends EventEmitter {
             );
             for (const brokerTrade of brokerTrades) {
                 if (!locallyManagedIds.has(String(brokerTrade.id)) && !knownLocalIds.has(String(brokerTrade.id))) {
-                    await this.reconcileOrQuarantineBrokerTrade(brokerTrade);
+                    await this.reconcileOrQuarantineBrokerTrade(brokerTrade, lifecycle);
                 }
             }
 
@@ -418,7 +420,7 @@ class LiveTradingEngine extends EventEmitter {
                 if (!anchor?.armed || anchor.closedAt !== null) continue;
                 const trade = trades.find((candidate) => candidate.id === anchor.tradeId);
                 try {
-                    const tradeDetails = await oandaClient.getTrade(anchor.brokerTradeId);
+                    const tradeDetails = await this.brokerClient.getTrade(anchor.brokerTradeId);
                     const payload = this.tradeReconciliation.recoverHistoricalCloseTime({ localTrade: trade, tradeDetails });
                     if (!payload) continue;
                     await this.tradeRepository.updateTrade(trade.id, { brokerReconciliationPayload: payload });
@@ -485,7 +487,7 @@ class LiveTradingEngine extends EventEmitter {
 
         try {
             // Get trade details from Oanda to determine exit price and reason
-            const tradeDetails = await oandaClient.getTrade(trade.oandaTradeId);
+            const tradeDetails = await this.brokerClient.getTrade(trade.oandaTradeId);
             const closeContext = this.tradeReconciliation.resolveExternalClose({
                 localTrade: trade,
                 tradeDetails,
@@ -826,11 +828,8 @@ class LiveTradingEngine extends EventEmitter {
         const {
             symbol,
             signal: signalType,
-            strength,
             entryType,
             currentPrice,
-            atr,
-            atrPips,
             runId,
         } = signal;
         const entryEnabled = signal.entryEnabled !== false;
@@ -866,145 +865,42 @@ class LiveTradingEngine extends EventEmitter {
             return;
         }
 
-        if (signalType === "BUY") {
-            // Signal reversal: Close existing SHORT position before opening LONG
-            if (ownedTrade && ownedTrade.side === "SELL") {
-                logger.info(
-                    `[${symbol}] Signal reversal: Closing SHORT position due to BUY signal`
-                );
-                await this.executeExit(
-                    ownedTrade,
-                    currentPrice,
-                    "SIGNAL_REVERSAL"
-                );
-            }
+        if (!["BUY", "SELL"].includes(signalType)) return;
 
-            // Strategies can invalidate an existing short before a fresh long
-            // entry exists. Treat that signal symmetrically with SELL
-            // EXIT_ONLY: close the short, but never open a new long.
-            if (
-                entryType === "EXIT_ONLY" ||
-                signal.intent === "EXIT_SHORT_ONLY"
-            ) {
-                return;
-            }
-
-            const remainingTrade = this.getOpenTradeByInstrument(symbol);
-            if (remainingTrade) {
-                // Already in a LONG position, skip
-                logger.debug(
-                    `⏸️ Skipping BUY for ${symbol} - already in position`
-                );
-                this.stats.signalsRejected++;
-                this.emitEngineTelemetry("validationRejected", {
-                    ...this.buildSignalTelemetry(signal, config),
-                    reason: "Already in position for this instrument",
-                });
-                await this.rejectEntryDecision(decisionId, {
-                    rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
-                    rejectionReason: "Already in position for this instrument",
-                    openPositions: this.openTrades.size,
-                });
-                return;
-            }
-
-            if (!entryEnabled) {
-                return;
-            }
-
-            // Validate and execute entry
-            const validation = await this.validateEntry(signal, config);
-            if (!validation.valid) {
-                await this.reportEntryRejection(signal, config, decisionId, {
-                    rejectionCode: validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
-                    reason: validation.reason,
-                    context: validation.context,
-                }, true);
-                return;
-            }
-
-            await this.updateEntryDecision(decisionId, {
-                stage: ENTRY_DECISION_STAGES.VALIDATED,
-                ...validation.context,
-            });
-            await this.executeEntry(signal, config, decisionId, validation.context, entryGeneration);
-        } else if (signalType === "SELL") {
-            // Check if we have an open position for this instrument
-            if (ownedTrade) {
-                // Close existing LONG position if we get a SELL signal
-                if (ownedTrade.side === "BUY") {
-                    await this.executeExit(
-                        ownedTrade,
-                        currentPrice,
-                        "SIGNAL_REVERSAL"
-                    );
-                }
-            }
-
-            // Execute SHORT entry when the generator marks it as actionable.
-            // validateEntry will enforce the live shorting toggle.
-            if (signal.entryType !== "EXIT_ONLY" && entryEnabled) {
-                const remainingTrade = this.getOpenTradeByInstrument(symbol);
-                if (remainingTrade && remainingTrade.side === "SELL") {
-                    logger.debug(
-                        `⏸️ Skipping SELL for ${symbol} - already in short position`
-                    );
-                    this.stats.signalsRejected++;
-                    this.emitEngineTelemetry("validationRejected", {
-                        ...this.buildSignalTelemetry(signal, config),
-                        reason: "Already in position for this instrument",
-                    });
-                    await this.rejectEntryDecision(decisionId, {
-                        rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
-                        rejectionReason: "Already in position for this instrument",
-                        openPositions: this.openTrades.size,
-                    });
-                    return;
-                }
-
-                if (remainingTrade) {
-                    logger.debug(
-                        `⏸️ Skipping SELL for ${symbol} - already in position`
-                    );
-                    this.stats.signalsRejected++;
-                    this.emitEngineTelemetry("validationRejected", {
-                        ...this.buildSignalTelemetry(signal, config),
-                        reason: "Already in position for this instrument",
-                    });
-                    await this.rejectEntryDecision(decisionId, {
-                        rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
-                        rejectionReason: "Already in position for this instrument",
-                        openPositions: this.openTrades.size,
-                    });
-                    return;
-                }
-
-                // Validate and execute entry
-                const validation = await this.validateEntry(signal, config);
-                if (!validation.valid) {
-                    await this.reportEntryRejection(signal, config, decisionId, {
-                        rejectionCode: validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
-                        reason: validation.reason,
-                        context: validation.context,
-                    }, true);
-                    return;
-                }
-
-                logger.info(
-                    `📉 Short Entry approved for ${symbol} | Type: ${signal.entryType || "FRESH_FLIP"}`
-                );
-                await this.updateEntryDecision(decisionId, {
-                    stage: ENTRY_DECISION_STAGES.VALIDATED,
-                    ...validation.context,
-                });
-                await this.executeEntry(signal, config, decisionId, validation.context, entryGeneration);
-            } else if (config.enableShorting && signal.entryType === "EXIT_ONLY") {
-                logger.info(
-                    `⏸️ Short Entry skipped for ${symbol} - signal filtered at generator (pending continuation)`
-                );
-            }
+        // Owner/fade protections above decide whether reversal is permitted.
+        // Both directions then use the same admission and durable decision path.
+        if (ownedTrade && ownedTrade.side !== signalType) {
+            await this.executeExit(ownedTrade, currentPrice, "SIGNAL_REVERSAL");
         }
-        // HOLD signals are ignored
+        if (entryType === "EXIT_ONLY" ||
+            (signalType === "BUY" && signal.intent === "EXIT_SHORT_ONLY")) return;
+        // Retain the generator's existing SELL suppression before admission.
+        if (signalType === "SELL" && !entryEnabled) return;
+
+        if (this.getOpenTradeByInstrument(symbol)) {
+            await this.reportEntryRejection(signal, config, decisionId, {
+                rejectionCode: ENTRY_REJECTION_CODES.ALREADY_IN_POSITION,
+                reason: "Already in position for this instrument",
+                context: { openPositions: this.openTrades.size },
+            });
+            return;
+        }
+        if (!entryEnabled) return;
+
+        const validation = await this.validateEntry(signal, config);
+        if (!validation.valid) {
+            await this.reportEntryRejection(signal, config, decisionId, {
+                rejectionCode: validation.code || ENTRY_REJECTION_CODES.INVALID_SIGNAL,
+                reason: validation.reason,
+                context: validation.context,
+            }, true);
+            return;
+        }
+        await this.updateEntryDecision(decisionId, {
+            stage: ENTRY_DECISION_STAGES.VALIDATED,
+            ...validation.context,
+        });
+        await this.executeEntry(signal, config, decisionId, validation.context, entryGeneration);
     }
 
     /**
@@ -1211,7 +1107,7 @@ class LiveTradingEngine extends EventEmitter {
             signal.tradePlan?.stopPriceMode !== "ATR_DISTANCE" ||
             !(stopPips > 0) || Math.abs(stopPips - Number(current.tradePlan?.stopPips)) > 1e-8 ||
             !resolveCanonicalTradePlan({ signal, config, entryPrice: signal.currentPrice,
-                pipValue: oandaClient.getPipValue(signal.symbol) })) {
+                pipValue: this.brokerClient.getPipValue(signal.symbol) })) {
             throw entryPolicyRejection(ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                 "H4 channel decision is stale, changed or missing its versioned ATR plan",
                 { phase: "H4_REVALIDATION", currentReason: current.reasonCode,
@@ -1306,7 +1202,7 @@ class LiveTradingEngine extends EventEmitter {
                 signal.entryType !== BUY_RETEST_ENTRY_TYPE) ||
             !resolveCanonicalTradePlan({
             signal, config, entryPrice: signal.currentPrice,
-            pipValue: oandaClient.getPipValue(signal.symbol),
+            pipValue: this.brokerClient.getPipValue(signal.symbol),
         }))) {
             return { valid: false, code: ENTRY_REJECTION_CODES.INVALID_SIGNAL,
                 reason: "Structural entry requires a valid absolute stop on its protective side and a risk target",
@@ -1353,7 +1249,7 @@ class LiveTradingEngine extends EventEmitter {
             maxSpreadPips > 0 &&
             Number.isFinite(spreadPips) &&
             exceedsQuoteLimit(spreadPips, maxSpreadPips,
-                priceDistanceError(priceData.bid, priceData.ask, oandaClient.getPipValue(signal.symbol)))
+                priceDistanceError(priceData.bid, priceData.ask, this.brokerClient.getPipValue(signal.symbol)))
         ) {
             return {
                 valid: false,
@@ -1593,7 +1489,7 @@ class LiveTradingEngine extends EventEmitter {
 
     async evaluateEntryPortfolioRisk(signal, config = {}) {
         try {
-            const account = await oandaClient.getAccountSummary();
+            const account = await this.brokerClient.getAccountSummary();
             const currency = String(
                 account?.account?.currency || ACCOUNT_CURRENCY
             ).toUpperCase();
@@ -1743,7 +1639,7 @@ class LiveTradingEngine extends EventEmitter {
      */
     async checkPortfolioExposure(maxPortfolioExposure, projectedMarginUsed = 0) {
         try {
-            const accountSummary = await oandaClient.getAccountSummary();
+            const accountSummary = await this.brokerClient.getAccountSummary();
             const balance = parseFloat(accountSummary?.account?.balance);
             const marginUsedRaw = accountSummary?.account?.marginUsed;
             const marginAvailableRaw = accountSummary?.account?.marginAvailable;
@@ -1813,7 +1709,7 @@ class LiveTradingEngine extends EventEmitter {
         // Get account info from Oanda including available margin
         let accountBalance, marginAvailable, accountCurrency;
         try {
-            const accountSummary = await oandaClient.getAccountSummary();
+            const accountSummary = await this.brokerClient.getAccountSummary();
             accountBalance = parseFloat(accountSummary.account.balance);
             marginAvailable = parseFloat(accountSummary.account.marginAvailable);
             accountCurrency = accountSummary.account.currency || "AUD";
@@ -1850,12 +1746,12 @@ class LiveTradingEngine extends EventEmitter {
             return 0;
         }
 
-        const pipValue = oandaClient.getPipValue(instrument);
+        const pipValue = this.brokerClient.getPipValue(instrument);
         const side = signal?.signal === "SELL" ? "SELL" : "BUY";
         const stopDistance = stopLossPips * pipValue;
         const stopLossPrice = this.hasStructuralStopContract(signal)
             ? this.resolveStopLoss(signal, config, currentPrice, instrumentMetadata).stopLossPrice
-            : Number(oandaClient.formatPrice(instrument,
+            : Number(this.brokerClient.formatPrice(instrument,
                 side === "SELL"
                     ? currentPrice + stopDistance
                     : currentPrice - stopDistance, instrumentMetadata));
@@ -1911,7 +1807,7 @@ class LiveTradingEngine extends EventEmitter {
         const currentPrice = Number.isFinite(entryPrice)
             ? entryPrice
             : signal.currentPrice;
-        const pipValue = oandaClient.getPipValue(instrument);
+        const pipValue = this.brokerClient.getPipValue(instrument);
 
         let stopLossPips;
 
@@ -1962,7 +1858,7 @@ class LiveTradingEngine extends EventEmitter {
         const referencePrice = Number.isFinite(entryPrice)
             ? entryPrice
             : toFiniteNumber(signal?.currentPrice, null);
-        const pipValue = oandaClient.getPipValue(signal.symbol);
+        const pipValue = this.brokerClient.getPipValue(signal.symbol);
         const canonicalPlan = resolveCanonicalTradePlan({
             signal,
             config,
@@ -1991,10 +1887,10 @@ class LiveTradingEngine extends EventEmitter {
             stopLossPips: canonicalPlan.stopLossPips,
             stopLossPrice: Number(
                 ["STRUCTURAL", "ATR_DISTANCE"].includes(canonicalPlan.stopPriceMode)
-                    ? oandaClient.formatPriceBound(signal.symbol, canonicalPlan.stopLossPrice,
+                    ? this.brokerClient.formatPriceBound(signal.symbol, canonicalPlan.stopLossPrice,
                         signal.signal, instrumentMetadata)
-                    : oandaClient.formatPrice
-                    ? oandaClient.formatPrice(
+                    : this.brokerClient.formatPrice
+                    ? this.brokerClient.formatPrice(
                           signal.symbol,
                           canonicalPlan.stopLossPrice,
                           instrumentMetadata
@@ -2039,7 +1935,7 @@ class LiveTradingEngine extends EventEmitter {
         );
         const atrDistance =
             Math.max(0, toFiniteNumber(signal?.atrPips, 0)) *
-            oandaClient.getPipValue(signal?.symbol || "");
+            this.brokerClient.getPipValue(signal?.symbol || "");
 
         return {
             initialStopLossPrice: stopLossPrice,
@@ -2089,7 +1985,7 @@ class LiveTradingEngine extends EventEmitter {
         return getTradeExitMetadata({
             trade,
             runtimeMetadata: liveRuntime,
-            pipValue: oandaClient.getPipValue(trade.instrument || ""),
+            pipValue: this.brokerClient.getPipValue(trade.instrument || ""),
         });
     }
 
@@ -2097,7 +1993,7 @@ class LiveTradingEngine extends EventEmitter {
      * Get mid price from Oanda pricing payload for a single instrument.
      */
     async getMidPrice(instrument) {
-        const pricing = await oandaClient.getPricing([instrument]);
+        const pricing = await this.brokerClient.getPricing([instrument]);
         const price = pricing?.prices?.[0];
         if (!price) {
             throw new Error(`No pricing data for ${instrument}`);
@@ -2191,7 +2087,7 @@ class LiveTradingEngine extends EventEmitter {
             return this.instrumentMetadata.get(instrument);
         }
 
-        if (typeof oandaClient.getInstrumentMetadata !== "function") {
+        if (typeof this.brokerClient.getInstrumentMetadata !== "function") {
             const leverage = Number(config.leverage) || 10;
             const fallback = {
                 name: instrument,
@@ -2204,7 +2100,7 @@ class LiveTradingEngine extends EventEmitter {
             return fallback;
         }
 
-        const metadata = await oandaClient.getInstrumentMetadata(instrument);
+        const metadata = await this.brokerClient.getInstrumentMetadata(instrument);
         this.instrumentMetadata.set(instrument, metadata);
         return metadata;
     }
@@ -2213,7 +2109,7 @@ class LiveTradingEngine extends EventEmitter {
         this.assertEntryClock(signal, config);
         const requestStartedAt = Date.now();
         const requestStartedMonotonicMs = performance.now();
-        const pricing = await oandaClient.getPricing([signal.symbol], {
+        const pricing = await this.brokerClient.getPricing([signal.symbol], {
             includeHomeConversions: true,
         });
         const fetchedAt = Date.now();
@@ -2239,7 +2135,7 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         const isSell = signal.signal === "SELL";
-        const quote = oandaClient.getExecutableQuote(price, signal.signal, units);
+        const quote = this.brokerClient.getExecutableQuote(price, signal.signal, units);
         const finalQuote = quote.executablePrice;
         const quoteTime = priceData.timestamp;
         const quoteAgeMs = fetchedAt - quoteTime;
@@ -2254,7 +2150,7 @@ class LiveTradingEngine extends EventEmitter {
         const pipValue =
             Number.isInteger(Number(instrumentMetadata?.pipLocation))
                 ? 10 ** Number(instrumentMetadata.pipLocation)
-                : oandaClient.getPipValue(signal.symbol);
+                : this.brokerClient.getPipValue(signal.symbol);
         const referencePrice = toFiniteNumber(signal.entryReferencePrice,
             toFiniteNumber(signal.currentPrice, finalQuote));
         const deviationPips = Math.abs(quote.worstPrice - referencePrice) / pipValue;
@@ -2315,7 +2211,7 @@ class LiveTradingEngine extends EventEmitter {
         const originalPriceBound = isSell
             ? referencePrice - maxDeviationPips * pipValue
             : referencePrice + maxDeviationPips * pipValue;
-        const priceBound = Number(oandaClient.formatPriceBound(
+        const priceBound = Number(this.brokerClient.formatPriceBound(
             signal.symbol, originalPriceBound, signal.signal, instrumentMetadata
         ));
         const result = {
@@ -2444,7 +2340,7 @@ class LiveTradingEngine extends EventEmitter {
 
         const price = entryPrice || signal.currentPrice;
         const instrument = signal.symbol;
-        const pipValue = oandaClient.getPipValue(instrument);
+        const pipValue = this.brokerClient.getPipValue(instrument);
         const [, quoteCurrency] = instrument.split("_");
 
         // Calculate target profit as percentage of margin used (not account balance)
@@ -2454,7 +2350,7 @@ class LiveTradingEngine extends EventEmitter {
         let accountCurrency = "AUD";
         let quoteToAccountRate = 1;
         try {
-            const accountSummary = await oandaClient.getAccountSummary();
+            const accountSummary = await this.brokerClient.getAccountSummary();
             accountCurrency = accountSummary?.account?.currency || "AUD";
             quoteToAccountRate = await this.getConversionRate(
                 quoteCurrency,
@@ -2514,12 +2410,36 @@ class LiveTradingEngine extends EventEmitter {
         }
     }
 
+    getRetainedOrderIntentFill(intent) {
+        const fill = intent?.responsePayload?.orderFillTransaction;
+        const opened = fill?.tradeOpened;
+        if (!opened?.tradeID) return null;
+
+        // The durable response is evidence of this entry, not a new submission
+        // opportunity. Check its ownership before using it after a restart.
+        const instrument = intent.instrument || intent.contextPayload?.signal?.symbol;
+        const units = toFiniteNumber(opened.units ?? fill.units, null);
+        if ((intent.brokerTradeId && String(opened.tradeID) !== String(intent.brokerTradeId)) ||
+            (fill.instrument && instrument && fill.instrument !== instrument) ||
+            (Number.isFinite(units) &&
+                ((intent.side === "SELL" ? units >= 0 : units <= 0) ||
+                 Math.abs(units) !== Math.abs(Number(intent.units))))) {
+            throw new Error("Retained entry fill does not match its order intent");
+        }
+        return fill;
+    }
+
     async recoverOrderIntentOutcome(intent) {
-        if (!intent || typeof oandaClient.findOrderIntent !== "function") {
+        if (!intent || typeof this.brokerClient.findOrderIntent !== "function") {
             return { status: "AMBIGUOUS" };
         }
         try {
-            const recovery = await oandaClient.findOrderIntent(
+            const retainedFill = this.getRetainedOrderIntentFill(intent);
+            if (retainedFill) {
+                return { status: "FILLED", orderFillTransaction: retainedFill,
+                    lastTransactionId: intent.lastTransactionId };
+            }
+            const recovery = await this.brokerClient.findOrderIntent(
                 intent.intentId,
                 intent.lastTransactionId
             );
@@ -2534,8 +2454,8 @@ class LiveTradingEngine extends EventEmitter {
                 brokerTradeId:
                     recovery.orderFillTransaction?.tradeOpened?.tradeID ||
                     recovery.trade?.id ||
-                    null,
-                brokerOrderId: recovery.orderTransaction?.id || null,
+                    intent.brokerTradeId || null,
+                brokerOrderId: recovery.orderTransaction?.id || intent.brokerOrderId || null,
                 lastTransactionId:
                     recovery.lastTransactionId || intent.lastTransactionId,
                 responsePayload: recovery,
@@ -2596,14 +2516,17 @@ class LiveTradingEngine extends EventEmitter {
         );
         if (existing) return existing;
 
+        const brokerAlreadyClosed = options.closedBrokerTrade?.state === "CLOSED" &&
+            String(options.closedBrokerTrade.id) === String(oandaTradeId);
+
         let stopLossPrice = toFiniteNumber(context.initialStopLossPrice, null);
         let pendingStopUpdate = null;
-        let protectionUnconfirmed = !Number.isFinite(stopLossPrice);
+        let protectionUnconfirmed = !brokerAlreadyClosed && !Number.isFinite(stopLossPrice);
         const fillAlignedPlan = resolveCanonicalTradePlan({
             signal,
             config,
             entryPrice: fillPrice,
-            pipValue: oandaClient.getPipValue(signal.symbol),
+            pipValue: this.brokerClient.getPipValue(signal.symbol),
             ...(this.hasStructuralStopContract(signal)
                 ? { submittedStopLossPrice: stopLossPrice } : {}),
         });
@@ -2621,11 +2544,11 @@ class LiveTradingEngine extends EventEmitter {
         );
         let desiredStop = Number.isFinite(alignedStop)
             ? Number(signal.tradePlan?.stopPriceMode === "ATR_DISTANCE"
-                ? oandaClient.formatPriceBound(signal.symbol, alignedStop, signal.signal, context.instrumentMetadata)
-                : oandaClient.formatPrice(signal.symbol, alignedStop, context.instrumentMetadata))
+                ? this.brokerClient.formatPriceBound(signal.symbol, alignedStop, signal.signal, context.instrumentMetadata)
+                : this.brokerClient.formatPrice(signal.symbol, alignedStop, context.instrumentMetadata))
             : null;
         const desiredTakeProfit = Number.isFinite(alignedTakeProfit)
-            ? Number(oandaClient.formatPrice(signal.symbol, alignedTakeProfit, context.instrumentMetadata))
+            ? Number(this.brokerClient.formatPrice(signal.symbol, alignedTakeProfit, context.instrumentMetadata))
             : null;
         const units = Math.abs(
             toFiniteNumber(opened?.units ?? fillTransaction?.units, intent.units)
@@ -2640,7 +2563,7 @@ class LiveTradingEngine extends EventEmitter {
             Math.abs(fillPrice - desiredStop) * units * quoteToAudRate > riskBudgetAud) {
             const maximumDistance = riskBudgetAud / (units * quoteToAudRate);
             const isSell = intent.side === "SELL";
-            desiredStop = Number(oandaClient.formatPriceBound(signal.symbol,
+            desiredStop = Number(this.brokerClient.formatPriceBound(signal.symbol,
                 fillPrice + (isSell ? maximumDistance : -maximumDistance),
                 isSell ? "BUY" : "SELL", context.instrumentMetadata));
             if (isSell ? desiredStop <= fillPrice : desiredStop >= fillPrice) {
@@ -2648,7 +2571,7 @@ class LiveTradingEngine extends EventEmitter {
             }
         }
         let fillAlignmentConfirmed = false;
-        if (Number.isFinite(desiredStop)) {
+        if (!brokerAlreadyClosed && Number.isFinite(desiredStop)) {
             try {
                 // Confirm protection through a broker response even when the
                 // same stop was requested as stopLossOnFill.
@@ -2682,7 +2605,7 @@ class LiveTradingEngine extends EventEmitter {
                 // intact. Confirm it explicitly; unknown/missing protection
                 // triggers a managed emergency close after durable trade save.
                 try {
-                    const details = await oandaClient.getTrade(oandaTradeId);
+                    const details = await this.brokerClient.getTrade(oandaTradeId);
                     const active = details?.trade?.stopLossOrder;
                     if (details?.trade?.state !== "OPEN" || active?.state !== "PENDING" ||
                         !Number.isFinite(toFiniteNumber(active.price, null))) {
@@ -2703,6 +2626,7 @@ class LiveTradingEngine extends EventEmitter {
             ? desiredTakeProfit
             : toFiniteNumber(context.plannedTakeProfitPrice, null);
         if (
+            !brokerAlreadyClosed &&
             !Number.isFinite(takeProfitPrice) &&
             marginUsed > 0 &&
             config.enableTakeProfit
@@ -2717,7 +2641,7 @@ class LiveTradingEngine extends EventEmitter {
             takeProfitPrice = takeProfit?.takeProfitPrice || null;
             if (takeProfitPrice) {
                 try {
-                    await oandaClient.modifyTrade(oandaTradeId, {
+                    await this.brokerClient.modifyTrade(oandaTradeId, {
                         takeProfitPrice,
                         instrument: signal.symbol,
                         instrumentMetadata: context.instrumentMetadata,
@@ -2766,7 +2690,7 @@ class LiveTradingEngine extends EventEmitter {
                 units,
                 finalSpreadPips: context.finalQuote?.spreadPips ?? context.spreadPips ?? null,
                 entrySlippagePips: Number.isFinite(context.finalQuote?.finalQuote)
-                    ? (intent.side === "SELL" ? context.finalQuote.finalQuote - fillPrice : fillPrice - context.finalQuote.finalQuote) / oandaClient.getPipValue(signal.symbol)
+                    ? (intent.side === "SELL" ? context.finalQuote.finalQuote - fillPrice : fillPrice - context.finalQuote.finalQuote) / this.brokerClient.getPipValue(signal.symbol)
                     : null,
                 sessions: signal.strategyContext?.activeSessions || [],
                 strategyContext: signal.strategyContext || signal.decisionContext?.strategyContext || null,
@@ -2846,14 +2770,14 @@ class LiveTradingEngine extends EventEmitter {
             // SQLite failure must not prevent emergency risk reduction. The
             // pre-submit intent remains the recovery record for this outcome.
             if (protectionUnconfirmed) {
-                try { await oandaClient.closeTrade(oandaTradeId); }
+                try { await this.brokerClient.closeTrade(oandaTradeId); }
                 catch (closeError) { logger.error("Emergency close requires broker recovery:", closeError.message); }
             }
             throw persistenceError;
         }
 
         if (protectionUnconfirmed) {
-            const closed = await this._executeExit(trade, fillPrice, "PROTECTION_FAILURE");
+            const closed = await (options.lifecycle || this.lifecycle).close(trade, fillPrice, "PROTECTION_FAILURE");
             if (closed) return closed;
         }
 
@@ -2865,7 +2789,7 @@ class LiveTradingEngine extends EventEmitter {
         return trade;
     }
 
-    async recoverPendingOrderIntents(openBrokerTrades = []) {
+    async recoverPendingOrderIntents(openBrokerTrades = [], lifecycle = this.lifecycle) {
         if (!this.brokerLifecycleRepository) return;
         const intents =
             await this.brokerLifecycleRepository.getRecoverableIntents();
@@ -2881,14 +2805,28 @@ class LiveTradingEngine extends EventEmitter {
                 });
                 continue;
             }
-            if (intent.tradeId && this.openTrades.has(intent.tradeId)) {
+            // A crash can also occur after the trade save but before completing
+            // the intent. Include closed rows so recovery never inserts the
+            // same broker trade twice merely because it is no longer open.
+            const persistedTrade = intent.tradeId && this.openTrades.get(intent.tradeId) ||
+                (this.tradeRepository.getAllTrades
+                    ? (await this.tradeRepository.getAllTrades()).find((trade) =>
+                        (intent.tradeId && trade.id === intent.tradeId) ||
+                        (intent.brokerTradeId && String(trade.oandaTradeId) === String(intent.brokerTradeId)))
+                    : null);
+            if (persistedTrade) {
+                if (persistedTrade.isOpen) this.openTrades.set(persistedTrade.id, persistedTrade);
                 await this.updateOrderIntent(intent.intentId, {
                     status: "COMPLETED",
+                    tradeId: persistedTrade.id,
+                    brokerTradeId: persistedTrade.oandaTradeId || intent.brokerTradeId,
                     resolvedAt: Date.now(),
+                    lastError: null,
+                    nextRetryAt: null,
                 });
                 await this.updateEntryDecision(intent.decisionId, {
                     stage: ENTRY_DECISION_STAGES.FILLED, outcome: ENTRY_DECISION_OUTCOMES.FILLED,
-                    tradeId: intent.tradeId,
+                    tradeId: persistedTrade.id,
                 });
                 continue;
             }
@@ -2899,7 +2837,9 @@ class LiveTradingEngine extends EventEmitter {
                     trade?.clientExtensions?.id === intent.clientTradeId
             );
             let recovery = null;
-            if (brokerTrade) {
+            if (intent.responsePayload?.orderFillTransaction?.tradeOpened?.tradeID) {
+                recovery = await this.recoverOrderIntentOutcome(intent);
+            } else if (brokerTrade) {
                 recovery = {
                     status: "OPEN_TRADE_FOUND",
                     orderFillTransaction: {
@@ -2926,10 +2866,17 @@ class LiveTradingEngine extends EventEmitter {
                 recovery.status === "OPEN_TRADE_FOUND"
             ) {
                 try {
+                    // A retained fill may already have closed while the process
+                    // or SQLite was unavailable. Rebuild its entry for normal
+                    // external-close accounting without writing protection or
+                    // sending another close against a completed broker trade.
+                    const details = !brokerTrade
+                        ? await this.brokerClient.getTrade(recovery.orderFillTransaction?.tradeOpened?.tradeID)
+                        : null;
                     const trade = await this.buildEntryTradeFromFill(
                         intent,
                         recovery.orderFillTransaction,
-                        { recovered: true }
+                        { recovered: true, closedBrokerTrade: details?.trade, lifecycle }
                     );
                     await this.updateEntryDecision(intent.decisionId, {
                         stage: ENTRY_DECISION_STAGES.FILLED, outcome: ENTRY_DECISION_OUTCOMES.FILLED,
@@ -2957,7 +2904,7 @@ class LiveTradingEngine extends EventEmitter {
         }
     }
 
-    async reconcileOrQuarantineBrokerTrade(brokerTrade) {
+    async reconcileOrQuarantineBrokerTrade(brokerTrade, lifecycle = this.lifecycle) {
         let intent = null;
         if (this.brokerLifecycleRepository) {
             intent = await this.brokerLifecycleRepository.getIntentByBrokerTradeId(
@@ -2990,7 +2937,7 @@ class LiveTradingEngine extends EventEmitter {
                                 brokerTrade.initialMarginRequired,
                         },
                     },
-                    { recovered: true }
+                    { recovered: true, lifecycle }
                 );
                 return;
             } catch (error) {
@@ -3039,12 +2986,12 @@ class LiveTradingEngine extends EventEmitter {
         validationContext = {},
         generation = this.activationGeneration
     ) {
-        return this.withBrokerLifecycle(() => this._executeEntry(
+        return this.lifecycle.enter(
             signal, config, decisionId, validationContext, generation
-        ));
+        );
     }
 
-    async _executeEntry(signal, config, decisionId, validationContext, generation) {
+    async _executeEntry(signal, config, decisionId, validationContext, generation, lifecycle) {
         const { symbol, currentPrice, strength, entryType, atr, atrPips } =
             signal;
 
@@ -3067,7 +3014,7 @@ class LiveTradingEngine extends EventEmitter {
         let brokerFillReceived = false;
         try {
             this.assertEntryActivation(generation);
-            await this._syncWithOanda({ throwOnError: true });
+            await lifecycle.reconcile({ throwOnError: true });
             const block = await this.getBrokerEntryBlockReason();
             if (block) throw entryPolicyRejection(ENTRY_REJECTION_CODES.EXPOSURE_LIMIT,
                 block, { phase: "RECONCILIATION" });
@@ -3128,7 +3075,7 @@ class LiveTradingEngine extends EventEmitter {
                 signal,
                 config,
                 entryPrice: finalQuote.finalQuote,
-                pipValue: oandaClient.getPipValue(symbol),
+                pipValue: this.brokerClient.getPipValue(symbol),
             });
             if (this.hasStructuralStopContract(signal) &&
                 (!executablePlan || executablePlan.stopPriceMode !== "STRUCTURAL")) {
@@ -3144,15 +3091,15 @@ class LiveTradingEngine extends EventEmitter {
             // to OANDA, including fallback plans and sub-tick ATR distances.
             plannedStopLossPrice = Number((this.hasStructuralStopContract(signal) ||
                 signal.tradePlan?.stopPriceMode === "ATR_DISTANCE")
-                ? oandaClient.formatPriceBound(symbol, plannedStopLossPrice, signal.signal, instrumentMetadata)
-                : oandaClient.formatPrice(symbol, plannedStopLossPrice, instrumentMetadata));
+                ? this.brokerClient.formatPriceBound(symbol, plannedStopLossPrice, signal.signal, instrumentMetadata)
+                : this.brokerClient.formatPrice(symbol, plannedStopLossPrice, instrumentMetadata));
             if (this.hasStructuralStopContract(signal)) {
                 plannedTakeProfitPrice = finalQuote.finalQuote +
                     (signal.signal === "SELL" ? -1 : 1) *
                     Math.abs(plannedStopLossPrice - finalQuote.finalQuote) * executablePlan.targetRiskMultiple;
             }
             plannedTakeProfitPrice = Number.isFinite(plannedTakeProfitPrice)
-                ? Number(oandaClient.formatPrice(symbol, plannedTakeProfitPrice, instrumentMetadata))
+                ? Number(this.brokerClient.formatPrice(symbol, plannedTakeProfitPrice, instrumentMetadata))
                 : null;
             const { baseToAudRate, quoteToAudRate } =
                 this.resolveAudConversionSnapshot(
@@ -3168,7 +3115,7 @@ class LiveTradingEngine extends EventEmitter {
                 throw new Error(`Unable to snapshot AUD conversion for ${symbol}`);
             }
 
-            const accountSnapshot = await oandaClient.getAccountSummary();
+            const accountSnapshot = await this.brokerClient.getAccountSummary();
             const accountCurrency = String(
                 accountSnapshot?.account?.currency || "AUD"
             ).toUpperCase();
@@ -3218,8 +3165,8 @@ class LiveTradingEngine extends EventEmitter {
             const intentId = uuidv4();
             const localTradeId = uuidv4();
             const extensions =
-                typeof oandaClient.buildClientExtensions === "function"
-                    ? oandaClient.buildClientExtensions(intentId)
+                typeof this.brokerClient.buildClientExtensions === "function"
+                    ? this.brokerClient.buildClientExtensions(intentId)
                     : {
                           order: { id: `oi-${intentId}` },
                           trade: { id: `ti-${intentId}` },
@@ -3328,7 +3275,7 @@ class LiveTradingEngine extends EventEmitter {
                 }
                 this.validateMultiDayTrendDecision(signal, config);
                 brokerRequestStarted = true;
-                orderResult = await oandaClient.placeMarketOrder(
+                orderResult = await this.brokerClient.placeMarketOrder(
                     symbol,
                     orderUnits,
                     {
@@ -3402,7 +3349,7 @@ class LiveTradingEngine extends EventEmitter {
                     fillTransaction?.orderID ||
                     null,
                 brokerTradeId: fillTransaction?.tradeOpened?.tradeID || null,
-                responsePayload: orderResult,
+                responsePayload: { ...orderResult, orderFillTransaction: fillTransaction },
                 lastTransactionId:
                     orderResult?.lastTransactionID || intent.lastTransactionId,
             });
@@ -3412,6 +3359,7 @@ class LiveTradingEngine extends EventEmitter {
                 {
                     recovered: orderResult?.recovered === true,
                     orderResult,
+                    lifecycle,
                 }
             );
 
@@ -3511,24 +3459,24 @@ class LiveTradingEngine extends EventEmitter {
      * Execute a trade exit
      */
     async executeExit(trade, exitPrice, reason) {
-        return this.withBrokerLifecycle(() => this._executeExit(trade, exitPrice, reason));
+        return this.lifecycle.close(trade, exitPrice, reason);
     }
 
     async closeBrokerTrade(brokerTradeId) {
-        return this.withBrokerLifecycle(async () => {
-            await this._syncWithOanda({ throwOnError: true });
+        return this.lifecycle.transaction(async (lifecycle) => {
+            await lifecycle.reconcile({ throwOnError: true });
             const managed = [...this.openTrades.values()].find((trade) => String(trade.oandaTradeId) === String(brokerTradeId));
             if (managed) {
-                const closedTrade = await this._executeExit(managed, managed.entryPrice, "MANUAL");
+                const closedTrade = await lifecycle.close(managed, managed.entryPrice, "MANUAL");
                 if (!closedTrade) throw new Error("Broker close is awaiting reconciliation");
                 return { closedTrade, orderFillTransaction: closedTrade.brokerReconciliationPayload?.close?.directClose?.orderFillTransaction || null };
             }
-            const details = await oandaClient.getTrade(brokerTradeId);
+            const details = await this.brokerClient.getTrade(brokerTradeId);
             if (details?.trade?.state === "CLOSED") return { alreadyClosed: true };
             if (details?.trade?.state !== "OPEN") throw new Error("Broker trade state is unavailable");
-            const response = await oandaClient.closeTrade(brokerTradeId);
+            const response = await this.brokerClient.closeTrade(brokerTradeId);
             const confirmed = response?.orderFillTransaction?.tradesClosed?.some((effect) => String(effect.tradeID) === String(brokerTradeId));
-            await this._syncWithOanda({ throwOnError: true });
+            await lifecycle.reconcile({ throwOnError: true });
             if (!confirmed) throw new Error("Broker close is awaiting reconciliation");
             return response;
         });
@@ -3568,7 +3516,7 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         try {
-            const closeResult = await oandaClient.closeTrade(
+            const closeResult = await this.brokerClient.closeTrade(
                 trade.oandaTradeId
             );
             closeContext = this.tradeReconciliation.resolveDirectClose({
@@ -3589,7 +3537,7 @@ class LiveTradingEngine extends EventEmitter {
                     directClose: closeResult,
                 };
                 const directClosePayload = closeContext.brokerReconciliationPayload;
-                const details = await oandaClient.getTrade(trade.oandaTradeId);
+                const details = await this.brokerClient.getTrade(trade.oandaTradeId);
                 closeContext = this.tradeReconciliation.resolveExternalClose({
                     localTrade: trade, tradeDetails: details,
                     fallbackExitPrice: exitPrice, fallbackExitReason: reason,
@@ -3620,7 +3568,7 @@ class LiveTradingEngine extends EventEmitter {
             // A lost close response may still have filled. Query the trade before
             // deciding whether to retry; never mark it closed on a local quote.
             try {
-                const tradeDetails = await oandaClient.getTrade(
+                const tradeDetails = await this.brokerClient.getTrade(
                     trade.oandaTradeId
                 );
                 const recovered = this.tradeReconciliation.resolveExternalClose({
@@ -3737,7 +3685,7 @@ class LiveTradingEngine extends EventEmitter {
         if (sampledExcursion) brokerReconciliationPayload.sampledExcursion = sampledExcursion;
 
         // Calculate P/L - use Oanda's realizedPL if available (includes all costs)
-        const pipValue = oandaClient.getPipValue(trade.instrument);
+        const pipValue = this.brokerClient.getPipValue(trade.instrument);
         // Direction-aware: BUY profits when price rises, SELL profits when price falls
         const priceChange = trade.side === 'BUY'
             ? exitPrice - trade.entryPrice
@@ -3999,20 +3947,16 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async recordSampledExcursion(trade, price, observedAt) {
-        return this.withBrokerLifecycle(() => this._recordSampledExcursion(trade, price, observedAt));
+        return this.lifecycle.forTrade(trade, (current) => this._recordSampledExcursion(current, price, observedAt));
     }
 
     async _recordSampledExcursion(trade, price, observedAt) {
-        // A queued sample may follow a database reload. Merge into the current
-        // managed object instead of overwriting newer reconciliation metadata.
-        trade = this.openTrades.get(trade.id);
-        if (!trade) return;
         if (!Number.isFinite(price) || !Number.isFinite(observedAt) || observedAt < trade.entryTime) return;
         const prior = trade.brokerReconciliationPayload?.sampledExcursion;
         // Repeated polls of the same quote are not independent observations.
         if (prior?.lastObservedAt >= observedAt) return;
         const distance = (trade.side === "SELL" ? trade.entryPrice - price : price - trade.entryPrice);
-        const pips = distance / oandaClient.getPipValue(trade.instrument);
+        const pips = distance / this.brokerClient.getPipValue(trade.instrument);
         const riskDistance = toFiniteNumber(this.getLiveRuntimeMetadata(trade).initialStopDistance, null);
         const r = riskDistance > 0 ? distance / riskDistance : null;
         const sampledExcursion = appendExcursionSample(prior, { observedAt, pips, r });
@@ -4023,11 +3967,11 @@ class LiveTradingEngine extends EventEmitter {
 
     protectionPriceMatches(actual, requested, instrument) {
         return Number.isFinite(Number(actual)) && Number.isFinite(Number(requested)) &&
-            Math.abs(Number(actual) - Number(requested)) <= oandaClient.getPipValue(instrument) / 10 + 1e-10;
+            Math.abs(Number(actual) - Number(requested)) <= this.brokerClient.getPipValue(instrument) / 10 + 1e-10;
     }
 
     async writeAndConfirmProtection(brokerTradeId, options) {
-        const result = await oandaClient.modifyTrade(brokerTradeId, options);
+        const result = await this.brokerClient.modifyTrade(brokerTradeId, options);
         const matches = (actualStop, actualTarget) =>
             (options.stopLossPrice === undefined || this.protectionPriceMatches(actualStop, options.stopLossPrice, options.instrument)) &&
             (options.takeProfitPrice === undefined || this.protectionPriceMatches(actualTarget, options.takeProfitPrice, options.instrument));
@@ -4038,7 +3982,7 @@ class LiveTradingEngine extends EventEmitter {
             !result?.stopLossOrderCreatedCancelTransaction && !result?.takeProfitOrderCreatedCancelTransaction &&
             !result?.stopLossOrderFillTransaction && !result?.takeProfitOrderFillTransaction) return result;
 
-        const details = await oandaClient.getTrade(brokerTradeId);
+        const details = await this.brokerClient.getTrade(brokerTradeId);
         const brokerTrade = details?.trade;
         if (String(brokerTrade?.id) === String(brokerTradeId) && brokerTrade?.state === "OPEN" &&
             (options.stopLossPrice === undefined || brokerTrade.stopLossOrder?.state === "PENDING") &&
@@ -4047,7 +3991,7 @@ class LiveTradingEngine extends EventEmitter {
         throw new Error("Broker did not confirm the requested protective orders");
     }
 
-    async reconcileBrokerProtection(trade, brokerTrade) {
+    async reconcileBrokerProtection(trade, brokerTrade, lifecycle) {
         if (!brokerTrade) throw new Error("Managed broker trade is missing from snapshot");
         if (trade.reconciliationStatus === "CLOSE_RETRY_PENDING") return;
         const currentUnits = toFiniteNumber(brokerTrade.currentUnits, null);
@@ -4059,7 +4003,7 @@ class LiveTradingEngine extends EventEmitter {
             await this.markTradeReconciliationPending(trade, "EXPOSURE_RECONCILIATION_PENDING", {
                 brokerExposureDrift: { currentUnits, observedAt: Date.now() },
             });
-            await this._executeExit(trade, trade.entryPrice, "BROKER_EXPOSURE_CHANGED");
+            await lifecycle.close(trade, trade.entryPrice, "BROKER_EXPOSURE_CHANGED");
             return;
         }
         const brokerStop = brokerTrade.stopLossOrder?.state === "PENDING"
@@ -4068,7 +4012,7 @@ class LiveTradingEngine extends EventEmitter {
             ? toFiniteNumber(brokerTrade.takeProfitOrder.price, null) : null;
         const localStop = toFiniteNumber(trade.stopLossPrice, null);
         if (!Number.isFinite(localStop)) {
-            await this._executeExit(trade, trade.entryPrice, "PROTECTION_FAILURE");
+            await lifecycle.close(trade, trade.entryPrice, "PROTECTION_FAILURE");
             return;
         }
         // Adopt a tighter broker stop (e.g. a confirmed response lost before the
@@ -4099,7 +4043,7 @@ class LiveTradingEngine extends EventEmitter {
             return;
         }
         if (!stopMatches || !targetMatches) {
-            await this._applyBrokerStopUpdate(trade, desiredStop, "PROTECTION_RECONCILIATION", {}, {
+            await lifecycle.tightenStop(trade, desiredStop, "PROTECTION_RECONCILIATION", {}, {
                 desiredTakeProfitPrice: target,
                 protectionUnconfirmed: !Number.isFinite(brokerStop),
             });
@@ -4117,12 +4061,12 @@ class LiveTradingEngine extends EventEmitter {
         localUpdates = {},
         retryState = null
     ) {
-        return this.withBrokerLifecycle(() => this._applyBrokerStopUpdate(
+        return this.lifecycle.tightenStop(
             trade, desiredPrice, stopType, localUpdates, retryState
-        ));
+        );
     }
 
-    async _applyBrokerStopUpdate(trade, desiredPrice, stopType, localUpdates = {}, retryState = null) {
+    async _applyBrokerStopUpdate(trade, desiredPrice, stopType, localUpdates = {}, retryState = null, lifecycle) {
         if (!this.openTrades.has(trade.id)) return false;
         if (!Number.isFinite(desiredPrice)) return false;
         if (stopType === "INITIAL_STOP_ALIGNMENT") {
@@ -4212,7 +4156,7 @@ class LiveTradingEngine extends EventEmitter {
                 `❌ Broker stop update pending retry for ${trade.instrument}: ${error.message}`
             );
             if (retryState?.protectionUnconfirmed) {
-                await this._executeExit(trade, trade.entryPrice, "PROTECTION_FAILURE");
+                await lifecycle.close(trade, trade.entryPrice, "PROTECTION_FAILURE");
             }
             if (persistenceError) throw persistenceError;
             return false;
@@ -4220,34 +4164,21 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async retryPendingStopUpdate(trade) {
-        return this.withBrokerLifecycle(async () => {
-            trade = this.openTrades.get(trade.id);
-            if (!trade) return false;
-        const pending = trade?.brokerReconciliationPayload?.stopUpdate;
-        if (pending?.status !== "RETRY_PENDING") return false;
-        if (
-            Number.isFinite(Number(pending.nextRetryAt)) &&
-            Number(pending.nextRetryAt) > Date.now()
-        ) {
-            return false;
-        }
-        return this._applyBrokerStopUpdate(
-            trade,
-            Number(pending.desiredPrice),
-            pending.stopType || "BROKER_STOP_RETRY",
-            pending.localUpdates || {},
-            pending
-        );
+        return this.lifecycle.forTrade(trade, (current, lifecycle) => {
+            const pending = current.brokerReconciliationPayload?.stopUpdate;
+            if (pending?.status !== "RETRY_PENDING") return false;
+            if (Number.isFinite(Number(pending.nextRetryAt)) && Number(pending.nextRetryAt) > Date.now()) return false;
+            return lifecycle.tightenStop(current, Number(pending.desiredPrice),
+                pending.stopType || "BROKER_STOP_RETRY", pending.localUpdates || {}, pending);
         });
     }
 
     async retryPendingClose(trade, currentPrice) {
-        return this.withBrokerLifecycle(() => this._retryPendingClose(trade.id, currentPrice));
+        return this.lifecycle.forTrade(trade, (current, lifecycle) =>
+            this._retryPendingClose(current, currentPrice, lifecycle));
     }
 
-    async _retryPendingClose(tradeId, currentPrice) {
-        const trade = this.openTrades.get(tradeId);
-        if (!trade) return false;
+    async _retryPendingClose(trade, currentPrice, lifecycle) {
         const pending = trade?.brokerReconciliationPayload?.closeRetry;
         if (!pending || !trade.oandaTradeId) return false;
         if (
@@ -4258,7 +4189,7 @@ class LiveTradingEngine extends EventEmitter {
         }
 
         try {
-            const tradeDetails = await oandaClient.getTrade(trade.oandaTradeId);
+            const tradeDetails = await this.brokerClient.getTrade(trade.oandaTradeId);
             const resolved = this.tradeReconciliation.resolveExternalClose({
                 localTrade: trade,
                 tradeDetails,
@@ -4277,7 +4208,7 @@ class LiveTradingEngine extends EventEmitter {
             }
 
             return Boolean(
-                await this._executeExit(
+                await lifecycle.close(
                     trade,
                     currentPrice,
                     pending.reason || "RETRY_CLOSE"
@@ -4312,7 +4243,7 @@ class LiveTradingEngine extends EventEmitter {
     async updateBreakevenStop(trade, currentPrice, config) {
         if (trade.breakevenHit) return;
 
-        const pipValue = oandaClient.getPipValue(trade.instrument);
+        const pipValue = this.brokerClient.getPipValue(trade.instrument);
         const liveRuntime = this.getLiveRuntimeMetadata(trade);
         const activationDistance = resolveBreakevenDistance({
             trade,
@@ -4391,18 +4322,16 @@ class LiveTradingEngine extends EventEmitter {
     }
 
     async updateH4ChannelStop(trade, config) {
-        return this.withBrokerLifecycle(async () => {
-            // Reload after waiting for any entry, close or protection operation.
+        return this.lifecycle.forTrade(trade, async (trade, lifecycle) => {
             // Reconcile the actual broker stop before comparing the channel so
             // a confirmed write lost before local persistence cannot be undone.
-            trade = this.openTrades.get(trade.id);
             if (!trade || trade.reconciliationStatus === "CLOSE_RETRY_PENDING") return false;
             const policy = this.getOwnerExitPolicy(trade, config);
             await this._recordPeakProfitTrail(trade, this.dataService.getCurrentPrice(trade.instrument), policy);
-            const details = await oandaClient.getTrade(trade.oandaTradeId);
+            const details = await this.brokerClient.getTrade(trade.oandaTradeId);
             const brokerTrade = details?.trade;
             if (String(brokerTrade?.id) !== String(trade.oandaTradeId) || brokerTrade?.state !== "OPEN") return false;
-            await this.reconcileBrokerProtection(trade, brokerTrade);
+            await this.reconcileBrokerProtection(trade, brokerTrade, lifecycle);
             trade = this.openTrades.get(trade.id);
             if (!trade || trade.reconciliationStatus === "CLOSE_RETRY_PENDING") return false;
 
@@ -4426,7 +4355,7 @@ class LiveTradingEngine extends EventEmitter {
                     ...(peak ? [{ price: peak.stopLossPrice, type: "PEAK_PROFIT" }] : []),
                     ...(pending?.status === "RETRY_PENDING"
                         ? [{ price: Number(pending.desiredPrice), type: pending.stopType || "CHANNEL" }] : []),
-                ].map(candidate => ({ ...candidate, price: Number(oandaClient.formatPriceBound(
+                ].map(candidate => ({ ...candidate, price: Number(this.brokerClient.formatPriceBound(
                     trade.instrument, candidate.price, trade.side, metadata)) }))
                     .filter(candidate => Number.isFinite(candidate.price) && this.isMonotonicStopImprovement(trade, candidate.price));
                 return candidates.reduce((best, next) => !best || (trade.side === "SELL"
@@ -4434,7 +4363,7 @@ class LiveTradingEngine extends EventEmitter {
             };
             const crossed = (candidate, quote) => candidate && (trade.side === "SELL"
                 ? quote.ask >= candidate.price : quote.bid <= candidate.price);
-            const closeCrossed = (candidate, quote) => this._executeExit(trade,
+            const closeCrossed = (candidate, quote) => lifecycle.close(trade,
                 trade.side === "SELL" ? quote.ask : quote.bid,
                 candidate.type === "PEAK_PROFIT" ? "PEAK_PROFIT_EXIT" : "CHANNEL_EXIT");
             const captureManagementQuote = async () => {
@@ -4462,7 +4391,7 @@ class LiveTradingEngine extends EventEmitter {
             const pending = trade.brokerReconciliationPayload?.stopUpdate;
             if (pending) {
                 if (pending.status !== "RETRY_PENDING" || Number(pending.nextRetryAt) > Date.now()) return false;
-                const retried = await this._applyBrokerStopUpdate(trade, Number(pending.desiredPrice),
+                const retried = await lifecycle.tightenStop(trade, Number(pending.desiredPrice),
                     pending.stopType || "BROKER_STOP_RETRY", pending.localUpdates || {}, pending);
                 if (!retried || !this.openTrades.has(trade.id) || trade.brokerReconciliationPayload?.stopUpdate) return false;
                 // Broker confirmation can take time; a cached receipt does not
@@ -4473,7 +4402,7 @@ class LiveTradingEngine extends EventEmitter {
                 if (crossed(candidate, quote)) return Boolean(await closeCrossed(candidate, quote));
             }
             if (!candidate) return false;
-            return this._applyBrokerStopUpdate(trade, candidate.price, candidate.type, {
+            return lifecycle.tightenStop(trade, candidate.price, candidate.type, {
                 trailingStopPrice: candidate.price,
             });
         });
@@ -4483,7 +4412,7 @@ class LiveTradingEngine extends EventEmitter {
      * Update trailing stop for a position (works for both BUY and SELL)
      */
     async updateTrailingStop(trade, currentPrice, config) {
-        const pipValue = oandaClient.getPipValue(trade.instrument);
+        const pipValue = this.brokerClient.getPipValue(trade.instrument);
         const liveRuntime = this.getLiveRuntimeMetadata(trade);
         const { activationDistance, trailDistance: trailingDistance } =
             resolveTrailingStopDistances({

@@ -109,12 +109,16 @@ if (workerPhase) {
             .filter(([key]) => key !== 'monotonicMs').map(([key, item]) => [key, behavior(item)]));
         return value;
     }
-    test('distinct bot processes recover file SQLite and preserved external broker state identically to an uninterrupted control', () => {
+    test('distinct bot processes recover with injected adapters and preserved broker state identically to an uninterrupted control', () => {
         const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'forex-cold-restart-'));
         const childPids = [];
         try {
+            // A fallback database import would attempt mkdir on this file and
+            // fail. Only the explicitly supplied replay databases are usable.
+            const unavailableDatabaseDirectory = path.join(directory, 'default-database-unavailable');
+            fs.writeFileSync(unavailableDatabaseDirectory, 'Default database access is forbidden');
             for (const phase of ['head', 'tail', 'control']) {
-                const env = { ...process.env, NODE_ENV: 'test', DB_PATH: path.join(directory, 'unused-default.db'),
+                const env = { ...process.env, NODE_ENV: 'test', DB_PATH: path.join(unavailableDatabaseDirectory, 'trading.db'),
                     RESEARCH_REPLAY_ISOLATED: '1', RESEARCH_COLD_WORKER_PHASE: phase, RESEARCH_COLD_DIRECTORY: directory };
                 for (const key of Object.keys(env)) {
                     if (/^(OANDA_|EMAIL_|AWS_|S3_|SMTP_|DOTENV_CONFIG_)/.test(key) || key === 'NODE_OPTIONS') delete env[key];

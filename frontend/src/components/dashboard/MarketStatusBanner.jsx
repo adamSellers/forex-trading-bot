@@ -1,8 +1,7 @@
 // Market and session clocks come from the same backend policy used for entries.
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, Box, Chip, Collapse, IconButton, Stack, Typography, alpha, useTheme } from '@mui/material';
 import { ExpandLess, ExpandMore, NightsStay, TrendingUp, WarningAmber } from '@mui/icons-material';
-import { apiCall, API_ENDPOINTS } from '../../config/api';
 import { isH4Trend } from '../../utils/strategyDisplay';
 
 const ENTRY_LABELS = {
@@ -14,60 +13,28 @@ const ENTRY_LABELS = {
   UNKNOWN: 'Live entry state could not be verified',
 };
 
-const MarketStatusBanner = ({ compact = false, strategy = null }) => {
+const MarketStatusBanner = ({ compact = false, strategy = null, health: snapshot = null,
+  error = false, brokerUnavailable = false, entryState = null }) => {
   const theme = useTheme();
-  const [health, setHealth] = useState(null);
-  const [error, setError] = useState(false);
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    let pending = false;
-    let controller = null;
-    const refresh = async () => {
-      if (pending) return;
-      pending = true;
-      controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      try {
-        const result = await apiCall(API_ENDPOINTS.systemHealth, { signal: controller.signal });
-        const snapshot = result.operationalHealth;
-        if (!snapshot?.market || !Number.isFinite(snapshot.checkedAt) ||
-            Date.now() - snapshot.checkedAt > 180000) {
-          throw new Error('Operational status is unavailable or stale');
-        }
-        const brokerUnavailable = result.services?.oanda?.connected !== true;
-        const verified = brokerUnavailable ? { ...snapshot, status: 'degraded',
-          issues: [{ key: 'BROKER_UNAVAILABLE', code: 'BROKER_UNAVAILABLE', severity: 'critical',
-            message: 'The latest broker connection check failed' }, ...(snapshot.issues || [])] } : snapshot;
-        if (active) { setHealth(verified); setError(false); }
-      } catch (_error) {
-        if (active) setError(true);
-      } finally {
-        clearTimeout(timeout);
-        pending = false;
-      }
-    };
-    void refresh();
-    const timer = setInterval(refresh, 60000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-      controller?.abort();
-    };
-  }, []);
-
-  const unavailable = error || !health;
+  const health = snapshot && brokerUnavailable ? { ...snapshot, status: 'degraded',
+    issues: [{ key: 'BROKER_UNAVAILABLE', code: 'BROKER_UNAVAILABLE', severity: 'critical',
+      message: 'The latest broker connection check failed' },
+    ...(snapshot.issues || []).filter(issue => issue.code !== 'BROKER_UNAVAILABLE')] } : snapshot;
+  const unavailable = error || !health?.market || !Number.isFinite(health.checkedAt) ||
+    Date.now() - health.checkedAt > 180000;
+  const failedObservation = error || Boolean(health) && unavailable;
   const marketOpen = !unavailable && health.market.open === true;
   const degraded = !unavailable && health.status === 'degraded';
   const tone = unavailable || degraded ? 'warning' : marketOpen ? 'success' : 'info';
-  const title = unavailable ? (error ? 'Market and bot status unavailable' : 'Checking market and bot status…')
+  const title = unavailable ? (failedObservation ? 'Market and bot status unavailable' : 'Checking market and bot status…')
     : degraded ? 'Bot needs attention'
     : marketOpen ? 'Markets open'
     : health.market.reason === 'DAILY_BREAK' ? 'Daily market break' : 'Markets closed for the weekend';
   const Icon = unavailable || degraded ? WarningAmber : marketOpen ? TrendingUp : NightsStay;
   const sessions = health?.market?.sessions || [];
   const issues = health?.issues || [];
+  const displayedEntryState = entryState || health?.entryState;
 
   if (compact) {
     return <Chip icon={<Icon />} label={title} size="small" color={tone} variant="outlined" />;
@@ -83,10 +50,10 @@ const MarketStatusBanner = ({ compact = false, strategy = null }) => {
           <Box>
             <Typography variant="subtitle2" fontWeight="bold" color={tone + '.main'}>{title}</Typography>
             <Typography variant="caption" color="text.secondary">
-              {unavailable ? 'Reconnect to verify live market data and position management.'
-                : health.entryState === 'WATCHING'
+              {!entryState && unavailable ? 'Reconnect to verify live market data and position management.'
+                : displayedEntryState === 'WATCHING'
                   ? `Watching for a completed ${isH4Trend({ strategy }) ? 'H4 channel breakout' : strategy === 'intraday_momentum' ? 'M15 setup' : 'market setup'}`
-                  : ENTRY_LABELS[health.entryState] || 'Review the live entry state'}
+                  : ENTRY_LABELS[displayedEntryState] || 'Review the live entry state'}
             </Typography>
           </Box>
         </Stack>

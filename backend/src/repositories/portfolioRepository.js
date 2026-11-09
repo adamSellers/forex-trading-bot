@@ -1,7 +1,10 @@
-const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class PortfolioRepository {
+    constructor(database = require("../../config/database").db) {
+        this.db = database;
+    }
+
     _applyRuntimeFilters(query, filters = {}) {
         const { mode, runId, selectionId, strategy } = filters || {};
 
@@ -46,7 +49,7 @@ class PortfolioRepository {
 
     async save(snapshot = {}) {
         try {
-            await db("portfolio_snapshots").insert({
+            await this.db("portfolio_snapshots").insert({
                 total_value_aud: snapshot.totalValueAud || snapshot.totalValue || 0,
                 balance_aud: snapshot.balanceAud || snapshot.balance || 0,
                 unrealized_pnl_aud:
@@ -76,7 +79,7 @@ class PortfolioRepository {
     async getCurrent(filters = {}) {
         try {
             const latest = await this._applyRuntimeFilters(
-                db("portfolio_snapshots"),
+                this.db("portfolio_snapshots"),
                 filters
             )
                 .orderBy("snapshot_time", "desc")
@@ -96,7 +99,7 @@ class PortfolioRepository {
     async getHistory(limit = 100, filters = {}) {
         try {
             const rows = await this._applyRuntimeFilters(
-                db("portfolio_snapshots"),
+                this.db("portfolio_snapshots"),
                 filters
             )
                 .orderBy("snapshot_time", "desc")
@@ -112,7 +115,7 @@ class PortfolioRepository {
         try {
             if (!runId) return 0;
 
-            return await this._applyRuntimeFilters(db("portfolio_snapshots"), {
+            return await this._applyRuntimeFilters(this.db("portfolio_snapshots"), {
                 ...filters,
                 runId,
             }).del();
@@ -128,7 +131,7 @@ class PortfolioRepository {
     async deleteByRuntimeFilters(filters = {}) {
         try {
             return await this._applyRuntimeFilters(
-                db("portfolio_snapshots"),
+                this.db("portfolio_snapshots"),
                 filters
             ).del();
         } catch (error) {
@@ -151,7 +154,7 @@ class PortfolioRepository {
     async deleteOlderThan(days) {
         try {
             const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-            const deleted = await db("portfolio_snapshots")
+            const deleted = await this.db("portfolio_snapshots")
                 .where("snapshot_time", "<", cutoff)
                 .del();
             if (deleted > 0) {

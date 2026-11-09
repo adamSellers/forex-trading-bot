@@ -5,43 +5,20 @@ const {
     destroyTestDb,
 } = require("../../../__tests__/helpers/testDb");
 
-let mockTestDbInstance = null;
-
-jest.mock("../../../config/database", () => ({
-    db: new Proxy(function () {}, {
-        apply: (target, thisArg, args) => {
-            if (mockTestDbInstance) {
-                return mockTestDbInstance(args[0]);
-            }
-            throw new Error("Database not initialized");
-        },
-        get: (target, prop) => {
-            if (mockTestDbInstance && mockTestDbInstance[prop]) {
-                return typeof mockTestDbInstance[prop] === "function"
-                    ? mockTestDbInstance[prop].bind(mockTestDbInstance)
-                    : mockTestDbInstance[prop];
-            }
-            return undefined;
-        },
-    }),
-}));
-
 describe("PortfolioRepository", () => {
     let repository;
     let testDb;
 
     beforeAll(async () => {
         testDb = await createTestDb();
-        mockTestDbInstance = testDb;
     });
 
     afterAll(async () => {
         await destroyTestDb(testDb);
-        mockTestDbInstance = null;
     });
 
     beforeEach(async () => {
-        repository = new PortfolioRepository();
+        repository = new PortfolioRepository(testDb);
         await cleanupTestDb(testDb);
     });
 
@@ -151,12 +128,11 @@ describe("PortfolioRepository", () => {
         });
 
         test("should return 0 on database errors instead of throwing", async () => {
-            mockTestDbInstance = null;
+            repository = new PortfolioRepository(() => { throw new Error("Database unavailable"); });
 
             const deleted = await repository.deleteOlderThan(90);
 
             expect(deleted).toBe(0);
-            mockTestDbInstance = testDb;
         });
     });
 });

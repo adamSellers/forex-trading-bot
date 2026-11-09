@@ -1,5 +1,5 @@
 // frontend/src/components/TradingDashboard.jsx - Main Trading Dashboard with Engine Integration
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -31,7 +31,7 @@ import {
   Sync,
   FiberManualRecord,
 } from '@mui/icons-material';
-import { socket, tradingAPI, engineAPI, runtimeAPI, strategiesAPI } from '../config/api';
+import { useLiveOperator } from '../operator/useLiveOperator';
 
 // --- IMPORTED WIDGETS ---
 import { GlassCard, FOREX_INSTRUMENTS } from './dashboard/Shared';
@@ -44,7 +44,6 @@ import LivePriceChart from './dashboard/LivePriceChart';
 import MarketStatusBanner from './dashboard/MarketStatusBanner';
 import { CURRENT_STRATEGY_KEY, strategyLabel } from '../utils/strategyDisplay';
 
-const FETCH_LIMITS = { TRADES: 50, SIGNALS: 100 };
 const SIDEBAR_WIDTH = 340;
 const DEFAULT_STRATEGY_KEY = CURRENT_STRATEGY_KEY;
 const FALLBACK_STRATEGY_OPTIONS = [
@@ -74,24 +73,11 @@ const getStrategyLabel = (strategyKey, catalog = []) => {
   return strategyLabel(strategyKey, strategy?.label);
 };
 
-const withReadDeadline = (request) => {
-  let timer;
-  return Promise.race([request, new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Data request timed out')), 20000);
-  })]).finally(() => clearTimeout(timer));
-};
-
 const shortenRuntimeId = (value) => (value ? String(value).slice(0, 12) : 'unassigned');
 
 const getReadinessReasons = (readiness) => (
   Array.isArray(readiness?.reasons) ? readiness.reasons : []
 );
-
-const formatApiErrorMessage = (error, fallback) => {
-  const message = error?.payload?.error || error?.message || fallback;
-  const code = error?.payload?.code;
-  return code ? `${message} (${code})` : message;
-};
 
 const formatReadinessValue = (key, value) => {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return 'unavailable';
@@ -124,388 +110,63 @@ const getReadinessReasonDetail = (reason) => {
   return null;
 };
 
-const TradingDashboard = () => {
+const TradingDashboard = ({ operator } = {}) => {
   const theme = useTheme();
 
-  // --- STATE ---
-  const [systemStatus, setSystemStatus] = useState(null);
-  const [engineStatus, setEngineStatus] = useState(null);
-  const [portfolio, setPortfolio] = useState(null);
-  const [prices, setPrices] = useState({});
-  const [latestSignals, setLatestSignals] = useState(new Map());
-  const [hasSignalData, setHasSignalData] = useState(false);
-  const [trades, setTrades] = useState([]);
-  const [account, setAccount] = useState(null);
-  const [tradingEnabled, setTradingEnabled] = useState(false);
-  const [strategyCatalog, setStrategyCatalog] = useState([]);
-  const [liveSelection, setLiveSelection] = useState(null);
-  const [selectedStrategy, setSelectedStrategy] = useState(DEFAULT_STRATEGY_KEY);
-  const [liveReadiness, setLiveReadiness] = useState(null);
+  const {
+    view, loading, dataError, error, notice, action: tradingAction,
+    pendingCommands = [], lastUpdate, commandResult,
+    refresh, enableEntries, pauseEntries, reconcileBroker, clearFeedback,
+  } = useLiveOperator(operator);
   const [readinessDialogOpen, setReadinessDialogOpen] = useState(false);
-  const [activationFailure, setActivationFailure] = useState(null);
-  const [tradingAction, setTradingAction] = useState(null);
-
   const [activeTab, setActiveTab] = useState(0);
-  const [error, setError] = useState(null);
-  const [dataError, setDataError] = useState(null);
-  const [notice, setNotice] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(null);
-
-  const isMountedRef = useRef(true);
-  const strategyCatalogRef = useRef(strategyCatalog);
-  const liveSelectionRef = useRef(liveSelection);
-  const refreshSequenceRef = useRef(0);
-  const readinessSequenceRef = useRef(0);
-
-  // --- WEBSOCKET & DATA ---
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      refreshSequenceRef.current += 1;
-      readinessSequenceRef.current += 1;
-    };
-  }, []);
-
-  useEffect(() => {
-    strategyCatalogRef.current = strategyCatalog;
-  }, [strategyCatalog]);
-
-  useEffect(() => {
-    liveSelectionRef.current = liveSelection;
-  }, [liveSelection]);
-
-  const updateSignalState = useCallback((newSignals) => {
-    if (!newSignals) return;
-    setHasSignalData(true);
-    const signalArray = Array.isArray(newSignals) ? newSignals : [newSignals];
-    if (signalArray.length === 0) {
-      setLatestSignals(new Map());
-      return;
-    }
-
-    setLatestSignals((prevMap) => {
-      const newMap = new Map(prevMap);
-      let hasUpdates = false;
-      signalArray.forEach((signal) => {
-        if (signal && signal.symbol) {
-          const existing = newMap.get(signal.symbol);
-          if (!existing || new Date(signal.timestamp) > new Date(existing.timestamp)) {
-            newMap.set(signal.symbol, signal);
-            hasUpdates = true;
-          }
-        }
-      });
-      return hasUpdates ? newMap : prevMap;
-    });
-  }, []);
-
-  const fetchInitialData = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    const refreshSequence = ++refreshSequenceRef.current;
-    const readinessSequence = ++readinessSequenceRef.current;
-    try {
-      setLoading(true);
-      const [statusData, portfolioData, tradesData, signalsData, pricesData, accountData, engineData, liveSelectionData, catalogData, readinessData] =
-        await Promise.allSettled([
-          tradingAPI.getStatus(),
-          tradingAPI.getPortfolio(),
-          tradingAPI.getTrades({ limit: FETCH_LIMITS.TRADES }),
-          tradingAPI.getSignals({ limit: FETCH_LIMITS.SIGNALS }),
-          tradingAPI.getPrices(),
-          tradingAPI.getAccount(),
-          engineAPI.getStatus(),
-          runtimeAPI.getLiveSelection({ includeRuns: false }),
-          strategiesAPI.getCatalog({ force: true }),
-          tradingAPI.getLiveReadiness(),
-        ].map(withReadDeadline));
-
-      if (!isMountedRef.current || refreshSequence !== refreshSequenceRef.current) return;
-
-      const catalog = catalogData.status === 'fulfilled' && Array.isArray(catalogData.value)
-        ? catalogData.value
-        : strategyCatalogRef.current;
-      if (catalogData.status === 'fulfilled') setStrategyCatalog(catalog);
-
-      if (statusData.status === 'fulfilled') {
-        setSystemStatus(statusData.value);
-        setTradingEnabled(statusData.value.config?.enableTrading || false);
-      }
-      if (engineData.status === 'fulfilled') {
-        setEngineStatus(engineData.value);
-      }
-      if (liveSelectionData.status === 'fulfilled') {
-        const selection = liveSelectionData.value?.liveSelection || null;
-        setLiveSelection(selection);
-        setSelectedStrategy(
-          normalizeStrategySelection(
-            selection?.strategy || (statusData.status === 'fulfilled' ? statusData.value?.config?.strategy : null),
-            catalog
-          )
-        );
-      } else if (statusData.status === 'fulfilled') {
-        setSelectedStrategy(
-          normalizeStrategySelection(statusData.value.config?.strategy, catalog)
-        );
-      }
-      if (signalsData.status === 'fulfilled' && signalsData.value) {
-        const sigs = Array.isArray(signalsData.value)
-          ? signalsData.value
-          : signalsData.value.signals;
-        updateSignalState(sigs);
-      }
-      if (portfolioData.status === 'fulfilled') setPortfolio(portfolioData.value);
-      if (tradesData.status === 'fulfilled') {
-        const t = tradesData.value.trades || tradesData.value;
-        if (Array.isArray(t)) setTrades(t);
-      }
-      if (pricesData.status === 'fulfilled' && pricesData.value?.prices) {
-        const pricesObj = {};
-        pricesData.value.prices.forEach((p) => {
-          pricesObj[p.instrument] = { ...p, price: p.mid, symbol: p.instrument };
-        });
-        setPrices(pricesObj);
-      }
-      if (accountData.status === 'fulfilled') setAccount(accountData.value);
-      if (readinessData.status === 'fulfilled' && readinessSequence === readinessSequenceRef.current) {
-        setLiveReadiness(readinessData.value);
-      } else if (readinessData.status === 'rejected' && readinessSequence === readinessSequenceRef.current) {
-        setLiveReadiness(null);
-      }
-
-      setLoading(false);
-      const reads = { status: statusData, portfolio: portfolioData, trades: tradesData, signals: signalsData,
-        prices: pricesData, account: accountData, engine: engineData, runtime: liveSelectionData, catalog: catalogData, readiness: readinessData };
-      const failed = Object.entries(reads).filter(([, result]) => result.status === 'rejected').map(([name]) => name);
-      if (failed.length) setDataError(`Data refresh failed: ${failed.join(', ')}. Displayed values may be stale.`);
-      else if (readinessSequence === readinessSequenceRef.current) { setDataError(null); setLastUpdate(Date.now()); }
-    } catch (err) {
-      if (isMountedRef.current && refreshSequence === refreshSequenceRef.current) {
-        console.error(err);
-        setDataError(`Data Sync Error: ${err.message}`);
-        setLoading(false);
+  const overview = view?.overview || {};
+  const systemStatus = overview.systemStatus || null;
+  const engineStatus = overview.engineStatus || null;
+  const portfolio = overview.portfolio || null;
+  const account = overview.account || null;
+  const trades = Array.isArray(overview.trades) ? overview.trades : [];
+  const strategyCatalog = Array.isArray(overview.catalog) ? overview.catalog : [];
+  const liveSelection = overview.liveSelection || null;
+  const tradingEnabled = view?.intent?.entriesEnabled === true;
+  const selectedStrategy = normalizeStrategySelection(
+    view?.identity?.strategy || liveSelection?.strategy || systemStatus?.config?.strategy,
+    strategyCatalog
+  );
+  const readinessAvailable = view?.observations?.readiness?.status === 'available';
+  const liveReadiness = readinessAvailable ? overview.readiness : null;
+  const entryRisk = view?.entries?.entryRisk || null;
+  const enabling = pendingCommands.includes('enable') || tradingAction === 'enable';
+  const pausing = pendingCommands.includes('pause') || tradingAction === 'pause';
+  // Pause stays available while activation awaits the backend or broker.
+  const pauseAvailable = tradingEnabled || enabling;
+  const activationFailure = commandResult?.command === 'enableEntries' &&
+    commandResult.outcome !== 'accepted' ? commandResult : null;
+  const prices = useMemo(() => Object.fromEntries(
+    (Array.isArray(overview.prices) ? overview.prices : []).filter(price => price?.instrument)
+      .map(price => [price.instrument, { ...price, price: price.mid ?? price.price, symbol: price.instrument }])
+  ), [overview.prices]);
+  const hasSignalData = Array.isArray(overview.signals);
+  const latestSignals = useMemo(() => {
+    const current = new Map();
+    const runId = view?.identity?.liveRunId;
+    for (const signal of Array.isArray(overview.signals) ? overview.signals : []) {
+      if (!signal?.symbol || (runId && signal.runId && signal.runId !== runId)) continue;
+      const prior = current.get(signal.symbol);
+      if (!prior || Number(new Date(signal.timestamp)) >= Number(new Date(prior.timestamp))) {
+        current.set(signal.symbol, signal);
       }
     }
-  }, [updateSignalState]);
+    return current;
+  }, [overview.signals, view?.identity?.liveRunId]);
 
   useEffect(() => {
-    const handleConnect = () => {
-      if (isMountedRef.current) {
-        setError(null);
-        fetchInitialData();
-      }
-    };
+    if (commandResult?.command === 'enableEntries' &&
+        ['rejected', 'failed'].includes(commandResult.outcome)) setReadinessDialogOpen(true);
+  }, [commandResult]);
 
-    const handleSystemStatus = (s) => isMountedRef.current && setSystemStatus(s);
-    const handleEngineStatus = (s) => isMountedRef.current && setEngineStatus(s);
-    const handleLiveSelectionUpdated = (selection) => {
-      if (isMountedRef.current) {
-        const previousSelection = liveSelectionRef.current;
-        const selectionChanged =
-          selection?.liveRunId &&
-          previousSelection?.liveRunId &&
-          selection.liveRunId !== previousSelection.liveRunId;
-
-        if (selectionChanged) {
-          setLatestSignals(new Map());
-          setHasSignalData(false);
-        }
-        setLiveSelection(selection || null);
-        setSelectedStrategy((current) =>
-          normalizeStrategySelection(selection?.strategy || current, strategyCatalogRef.current)
-        );
-        fetchInitialData();
-      }
-    };
-    const handlePortfolioUpdated = (d) => {
-      if (isMountedRef.current) {
-        setPortfolio(d);
-      }
-    };
-    const handlePriceUpdate = (data) => {
-      if (isMountedRef.current && data) {
-        if (typeof data === 'object' && !data.instrument && !data.symbol) {
-          setPrices((prev) => {
-            const updated = { ...prev };
-            Object.entries(data).forEach(([instrument, priceData]) => {
-              updated[instrument] = {
-                ...priceData,
-                price: priceData.mid || priceData.price,
-                symbol: instrument,
-              };
-            });
-            return updated;
-          });
-        } else {
-          const key = data.instrument || data.symbol;
-          if (key) {
-            setPrices((p) => ({
-              ...p,
-              [key]: { ...data, price: data.mid || data.price, symbol: key },
-            }));
-          }
-        }
-      }
-    };
-    const handleSignalUpdate = (d) => {
-      if (isMountedRef.current) {
-        updateSignalState(d);
-      }
-    };
-    const handleSignalGenerated = (d) => {
-      if (isMountedRef.current) {
-        updateSignalState(d);
-      }
-    };
-    const handleTradeExecuted = (t) => {
-      if (isMountedRef.current) {
-        setTrades((prev) => [t, ...prev].slice(0, FETCH_LIMITS.TRADES));
-      }
-    };
-    // New: Listen for trade events from engine
-    const handleTradeOpened = () => {
-      if (isMountedRef.current) {
-        fetchInitialData(); // Refresh all data when trade opens
-      }
-    };
-    const handleTradeClosed = () => {
-      if (isMountedRef.current) {
-        fetchInitialData(); // Refresh all data when trade closes
-      }
-    };
-    const handleConfigUpdate = (newConfig) => {
-      if (isMountedRef.current && newConfig) {
-        setSystemStatus((prev) => ({ ...prev, config: newConfig }));
-        setTradingEnabled(newConfig.enableTrading || false);
-        setSelectedStrategy((current) =>
-          normalizeStrategySelection(
-            liveSelectionRef.current?.strategy || newConfig.strategy || current,
-            strategyCatalogRef.current
-          )
-        );
-        const readinessSequence = ++readinessSequenceRef.current;
-        withReadDeadline(tradingAPI.getLiveReadiness())
-          .then((readiness) => {
-            if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
-              setLiveReadiness(readiness);
-              setDataError((previous) => previous?.startsWith('Live readiness refresh failed') ? null : previous);
-            }
-          })
-          .catch((readinessError) => {
-            if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
-              setLiveReadiness(null);
-              setDataError('Live readiness refresh failed. Current activation readiness is unavailable.');
-            }
-            console.error('Failed to refresh live readiness:', readinessError);
-          });
-      }
-    };
-
-    socket.on('connect', handleConnect);
-    socket.on('systemStatus', handleSystemStatus);
-    socket.on('engineStatus', handleEngineStatus);
-    socket.on('liveSelectionUpdated', handleLiveSelectionUpdated);
-    socket.on('portfolioUpdated', handlePortfolioUpdated);
-    socket.on('priceUpdate', handlePriceUpdate);
-    socket.on('signalUpdate', handleSignalUpdate);
-    socket.on('signalGenerated', handleSignalGenerated);
-    socket.on('tradeExecuted', handleTradeExecuted);
-    socket.on('tradeOpened', handleTradeOpened);
-    socket.on('tradeClosed', handleTradeClosed);
-    socket.on('configUpdate', handleConfigUpdate);
-
-    if (!socket.connected) {
-      socket.connect();
-    } else {
-      handleConnect();
-    }
-
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('systemStatus', handleSystemStatus);
-      socket.off('engineStatus', handleEngineStatus);
-      socket.off('liveSelectionUpdated', handleLiveSelectionUpdated);
-      socket.off('portfolioUpdated', handlePortfolioUpdated);
-      socket.off('priceUpdate', handlePriceUpdate);
-      socket.off('signalUpdate', handleSignalUpdate);
-      socket.off('signalGenerated', handleSignalGenerated);
-      socket.off('tradeExecuted', handleTradeExecuted);
-      socket.off('tradeOpened', handleTradeOpened);
-      socket.off('tradeClosed', handleTradeClosed);
-      socket.off('configUpdate', handleConfigUpdate);
-    };
-  }, [fetchInitialData, updateSignalState]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const readinessSequence = ++readinessSequenceRef.current;
-      withReadDeadline(tradingAPI.getLiveReadiness())
-        .then((readiness) => {
-          if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
-            setLiveReadiness(readiness);
-            setDataError((previous) => previous?.startsWith('Live readiness refresh failed') ? null : previous);
-          }
-        })
-        .catch(() => {
-          if (isMountedRef.current && readinessSequence === readinessSequenceRef.current) {
-            setLiveReadiness(null);
-            setDataError('Live readiness refresh failed. Current activation readiness is unavailable.');
-          }
-        });
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // --- HANDLERS ---
-  const handleToggleTrading = async () => {
-    if (tradingAction) return;
-    const action = tradingEnabled ? 'pause' : 'enable';
-    setTradingAction(action);
-    setError(null);
-    setNotice(null);
-    setActivationFailure(null);
-
-    try {
-      let response;
-      if (tradingEnabled) {
-        response = await tradingAPI.stopTrading();
-      } else {
-        const readiness = await tradingAPI.getLiveReadiness();
-        setLiveReadiness(readiness);
-        if (!readiness?.activationAllowed) {
-          setReadinessDialogOpen(true);
-          return;
-        }
-
-        response = await tradingAPI.startTrading();
-        if (response?.liveReadiness) setLiveReadiness(response.liveReadiness);
-      }
-
-      await fetchInitialData();
-      setNotice(response?.message || (tradingEnabled ? 'Live entries paused' : 'Live entries enabled'));
-    } catch (err) {
-      const readiness = err?.payload?.liveReadiness || null;
-      if (readiness) {
-        setLiveReadiness(readiness);
-        setReadinessDialogOpen(true);
-      }
-      await fetchInitialData();
-      setActivationFailure(err?.payload || null);
-      setError(formatApiErrorMessage(err, `Unable to ${action} live trading`));
-    } finally {
-      setTradingAction(null);
-    }
-  };
-
-  const handleSyncEngine = async () => {
-    try {
-      await engineAPI.sync();
-      fetchInitialData();
-    } catch (err) {
-      setError(`Sync failed: ${err.message}`);
-    }
-  };
+  const handleToggleTrading = () => pauseAvailable ? pauseEntries() : enableEntries();
+  const handleSyncEngine = () => reconcileBroker();
 
   // --- MEMOIZED HELPERS ---
   const signalsToRender = useMemo(
@@ -545,12 +206,11 @@ const TradingDashboard = () => {
 
   // Engine stats
   const engineOpenPositions = engineStatus?.openPositions || 0;
-  const engineIsRunning = engineStatus?.isRunning || false;
+  const engineIsRunning = view?.protection?.engineAttached === true;
   const readinessReasons = getReadinessReasons(liveReadiness);
-  const entryRisk = liveReadiness?.entryRisk || engineStatus?.entryRisk || null;
   const lossCooldownActive = entryRisk?.cooldownActive === true;
-  const liveActivationBlocked = !tradingEnabled && liveReadiness?.activationAllowed === false;
-  const tradingActionPending = Boolean(tradingAction);
+  const liveActivationBlocked = !pauseAvailable && readinessAvailable && view?.activation?.allowed === false;
+  const tradingActionPending = pausing;
   const activationFailureReasons = Array.isArray(activationFailure?.baselineResume?.reasons)
     ? activationFailure.baselineResume.reasons
     : [];
@@ -598,12 +258,12 @@ const TradingDashboard = () => {
           </Tooltip>
           <Button
             variant="contained"
-            color={tradingEnabled ? 'error' : liveActivationBlocked ? 'warning' : 'success'}
+            color={pauseAvailable ? 'error' : liveActivationBlocked || !readinessAvailable ? 'warning' : 'success'}
             onClick={handleToggleTrading}
             startIcon={
               tradingActionPending
                 ? <CircularProgress size={16} color="inherit" />
-                : tradingEnabled
+                : pauseAvailable
                   ? <Stop />
                   : <PlayArrow />
             }
@@ -611,16 +271,14 @@ const TradingDashboard = () => {
             size="small"
             sx={{ px: 3, fontWeight: 'bold' }}
           >
-            {tradingAction === 'pause'
-              ? 'PAUSING LIVE'
-              : tradingAction === 'enable'
-                ? 'CHECKING LIVE'
-                : tradingEnabled
-                  ? 'PAUSE LIVE'
-                  : liveActivationBlocked
-                    ? 'LIVE BLOCKED'
-                    : 'ENABLE LIVE'}
+            {pausing ? 'PAUSING LIVE'
+              : pauseAvailable ? 'PAUSE LIVE'
+                : liveActivationBlocked ? 'LIVE BLOCKED' : 'ENABLE LIVE'}
           </Button>
+          {!readinessAvailable && (
+            <Chip label="READINESS UNAVAILABLE" size="small" color="warning" variant="outlined"
+              onClick={() => setReadinessDialogOpen(true)} />
+          )}
           {liveReadiness && (lossCooldownActive || !tradingEnabled) && (
             <Tooltip title={lossCooldownActive ? 'View consecutive-loss cooldown' : liveReadiness.passed ? 'Live readiness passed' : 'View live activation blockers'}>
               <Chip
@@ -638,6 +296,8 @@ const TradingDashboard = () => {
               variant="outlined"
               size="small"
               onClick={handleSyncEngine}
+              aria-label="Reconcile broker"
+              disabled={pendingCommands.includes('reconcile')}
               sx={{ minWidth: 40, p: 0.5 }}
             >
               <Sync fontSize="small" />
@@ -703,7 +363,7 @@ const TradingDashboard = () => {
               display: { xs: 'none', md: 'block' },
             }}
           >
-            Last full refresh: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}
+            Last operator view: {lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : '--:--:--'}
           </Typography>
         </Stack>
       </Box>
@@ -720,12 +380,12 @@ const TradingDashboard = () => {
 
       {dataError && <Alert severity="warning" sx={{ mb: 2, flexShrink: 0 }}>{dataError}</Alert>}
       {error && (
-        <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }} onClose={clearFeedback}>
           {error}
         </Alert>
       )}
       {notice && (
-        <Alert severity="success" sx={{ mb: 2, flexShrink: 0 }} onClose={() => setNotice(null)}>
+        <Alert severity="success" sx={{ mb: 2, flexShrink: 0 }} onClose={clearFeedback}>
           {notice}
         </Alert>
       )}
@@ -737,7 +397,7 @@ const TradingDashboard = () => {
         fullWidth
       >
         <DialogTitle>
-          {liveReadiness?.passed ? 'Live strategy is ready'
+          {!readinessAvailable ? 'Live readiness is unavailable' : liveReadiness?.passed ? 'Live strategy is ready'
             : liveReadiness?.activationAllowed ? 'New entries are cooling down'
               : 'Live activation is blocked'}
         </DialogTitle>
@@ -770,7 +430,9 @@ const TradingDashboard = () => {
               ))}
             </Alert>
           )}
-          {liveReadiness?.passed ? (
+          {!readinessAvailable ? (
+            <Alert severity="warning">Current activation readiness is unavailable. Refresh the operator view to check again.</Alert>
+          ) : liveReadiness?.passed ? (
             <Alert severity="success">
               Every live readiness check currently passes. Close this dialog and choose Enable Live to activate entries.
             </Alert>
@@ -824,13 +486,20 @@ const TradingDashboard = () => {
           )}
         </DialogContent>
         <DialogActions>
+          <Button onClick={refresh}>Refresh operator view</Button>
           <Button onClick={() => setReadinessDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
       {/* Market Status Banner - Shows open/closed status with countdown */}
       <Box sx={{ flexShrink: 0 }}>
-        <MarketStatusBanner strategy={systemStatus?.config?.strategy || liveSelection?.strategy || selectedStrategy} />
+        <MarketStatusBanner
+          strategy={systemStatus?.config?.strategy || liveSelection?.strategy || selectedStrategy}
+          health={overview.operationalHealth}
+          entryState={view?.entries?.state}
+          error={view?.observations?.operationalHealth?.status === 'unavailable'}
+          brokerUnavailable={view?.observations?.account?.status === 'unavailable'}
+        />
       </Box>
 
       {/* KPI Stats */}

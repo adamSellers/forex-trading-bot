@@ -2,34 +2,13 @@
 const SignalRepository = require('../signalRepository');
 const { createTestDb, destroyTestDb } = require('../../../__tests__/helpers/testDb');
 
-// Store reference to test database for mock
 let mockTestDbInstance = null;
-
-// Mock the database module
-jest.mock('../../../config/database', () => ({
-    db: new Proxy(function() {}, {
-        apply: (target, thisArg, args) => {
-            if (mockTestDbInstance) {
-                return mockTestDbInstance(args[0]);
-            }
-            throw new Error('Database not initialized');
-        },
-        get: (target, prop) => {
-            if (mockTestDbInstance && mockTestDbInstance[prop]) {
-                return typeof mockTestDbInstance[prop] === 'function'
-                    ? mockTestDbInstance[prop].bind(mockTestDbInstance)
-                    : mockTestDbInstance[prop];
-            }
-            return undefined;
-        },
-    }),
-}));
 
 describe('SignalRepository', () => {
     let repository;
 
     beforeEach(() => {
-        repository = new SignalRepository();
+        repository = new SignalRepository(null);
     });
 
     afterEach(() => {
@@ -39,6 +18,7 @@ describe('SignalRepository', () => {
     test('compact and full reads retain attempt identity without loading full context into the dashboard', async () => {
         const database = await createTestDb();
         mockTestDbInstance = database;
+        repository = new SignalRepository(mockTestDbInstance);
         try {
             await database.schema.alterTable('signals', (table) => table.text('message'));
             await database('signals').insert([
@@ -55,6 +35,7 @@ describe('SignalRepository', () => {
         } finally {
             await destroyTestDb(database);
             mockTestDbInstance = null;
+            repository = new SignalRepository(mockTestDbInstance);
         }
     });
 
@@ -63,6 +44,7 @@ describe('SignalRepository', () => {
         const generator = new SignalGenerator();
         const database = await createTestDb();
         mockTestDbInstance = database;
+        repository = new SignalRepository(mockTestDbInstance);
         try {
             await database.schema.alterTable('signals', (table) => table.text('message'));
             const rsiValues = [32.36, 0, null];
@@ -83,6 +65,7 @@ describe('SignalRepository', () => {
             generator.stop();
             await destroyTestDb(database);
             mockTestDbInstance = null;
+            repository = new SignalRepository(mockTestDbInstance);
         }
     });
 
@@ -91,6 +74,7 @@ describe('SignalRepository', () => {
             .mockRejectedValueOnce(new Error('table signals has no column named reason_code'))
             .mockResolvedValueOnce([1]);
         mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+        repository = new SignalRepository(mockTestDbInstance);
         await repository.save({ symbol: 'EUR_USD', signal: 'HOLD', trend: { rsi: 0 } });
         expect(mockInsert).toHaveBeenNthCalledWith(1, expect.objectContaining({ rsi: 0 }));
         expect(mockInsert).toHaveBeenNthCalledWith(2, expect.objectContaining({ rsi: 0 }));
@@ -139,6 +123,7 @@ describe('SignalRepository', () => {
         test('should delete signals older than specified days', async () => {
             const builder = makeBatchBuilder([5]);
             mockTestDbInstance = jest.fn().mockReturnValue(builder);
+            repository = new SignalRepository(mockTestDbInstance);
 
             const deleted = await repository.deleteOlderThan(90);
 
@@ -156,6 +141,7 @@ describe('SignalRepository', () => {
         test('should calculate correct cutoff date for 90 days', async () => {
             const builder = makeBatchBuilder([0]);
             mockTestDbInstance = jest.fn().mockReturnValue(builder);
+            repository = new SignalRepository(mockTestDbInstance);
 
             const now = Date.now();
             await repository.deleteOlderThan(90);
@@ -173,6 +159,7 @@ describe('SignalRepository', () => {
             // Two full batches then a short one -> three delete calls total
             const builder = makeBatchBuilder([5000, 5000, 123]);
             mockTestDbInstance = jest.fn().mockReturnValue(builder);
+            repository = new SignalRepository(mockTestDbInstance);
 
             const deleted = await repository.deleteOlderThan(30);
 
@@ -184,6 +171,7 @@ describe('SignalRepository', () => {
         test('should respect a custom batchSize', async () => {
             const builder = makeBatchBuilder([2, 1]);
             mockTestDbInstance = jest.fn().mockReturnValue(builder);
+            repository = new SignalRepository(mockTestDbInstance);
 
             const deleted = await repository.deleteOlderThan(30, { batchSize: 2 });
 
@@ -195,6 +183,7 @@ describe('SignalRepository', () => {
         test('should return 0 when no signals deleted', async () => {
             const builder = makeBatchBuilder([0]);
             mockTestDbInstance = jest.fn().mockReturnValue(builder);
+            repository = new SignalRepository(mockTestDbInstance);
 
             const deleted = await repository.deleteOlderThan(90);
 
@@ -204,6 +193,7 @@ describe('SignalRepository', () => {
         test('should handle database errors gracefully', async () => {
             const builder = makeBatchBuilder([new Error('DB connection failed')]);
             mockTestDbInstance = jest.fn().mockReturnValue(builder);
+            repository = new SignalRepository(mockTestDbInstance);
 
             const deleted = await repository.deleteOlderThan(90);
 
@@ -216,6 +206,7 @@ describe('SignalRepository', () => {
         test('should save valid signal to database', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+            repository = new SignalRepository(mockTestDbInstance);
 
             const signal = {
                 symbol: 'AUD_USD',
@@ -238,6 +229,7 @@ describe('SignalRepository', () => {
         test('should persist structured telemetry fields and cooldown metadata', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+            repository = new SignalRepository(mockTestDbInstance);
 
             await repository.save({
                 symbol: 'AUD_USD',
@@ -302,6 +294,7 @@ describe('SignalRepository', () => {
         test('should persist runtime identity fields when provided', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+            repository = new SignalRepository(mockTestDbInstance);
 
             await repository.save({
                 symbol: 'AUD_USD',
@@ -327,6 +320,7 @@ describe('SignalRepository', () => {
         test('should skip invalid signals', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+            repository = new SignalRepository(mockTestDbInstance);
 
             // Missing symbol
             await repository.save({ signal: 'BUY' });
@@ -346,6 +340,7 @@ describe('SignalRepository', () => {
         test('should save multiple signals', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1, 2]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+            repository = new SignalRepository(mockTestDbInstance);
 
             const signals = [
                 { symbol: 'AUD_USD', signal: 'BUY', strength: 25.5, timestamp: Date.now() },
@@ -362,6 +357,7 @@ describe('SignalRepository', () => {
         test('should filter out invalid signals in batch', async () => {
             const mockInsert = jest.fn().mockResolvedValue([1]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+            repository = new SignalRepository(mockTestDbInstance);
 
             const signals = [
                 { symbol: 'AUD_USD', signal: 'BUY', strength: 25.5, timestamp: Date.now() },
@@ -379,6 +375,7 @@ describe('SignalRepository', () => {
         test('should not insert when all signals invalid', async () => {
             const mockInsert = jest.fn().mockResolvedValue([]);
             mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+            repository = new SignalRepository(mockTestDbInstance);
 
             const signals = [
                 { symbol: null, signal: 'BUY' },
@@ -456,6 +453,7 @@ describe('SignalRepository', () => {
             const mockOrderBy = jest.fn().mockResolvedValue([row]);
             const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
             mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+            repository = new SignalRepository(mockTestDbInstance);
 
             const cutoff = new Date(1710000000000);
             const results = await repository.getSignalsSince(cutoff);

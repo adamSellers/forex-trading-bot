@@ -1,4 +1,3 @@
-jest.mock("../../../config/database", () => ({ db: null }));
 
 const BrokerLifecycleRepository = require("../brokerLifecycleRepository");
 

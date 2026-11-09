@@ -1,7 +1,10 @@
-const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class EntryDecisionRepository {
+    constructor(database = require("../../config/database").db) {
+        this.db = database;
+    }
+
     _toNumber(value) {
         if (value === null || value === undefined || value === "") {
             return value ?? null;
@@ -153,7 +156,7 @@ class EntryDecisionRepository {
                 return null;
             }
 
-            await db("entry_decisions").insert(this._buildRecord(decision));
+            await this.db("entry_decisions").insert(this._buildRecord(decision));
             return decision;
         } catch (error) {
             logger.error("Error saving entry decision:", error);
@@ -227,7 +230,7 @@ class EntryDecisionRepository {
 
             if (Object.keys(dbUpdates).length <= 1) return;
 
-            const updated = await db("entry_decisions")
+            const updated = await this.db("entry_decisions")
                 .where("decision_id", decisionId)
                 .update(dbUpdates);
             if (updated !== 1) {
@@ -244,7 +247,7 @@ class EntryDecisionRepository {
             const timestamp =
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
             const rows = await this._applyRuntimeFilters(
-                db("entry_decisions").where("decision_time", ">=", timestamp),
+                this.db("entry_decisions").where("decision_time", ">=", timestamp),
                 filters
             ).orderBy("decision_time", "desc");
             return rows.map((row) => this._mapRow(row));
@@ -258,7 +261,7 @@ class EntryDecisionRepository {
         if (!runId || !configHash || !setupId) {
             throw new Error("Setup recovery requires run, config and setup identity");
         }
-        const row = await db("entry_decisions")
+        const row = await this.db("entry_decisions")
             .where({ run_id: runId, config_hash: configHash, setup_id: setupId })
             // Insertion order identifies the latest attempt even if the clock moves back.
             .orderBy("id", "desc")
@@ -269,7 +272,7 @@ class EntryDecisionRepository {
     async deleteByRuntimeFilters(filters = {}) {
         try {
             return await this._applyRuntimeFilters(
-                db("entry_decisions"),
+                this.db("entry_decisions"),
                 filters
             ).del();
         } catch (error) {
@@ -291,7 +294,7 @@ class EntryDecisionRepository {
     async deleteOlderThan(days) {
         try {
             const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-            const deleted = await db("entry_decisions")
+            const deleted = await this.db("entry_decisions")
                 .where("decision_time", "<", cutoff)
                 .del();
             if (deleted > 0) {

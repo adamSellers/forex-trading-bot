@@ -3,11 +3,12 @@ const express = require("express");
 const router = express.Router();
 
 const {
-    getStrategyDefinition,
     listStrategyCatalog,
 } = require("../strategies");
 const { RUNTIME_MODES } = require("../runtime/runtimeConstants");
-const { evaluateLiveReadiness } = require("../runtime/liveReadiness");
+const LiveOperator = require("../runtime/liveOperator");
+const { createDashboardSources, observeOperatorChanges, systemStatus, accountView, portfolioView } =
+    require("../runtime/operatorDashboardSources");
 const { buildOperationalHealth } = require("../services/operationalHealthService");
 const { buildOandaApiError } = require("../utils/oandaErrors");
 const { performance } = require("node:perf_hooks");
@@ -25,61 +26,35 @@ function getRuntimeCoordinator(req) {
     return req.app.locals.runtimeCoordinator || req.app.locals.signalGenerator;
 }
 
-async function getEntryRiskState(req, config = {}) {
-    const engine = req.app.locals.tradingEngine;
-    const coordinator = getRuntimeCoordinator(req);
-    if (!engine?.getEntryRiskState) return null;
-
-    try {
-        return await engine.getEntryRiskState({
-            runId: coordinator?.getLiveSelection?.()?.liveRun?.runId || null,
-            config,
-        });
-    } catch (error) {
-        const unavailableState = {
-            status: "UNAVAILABLE",
-            entryAllowed: false,
-            cooldownActive: false,
-            error: error.message,
-            evaluatedAt: Date.now(),
+function getLiveOperator(req) {
+    const locals = req.app.locals;
+    if (!locals.liveOperator) {
+        const dependencies = {
+            configService: locals.configService, coordinator: getRuntimeCoordinator(req),
+            engine: locals.tradingEngine, dataService: locals.dataService,
+            tradeRepository: locals.tradeRepository, signalRepository: locals.signalRepository,
+            brokerClient: locals.brokerClient || require("../services/Oandaclient"),
+            brokerConfigured: () => Boolean(OANDA_API_KEY && OANDA_ACCOUNT_ID),
         };
-        engine.entryRiskState = unavailableState;
-        return unavailableState;
+        locals.liveOperator = new LiveOperator({ ...dependencies,
+            sources: createDashboardSources(dependencies),
+            observeChanges: (invalidate) => observeOperatorChanges(dependencies, invalidate),
+            ensureEngineStarted: locals.ensureTradingEngineStarted,
+            onStatusChange: () => locals.broadcastEngineStatus?.(),
+        });
     }
+    return locals.liveOperator;
 }
 
 async function buildLiveReadiness(req) {
-    const config = req.app.locals.configService?.get?.() || {};
-    const coordinator = getRuntimeCoordinator(req);
-    const entryRisk = await getEntryRiskState(req, config);
-    const readiness = evaluateLiveReadiness({
-        liveSelection: coordinator?.getLiveSelection?.() || null,
-        config,
-        entryRisk,
-    });
-    const persistence = req.app.locals.configService?.getPersistenceStatus?.();
-    if (persistence?.durable === false) {
-        readiness.passed = false;
-        readiness.activationAllowed = false;
-        readiness.status = "FAIL";
-        readiness.reasons.push({ code: "CONFIG_PERSISTENCE_FAILED", message: "Entries are paused in memory; save a paused configuration successfully before activation. Restart may reload the earlier saved state." });
-    }
-    const engineStatus = req.app.locals.tradingEngine?.getStatus?.();
-    if (engineStatus) {
-        const lifecycleReason = req.app.locals.tradingEngine.getBrokerEntryBlockReason
-            ? await req.app.locals.tradingEngine.getBrokerEntryBlockReason() : null;
-        const blocked = Boolean(lifecycleReason) || engineStatus.brokerStateUncertain === true ||
-            Number(engineStatus.pendingOrderIntents) > 0 || Array.isArray(engineStatus.pendingOrderIntents) && engineStatus.pendingOrderIntents.length > 0 ||
-            Number(engineStatus.quarantinedBrokerPositions) > 0 ||
-            Number(engineStatus.protectionPendingTrades) > 0 || Array.isArray(engineStatus.protectionPendingTrades) && engineStatus.protectionPendingTrades.length > 0;
-        if (blocked) {
-            readiness.passed = false;
-            readiness.activationAllowed = false;
-            readiness.status = "FAIL";
-            readiness.reasons.push({ code: "BROKER_LIFECYCLE_UNRESOLVED", message: "Broker positions, order intents or protective orders require reconciliation" });
-        }
-    }
-    return readiness;
+    return getLiveOperator(req).readReadiness();
+}
+
+function operatorFailure(res, result) {
+    return res.status(result.statusCode || 500).json({ error: result.error || result.message,
+        ...(result.code ? { code: result.code } : {}),
+        ...(result.detail ? { detail: result.detail } : {}),
+        ...(result.liveReadiness ? { liveReadiness: result.liveReadiness } : {}) });
 }
 
 function parseLimit(value, fallback, maximum = null) {
@@ -218,35 +193,9 @@ router.get("/strategies/catalog", (_req, res) => {
 });
 
 router.get("/health", (req, res) => {
-    const config = req.app.locals.configService?.get?.() || {};
-    const coordinator = getRuntimeCoordinator(req);
-    const strategy = getStrategyDefinition(
-        config.strategy || "multi_day_trend"
-    );
-    res.json({
-        status: "ok",
-        runtime: "live_only",
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        services: {
-            api: true,
-            oanda: Boolean(OANDA_API_KEY && OANDA_ACCOUNT_ID),
-            dataService: req.app.locals.dataService?.isRunning === true,
-            signalGenerator: coordinator?.isRunning === true,
-            tradingEngine: req.app.locals.tradingEngine?.isRunning === true,
-        },
-        config: {
-            enableTrading: config.enableTrading === true,
-            assets: config.assets || [],
-            strategy: strategy.key,
-            strategyLabel: strategy.label,
-            strategyVersion: strategy.version,
-            timeframe: config.timeframe || "4h",
-            maxOpenPositions: null,
-            positionPolicy: POSITION_POLICY,
-            riskPerTrade: config.riskPerTrade || 0,
-        },
-    });
+    res.json(systemStatus({ configService: req.app.locals.configService,
+        coordinator: getRuntimeCoordinator(req), engine: req.app.locals.tradingEngine,
+        dataService: req.app.locals.dataService, brokerConfigured: () => Boolean(OANDA_API_KEY && OANDA_ACCOUNT_ID) }));
 });
 
 router.get("/system/health", async (req, res) => {
@@ -376,23 +325,9 @@ router.post("/email/test", async (req, res) => {
 
 router.get("/account", async (_req, res) => {
     try {
-        const data = await oandaRequest(
-            `/v3/accounts/${OANDA_ACCOUNT_ID}/summary`
-        );
-        const account = data.account;
-        res.json({
-            balance: Number(account.balance),
-            currency: account.currency,
-            marginUsed: Number(account.marginUsed),
-            marginAvailable: Number(account.marginAvailable),
-            openTrades: Number(account.openTradeCount),
-            pendingOrders: Number(account.pendingOrderCount),
-            unrealizedPL: Number(account.unrealizedPL),
-            pl: Number(account.pl),
-        });
-    } catch (error) {
-        res.status(error.statusCode || 500).json({ error: error.message });
-    }
+        const data = await oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/summary`);
+        res.json(accountView(data.account));
+    } catch (error) { res.status(error.statusCode || 500).json({ error: error.message }); }
 });
 
 router.get("/prices", async (req, res) => {
@@ -510,39 +445,9 @@ router.get("/portfolio", async (req, res) => {
             oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/summary`),
             oandaRequest(`/v3/accounts/${OANDA_ACCOUNT_ID}/openTrades`),
         ]);
-        const account = accountData.account;
-        const positions = tradesData.trades.map((trade) => ({
-            id: trade.id,
-            instrument: trade.instrument,
-            units: Number(trade.currentUnits),
-            side: Number(trade.currentUnits) > 0 ? "BUY" : "SELL",
-            entryPrice: Number(trade.price),
-            unrealizedPL: Number(trade.unrealizedPL),
-            marginUsed: Number(trade.marginUsed || 0),
-            openTime: trade.openTime,
-        }));
-        const runId = getRuntimeCoordinator(req)?.getLiveSelection?.()?.liveRun?.runId || null;
-        const summary = runId && req.app.locals.tradeRepository?.getTradeSummary
-            ? await req.app.locals.tradeRepository.getTradeSummary({ mode: "live", ownerRunId: runId }) : null;
-        const recentClosed = req.app.locals.tradeRepository?.getTradesSince
-            ? await req.app.locals.tradeRepository.getTradesSince(Date.now() - 86400000, { mode: "live", timeBasis: "realized", endTime: Date.now() }) : null;
-        res.json({
-            balance: Number(account.balance),
-            currency: account.currency,
-            performance: summary ? { scope: "Current run", runId, totalTrades: summary.closedTradeCount,
-                winRate: summary.closedTradeCount ? summary.winningTrades / summary.closedTradeCount * 100 : null } : null,
-            realizedLast24hAud: recentClosed ? recentClosed.reduce((sum, trade) => sum + Number(trade.pnlAud || 0), 0) : null,
-            positions,
-            totalValue: Number(account.NAV),
-            unrealizedPnL: Number(account.unrealizedPL),
-            realizedPnL: Number(account.pl),
-            marginUsed: Number(account.marginUsed),
-            marginAvailable: Number(account.marginAvailable),
-            exposure: positions.length ? "Active" : "None",
-        });
-    } catch (error) {
-        res.status(error.statusCode || 500).json({ error: error.message });
-    }
+        res.json(await portfolioView({ account: accountData.account, brokerTrades: tradesData.trades,
+            coordinator: getRuntimeCoordinator(req), tradeRepository: req.app.locals.tradeRepository }));
+    } catch (error) { res.status(error.statusCode || 500).json({ error: error.message }); }
 });
 
 router.get("/trades", async (req, res) => {
@@ -584,67 +489,39 @@ router.get("/trading/live-readiness", async (req, res) => {
 
 router.post("/trading/start", async (req, res) => {
     try {
-        const configService = req.app.locals.configService;
-        const coordinator = getRuntimeCoordinator(req);
-        const engine = req.app.locals.tradingEngine;
-        if (!requireService(res, configService, "Config service")) return;
-        if (!requireService(res, coordinator, "Runtime coordinator")) return;
-        if (!requireService(res, engine, "Trading engine")) return;
-
-        await coordinator.ensureLiveSelectionInitialized?.();
-        const readiness = await buildLiveReadiness(req);
-        if (!readiness.activationAllowed) {
-            return res.status(409).json({
-                error: "Live strategy readiness failed",
-                liveReadiness: readiness,
-            });
-        }
-
-        if (!engine.isRunning) {
-            const supervisor = req.app.locals.ensureTradingEngineStarted;
-            const result = supervisor
-                ? await supervisor({ reason: "live activation" })
-                : (await engine.start(), engine.startMonitoring?.(), {
-                      running: engine.isRunning,
-                  });
-            if (!result?.running && !engine.isRunning) {
-                return res.status(503).json({
-                    error: "Trading engine is not running",
-                    detail: result?.error || "Engine start failed",
-                    liveReadiness: readiness,
-                });
-            }
-        }
-
-        configService.update(
-            { enableTrading: true },
-            { allowLiveActivation: true }
-        );
-        req.app.locals.broadcastEngineStatus?.();
-        res.json({
-            success: true,
-            message: readiness.status === "COOLDOWN"
-                ? "Live trading enabled; new entries remain paused until the loss cooldown ends"
-                : "Live trading enabled",
-            engineRunning: engine.isRunning,
-            liveReadiness: readiness,
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+        if (!requireService(res, req.app.locals.configService, "Config service") ||
+            !requireService(res, getRuntimeCoordinator(req), "Runtime coordinator") ||
+            !requireService(res, req.app.locals.tradingEngine, "Trading engine")) return;
+        const result = await getLiveOperator(req).enableEntries();
+        if (result.outcome !== "accepted") return operatorFailure(res, result);
+        res.json({ success: true, message: result.message, engineRunning: result.engineRunning,
+            liveReadiness: result.liveReadiness });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-router.post("/trading/stop", (req, res) => {
+router.post("/trading/stop", async (req, res) => {
     try {
-        const configService = req.app.locals.configService;
-        if (!requireService(res, configService, "Config service")) return;
-        configService.update({ enableTrading: false });
-        req.app.locals.broadcastEngineStatus?.();
-        res.json({ success: true, message: "Live entries disabled" });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+        if (!requireService(res, req.app.locals.configService, "Config service")) return;
+        const result = await getLiveOperator(req).pauseEntries();
+        if (result.outcome !== "accepted") return operatorFailure(res, result);
+        res.json({ success: true, message: result.message });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
+
+router.get("/operator/dashboard", async (req, res) => {
+    try { res.json(await getLiveOperator(req).readDashboard()); }
+    catch (error) { res.status(error.statusCode || 500).json({ error: error.message }); }
+});
+
+for (const [path, command] of [["/operator/entries/enable", "enableEntries"],
+    ["/operator/entries/pause", "pauseEntries"], ["/operator/reconcile", "reconcileBroker"]]) {
+    router.post(path, async (req, res) => {
+        try {
+            const result = await getLiveOperator(req)[command]();
+            res.status(result.statusCode || 200).json(result);
+        } catch (error) { res.status(error.statusCode || 500).json({ error: error.message }); }
+    });
+}
 
 router.post("/trading/reset", (req, res) => {
     try {
@@ -800,10 +677,7 @@ router.post("/config/reset", (req, res) => {
 router.get("/engine/status", async (req, res) => {
     const engine = req.app.locals.tradingEngine;
     if (!requireService(res, engine, "Trading engine")) return;
-    await getEntryRiskState(
-        req,
-        req.app.locals.configService?.get?.() || {}
-    );
+    await getLiveOperator(req).readReadiness();
     res.json(engine.getStatus());
 });
 
@@ -839,18 +713,12 @@ router.post("/engine/close/:tradeId", async (req, res) => {
 
 router.post("/engine/sync", async (req, res) => {
     try {
-        const engine = req.app.locals.tradingEngine;
-        if (!requireService(res, engine, "Trading engine")) return;
-        await engine.syncOpenTrades();
-        await engine.syncWithOanda();
-        res.json({
-            success: true,
-            message: "Trading engine synced with Oanda",
-            openTrades: engine.openTrades?.size || 0,
-        });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+        if (!requireService(res, req.app.locals.tradingEngine, "Trading engine")) return;
+        const result = await getLiveOperator(req).reconcileBroker();
+        if (result.outcome === "failed" || result.outcome === "rejected") return operatorFailure(res, result);
+        res.json({ success: result.success, message: result.message,
+            openTrades: result.openTrades ?? result.view?.overview?.engineStatus?.openPositions ?? 0 });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 router.post("/engine/reset-stats", (req, res) => {
@@ -864,15 +732,11 @@ router.post("/engine/start", async (req, res) => {
     try {
         const engine = req.app.locals.tradingEngine;
         if (!requireService(res, engine, "Trading engine")) return;
-        if (!engine.isRunning) {
-            await engine.start();
-            engine.startMonitoring?.();
-        }
+        const result = await getLiveOperator(req).attach({ reason: "engine activation" });
+        if (!result?.running && !engine.isRunning) return res.status(503).json({ error: result?.error || "Engine start failed" });
         req.app.locals.broadcastEngineStatus?.();
         res.json({ success: true, isRunning: engine.isRunning });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 router.post("/engine/stop", (req, res) => {

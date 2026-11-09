@@ -14,6 +14,7 @@ const tradingRoutes = require("./src/routes/tradingRoutes");
 const OandaDataService = require("./src/services/OandaDataService");
 const ConfigService = require("./src/services/configService");
 const LiveTradingEngine = require("./src/services/LiveTradingEngine");
+const brokerClient = require("./src/services/Oandaclient");
 const TradeRepository = require("./src/repositories/tradeRepository");
 const SignalRepository = require("./src/repositories/signalRepository");
 const EntryDecisionRepository = require("./src/repositories/entryDecisionRepository");
@@ -23,7 +24,8 @@ const BrokerLifecycleRepository = require("./src/repositories/brokerLifecycleRep
 const emailService = require("./src/services/emailService");
 const S3ReportScheduler = require("./src/services/s3ReportScheduler");
 const RuntimeCoordinator = require("./src/runtime/runtimeCoordinator");
-const { createEngineSupervisor } = require("./src/runtime/engineSupervisor");
+const LiveOperator = require("./src/runtime/liveOperator");
+const { createDashboardSources, observeOperatorChanges } = require("./src/runtime/operatorDashboardSources");
 const { OperationalHealthService } = require("./src/services/operationalHealthService");
 
 const app = express();
@@ -59,12 +61,12 @@ const INSTRUMENTS = initialConfig.assets || [
 const dataService = new OandaDataService(INSTRUMENTS);
 
 // Initialize repositories (before SignalGenerator so we can pass signalRepository)
-const tradeRepository = new TradeRepository();
-const signalRepository = new SignalRepository();
-const entryDecisionRepository = new EntryDecisionRepository();
-const strategyRunRepository = new StrategyRunRepository();
-const portfolioRepository = new PortfolioRepository();
-const brokerLifecycleRepository = new BrokerLifecycleRepository();
+const tradeRepository = new TradeRepository(db);
+const signalRepository = new SignalRepository(db);
+const entryDecisionRepository = new EntryDecisionRepository(db);
+const strategyRunRepository = new StrategyRunRepository(db);
+const portfolioRepository = new PortfolioRepository(db);
+const brokerLifecycleRepository = new BrokerLifecycleRepository(db);
 
 // Initialize shared runtime coordinator
 const runtimeCoordinator = new RuntimeCoordinator({
@@ -94,6 +96,7 @@ const s3ReportScheduler = new S3ReportScheduler(
 
 // Initialize LiveTradingEngine
 const tradingEngine = new LiveTradingEngine({
+    brokerClient,
     monitorIntervalMs: 10000, // Check positions every 10 seconds
     brokerLifecycleRepository,
 });
@@ -142,6 +145,7 @@ app.locals.entryDecisionRepository = entryDecisionRepository;
 app.locals.strategyRunRepository = strategyRunRepository;
 app.locals.portfolioRepository = portfolioRepository;
 app.locals.brokerLifecycleRepository = brokerLifecycleRepository;
+app.locals.brokerClient = brokerClient;
 app.locals.liveOnlyRuntime = true;
 app.locals.emailService = emailService;
 app.locals.operationalHealthService = operationalHealthService;
@@ -186,6 +190,18 @@ app.get("*", (req, res) => {
 // ============================================
 io.on("connection", (socket) => {
     logger.info(`Client connected: ${socket.id}`);
+    let stopOperatorView = null;
+    socket.on("operatorSubscribe", () => {
+        if (!stopOperatorView) {
+            stopOperatorView = liveOperator.observeDashboard((view) => socket.emit("operatorView", view));
+        }
+        socket.emit("operatorSubscription", { active: true });
+    });
+    socket.on("operatorUnsubscribe", () => {
+        stopOperatorView?.();
+        stopOperatorView = null;
+        socket.emit("operatorSubscription", { active: false });
+    });
 
     // Send initial data on connect
     socket.emit("connected", {
@@ -231,6 +247,7 @@ io.on("connection", (socket) => {
 
     // Handle disconnect
     socket.on("disconnect", (reason) => {
+        stopOperatorView?.();
         logger.info(`Client disconnected: ${socket.id} (${reason})`);
     });
 
@@ -316,19 +333,22 @@ tradingEngine.on("entryRejected", ({ signal, reason }) => {
     logger.debug(`Entry rejected: ${signal.symbol} - ${reason}`);
 });
 
-// Supervises engine attachment so a transient broker outage at boot can never
-// leave the engine permanently detached from the signal stream (see the
-// 2026-07-23 outage described in engineSupervisor.js).
-const engineSupervisor = createEngineSupervisor({
-    tradingEngine,
-    beforeStart: () => runtimeCoordinator.ensureLiveSelectionInitialized(),
-    // The engine must be listening before start() evaluates its first scan,
-    // including when attachment succeeds only on a later supervisor retry.
-    onStarted: () => runtimeCoordinator.start(dataService, 60000),
+// The operator module owns activation, supervised attachment and composed views.
+// HTTP, sockets and this host share the same application instance.
+const operatorDependencies = {
+    configService, coordinator: runtimeCoordinator, engine: tradingEngine, dataService,
+    tradeRepository, signalRepository, brokerClient,
+    brokerConfigured: () => Boolean(process.env.OANDA_API_KEY && process.env.OANDA_ACCOUNT_ID),
+};
+const liveOperator = new LiveOperator({
+    ...operatorDependencies,
+    sources: createDashboardSources(operatorDependencies),
+    observeChanges: (invalidate) => observeOperatorChanges(operatorDependencies, invalidate),
     onStatusChange: () => broadcastEngineStatus(),
 });
-const ensureTradingEngineStarted = engineSupervisor.ensureStarted;
+const ensureTradingEngineStarted = (options) => liveOperator.attach(options);
 
+app.locals.liveOperator = liveOperator;
 app.locals.ensureTradingEngineStarted = ensureTradingEngineStarted;
 
 // ============================================
@@ -499,7 +519,7 @@ const gracefulShutdown = (signal) => {
 
     // Stop services
     try {
-        engineSupervisor.cancelPendingRetry();
+        liveOperator.dispose();
         if (tradingEngine) tradingEngine.stop();
         if (dataService) dataService.stop();
         if (runtimeCoordinator) runtimeCoordinator.stop();

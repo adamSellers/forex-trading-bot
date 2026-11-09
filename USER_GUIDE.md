@@ -1,5 +1,7 @@
 # Live Trading Operator Guide
 
+The [Option C operator-view record](docs/reviews/2026-11-09-option-c-operator.md) describes the current local implementation and its delivery status. The dated deployment observations below remain historical checkpoints.
+
 **October 27 published, deployment deferred:** [H4 peak profit protection 2.1.0](docs/reviews/2026-10-26-h4-peak-profit-release.md) is published at `461a277`, but its standard deployment requires a flat broker account. Two open positions blocked cutover. At 07:20 AEDT the earlier release remained healthy/enabled and both positions retained protection. The new 0.5R peak trail after +1R is **not deployed**.
 
 **October 18 deployment verified:** [H4 Rolling Channel Trend 2.0.0](docs/reviews/2026-10-18-h4-channel-release.md) is deployed at clean `c09efb5`, verified healthy and flat at **17:38 AEDT**, with entries **paused** and readiness passing. All 1,468 target backend tests, build, backup and deployment health checks passed; local checks also cover 21 frontend tests, 23 health scenarios and 57 deployment/restore cases. All four pairs have completed H4 bid/ask data. Adam must use the existing Start Trading control to activate entries. Profitability and trade frequency remain unproven. Earlier pending-delivery statements below describe prior checkpoints.
@@ -57,6 +59,22 @@ The application runs `multi_day_trend` against the configured live OANDA account
 - **Exit only**: close the corresponding existing position; never open the opposite side from that event.
 - **Rejected**: an actionable event failed an explicit live check such as spread, stale price, position limit, risk, margin or account state.
 - **Paused / risk halted**: no new entries are allowed. Existing broker positions continue to be reconciled and managed.
+
+## Entry controls and dashboard availability
+
+Entry intent, permission to activate, current entry readiness and position management are separate facts. An enabled bot can still wait for a loss cooldown or another entry check. Pausing entries keeps reconciliation and existing position management running.
+
+The controls distinguish the command result from the subsequent dashboard refresh:
+
+- **Accepted** confirms the command completed. An accepted pause is saved before its slower broker/dashboard observations; the refreshed display may arrive afterward. A display-refresh failure does not turn an accepted command into a failed one.
+- **Rejected** reports a known activation blocker. The accompanying readiness details explain why activation did not proceed.
+- **Failed** reports a known command error. Check its details and the current entry intent; for example, failed persistence retains the existing in-memory safety pause.
+- **Unresolved reconciliation** means the broker check completed but exposure or order outcomes still need resolution. It does not claim that entries are ready.
+- **Unknown** means the command response was lost or invalid, so the dashboard cannot establish its outcome. Refresh and inspect current intent/readiness before deciding whether to try again. The app does not automatically repeat that command.
+
+If one dashboard source fails, its last good value may remain visible with an unavailable/stale-data message while other observations update. The dashboard refresh time does not make every retained value current. Reconnecting refreshes the shared view and prevents an older response from replacing a newer displayed observation. Broker quote event and validated receipt timestamps keep their existing meanings.
+
+An empty current setup list clears earlier setups; saved signal history does not keep a setup displayed as active after the live runtime reports none.
 
 The configuration page is intentionally read-only. Strategy parameters and risk limits belong to the deployed release so production cannot drift through dashboard edits.
 

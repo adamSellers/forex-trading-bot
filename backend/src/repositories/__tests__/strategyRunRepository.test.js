@@ -5,43 +5,20 @@ const {
     destroyTestDb,
 } = require("../../../__tests__/helpers/testDb");
 
-let mockTestDbInstance = null;
-
-jest.mock("../../../config/database", () => ({
-    db: new Proxy(function () {}, {
-        apply: (target, thisArg, args) => {
-            if (mockTestDbInstance) {
-                return mockTestDbInstance(args[0]);
-            }
-            throw new Error("Database not initialized");
-        },
-        get: (target, prop) => {
-            if (mockTestDbInstance && mockTestDbInstance[prop]) {
-                return typeof mockTestDbInstance[prop] === "function"
-                    ? mockTestDbInstance[prop].bind(mockTestDbInstance)
-                    : mockTestDbInstance[prop];
-            }
-            return undefined;
-        },
-    }),
-}));
-
 describe("StrategyRunRepository", () => {
     let repository;
     let testDb;
 
     beforeAll(async () => {
         testDb = await createTestDb();
-        mockTestDbInstance = testDb;
     });
 
     afterAll(async () => {
         await destroyTestDb(testDb);
-        mockTestDbInstance = null;
     });
 
     beforeEach(async () => {
-        repository = new StrategyRunRepository();
+        repository = new StrategyRunRepository(testDb);
         await cleanupTestDb(testDb);
     });
 

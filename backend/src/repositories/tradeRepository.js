@@ -1,8 +1,11 @@
 // backend/src/repositories/tradeRepository.js - Forex Trade Repository
-const { db } = require("../../config/database");
 const logger = require("../utils/logger");
 
 class TradeRepository {
+    constructor(database = require("../../config/database").db) {
+        this.db = database;
+    }
+
     _toNumber(value) {
         if (value === null || value === undefined || value === "") {
             return value ?? null;
@@ -190,7 +193,7 @@ class TradeRepository {
      */
     async save(trade) {
         try {
-            await db("trades").insert(this._buildTradeRecord(trade));
+            await this.db("trades").insert(this._buildTradeRecord(trade));
 
             logger.debug(`Trade saved to database: ${trade.id}`);
         } catch (error) {
@@ -204,7 +207,7 @@ class TradeRepository {
      */
     async getRecent(limit = 20, filters = {}) {
         try {
-            const records = await this._applyRuntimeFilters(db("trades"), filters)
+            const records = await this._applyRuntimeFilters(this.db("trades"), filters)
                 .orderBy("entry_time", "desc")
                 .limit(limit);
             return records.map((r) => this._mapToTradeObject(r));
@@ -220,7 +223,7 @@ class TradeRepository {
     async getByInstrument(instrument, limit = 50, filters = {}) {
         try {
             const records = await this._applyRuntimeFilters(
-                db("trades").where("instrument", instrument),
+                this.db("trades").where("instrument", instrument),
                 filters
             )
                 .orderBy("entry_time", "desc")
@@ -241,7 +244,7 @@ class TradeRepository {
                 cutoffTime instanceof Date ? cutoffTime.getTime() : cutoffTime;
 
             const timeColumn = filters.timeBasis === "realized" ? "exit_time" : "entry_time";
-            const query = db("trades").where(timeColumn, ">=", timestamp);
+            const query = this.db("trades").where(timeColumn, ">=", timestamp);
             if (filters.timeBasis === "realized") query.where("is_open", false);
             if (Number.isFinite(filters.endTime)) query.where(timeColumn, "<", filters.endTime);
             const records = await this._applyRuntimeFilters(query, filters)
@@ -258,10 +261,10 @@ class TradeRepository {
      */
     // Intent evidence preserves raw setup flags for historical trades without rewriting them.
     async getEntryEvidenceForTrades(tradeIds = []) {
-        if (!tradeIds.length || !await db.schema.hasTable("broker_order_intents")) return {};
+        if (!tradeIds.length || !await this.db.schema.hasTable("broker_order_intents")) return {};
         const evidence = {};
         for (let offset = 0; offset < tradeIds.length; offset += 200) {
-            const rows = await db("broker_order_intents")
+            const rows = await this.db("broker_order_intents")
                 .whereIn("trade_id", tradeIds.slice(offset, offset + 200))
                 .select("trade_id", "context_payload");
             for (const row of rows) {
@@ -276,7 +279,7 @@ class TradeRepository {
 
     async getAllTrades(filters = {}) {
         try {
-            const records = await this._applyRuntimeFilters(db("trades"), filters)
+            const records = await this._applyRuntimeFilters(this.db("trades"), filters)
                 .orderBy("entry_time", "asc");
             return records.map((r) => this._mapToTradeObject(r));
         } catch (error) {
@@ -287,7 +290,7 @@ class TradeRepository {
 
     async getRecentByActivity(limit = 200, filters = {}) {
         try {
-            const records = await this._applyRuntimeFilters(db("trades"), filters)
+            const records = await this._applyRuntimeFilters(this.db("trades"), filters)
                 .orderByRaw("COALESCE(exit_time, entry_time, 0) DESC")
                 .limit(limit);
             return records.map((r) => this._mapToTradeObject(r));
@@ -300,7 +303,7 @@ class TradeRepository {
     async getClosedTrades(limit = 1000, filters = {}) {
         try {
             const records = await this._applyRuntimeFilters(
-                db("trades").where("is_open", false),
+                this.db("trades").where("is_open", false),
                 filters
             )
                 .orderByRaw("COALESCE(exit_time, entry_time, 0) DESC")
@@ -314,28 +317,28 @@ class TradeRepository {
 
     async getTradeSummary(filters = {}) {
         try {
-            const row = await this._applyRuntimeFilters(db("trades"), filters)
+            const row = await this._applyRuntimeFilters(this.db("trades"), filters)
                 .select(
-                    db.raw("COUNT(*) AS total_trades"),
-                    db.raw(
+                    this.db.raw("COUNT(*) AS total_trades"),
+                    this.db.raw(
                         "SUM(CASE WHEN is_open = 1 THEN 1 ELSE 0 END) AS open_trades"
                     ),
-                    db.raw(
+                    this.db.raw(
                         "SUM(CASE WHEN is_open = 0 THEN 1 ELSE 0 END) AS closed_trades"
                     ),
-                    db.raw(
+                    this.db.raw(
                         "SUM(CASE WHEN is_open = 0 AND COALESCE(pnl_aud, 0) > 0 THEN 1 ELSE 0 END) AS winning_trades"
                     ),
-                    db.raw(
+                    this.db.raw(
                         "SUM(CASE WHEN is_open = 0 AND COALESCE(pnl_aud, 0) < 0 THEN 1 ELSE 0 END) AS losing_trades"
                     ),
-                    db.raw(
+                    this.db.raw(
                         "SUM(CASE WHEN is_open = 0 AND COALESCE(pnl_aud, 0) = 0 THEN 1 ELSE 0 END) AS flat_trades"
                     ),
-                    db.raw(
+                    this.db.raw(
                         "SUM(CASE WHEN is_open = 0 THEN COALESCE(pnl_aud, 0) ELSE 0 END) AS realized_pnl_aud"
                     ),
-                    db.raw(
+                    this.db.raw(
                         "SUM(CASE WHEN is_open = 0 THEN COALESCE(pnl_pips, 0) ELSE 0 END) AS realized_pnl_pips"
                     )
                 )
@@ -363,7 +366,7 @@ class TradeRepository {
     async getOpenTrades(filters = {}) {
         try {
             const records = await this._applyRuntimeFilters(
-                db("trades").where("is_open", true),
+                this.db("trades").where("is_open", true),
                 filters
             );
             return records.map((r) => this._mapToTradeObject(r));
@@ -448,7 +451,7 @@ class TradeRepository {
                 return;
             }
 
-            await db("trades").where("trade_id", tradeId).update(dbUpdates);
+            await this.db("trades").where("trade_id", tradeId).update(dbUpdates);
             logger.debug(
                 `Trade ${tradeId} updated:`,
                 Object.keys(dbUpdates).join(", ")
@@ -463,7 +466,7 @@ class TradeRepository {
         try {
             if (!runId) return 0;
 
-            return await this._applyRuntimeFilters(db("trades"), {
+            return await this._applyRuntimeFilters(this.db("trades"), {
                 ...filters,
                 runId,
             }).del();
@@ -475,7 +478,7 @@ class TradeRepository {
 
     async deleteByRuntimeFilters(filters = {}) {
         try {
-            return await this._applyRuntimeFilters(db("trades"), filters).del();
+            return await this._applyRuntimeFilters(this.db("trades"), filters).del();
         } catch (error) {
             logger.error("Error deleting trades by runtime filters:", error);
             throw error;
@@ -491,7 +494,7 @@ class TradeRepository {
             const cutoffTime = Date.now() - periodMs;
 
             const trades = await this._applyRuntimeFilters(
-                db("trades")
+                this.db("trades")
                     .where("entry_time", ">=", cutoffTime)
                     .where("is_open", false),
                 filters

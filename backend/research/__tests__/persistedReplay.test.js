@@ -89,7 +89,7 @@ describe('persisted chronological production-path replay', () => {
         const h = await env.replay({ input: fixtureArchive([flow]), assets: ['EUR_USD'] });
         const pricing = h.broker.getPricing.bind(h.broker);
         let wide = true;
-        // Change only the singleton transport used for final execution pricing;
+        // Change only the injected adapter used for final execution pricing;
         // normal DataService delivery still includes healthy conversion evidence.
         env.setFinalPricing(async (instruments, options) => {
             const payload = await pricing(instruments, options);

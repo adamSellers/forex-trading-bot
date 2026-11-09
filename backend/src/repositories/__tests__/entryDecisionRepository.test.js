@@ -4,36 +4,18 @@ const reconsiderationMigration = require("../../../migrations/011_add_entry_reco
 
 let mockTestDbInstance = null;
 
-jest.mock("../../../config/database", () => ({
-    db: new Proxy(function () {}, {
-        apply: (target, thisArg, args) => {
-            if (mockTestDbInstance) {
-                return mockTestDbInstance(args[0]);
-            }
-            throw new Error("Database not initialized");
-        },
-        get: (target, prop) => {
-            if (mockTestDbInstance && mockTestDbInstance[prop]) {
-                return typeof mockTestDbInstance[prop] === "function"
-                    ? mockTestDbInstance[prop].bind(mockTestDbInstance)
-                    : mockTestDbInstance[prop];
-            }
-            return undefined;
-        },
-    }),
-}));
-
 describe("EntryDecisionRepository", () => {
     let repository;
 
     beforeEach(() => {
-        repository = new EntryDecisionRepository();
         mockTestDbInstance = null;
+        repository = new EntryDecisionRepository(mockTestDbInstance);
     });
 
     test("should save and map entry decision records", async () => {
         const mockInsert = jest.fn().mockResolvedValue([1]);
         mockTestDbInstance = jest.fn().mockReturnValue({ insert: mockInsert });
+        repository = new EntryDecisionRepository(mockTestDbInstance);
 
         await repository.save({
             decisionId: "decision-1",
@@ -101,6 +83,7 @@ describe("EntryDecisionRepository", () => {
         const mockUpdate = jest.fn().mockResolvedValue(1);
         const mockWhere = jest.fn().mockReturnValue({ update: mockUpdate });
         mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+        repository = new EntryDecisionRepository(mockTestDbInstance);
 
         await repository.updateDecision("decision-2", {
             stage: "FILLED",
@@ -167,6 +150,7 @@ describe("EntryDecisionRepository", () => {
         };
         const mockWhere = jest.fn().mockReturnValue(query);
         mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+        repository = new EntryDecisionRepository(mockTestDbInstance);
 
         const result = await repository.getDecisionsSince(1710000050000);
         expect(mockWhere).toHaveBeenCalledWith(
@@ -190,6 +174,7 @@ describe("EntryDecisionRepository", () => {
         beforeEach(async () => {
             database = await createTestDb();
             mockTestDbInstance = database;
+            repository = new EntryDecisionRepository(mockTestDbInstance);
         });
         afterEach(async () => {
             await destroyTestDb(database);
@@ -257,6 +242,7 @@ describe("EntryDecisionRepository", () => {
                 return { del: mockDel };
             });
             mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+            repository = new EntryDecisionRepository(mockTestDbInstance);
 
             const now = Date.now();
             const deleted = await repository.deleteOlderThan(90);
@@ -279,6 +265,7 @@ describe("EntryDecisionRepository", () => {
                 .mockRejectedValue(new Error("DB connection failed"));
             const mockWhere = jest.fn().mockReturnValue({ del: mockDel });
             mockTestDbInstance = jest.fn().mockReturnValue({ where: mockWhere });
+            repository = new EntryDecisionRepository(mockTestDbInstance);
 
             const deleted = await repository.deleteOlderThan(90);
 
