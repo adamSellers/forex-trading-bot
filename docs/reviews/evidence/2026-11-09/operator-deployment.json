@@ -1,0 +1,314 @@
+{
+  "recordedAtUtc": "2026-11-09T01:28:25.267Z",
+  "userAuthorization": "commit and push all these changes, then deploy using the standard deployment script",
+  "repository": "adamSellers/forex-trading-bot",
+  "branch": "main",
+  "publishedRevision": "6aae5ab08e71837fde0942468807e62f93be39c1",
+  "deploymentCommand": "./scripts/deploy.sh",
+  "deploymentExitCode": 0,
+  "result": "DEPLOYED_VERIFIED",
+  "deployedRevision": "6aae5ab08e71837fde0942468807e62f93be39c1",
+  "validation": {
+    "nodeVersion": "22.16.0",
+    "localBackendPassed": 1545,
+    "localFrontendPassed": 50,
+    "localDeploymentRestoreFixtures": 57,
+    "localHealthScenarios": 24,
+    "localBackupRegressions": "passed",
+    "targetBackendPassed": 1545,
+    "targetBackendSuitesPassed": 78,
+    "optInHistoricalResearchSkipped": 1,
+    "targetFrontendBuild": "passed",
+    "databaseMigrations": "Already up to date"
+  },
+  "backup": {
+    "timestamp": "20261109_122012",
+    "sourceArchive": "/home/adam/forex-trading-bot-backups/forex_backup_20261109_122012.tar.gz",
+    "sqliteSnapshot": "/home/adam/forex-trading-bot-backups/trading_20261109_122012.db",
+    "verifiedByStandardDeployment": true
+  },
+  "maintenanceDowntime": {
+    "observedResponse": "502 Bad Gateway",
+    "phase": "SQLite snapshot before release cutover",
+    "backendIntentionallyStopped": true,
+    "brokerConfirmedFlatBeforeStop": true,
+    "databaseSizeApproximate": "2.8G (ls -lh)",
+    "observedCopyProgressApproximate": "2.3G (ls -lh)",
+    "activeSqliteProcessObserved": true,
+    "dashboardHTTPStatusAfterRecovery": 200
+  },
+  "before": {
+    "observedAtUtc": "2026-11-09T01:16:45.183Z",
+    "revision": "c09efb5da7ab915510b4f239e1fe2b54e35d6973",
+    "trackedStatus": "",
+    "config": {
+      "strategy": "multi_day_trend",
+      "release": "h4-channel-v1",
+      "executionPolicyVersion": "h4-channel-risk-v1",
+      "configHash": "5c21f2ba01099502340f",
+      "enableTrading": true
+    },
+    "engine": {
+      "isRunning": true,
+      "tradingEnabled": true,
+      "monitoringActive": true,
+      "openPositions": 0,
+      "pendingOrderIntentCount": 0,
+      "brokerStateUncertain": false,
+      "quarantinedBrokerPositions": 0,
+      "protectionPendingTrades": [],
+      "entryRisk": {
+        "status": "READY",
+        "entryAllowed": true,
+        "cooldownActive": false,
+        "consecutiveLosses": 0,
+        "maxConsecutiveLosses": 3,
+        "cooldownDurationMs": 86400000,
+        "cooldownStartedAt": null,
+        "cooldownUntil": null,
+        "remainingMs": 0,
+        "lastLossAt": 1793935955780,
+        "lastCooldownUntil": 1793872986613,
+        "streakResetAt": 1794001510066,
+        "evaluatedAt": 1794187004545,
+        "runId": "live_c5696338-3663-4012-b7ff-cd8ae5c211c8"
+      },
+      "lastSuccessfulBrokerSyncAt": 1794186996018
+    },
+    "readiness": {
+      "passed": true,
+      "activationAllowed": true,
+      "status": "PASS",
+      "reasons": []
+    },
+    "health": {
+      "status": "healthy",
+      "entryState": "WATCHING",
+      "issues": [],
+      "degradedReasons": [],
+      "services": {
+        "api": true,
+        "oanda": true,
+        "dataService": true,
+        "signalGenerator": true,
+        "tradingEngine": true
+      }
+    }
+  },
+  "after": {
+    "observedAtUtc": "2026-11-09T01:26:11.965Z",
+    "revision": "6aae5ab08e71837fde0942468807e62f93be39c1",
+    "trackedStatus": "",
+    "processId": "197248",
+    "config": {
+      "strategy": "multi_day_trend",
+      "release": "h4-channel-v2",
+      "executionPolicyVersion": "h4-channel-risk-v2",
+      "configHash": "bd00b22e4ca1d3a6d182",
+      "enableTrading": true,
+      "enablePeakProfitTrail": true,
+      "peakProfitTrailActivationRiskMultiple": 1,
+      "peakProfitTrailRiskMultiple": 0.5,
+      "riskPerTrade": 0.0025,
+      "maxCapitalAtRisk": 100,
+      "maxAggregateStopRiskPctNav": 0.005
+    },
+    "engine": {
+      "isRunning": true,
+      "tradingEnabled": true,
+      "monitoringActive": true,
+      "openPositions": 0,
+      "pendingOrderIntentCount": 0,
+      "brokerStateUncertain": false,
+      "quarantinedBrokerPositions": 0,
+      "protectionPendingTrades": [],
+      "entryRisk": {
+        "status": "READY",
+        "entryAllowed": true,
+        "cooldownActive": false,
+        "consecutiveLosses": 0,
+        "maxConsecutiveLosses": 3,
+        "cooldownDurationMs": 86400000,
+        "cooldownStartedAt": null,
+        "cooldownUntil": null,
+        "remainingMs": 0,
+        "lastLossAt": null,
+        "lastCooldownUntil": null,
+        "streakResetAt": null,
+        "evaluatedAt": 1794187569795,
+        "runId": "live_df3ef3bf-1487-4621-b42a-e2ba0b88e99a"
+      },
+      "lastSuccessfulBrokerSyncAt": 1794187565943,
+      "owners": []
+    },
+    "readiness": {
+      "passed": true,
+      "activationAllowed": true,
+      "status": "PASS",
+      "reasons": []
+    },
+    "health": {
+      "status": "healthy",
+      "entryState": "WATCHING",
+      "issues": [],
+      "degradedReasons": [],
+      "services": {
+        "api": true,
+        "oanda": true,
+        "dataService": true,
+        "signalGenerator": true,
+        "tradingEngine": true
+      }
+    },
+    "brokerObservation": {
+      "openTrades": 0,
+      "pendingOrders": 0
+    },
+    "operator": {
+      "schemaVersion": 1,
+      "streamId": "fa8fd4ee-1051-49d4-9d3e-3298c487738d",
+      "publication": 2,
+      "intent": {
+        "entriesEnabled": true,
+        "durable": true
+      },
+      "activation": {
+        "allowed": true,
+        "reasons": []
+      },
+      "entries": {
+        "state": "WATCHING",
+        "entryRisk": {
+          "status": "READY",
+          "entryAllowed": true,
+          "cooldownActive": false,
+          "consecutiveLosses": 0,
+          "maxConsecutiveLosses": 3,
+          "cooldownDurationMs": 86400000,
+          "cooldownStartedAt": null,
+          "cooldownUntil": null,
+          "remainingMs": 0,
+          "lastLossAt": null,
+          "lastCooldownUntil": null,
+          "streakResetAt": null,
+          "evaluatedAt": 1794187570142,
+          "runId": "live_df3ef3bf-1487-4621-b42a-e2ba0b88e99a"
+        }
+      },
+      "protection": {
+        "engineAttached": true,
+        "monitoringActive": true
+      },
+      "identity": {
+        "liveRunId": "live_df3ef3bf-1487-4621-b42a-e2ba0b88e99a",
+        "strategy": "multi_day_trend"
+      },
+      "observations": {
+        "systemStatus": {
+          "status": "available",
+          "observedAt": 1794187570150,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "engineStatus": {
+          "status": "available",
+          "observedAt": 1794187570150,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "portfolio": {
+          "status": "available",
+          "observedAt": 1794187571286,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "trades": {
+          "status": "available",
+          "observedAt": 1794187570560,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "signals": {
+          "status": "available",
+          "observedAt": 1794187570150,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "prices": {
+          "status": "available",
+          "observedAt": 1794187570150,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "account": {
+          "status": "available",
+          "observedAt": 1794187571270,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "liveSelection": {
+          "status": "available",
+          "observedAt": 1794187570560,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "catalog": {
+          "status": "available",
+          "observedAt": 1794187570150,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "readiness": {
+          "status": "available",
+          "observedAt": 1794187570561,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        },
+        "operationalHealth": {
+          "status": "available",
+          "observedAt": 1794187570566,
+          "lastAttemptAt": 1794187570141,
+          "error": null
+        }
+      }
+    },
+    "socket": {
+      "schemaVersion": 1,
+      "streamId": "fa8fd4ee-1051-49d4-9d3e-3298c487738d",
+      "publication": 1,
+      "subscribed": true,
+      "released": true
+    },
+    "frontend": {
+      "asset": "/assets/index-Bv_U2o8G.js",
+      "status": 200,
+      "dashboardHTTPStatus": 200,
+      "dashboardReferencesCurrentAsset": true,
+      "referencesOperatorInterface": true
+    }
+  },
+  "deploymentLogSha256": "37ad1e9aa1eb518eec4383372b52fcfababdf665f026f6d428558b340cc222cb",
+  "deploymentLogSummary": [
+    "Preparing release 6aae5ab: installing dependencies, testing and building...",
+    "Test Suites: 1 skipped, 78 passed, 78 of 79 total",
+    "Tests:       1 skipped, 1545 passed, 1546 total",
+    "Backing up the paused installation...",
+    "Forex Trading Bot backup: 20261109_122012",
+    "info  Applying pre-backup retention (keep 3)",
+    "info  Creating atomic source archive",
+    "done  Source archive: /home/adam/forex-trading-bot-backups/forex_backup_20261109_122012.tar.gz",
+    "info  Stopping forex-backend while the flat database is snapshotted",
+    "info  Creating bounded SQLite snapshot",
+    "info  Restarting forex-backend after snapshot",
+    "done  Verified database snapshot: /home/adam/forex-trading-bot-backups/trading_20261109_122012.db",
+    "info  Applying post-backup retention (keep 3)",
+    "done  Backup complete",
+    "Installing release 6aae5ab...",
+    "Already up to date",
+    "Previous trading state restored: enabled.",
+    "Deployment complete: 6aae5ab. Dashboard: http://fx.oakroad"
+  ],
+  "productionSourceEditedDirectly": false,
+  "manualTestOrdersPlaced": false,
+  "excludedPreExistingLocalEvidence": "docs/reviews/evidence/2026-10-18/h4-live-observation/"
+}

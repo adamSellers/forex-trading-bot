@@ -8,13 +8,23 @@ The implementation request authorized local work, builds and tests. Adam subsequ
 
 | Fact | Recorded state |
 | --- | --- |
-| Local implementation | Option C and the recovery, dependency-injection, lifecycle, admission and documentation corrections are complete and locally validated. Publication and standard deployment are now authorized and being prepared. |
-| Source base | Local working tree based on `7ddee7923839bcd7ae8a4cac0df3c182229a07c2`; no new source commit or publication. |
+| Released implementation | Option C and the recovery, dependency-injection, lifecycle, admission and documentation corrections are published and deployed at `6aae5ab08e71837fde0942468807e62f93be39c1`. Local checks, target checks and post-deployment verification passed. |
+| Source base and publication | The release was committed locally on `main` over `7ddee79`, then pushed to GitHub before deployment. It contains the 44 reviewed implementation/test/documentation files; pre-existing H4 observation captures remain local. |
 | Prior published executable release | H4-v2 peak protection 2.1.0, implementation `461a27758c6b181b2ec679eef060aeefb3f0708c`. |
-| Last saved production observation | October 27 at 07:20 AEDT: clean `c09efb5` / H4-v1, enabled entries and two protected positions, with healthy management/readiness. This is a dated observation, not today's runtime assertion. |
+| Prior October 27 observation | At 07:20 AEDT, clean `c09efb5` / H4-v1 had enabled entries and two protected positions, with healthy management/readiness. Its earlier delivery record retains that dated checkpoint. |
 | November 9 pre-deployment observation | At 12:16:45 AEDT, clean `c09efb5` / H4-v1 was healthy, enabled and flat, with readiness PASS, monitoring active, zero pending entry intents/quarantines/protection updates and resolved broker state. Standard deployment preserves that observed enabled intent. |
 | Prior deployment attempt | H4-v2 deployment deferred at the existing flat-broker check before cutover; the [release record](2026-10-26-h4-peak-profit-release.md) and [delivery evidence](evidence/2026-10-27/peak-profit-deployment-deferred.json) preserve that checkpoint. |
-| This work | No production inspection, publication or deployment has been performed. |
+| Verified November 9 deployment | At **12:26:11 AEDT**, production was clean at `6aae5ab`, healthy, enabled and flat, with readiness PASS, active monitoring, zero pending broker orders/intents/quarantines/protection updates and all eleven operator observations available. |
+
+## Deployment receipt
+
+The standard `./scripts/deploy.sh` command exited **0**. It consumed the published revision through GitHub, passed **1,545 backend tests across 78 suites** on the target (one opt-in historical experiment skipped), built the frontend, verified matching source/SQLite backup `20261109_122012`, confirmed schema was already up to date, installed the release and passed operational health. The command restored the previously enabled entry intent.
+
+This also completes delivery of the previously published H4-v2 release: config is `h4-channel-v2` / `h4-channel-risk-v2`, hash `bd00b22e4ca1d3a6d182`, with the already-approved +1R activation / 0.5R peak trail for new owners. The observed risk settings remain 0.25% entry risk, A$100 sizing-capital ceiling and 0.5%-of-NAV aggregate stop risk. Retained owners keep their saved policies.
+
+Post-deployment GETs confirmed the operator schema, enabled/durable intent, readiness, protection and all eleven source observations. A read-only Socket.IO probe subscribed, received a composed view and released its subscription. Nginx returned **HTTP 200** at `http://fx.oakroad/` and served the new `/assets/index-Bv_U2o8G.js` entry artifact. No manual test order or production source edit was made. The [reduced delivery evidence](evidence/2026-11-09/operator-deployment.json) records before/after observations, backup identity and command-log hash. A documentation-only delivery receipt follows the deployed executable commit in GitHub history.
+
+During the standard backup, the backend was deliberately stopped while copying the approximately 2.8G SQLite database. The dashboard returned `502 Bad Gateway` during that window; PM2 reported the process stopped while the active SQLite copy had reached approximately 2.3G. The script restarted the backend after the copy, verified the snapshot and completed cutover. This was observed maintenance downtime before the new source was installed, not evidence of a crash in Option C. The visible downtime should have been flagged before the backup began.
 
 ## Module interfaces and ownership
 
@@ -118,4 +128,4 @@ git diff --check
 
 The full backend run used isolated localhost permission for the API/socket fixtures. Tests used local fixtures and no production services or live orders. Software checks do not establish trading profitability. The previous engineering record and archives retain their own dated results unchanged.
 
-Implementation, build, local testing and review are complete. At that checkpoint no commits, pushes, deployment or production inspection had been performed. Adam's subsequent November 9 instruction authorizes publication and standard deployment, now in progress through local → GitHub → production. Delivery results will be recorded separately after the command and verification. The pre-existing H4 live-observation captures are outside these engineering changes and remain local. Unrelated research and operational follow-ups retain their prior status.
+Implementation, build, local/target testing, publication and standard deployment are complete. The recorded post-deployment checks describe the measured state at 12:26:11 AEDT; they do not guarantee future connectivity, exposure or profitability. The pre-existing H4 live-observation captures remain local. Unrelated research and operational follow-ups retain their prior status.
